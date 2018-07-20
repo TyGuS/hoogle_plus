@@ -1,0 +1,624 @@
+bytestring
+Data.ByteString.Short
+DataDecl () (DataType ()) Nothing (DHead () (Ident () "ShortByteString")) [] []
+Data.ByteString.Short.toShort :: [37m([0mByteString [37m->[0m ShortByteString[37m)[0m
+Data.ByteString.Short.fromShort :: [37m([0mShortByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Short.pack :: [37m([0mList [37m([0mWord8[37m)[0m [37m->[0m ShortByteString[37m)[0m
+Data.ByteString.Short.unpack :: [37m([0mShortByteString [37m->[0m List [37m([0mWord8[37m)[0m[37m)[0m
+Data.ByteString.Short.empty :: ShortByteString
+Data.ByteString.Short.null :: [37m([0mShortByteString [37m->[0m Bool[37m)[0m
+Data.ByteString.Short.length :: [37m([0mShortByteString [37m->[0m Int[37m)[0m
+Data.ByteString.Short.index :: [37m([0mShortByteString [37m->[0m [37m([0mInt [37m->[0m Word8[37m)[0m[37m)[0m
+Data.ByteString.Unsafe
+Data.ByteString.Unsafe.unsafeHead :: [37m([0mByteString [37m->[0m Word8[37m)[0m
+Data.ByteString.Unsafe.unsafeTail :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Unsafe.unsafeInit :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Unsafe.unsafeLast :: [37m([0mByteString [37m->[0m Word8[37m)[0m
+Data.ByteString.Unsafe.unsafeIndex :: [37m([0mByteString [37m->[0m [37m([0mInt [37m->[0m Word8[37m)[0m[37m)[0m
+Data.ByteString.Unsafe.unsafeTake :: [37m([0mInt [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Unsafe.unsafeDrop :: [37m([0mInt [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Unsafe.unsafeUseAsCString :: [37m<[0ma[37m>[0m [37m.[0m [37m([0mByteString [37m->[0m [37m([0m[37m([0mCString [37m->[0m IO [37m([0ma[37m)[0m[37m)[0m [37m->[0m IO [37m([0ma[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Unsafe.unsafeUseAsCStringLen :: [37m<[0ma[37m>[0m [37m.[0m [37m([0mByteString [37m->[0m [37m([0m[37m([0mCStringLen [37m->[0m IO [37m([0ma[37m)[0m[37m)[0m [37m->[0m IO [37m([0ma[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Unsafe.unsafePackCString :: [37m([0mCString [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Unsafe.unsafePackCStringLen :: [37m([0mCStringLen [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Unsafe.unsafePackMallocCString :: [37m([0mCString [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Unsafe.unsafePackMallocCStringLen :: [37m([0mCStringLen [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Unsafe.unsafePackAddress :: [37m([0mAddr# [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Unsafe.unsafePackAddressLen :: [37m([0mInt [37m->[0m [37m([0mAddr# [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Unsafe.unsafePackCStringFinalizer :: [37m([0mPtr [37m([0mWord8[37m)[0m [37m->[0m [37m([0mInt [37m->[0m [37m([0mIO [37m([0mUnit[37m)[0m [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Unsafe.unsafeFinalize :: [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m
+Data.ByteString
+DataDecl () (DataType ()) Nothing (DHead () (Ident () "ByteString")) [] []
+Data.ByteString.empty :: ByteString
+Data.ByteString.singleton :: [37m([0mWord8 [37m->[0m ByteString[37m)[0m
+Data.ByteString.pack :: [37m([0mList [37m([0mWord8[37m)[0m [37m->[0m ByteString[37m)[0m
+Data.ByteString.unpack :: [37m([0mByteString [37m->[0m List [37m([0mWord8[37m)[0m[37m)[0m
+Data.ByteString.cons :: [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+InfixDecl () (AssocRight ()) (Just 5) [VarOp () (Ident () "cons")]
+Data.ByteString.snoc :: [37m([0mByteString [37m->[0m [37m([0mWord8 [37m->[0m ByteString[37m)[0m[37m)[0m
+InfixDecl () (AssocLeft ()) (Just 5) [VarOp () (Ident () "snoc")]
+Data.ByteString.append :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.head :: [37m([0mByteString [37m->[0m Word8[37m)[0m
+Data.ByteString.uncons :: [37m([0mByteString [37m->[0m Maybe [37m([0mPair [37m([0mWord8[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.unsnoc :: [37m([0mByteString [37m->[0m Maybe [37m([0mPair [37m([0mByteString[37m)[0m [37m([0mWord8[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.last :: [37m([0mByteString [37m->[0m Word8[37m)[0m
+Data.ByteString.tail :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.init :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.null :: [37m([0mByteString [37m->[0m Bool[37m)[0m
+Data.ByteString.length :: [37m([0mByteString [37m->[0m Int[37m)[0m
+Data.ByteString.map :: [37m([0m[37m([0mWord8 [37m->[0m Word8[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.reverse :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.intersperse :: [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.intercalate :: [37m([0mByteString [37m->[0m [37m([0mList [37m([0mByteString[37m)[0m [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.transpose :: [37m([0mList [37m([0mByteString[37m)[0m [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.foldl :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0ma [37m->[0m [37m([0mWord8 [37m->[0m a[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m [37m([0mByteString [37m->[0m a[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.foldl' :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0ma [37m->[0m [37m([0mWord8 [37m->[0m a[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m [37m([0mByteString [37m->[0m a[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.foldl1 :: [37m([0m[37m([0mWord8 [37m->[0m [37m([0mWord8 [37m->[0m Word8[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Word8[37m)[0m[37m)[0m
+Data.ByteString.foldl1' :: [37m([0m[37m([0mWord8 [37m->[0m [37m([0mWord8 [37m->[0m Word8[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Word8[37m)[0m[37m)[0m
+Data.ByteString.foldr :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0mWord8 [37m->[0m [37m([0ma [37m->[0m a[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m [37m([0mByteString [37m->[0m a[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.foldr' :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0mWord8 [37m->[0m [37m([0ma [37m->[0m a[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m [37m([0mByteString [37m->[0m a[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.foldr1 :: [37m([0m[37m([0mWord8 [37m->[0m [37m([0mWord8 [37m->[0m Word8[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Word8[37m)[0m[37m)[0m
+Data.ByteString.foldr1' :: [37m([0m[37m([0mWord8 [37m->[0m [37m([0mWord8 [37m->[0m Word8[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Word8[37m)[0m[37m)[0m
+Data.ByteString.concat :: [37m([0mList [37m([0mByteString[37m)[0m [37m->[0m ByteString[37m)[0m
+Data.ByteString.concatMap :: [37m([0m[37m([0mWord8 [37m->[0m ByteString[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.any :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.all :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.maximum :: [37m([0mByteString [37m->[0m Word8[37m)[0m
+Data.ByteString.minimum :: [37m([0mByteString [37m->[0m Word8[37m)[0m
+Data.ByteString.scanl :: [37m([0m[37m([0mWord8 [37m->[0m [37m([0mWord8 [37m->[0m Word8[37m)[0m[37m)[0m [37m->[0m [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.scanl1 :: [37m([0m[37m([0mWord8 [37m->[0m [37m([0mWord8 [37m->[0m Word8[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.scanr :: [37m([0m[37m([0mWord8 [37m->[0m [37m([0mWord8 [37m->[0m Word8[37m)[0m[37m)[0m [37m->[0m [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.scanr1 :: [37m([0m[37m([0mWord8 [37m->[0m [37m([0mWord8 [37m->[0m Word8[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.mapAccumL :: [37m<[0macc[37m>[0m [37m.[0m [37m([0m[37m([0macc [37m->[0m [37m([0mWord8 [37m->[0m Pair [37m([0macc[37m)[0m [37m([0mWord8[37m)[0m[37m)[0m[37m)[0m [37m->[0m [37m([0macc [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0macc[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.mapAccumR :: [37m<[0macc[37m>[0m [37m.[0m [37m([0m[37m([0macc [37m->[0m [37m([0mWord8 [37m->[0m Pair [37m([0macc[37m)[0m [37m([0mWord8[37m)[0m[37m)[0m[37m)[0m [37m->[0m [37m([0macc [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0macc[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.replicate :: [37m([0mInt [37m->[0m [37m([0mWord8 [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.unfoldr :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0ma [37m->[0m Maybe [37m([0mPair [37m([0mWord8[37m)[0m [37m([0ma[37m)[0m[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.unfoldrN :: [37m<[0ma[37m>[0m [37m.[0m [37m([0mInt [37m->[0m [37m([0m[37m([0ma [37m->[0m Maybe [37m([0mPair [37m([0mWord8[37m)[0m [37m([0ma[37m)[0m[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mMaybe [37m([0ma[37m)[0m[37m)[0m[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.take :: [37m([0mInt [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.drop :: [37m([0mInt [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.splitAt :: [37m([0mInt [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.takeWhile :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.dropWhile :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.span :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.spanEnd :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.break :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.breakEnd :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.group :: [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.groupBy :: [37m([0m[37m([0mWord8 [37m->[0m [37m([0mWord8 [37m->[0m Bool[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.inits :: [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.tails :: [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.stripPrefix :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.stripSuffix :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.split :: [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.splitWith :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.isPrefixOf :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.isSuffixOf :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.isInfixOf :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.breakSubstring :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.findSubstring :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mInt[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.findSubstrings :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mInt[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.elem :: [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.notElem :: [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.find :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mWord8[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.filter :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.partition :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.index :: [37m([0mByteString [37m->[0m [37m([0mInt [37m->[0m Word8[37m)[0m[37m)[0m
+Data.ByteString.elemIndex :: [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mInt[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.elemIndices :: [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mInt[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.elemIndexEnd :: [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mInt[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.findIndex :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mInt[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.findIndices :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mInt[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.count :: [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m Int[37m)[0m[37m)[0m
+Data.ByteString.zip :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mPair [37m([0mWord8[37m)[0m [37m([0mWord8[37m)[0m[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.zipWith :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0mWord8 [37m->[0m [37m([0mWord8 [37m->[0m a[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m List [37m([0ma[37m)[0m[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.unzip :: [37m([0mList [37m([0mPair [37m([0mWord8[37m)[0m [37m([0mWord8[37m)[0m[37m)[0m [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.sort :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.copy :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.packCString :: [37m([0mCString [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.packCStringLen :: [37m([0mCStringLen [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.useAsCString :: [37m<[0ma[37m>[0m [37m.[0m [37m([0mByteString [37m->[0m [37m([0m[37m([0mCString [37m->[0m IO [37m([0ma[37m)[0m[37m)[0m [37m->[0m IO [37m([0ma[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.useAsCStringLen :: [37m<[0ma[37m>[0m [37m.[0m [37m([0mByteString [37m->[0m [37m([0m[37m([0mCStringLen [37m->[0m IO [37m([0ma[37m)[0m[37m)[0m [37m->[0m IO [37m([0ma[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.getLine :: IO [37m([0mByteString[37m)[0m
+Data.ByteString.getContents :: IO [37m([0mByteString[37m)[0m
+Data.ByteString.putStr :: [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m
+Data.ByteString.putStrLn :: [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m
+Data.ByteString.interact :: [37m([0m[37m([0mByteString [37m->[0m ByteString[37m)[0m [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m
+Data.ByteString.readFile :: [37m([0mFilePath [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.writeFile :: [37m([0mFilePath [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.appendFile :: [37m([0mFilePath [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.hGetLine :: [37m([0mHandle [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.hGetContents :: [37m([0mHandle [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.hGet :: [37m([0mHandle [37m->[0m [37m([0mInt [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.hGetSome :: [37m([0mHandle [37m->[0m [37m([0mInt [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.hGetNonBlocking :: [37m([0mHandle [37m->[0m [37m([0mInt [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.hPut :: [37m([0mHandle [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.hPutNonBlocking :: [37m([0mHandle [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.hPutStr :: [37m([0mHandle [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.hPutStrLn :: [37m([0mHandle [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.breakByte :: [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy
+DataDecl () (DataType ()) Nothing (DHead () (Ident () "ByteString")) [] []
+Data.ByteString.Lazy.empty :: ByteString
+Data.ByteString.Lazy.singleton :: [37m([0mWord8 [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.pack :: [37m([0mList [37m([0mWord8[37m)[0m [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.unpack :: [37m([0mByteString [37m->[0m List [37m([0mWord8[37m)[0m[37m)[0m
+Data.ByteString.Lazy.fromStrict :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.toStrict :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.fromChunks :: [37m([0mList [37m([0mByteString[37m)[0m [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.toChunks :: [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.foldrChunks :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0mByteString [37m->[0m [37m([0ma [37m->[0m a[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m [37m([0mByteString [37m->[0m a[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.foldlChunks :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0ma [37m->[0m [37m([0mByteString [37m->[0m a[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m [37m([0mByteString [37m->[0m a[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.cons :: [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+InfixDecl () (AssocRight ()) (Just 5) [VarOp () (Ident () "cons")]
+Data.ByteString.Lazy.cons' :: [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+InfixDecl () (AssocRight ()) (Just 5) [VarOp () (Ident () "cons'")]
+Data.ByteString.Lazy.snoc :: [37m([0mByteString [37m->[0m [37m([0mWord8 [37m->[0m ByteString[37m)[0m[37m)[0m
+InfixDecl () (AssocLeft ()) (Just 5) [VarOp () (Ident () "snoc")]
+Data.ByteString.Lazy.append :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.head :: [37m([0mByteString [37m->[0m Word8[37m)[0m
+Data.ByteString.Lazy.uncons :: [37m([0mByteString [37m->[0m Maybe [37m([0mPair [37m([0mWord8[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.unsnoc :: [37m([0mByteString [37m->[0m Maybe [37m([0mPair [37m([0mByteString[37m)[0m [37m([0mWord8[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.last :: [37m([0mByteString [37m->[0m Word8[37m)[0m
+Data.ByteString.Lazy.tail :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.init :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.null :: [37m([0mByteString [37m->[0m Bool[37m)[0m
+Data.ByteString.Lazy.length :: [37m([0mByteString [37m->[0m Int64[37m)[0m
+Data.ByteString.Lazy.map :: [37m([0m[37m([0mWord8 [37m->[0m Word8[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.reverse :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.intersperse :: [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.intercalate :: [37m([0mByteString [37m->[0m [37m([0mList [37m([0mByteString[37m)[0m [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.transpose :: [37m([0mList [37m([0mByteString[37m)[0m [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.foldl :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0ma [37m->[0m [37m([0mWord8 [37m->[0m a[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m [37m([0mByteString [37m->[0m a[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.foldl' :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0ma [37m->[0m [37m([0mWord8 [37m->[0m a[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m [37m([0mByteString [37m->[0m a[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.foldl1 :: [37m([0m[37m([0mWord8 [37m->[0m [37m([0mWord8 [37m->[0m Word8[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Word8[37m)[0m[37m)[0m
+Data.ByteString.Lazy.foldl1' :: [37m([0m[37m([0mWord8 [37m->[0m [37m([0mWord8 [37m->[0m Word8[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Word8[37m)[0m[37m)[0m
+Data.ByteString.Lazy.foldr :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0mWord8 [37m->[0m [37m([0ma [37m->[0m a[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m [37m([0mByteString [37m->[0m a[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.foldr1 :: [37m([0m[37m([0mWord8 [37m->[0m [37m([0mWord8 [37m->[0m Word8[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Word8[37m)[0m[37m)[0m
+Data.ByteString.Lazy.concat :: [37m([0mList [37m([0mByteString[37m)[0m [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.concatMap :: [37m([0m[37m([0mWord8 [37m->[0m ByteString[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.any :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.Lazy.all :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.Lazy.maximum :: [37m([0mByteString [37m->[0m Word8[37m)[0m
+Data.ByteString.Lazy.minimum :: [37m([0mByteString [37m->[0m Word8[37m)[0m
+Data.ByteString.Lazy.scanl :: [37m([0m[37m([0mWord8 [37m->[0m [37m([0mWord8 [37m->[0m Word8[37m)[0m[37m)[0m [37m->[0m [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.mapAccumL :: [37m<[0macc[37m>[0m [37m.[0m [37m([0m[37m([0macc [37m->[0m [37m([0mWord8 [37m->[0m Pair [37m([0macc[37m)[0m [37m([0mWord8[37m)[0m[37m)[0m[37m)[0m [37m->[0m [37m([0macc [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0macc[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.mapAccumR :: [37m<[0macc[37m>[0m [37m.[0m [37m([0m[37m([0macc [37m->[0m [37m([0mWord8 [37m->[0m Pair [37m([0macc[37m)[0m [37m([0mWord8[37m)[0m[37m)[0m[37m)[0m [37m->[0m [37m([0macc [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0macc[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.repeat :: [37m([0mWord8 [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.replicate :: [37m([0mInt64 [37m->[0m [37m([0mWord8 [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.cycle :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.iterate :: [37m([0m[37m([0mWord8 [37m->[0m Word8[37m)[0m [37m->[0m [37m([0mWord8 [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.unfoldr :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0ma [37m->[0m Maybe [37m([0mPair [37m([0mWord8[37m)[0m [37m([0ma[37m)[0m[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.take :: [37m([0mInt64 [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.drop :: [37m([0mInt64 [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.splitAt :: [37m([0mInt64 [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.takeWhile :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.dropWhile :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.span :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.break :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.group :: [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.groupBy :: [37m([0m[37m([0mWord8 [37m->[0m [37m([0mWord8 [37m->[0m Bool[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.inits :: [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.tails :: [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.stripPrefix :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.stripSuffix :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.split :: [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.splitWith :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.isPrefixOf :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.Lazy.isSuffixOf :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.Lazy.elem :: [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.Lazy.notElem :: [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.Lazy.find :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mWord8[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.filter :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.partition :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.index :: [37m([0mByteString [37m->[0m [37m([0mInt64 [37m->[0m Word8[37m)[0m[37m)[0m
+Data.ByteString.Lazy.elemIndex :: [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mInt64[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.elemIndexEnd :: [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mInt64[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.elemIndices :: [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mInt64[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.findIndex :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mInt64[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.findIndices :: [37m([0m[37m([0mWord8 [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mInt64[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.count :: [37m([0mWord8 [37m->[0m [37m([0mByteString [37m->[0m Int64[37m)[0m[37m)[0m
+Data.ByteString.Lazy.zip :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mPair [37m([0mWord8[37m)[0m [37m([0mWord8[37m)[0m[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.zipWith :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0mWord8 [37m->[0m [37m([0mWord8 [37m->[0m a[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m List [37m([0ma[37m)[0m[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.unzip :: [37m([0mList [37m([0mPair [37m([0mWord8[37m)[0m [37m([0mWord8[37m)[0m[37m)[0m [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.copy :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.getContents :: IO [37m([0mByteString[37m)[0m
+Data.ByteString.Lazy.putStr :: [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m
+Data.ByteString.Lazy.putStrLn :: [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m
+Data.ByteString.Lazy.interact :: [37m([0m[37m([0mByteString [37m->[0m ByteString[37m)[0m [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m
+Data.ByteString.Lazy.readFile :: [37m([0mFilePath [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.writeFile :: [37m([0mFilePath [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.appendFile :: [37m([0mFilePath [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.hGetContents :: [37m([0mHandle [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.hGet :: [37m([0mHandle [37m->[0m [37m([0mInt [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.hGetNonBlocking :: [37m([0mHandle [37m->[0m [37m([0mInt [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.hPut :: [37m([0mHandle [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.hPutNonBlocking :: [37m([0mHandle [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.hPutStr :: [37m([0mHandle [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8
+DataDecl () (DataType ()) Nothing (DHead () (Ident () "ByteString")) [] []
+Data.ByteString.Lazy.Char8.empty :: ByteString
+Data.ByteString.Lazy.Char8.singleton :: [37m([0mChar [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.Char8.pack :: [37m([0mList [37m([0mChar[37m)[0m [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.Char8.unpack :: [37m([0mByteString [37m->[0m List [37m([0mChar[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.fromChunks :: [37m([0mList [37m([0mByteString[37m)[0m [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.Char8.toChunks :: [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.fromStrict :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.Char8.toStrict :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.Char8.cons :: [37m([0mChar [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+InfixDecl () (AssocRight ()) (Just 5) [VarOp () (Ident () "cons")]
+Data.ByteString.Lazy.Char8.cons' :: [37m([0mChar [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+InfixDecl () (AssocRight ()) (Just 5) [VarOp () (Ident () "cons'")]
+Data.ByteString.Lazy.Char8.snoc :: [37m([0mByteString [37m->[0m [37m([0mChar [37m->[0m ByteString[37m)[0m[37m)[0m
+InfixDecl () (AssocLeft ()) (Just 5) [VarOp () (Ident () "snoc")]
+Data.ByteString.Lazy.Char8.append :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.head :: [37m([0mByteString [37m->[0m Char[37m)[0m
+Data.ByteString.Lazy.Char8.uncons :: [37m([0mByteString [37m->[0m Maybe [37m([0mPair [37m([0mChar[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.last :: [37m([0mByteString [37m->[0m Char[37m)[0m
+Data.ByteString.Lazy.Char8.tail :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.Char8.unsnoc :: [37m([0mByteString [37m->[0m Maybe [37m([0mPair [37m([0mByteString[37m)[0m [37m([0mChar[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.init :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.Char8.null :: [37m([0mByteString [37m->[0m Bool[37m)[0m
+Data.ByteString.Lazy.Char8.length :: [37m([0mByteString [37m->[0m Int64[37m)[0m
+Data.ByteString.Lazy.Char8.map :: [37m([0m[37m([0mChar [37m->[0m Char[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.reverse :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.Char8.intersperse :: [37m([0mChar [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.intercalate :: [37m([0mByteString [37m->[0m [37m([0mList [37m([0mByteString[37m)[0m [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.transpose :: [37m([0mList [37m([0mByteString[37m)[0m [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.foldl :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0ma [37m->[0m [37m([0mChar [37m->[0m a[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m [37m([0mByteString [37m->[0m a[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.foldl' :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0ma [37m->[0m [37m([0mChar [37m->[0m a[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m [37m([0mByteString [37m->[0m a[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.foldl1 :: [37m([0m[37m([0mChar [37m->[0m [37m([0mChar [37m->[0m Char[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Char[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.foldl1' :: [37m([0m[37m([0mChar [37m->[0m [37m([0mChar [37m->[0m Char[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Char[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.foldr :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0mChar [37m->[0m [37m([0ma [37m->[0m a[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m [37m([0mByteString [37m->[0m a[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.foldr1 :: [37m([0m[37m([0mChar [37m->[0m [37m([0mChar [37m->[0m Char[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Char[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.concat :: [37m([0mList [37m([0mByteString[37m)[0m [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.Char8.concatMap :: [37m([0m[37m([0mChar [37m->[0m ByteString[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.any :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.all :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.maximum :: [37m([0mByteString [37m->[0m Char[37m)[0m
+Data.ByteString.Lazy.Char8.minimum :: [37m([0mByteString [37m->[0m Char[37m)[0m
+Data.ByteString.Lazy.Char8.scanl :: [37m([0m[37m([0mChar [37m->[0m [37m([0mChar [37m->[0m Char[37m)[0m[37m)[0m [37m->[0m [37m([0mChar [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.mapAccumL :: [37m<[0macc[37m>[0m [37m.[0m [37m([0m[37m([0macc [37m->[0m [37m([0mChar [37m->[0m Pair [37m([0macc[37m)[0m [37m([0mChar[37m)[0m[37m)[0m[37m)[0m [37m->[0m [37m([0macc [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0macc[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.mapAccumR :: [37m<[0macc[37m>[0m [37m.[0m [37m([0m[37m([0macc [37m->[0m [37m([0mChar [37m->[0m Pair [37m([0macc[37m)[0m [37m([0mChar[37m)[0m[37m)[0m[37m)[0m [37m->[0m [37m([0macc [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0macc[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.repeat :: [37m([0mChar [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.Char8.replicate :: [37m([0mInt64 [37m->[0m [37m([0mChar [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.cycle :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.Char8.iterate :: [37m([0m[37m([0mChar [37m->[0m Char[37m)[0m [37m->[0m [37m([0mChar [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.unfoldr :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0ma [37m->[0m Maybe [37m([0mPair [37m([0mChar[37m)[0m [37m([0ma[37m)[0m[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.take :: [37m([0mInt64 [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.drop :: [37m([0mInt64 [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.splitAt :: [37m([0mInt64 [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.takeWhile :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.dropWhile :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.span :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.break :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.group :: [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.groupBy :: [37m([0m[37m([0mChar [37m->[0m [37m([0mChar [37m->[0m Bool[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.inits :: [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.tails :: [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.stripPrefix :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.stripSuffix :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.split :: [37m([0mChar [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.splitWith :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.lines :: [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.words :: [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.unlines :: [37m([0mList [37m([0mByteString[37m)[0m [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.Char8.unwords :: [37m([0mList [37m([0mByteString[37m)[0m [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.Char8.isPrefixOf :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.isSuffixOf :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.elem :: [37m([0mChar [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.notElem :: [37m([0mChar [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.find :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mChar[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.filter :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.index :: [37m([0mByteString [37m->[0m [37m([0mInt64 [37m->[0m Char[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.elemIndex :: [37m([0mChar [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mInt64[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.elemIndices :: [37m([0mChar [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mInt64[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.findIndex :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mInt64[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.findIndices :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mInt64[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.count :: [37m([0mChar [37m->[0m [37m([0mByteString [37m->[0m Int64[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.zip :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mPair [37m([0mChar[37m)[0m [37m([0mChar[37m)[0m[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.zipWith :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0mChar [37m->[0m [37m([0mChar [37m->[0m a[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m List [37m([0ma[37m)[0m[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.copy :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Lazy.Char8.readInt :: [37m([0mByteString [37m->[0m Maybe [37m([0mPair [37m([0mInt[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.readInteger :: [37m([0mByteString [37m->[0m Maybe [37m([0mPair [37m([0mInteger[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.getContents :: IO [37m([0mByteString[37m)[0m
+Data.ByteString.Lazy.Char8.putStr :: [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.putStrLn :: [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.interact :: [37m([0m[37m([0mByteString [37m->[0m ByteString[37m)[0m [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.readFile :: [37m([0mFilePath [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.writeFile :: [37m([0mFilePath [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.appendFile :: [37m([0mFilePath [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.hGetContents :: [37m([0mHandle [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.hGet :: [37m([0mHandle [37m->[0m [37m([0mInt [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.hGetNonBlocking :: [37m([0mHandle [37m->[0m [37m([0mInt [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.hPut :: [37m([0mHandle [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.hPutNonBlocking :: [37m([0mHandle [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.hPutStr :: [37m([0mHandle [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Lazy.Char8.hPutStrLn :: [37m([0mHandle [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8
+DataDecl () (DataType ()) Nothing (DHead () (Ident () "ByteString")) [] []
+Data.ByteString.Char8.empty :: ByteString
+Data.ByteString.Char8.singleton :: [37m([0mChar [37m->[0m ByteString[37m)[0m
+Data.ByteString.Char8.pack :: [37m([0mString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Char8.unpack :: [37m([0mByteString [37m->[0m List [37m([0mChar[37m)[0m[37m)[0m
+Data.ByteString.Char8.cons :: [37m([0mChar [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+InfixDecl () (AssocRight ()) (Just 5) [VarOp () (Ident () "cons")]
+Data.ByteString.Char8.snoc :: [37m([0mByteString [37m->[0m [37m([0mChar [37m->[0m ByteString[37m)[0m[37m)[0m
+InfixDecl () (AssocLeft ()) (Just 5) [VarOp () (Ident () "snoc")]
+Data.ByteString.Char8.append :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.head :: [37m([0mByteString [37m->[0m Char[37m)[0m
+Data.ByteString.Char8.uncons :: [37m([0mByteString [37m->[0m Maybe [37m([0mPair [37m([0mChar[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.unsnoc :: [37m([0mByteString [37m->[0m Maybe [37m([0mPair [37m([0mByteString[37m)[0m [37m([0mChar[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.last :: [37m([0mByteString [37m->[0m Char[37m)[0m
+Data.ByteString.Char8.tail :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Char8.init :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Char8.null :: [37m([0mByteString [37m->[0m Bool[37m)[0m
+Data.ByteString.Char8.length :: [37m([0mByteString [37m->[0m Int[37m)[0m
+Data.ByteString.Char8.map :: [37m([0m[37m([0mChar [37m->[0m Char[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.reverse :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Char8.intersperse :: [37m([0mChar [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.intercalate :: [37m([0mByteString [37m->[0m [37m([0mList [37m([0mByteString[37m)[0m [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.transpose :: [37m([0mList [37m([0mByteString[37m)[0m [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.foldl :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0ma [37m->[0m [37m([0mChar [37m->[0m a[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m [37m([0mByteString [37m->[0m a[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.foldl' :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0ma [37m->[0m [37m([0mChar [37m->[0m a[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m [37m([0mByteString [37m->[0m a[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.foldl1 :: [37m([0m[37m([0mChar [37m->[0m [37m([0mChar [37m->[0m Char[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Char[37m)[0m[37m)[0m
+Data.ByteString.Char8.foldl1' :: [37m([0m[37m([0mChar [37m->[0m [37m([0mChar [37m->[0m Char[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Char[37m)[0m[37m)[0m
+Data.ByteString.Char8.foldr :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0mChar [37m->[0m [37m([0ma [37m->[0m a[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m [37m([0mByteString [37m->[0m a[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.foldr' :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0mChar [37m->[0m [37m([0ma [37m->[0m a[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m [37m([0mByteString [37m->[0m a[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.foldr1 :: [37m([0m[37m([0mChar [37m->[0m [37m([0mChar [37m->[0m Char[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Char[37m)[0m[37m)[0m
+Data.ByteString.Char8.foldr1' :: [37m([0m[37m([0mChar [37m->[0m [37m([0mChar [37m->[0m Char[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Char[37m)[0m[37m)[0m
+Data.ByteString.Char8.concat :: [37m([0mList [37m([0mByteString[37m)[0m [37m->[0m ByteString[37m)[0m
+Data.ByteString.Char8.concatMap :: [37m([0m[37m([0mChar [37m->[0m ByteString[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.any :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.Char8.all :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.Char8.maximum :: [37m([0mByteString [37m->[0m Char[37m)[0m
+Data.ByteString.Char8.minimum :: [37m([0mByteString [37m->[0m Char[37m)[0m
+Data.ByteString.Char8.scanl :: [37m([0m[37m([0mChar [37m->[0m [37m([0mChar [37m->[0m Char[37m)[0m[37m)[0m [37m->[0m [37m([0mChar [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.scanl1 :: [37m([0m[37m([0mChar [37m->[0m [37m([0mChar [37m->[0m Char[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.scanr :: [37m([0m[37m([0mChar [37m->[0m [37m([0mChar [37m->[0m Char[37m)[0m[37m)[0m [37m->[0m [37m([0mChar [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.scanr1 :: [37m([0m[37m([0mChar [37m->[0m [37m([0mChar [37m->[0m Char[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.mapAccumL :: [37m<[0macc[37m>[0m [37m.[0m [37m([0m[37m([0macc [37m->[0m [37m([0mChar [37m->[0m Pair [37m([0macc[37m)[0m [37m([0mChar[37m)[0m[37m)[0m[37m)[0m [37m->[0m [37m([0macc [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0macc[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.mapAccumR :: [37m<[0macc[37m>[0m [37m.[0m [37m([0m[37m([0macc [37m->[0m [37m([0mChar [37m->[0m Pair [37m([0macc[37m)[0m [37m([0mChar[37m)[0m[37m)[0m[37m)[0m [37m->[0m [37m([0macc [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0macc[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.replicate :: [37m([0mInt [37m->[0m [37m([0mChar [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.unfoldr :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0ma [37m->[0m Maybe [37m([0mPair [37m([0mChar[37m)[0m [37m([0ma[37m)[0m[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.unfoldrN :: [37m<[0ma[37m>[0m [37m.[0m [37m([0mInt [37m->[0m [37m([0m[37m([0ma [37m->[0m Maybe [37m([0mPair [37m([0mChar[37m)[0m [37m([0ma[37m)[0m[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mMaybe [37m([0ma[37m)[0m[37m)[0m[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.take :: [37m([0mInt [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.drop :: [37m([0mInt [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.splitAt :: [37m([0mInt [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.takeWhile :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.dropWhile :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.span :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.spanEnd :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.break :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.breakEnd :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.group :: [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.groupBy :: [37m([0m[37m([0mChar [37m->[0m [37m([0mChar [37m->[0m Bool[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.inits :: [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.tails :: [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.stripPrefix :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.stripSuffix :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.split :: [37m([0mChar [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.splitWith :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.lines :: [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.words :: [37m([0mByteString [37m->[0m List [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.unlines :: [37m([0mList [37m([0mByteString[37m)[0m [37m->[0m ByteString[37m)[0m
+Data.ByteString.Char8.unwords :: [37m([0mList [37m([0mByteString[37m)[0m [37m->[0m ByteString[37m)[0m
+Data.ByteString.Char8.isPrefixOf :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.Char8.isSuffixOf :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.Char8.isInfixOf :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.Char8.breakSubstring :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.findSubstring :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mInt[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.findSubstrings :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mInt[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.elem :: [37m([0mChar [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.Char8.notElem :: [37m([0mChar [37m->[0m [37m([0mByteString [37m->[0m Bool[37m)[0m[37m)[0m
+Data.ByteString.Char8.find :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mChar[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.filter :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m ByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.index :: [37m([0mByteString [37m->[0m [37m([0mInt [37m->[0m Char[37m)[0m[37m)[0m
+Data.ByteString.Char8.elemIndex :: [37m([0mChar [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mInt[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.elemIndices :: [37m([0mChar [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mInt[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.elemIndexEnd :: [37m([0mChar [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mInt[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.findIndex :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Maybe [37m([0mInt[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.findIndices :: [37m([0m[37m([0mChar [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mInt[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.count :: [37m([0mChar [37m->[0m [37m([0mByteString [37m->[0m Int[37m)[0m[37m)[0m
+Data.ByteString.Char8.zip :: [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m List [37m([0mPair [37m([0mChar[37m)[0m [37m([0mChar[37m)[0m[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.zipWith :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0mChar [37m->[0m [37m([0mChar [37m->[0m a[37m)[0m[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m [37m([0mByteString [37m->[0m List [37m([0ma[37m)[0m[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.unzip :: [37m([0mList [37m([0mPair [37m([0mChar[37m)[0m [37m([0mChar[37m)[0m[37m)[0m [37m->[0m Pair [37m([0mByteString[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.sort :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Char8.readInt :: [37m([0mByteString [37m->[0m Maybe [37m([0mPair [37m([0mInt[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.readInteger :: [37m([0mByteString [37m->[0m Maybe [37m([0mPair [37m([0mInteger[37m)[0m [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.copy :: [37m([0mByteString [37m->[0m ByteString[37m)[0m
+Data.ByteString.Char8.packCString :: [37m([0mCString [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.packCStringLen :: [37m([0mCStringLen [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.useAsCString :: [37m<[0ma[37m>[0m [37m.[0m [37m([0mByteString [37m->[0m [37m([0m[37m([0mCString [37m->[0m IO [37m([0ma[37m)[0m[37m)[0m [37m->[0m IO [37m([0ma[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.useAsCStringLen :: [37m<[0ma[37m>[0m [37m.[0m [37m([0mByteString [37m->[0m [37m([0m[37m([0mCStringLen [37m->[0m IO [37m([0ma[37m)[0m[37m)[0m [37m->[0m IO [37m([0ma[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.getLine :: IO [37m([0mByteString[37m)[0m
+Data.ByteString.Char8.getContents :: IO [37m([0mByteString[37m)[0m
+Data.ByteString.Char8.putStr :: [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m
+Data.ByteString.Char8.putStrLn :: [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m
+Data.ByteString.Char8.interact :: [37m([0m[37m([0mByteString [37m->[0m ByteString[37m)[0m [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m
+Data.ByteString.Char8.readFile :: [37m([0mFilePath [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.writeFile :: [37m([0mFilePath [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.appendFile :: [37m([0mFilePath [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.hGetLine :: [37m([0mHandle [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.hGetContents :: [37m([0mHandle [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m
+Data.ByteString.Char8.hGet :: [37m([0mHandle [37m->[0m [37m([0mInt [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.hGetSome :: [37m([0mHandle [37m->[0m [37m([0mInt [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.hGetNonBlocking :: [37m([0mHandle [37m->[0m [37m([0mInt [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.hPut :: [37m([0mHandle [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.hPutNonBlocking :: [37m([0mHandle [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mByteString[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.hPutStr :: [37m([0mHandle [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Char8.hPutStrLn :: [37m([0mHandle [37m->[0m [37m([0mByteString [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Builder.Prim
+DataDecl () (DataType ()) Nothing (DHApp () (DHead () (Ident () "BoundedPrim")) (UnkindedVar () (Ident () "a"))) [] []
+Data.ByteString.Builder.Prim.emptyB :: [37m<[0ma[37m>[0m [37m.[0m BoundedPrim [37m([0ma[37m)[0m
+>*< :: [37m<[0ma[37m>[0m [37m.[0m [37m<[0mb[37m>[0m [37m.[0m [37m<[0mf[37m>[0m [37m.[0m [37m([0mf [37m->[0m [37m([0mf [37m->[0m f[37m)[0m[37m)[0m
+InfixDecl () (AssocRight ()) (Just 5) [VarOp () (Symbol () ">*<")]
+>$< :: [37m<[0ma[37m>[0m [37m.[0m [37m<[0mb[37m>[0m [37m.[0m [37m<[0mf[37m>[0m [37m.[0m [37m([0m[37m([0mb [37m->[0m a[37m)[0m [37m->[0m [37m([0mf [37m->[0m f[37m)[0m[37m)[0m
+InfixDecl () (AssocLeft ()) (Just 4) [VarOp () (Symbol () ">$<")]
+Data.ByteString.Builder.Prim.eitherB :: [37m<[0ma[37m>[0m [37m.[0m [37m<[0mb[37m>[0m [37m.[0m [37m([0mBoundedPrim [37m([0ma[37m)[0m [37m->[0m [37m([0mBoundedPrim [37m([0mb[37m)[0m [37m->[0m BoundedPrim [37m([0mEither [37m([0ma[37m)[0m[37m)[0m [37m([0mb[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Builder.Prim.condB :: [37m<[0ma[37m>[0m [37m.[0m [37m([0m[37m([0ma [37m->[0m Bool[37m)[0m [37m->[0m [37m([0mBoundedPrim [37m([0ma[37m)[0m [37m->[0m [37m([0mBoundedPrim [37m([0ma[37m)[0m [37m->[0m BoundedPrim [37m([0ma[37m)[0m[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Builder.Prim.primBounded :: [37m<[0ma[37m>[0m [37m.[0m [37m([0mBoundedPrim [37m([0ma[37m)[0m [37m->[0m [37m([0ma [37m->[0m Builder[37m)[0m[37m)[0m
+Data.ByteString.Builder.Prim.primMapListBounded :: [37m<[0ma[37m>[0m [37m.[0m [37m([0mBoundedPrim [37m([0ma[37m)[0m [37m->[0m [37m([0mList [37m([0ma[37m)[0m [37m->[0m Builder[37m)[0m[37m)[0m
+Data.ByteString.Builder.Prim.primUnfoldrBounded :: [37m<[0ma[37m>[0m [37m.[0m [37m<[0mb[37m>[0m [37m.[0m [37m([0mBoundedPrim [37m([0mb[37m)[0m [37m->[0m [37m([0m[37m([0ma [37m->[0m Maybe [37m([0mPair [37m([0mb[37m)[0m [37m([0ma[37m)[0m[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m Builder[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Builder.Prim.primMapByteStringBounded :: [37m([0mBoundedPrim [37m([0mWord8[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Builder[37m)[0m[37m)[0m
+Data.ByteString.Builder.Prim.primMapLazyByteStringBounded :: [37m([0mBoundedPrim [37m([0mWord8[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Builder[37m)[0m[37m)[0m
+DataDecl () (DataType ()) Nothing (DHApp () (DHead () (Ident () "FixedPrim")) (UnkindedVar () (Ident () "a"))) [] []
+Data.ByteString.Builder.Prim.emptyF :: [37m<[0ma[37m>[0m [37m.[0m FixedPrim [37m([0ma[37m)[0m
+Data.ByteString.Builder.Prim.liftFixedToBounded :: [37m<[0ma[37m>[0m [37m.[0m [37m([0mFixedPrim [37m([0ma[37m)[0m [37m->[0m BoundedPrim [37m([0ma[37m)[0m[37m)[0m
+Data.ByteString.Builder.Prim.primFixed :: [37m<[0ma[37m>[0m [37m.[0m [37m([0mFixedPrim [37m([0ma[37m)[0m [37m->[0m [37m([0ma [37m->[0m Builder[37m)[0m[37m)[0m
+Data.ByteString.Builder.Prim.primMapListFixed :: [37m<[0ma[37m>[0m [37m.[0m [37m([0mFixedPrim [37m([0ma[37m)[0m [37m->[0m [37m([0mList [37m([0ma[37m)[0m [37m->[0m Builder[37m)[0m[37m)[0m
+Data.ByteString.Builder.Prim.primUnfoldrFixed :: [37m<[0ma[37m>[0m [37m.[0m [37m<[0mb[37m>[0m [37m.[0m [37m([0mFixedPrim [37m([0mb[37m)[0m [37m->[0m [37m([0m[37m([0ma [37m->[0m Maybe [37m([0mPair [37m([0mb[37m)[0m [37m([0ma[37m)[0m[37m)[0m[37m)[0m [37m->[0m [37m([0ma [37m->[0m Builder[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Builder.Prim.primMapByteStringFixed :: [37m([0mFixedPrim [37m([0mWord8[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Builder[37m)[0m[37m)[0m
+Data.ByteString.Builder.Prim.primMapLazyByteStringFixed :: [37m([0mFixedPrim [37m([0mWord8[37m)[0m [37m->[0m [37m([0mByteString [37m->[0m Builder[37m)[0m[37m)[0m
+Data.ByteString.Builder.Prim.int8 :: FixedPrim [37m([0mInt8[37m)[0m
+Data.ByteString.Builder.Prim.word8 :: FixedPrim [37m([0mWord8[37m)[0m
+Data.ByteString.Builder.Prim.int16BE :: FixedPrim [37m([0mInt16[37m)[0m
+Data.ByteString.Builder.Prim.int32BE :: FixedPrim [37m([0mInt32[37m)[0m
+Data.ByteString.Builder.Prim.int64BE :: FixedPrim [37m([0mInt64[37m)[0m
+Data.ByteString.Builder.Prim.word16BE :: FixedPrim [37m([0mWord16[37m)[0m
+Data.ByteString.Builder.Prim.word32BE :: FixedPrim [37m([0mWord32[37m)[0m
+Data.ByteString.Builder.Prim.word64BE :: FixedPrim [37m([0mWord64[37m)[0m
+Data.ByteString.Builder.Prim.floatBE :: FixedPrim [37m([0mFloat[37m)[0m
+Data.ByteString.Builder.Prim.doubleBE :: FixedPrim [37m([0mDouble[37m)[0m
+Data.ByteString.Builder.Prim.int16LE :: FixedPrim [37m([0mInt16[37m)[0m
+Data.ByteString.Builder.Prim.int32LE :: FixedPrim [37m([0mInt32[37m)[0m
+Data.ByteString.Builder.Prim.int64LE :: FixedPrim [37m([0mInt64[37m)[0m
+Data.ByteString.Builder.Prim.word16LE :: FixedPrim [37m([0mWord16[37m)[0m
+Data.ByteString.Builder.Prim.word32LE :: FixedPrim [37m([0mWord32[37m)[0m
+Data.ByteString.Builder.Prim.word64LE :: FixedPrim [37m([0mWord64[37m)[0m
+Data.ByteString.Builder.Prim.floatLE :: FixedPrim [37m([0mFloat[37m)[0m
+Data.ByteString.Builder.Prim.doubleLE :: FixedPrim [37m([0mDouble[37m)[0m
+Data.ByteString.Builder.Prim.intHost :: FixedPrim [37m([0mInt[37m)[0m
+Data.ByteString.Builder.Prim.int16Host :: FixedPrim [37m([0mInt16[37m)[0m
+Data.ByteString.Builder.Prim.int32Host :: FixedPrim [37m([0mInt32[37m)[0m
+Data.ByteString.Builder.Prim.int64Host :: FixedPrim [37m([0mInt64[37m)[0m
+Data.ByteString.Builder.Prim.wordHost :: FixedPrim [37m([0mWord[37m)[0m
+Data.ByteString.Builder.Prim.word16Host :: FixedPrim [37m([0mWord16[37m)[0m
+Data.ByteString.Builder.Prim.word32Host :: FixedPrim [37m([0mWord32[37m)[0m
+Data.ByteString.Builder.Prim.word64Host :: FixedPrim [37m([0mWord64[37m)[0m
+Data.ByteString.Builder.Prim.floatHost :: FixedPrim [37m([0mFloat[37m)[0m
+Data.ByteString.Builder.Prim.doubleHost :: FixedPrim [37m([0mDouble[37m)[0m
+Data.ByteString.Builder.Prim.char7 :: FixedPrim [37m([0mChar[37m)[0m
+Data.ByteString.Builder.Prim.int8Dec :: BoundedPrim [37m([0mInt8[37m)[0m
+Data.ByteString.Builder.Prim.int16Dec :: BoundedPrim [37m([0mInt16[37m)[0m
+Data.ByteString.Builder.Prim.int32Dec :: BoundedPrim [37m([0mInt32[37m)[0m
+Data.ByteString.Builder.Prim.int64Dec :: BoundedPrim [37m([0mInt64[37m)[0m
+Data.ByteString.Builder.Prim.intDec :: BoundedPrim [37m([0mInt[37m)[0m
+Data.ByteString.Builder.Prim.word8Dec :: BoundedPrim [37m([0mWord8[37m)[0m
+Data.ByteString.Builder.Prim.word16Dec :: BoundedPrim [37m([0mWord16[37m)[0m
+Data.ByteString.Builder.Prim.word32Dec :: BoundedPrim [37m([0mWord32[37m)[0m
+Data.ByteString.Builder.Prim.word64Dec :: BoundedPrim [37m([0mWord64[37m)[0m
+Data.ByteString.Builder.Prim.wordDec :: BoundedPrim [37m([0mWord[37m)[0m
+Data.ByteString.Builder.Prim.word8Hex :: BoundedPrim [37m([0mWord8[37m)[0m
+Data.ByteString.Builder.Prim.word16Hex :: BoundedPrim [37m([0mWord16[37m)[0m
+Data.ByteString.Builder.Prim.word32Hex :: BoundedPrim [37m([0mWord32[37m)[0m
+Data.ByteString.Builder.Prim.word64Hex :: BoundedPrim [37m([0mWord64[37m)[0m
+Data.ByteString.Builder.Prim.wordHex :: BoundedPrim [37m([0mWord[37m)[0m
+Data.ByteString.Builder.Prim.int8HexFixed :: FixedPrim [37m([0mInt8[37m)[0m
+Data.ByteString.Builder.Prim.int16HexFixed :: FixedPrim [37m([0mInt16[37m)[0m
+Data.ByteString.Builder.Prim.int32HexFixed :: FixedPrim [37m([0mInt32[37m)[0m
+Data.ByteString.Builder.Prim.int64HexFixed :: FixedPrim [37m([0mInt64[37m)[0m
+Data.ByteString.Builder.Prim.word8HexFixed :: FixedPrim [37m([0mWord8[37m)[0m
+Data.ByteString.Builder.Prim.word16HexFixed :: FixedPrim [37m([0mWord16[37m)[0m
+Data.ByteString.Builder.Prim.word32HexFixed :: FixedPrim [37m([0mWord32[37m)[0m
+Data.ByteString.Builder.Prim.word64HexFixed :: FixedPrim [37m([0mWord64[37m)[0m
+Data.ByteString.Builder.Prim.floatHexFixed :: FixedPrim [37m([0mFloat[37m)[0m
+Data.ByteString.Builder.Prim.doubleHexFixed :: FixedPrim [37m([0mDouble[37m)[0m
+Data.ByteString.Builder.Prim.char8 :: FixedPrim [37m([0mChar[37m)[0m
+Data.ByteString.Builder.Prim.charUtf8 :: BoundedPrim [37m([0mChar[37m)[0m
+Data.ByteString.Builder.Extra
+Data.ByteString.Builder.Extra.toLazyByteStringWith :: [37m([0mAllocationStrategy [37m->[0m [37m([0mByteString [37m->[0m [37m([0mBuilder [37m->[0m ByteString[37m)[0m[37m)[0m[37m)[0m
+DataDecl () (DataType ()) Nothing (DHead () (Ident () "AllocationStrategy")) [] []
+Data.ByteString.Builder.Extra.safeStrategy :: [37m([0mInt [37m->[0m [37m([0mInt [37m->[0m AllocationStrategy[37m)[0m[37m)[0m
+Data.ByteString.Builder.Extra.untrimmedStrategy :: [37m([0mInt [37m->[0m [37m([0mInt [37m->[0m AllocationStrategy[37m)[0m[37m)[0m
+Data.ByteString.Builder.Extra.smallChunkSize :: Int
+Data.ByteString.Builder.Extra.defaultChunkSize :: Int
+Data.ByteString.Builder.Extra.byteStringCopy :: [37m([0mByteString [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.Extra.byteStringInsert :: [37m([0mByteString [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.Extra.byteStringThreshold :: [37m([0mInt [37m->[0m [37m([0mByteString [37m->[0m Builder[37m)[0m[37m)[0m
+Data.ByteString.Builder.Extra.lazyByteStringCopy :: [37m([0mByteString [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.Extra.lazyByteStringInsert :: [37m([0mByteString [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.Extra.lazyByteStringThreshold :: [37m([0mInt [37m->[0m [37m([0mByteString [37m->[0m Builder[37m)[0m[37m)[0m
+Data.ByteString.Builder.Extra.flush :: Builder
+Data.ByteString.Builder.Extra.BufferWriterToPtrToIntToIO :: [37m([0mBufferWriter [37m->[0m [37m([0mPtr [37m([0mWord8[37m)[0m [37m->[0m [37m([0mInt [37m->[0m IO [37m([0mPair [37m([0mInt[37m)[0m [37m([0mNext[37m)[0m[37m)[0m[37m)[0m[37m)[0m[37m)[0m
+DataDecl () (DataType ()) Nothing (DHead () (Ident () "Next")) [] []
+Data.ByteString.Builder.Extra.Done :: Next
+Data.ByteString.Builder.Extra.More :: [37m([0mInt [37m->[0m [37m([0mBufferWriter [37m->[0m Next[37m)[0m[37m)[0m
+Data.ByteString.Builder.Extra.Chunk :: [37m([0mByteString [37m->[0m [37m([0mBufferWriter [37m->[0m Next[37m)[0m[37m)[0m
+Data.ByteString.Builder.Extra.runBuilder :: [37m([0mBuilder [37m->[0m BufferWriter[37m)[0m
+Data.ByteString.Builder.Extra.intHost :: [37m([0mInt [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.Extra.int16Host :: [37m([0mInt16 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.Extra.int32Host :: [37m([0mInt32 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.Extra.int64Host :: [37m([0mInt64 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.Extra.wordHost :: [37m([0mWord [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.Extra.word16Host :: [37m([0mWord16 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.Extra.word32Host :: [37m([0mWord32 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.Extra.word64Host :: [37m([0mWord64 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.Extra.floatHost :: [37m([0mFloat [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.Extra.doubleHost :: [37m([0mDouble [37m->[0m Builder[37m)[0m
+Data.ByteString.Lazy.Builder.Extras
+Data.ByteString.Builder
+DataDecl () (DataType ()) Nothing (DHead () (Ident () "Builder")) [] []
+Data.ByteString.Builder.toLazyByteString :: [37m([0mBuilder [37m->[0m ByteString[37m)[0m
+Data.ByteString.Builder.hPutBuilder :: [37m([0mHandle [37m->[0m [37m([0mBuilder [37m->[0m IO [37m([0mUnit[37m)[0m[37m)[0m[37m)[0m
+Data.ByteString.Builder.byteString :: [37m([0mByteString [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.lazyByteString :: [37m([0mByteString [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.shortByteString :: [37m([0mShortByteString [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.int8 :: [37m([0mInt8 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.word8 :: [37m([0mWord8 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.int16BE :: [37m([0mInt16 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.int32BE :: [37m([0mInt32 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.int64BE :: [37m([0mInt64 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.word16BE :: [37m([0mWord16 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.word32BE :: [37m([0mWord32 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.word64BE :: [37m([0mWord64 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.floatBE :: [37m([0mFloat [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.doubleBE :: [37m([0mDouble [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.int16LE :: [37m([0mInt16 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.int32LE :: [37m([0mInt32 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.int64LE :: [37m([0mInt64 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.word16LE :: [37m([0mWord16 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.word32LE :: [37m([0mWord32 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.word64LE :: [37m([0mWord64 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.floatLE :: [37m([0mFloat [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.doubleLE :: [37m([0mDouble [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.char7 :: [37m([0mChar [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.string7 :: [37m([0mString [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.char8 :: [37m([0mChar [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.string8 :: [37m([0mString [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.charUtf8 :: [37m([0mChar [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.stringUtf8 :: [37m([0mString [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.int8Dec :: [37m([0mInt8 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.int16Dec :: [37m([0mInt16 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.int32Dec :: [37m([0mInt32 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.int64Dec :: [37m([0mInt64 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.intDec :: [37m([0mInt [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.integerDec :: [37m([0mInteger [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.word8Dec :: [37m([0mWord8 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.word16Dec :: [37m([0mWord16 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.word32Dec :: [37m([0mWord32 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.word64Dec :: [37m([0mWord64 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.wordDec :: [37m([0mWord [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.floatDec :: [37m([0mFloat [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.doubleDec :: [37m([0mDouble [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.word8Hex :: [37m([0mWord8 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.word16Hex :: [37m([0mWord16 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.word32Hex :: [37m([0mWord32 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.word64Hex :: [37m([0mWord64 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.wordHex :: [37m([0mWord [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.int8HexFixed :: [37m([0mInt8 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.int16HexFixed :: [37m([0mInt16 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.int32HexFixed :: [37m([0mInt32 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.int64HexFixed :: [37m([0mInt64 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.word8HexFixed :: [37m([0mWord8 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.word16HexFixed :: [37m([0mWord16 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.word32HexFixed :: [37m([0mWord32 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.word64HexFixed :: [37m([0mWord64 [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.floatHexFixed :: [37m([0mFloat [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.doubleHexFixed :: [37m([0mDouble [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.byteStringHex :: [37m([0mByteString [37m->[0m Builder[37m)[0m
+Data.ByteString.Builder.lazyByteStringHex :: [37m([0mByteString [37m->[0m Builder[37m)[0m
+InstDecl () Nothing (IRule () Nothing Nothing (IHApp () (IHCon () (Qual () (ModuleName () "Data.String") (Ident () "IsString"))) (TyCon () (Qual () (ModuleName () "Data.ByteString.Builder.Internal") (Ident () "Builder"))))) Nothing
+Data.ByteString.Lazy.Builder.ASCII
+Data.ByteString.Lazy.Builder.ASCII.byteStringHexFixed :: [37m([0mByteString [37m->[0m Builder[37m)[0m
+Data.ByteString.Lazy.Builder.ASCII.lazyByteStringHexFixed :: [37m([0mByteString [37m->[0m Builder[37m)[0m
+Data.ByteString.Lazy.Builder
