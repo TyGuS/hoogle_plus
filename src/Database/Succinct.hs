@@ -29,10 +29,7 @@ allTypeVars (TyUnboxedSum _ typs) = foldr (\t vars -> vars `Set.union` allTypeVa
 allTypeVars (TyList _ typs) = allTypeVars typs
 allTypeVars (TyApp _ fun arg) = allTypeVars fun `Set.union` allTypeVars arg
 allTypeVars (TyVar _ name) = Set.singleton $ nameStr name
-allTypeVars (TyCon _ name) = case name of
-    Qual _ moduleName consName -> Set.singleton $ (moduleNameStr moduleName) ++"."++ (nameStr consName)
-    UnQual _ name -> Set.singleton $ nameStr name
-    Special _ _ -> Set.empty
+allTypeVars (TyCon _ name) = Set.empty
 allTypeVars (TyParen _ typ) = allTypeVars typ
 allTypeVars (TyInfix _ typ1 _ typ2) = allTypeVars typ1 `Set.union` allTypeVars typ2
 allTypeVars (TyKind _ typ _) = allTypeVars typ
@@ -43,18 +40,19 @@ allTypeVars _ = Set.empty
 toSynquidSchema :: Type () -> State Int SSchema
 toSynquidSchema typ = do
     typs <- toSynquidSkeleton typ
-    typ' <- return $ (!!) typs 0
+    typ' <- return $ head typs
     if Set.null $ allTypeVars typ
         then  return $ Monotype typ'
         else return $ foldr ForallT (Monotype typ') $ allTypeVars typ
 
 toSynquidSkeleton :: Type () -> State Int [SType]
+toSynquidSkeleton (TyForall _ _ _ typ) = toSynquidSkeleton typ
 toSynquidSkeleton (TyFun _ arg ret) = do
     counter <- get
     put (counter + 1)
     arg' <- toSynquidSkeleton arg
     ret' <- toSynquidSkeleton ret
-    return $ [FunctionT ("x"++show counter) ((!!) arg' 0) ((!!) ret' 0)]
+    return $ [FunctionT ("x"++show counter) (head arg') (head ret')]
 toSynquidSkeleton (TyParen _ typ) = toSynquidSkeleton typ
 toSynquidSkeleton (TyKind _ typ _) = toSynquidSkeleton typ
 toSynquidSkeleton t@(TyCon _ name) = case name of
@@ -79,4 +77,8 @@ toSynquidSkeleton (TyVar _ name) = return [ScalarT (TypeVarT Map.empty $ nameStr
 toSynquidSkeleton (TyList _ typ) = do
     typ' <- toSynquidSkeleton typ
     return [ScalarT (DatatypeT ("List") typ' []) ()]
+toSynquidSkeleton (TyTuple _ _ typs) = do
+    fst <- toSynquidSkeleton (head typs)
+    snd <- toSynquidSkeleton ((!!) typs 1)
+    return [ScalarT (DatatypeT ("Pair") (fst++snd) []) ()]
 toSynquidSkeleton _ = return [AnyT]
