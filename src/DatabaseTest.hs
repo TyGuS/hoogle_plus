@@ -6,7 +6,8 @@ import Data.List.Extra
 import Data.Either
 import Control.Monad.State
 import Language.Haskell.Exts
-import Database.Succinct
+
+import Database.Convert
 import Synquid.Type
 import Synquid.Pretty
 

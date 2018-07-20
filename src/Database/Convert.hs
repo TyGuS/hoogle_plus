@@ -1,4 +1,4 @@
-module Database.Succinct where
+module Database.Convert where
 
 import Language.Haskell.Exts
 import qualified Data.Set as Set
