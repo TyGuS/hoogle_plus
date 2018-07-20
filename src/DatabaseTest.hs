@@ -8,6 +8,7 @@ import Control.Monad.State
 import Language.Haskell.Exts
 
 import Database.Convert
+import Database.Download
 import Synquid.Type
 import Synquid.Pretty
 
@@ -35,11 +36,18 @@ printSigs decl = case decl of
     EPackage pkg -> putStrLn pkg
     EModule mdl -> putStrLn mdl
 
-main = do
+convertTest = do
     [f] <- getArgs
     s   <- readFile f
     codes <- return $ splitOn "\n" s
     codes' <- return $ concat . rights . (map parseLine) $ codes
-    -- typExample <- return $ (!!) codes' (read g :: Int)
     mapM_ printSigs $ renameSigs "" $ addSynonym codes'
+
+downloadTest = do
+    downloadFile "bytestring" (Just "0.10.8.1")
+    downloadFile "bytestring" Nothing
+
+main = do
+    -- convertTest
+    downloadTest
     

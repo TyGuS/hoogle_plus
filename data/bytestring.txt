@@ -450,9 +450,9 @@ Data.ByteString.Char8.hPutStrLn :: (Handle -> (ByteString -> IO (Unit)))
 Data.ByteString.Builder.Prim
 DataDecl () (DataType ()) Nothing (DHApp () (DHead () (Ident () "BoundedPrim")) (UnkindedVar () (Ident () "a"))) [] []
 Data.ByteString.Builder.Prim.emptyB :: <a> . BoundedPrim (a)
->*< :: <a> . <b> . <f> . (f -> (f -> f))
+Data.ByteString.Builder.Prim.>*< :: <a> . <b> . <f> . (f -> (f -> f))
 InfixDecl () (AssocRight ()) (Just 5) [VarOp () (Symbol () ">*<")]
->$< :: <a> . <b> . <f> . ((b -> a) -> (f -> f))
+Data.ByteString.Builder.Prim.>$< :: <a> . <b> . <f> . ((b -> a) -> (f -> f))
 InfixDecl () (AssocLeft ()) (Just 4) [VarOp () (Symbol () ">$<")]
 Data.ByteString.Builder.Prim.eitherB :: <a> . <b> . (BoundedPrim (a) -> (BoundedPrim (b) -> BoundedPrim (Either (a)) (b)))
 Data.ByteString.Builder.Prim.condB :: <a> . ((a -> Bool) -> (BoundedPrim (a) -> (BoundedPrim (a) -> BoundedPrim (a))))

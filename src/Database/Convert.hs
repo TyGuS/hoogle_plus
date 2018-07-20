@@ -20,7 +20,7 @@ import qualified Synquid.Program as SP
 
 prependName prefix name  = case name of
     Ident _ var -> Ident () (prefix ++ "." ++ var)
-    Symbol _ var -> Symbol () var
+    Symbol _ var -> Symbol () (prefix ++ "." ++ var)
 
 nameStr name = case name of
     Ident _ var -> var
