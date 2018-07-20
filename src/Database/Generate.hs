@@ -1,6 +1,7 @@
 {-# LANGUAGE ViewPatterns, PatternGuards, TupleSections, OverloadedStrings, Rank2Types, DeriveDataTypeable #-}
 
 module Database.Generate where
+  
 import Control.Monad.IO.Class
 import Language.Haskell.Exts
 import Data.Conduit
