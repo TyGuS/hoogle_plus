@@ -1,16 +1,27 @@
-from bs4 import BeautifulSoup as soup
-from urllib2 import urlopen
-from difflib import SequenceMatcher
+# HEADER FILE AND UTF AND SHIT
+
 import re
+from urllib2 import urlopen
+from bs4 import BeautifulSoup as soup
+
 
 def print_welcome_message():
-    message = "\n\n[ The Hoogle+ Reverse Dependecy Scanner ]\n\n" + \
-        "This tool finds hackage packages that depend on a user specified\n" + \
-        "library The open source code for these packages is then scanned \n" + \
+    """ Prints the starting welcome message for the CLI interface """
+    message = "\n\n[ The Hoogle+ Reverse Dependecy Scanner ]\n\n" +\
+        "This tool finds hackage packages that depend on a user specified\n" +\
+        "library The open source code for these packages is then scanned \n" +\
         "to collect various data and statistics relevant to Hoogle+ \n"
     print message
 
+
 def get_library_name():
+    """
+    Prompts the user to input the name of the library whose reverse
+    dependencies' source code they wish to analyze.
+
+    Returns:
+        str: A hackage library name.
+    """
     message = "Please enter the library whose usage you wish to analyze"
     prompt = "Library name: "
 
@@ -18,17 +29,38 @@ def get_library_name():
     library_name = raw_input(prompt)
     return library_name
 
+
 def get_name_and_url(html_element):
+    """
+    Extracts the text embedded in an `<a/>` tag alongside its url
+
+    Args:
+        html_ement (bs4 soup): A bs4 soup element representing an 'a' tag
+
+    Returns:
+        (str, str): a tuple of the text inside an a tag alongside its url/href
+    """
     name = html_element.text.strip()
     url = html_element["href"]
     return name, url
 
+
 def get_soup(url):
+    """
+    Given a url string, it returns a bs4 soup element for easy html parsing
+
+    Args:
+        url (string): a url string
+
+    Returns:
+        (bs4 soup): A bs4 soup element of the html corresponding to the url
+    """
     url_stream = urlopen(url)
     page_html = url_stream.read()
     url_stream.close()
     text_soup = soup(page_html, "html.parser")
     return text_soup
+
 
 def process_package(url, library_name):
 
@@ -70,6 +102,10 @@ def process_package(url, library_name):
         raw_file_data = get_soup(raw_file_url)
         #print raw_file_data
     # handle the case of multiple pages
+
+
+
+
 
 def main():
     reverse_dependency_url = "https://packdeps.haskellers.com/reverse"
