@@ -16,6 +16,10 @@ import Control.Monad.State
 import Synquid.Type
 -- import Synquid.Succinct
 
+prependName prefix name  = case name of
+    Ident _ var -> Ident () (prefix ++ "." ++ var)
+    Symbol _ var -> Symbol () (prefix ++ "." ++ var)
+
 nameStr name = case name of
     Ident _ var -> var
     Symbol _ var -> var

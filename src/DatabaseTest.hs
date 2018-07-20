@@ -11,6 +11,19 @@ import Database.Convert
 import Synquid.Type
 import Synquid.Pretty
 
+renameSigs _ [] = []
+renameSigs currModule (decl:decls) = case decl of
+    EModule mdl -> decl:(renameSigs mdl decls)
+    EPackage _ -> decl:(renameSigs currModule decls)
+    EDecl (TypeSig _ names ty) -> (EDecl (TypeSig () (map (prependName currModule) names) ty)):(renameSigs currModule decls)
+    _ -> decl:(renameSigs currModule decls)
+
+addSynonym [] = []
+addSynonym (decl:decls) = case decl of
+    EDecl (TypeDecl _ (DHead _ name) typ) -> let typ' = TyFun () (TyCon () (UnQual () name)) typ
+        in (EDecl (TypeSig () [Ident () ((nameStr name)++"To"++(consStr typ))] typ')):(addSynonym decls)
+    _ -> decl:(addSynonym decls)
+
 printSigs decl = case decl of
     EDecl (TypeSig _ names ty) -> do
         signature <- return $ show $ evalState (toSynquidSchema ty) 0
@@ -28,5 +41,5 @@ main = do
     codes <- return $ splitOn "\n" s
     codes' <- return $ concat . rights . (map parseLine) $ codes
     -- typExample <- return $ (!!) codes' (read g :: Int)
-    mapM_ printSigs codes'
+    mapM_ printSigs $ renameSigs "" $ addSynonym codes'
     
