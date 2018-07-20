@@ -14,7 +14,9 @@ printSigs decl = case decl of
     EDecl (TypeSig _ names ty) -> do
         signature <- return $ show $ evalState (toSynquidSchema ty) 0
         putStrLn $ (nameStr ((!!) names 0)) ++ " :: " ++ signature
-        -- print decl
+    EDecl (TypeDecl _ (DHead _ name) typ) -> do
+        typ' <- return $ TyFun () (TyCon () (UnQual () name)) typ
+        printSigs (EDecl (TypeSig () [Ident () ((nameStr name)++"To"++(consStr typ))] typ'))
     EDecl decl -> print decl
     EPackage pkg -> putStrLn pkg
     EModule mdl -> putStrLn mdl

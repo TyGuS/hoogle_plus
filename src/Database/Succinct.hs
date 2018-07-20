@@ -22,6 +22,20 @@ nameStr name = case name of
 
 moduleNameStr (ModuleName _ name) = name
 
+consStr (TyCon _ name) = case name of
+    Qual _ moduleName consName -> (moduleNameStr moduleName) ++ "." ++ (nameStr consName)
+    UnQual _ name -> nameStr name
+    Special _ name -> specialConsStr name
+consStr (TyApp _ fun arg) = consStr fun
+consStr (TyFun _ arg ret) = (consStr arg) ++ "To" ++ (consStr ret)
+consStr (TyList _ typ) = "List"++(consStr typ)
+consStr _ = "_"
+
+specialConsStr (UnitCon _) = "Unit"
+specialConsStr (ListCon _) = "List"
+specialConsStr (FunCon _) = "Fun"
+specialConsStr _ = "_"
+
 allTypeVars (TyForall _ _ _ typ) = allTypeVars typ
 allTypeVars (TyFun _ arg ret) = allTypeVars arg `Set.union` allTypeVars ret
 allTypeVars (TyTuple _ _ typs) = foldr (\t vars -> vars `Set.union` allTypeVars t) Set.empty typs
@@ -61,7 +75,7 @@ toSynquidSkeleton t@(TyCon _ name) = case name of
         "Int" -> return [ScalarT IntT ()]
         "Bool" -> return [ScalarT BoolT ()]
         xarg -> return [ScalarT (TypeVarT Map.empty xarg) ()]
-    Special _ _ -> return [ScalarT (TypeVarT Map.empty "_") ()]
+    Special _ name -> return [ScalarT (DatatypeT (specialConsStr name) [] []) ()]
 toSynquidSkeleton (TyApp _ fun arg) 
     | (TyCon _ name) <- fun = do
         args <- toSynquidSkeleton arg
