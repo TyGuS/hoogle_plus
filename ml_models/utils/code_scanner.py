@@ -1,4 +1,4 @@
-# HEADER FILE AND UTF AND SHIT
+# HEADER FILE AND UTF
 
 import re
 from urllib2 import urlopen
