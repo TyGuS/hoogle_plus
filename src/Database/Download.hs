@@ -15,11 +15,10 @@ import Data.Maybe
 import Network.HTTP.Types.Status
 import Control.Monad.Extra
 
-type Version = String
-type PkgName = String
+import Database.Util
+
 docVersionsUrl = "https://hackage.haskell.org/packages/docs"
 docDownloadUrl = "https://hackage.haskell.org/package/"
-downloadDir = "/tmp/"
 
 -- | check whether the doc of the given version is available by querying to https://hackage.haskell.org/packages/docs
 checkVersion :: PkgName -> Version -> IO Bool
@@ -30,7 +29,7 @@ checkVersion pkg version = do
     let res = decode availability :: Maybe [(String, Bool)] -- the JSON format here is a list of (String, Bool) tuples
     case res of
         Nothing -> error "Connection error"
-        Just arr | Map.findWithDefault False vpkg $ Map.fromList arr -> return True
+        Just arr | Map.findWithDefault False vpkg $ Map.fromList arr -> putStrLn "package is available" >> return True
                  | otherwise -> error $ vpkg ++ " is not available"
 
 downloadFile :: PkgName -> Maybe Version -> IO ()

@@ -79,19 +79,17 @@ toSynquidSkeleton (TyFun _ arg ret) = do
 toSynquidSkeleton (TyParen _ typ) = toSynquidSkeleton typ
 toSynquidSkeleton (TyKind _ typ _) = toSynquidSkeleton typ
 toSynquidSkeleton t@(TyCon _ name) = case name of
-    Qual _ moduleName consName -> return [ScalarT (TypeVarT Map.empty ((moduleNameStr moduleName) ++ "." ++ (nameStr consName))) ()]
+    Qual _ moduleName consName -> return [ScalarT (DatatypeT ((moduleNameStr moduleName) ++ "." ++ (nameStr consName)) [] []) ()]
     UnQual _ name -> case nameStr name of
         "Int" -> return [ScalarT IntT ()]
         "Bool" -> return [ScalarT BoolT ()]
-        xarg -> return [ScalarT (TypeVarT Map.empty xarg) ()]
+        xarg -> return [ScalarT (DatatypeT xarg [] []) ()]
     Special _ name -> return [ScalarT (DatatypeT (specialConsStr name) [] []) ()]
 toSynquidSkeleton (TyApp _ fun arg) 
     | (TyCon _ name) <- fun = do
+        ScalarT (DatatypeT id tys _) _ <- head <$> toSynquidSkeleton fun
         args <- toSynquidSkeleton arg
-        case name of
-            Qual _ moduleName consName -> return [ScalarT (DatatypeT ((moduleNameStr moduleName) ++ "." ++ (nameStr consName)) args []) ()]
-            UnQual _ name -> return [ScalarT (DatatypeT (nameStr name) args []) ()]
-            Special _ _ -> return [ScalarT (DatatypeT ("_") args []) ()]
+        return [ScalarT (DatatypeT id (args++tys) []) ()]
     | otherwise = do
         funs <- toSynquidSkeleton fun
         args <- toSynquidSkeleton arg

@@ -59,6 +59,7 @@ import Synquid.Error
 import Synquid.Program
 import Synquid.Tokens
 import Synquid.Util
+import Synquid.Succinct
 
 import Text.PrettyPrint.ANSI.Leijen hiding ((<+>), (<$>), hsep, vsep)
 import qualified Text.PrettyPrint.ANSI.Leijen as L
@@ -507,3 +508,16 @@ lfill w d        = case renderCompact d of
  where
   spaces n | n <= 0    = empty
            | otherwise = text $ replicate n ' '
+
+instance Pretty SuccinctType where
+    pretty (SuccinctScalar t) = prettyBase pretty t
+    pretty (SuccinctFunction paramCnt param retTy) = hlBraces (commaSep $ map pretty (Set.toList param)) <+> hlParens (pretty paramCnt) <+> text "->" <+> pretty retTy
+    pretty (SuccinctDatatype (id,_) names tys cons measures) = hlParens $ text id <+> text "|" <+> hlBraces (commaSep $ map pretty (fst $ unzip $ Set.toList names)) <+> text "|" <+> hlBraces (commaSep $ map pretty (Set.toList tys))
+    pretty (SuccinctAll names ty) = text "forall" <+> hlBraces (commaSep $ map pretty (Set.toList names)) <+> text "." <+> pretty ty
+    pretty (SuccinctComposite tys) = hlBraces (commaSep $ map pretty (Set.toList tys))
+    pretty (SuccinctAny) = text "ANY"
+    pretty (SuccinctLet id ty1 ty2) = text "OOPS"
+    pretty (SuccinctInhabited s) = text "INHABITED"
+
+instance Show SuccinctType where
+    show = show . pretty
