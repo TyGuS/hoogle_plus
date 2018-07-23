@@ -17,7 +17,7 @@ import qualified Data.Map as Map
 import Data.Map (Map)
 import qualified Data.Set as Set
 import Data.Maybe
-import Data.Either
+import Data.Either hiding (fromRight)
 import Data.List
 import qualified Data.Foldable as Foldable
 import qualified Data.Traversable as Traversable

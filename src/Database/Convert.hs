@@ -14,7 +14,7 @@ import Control.Lens as Lens
 import Control.Monad.State
 
 import Synquid.Type
-import Synquid.Program (refineTop, emptyEnv, BareDeclaration)
+import Synquid.Program (refineTop, emptyEnv, BareDeclaration, Environment)
 import qualified Synquid.Program as SP
 -- import Synquid.Succinct
 
@@ -60,6 +60,21 @@ allTypeVars (TyPromoted _ _) = Set.empty
 allTypeVars (TyEquals _ ltyp rtyp) = allTypeVars ltyp `Set.union` allTypeVars rtyp
 allTypeVars _ = Set.empty
 
+datatypeOf (TyForall _ _ _ typ) = datatypeOf typ
+datatypeOf (TyFun _ arg ret) = datatypeOf arg `Set.union` datatypeOf ret
+datatypeOf (TyTuple _ _ typs) = foldr (\t vars -> vars `Set.union` datatypeOf t) (Set.singleton "Pair") typs
+datatypeOf (TyUnboxedSum _ typs) = foldr (\t vars -> vars `Set.union` datatypeOf t) Set.empty typs
+datatypeOf (TyList _ typs) = Set.singleton "List" `Set.union` datatypeOf typs
+datatypeOf (TyApp _ fun arg) = datatypeOf fun `Set.union` datatypeOf arg
+datatypeOf (TyVar _ name) = Set.empty
+datatypeOf t@(TyCon _ name) = Set.singleton $ consStr t
+datatypeOf (TyParen _ typ) = datatypeOf typ
+datatypeOf (TyInfix _ typ1 _ typ2) = datatypeOf typ1 `Set.union` datatypeOf typ2
+datatypeOf (TyKind _ typ _) = datatypeOf typ
+datatypeOf (TyPromoted _ _) = Set.empty
+datatypeOf (TyEquals _ ltyp rtyp) = datatypeOf ltyp `Set.union` datatypeOf rtyp
+datatypeOf _ = Set.empty
+
 toSynquidSchema :: Type () -> State Int SSchema
 toSynquidSchema typ = do
     typs <- toSynquidSkeleton typ
@@ -100,7 +115,7 @@ toSynquidSkeleton (TyList _ typ) = do
     return [ScalarT (DatatypeT ("List") typ' []) ()]
 toSynquidSkeleton (TyTuple _ _ typs) = do
     fst <- toSynquidSkeleton (head typs)
-    snd <- toSynquidSkeleton ((!!) typs 1)
+    snd <- toSynquidSkeleton (typs !! 1)
     return [ScalarT (DatatypeT ("Pair") (fst++snd) []) ()]
 toSynquidSkeleton _ = return [AnyT]
 
@@ -113,34 +128,34 @@ decomposeDH (DHInfix _ varBind name) = (Nothing, [varsFromBind varBind]++(if isI
 decomposeDH (DHParen _ dh) = decomposeDH dh
 decomposeDH (DHApp _ funHead varBind) = let (name, vars) = decomposeDH funHead in (name, (varsFromBind varBind):vars)
 
-toSynquidRType typ = do
+toSynquidRType env typ = do
     typ' <- toSynquidSkeleton typ
-    return $ refineTop emptyEnv $ head typ'
-toSynquidRSchema (ForallT name sch) = ForallT name (toSynquidRSchema sch)
-toSynquidRSchema (Monotype typ) = Monotype (refineTop emptyEnv typ)
+    return $ refineTop env $ head typ'
+toSynquidRSchema env (ForallT name sch) = ForallT name (toSynquidRSchema env sch)
+toSynquidRSchema env (Monotype typ) = Monotype (refineTop env typ)
 
-processConDecls :: [QualConDecl ()] -> State Int [SP.ConstructorSig]
-processConDecls [] = return []
-processConDecls (decl:decls) = let QualConDecl _ _ _ conDecl = decl in 
+processConDecls :: Environment -> [QualConDecl ()] -> State Int [SP.ConstructorSig]
+processConDecls env [] = return []
+processConDecls env (decl:decls) = let QualConDecl _ _ _ conDecl = decl in 
     case conDecl of
         ConDecl _ name typs -> do
-            typ <- toSynquidRType $ head typs
-            (:) (SP.ConstructorSig (nameStr name) typ) <$> (processConDecls decls)
+            typ <- toSynquidRType env $ head typs
+            (:) (SP.ConstructorSig (nameStr name) typ) <$> (processConDecls env decls)
         InfixConDecl _ typl name typr -> do
-            typl' <- toSynquidRType typl
-            typr' <- toSynquidRType typr
-            (:) (SP.ConstructorSig (nameStr name) (FunctionT "arg0" typl' typr')) <$> (processConDecls decls)
+            typl' <- toSynquidRType env typl
+            typr' <- toSynquidRType env typr
+            (:) (SP.ConstructorSig (nameStr name) (FunctionT "arg0" typl' typr')) <$> (processConDecls env decls)
         RecDecl _ name fields -> error "record declaration is not supported"
 
-toSynquidDecl (TypeDecl _ head typ) = case decomposeDH head of
+toSynquidDecl env (TypeDecl _ head typ) = case decomposeDH head of
     (Nothing, vars) -> error "is this possible?"
-    (Just hd, vars) -> (SP.TypeDecl hd vars) <$> toSynquidRType typ
-toSynquidDecl (DataDecl _ _ _ head conDecls _) = case decomposeDH head of
+    (Just hd, vars) -> (SP.TypeDecl hd vars) <$> toSynquidRType env typ
+toSynquidDecl env (DataDecl _ _ _ head conDecls _) = case decomposeDH head of
     (Nothing, _) -> error "No data name"
     (Just hd, vars) -> do
-        constructors <- processConDecls conDecls
+        constructors <- processConDecls env conDecls
         return $ SP.DataDecl hd vars [] constructors
-toSynquidDecl (TypeSig _ names typ) = do
+toSynquidDecl env (TypeSig _ names typ) = do
     sch <- toSynquidSchema typ
-    return $ SP.FuncDecl (head (map nameStr names)) (toSynquidRSchema sch)
-toSynquidDecl decl = return $ SP.QualifierDecl []
+    return $ SP.FuncDecl (head (map nameStr names)) (toSynquidRSchema env sch)
+toSynquidDecl env decl = return $ SP.QualifierDecl [] -- [TODO] a fake conversion
