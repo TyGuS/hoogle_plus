@@ -4,7 +4,7 @@ module Database.Download where
 
 import Data.Conduit.Binary (sinkFile) -- Exported from the package conduit-extra
 import Network.HTTP.Conduit
-import Data.Conduit (runConduit, (.|))
+import Data.Conduit (runConduit, (.|), ($$+-))
 import Control.Monad.Trans.Resource (runResourceT)
 import qualified Data.ByteString.Lazy as L
 import Data.Aeson
@@ -44,4 +44,4 @@ downloadFile pkg version = do
         response <- http request manager
         if responseStatus response /= ok200
             then error "Connection Error"
-            else runConduit $ responseBody response .| sinkFile (downloadDir ++ vpkg ++ ".txt")
+            else responseBody response $$+- sinkFile (downloadDir ++ vpkg ++ ".txt")
