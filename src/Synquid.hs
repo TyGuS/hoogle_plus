@@ -18,6 +18,8 @@ import Synquid.HtmlOutput
 import Synquid.Codegen
 import Synquid.Stats
 import Database.Convert
+import Database.Graph
+import Database.Generate
 
 import Control.Monad
 import Control.Lens ((^.))
@@ -25,8 +27,10 @@ import System.Exit
 import System.Console.CmdArgs
 import System.Console.ANSI
 import System.FilePath
+import Control.Monad.State (runState)
 import Data.Char
 import Data.Time.Calendar
+import Language.Haskell.Exts (Decl(TypeSig))
 import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -328,8 +332,13 @@ collectLibDecls libs declsByFile =
 runOnFile :: SynquidParams -> ExplorerParams -> HornSolverParams -> CodegenParams
                            -> String -> [String] -> IO ()
 runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
-  declsByFile <- parseFromFiles (libs ++ [file])
-  let decls = concat $ map snd declsByFile
+  -- declsByFile <- parseFromFiles (libs ++ [file])
+  -- let decls = concat $ map snd declsByFile
+  fileDecls <- readDeclations "bytestring" Nothing
+  let dts = Set.unions $ map getDeclTy fileDecls
+  let env = foldr (uncurry addDatatype) emptyEnv (map withEmptyDt $ Set.toList dts)
+  let decls = fst $ unzip $ map (\decl -> runState (toSynquidDecl env decl) 0) fileDecls
+  let declsByFile = [("bytestring", decls)]
   case resolveDecls decls of
     Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
     Right (goals, cquals, tquals) -> when (not $ resolveOnly synquidParams) $ do
@@ -339,6 +348,10 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
       let libsWithDecls = collectLibDecls libs declsByFile
       codegen (fillinCodegenParams file libsWithDecls codegenParams) (map fst results)
   where
+    withEmptyDt id = (id, emptyDtDef)
+    getDeclTy decl = case decl of
+        EDecl (TypeSig _ names ty) -> datatypeOf ty
+        _ -> Set.empty
     parseFromFiles [] = return []
     parseFromFiles (file:rest) = do
       parseResult <- parseFromFile parseProgram file

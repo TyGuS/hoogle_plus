@@ -14,11 +14,13 @@ import Data.Either
 import Data.List.Split
 import Control.Lens as Lens
 import Control.Monad.State
+import Text.Parsec.Pos
 
 import Synquid.Type
 import Synquid.Program (refineTop, emptyEnv, BareDeclaration, Environment)
 import qualified Synquid.Program as SP
 import Synquid.Util
+import Synquid.Error
 import Database.Generate
 import Database.Util
 import Database.Download
@@ -151,15 +153,15 @@ processConDecls env (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
             (:) (SP.ConstructorSig (nameStr name) (FunctionT "arg0" typl' typr')) <$> (processConDecls env decls)
         RecDecl name fields -> error "record declaration is not supported"
 
-toSynquidDecl env (TypeDecl _ name bvars typ) = SP.TypeDecl (nameStr name) (map varsFromBind bvars) <$> toSynquidRType env typ
-toSynquidDecl env (DataDecl _ _ _ name bvars conDecls _) = do
+toSynquidDecl env (EDecl (TypeDecl _ name bvars typ)) = Pos (initialPos (nameStr name)) . SP.TypeDecl (nameStr name) (map varsFromBind bvars) <$> toSynquidRType env typ
+toSynquidDecl env (EDecl (DataDecl _ _ _ name bvars conDecls _)) = do
     constructors <- processConDecls env conDecls
     let vars = map varsFromBind bvars
-    return $ SP.DataDecl (nameStr name) vars [] constructors
-toSynquidDecl env (TypeSig _ names typ) = do
+    return $ Pos (initialPos (nameStr name)) $ SP.DataDecl (nameStr name) vars [] constructors
+toSynquidDecl env (EDecl (TypeSig _ names typ)) = do
     sch <- toSynquidSchema typ
-    return $ SP.FuncDecl (head (map nameStr names)) (toSynquidRSchema env sch)
-toSynquidDecl env decl = return $ SP.QualifierDecl [] -- [TODO] a fake conversion
+    return $ Pos (initialPos (nameStr $ names !! 0)) $ SP.FuncDecl (head (map nameStr names)) (toSynquidRSchema env sch)
+toSynquidDecl env decl = return $ Pos (initialPos "") $ SP.QualifierDecl [] -- [TODO] a fake conversion
 
 
 renameSigs :: String -> [Entry] -> [Entry]

@@ -53,8 +53,8 @@ typeSignatureOf env decl = case decl of
 
 emptyDtDef = DatatypeDef [] [] [] [] Nothing
 
-packageEnv :: MonadIO m => PkgName -> StateT ExplorerState m Environment
-packageEnv pkg = undefined
+-- packageEnv :: MonadIO m => PkgName -> StateT ExplorerState m Environment
+-- packageEnv pkg = undefined
 -- do
 --     decls <- liftIO $ readDeclations pkg Nothing
 --     let dts = Set.unions $ map getDeclTy decls
