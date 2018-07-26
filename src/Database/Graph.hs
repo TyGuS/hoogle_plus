@@ -16,6 +16,10 @@ import Control.Lens
 import Debug.Trace
 import Distribution.PackDeps
 import qualified Distribution.Version as DV
+import Distribution.Verbosity
+import Distribution.PackageDescription
+import Distribution.PackageDescription.Parse
+import Distribution.Package
 
 import Synquid.Succinct
 import Synquid.Pretty
@@ -43,7 +47,7 @@ printDeclaration decl = case decl of
 
 printDeclarations :: PkgName -> Maybe Version -> IO ()
 printDeclarations pkg version = do
-    decls <- readDeclations pkg version
+    decls <- readDeclarations pkg version
     mapM_ printDeclaration decls
 
 typeSignatureOf :: Entry -> Maybe (Id, RSchema)
@@ -73,9 +77,3 @@ emptyDtDef = DatatypeDef [] [] [] [] Nothing
 packageTypes :: PkgName -> Set RType
 packageTypes = undefined
 
-packageDependency :: IO () -- IO (Map PkgName (Set PkgName))
-packageDependency = do
-    let pi = PackInfo (DV.Version [0,10,8,1] []) Nothing (0)
-    let newest = Map.singleton "bytestring" pi
-    let reverses = getReverses newest
-    print reverses

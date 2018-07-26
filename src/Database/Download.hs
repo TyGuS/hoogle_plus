@@ -15,6 +15,7 @@ import Data.Maybe
 import Network.HTTP.Types.Status
 import Control.Monad.Extra
 
+
 import Database.Util
 
 docVersionsUrl = "https://hackage.haskell.org/packages/docs"
@@ -32,12 +33,14 @@ checkVersion pkg version = do
         Just arr | Map.findWithDefault False vpkg $ Map.fromList arr -> putStrLn "package is available" >> return True
                  | otherwise -> error $ vpkg ++ " is not available"
 
+packageNameWithVersion :: PkgName -> Maybe Version -> IO PkgName
+packageNameWithVersion pkg version = case version of
+    Nothing -> return pkg
+    Just v  -> ifM (checkVersion pkg v) (return $ pkg ++ "-" ++ v) (return pkg)
+
 downloadFile :: PkgName -> Maybe Version -> IO ()
 downloadFile pkg version = do
-    vpkg <- do 
-        case version of
-            Nothing -> return pkg
-            Just v -> ifM (checkVersion pkg v) (return $ pkg ++ "-" ++ v) (return pkg)
+    vpkg <- packageNameWithVersion pkg version
     request <- parseRequest $ docDownloadUrl ++ vpkg ++ "/docs/" ++ pkg ++ ".txt"
     manager <- newManager tlsManagerSettings
     runResourceT $ do
@@ -45,3 +48,14 @@ downloadFile pkg version = do
         if responseStatus response /= ok200
             then error "Connection Error"
             else responseBody response $$+- sinkFile (downloadDir ++ vpkg ++ ".txt")
+
+downloadCabal :: PkgName -> Maybe Version -> IO ()
+downloadCabal pkg version = do
+    vpkg <- packageNameWithVersion pkg version
+    request <- parseRequest $ docDownloadUrl ++ vpkg ++ "/" ++ pkg ++ ".cabal"
+    manager <- newManager tlsManagerSettings
+    runResourceT $ do
+        response <- http request manager
+        if responseStatus response /= ok200
+            then error "Connection Error"
+            else responseBody response $$+- sinkFile (downloadDir ++ pkg ++ ".cabal")

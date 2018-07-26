@@ -60,6 +60,7 @@ executable synquid
                     , split
                     , packdeps
                     , Cabal
+                    , directory
 
 
   ghc-options: -O2

@@ -20,6 +20,8 @@ import Synquid.Stats
 import Database.Convert
 import Database.Graph
 import Database.Generate
+import Database.Download
+import Database.Util
 
 import Control.Monad
 import Control.Lens ((^.))
@@ -39,6 +41,7 @@ import Data.Maybe (mapMaybe)
 import Distribution.PackDeps
 import Text.Parsec hiding (State)
 import Text.Parsec.Indent
+import System.Directory
 
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import Text.PrettyPrint.ANSI.Leijen (fill, column)
@@ -340,15 +343,21 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
   -- let decls = concat $ map snd declsByFile
   -- print decls
   targetDecl <- parseSignature file
-  -- print targetDecl
-  fileDecls <- readDeclations "bytestring" Nothing
-  let dts = Set.toList $ Set.unions $ map getDeclTy fileDecls
+  -- test for cabal file reading
+  -- downloadCabal "bytestring" Nothing
+  let pkgName = "bytestring"
+  toDownload <- doesFileExist $ downloadDir ++ "/" ++ pkgName
+  when toDownload (downloadFile pkgName Nothing)
+  fileDecls <- readDeclarations pkgName Nothing
+  dts <- packageDtNames pkgName
+  depends <- packageDependencies pkgName
   -- let env = foldr (uncurry addDatatype) emptyEnv $ map withEmptyDt dts
   let parsedDecls = defaultDts ++ (fst $ unzip $ map (\decl -> runState (toSynquidDecl decl) 0) fileDecls)
-  let additionalDts = map (\id -> Pos (initialPos id) $ DataDecl id [] [] []) $ filter (flip notElem $ definedDts parsedDecls) dts
+  ddts <- definedDts pkgName
+  let additionalDts = map (\id -> Pos (initialPos id) $ DataDecl id [] [] []) $ filter (flip notElem ddts) dts
   let decls = reorderDecls $ additionalDts ++ parsedDecls ++ targetDecl
   -- print decls
-  let declsByFile = [("bytestring", decls)]
+  let declsByFile = [(pkgName, decls)]
   case resolveDecls decls of
     Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
     Right (goals, cquals, tquals) -> when (not $ resolveOnly synquidParams) $ do
@@ -379,13 +388,6 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
       ]
     defaultUnit = Pos (initialPos "Unit") $ DataDecl "Unit" [] [] []
     withEmptyDt id = (id, emptyDtDef)
-    getDeclTy decl = case decl of
-        EDecl (TypeSig _ names ty) -> datatypeOf ty
-        _ -> Set.empty
-    definedDts [] = []
-    definedDts (dl:dls) = case dl of
-      Pos _ (DataDecl id _ _ _) -> id:(definedDts dls)
-      _ -> definedDts dls 
     parseSignature sig = do
       let transformedSig = "__goal__ :: " ++ sig ++ "\n__goal__ = ??"
       parseResult <- return $ runIndent "" $ runParserT parseProgram () "" transformedSig
