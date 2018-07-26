@@ -11,13 +11,14 @@ import Data.Hashable
 import Data.List
 import Data.Maybe
 import Data.Either
+import Data.Ord
 import Data.List.Split
 import Control.Lens as Lens
 import Control.Monad.State
 import Text.Parsec.Pos
 
 import Synquid.Type
-import Synquid.Program (refineTop, emptyEnv, BareDeclaration, Environment)
+import Synquid.Program (refineTop, emptyEnv, BareDeclaration, Declaration, Environment)
 import qualified Synquid.Program as SP
 import Synquid.Util
 import Synquid.Error
@@ -85,9 +86,10 @@ toSynquidSchema :: Type -> State Int SSchema
 toSynquidSchema typ = do
     typs <- toSynquidSkeleton typ
     typ' <- return $ head typs
-    if Set.null $ allTypeVars typ
-        then  return $ Monotype typ'
-        else return $ foldr ForallT (Monotype typ') $ allTypeVars typ
+    return $ Monotype typ'
+    -- if Set.null $ allTypeVars typ
+        -- then  return $ Monotype typ'
+        -- else return $ foldr ForallT (Monotype typ') $ allTypeVars typ
 
 toSynquidSkeleton :: Type -> State Int [SType]
 toSynquidSkeleton (TyForall _ _ typ) = toSynquidSkeleton typ
@@ -108,6 +110,10 @@ toSynquidSkeleton t@(TyCon name) = case name of
     Special name -> return [ScalarT (DatatypeT (specialConsStr name) [] []) ()]
 toSynquidSkeleton (TyApp fun arg) 
     | (TyCon name) <- fun = do
+        ScalarT (DatatypeT id tys _) _ <- head <$> toSynquidSkeleton fun
+        args <- toSynquidSkeleton arg
+        return [ScalarT (DatatypeT id (args++tys) []) ()]
+    | (TyApp fun' arg') <- fun = do
         ScalarT (DatatypeT id tys _) _ <- head <$> toSynquidSkeleton fun
         args <- toSynquidSkeleton arg
         return [ScalarT (DatatypeT id (args++tys) []) ()]
@@ -137,7 +143,7 @@ varsFromBind (UnkindedVar name) = nameStr name
 toSynquidRType env typ = do
     typ' <- toSynquidSkeleton typ
     return $ refineTop env $ head typ'
-toSynquidRSchema env (ForallT name sch) = ForallT name (toSynquidRSchema env sch)
+-- toSynquidRSchema env (ForallT name sch) = ForallT name (toSynquidRSchema env sch)
 toSynquidRSchema env (Monotype typ) = Monotype (refineTop env typ)
 
 processConDecls :: Environment -> [QualConDecl] -> State Int [SP.ConstructorSig]
@@ -163,6 +169,13 @@ toSynquidDecl env (EDecl (TypeSig _ names typ)) = do
     return $ Pos (initialPos (nameStr $ names !! 0)) $ SP.FuncDecl (head (map nameStr names)) (toSynquidRSchema env sch)
 toSynquidDecl env decl = return $ Pos (initialPos "") $ SP.QualifierDecl [] -- [TODO] a fake conversion
 
+reorderDecls :: [Declaration] -> [Declaration]
+reorderDecls decls = sortBy (comparing toInt) decls
+  where
+    toInt (Pos _ (SP.TypeDecl {})) = 0
+    toInt (Pos _ (SP.DataDecl {})) = 1
+    toInt (Pos _ (SP.QualifierDecl {})) = 98
+    toInt (Pos _ (SP.FuncDecl {})) = 99
 
 renameSigs :: String -> [Entry] -> [Entry]
 renameSigs _ [] = []

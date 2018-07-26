@@ -58,6 +58,8 @@ executable synquid
                     , http-types
                     , bytestring
                     , split
+                    , packdeps
+                    , Cabal
 
 
   ghc-options: -O2

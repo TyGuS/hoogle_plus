@@ -425,9 +425,15 @@ instance Pretty BareDeclaration where
   pretty (MutualDecl names) = keyword "mutual" <+> commaSep (map text names)
   pretty (InlineDecl name args body) = keyword "inline" <+> text name <+> hsep (map text args) <+> operator "=" <+> pretty body
   
+instance Show BareDeclaration where
+  show = show . pretty
+
 instance Pretty a => Pretty (Pos a) where
   pretty (Pos _ x) = pretty x
   
+instance Show a => Show (Pos a) where
+  show (Pos _ x) = show x
+
 prettyError (ErrorMessage ParseError pos descr) = align $ hang tab $ 
   errorDoc (hcat $ map (<> colon) [text (sourceName pos), pretty (sourceLine pos), pretty (sourceColumn pos), text " Parse Error"]) $+$
   pretty descr    

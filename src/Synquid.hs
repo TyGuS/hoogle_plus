@@ -27,6 +27,7 @@ import System.Exit
 import System.Console.CmdArgs
 import System.Console.ANSI
 import System.FilePath
+import Text.Parsec.Pos
 import Control.Monad.State (runState)
 import Data.Char
 import Data.Time.Calendar
@@ -35,6 +36,7 @@ import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Maybe (mapMaybe)
+import Distribution.PackDeps
 
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import Text.PrettyPrint.ANSI.Leijen (fill, column)
@@ -334,10 +336,14 @@ runOnFile :: SynquidParams -> ExplorerParams -> HornSolverParams -> CodegenParam
 runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
   -- declsByFile <- parseFromFiles (libs ++ [file])
   -- let decls = concat $ map snd declsByFile
+  -- print decls
   fileDecls <- readDeclations "bytestring" Nothing
-  let dts = Set.unions $ map getDeclTy fileDecls
-  let env = foldr (uncurry addDatatype) emptyEnv (map withEmptyDt $ Set.toList dts)
-  let decls = fst $ unzip $ map (\decl -> runState (toSynquidDecl env decl) 0) fileDecls
+  let dts = Set.toList $ Set.unions $ map getDeclTy fileDecls
+  let env = foldr (uncurry addDatatype) emptyEnv $ map withEmptyDt dts
+  let parsedDecls = defaultDts ++ (fst $ unzip $ map (\decl -> runState (toSynquidDecl env decl) 0) fileDecls)
+  let additionalDts = map (\id -> Pos (initialPos id) $ DataDecl id [] [] []) $ filter (flip notElem $ definedDts parsedDecls) dts
+  let decls = reorderDecls $ additionalDts ++ parsedDecls
+  -- print decls
   let declsByFile = [("bytestring", decls)]
   case resolveDecls decls of
     Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
@@ -348,10 +354,33 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
       let libsWithDecls = collectLibDecls libs declsByFile
       codegen (fillinCodegenParams file libsWithDecls codegenParams) (map fst results)
   where
+    defaultDts = [defaultList, defaultPair, defaultIO, defaultPtr, defaultMaybe, defaultEither]
+    defaultEither = Pos (initialPos "Either") $ DataDecl "Either" ["a", "b"] [] [
+        ConstructorSig "Left"  $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (ScalarT (DatatypeT "Either" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue)
+      , ConstructorSig "Right" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "b") ftrue) (ScalarT (DatatypeT "Either" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue)  
+      ]
+    defaultMaybe = Pos (initialPos "Maybe") $ DataDecl "Maybe" ["a"] [] [
+        ConstructorSig "Nothing" $ ScalarT (DatatypeT "Maybe" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue
+      , ConstructorSig "Just"    $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (ScalarT (DatatypeT "Maybe" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)
+      ]
+    defaultPtr = Pos (initialPos "Ptr") $ DataDecl "Ptr" ["a"] [] [] 
+    defaultIO = Pos (initialPos "IO") $ DataDecl "IO" ["a"] [] []
+    defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
+        ConstructorSig "Nil"  $ ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue
+      , ConstructorSig "Cons" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "xs" (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue) (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue))
+      ]
+    defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [] [
+        ConstructorSig "Pair" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "y" (ScalarT (TypeVarT Map.empty "b") ftrue) (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue))
+      ]
+    defaultUnit = Pos (initialPos "Unit") $ DataDecl "Unit" [] [] []
     withEmptyDt id = (id, emptyDtDef)
     getDeclTy decl = case decl of
         EDecl (TypeSig _ names ty) -> datatypeOf ty
         _ -> Set.empty
+    definedDts [] = []
+    definedDts (dl:dls) = case dl of
+      Pos _ (DataDecl id _ _ _) -> id:(definedDts dls)
+      _ -> definedDts dls 
     parseFromFiles [] = return []
     parseFromFiles (file:rest) = do
       parseResult <- parseFromFile parseProgram file

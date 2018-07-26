@@ -14,6 +14,8 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Control.Lens
 import Debug.Trace
+import Distribution.PackDeps
+import qualified Distribution.Version as DV
 
 import Synquid.Succinct
 import Synquid.Pretty
@@ -71,3 +73,9 @@ emptyDtDef = DatatypeDef [] [] [] [] Nothing
 packageTypes :: PkgName -> Set RType
 packageTypes = undefined
 
+packageDependency :: IO () -- IO (Map PkgName (Set PkgName))
+packageDependency = do
+    let pi = PackInfo (DV.Version [0,10,8,1] []) Nothing (0)
+    let newest = Map.singleton "bytestring" pi
+    let reverses = getReverses newest
+    print reverses
