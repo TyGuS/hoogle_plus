@@ -37,6 +37,8 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Maybe (mapMaybe)
 import Distribution.PackDeps
+import Text.Parsec hiding (State)
+import Text.Parsec.Indent
 
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import Text.PrettyPrint.ANSI.Leijen (fill, column)
@@ -181,7 +183,7 @@ synt = Synthesis {
   only                = Nothing         &= typ "GOAL,..." &= help ("Only synthesize the specified functions"),
   app_max             = 3               &= help ("Maximum depth of an application term (default: 3)") &= groupname "Explorer parameters",
   scrutinee_max       = 1               &= help ("Maximum depth of a match scrutinee (default: 1)"),
-  match_max           = 2               &= help ("Maximum depth of matches (default: 2)"),
+  match_max           = 0               &= help ("Maximum depth of matches (default: 2)"),
   aux_max             = 1               &= help ("Maximum depth of auxiliary functions (default: 1)") &= name "x",
   fix                 = FirstArgument   &= help (unwords ["What should termination metric for fixpoints be derived from?", show AllArguments, show FirstArgument, show DisableFixpoint, show Nonterminating, "(default:", show FirstArgument, ")"]),
   generalize_preds    = True            &= help ("Make recursion polymorphic in abstract refinements (default: False)"),
@@ -201,8 +203,8 @@ synt = Synthesis {
   print_spec          = True            &= help ("Show specification of each synthesis goal (default: True)"),
   print_stats         = False           &= help ("Show specification and solution size (default: False)"),
   log_                = 0               &= help ("Logger verboseness level (default: 0)") &= name "l",
-  graph               = False           &= help ("Build graph for exploration") &= name "graph",
-  succinct            = False           &= help ("Use graph to direct the term exploration") &= name "succ"
+  graph               = False            &= help ("Build graph for exploration") &= name "graph",
+  succinct            = False            &= help ("Use graph to direct the term exploration") &= name "succ"
   } &= auto &= help "Synthesize goals specified in the input file"
     where
       defaultFormat = outputFormat defaultSynquidParams
@@ -232,7 +234,7 @@ mode = cmdArgsMode $ modes [synt, lifty] &=
 defaultExplorerParams = ExplorerParams {
   _eGuessDepth = 3,
   _scrutineeDepth = 1,
-  _matchDepth = 2,
+  _matchDepth = 0,
   _auxDepth = 1,
   _fixStrategy = AllArguments,
   _polyRecursion = True,
@@ -248,8 +250,8 @@ defaultExplorerParams = ExplorerParams {
   _context = id,
   _sourcePos = noPos,
   _explorerLogLevel = 0,
-  _buildGraph = False,
-  _useSuccinct = False
+  _buildGraph = True,
+  _useSuccinct = True
 }
 
 -- | Parameters for constraint solving
@@ -337,18 +339,21 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
   -- declsByFile <- parseFromFiles (libs ++ [file])
   -- let decls = concat $ map snd declsByFile
   -- print decls
+  targetDecl <- parseSignature file
+  -- print targetDecl
   fileDecls <- readDeclations "bytestring" Nothing
   let dts = Set.toList $ Set.unions $ map getDeclTy fileDecls
-  let env = foldr (uncurry addDatatype) emptyEnv $ map withEmptyDt dts
-  let parsedDecls = defaultDts ++ (fst $ unzip $ map (\decl -> runState (toSynquidDecl env decl) 0) fileDecls)
+  -- let env = foldr (uncurry addDatatype) emptyEnv $ map withEmptyDt dts
+  let parsedDecls = defaultDts ++ (fst $ unzip $ map (\decl -> runState (toSynquidDecl decl) 0) fileDecls)
   let additionalDts = map (\id -> Pos (initialPos id) $ DataDecl id [] [] []) $ filter (flip notElem $ definedDts parsedDecls) dts
-  let decls = reorderDecls $ additionalDts ++ parsedDecls
+  let decls = reorderDecls $ additionalDts ++ parsedDecls ++ targetDecl
   -- print decls
   let declsByFile = [("bytestring", decls)]
   case resolveDecls decls of
     Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
     Right (goals, cquals, tquals) -> when (not $ resolveOnly synquidParams) $ do
-      results <- mapM (synthesizeGoal cquals tquals) (requested goals)
+      multiResults <- mapM (synthesizeGoal cquals tquals) (requested goals)
+      let results = concatMap (\((goal, ps), stats) -> map (\p -> ((goal, p), stats)) ps) multiResults
       when (not (null results) && showStats synquidParams) $ printStats results declsByFile
       -- Generate output if requested
       let libsWithDecls = collectLibDecls libs declsByFile
@@ -381,6 +386,13 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
     definedDts (dl:dls) = case dl of
       Pos _ (DataDecl id _ _ _) -> id:(definedDts dls)
       _ -> definedDts dls 
+    parseSignature sig = do
+      let transformedSig = "__goal__ :: " ++ sig ++ "\n__goal__ = ??"
+      parseResult <- return $ runIndent "" $ runParserT parseProgram () "" transformedSig
+      case parseResult of
+        Left parseErr -> (pdoc $ pretty $ toErrorMessage parseErr) >> pdoc empty >> exitFailure
+        -- Right ast -> print $ vsep $ map pretty ast
+        Right decls -> return decls
     parseFromFiles [] = return []
     parseFromFiles (file:rest) = do
       parseResult <- parseFromFile parseProgram file
@@ -403,10 +415,10 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
       (mProg, stats) <- synthesize explorerParams solverParams goal cquals tquals
       case mProg of
         Left typeErr -> pdoc (pretty typeErr) >> pdoc empty >> exitFailure
-        Right prog -> do
-          pdoc (prettySolution goal prog)
+        Right progs -> do
+          mapM_ (\prog -> pdoc (prettySolution goal prog)) progs
           pdoc empty
-          return ((goal, prog), stats)
+          return ((goal, progs), stats)
     printStats results declsByFile = do
       let env = gEnvironment (fst $ fst $ head results)
       let measureCount = Map.size $ _measures $ env

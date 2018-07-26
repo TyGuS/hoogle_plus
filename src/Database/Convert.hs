@@ -18,7 +18,8 @@ import Control.Monad.State
 import Text.Parsec.Pos
 
 import Synquid.Type
-import Synquid.Program (refineTop, emptyEnv, BareDeclaration, Declaration, Environment)
+import Synquid.Logic
+import Synquid.Program (emptyEnv, BareDeclaration, Declaration, Environment)
 import qualified Synquid.Program as SP
 import Synquid.Util
 import Synquid.Error
@@ -140,34 +141,41 @@ varsFromBind (UnkindedVar name) = nameStr name
 -- decomposeDH (DHParen _ dh) = decomposeDH dh
 -- decomposeDH (DHApp _ funHead varBind) = let (name, vars) = decomposeDH funHead in (name, (varsFromBind varBind):vars)
 
-toSynquidRType env typ = do
-    typ' <- toSynquidSkeleton typ
-    return $ refineTop env $ head typ'
--- toSynquidRSchema env (ForallT name sch) = ForallT name (toSynquidRSchema env sch)
-toSynquidRSchema env (Monotype typ) = Monotype (refineTop env typ)
+-- | Add true as the refinement to convert all types into RType
+addTrue (ScalarT (DatatypeT name tArgs pArgs) _) = ScalarT (DatatypeT name (map addTrue tArgs) []) ftrue
+addTrue (ScalarT IntT _) = ScalarT IntT ftrue
+addTrue (ScalarT BoolT _) = ScalarT BoolT ftrue
+addTrue (ScalarT (TypeVarT vSubst a) _) = ScalarT (TypeVarT vSubst a) ftrue
+addTrue (FunctionT x tArg tFun) = FunctionT x (addTrue tArg) (addTrue tFun)
 
-processConDecls :: Environment -> [QualConDecl] -> State Int [SP.ConstructorSig]
-processConDecls env [] = return []
-processConDecls env (decl:decls) = let QualConDecl _ _ _ conDecl = decl in 
+toSynquidRType typ = do
+    typ' <- toSynquidSkeleton typ
+    return $ addTrue $ head typ'
+-- toSynquidRSchema env (ForallT name sch) = ForallT name (toSynquidRSchema env sch)
+toSynquidRSchema (Monotype typ) = Monotype $ addTrue typ
+
+processConDecls :: [QualConDecl] -> State Int [SP.ConstructorSig]
+processConDecls [] = return []
+processConDecls (decl:decls) = let QualConDecl _ _ _ conDecl = decl in 
     case conDecl of
         ConDecl name typs -> do
-            typ <- toSynquidRType env $ head typs
-            (:) (SP.ConstructorSig (nameStr name) typ) <$> (processConDecls env decls)
+            typ <- toSynquidRType $ head typs
+            (:) (SP.ConstructorSig (nameStr name) typ) <$> (processConDecls decls)
         InfixConDecl typl name typr -> do
-            typl' <- toSynquidRType env typl
-            typr' <- toSynquidRType env typr
-            (:) (SP.ConstructorSig (nameStr name) (FunctionT "arg0" typl' typr')) <$> (processConDecls env decls)
+            typl' <- toSynquidRType typl
+            typr' <- toSynquidRType typr
+            (:) (SP.ConstructorSig (nameStr name) (FunctionT "arg0" typl' typr')) <$> (processConDecls decls)
         RecDecl name fields -> error "record declaration is not supported"
 
-toSynquidDecl env (EDecl (TypeDecl _ name bvars typ)) = Pos (initialPos (nameStr name)) . SP.TypeDecl (nameStr name) (map varsFromBind bvars) <$> toSynquidRType env typ
-toSynquidDecl env (EDecl (DataDecl _ _ _ name bvars conDecls _)) = do
-    constructors <- processConDecls env conDecls
+toSynquidDecl (EDecl (TypeDecl _ name bvars typ)) = Pos (initialPos (nameStr name)) . SP.TypeDecl (nameStr name) (map varsFromBind bvars) <$> toSynquidRType typ
+toSynquidDecl (EDecl (DataDecl _ _ _ name bvars conDecls _)) = do
+    constructors <- processConDecls conDecls
     let vars = map varsFromBind bvars
     return $ Pos (initialPos (nameStr name)) $ SP.DataDecl (nameStr name) vars [] constructors
-toSynquidDecl env (EDecl (TypeSig _ names typ)) = do
+toSynquidDecl (EDecl (TypeSig _ names typ)) = do
     sch <- toSynquidSchema typ
-    return $ Pos (initialPos (nameStr $ names !! 0)) $ SP.FuncDecl (head (map nameStr names)) (toSynquidRSchema env sch)
-toSynquidDecl env decl = return $ Pos (initialPos "") $ SP.QualifierDecl [] -- [TODO] a fake conversion
+    return $ Pos (initialPos (nameStr $ names !! 0)) $ SP.FuncDecl (head (map nameStr names)) (toSynquidRSchema sch)
+toSynquidDecl decl = return $ Pos (initialPos "") $ SP.QualifierDecl [] -- [TODO] a fake conversion
 
 reorderDecls :: [Declaration] -> [Declaration]
 reorderDecls decls = sortBy (comparing toInt) decls
@@ -176,6 +184,7 @@ reorderDecls decls = sortBy (comparing toInt) decls
     toInt (Pos _ (SP.DataDecl {})) = 1
     toInt (Pos _ (SP.QualifierDecl {})) = 98
     toInt (Pos _ (SP.FuncDecl {})) = 99
+    toInt (Pos _ (SP.SynthesisGoal {})) = 100
 
 renameSigs :: String -> [Entry] -> [Entry]
 renameSigs _ [] = []

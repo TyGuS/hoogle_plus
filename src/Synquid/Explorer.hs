@@ -148,12 +148,12 @@ emptyTypingState = TypingState {
 }
 
 -- | 'runExplorer' @eParams tParams initTS go@ : execute exploration @go@ with explorer parameters @eParams@, typing parameters @tParams@ in typing state @initTS@
-runExplorer :: MonadHorn s => ExplorerParams -> TypingParams -> Reconstructor s -> TypingState -> Explorer s a -> s (Either ErrorMessage a)
+runExplorer :: MonadHorn s => ExplorerParams -> TypingParams -> Reconstructor s -> TypingState -> Explorer s a -> s (Either ErrorMessage [a])
 runExplorer eParams tParams topLevel initTS go = do
-  (ress, (PersistentState _ _ errs)) <- runStateT (observeManyT 1 $ runReaderT (evalStateT go initExplorerState) (eParams, tParams, topLevel)) (PersistentState Map.empty Map.empty [])
+  (ress, (PersistentState _ _ errs)) <- runStateT (observeManyT 5 $ runReaderT (evalStateT go initExplorerState) (eParams, tParams, topLevel)) (PersistentState Map.empty Map.empty [])
   case ress of
     [] -> return $ Left $ head errs
-    res:_ -> return $ Right res
+    res:_ -> return $ Right ress
   where
     initExplorerState = ExplorerState initTS [] Map.empty Map.empty Map.empty Map.empty PQ.empty
 
@@ -1321,16 +1321,18 @@ findDstNodesInGraph env typ = case typ of
 
 pruneGraphByReachability g reachableSet = HashMap.foldrWithKey (\k v acc -> if Set.member k reachableSet then HashMap.insert k (HashMap.filterWithKey (\k' s -> Set.member k' reachableSet) v) acc else acc) HashMap.empty g
 
+-- termScore env p = 0
 termScore env prog@(Program p (sty, rty, _)) =
-  (if holes == 0 
+  if holes == 0 
     then 99999 
-    else 1.0 / (fromIntegral holes) +
-      1.0 / (fromIntegral $ greatestHoleType 0 prog) + 
-      1.0 / (fromIntegral wholes)) + 
-      -- if (d /= 0) then 100.0 / (fromIntegral d) else 100.0 + 
-      100.0 / (fromIntegral size) + 
-      2 * (fromIntegral $ Set.size vars) + 
-      (fromIntegral $ Set.size consts)
+    else 1
+    -- else 1.0 / (fromIntegral holes) +
+    --   1.0 / (fromIntegral $ greatestHoleType 0 prog) + 
+    --   1.0 / (fromIntegral wholes)) + 
+    --   -- if (d /= 0) then 100.0 / (fromIntegral d) else 100.0 + 
+    --   100.0 / (fromIntegral size) + 
+    --   2 * (fromIntegral $ Set.size vars) + 
+      -- (fromIntegral $ Set.size consts)
   where
     holes = countHole prog
     size = termSize prog

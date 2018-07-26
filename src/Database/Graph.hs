@@ -30,26 +30,26 @@ import Database.Util
 import Database.Download
 
 
-printDeclaration :: Environment -> Entry -> IO ()
-printDeclaration env decl = case decl of
+printDeclaration :: Entry -> IO ()
+printDeclaration decl = case decl of
     EDecl (TypeSig _ names ty) -> do
         let typ = evalState (toSynquidSchema ty) 0
         putStrLn $ (nameStr (names !! 0)) ++ " :: " ++ (show typ)
-        let styp = toSuccinctType $ evalState (toSynquidRType env ty) 0
+        let styp = toSuccinctType $ evalState (toSynquidRType ty) 0
         putStrLn $ "===> " ++ (show styp)
     EDecl decl -> print decl
     EPackage pkg -> putStrLn pkg
     EModule mdl -> putStrLn mdl
 
-printDeclarations :: PkgName -> Maybe Version -> Environment -> IO ()
-printDeclarations pkg version env = do
+printDeclarations :: PkgName -> Maybe Version -> IO ()
+printDeclarations pkg version = do
     decls <- readDeclations pkg version
-    mapM_ (printDeclaration env) decls
+    mapM_ printDeclaration decls
 
-typeSignatureOf :: Environment -> Entry -> Maybe (Id, RSchema)
-typeSignatureOf env decl = case decl of
+typeSignatureOf :: Entry -> Maybe (Id, RSchema)
+typeSignatureOf decl = case decl of
     EDecl (TypeSig _ names ty) -> do
-        let typ = toSynquidRSchema env $ evalState (toSynquidSchema ty) 0
+        let typ = toSynquidRSchema $ evalState (toSynquidSchema ty) 0
         Just (nameStr (names !! 0), typ)
     _ -> Nothing
 
