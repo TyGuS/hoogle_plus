@@ -16,6 +16,10 @@ import Data.List.Split
 import Control.Lens as Lens
 import Control.Monad.State
 import Text.Parsec.Pos
+import Distribution.Verbosity
+import Distribution.PackageDescription
+import Distribution.PackageDescription.Parse
+import Distribution.Package
 
 import Synquid.Type
 import Synquid.Logic
@@ -201,8 +205,8 @@ addSynonym (decl:decls) = case decl of
         in (EDecl (TypeSig loc [Ident ((nameStr name)++"To"++(consStr typ))] typ')):(addSynonym decls)
     _ -> decl:(addSynonym decls)
 
-readDeclations :: PkgName -> Maybe Version -> IO [Entry]
-readDeclations pkg version = do
+readDeclarations :: PkgName -> Maybe Version -> IO [Entry]
+readDeclarations pkg version = do
     vpkg <- do 
         case version of
             Nothing -> return pkg
@@ -210,3 +214,46 @@ readDeclations pkg version = do
     s   <- readFile $ downloadDir ++ vpkg ++ ".txt"
     let code = concat . rights . (map parseLine) $ splitOn "\n" s
     return $ renameSigs "" $ addSynonym code
+
+type DependsOn = Map PkgName [Id]
+
+packageDependencies :: PkgName -> IO DependsOn
+packageDependencies pkg = do
+    gPackageDesc <- readPackageDescription verbose $ downloadDir ++ pkg ++ ".cabal"
+    case condLibrary gPackageDesc of
+        Nothing -> return Map.empty
+        Just (CondNode _ dependencies _) -> do
+            let dpkgs = map dependentPkg dependencies
+            -- mapM_ (\fname -> downloadFile fname Nothing) dpkgs
+            myDts <- packageDtNames pkg
+            theirDts <- mapM definedDts dpkgs
+            let foreignDts = map ((>.<) myDts) theirDts
+            return $ foldr (uncurry Map.insert) Map.empty $ zip dpkgs foreignDts
+  where
+    dependentPkg (Dependency name _) = unPackageName name
+
+isDataDecl :: Entry -> Bool
+isDataDecl decl = case decl of
+    EDecl (DataDecl {}) -> True
+    _ -> False
+
+packageDtDefs :: PkgName -> IO [Entry]
+packageDtDefs pkg = do
+    decls <- readDeclarations pkg Nothing
+    return $ filter isDataDecl decls
+
+packageDtNames :: PkgName -> IO [Id]
+packageDtNames pkg = do
+    decls <- readDeclarations pkg Nothing
+    return $ Set.toList $ Set.unions $ map getDeclTy decls
+  where
+    getDeclTy (EDecl (TypeSig _ names ty)) = datatypeOf ty
+    getDeclTy _ = Set.empty
+
+definedDts :: PkgName -> IO [Id]
+definedDts pkg = do
+    decls <- readDeclarations pkg Nothing
+    let dtDecls = filter isDataDecl decls
+    return $ map dtNameOf dtDecls
+  where
+    dtNameOf (EDecl (DataDecl _ _ _ name bvars conDecls _)) = nameStr name
