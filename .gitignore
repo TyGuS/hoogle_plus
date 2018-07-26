@@ -23,3 +23,4 @@ cabal.project.local~
 *.log
 *.graph
 *.png
+data/

@@ -32,6 +32,34 @@ instance Hashable SuccinctType where
   hash sty = hash (succinct2str sty)
   hashWithSalt s sty = s + hash sty
 
+baseToSuccinctType :: BaseType Formula -> SuccinctType
+baseToSuccinctType typ@(DatatypeT id ts _) = if "_" == id 
+  then SuccinctAny
+  else SuccinctDatatype (id, length ts) resIds resTys Map.empty Set.empty
+  where
+    mergeDt t (accIds, accTys) = case outOfSuccinctAll (toSuccinctType t) of
+      SuccinctDatatype id' ids tys _ _ -> (Set.insert id' (ids `Set.union` accIds), tys `Set.union` accTys)
+      ty                         -> (accIds, Set.singleton ty `Set.union` accTys)
+    (resIds, resTys) = foldr mergeDt (Set.empty, Set.empty) ts
+baseToSuccinctType t = SuccinctScalar t
+
+toSuccinctType :: RType -> SuccinctType
+toSuccinctType t@(ScalarT bt _) = let 
+  vars = extractSTyVars t
+  ty = baseToSuccinctType bt
+  in if Set.size vars == 0 then ty else simplifySuccinctType $ SuccinctAll vars ty
+toSuccinctType t@(FunctionT _ param ret) = let
+  vars = extractSTyVars t
+  ty = case outOfSuccinctAll (toSuccinctType ret) of
+    SuccinctFunction paramCnt paramSet retTy -> SuccinctFunction (paramCnt+1) (Set.insert (toSuccinctType param) paramSet) retTy
+    ty'                                      -> SuccinctFunction 1 (Set.singleton (toSuccinctType param)) ty'
+  in if Set.size vars == 0 then ty else simplifySuccinctType $ SuccinctAll vars ty
+toSuccinctType t@(LetT id varty bodyty) = let
+  vars = extractSTyVars t
+  ty = toSuccinctType bodyty
+  in if Set.size vars == 0 then ty else simplifySuccinctType $ SuccinctAll vars ty
+toSuccinctType AnyT = SuccinctAny
+
 lastSuccinctType :: SuccinctType -> SuccinctType
 lastSuccinctType (SuccinctFunction _ _ retTy) = retTy
 lastSuccinctType (SuccinctLet _ _ typ) = typ

@@ -59,6 +59,7 @@ import Synquid.Error
 import Synquid.Program
 import Synquid.Tokens
 import Synquid.Util
+import Synquid.Succinct
 
 import Text.PrettyPrint.ANSI.Leijen hiding ((<+>), (<$>), hsep, vsep)
 import qualified Text.PrettyPrint.ANSI.Leijen as L
@@ -424,9 +425,15 @@ instance Pretty BareDeclaration where
   pretty (MutualDecl names) = keyword "mutual" <+> commaSep (map text names)
   pretty (InlineDecl name args body) = keyword "inline" <+> text name <+> hsep (map text args) <+> operator "=" <+> pretty body
   
+instance Show BareDeclaration where
+  show = show . pretty
+
 instance Pretty a => Pretty (Pos a) where
   pretty (Pos _ x) = pretty x
   
+instance Show a => Show (Pos a) where
+  show (Pos _ x) = show x
+
 prettyError (ErrorMessage ParseError pos descr) = align $ hang tab $ 
   errorDoc (hcat $ map (<> colon) [text (sourceName pos), pretty (sourceLine pos), pretty (sourceColumn pos), text " Parse Error"]) $+$
   pretty descr    
@@ -507,3 +514,16 @@ lfill w d        = case renderCompact d of
  where
   spaces n | n <= 0    = empty
            | otherwise = text $ replicate n ' '
+
+instance Pretty SuccinctType where
+    pretty (SuccinctScalar t) = prettyBase pretty t
+    pretty (SuccinctFunction paramCnt param retTy) = hlBraces (commaSep $ map pretty (Set.toList param)) <+> hlParens (pretty paramCnt) <+> text "->" <+> pretty retTy
+    pretty (SuccinctDatatype (id,_) names tys cons measures) = hlParens $ text id <+> text "|" <+> hlBraces (commaSep $ map pretty (fst $ unzip $ Set.toList names)) <+> text "|" <+> hlBraces (commaSep $ map pretty (Set.toList tys))
+    pretty (SuccinctAll names ty) = text "forall" <+> hlBraces (commaSep $ map pretty (Set.toList names)) <+> text "." <+> pretty ty
+    pretty (SuccinctComposite tys) = hlBraces (commaSep $ map pretty (Set.toList tys))
+    pretty (SuccinctAny) = text "ANY"
+    pretty (SuccinctLet id ty1 ty2) = text "OOPS"
+    pretty (SuccinctInhabited s) = text "INHABITED"
+
+instance Show SuccinctType where
+    show = show . pretty
