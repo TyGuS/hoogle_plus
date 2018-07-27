@@ -20,6 +20,7 @@ import Distribution.Verbosity
 import Distribution.PackageDescription
 import Distribution.PackageDescription.Parse
 import Distribution.Package
+import System.Directory
 
 import Synquid.Type
 import Synquid.Logic
@@ -224,7 +225,10 @@ packageDependencies pkg = do
         Nothing -> return Map.empty
         Just (CondNode _ dependencies _) -> do
             let dpkgs = map dependentPkg dependencies
-            -- mapM_ (\fname -> downloadFile fname Nothing) dpkgs
+            mapM_ (\fname -> do
+                toDownload <- doesFileExist $ downloadDir ++ "/" ++ fname
+                when (not toDownload) (downloadFile fname Nothing >> downloadCabal fname Nothing)
+                ) dpkgs
             myDts <- packageDtNames pkg
             theirDts <- mapM definedDts dpkgs
             let foreignDts = map ((>.<) myDts) theirDts

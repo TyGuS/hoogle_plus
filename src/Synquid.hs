@@ -347,7 +347,7 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
   -- downloadCabal "bytestring" Nothing
   let pkgName = "bytestring"
   toDownload <- doesFileExist $ downloadDir ++ "/" ++ pkgName
-  when toDownload (downloadFile pkgName Nothing)
+  when (not toDownload) (downloadFile pkgName Nothing >> downloadCabal pkgName Nothing)
   fileDecls <- readDeclarations pkgName Nothing
   dts <- packageDtNames pkgName
   depends <- packageDependencies pkgName
@@ -368,7 +368,7 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
       let libsWithDecls = collectLibDecls libs declsByFile
       codegen (fillinCodegenParams file libsWithDecls codegenParams) (map fst results)
   where
-    defaultDts = [defaultList, defaultPair, defaultIO, defaultPtr, defaultMaybe, defaultEither]
+    defaultDts = [defaultEither, defaultMaybe, defaultIO, defaultPtr, defaultList, defaultPair]
     defaultEither = Pos (initialPos "Either") $ DataDecl "Either" ["a", "b"] [] [
         ConstructorSig "Left"  $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (ScalarT (DatatypeT "Either" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue)
       , ConstructorSig "Right" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "b") ftrue) (ScalarT (DatatypeT "Either" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue)  
