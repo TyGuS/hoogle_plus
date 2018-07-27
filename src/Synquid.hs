@@ -116,7 +116,7 @@ main = do
                     filename = out_file,
                     module_ = out_module
                   }
-                  runOnFile synquidParams explorerParams solverParams codegenParams file libs                            
+                  runOnFile synquidParams explorerParams solverParams codegenParams file libs
 
 {- Command line arguments -}
 
@@ -162,7 +162,7 @@ data CommandLineArgs
         log_ :: Int,
         graph :: Bool,
         succinct :: Bool
-      } 
+      }
       | Lifty {
         -- | Input
         file :: String,
@@ -180,7 +180,7 @@ data CommandLineArgs
       }
   deriving (Data, Typeable, Show, Eq)
 
-synt = Synthesis {  
+synt = Synthesis {
   file                = ""              &= typFile &= argPos 0,
   libs                = []              &= args &= typ "FILES",
   only                = Nothing         &= typ "GOAL,..." &= help ("Only synthesize the specified functions"),
@@ -211,8 +211,8 @@ synt = Synthesis {
   } &= auto &= help "Synthesize goals specified in the input file"
     where
       defaultFormat = outputFormat defaultSynquidParams
-      
-lifty = Lifty {  
+
+lifty = Lifty {
   file                = ""              &= typFile &= argPos 0,
   libs                = []              &= args &= typ "FILES",
   only                = Nothing         &= typ "GOAL,..." &= help ("Only synthesize the specified functions"),
@@ -227,11 +227,11 @@ lifty = Lifty {
   } &= help "Fix information leaks in the input file"
     where
       defaultFormat = outputFormat defaultSynquidParams
-      
+
 mode = cmdArgsMode $ modes [synt, lifty] &=
-  help "Synquid program synthesizer" &= 
-  program programName &= 
-  summary (programName ++ " v" ++ versionName ++ ", " ++ showGregorian releaseDate)      
+  help "Synquid program synthesizer" &=
+  program programName &=
+  summary (programName ++ " v" ++ versionName ++ ", " ++ showGregorian releaseDate)
 
 -- | Parameters for template exploration
 defaultExplorerParams = ExplorerParams {
@@ -350,7 +350,7 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
   when (not toDownload) (downloadFile pkgName Nothing >> downloadCabal pkgName Nothing)
   fileDecls <- readDeclarations pkgName Nothing
   dts <- packageDtNames pkgName
-  depends <- packageDependencies pkgName
+  -- depends <- packageDependencies pkgName
   -- let env = foldr (uncurry addDatatype) emptyEnv $ map withEmptyDt dts
   let parsedDecls = defaultDts ++ (fst $ unzip $ map (\decl -> runState (toSynquidDecl decl) 0) fileDecls)
   ddts <- definedDts pkgName
@@ -371,13 +371,13 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
     defaultDts = [defaultEither, defaultMaybe, defaultIO, defaultPtr, defaultList, defaultPair]
     defaultEither = Pos (initialPos "Either") $ DataDecl "Either" ["a", "b"] [] [
         ConstructorSig "Left"  $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (ScalarT (DatatypeT "Either" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue)
-      , ConstructorSig "Right" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "b") ftrue) (ScalarT (DatatypeT "Either" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue)  
+      , ConstructorSig "Right" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "b") ftrue) (ScalarT (DatatypeT "Either" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue)
       ]
     defaultMaybe = Pos (initialPos "Maybe") $ DataDecl "Maybe" ["a"] [] [
         ConstructorSig "Nothing" $ ScalarT (DatatypeT "Maybe" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue
       , ConstructorSig "Just"    $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (ScalarT (DatatypeT "Maybe" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)
       ]
-    defaultPtr = Pos (initialPos "Ptr") $ DataDecl "Ptr" ["a"] [] [] 
+    defaultPtr = Pos (initialPos "Ptr") $ DataDecl "Ptr" ["a"] [] []
     defaultIO = Pos (initialPos "IO") $ DataDecl "IO" ["a"] [] []
     defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
         ConstructorSig "Nil"  $ ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue
@@ -402,11 +402,11 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
         Left parseErr -> (pdoc $ pretty $ toErrorMessage parseErr) >> pdoc empty >> exitFailure
         -- Right ast -> print $ vsep $ map pretty ast
         Right decls -> let decls' = if null rest then decls else filter (not . isSynthesisGoal) decls in -- Remove implementations from libraries
-          ((file, decls') :) <$> parseFromFiles rest    
+          ((file, decls') :) <$> parseFromFiles rest
     requested goals = case goalFilter synquidParams of
       Just filt -> filter (\goal -> gName goal `elem` filt) goals
       _ -> goals
-    
+
     pdoc = printDoc (outputFormat synquidParams)
     synthesizeGoal cquals tquals goal = do
       when (showSpec synquidParams) $ pdoc (prettySpec goal)
@@ -431,7 +431,7 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
            ) decls
       let totalSizeOf = sum . map (typeNodeCount . toMonotype .unresolvedType env)
       let policySize = Map.fromList $ map (\(file, decls) -> (file, totalSizeOf $ namesOfConstants decls)) declsByFile
-      let getStatsFor ((goal, prog), stats) = 
+      let getStatsFor ((goal, prog), stats) =
              StatsRow
              (gName goal)
              (typeNodeCount $ toMonotype $ unresolvedSpec goal)
@@ -444,7 +444,7 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
       pdoc $ vsep $ [
                 parens (text "Goals:" <+> pretty (length results)),
                 parens (text "Measures:" <+> pretty measureCount)] ++
-              if repairPolicies synquidParams 
+              if repairPolicies synquidParams
                 then [
                   parens (text "Policy size:" <+> (text $ show policySize)),
                   statsTable perResult]
