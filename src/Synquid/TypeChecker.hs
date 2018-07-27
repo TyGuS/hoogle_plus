@@ -124,7 +124,8 @@ reconstructI env t (Program p t') = do
   reconstructI' env t'' p
 
 reconstructI' env t PErr = generateError env
-reconstructI' env t PHole = generateError env `mplus` generateI env t False
+-- reconstructI' env t PHole = generateError env `mplus` generateI env t False
+reconstructI' env t PHole = generateI env t False
 reconstructI' env t (PLet x iDef@(Program (PFun _ _) _) iBody) = do -- lambda-let: remember and type-check on use
   lambdaLets %= Map.insert x (env, iDef)
   let ctx = \p -> Program (PLet x uHole p) t

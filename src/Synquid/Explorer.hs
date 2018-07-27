@@ -269,19 +269,20 @@ generateFirstCase env scrVar pScrutinee t consName = do
       let scrutineeSyms = symbolsOf pScrutinee
       caseEnv <- if useSucc then foldM (\e (name, ty) -> addSuccinctSymbol name (Monotype (if Set.size scrutineeSyms == 1 then refineScalarType env ty else ty)) e) env' syms else return env'
 
-      ifte (do -- Try to find a vacuousness condition:
-              deadUnknown <- Unknown Map.empty <$> freshId "C"
-              addConstraint $ WellFormedCond env deadUnknown
-              err <- inContext (\p -> Program (PMatch pScrutinee [Case consName binders p]) t) $ generateError (addAssumption deadUnknown caseEnv)
-              deadValuation <- conjunction <$> currentValuation deadUnknown
-              ifte (generateError (addAssumption deadValuation env)) (const mzero) (return ()) -- The error must be possible only in this case
-              return (err, deadValuation, unknownName deadUnknown)) 
-            (\(err, deadCond, deadUnknown) -> return $ (Case consName binders err, deadCond, deadUnknown))
-            (do
-              pCaseExpr <- local (over (_1 . matchDepth) (-1 +)) 
-                            $ inContext (\p -> Program (PMatch pScrutinee [Case consName binders p]) t)
-                            $ generateI caseEnv t False
-              return $ (Case consName binders pCaseExpr, ftrue, dontCare))
+      -- ifte (do -- Try to find a vacuousness condition:
+      --         deadUnknown <- Unknown Map.empty <$> freshId "C"
+      --         addConstraint $ WellFormedCond env deadUnknown
+      --         err <- inContext (\p -> Program (PMatch pScrutinee [Case consName binders p]) t) $ generateError (addAssumption deadUnknown caseEnv)
+      --         deadValuation <- conjunction <$> currentValuation deadUnknown
+      --         ifte (generateError (addAssumption deadValuation env)) (const mzero) (return ()) -- The error must be possible only in this case
+      --         return (err, deadValuation, unknownName deadUnknown)) 
+      --       (\(err, deadCond, deadUnknown) -> return $ (Case consName binders err, deadCond, deadUnknown))
+      --       (do
+      pCaseExpr <- local (over (_1 . matchDepth) (-1 +)) 
+                    $ inContext (\p -> Program (PMatch pScrutinee [Case consName binders p]) t)
+                    $ generateI caseEnv t False
+      return $ (Case consName binders pCaseExpr, ftrue, dontCare)
+              -- )
 
 -- | Generate the @consName@ case of a match term with scrutinee variable @scrName@ and scrutinee type @scrType@
 generateCase :: MonadHorn s => Environment -> Formula -> RProgram -> RType -> Id -> Explorer s (Case RType, Explorer s ())
@@ -305,7 +306,8 @@ generateCase env scrVar pScrutinee t consName = do
       caseEnv <- if useSucc then foldM (\e (name, ty) -> addSuccinctSymbol name (Monotype (if Set.size scrutineeSyms == 1 then refineScalarType env ty else ty)) e) env' syms else return env'
       pCaseExpr <- optionalInPartial t $ local (over (_1 . matchDepth) (-1 +))
                                        $ inContext (\p -> Program (PMatch pScrutinee [Case consName binders p]) t)
-                                       $ generateError caseEnv `mplus` generateI caseEnv t False
+                                       $ generateI caseEnv t False
+                                       -- $ generateError caseEnv `mplus` generateI caseEnv t False
             
       let recheck = if disjoint (symbolsOf pCaseExpr) (Set.fromList binders)
                       then runInSolver $ setUnknownRecheck (unknownName cUnknown) Set.empty Set.empty -- ToDo: provide duals here
@@ -345,7 +347,8 @@ generateMaybeMatchIf env t isElseBranch = (generateOneBranch >>= generateOtherBr
         guard $ length matchConds <= d
         return (matchConds, conjunction condValuation, unknownName condUnknown, p0)
         
-    generateEOrError env typ = generateError env `mplus` generateE env typ True isElseBranch False
+    -- generateEOrError env typ = generateError env `mplus` generateE env typ True isElseBranch False
+    generateEOrError env typ = generateE env typ True isElseBranch False
 
     -- | Proceed after solution @p0@ has been found under assumption @cond@ and match-assumption @matchCond@
     generateOtherBranches (matchConds, cond, condUnknown, p0) = do
