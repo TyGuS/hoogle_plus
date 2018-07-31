@@ -22,6 +22,7 @@ import Database.Graph
 import Database.Generate
 import Database.Download
 import Database.Util
+import Database.GraphWeightsProvider
 
 import Control.Monad
 import Control.Lens ((^.))
@@ -30,8 +31,9 @@ import System.Console.CmdArgs
 import System.Console.ANSI
 import System.FilePath
 import Text.Parsec.Pos
-import Control.Monad.State (runState)
+import Control.Monad.State (runState, evalStateT)
 import Data.Char
+import Data.List
 import Data.Time.Calendar
 import Language.Haskell.Exts (Decl(TypeSig))
 import Data.Map ((!))
@@ -60,7 +62,7 @@ main = do
                appMax scrutineeMax matchMax auxMax fix genPreds explicitMatch unfoldLocals partial incremental consistency memoize symmetry
                lfp bfs
                out_file out_module outFormat resolve
-               print_spec print_stats log_ graph succinct) -> do
+               print_spec print_stats log_ graph succinct sol_num) -> do
                   let explorerParams = defaultExplorerParams {
                     _eGuessDepth = appMax,
                     _scrutineeDepth = scrutineeMax,
@@ -77,7 +79,8 @@ main = do
                     _symmetryReduction = symmetry,
                     _explorerLogLevel = log_,
                     _buildGraph = graph,
-                    _useSuccinct = succinct
+                    _useSuccinct = succinct,
+                    _solutionCnt = sol_num
                     }
                   let solverParams = defaultHornSolverParams {
                     isLeastFixpoint = lfp,
@@ -161,7 +164,8 @@ data CommandLineArgs
         print_stats :: Bool,
         log_ :: Int,
         graph :: Bool,
-        succinct :: Bool
+        succinct :: Bool,
+        sol_num :: Int
       }
       | Lifty {
         -- | Input
@@ -206,8 +210,9 @@ synt = Synthesis {
   print_spec          = True            &= help ("Show specification of each synthesis goal (default: True)"),
   print_stats         = False           &= help ("Show specification and solution size (default: False)"),
   log_                = 0               &= help ("Logger verboseness level (default: 0)") &= name "l",
-  graph               = False            &= help ("Build graph for exploration") &= name "graph",
-  succinct            = False            &= help ("Use graph to direct the term exploration") &= name "succ"
+  graph               = False           &= help ("Build graph for exploration") &= name "graph",
+  succinct            = False           &= help ("Use graph to direct the term exploration") &= name "succ",
+  sol_num             = 10              &= help ("Number of solutions need to find") &= name "cnt"
   } &= auto &= help "Synthesize goals specified in the input file"
     where
       defaultFormat = outputFormat defaultSynquidParams
@@ -254,7 +259,8 @@ defaultExplorerParams = ExplorerParams {
   _sourcePos = noPos,
   _explorerLogLevel = 0,
   _buildGraph = True,
-  _useSuccinct = True
+  _useSuccinct = True,
+  _solutionCnt = 10
 }
 
 -- | Parameters for constraint solving
@@ -343,19 +349,14 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
   -- let decls = concat $ map snd declsByFile
   -- print decls
   targetDecl <- parseSignature file
-  -- test for cabal file reading
-  -- downloadCabal "bytestring" Nothing
   let pkgName = "bytestring"
-  toDownload <- doesFileExist $ downloadDir ++ "/" ++ pkgName
-  when (not toDownload) (downloadFile pkgName Nothing >> downloadCabal pkgName Nothing)
+  downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
   fileDecls <- readDeclarations pkgName Nothing
   dts <- packageDtNames pkgName
-  -- depends <- packageDependencies pkgName
-  -- let env = foldr (uncurry addDatatype) emptyEnv $ map withEmptyDt dts
-  let parsedDecls = defaultDts ++ (fst $ unzip $ map (\decl -> runState (toSynquidDecl decl) 0) fileDecls)
+  let parsedDecls = fst $ unzip $ map (\decl -> runState (toSynquidDecl decl) 0) fileDecls
   ddts <- definedDts pkgName
-  let additionalDts = map (\id -> Pos (initialPos id) $ DataDecl id [] [] []) $ filter (flip notElem ddts) dts
-  let decls = reorderDecls $ additionalDts ++ parsedDecls ++ targetDecl
+  additionalDts <- evalStateT (packageDependencies pkgName) 0
+  let decls = reorderDecls $ defaultDts ++ additionalDts ++ parsedDecls ++ targetDecl
   -- print decls
   let declsByFile = [(pkgName, decls)]
   case resolveDecls decls of
@@ -368,17 +369,7 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
       let libsWithDecls = collectLibDecls libs declsByFile
       codegen (fillinCodegenParams file libsWithDecls codegenParams) (map fst results)
   where
-    defaultDts = [defaultEither, defaultMaybe, defaultIO, defaultPtr, defaultList, defaultPair]
-    defaultEither = Pos (initialPos "Either") $ DataDecl "Either" ["a", "b"] [] [
-        ConstructorSig "Left"  $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (ScalarT (DatatypeT "Either" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue)
-      , ConstructorSig "Right" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "b") ftrue) (ScalarT (DatatypeT "Either" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue)
-      ]
-    defaultMaybe = Pos (initialPos "Maybe") $ DataDecl "Maybe" ["a"] [] [
-        ConstructorSig "Nothing" $ ScalarT (DatatypeT "Maybe" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue
-      , ConstructorSig "Just"    $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (ScalarT (DatatypeT "Maybe" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)
-      ]
-    defaultPtr = Pos (initialPos "Ptr") $ DataDecl "Ptr" ["a"] [] []
-    defaultIO = Pos (initialPos "IO") $ DataDecl "IO" ["a"] [] []
+    defaultDts = [defaultList, defaultPair, defaultUnit]
     defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
         ConstructorSig "Nil"  $ ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue
       , ConstructorSig "Cons" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "xs" (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue) (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue))

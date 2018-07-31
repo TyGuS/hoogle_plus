@@ -15,7 +15,7 @@ import Control.Monad.Extra
 data Entry = EPackage String
            | EModule String
            | EDecl Decl
-             deriving (Data,Typeable,Show)
+             deriving (Data,Typeable,Show,Eq)
 
 parseMode :: ParseMode
 parseMode = defaultParseMode{extensions=map EnableExtension es}

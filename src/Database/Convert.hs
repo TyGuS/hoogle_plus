@@ -12,6 +12,7 @@ import Data.List
 import Data.Maybe
 import Data.Either
 import Data.Ord
+import qualified Data.Sort as Sort
 import Data.List.Split
 import Control.Lens as Lens
 import Control.Monad.State
@@ -20,7 +21,7 @@ import Distribution.Verbosity
 import Distribution.PackageDescription
 import Distribution.PackageDescription.Parse
 import Distribution.Package
-import System.Directory
+import Debug.Trace
 
 import Synquid.Type
 import Synquid.Logic
@@ -81,14 +82,28 @@ datatypeOf (TyTuple _ typs) = foldr (\t vars -> vars `Set.union` datatypeOf t) (
 datatypeOf (TyList typ) = Set.singleton "List" `Set.union` datatypeOf typ
 datatypeOf (TyApp fun arg) = datatypeOf fun `Set.union` datatypeOf arg
 datatypeOf (TyVar name) = Set.empty
-datatypeOf t@(TyCon name) = Set.singleton $ consStr t
+datatypeOf t@(TyCon name) | Special _ <- name = Set.empty
+datatypeOf t@(TyCon name) | otherwise = Set.singleton $ consStr t
 datatypeOf (TyParen typ) = datatypeOf typ
 datatypeOf (TyInfix typ1 _ typ2) = datatypeOf typ1 `Set.union` datatypeOf typ2
 datatypeOf (TyKind typ _) = datatypeOf typ
 datatypeOf (TyEquals ltyp rtyp) = datatypeOf ltyp `Set.union` datatypeOf rtyp
 datatypeOf _ = Set.empty
 
-toSynquidSchema :: Type -> State Int SSchema
+matchDtWithCons :: [Entry] -> [Entry]
+matchDtWithCons [] = []
+matchDtWithCons (decl:decls) = case decl of
+    EDecl (DataDecl a b c name bvars conDecls d) -> case decls of
+        [] -> decl : matchDtWithCons decls
+        decl':decls' | EDecl (TypeSig _ names typ) <- decl' -> if names !! 0 == name 
+                                                                   then let conDecl = QualConDecl a [] c (ConDecl name [typ]) 
+                                                                        in (EDecl (DataDecl a b c name bvars (conDecl:conDecls) d)): matchDtWithCons decls'
+                                                                   else decl : matchDtWithCons decls
+                     | otherwise -> decl : matchDtWithCons decls
+    _ -> decl : matchDtWithCons decls
+
+
+toSynquidSchema :: Monad m => Type -> StateT Int m SSchema
 toSynquidSchema typ = do
     typs <- toSynquidSkeleton typ
     typ' <- return $ head typs
@@ -97,14 +112,15 @@ toSynquidSchema typ = do
         -- then  return $ Monotype typ'
         -- else return $ foldr ForallT (Monotype typ') $ allTypeVars typ
 
-toSynquidSkeleton :: Type -> State Int [SType]
+toSynquidSkeleton :: Monad m => Type -> StateT Int m [SType]
 toSynquidSkeleton (TyForall _ _ typ) = toSynquidSkeleton typ
 toSynquidSkeleton (TyFun arg ret) = do
     counter <- get
+    -- traceShow ((show counter)) $ return ()
     put (counter + 1)
-    arg' <- toSynquidSkeleton arg
     ret' <- toSynquidSkeleton ret
-    return $ [FunctionT ("x"++show counter) (head arg') (head ret')]
+    arg' <- toSynquidSkeleton arg
+    return [FunctionT ("arg"++show counter) (head arg') (head ret')]
 toSynquidSkeleton (TyParen typ) = toSynquidSkeleton typ
 toSynquidSkeleton (TyKind typ _) = toSynquidSkeleton typ
 toSynquidSkeleton t@(TyCon name) = case name of
@@ -159,7 +175,7 @@ toSynquidRType typ = do
 -- toSynquidRSchema env (ForallT name sch) = ForallT name (toSynquidRSchema env sch)
 toSynquidRSchema (Monotype typ) = Monotype $ addTrue typ
 
-processConDecls :: [QualConDecl] -> State Int [SP.ConstructorSig]
+processConDecls :: Monad m => [QualConDecl] -> StateT Int m [SP.ConstructorSig]
 processConDecls [] = return []
 processConDecls (decl:decls) = let QualConDecl _ _ _ conDecl = decl in 
     case conDecl of
@@ -170,6 +186,14 @@ processConDecls (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
             typl' <- toSynquidRType typl
             typr' <- toSynquidRType typr
             (:) (SP.ConstructorSig (nameStr name) (FunctionT "arg0" typl' typr')) <$> (processConDecls decls)
+        RecDecl name fields -> error "record declaration is not supported"
+
+datatypeOfCon :: [QualConDecl] -> Set Id
+datatypeOfCon [] = Set.empty
+datatypeOfCon (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
+    case conDecl of
+        ConDecl name typs -> Set.unions $ map datatypeOf typs
+        InfixConDecl typl name typr -> datatypeOf typl `Set.union` datatypeOf typr
         RecDecl name fields -> error "record declaration is not supported"
 
 toSynquidDecl (EDecl (TypeDecl _ name bvars typ)) = Pos (initialPos (nameStr name)) . SP.TypeDecl (nameStr name) (map varsFromBind bvars) <$> toSynquidRType typ
@@ -183,10 +207,10 @@ toSynquidDecl (EDecl (TypeSig _ names typ)) = do
 toSynquidDecl decl = return $ Pos (initialPos "") $ SP.QualifierDecl [] -- [TODO] a fake conversion
 
 reorderDecls :: [Declaration] -> [Declaration]
-reorderDecls decls = sortBy (comparing toInt) decls
+reorderDecls decls = Sort.sortOn toInt decls
   where
     toInt (Pos _ (SP.TypeDecl {})) = 0
-    toInt (Pos _ (SP.DataDecl {})) = 1
+    toInt (Pos _ (SP.DataDecl {})) = 0
     toInt (Pos _ (SP.QualifierDecl {})) = 98
     toInt (Pos _ (SP.FuncDecl {})) = 99
     toInt (Pos _ (SP.SynthesisGoal {})) = 100
@@ -214,45 +238,83 @@ readDeclarations pkg version = do
             Just v -> ifM (checkVersion pkg v) (return $ pkg ++ "-" ++ v) (return pkg)
     s   <- readFile $ downloadDir ++ vpkg ++ ".txt"
     let code = concat . rights . (map parseLine) $ splitOn "\n" s
-    return $ renameSigs "" $ addSynonym code
+    return $ renameSigs "" code
 
 type DependsOn = Map PkgName [Id]
 
-packageDependencies :: PkgName -> IO DependsOn
+packageDependencies :: PkgName -> StateT Int IO [Declaration]
 packageDependencies pkg = do
-    gPackageDesc <- readPackageDescription verbose $ downloadDir ++ pkg ++ ".cabal"
+    gPackageDesc <- lift $ readPackageDescription verbose $ downloadDir ++ pkg ++ ".cabal"
     case condLibrary gPackageDesc of
-        Nothing -> return Map.empty
+        Nothing -> return []
         Just (CondNode _ dependencies _) -> do
             let dpkgs = map dependentPkg dependencies
-            mapM_ (\fname -> do
-                toDownload <- doesFileExist $ downloadDir ++ "/" ++ fname
-                when (not toDownload) (downloadFile fname Nothing >> downloadCabal fname Nothing)
-                ) dpkgs
-            myDts <- packageDtNames pkg
-            theirDts <- mapM definedDts dpkgs
-            let foreignDts = map ((>.<) myDts) theirDts
-            return $ foldr (uncurry Map.insert) Map.empty $ zip dpkgs foreignDts
+            mapM_ (\fname -> lift $ downloadFile fname Nothing >> downloadCabal fname Nothing) dpkgs
+            myDts <- lift $ packageDtNames pkg
+            myDtDefs <- lift $ packageDtDefs pkg
+            myDefinedDts <- lift $ definedDts pkg
+            theirDts <- lift $ mapM packageDtDefs dpkgs
+            decls <- dependencyClosure myDefinedDts myDts theirDts
+            let allDecls = decls ++ (snd $ unzip myDtDefs)
+            let sortedIds = topoSort $ dependencyGraph allDecls
+            let decls' = matchDtWithCons $ map (fromJust . (flip Map.lookup $ declMap allDecls)) $ nub $ sortedIds >.> ["List", "Pair"]
+            mapM toSynquidDecl decls'
+            
+            -- let foreignDts = concatMap (filter ((flip elem (myDts >.> myDefinedDts)) . fst)) theirDts
+            -- -- lift $ print foreignDts
+            -- mapM toSynquidDecl $ nub $ snd $ unzip foreignDts
   where
     dependentPkg (Dependency name _) = unPackageName name
+    dependencyClosure definedDts allDts theirDts = do
+        let undefinedDts = allDts >.> definedDts
+        if length undefinedDts /= 0 
+            then do
+                let foreignDts = concatMap (filter ((flip elem undefinedDts) . fst)) theirDts
+                let newDecls = nub $ snd $ unzip foreignDts
+                let newAddedDts = Set.toList $ Set.unions $ map getDeclTy newDecls
+                (++) newDecls <$> dependencyClosure allDts newAddedDts theirDts
+            else return []
+    declMap decls = foldr (\d -> Map.insert (getDeclName d) d) Map.empty $ filter isDataDecl decls
+    dependsOn decl = case decl of
+        EDecl (DataDecl _ _ _ name bvars conDecls _) -> (nameStr name, datatypeOfCon conDecls)
+        EDecl (TypeDecl _ name _ ty) -> (nameStr name, datatypeOf ty)
+        _ -> error "[In `dependsOn`] Please filter before calling this function"
+    dependencyGraph decls = foldr (uncurry Map.insert) Map.empty $ map dependsOn $ filter isDataDecl decls
+    nodesOf graph = nub $ (Map.keys graph) ++ (Set.toList $ Set.unions $ Map.elems graph)
+    topoSort graph = reverse $ topoSortHelper (nodesOf graph) Set.empty graph
+    topoSortHelper [] _ graph = []
+    topoSortHelper (v:vs) visited graph = if Set.member v visited
+        then topoSortHelper vs visited graph
+        else topoSortHelper vs (Set.insert v visited) graph ++ v:(topoSortHelper (Set.toList (Map.findWithDefault Set.empty v graph)) visited graph)
 
 isDataDecl :: Entry -> Bool
 isDataDecl decl = case decl of
     EDecl (DataDecl {}) -> True
+    EDecl (TypeDecl {}) -> True
     _ -> False
 
-packageDtDefs :: PkgName -> IO [Entry]
+packageDtDefs :: PkgName -> IO [(Id, Entry)]
 packageDtDefs pkg = do
     decls <- readDeclarations pkg Nothing
-    return $ filter isDataDecl decls
+    -- It relies on the order of definitions exist in the source file
+    return $ foldr (\decl -> ((dtNameOf decl, decl):)) [] $ filter isDataDecl decls
+  where
+    dtNameOf (EDecl (DataDecl _ _ _ name bvars conDecls _)) = nameStr name
+    dtNameOf (EDecl (TypeDecl _ name _ _)) = nameStr name
+
+getDeclTy :: Entry -> Set Id
+getDeclTy (EDecl (TypeSig _ names ty)) = datatypeOf ty
+getDeclTy (EDecl (TypeDecl _ _ _ ty)) = datatypeOf ty
+getDeclTy _ = Set.empty
+
+getDeclName :: Entry -> Id
+getDeclName (EDecl (DataDecl _ _ _ name bvars conDecls _)) = nameStr name
+getDeclName (EDecl (TypeDecl _ name _ ty)) = nameStr name
 
 packageDtNames :: PkgName -> IO [Id]
 packageDtNames pkg = do
     decls <- readDeclarations pkg Nothing
     return $ Set.toList $ Set.unions $ map getDeclTy decls
-  where
-    getDeclTy (EDecl (TypeSig _ names ty)) = datatypeOf ty
-    getDeclTy _ = Set.empty
 
 definedDts :: PkgName -> IO [Id]
 definedDts pkg = do
@@ -261,3 +323,4 @@ definedDts pkg = do
     return $ map dtNameOf dtDecls
   where
     dtNameOf (EDecl (DataDecl _ _ _ name bvars conDecls _)) = nameStr name
+    dtNameOf (EDecl (TypeDecl _ name _ _)) = nameStr name
