@@ -18,6 +18,7 @@ import Database.GraphWeightsProvider
 
 import Data.Maybe
 import Data.List
+import Data.Foldable
 import qualified Data.Set as Set
 import Data.Set (Set)
 import qualified Data.Map as Map
@@ -166,7 +167,7 @@ generateI env t@(FunctionT x tArg tRes) isElseBranch = do
   let ctx = \p -> Program (PFun x p) t
   useSucc <- asks . view $ _1 . buildGraph
   env' <- if useSucc then addSuccinctSymbol x (Monotype tArg) env else return env
-  pBody <- inContext ctx $ generateI (unfoldAllVariables $ addVariable x tArg $ env') tRes False
+  pBody <- inContext ctx $ generateI (unfoldAllVariables $ addArgument x tArg $ env') tRes False
   return $ ctx pBody
 generateI env t@(ScalarT _ _) isElseBranch = do
   maEnabled <- asks . view $ _1 . abduceScrutinees -- Is match abduction enabled?
@@ -390,6 +391,7 @@ overDepthProgram d = overDepthProgramHelper (d+1) (Program PHole (SuccinctAny, A
 keepIdCount old new = new {
   _typingState = (new ^. typingState) { _idCount = Map.unionWith max ((old ^. typingState) ^. idCount) ((new ^. typingState) ^. idCount) },
   -- _triedTerms = old ^. triedTerms
+  _foundCnt = max (old ^. foundCnt) (new ^. foundCnt),
   _symbolUseCount = Map.unionWith max (old ^. symbolUseCount) (new ^. symbolUseCount)
 }
 
@@ -497,7 +499,7 @@ termWithType env sty rty typ = do
             symbolUseCount %= Map.insertWith (+) id 1
             if pc == 0
               then do
-                writeLog 2 $ text "Trying" <+> text id
+                -- writeLog 2 $ text "Trying" <+> text id
                 let succinctTy = outOfSuccinctAll (toSuccinctType (t))
                 let p = Program (PSymbol id) (succinctTy, t, typ)
                 addConstraint $ Subtype env t rty False "" -- Add subtyping check, unless it's a function type and incremental checking is diasbled
@@ -510,7 +512,7 @@ termWithType env sty rty typ = do
                 tFun <- buildFunctionType pc rty
                 let succinctTy = outOfSuccinctAll (toSuccinctType (t))
                 let p = Program (PSymbol id) (succinctTy, t, tFun)
-                writeLog 2 $ text "Trying" <+> text id
+                -- writeLog 2 $ text "Trying" <+> text id
                 addConstraint $ Subtype env t tFun False "" -- Add subtyping check, unless it's a function type and incremental checking is diasbled
                 when (arity tFun > 0) (addConstraint $ Subtype env t tFun True "") -- Add consistency constraint for function types
                 let p' = buildApp pc (Program (PSymbol id) (succinctTy,t, tFun))
@@ -589,32 +591,6 @@ checkArguments env (Program p typ) = case p of
     addConstraint $ Subtype env (typeOf arg') tArg False ""
     return $ Program (PApp fun' arg') tRet'
 
--- refineProgram :: (MonadHorn s, MonadIO s) => Environment -> SProgram -> Explorer s RProgram
--- refineProgram env (Program p (styp,rtyp)) = case p of
---   PSymbol id -> case lookupSymbol id (arity rtyp) env of
---     Nothing -> error ("symbol " ++ id ++ "not in the scope")
---     Just sch -> do
---       t <- symbolType env id sch -- instantiate the type with fresh names
---       incremental <- asks . view $ _1 . incrementalChecking -- Is incremental type checking of E-terms enabled?
---       consistency <- asks . view $ _1 . consistencyChecking -- Is consistency checking enabled?
---       -- when (incremental || arity rtyp == 0) (addConstraint $ Subtype env t rtyp False "")
---       -- when (consistency && arity rtyp > 0) (addConstraint $ Subtype env t rtyp True "")
---       return (Program (PSymbol id) t)
---         -- else return $ Program (PSymbol id) rtyp
---   PApp fun arg -> do
---     fun' <- refineProgram env fun
---     arg' <- refineProgram env arg
---     let FunctionT x tArg tRet = typeOf fun'
---     -- let tRet' = if hasAny (typeOf arg') then tRet else appType env arg' x tRet
---     let tRet' = appType env arg' x tRet
---     let (_, funTy) = typeOf fun
---     -- incremental <- asks . view $ _1 . incrementalChecking -- Is incremental type checking of E-terms enabled?
---     -- consistency <- asks . view $ _1 . consistencyChecking -- Is consistency checking enabled?
---     addConstraint $ Subtype env (typeOf arg') tArg False ""
---     -- when (consistency && arity funTy > 0) (addConstraint $ Subtype env (typeOf fun') funTy True "")
---     return $ Program (PApp fun' arg') tRet'
---   _ -> return (Program PHole AnyT)
-
 initProgramQueue :: (MonadHorn s, MonadIO s) => Environment -> RType -> Explorer s ProgramQueue
 initProgramQueue env typ = do
   tass <- use (typingState . typeAssignment)
@@ -630,13 +606,14 @@ initProgramQueue env typ = do
   let pq = PQ.singleton score (p, es, [])
   return pq
 
-generateEWithGraph :: (MonadHorn s, MonadIO s) => Environment -> ProgramQueue -> RType -> Bool -> Bool -> Explorer s RProgram
+generateEWithGraph :: (MonadHorn s, MonadIO s) => Environment -> ProgramQueue -> RType -> Bool -> Bool -> Explorer s (ProgramQueue, RProgram)
 generateEWithGraph env pq typ isThenBranch isElseBranch = do
   -- ts <- use typingState
   es <- get
   res <- walkThrough env pq
   expectedCnt <- asks . view $ _1 . solutionCnt
   let cnt = es ^. foundCnt
+  -- writeLog 0 $ text "current solution count:" <+> text (show cnt)
   case res of
     (Nothing, _) -> mzero
     (Just (p, pes), newPQ) -> do
@@ -645,22 +622,17 @@ generateEWithGraph env pq typ isThenBranch isElseBranch = do
       let refinedP = toRProgram p
       writeLog 2 $ text "Checking program" <+> pretty refinedP
       let p' = refinedP
-      -- p' <- if isElseBranch then checkArguments env refinedP else return refinedP
       ifte (checkE env typ p')
         (\() -> do
           when isThenBranch (termQueueState .= newPQ)
-          if cnt < expectedCnt
-            then do
-              writeLog 0 $ pretty p'
-              put $ es {_foundCnt = cnt + 1}
-              generateEWithGraph env newPQ typ isThenBranch isElseBranch 
-            else return p')
-        -- (typingState .= ts >> generateEWithGraph env newPQ typ isThenBranch isElseBranch)
+          return (newPQ, p'))
+              -- generateEWithGraph env newPQ typ isThenBranch isElseBranch)
         (do
-          -- triedTerms %= Set.insert p
           currSt <- get
           put $ keepIdCount currSt es
           generateEWithGraph env newPQ typ isThenBranch isElseBranch)
+  where
+    containsAllArguments p =  Set.null $ Map.keysSet (env ^. arguments) `Set.difference` symbolsOf p 
 
 mergeTypingState env ts pts = pts {
   _typingConstraints = (ts ^. typingConstraints) ++ (filter (not . isCondConstraint) $ map (updateConstraintEnv env) (pts ^. typingConstraints)),
@@ -690,14 +662,24 @@ generateE env typ isThenBranch isElseBranch isMatchScrutinee = do
       resQ <- mapM (\(k, (prog, pes, c)) -> return $ Just (k, (prog, mergeExplorerState env es pes, c))) (PQ.toList q)
       return $ PQ.fromList $ map fromJust $ filter isJust resQ
     else initProgramQueue env typ
-  prog@(Program pTerm pTyp) <- if useFilter && (not isMatchScrutinee) then generateEWithGraph env pq typ isThenBranch isElseBranch else generateEUpTo env typ d
-  -- (Program pTerm pTyp) <- generateEUpTo env typ d
+  prog@(Program pTerm pTyp) <- if useFilter && (not isMatchScrutinee) 
+    then repeatUtilValid pq
+    else generateEUpTo env typ d
   runInSolver $ isFinal .= True >> solveTypeConstraints >> isFinal .= False  -- Final type checking pass that eliminates all free type variables
   newGoals <- uses auxGoals (map gName)                                      -- Remember unsolved auxiliary goals
   generateAuxGoals                                                           -- Solve auxiliary goals
   pTyp' <- runInSolver $ currentAssignment pTyp                              -- Finalize the type of the synthesized term
   addLambdaLets pTyp' (Program pTerm pTyp') newGoals                         -- Check if some of the auxiliary goal solutions are large and have to be lifted into lambda-lets
   where
+    containsAllArguments p =  Set.null $ Map.keysSet (env ^. arguments) `Set.difference` symbolsOf p 
+    repeatUtilValid pq = 
+      ifte (generateEWithGraph env pq typ isThenBranch isElseBranch)
+        (\(pq',res) -> do
+          if containsAllArguments res
+            then return res `mplus` repeatUtilValid pq'
+            else repeatUtilValid pq'
+          )
+        mzero
     addLambdaLets t body [] = return body
     addLambdaLets t body (g:gs) = do
       pAux <- uses solvedAuxGoals (Map.! g)
@@ -1344,7 +1326,8 @@ pruneGraphByReachability g reachableSet = HashMap.foldrWithKey (\k v acc -> if S
 termScore :: Environment -> SProgram -> IO Double
 termScore env prog@(Program p (sty, rty, _)) = do
     ws <- getGraphWeights $ Set.toList $ symbolsOf prog
-    return $ sum ws
+    let paramSymCnt = Set.size $ symbolsOf prog `Set.intersection` Map.keysSet (env ^. arguments)
+    return $ if holes == 0 then 99999 else (fromIntegral paramSymCnt) * 4000 + sum ws
     -- else 1.0 / (fromIntegral holes) +
     --   1.0 / (fromIntegral $ greatestHoleType 0 prog) + 
     --   1.0 / (fromIntegral wholes)) + 
