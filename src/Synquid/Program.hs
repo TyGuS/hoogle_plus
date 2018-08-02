@@ -206,6 +206,7 @@ getEdgeId (SuccinctEdge id _ _) = id
 data Environment = Environment {
   -- | Variable part:
   _symbols :: Map Int (Map Id RSchema),    -- ^ Variables and constants (with their refinement types), indexed by arity
+  _arguments :: Map Id RSchema,            -- ^ Function arguments, required in all the solutions
   _succinctSymbols :: HashMap Id SuccinctType,    -- ^ Symbols with succinct types
   _succinctGraph :: HashMap SuccinctType (HashMap SuccinctType (Set SuccinctEdge)), -- ^ Graph built upon succinct types
   _graphFromGoal :: HashMap SuccinctType (HashMap SuccinctType (Set SuccinctEdge)),
@@ -237,6 +238,7 @@ instance Ord Environment where
 -- | Empty environment
 emptyEnv = Environment {
   _symbols = Map.empty,
+  _arguments = Map.empty,
   _succinctSymbols = HashMap.empty,
   _succinctGraph = HashMap.empty,
   _graphFromGoal = HashMap.empty,
@@ -261,7 +263,7 @@ symbolsOfArity n env = Map.findWithDefault Map.empty n (env ^. symbols)
 
 -- | All symbols in an environment
 allSymbols :: Environment -> Map Id RSchema
-allSymbols env = Map.unions $ Map.elems (env ^. symbols)
+allSymbols env = (env ^. arguments) `Map.union` (Map.unions $ Map.elems (env ^. symbols))
 
 -- | 'lookupSymbol' @name env@ : type of symbol @name@ in @env@, including built-in constants
 lookupSymbol :: Id -> Int -> Environment -> Maybe RSchema
@@ -315,6 +317,9 @@ isConstant name env = (name `elem` ["True", "False"]) ||
 -- | 'isBound' @tv env@: is type variable @tv@ bound in @env@?
 isBound :: Environment -> Id -> Bool
 isBound env tv = tv `elem` env ^. boundTypeVars
+
+addArgument :: Id -> RType -> Environment -> Environment
+addArgument name t = (arguments %~ Map.insert name (Monotype t))
 
 addVariable :: Id -> RType -> Environment -> Environment
 addVariable name t = addPolyVariable name (Monotype t)

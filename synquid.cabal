@@ -61,6 +61,8 @@ executable synquid
                     , packdeps
                     , Cabal
                     , directory
+                    , text
+                    , sort
 
 
   ghc-options: -O2
