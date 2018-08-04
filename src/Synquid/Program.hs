@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, DeriveFunctor #-}
+{-# LANGUAGE TemplateHaskell, DeriveFunctor, DeriveGeneric #-}
 
 -- | Executable programs
 module Synquid.Program where
@@ -19,8 +19,7 @@ import qualified Data.Map as Map
 import Data.Map (Map)
 import qualified Data.HashMap.Strict as HashMap
 import Data.HashMap.Strict (HashMap)
-import qualified Data.Sequence as Seq
-import Data.Sequence (Seq)
+import GHC.Generics hiding (to)
 
 import Control.Monad
 import Control.Lens
@@ -185,7 +184,7 @@ makeLenses ''MeasureDef
 {- Evaluation environment -}
 data SuccinctContext = SuccinctContext {
   _srcType :: SuccinctType
-} deriving (Eq)
+} deriving (Eq, Generic)
 
 makeLenses ''SuccinctContext
 
@@ -193,7 +192,7 @@ data SuccinctEdge = SuccinctEdge {
   _symbolId :: Id,
   _params :: Int,
   _weight :: HashMap SuccinctContext Double
-} deriving (Eq)
+} deriving (Eq, Generic)
 
 instance Ord (SuccinctEdge) where
   (<=) (SuccinctEdge id1 params1 _) (SuccinctEdge id2 params2 _) = id1 <= id2 || ((id1 == id2) && params1 <= params2)
@@ -263,7 +262,7 @@ symbolsOfArity n env = Map.findWithDefault Map.empty n (env ^. symbols)
 
 -- | All symbols in an environment
 allSymbols :: Environment -> Map Id RSchema
-allSymbols env = (env ^. arguments) `Map.union` (Map.unions $ Map.elems (env ^. symbols))
+allSymbols env = Map.unions $ Map.elems (env ^. symbols)
 
 -- | 'lookupSymbol' @name env@ : type of symbol @name@ in @env@, including built-in constants
 lookupSymbol :: Id -> Int -> Environment -> Maybe RSchema

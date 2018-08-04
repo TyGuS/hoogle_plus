@@ -68,6 +68,7 @@ import Data.Set (Set)
 import qualified Data.Map as Map
 import Data.Map (Map, (!))
 import Data.List
+import Data.Hashable
 
 import Control.Lens
 
@@ -523,7 +524,15 @@ instance Pretty SuccinctType where
     pretty (SuccinctComposite tys) = hlBraces (commaSep $ map pretty (Set.toList tys))
     pretty (SuccinctAny) = text "ANY"
     pretty (SuccinctLet id ty1 ty2) = text "OOPS"
-    pretty (SuccinctInhabited s) = text "INHABITED"
+    pretty (SuccinctInhabited s) = text "INHABITED" <+> pretty s
 
 instance Show SuccinctType where
     show = show . pretty
+
+instance Hashable SuccinctType where
+  hash sty = hash (show sty)
+  hashWithSalt s sty = s + hash sty
+
+instance Hashable SuccinctContext where
+  hash sctx = hash (sctx ^. srcType)
+  hashWithSalt s sctx = s + hash sctx

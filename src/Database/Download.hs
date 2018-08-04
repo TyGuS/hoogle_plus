@@ -38,32 +38,34 @@ packageNameWithVersion pkg version = case version of
     Nothing -> return pkg
     Just v  -> ifM (checkVersion pkg v) (return $ pkg ++ "-" ++ v) (return pkg)
 
-downloadFile :: PkgName -> Maybe Version -> IO ()
+downloadFile :: PkgName -> Maybe Version -> IO Bool
 downloadFile pkg version = do
     vpkg <- packageNameWithVersion pkg version
     doesExist <- doesFileExist $ downloadDir ++ vpkg ++ ".txt"
-    when (not doesExist) (do
-        putStrLn $ "Downloading file " ++ vpkg ++ " from Hackage..."
-        request <- parseRequest $ docDownloadUrl ++ vpkg ++ "/docs/" ++ pkg ++ ".txt"
-        manager <- newManager tlsManagerSettings
-        runResourceT $ do
-            response <- http request manager
-            if responseStatus response /= ok200
-                then error "Connection Error"
-                else responseBody response $$+- sinkFile (downloadDir ++ vpkg ++ ".txt")
-        )
+    if not doesExist 
+        then do
+            putStrLn $ "Downloading file " ++ vpkg ++ " from Hackage..."
+            request <- parseRequest $ docDownloadUrl ++ vpkg ++ "/docs/" ++ pkg ++ ".txt"
+            manager <- newManager tlsManagerSettings
+            runResourceT $ do
+                response <- http request manager
+                if responseStatus response /= ok200
+                    then return False -- error "Connection Error"
+                    else responseBody response $$+- sinkFile (downloadDir ++ vpkg ++ ".txt") >> return True
+        else return True
 
-downloadCabal :: PkgName -> Maybe Version -> IO ()
+downloadCabal :: PkgName -> Maybe Version -> IO Bool
 downloadCabal pkg version = do
     vpkg <- packageNameWithVersion pkg version
     doesExist <- doesFileExist $ downloadDir ++ pkg ++ ".cabal"
-    when (not doesExist) (do
-        putStrLn $ "Downloading cabal information of " ++ vpkg ++ " from Hackage..."
-        request <- parseRequest $ docDownloadUrl ++ vpkg ++ "/" ++ pkg ++ ".cabal"
-        manager <- newManager tlsManagerSettings
-        runResourceT $ do
-            response <- http request manager
-            if responseStatus response /= ok200
-                then error "Connection Error"
-                else responseBody response $$+- sinkFile (downloadDir ++ pkg ++ ".cabal")
-        )
+    if not doesExist
+        then do
+            putStrLn $ "Downloading cabal information of " ++ vpkg ++ " from Hackage..."
+            request <- parseRequest $ docDownloadUrl ++ vpkg ++ "/" ++ pkg ++ ".cabal"
+            manager <- newManager tlsManagerSettings
+            runResourceT $ do
+                response <- http request manager
+                if responseStatus response /= ok200
+                    then return False -- error "Connection Error"
+                    else responseBody response $$+- sinkFile (downloadDir ++ pkg ++ ".cabal") >> return True
+        else return True

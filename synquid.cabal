@@ -63,6 +63,7 @@ executable synquid
                     , directory
                     , text
                     , sort
+                    , cereal
 
 
   ghc-options: -O2

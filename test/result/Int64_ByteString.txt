@@ -1,0 +1,53 @@
+__goal__ :: arg0:Int64 -> ByteString
+__goal__ = \arg0 .
+  Data.ByteString.Char8.pack
+    (Data.ByteString.Char8.unpack
+       (Data.ByteString.Lazy.take arg0
+          Data.ByteString.Char8.empty))
+__goal__ = \arg0 .
+  Data.ByteString.Char8.pack
+    (Data.ByteString.Char8.unpack
+       (Data.ByteString.Lazy.take arg0
+          Data.ByteString.Lazy.Char8.empty))
+__goal__ = \arg0 .
+  Data.ByteString.Char8.pack
+    (Data.ByteString.Char8.unpack
+       (Data.ByteString.Lazy.take arg0
+          Data.ByteString.Lazy.empty))
+__goal__ = \arg0 .
+  Data.ByteString.Char8.pack
+    (Data.ByteString.Char8.unpack
+       (Data.ByteString.Lazy.take arg0
+          Data.ByteString.empty))
+__goal__ = \arg0 .
+  Data.ByteString.Char8.pack
+    (Data.ByteString.Char8.unpack
+       (Data.ByteString.Lazy.drop arg0
+          Data.ByteString.Char8.empty))
+__goal__ = \arg0 .
+  Data.ByteString.Char8.pack
+    (Data.ByteString.Char8.unpack
+       (Data.ByteString.Lazy.drop arg0
+          Data.ByteString.Lazy.Char8.empty))
+__goal__ = \arg0 .
+  Data.ByteString.Char8.pack
+    (Data.ByteString.Char8.unpack
+       (Data.ByteString.Lazy.drop arg0
+          Data.ByteString.Lazy.empty))
+__goal__ = \arg0 .
+  Data.ByteString.Char8.pack
+    (Data.ByteString.Char8.unpack
+       (Data.ByteString.Lazy.drop arg0
+          Data.ByteString.empty))
+__goal__ = \arg0 .
+  Data.ByteString.Char8.pack
+    (Data.ByteString.Char8.unpack
+       (Data.ByteString.Lazy.Char8.drop
+          arg0
+          Data.ByteString.Char8.empty))
+__goal__ = \arg0 .
+  Data.ByteString.Char8.pack
+    (Data.ByteString.Char8.unpack
+       (Data.ByteString.Lazy.Char8.drop
+          arg0
+          Data.ByteString.Lazy.Char8.empty))

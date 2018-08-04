@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric  #-}
 -- | Refinement Types
 module Synquid.Type where
 
@@ -14,11 +15,12 @@ import qualified Data.Map as Map
 import Data.Map (Map)
 import Control.Monad
 import Control.Lens
+import GHC.Generics
 
 {- Type skeletons -}
 
 data BaseType r = BoolT | IntT | DatatypeT Id [TypeSkeleton r] [r] | TypeVarT Substitution Id
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Generic)
   
 -- | Type skeletons (parametrized by refinements)
 data TypeSkeleton r =
@@ -26,7 +28,7 @@ data TypeSkeleton r =
   FunctionT Id (TypeSkeleton r) (TypeSkeleton r) |
   LetT Id (TypeSkeleton r) (TypeSkeleton r) |
   AnyT
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Generic)
 
 extractBaseRefinements (DatatypeT _ typs fmls) = (Set.unions $ map extractRefinements typs) `Set.union` Set.fromList fmls
 extractBaseRefinements _ = Set.empty

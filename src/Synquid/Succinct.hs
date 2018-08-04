@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveGeneric  #-}
+
 module Synquid.Succinct where
 
 import Synquid.Type hiding (set)
@@ -11,9 +13,11 @@ import Data.Map (Map)
 import qualified Data.HashMap.Strict as HashMap
 import Data.HashMap.Strict (HashMap)
 import Data.Hashable
+import Data.Serialize
 import Data.List
 import Data.Maybe
-import Control.Lens as Lens
+import Control.Lens
+import GHC.Generics
 
 data SuccinctType = 
   SuccinctScalar (BaseType Formula) |
@@ -24,13 +28,9 @@ data SuccinctType =
   SuccinctLet Id SuccinctType SuccinctType | -- actually, this can be removed, [TODO] safely check this type
   SuccinctAny | -- any type
   SuccinctInhabited SuccinctType -- inhabited type node, only work in the graph
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Generic)
 
 type SuccinctParams = [SuccinctType]
-
-instance Hashable SuccinctType where
-  hash sty = hash (succinct2str sty)
-  hashWithSalt s sty = s + hash sty
 
 baseToSuccinctType :: BaseType Formula -> SuccinctType
 baseToSuccinctType typ@(DatatypeT id ts _) = if "_" == id 
@@ -242,37 +242,6 @@ unifySuccinct comp target boundedTys = case (comp, target) of
                                       (foldr (\(x,y) acc -> acc && (isValid x y)) (not (Map.null m)) (zip c t))]
           in resultMap
 
--- getDestructors :: Id -> SType -> Map Id SType
--- getDestructors name ty = case ty of
---   FunctionT _ tArg tRet -> let 
---     retTy = getFunRet ty
---     resMap = getDestructors name tRet
---     in
---     Map.insert (name++"_match_"++(show (Map.size resMap))) (FunctionT "x" retTy tArg) resMap
---   _ -> Map.empty
---   where
---     getFunRet t = case t of
---       FunctionT _ _ t' -> getFunRet t'
---       _ -> t
-
--- getSuccinctDestructors :: Id -> SuccinctType -> Set SuccinctType
--- getSuccinctDestructors name sty = case sty of
---   SuccinctFunction _ params ret -> case ret of
---     SuccinctDatatype id ids tys consMap _ -> let
---       (datatypeName, _) = Set.findMin ids
---       -- TODO how to deal with the destructor name here
---       destructors = map (\param -> SuccinctFunction ret param) params
---       in Set.fromList destructors
---     _ -> Set.empty
---   _ -> Set.empty
-
--- | when the graph is too large, this step consumes too much time, try a new way to traverse the graph 
--- reverseGraph :: (Ord a) => Map a (Map a (Set Id)) -> Map a (Map a (Set Id))
--- reverseGraph graph = reverseGraphHelper HashMap.empty graph
---   where
---     fold_fun acc k v = HashMap.foldlWithKey' (\tmap k' v' -> HashMap.insertWith mergeMapOfSet k' v' tmap) acc (HashMap.map (\s -> HashMap.singleton k s) v)
---     reverseGraphHelper acc g = HashMap.foldlWithKey' fold_fun HashMap.empty g
-
 allSuccinctIndices :: Map SuccinctType Int -> Set Int
 allSuccinctIndices nodesMap = Set.fromList $ Map.elems nodesMap
 
@@ -320,13 +289,6 @@ isStrongerThan sty1 sty2 = sty1 == sty2
 measuresOf (SuccinctDatatype _ _ _ _ measures) = measures
 measuresOf _ = Set.empty
 
--- | function for debug
-printGraph :: HashMap SuccinctType (HashMap SuccinctType (Set Id)) -> String
-printGraph graph = HashMap.foldrWithKey printMap "" graph
-  where
-    printMap k v acc = Set.foldr (\x tmp -> tmp ++ (succinct2str k) ++ x) acc (HashMap.foldrWithKey printSet Set.empty v)
-    printSet k s acc = acc `Set.union` Set.map (\x -> "--" ++ x ++ "-->" ++ (succinct2str k) ++ "\n") s
-
 -- | can typ2 be kind of typ1?
 succinctAnyEq :: SuccinctType -> SuccinctType -> Bool
 succinctAnyEq (SuccinctScalar t1) (SuccinctScalar t2) = t1 == t2
@@ -356,50 +318,3 @@ sizeof (SuccinctDatatype id ids tys cons _) = 1 + (Set.size ids) + (Set.size tys
 sizeof (SuccinctInhabited _) = 0
 sizeof _ = 1
 
--- hasShapeOf :: SuccinctType -> SuccinctType -> Bool
--- hasShapeOf (SuccinctFunction _ _) (SuccinctFunction _ _) = True
--- hasShapeOf (SuccinctDatatype ids1 tys1 cons1) (SuccinctDatatype ids2 tys2 cons2) = not $ Set.null $ ids1 `Set.intersection` ids2
--- hasShapeOf _ _ = False
-
-succinct2str :: SuccinctType -> String
-succinct2str sty = case sty of
-    SuccinctScalar t           ->  base2str t
-    SuccinctFunction paramCnt param retTy -> concat 
-                        ["{"
-                        ,(show paramCnt)
-                        ,(Set.foldr (\x acc ->acc++(succinct2str x)++",") "" param)
-                        ,"}->"
-                        ,(succinct2str retTy)
-                        ]
-    SuccinctDatatype (id,_) names tys cons measures  -> concat
-                        ["{"
-                        , id
-                        ," | "
-                        ,(foldl (\acc (x,n)->acc++x++(replicate n '*')++",") "" names)
-                        ," | "
-                        ,(foldl (\acc x->acc++(succinct2str x)++",") "" tys)
-                        , " | "
-                        ,(foldl (\acc x->acc++x++",") "" (Map.elems cons))
-                        ," | "
-                        ,(Set.foldl (\acc x->acc++x++",") "" (measures))
-                        ,"}"
-                        ]
-    SuccinctAll names ty    -> concat
-                        ["All {"
-                        ,(foldl (\acc x->acc++x++",") "" names)
-                        ,"}. "
-                        ,(succinct2str ty)
-                        ]
-    SuccinctComposite tys         -> concat
-                        ["{"
-                        ,(foldl (\acc x->acc++(succinct2str x)++",") "" tys)
-                        ,"}"
-                        ]
-    SuccinctAny -> "any"
-    SuccinctLet id ty1 ty2 -> concat
-                        ["let "
-                        ,succinct2str ty1
-                        ," in "
-                        ,succinct2str ty2
-                        ]
-    SuccinctInhabited s          -> ""

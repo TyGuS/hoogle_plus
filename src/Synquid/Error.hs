@@ -16,7 +16,7 @@ import Text.Parsec.Pos
 data Pos a = Pos {
       position :: SourcePos,
       node :: a
-    }
+    } deriving(Eq, Ord)
     
 -- | Dummy source position
 noPos = (initialPos "<no file name>")    

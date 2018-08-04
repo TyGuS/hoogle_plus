@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, Rank2Types #-}
+{-# LANGUAGE TemplateHaskell, Rank2Types, DeriveGeneric #-}
 
 -- | Formulas of the refinement logic
 module Synquid.Logic where
@@ -11,6 +11,7 @@ import qualified Data.Set as Set
 import Data.Set (Set)
 import qualified Data.Map as Map
 import Data.Map (Map)
+import GHC.Generics
 
 import Control.Lens hiding (both)
 import Control.Monad
@@ -19,7 +20,7 @@ import Control.Monad
 
 -- | Sorts
 data Sort = BoolS | IntS | VarS Id | DataS Id [Sort] | SetS Sort | AnyS
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Generic)
   
 isSetS (SetS _) = True
 isSetS _ = False
@@ -97,7 +98,7 @@ data PredSig = PredSig {
 
 -- | Unary operators
 data UnOp = Neg | Not
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Generic)
 
 -- | Binary operators  
 data BinOp = 
@@ -107,7 +108,7 @@ data BinOp =
     And | Or | Implies | Iff |      -- ^ Bool -> Bool -> Bool
     Union | Intersect | Diff |      -- ^ Set -> Set -> Set
     Member | Subset                 -- ^ Int/Set -> Set -> Bool
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Generic)
   
 -- | Variable substitution  
 type Substitution = Map Id Formula
@@ -126,7 +127,7 @@ data Formula =
   Pred Sort Id [Formula] |            -- ^ Logic function application
   Cons Sort Id [Formula] |            -- ^ Constructor application
   All Formula Formula                 -- ^ Universal quantification
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Generic)
   
 dontCare = "_"  
 valueVarName = "_v"
