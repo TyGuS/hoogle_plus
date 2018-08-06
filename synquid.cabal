@@ -11,26 +11,26 @@ maintainer:           nadia.polikarpova@gmail.com
 category:             Language
 build-type:           Simple
 extra-source-files:   README.md
-cabal-version:        >=1.10
+cabal-version:        >=2.0
 
-flag synquid
+Flag synquid
   Description: Build the synquid executable
   Default:     True
 
 executable synquid
-  main-is:            Synquid.hs
-
+  main-is:         Synquid.hs
+  hs-source-dirs:  src
+  default-language:   Haskell2010
   other-extensions:   TemplateHaskell
                     , Rank2Types
                     , FlexibleInstances
                     , TypeSynonymInstances
                     , FlexibleContexts
-
-  build-depends:      base >=4.6 && <4.9
+  build-depends:      base >=4.10.0.0
                     , containers >=0.5 && <0.6
                     , mtl >=2.2 && <2.3
-                    , transformers >=0.3 && <0.5
-                    , transformers-compat ==0.4.*
+                    , transformers
+                    , transformers-compat
                     , lens >=3.7
                     , ansi-wl-pprint >=0.6 && <0.7
                     , ansi-terminal >=0.6
@@ -39,20 +39,20 @@ executable synquid
                     , z3 > 4.0
                     , logict >= 0.5
                     , parsec == 3.1.*
-                    , indents == 0.3.*
+                    , indents == 0.5.*
                     , cmdargs ==0.10.*
                     , filepath
                     , time
-                    , haskell-src-exts == 1.17.*
+                    , haskell-src-exts >= 1.20
                     , safe
                     , split
                     , unordered-containers
                     , hashable
-                    , pqueue == 1.4.1.1
+                    , pqueue
                     , conduit
                     , extra
                     , conduit-extra
-                    , http-conduit
+                    , http-conduit >= 1.3
                     , resourcet
                     , aeson
                     , http-types
@@ -64,11 +64,35 @@ executable synquid
                     , text
                     , sort
                     , cereal
+                    , hakyll
+                    , tagsoup
+                    , cpphs  
 
-
+  other-modules: Database.Convert
+                 Database.Download
+                 Database.Generate
+                 Database.Graph
+                 Database.GraphWeightsProvider
+                 Database.Util
+                 Synquid.Codegen
+                 Synquid.Error
+                 Synquid.Explorer
+                 Synquid.Graph
+                 Synquid.HornSolver
+                 Synquid.HtmlOutput
+                 Synquid.Logic
+                 Synquid.Parser
+                 Synquid.Pretty
+                 Synquid.Program
+                 Synquid.Resolver
+                 Synquid.SolverMonad
+                 Synquid.Stats
+                 Synquid.Succinct
+                 Synquid.Synthesizer
+                 Synquid.Tokens
+                 Synquid.Type
+                 Synquid.TypeChecker
+                 Synquid.TypeConstraintSolver
+                 Synquid.Util
+                 Synquid.Z3
   ghc-options: -O2
-
-  hs-source-dirs:     src
-  default-language:   Haskell2010
-  If !flag(synquid)
-    buildable: False

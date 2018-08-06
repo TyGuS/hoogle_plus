@@ -14,12 +14,6 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Control.Lens
 import Debug.Trace
-import Distribution.PackDeps
-import qualified Distribution.Version as DV
-import Distribution.Verbosity
-import Distribution.PackageDescription
-import Distribution.PackageDescription.Parse
-import Distribution.Package
 
 import Synquid.Succinct
 import Synquid.Pretty

@@ -32,7 +32,7 @@ import System.Console.CmdArgs
 import System.Console.ANSI
 import System.FilePath
 import Text.Parsec.Pos
-import Control.Monad.State (runState, evalStateT)
+import Control.Monad.State (runState, evalStateT, evalState)
 import Data.Char
 import Data.List
 import Data.Foldable
@@ -358,7 +358,7 @@ collectLibDecls libs declsByFile =
 
 precomputeGraph :: [PkgName] -> IO ()
 precomputeGraph pkgs = mapM_ (\pkgName -> do
-  downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
+  -- downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
   -- baseDecls <- addPrelude <$> readDeclarations "base" Nothing
   let baseDecls = []
   fileDecls <- readDeclarations pkgName Nothing
@@ -396,19 +396,17 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
   -- print decls
   targetDecl <- parseSignature file
   let pkgName = "bytestring"
-  downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
+  -- downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
   -- baseDecls <- filter (flip notElem ruleOut . getDeclName) <$> addPrelude <$> readDeclarations "base" Nothing
   let baseDecls = []
   fileDecls <- readDeclarations pkgName Nothing
-  dts <- packageDtNames pkgName
   let parsedDecls = fst $ unzip $ map (\decl -> runState (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)
-  ddts <- definedDts pkgName
-  dependsPkg <- liftM2 (++) (packageDependencies pkgName) (packageDependencies "base")
+  dependsPkg <- packageDependencies pkgName -- liftM2 (++) (packageDependencies pkgName) (packageDependencies "base")
   dependsDecls <- mapM (flip readDeclarations Nothing) $ nub dependsPkg
   additionalDts <- declDependencies (baseDecls ++ fileDecls) (concat dependsDecls) >>= mapM (flip evalStateT 0 . toSynquidDecl)
   -- additionalDts <- evalStateT (packageDependencies pkgName) 0
   let decls = reorderDecls $ nub $ defaultDts ++ additionalDts ++ parsedDecls ++ targetDecl
-  -- print decls
+  print decls
   let declsByFile = [(pkgName, decls)]
   case resolveDecls decls of
     Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
@@ -451,7 +449,7 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
                 }}
     parseSignature sig = do
       let transformedSig = "goal :: " ++ sig ++ "\ngoal = ??"
-      parseResult <- return $ runIndent "" $ runParserT parseProgram () "" transformedSig
+      parseResult <- return $ flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "goal" transformedSig
       case parseResult of
         Left parseErr -> (pdoc $ pretty $ toErrorMessage parseErr) >> pdoc empty >> exitFailure
         -- Right ast -> print $ vsep $ map pretty ast
