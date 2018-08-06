@@ -23,6 +23,7 @@ import Distribution.Package
 import Distribution.ModuleName
 
 import Database.Util
+import Database.Generate
 
 docVersionsUrl = "https://hackage.haskell.org/packages/docs"
 docDownloadUrl = "https://hackage.haskell.org/package/"
@@ -58,6 +59,8 @@ downloadFile url dst = do
                     then return False -- error "Connection Error"
                     else runConduit (responseBody response .| sinkFile dst) >> return True
         else return True
+    toHaskellCode dst >>= writeFile (dst ++ ".hs")
+    return True
 
 downloadCabal :: PkgName -> Maybe Version -> IO Bool
 downloadCabal pkg version = do

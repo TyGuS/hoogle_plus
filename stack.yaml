@@ -6,6 +6,10 @@ packages:
 resolver: lts-12.4
 extra-deps:
   - z3-4.3.1
+  - haddock-api-2.20.0
+  - haddock-library-1.6.0
+  - pandoc-2.2.3
+  - HsYAML-0.1.1.2
   # - extra-1.6.9
 # extra-include-dirs:
 #  - <z3-home>/src/api

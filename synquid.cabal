@@ -67,6 +67,9 @@ executable synquid
                     , hakyll
                     , tagsoup
                     , cpphs  
+                    , haddock-api
+                    , ghc
+                    , haddock-library
 
   other-modules: Database.Convert
                  Database.Download

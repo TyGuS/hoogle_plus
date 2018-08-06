@@ -15,6 +15,19 @@ import Hakyll.Web.Html
 import Text.HTML.TagSoup.Entity (lookupEntity)
 import Language.Preprocessor.Cpphs (runCpphs, BoolOptions (..), CpphsOptions (..))
 
+-- | An entry in the Hoogle DB
+data Entry = EPackage String
+           | EModule String
+           | EDecl (Decl SrcSpanInfo)
+             deriving (Data,Typeable,Show,Eq)
+
+toHaskellCode :: FilePath -> IO String
+toHaskellCode fp = do
+    content <- readFile fp
+    let res = unescapeEntities $ stripTags content
+    -- writeFile "test.hs" res
+    return res
+
 unescapeEntities :: String -> String
 unescapeEntities [] = []
 unescapeEntities ('&':xs) = 
@@ -24,12 +37,6 @@ unescapeEntities ('&':xs) =
     _                -> '&' : unescapeEntities xs
 unescapeEntities (x:xs) = x : unescapeEntities xs
 
--- | An entry in the Hoogle DB
-data Entry = EPackage String
-           | EModule String
-           | EDecl (Decl SrcSpanInfo)
-             deriving (Data,Typeable,Show,Eq)
-
 parseMode :: ParseMode
 parseMode = defaultParseMode{extensions=map EnableExtension es, baseLanguage=Haskell2010}
     where es = [ConstraintKinds,EmptyDataDecls,TypeOperators,ExplicitForAll,GADTs,KindSignatures,MultiParamTypeClasses, BangPatterns
@@ -37,12 +44,6 @@ parseMode = defaultParseMode{extensions=map EnableExtension es, baseLanguage=Has
                ,ParallelArrays,UnicodeSyntax,DataKinds,PolyKinds,CPP,MultiParamTypeClasses,Safe,PolyKinds,PolyKinds,NamedFieldPuns
                ,ScopedTypeVariables,ExistentialQuantification,NPlusKPatterns,RegularPatterns,ViewPatterns,PatternSynonyms]
 
-toHaskellCode :: FilePath -> IO String
-toHaskellCode fp = do
-    content <- readFile fp
-    let res = unescapeEntities $ stripTags content
-    -- writeFile "test.hs" res
-    return res
 
 readModuleDecls :: String -> IO [Entry]
 readModuleDecls moduleCont = do
