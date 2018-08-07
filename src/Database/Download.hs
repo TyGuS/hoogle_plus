@@ -15,6 +15,7 @@ import Data.Maybe
 import Network.HTTP.Types.Status
 import Control.Monad.Extra
 import System.Directory
+import System.IO
 
 import Database.Util
 
@@ -25,12 +26,12 @@ docDownloadUrl = "https://hackage.haskell.org/package/"
 checkVersion :: PkgName -> Version -> IO Bool
 checkVersion pkg version = do
     let vpkg = pkg ++ "-" ++ version
-    putStrLn $ "Checking availability for package " ++ vpkg
+    hPutStrLn stderr $ "Checking availability for package " ++ vpkg
     availability <- simpleHttp docVersionsUrl
     let res = decode availability :: Maybe [(String, Bool)] -- the JSON format here is a list of (String, Bool) tuples
     case res of
         Nothing -> error "Connection error"
-        Just arr | Map.findWithDefault False vpkg $ Map.fromList arr -> putStrLn "package is available" >> return True
+        Just arr | Map.findWithDefault False vpkg $ Map.fromList arr -> hPutStrLn stderr "package is available" >> return True
                  | otherwise -> error $ vpkg ++ " is not available"
 
 packageNameWithVersion :: PkgName -> Maybe Version -> IO PkgName
@@ -44,7 +45,7 @@ downloadFile pkg version = do
     doesExist <- doesFileExist $ downloadDir ++ vpkg ++ ".txt"
     if not doesExist 
         then do
-            putStrLn $ "Downloading file " ++ vpkg ++ " from Hackage..."
+            hPutStrLn stderr $ "Downloading file " ++ vpkg ++ " from Hackage..."
             request <- parseRequest $ docDownloadUrl ++ vpkg ++ "/docs/" ++ pkg ++ ".txt"
             manager <- newManager tlsManagerSettings
             runResourceT $ do
@@ -60,7 +61,7 @@ downloadCabal pkg version = do
     doesExist <- doesFileExist $ downloadDir ++ pkg ++ ".cabal"
     if not doesExist
         then do
-            putStrLn $ "Downloading cabal information of " ++ vpkg ++ " from Hackage..."
+            hPutStrLn stderr $ "Downloading cabal information of " ++ vpkg ++ " from Hackage..."
             request <- parseRequest $ docDownloadUrl ++ vpkg ++ "/" ++ pkg ++ ".cabal"
             manager <- newManager tlsManagerSettings
             runResourceT $ do

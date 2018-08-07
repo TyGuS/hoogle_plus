@@ -81,7 +81,13 @@ data ExplorerParams = ExplorerParams {
 makeLenses ''ExplorerParams
 
 type Requirements = Map Id [RType]
-type ProgramQueue = MaxPQueue Double (SProgram, ExplorerState, [Constraint])
+
+data ProgramRank = ProgramRank {
+  holes :: Int,
+  weights :: Double
+} deriving(Ord, Eq, Show)
+
+type ProgramQueue = MaxPQueue ProgramRank (SProgram, ExplorerState, [Constraint])
 
 -- | State of program exploration
 data ExplorerState = ExplorerState {
@@ -1111,11 +1117,12 @@ refineSuccinctDatatype name sty env = case sty of
 
 
 -- termScore env p = 0
-termScore :: Environment -> SProgram -> IO Double
+termScore :: Environment -> SProgram -> IO ProgramRank
 termScore env prog@(Program p (sty, rty, _)) = do
     ws <- getGraphWeights $ Set.toList $ symbolsOf prog
     let paramSymCnt = Set.size $ symbolsOf prog `Set.intersection` Map.keysSet (env ^. arguments)
-    return $ if holes == 0 then 99999 else (fromIntegral paramSymCnt) * 4000 + sum ws
+    let w = if holes == 0 then 99999 else (fromIntegral paramSymCnt) * 4000 + sum ws
+    return $ ProgramRank (99999-holes) w
     -- else 1.0 / (fromIntegral holes) +
     --   1.0 / (fromIntegral $ greatestHoleType 0 prog) + 
     --   1.0 / (fromIntegral wholes)) + 
