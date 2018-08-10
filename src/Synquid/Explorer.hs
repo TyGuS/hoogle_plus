@@ -616,8 +616,54 @@ initProgramQueue env typ = do
   let pq = PQ.singleton score (p, es, [])
   return pq
 
+splitGoal :: (MonadHorn s) => Environment -> Explorer s SProgram
+splitGoal env = do
+  -- pick up a node as the possible intersection of the paths to both the goal type and parameter types
+  let allNodes = Set.toList $ Set.filter (not . isSuccinctFunction) $ nodes True env
+  let goalTy = lastSuccinctType $ findSuccinctSymbol "__goal__"
+  -- writeLog 2 $ pretty allNodes
+  -- try to find paths to all of the parameters and construct a partial program
+  msum $ map (\xnode -> do
+    writeLog 2 $ text "Trying" <+> pretty xnode
+    -- tmp <- shortest env goalTy xnode
+    -- writeLog 2 $ text "Path from goal type" <+> (pretty $ map (Set.toList . Set.map getEdgeId) tmp)
+    let paths = Map.elems $ Map.map (shortestPathFromTo env xnode . SuccinctInhabited . outOfSuccinctAll . toSuccinctType . toMonotype) (env ^. arguments)
+    if foldr ((&&) . not . null) (not . null $ shortestPathFromTo env goalTy xnode) paths
+      then do
+        writeLog 2 $ text "find a path through" <+> pretty xnode
+        writeLog 2 $ pretty (map (map (Set.toList . Set.map getEdgeId)) paths)
+        let argProgs = map buildApp paths
+        writeLog 2 $ pretty argProgs
+        return $ head argProgs
+      else do
+        writeLog 2 $ text "fail to find a path for type" <+> pretty xnode 
+        mzero
+    ) allNodes
+  -- feed it to synquid to get a complete program
+  where
+    findSuccinctSymbol sym = outOfSuccinctAll $ HashMap.lookupDefault SuccinctAny sym $ env ^. succinctSymbols
+    isNodeValid node = let goalTy = lastSuccinctType $ findSuccinctSymbol "__goal__"
+                       in Map.foldr ((&&) . not . null 
+                                   . shortestPathFromTo env node 
+                                   . SuccinctInhabited 
+                                   . outOfSuccinctAll 
+                                   . toSuccinctType 
+                                   . toMonotype) (null $ shortestPathFromTo env goalTy node) (env ^. arguments)
+    buildApp path = case path of
+      [] -> error "cannot build term from empty path"
+      [e] -> let x = getEdgeId $ Set.findMax e
+                 rtyp = toMonotype $ fromJust $ lookupSymbol x (-1) env 
+             in Program (PSymbol x) (findSuccinctSymbol x, rtyp, rtyp)
+      e:xs -> let x = getEdgeId $ Set.findMax e
+                  rtyp = toMonotype $ fromJust $ lookupSymbol x (-1) env 
+              in if x == ""
+                then buildApp xs
+                else Program (PApp (Program (PSymbol x) (findSuccinctSymbol x, rtyp, rtyp)) (buildApp xs)) (lastSuccinctType $ findSuccinctSymbol x, lastType rtyp, lastType rtyp)
+
 generateEWithGraph :: (MonadHorn s, MonadIO s) => Environment -> ProgramQueue -> RType -> Bool -> Bool -> Explorer s (ProgramQueue, RProgram)
 generateEWithGraph env pq typ isThenBranch isElseBranch = do
+  -- [TODO] just for test
+  splitGoal env
   es <- get
   res <- walkThrough env pq
   case res of
@@ -1092,10 +1138,11 @@ addSuccinctEdge name t env = do
       addSuccinctEdge name (Monotype tBody) env'
     _ -> do
       let env' = addEdgeForSymbol name succinctTy env
-      let goalTy = lastSuccinctType (HashMap.lookupDefault SuccinctAny "__goal__" (env' ^. succinctSymbols))
+      let goalTy = outOfSuccinctAll $ lastSuccinctType (HashMap.lookupDefault SuccinctAny "__goal__" (env' ^. succinctSymbols))
       let diffTys = Set.filter isSuccinctConcrete $ ((allSuccinctNodes env')) `Set.difference` ((allSuccinctNodes env))
-      let subgraphNodes = if goalTy == SuccinctAny then allSuccinctNodes env' else reachableGraphFromGoal env'
-      let reachableSet = (getReachableNodes env') `Set.intersection` subgraphNodes
+      let subgraphNodes = if goalTy == SuccinctAny then allSuccinctNodes env' else reachableGraphFromNode env' goalTy
+      let starters = Set.toList $ Set.filter (\typ -> isSuccinctInhabited typ || isSuccinctFunction typ || typ == (SuccinctScalar BoolT) || hasSuccinctAny typ) (allSuccinctNodes env')
+      let reachableSet = (getReachableNodes env' starters) `Set.intersection` subgraphNodes
       return $ env' { _graphFromGoal = pruneGraphByReachability (env' ^. succinctGraph) reachableSet }
   where
     getSuccinctTy tt = case toSuccinctType tt of

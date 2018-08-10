@@ -115,9 +115,9 @@ isReachable env typ = isReachableHelper (env ^. succinctGraph) Set.empty typ
       SuccinctComposite tys -> Set.foldr (\t acc -> acc && isReachableHelper g (Set.insert typ' visited) t) True tys
       _ -> HashMap.foldrWithKey (\i _ acc -> acc || isReachableHelper g (Set.insert typ' visited) i) False (if Set.member typ' visited then HashMap.empty else HashMap.lookupDefault HashMap.empty typ' g)
 
-getReachableNodes :: Environment -> Set SuccinctType
-getReachableNodes env = 
-  getReachableNodesHelper (env ^. succinctGraphRev) Set.empty [] $ Set.toList $ Set.filter (\typ -> isSuccinctInhabited typ || isSuccinctFunction typ || typ == (SuccinctScalar BoolT) || hasSuccinctAny typ) (allSuccinctNodes env)
+getReachableNodes :: Environment -> [SuccinctType] -> Set SuccinctType
+getReachableNodes env starters = 
+  getReachableNodesHelper (env ^. succinctGraphRev) Set.empty [] starters
   where
     isCompositeReachable reachableSet typ = case typ of
       SuccinctComposite tySet -> Set.foldr (\b acc -> acc && (Set.member b reachableSet)) True tySet
@@ -136,19 +136,18 @@ getReachableNodes env =
           SuccinctComposite _ -> getReachableNodesHelper g visited (waitingList++[curr]) xs
           _ -> getReachableNodesHelper g (Set.insert curr visited) waitingList (xs ++ (Set.toList (HashMap.lookupDefault Set.empty curr g)))
 
-reachableGraphFromGoal :: Environment -> Set SuccinctType
-reachableGraphFromGoal env = reachableGraphFromGoalHelper (env ^. succinctGraph) Set.empty startTys
+reachableGraphFromNode :: Environment -> SuccinctType -> Set SuccinctType
+reachableGraphFromNode env goalTy = reachableGraphFromNodeHelper (env ^. succinctGraph) Set.empty startTys
   where
-    goalTy = outOfSuccinctAll $ lastSuccinctType (HashMap.lookupDefault SuccinctAny "__goal__" (env ^. succinctSymbols))
     startTys = (SuccinctScalar BoolT):(Set.toList $ Set.filter (\t -> succinctAnyEq goalTy t) (allSuccinctNodes env))
     isCompositeReachable reachableSet typ = case typ of
       SuccinctComposite tySet -> Set.foldr (\b acc -> acc && (Set.member b reachableSet)) True tySet
       _ -> True
-    reachableGraphFromGoalHelper g visited toVisit = case toVisit of
+    reachableGraphFromNodeHelper g visited toVisit = case toVisit of
       [] -> visited
       curr:xs -> if Set.member curr visited
-        then reachableGraphFromGoalHelper g visited xs
-        else reachableGraphFromGoalHelper g (Set.insert curr visited) (xs ++ (HashMap.keys (HashMap.lookupDefault HashMap.empty curr g)))
+        then reachableGraphFromNodeHelper g visited xs
+        else reachableGraphFromNodeHelper g (Set.insert curr visited) (xs ++ (HashMap.keys (HashMap.lookupDefault HashMap.empty curr g)))
 
 rmUnreachableComposite :: Environment -> Set SuccinctType -> Set SuccinctType
 rmUnreachableComposite env reachableSet = Set.foldr (\t acc -> if isCompositeReachable t then acc else Set.delete t acc) reachableSet (compositeNodes)
@@ -171,6 +170,23 @@ findDstNodesInGraph env typ = case typ of
 
 pruneGraphByReachability g reachableSet = HashMap.foldrWithKey (\k v acc -> if Set.member k reachableSet then HashMap.insert k (HashMap.filterWithKey (\k' s -> Set.member k' reachableSet) v) acc else acc) HashMap.empty g
 
+data Node = Node {
+  typ :: SuccinctType,
+  path :: [Set SuccinctEdge]
+} deriving(Eq, Ord)
+
+shortestPathFromTo :: Environment -> SuccinctType -> SuccinctType -> [Set SuccinctEdge]
+shortestPathFromTo env src dst = shortestPathHelper (env ^. graphFromGoal) Set.empty [Node src []]
+  where
+    -- we mark the current path on the graph by the node, how to get here from `src` node
+    -- a [src,c] -> b [src,c,a]
+    shortestPathHelper g visited toVisit = case toVisit of
+      [] -> [] -- error $ "There is no path from " ++ show src ++ " to " ++ show dst
+      curr:vs | typ curr == dst -> path curr
+              | Set.member (typ curr) visited -> shortestPathHelper g visited vs
+              | otherwise -> shortestPathHelper g (Set.insert (typ curr) visited) (vs ++ nodesWithPath curr g)
+    nodesWithPath node graph = map (uncurry (makeNode $ path node)) $ HashMap.toList $ HashMap.lookupDefault HashMap.empty (typ node) graph
+    makeNode currPath t id = Node t (currPath ++ [id])
 
 instance (Eq k, Hashable k, Serialize k, Serialize v) => Serialize (HashMap k v) where
   put hm = S.put (HashMap.toList hm)

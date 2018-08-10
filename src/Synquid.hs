@@ -17,7 +17,7 @@ import Synquid.Synthesizer
 import Synquid.HtmlOutput
 import Synquid.Codegen
 import Synquid.Stats
-import Synquid.Graph
+import Synquid.Graph hiding (Node(..))
 import Database.Convert
 import Database.Graph
 import Database.Generate
