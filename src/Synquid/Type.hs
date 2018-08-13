@@ -53,6 +53,8 @@ isFunctionType (FunctionT _ _ _) = True
 isFunctionType _ = False
 argType (FunctionT _ t _) = t
 resType (FunctionT _ _ t) = t
+isHigherOrder (FunctionT _ tArg tRet) = isFunctionType tArg || isHigherOrder tRet
+isHigherOrder _ = False
 
 hasAny AnyT = True
 hasAny (ScalarT baseT _) = baseHasAny baseT
@@ -280,6 +282,9 @@ intersection isBound (ScalarT baseT fml) (ScalarT baseT' fml') = case baseT of
                                   ScalarT (DatatypeT name (zipWith (intersection isBound) tArgs tArgs') (zipWith andClean pArgs pArgs')) (fml `andClean` fml')
   _ -> ScalarT baseT (fml `andClean` fml')
 intersection isBound (FunctionT x tArg tRes) (FunctionT y tArg' tRes') = FunctionT x tArg (intersection isBound tRes (renameVar isBound y x tArg tRes')) 
+intersection isBound t (LetT x c t') = intersection isBound t t'
+intersection isBound (LetT x c t) t' = LetT x c (intersection isBound t t')
+-- intersection _ t1 t2 = error $ "cannot intersection between" ++ show (shape t1) ++ " and " ++ show (shape t2)
 
 -- | Instantiate unknowns in a type
 typeApplySolution :: Solution -> RType -> RType

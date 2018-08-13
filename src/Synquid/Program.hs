@@ -201,6 +201,12 @@ makeLenses ''SuccinctEdge
 
 getEdgeId (SuccinctEdge id _ _) = id
 
+data Metadata = Metadata {
+  _distFromGoal :: Int
+} deriving(Eq, Ord)
+
+makeLenses ''Metadata
+
 -- | Typing environment
 data Environment = Environment {
   -- | Variable part:
@@ -209,6 +215,7 @@ data Environment = Environment {
   _succinctSymbols :: HashMap Id SuccinctType,    -- ^ Symbols with succinct types
   _succinctGraph :: HashMap SuccinctType (HashMap SuccinctType (Set SuccinctEdge)), -- ^ Graph built upon succinct types
   _graphFromGoal :: HashMap SuccinctType (HashMap SuccinctType (Set SuccinctEdge)),
+  _graphMetadata :: HashMap SuccinctType Metadata,
   _succinctGraphRev :: HashMap SuccinctType (Set SuccinctType), -- ^ Graph for reachability check
   _boundTypeVars :: [Id],                  -- ^ Bound type variables
   _boundPredicates :: [PredSig],           -- ^ Argument sorts of bound abstract refinements
@@ -241,6 +248,7 @@ emptyEnv = Environment {
   _succinctSymbols = HashMap.empty,
   _succinctGraph = HashMap.empty,
   _graphFromGoal = HashMap.empty,
+  _graphMetadata = HashMap.empty,
   _succinctGraphRev = HashMap.empty,
   _boundTypeVars = [],
   _boundPredicates = [],

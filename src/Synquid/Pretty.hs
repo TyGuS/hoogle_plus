@@ -521,7 +521,7 @@ instance Pretty SuccinctType where
     pretty (SuccinctFunction paramCnt param retTy) = hlBraces (commaSep $ map pretty (Set.toList param)) <+> hlParens (pretty paramCnt) <+> text "->" <+> pretty retTy
     pretty (SuccinctDatatype (id,_) names tys cons measures) = hlParens $ text id <+> text "|" <+> hlBraces (commaSep $ map pretty (fst $ unzip $ Set.toList names)) <+> text "|" <+> hlBraces (commaSep $ map pretty (Set.toList tys))
     pretty (SuccinctAll names ty) = hlBrackets (commaSep $ map pretty (Set.toList names)) <+> text "." <+> pretty ty
-    pretty (SuccinctComposite tys) = hlBraces (commaSep $ map pretty (Set.toList tys))
+    pretty (SuccinctComposite _ tys) = hlBraces (commaSep $ map pretty (Set.toList tys))
     pretty (SuccinctAny) = text "ANY"
     pretty (SuccinctLet id ty1 ty2) = text "OOPS"
     pretty (SuccinctInhabited s) = text "INHABITED" <+> pretty s

@@ -24,7 +24,7 @@ data SuccinctType =
   SuccinctFunction Int (Set SuccinctType) SuccinctType | -- # of params -> param set -> return type
   SuccinctDatatype (Id, Int) (Set (Id, Int)) (Set SuccinctType) (Map Id Id) (Set Id) | -- Outmost datatype, Datatype names, included types, datatype constructors, (datatype measures, vars in refinements)
   SuccinctAll (Set Id) SuccinctType | -- type variables, type
-  SuccinctComposite (Set SuccinctType) | -- composite type nodes for the function parameters
+  SuccinctComposite Int (Set SuccinctType) | -- # of params(only for goal pickup), composite type nodes for the function parameters
   SuccinctLet Id SuccinctType SuccinctType | -- actually, this can be removed, [TODO] safely check this type
   SuccinctAny | -- any type
   SuccinctInhabited SuccinctType -- inhabited type node, only work in the graph
@@ -81,7 +81,7 @@ extractSuccinctTyVars (SuccinctScalar t) = extractBaseTyVars t
 extractSuccinctTyVars (SuccinctFunction _ args ret) = Set.foldr (\t acc -> (extractSuccinctTyVars t) `Set.union` acc) (extractSuccinctTyVars ret) args
 extractSuccinctTyVars (SuccinctDatatype _ _ tys _ _) = foldr (\t acc -> (extractSuccinctTyVars t) `Set.union` acc) Set.empty tys
 extractSuccinctTyVars (SuccinctAll ids _) = ids
-extractSuccinctTyVars (SuccinctComposite tys) = foldr (\t acc -> (extractSuccinctTyVars t) `Set.union` acc) Set.empty tys
+extractSuccinctTyVars (SuccinctComposite _ tys) = foldr (\t acc -> (extractSuccinctTyVars t) `Set.union` acc) Set.empty tys
 extractSuccinctTyVars _ = Set.empty
 
 outOfSuccinctAll :: SuccinctType -> SuccinctType
@@ -105,7 +105,7 @@ simplifySuccinctType t@(SuccinctDatatype idIn idsIn tysIn consIn measuresIn) = l
 simplifySuccinctType t@(SuccinctAll ids ty) = case simplifySuccinctType ty of
   SuccinctAll ids' ty' -> SuccinctAll (ids `Set.union` ids') (outOfSuccinctAll ty')
   _ -> SuccinctAll ids (outOfSuccinctAll ty)
-simplifySuccinctType t@(SuccinctComposite tys) = SuccinctComposite (Set.map simplifySuccinctType tys)
+simplifySuccinctType t@(SuccinctComposite cnt tys) = SuccinctComposite cnt (Set.map simplifySuccinctType tys)
 simplifySuccinctType t@(SuccinctInhabited ty) = SuccinctInhabited (simplifySuccinctType ty)
 simplifySuccinctType t = t
 
@@ -128,7 +128,7 @@ succinctTypeSubstitute subst (SuccinctAll idSet ty) = simplifySuccinctType $ Suc
   where
     idSet' = Set.filter (\id -> not $ isJust (Map.lookup id subst)) idSet
     ty' = succinctTypeSubstitute subst ty
-succinctTypeSubstitute subst (SuccinctComposite tySet) = simplifySuccinctType $ SuccinctComposite tySet'
+succinctTypeSubstitute subst (SuccinctComposite cnt tySet) = simplifySuccinctType $ SuccinctComposite cnt tySet'
   where
     tySet' = Set.map (succinctTypeSubstitute subst) tySet
 succinctTypeSubstitute subst (SuccinctLet id tDef tBody) = simplifySuccinctType $ SuccinctLet id tDef' tBody'
@@ -256,23 +256,23 @@ isSuccinctInhabited ty = False
 isSuccinctFunction ty@(SuccinctFunction _ _ _) = True
 isSuccinctFunction ty = False
 
-isSuccinctComposite ty@(SuccinctComposite _) = True
+isSuccinctComposite ty@(SuccinctComposite _ _) = True
 isSuccinctComposite ty = False
 
 isSuccinctAll (SuccinctAll _ _) = True
 isSuccinctAll _ = False
 
 isSuccinctConcrete (SuccinctInhabited _) = False
-isSuccinctConcrete (SuccinctComposite _) = False
+isSuccinctConcrete (SuccinctComposite _ _) = False
 isSuccinctConcrete (SuccinctFunction _ _ _) = False
 isSuccinctConcrete (SuccinctAny) = False
 isSuccinctConcrete (SuccinctDatatype _ _ tys _ _) = Set.foldr (\t acc -> acc && isSuccinctConcrete t) True tys
 isSuccinctConcrete _ = True
 
-hasSuccinctAny (SuccinctComposite tys) = Set.foldr (\t acc -> acc || hasSuccinctAny t) False tys
-hasSuccinctAny (SuccinctFunction _ targ tret) = (hasSuccinctAny (SuccinctComposite targ)) || (hasSuccinctAny tret)
+hasSuccinctAny (SuccinctComposite _ tys) = Set.foldr (\t acc -> acc || hasSuccinctAny t) False tys
+hasSuccinctAny (SuccinctFunction _ targ tret) = (hasSuccinctAny (SuccinctComposite 0 targ)) || (hasSuccinctAny tret)
 hasSuccinctAny (SuccinctAny) = True
-hasSuccinctAny (SuccinctDatatype _ _ tys _ _) = hasSuccinctAny (SuccinctComposite tys)
+hasSuccinctAny (SuccinctDatatype _ _ tys _ _) = hasSuccinctAny (SuccinctComposite 0 tys)
 hasSuccinctAny _ = False
 
 -- does the first type make contribution to the second one's refinement
@@ -292,12 +292,12 @@ measuresOf _ = Set.empty
 -- | can typ2 be kind of typ1?
 succinctAnyEq :: SuccinctType -> SuccinctType -> Bool
 succinctAnyEq (SuccinctScalar t1) (SuccinctScalar t2) = t1 == t2
-succinctAnyEq (SuccinctFunction cnt1 targ1 tret1) (SuccinctFunction cnt2 targ2 tret2) = cnt1 == cnt2 && (succinctAnyEq (SuccinctComposite targ1) (SuccinctComposite targ2)) && (tret1 == tret2 || (tret1 == SuccinctAny) || (tret2 == SuccinctAny))
+succinctAnyEq (SuccinctFunction cnt1 targ1 tret1) (SuccinctFunction cnt2 targ2 tret2) = cnt1 == cnt2 && (succinctAnyEq (SuccinctComposite 0 targ1) (SuccinctComposite 0 targ2)) && (tret1 == tret2 || (tret1 == SuccinctAny) || (tret2 == SuccinctAny))
 succinctAnyEq t1@(SuccinctDatatype id1 ids1 tys1 cons1 measures1) t2@(SuccinctDatatype id2 ids2 tys2 cons2 measures2) = 
   if hasSuccinctAny t1 || hasSuccinctAny t2
-    then (succinctAnyEq (SuccinctComposite tys1) (SuccinctComposite tys2)) && (Set.isSubsetOf ids1 ids2 || Set.isSubsetOf ids2 ids1) && id1 == id2 && ((not . Set.null $ measures1 `Set.intersection` measures2)  || Set.null measures1)
+    then (succinctAnyEq (SuccinctComposite 0 tys1) (SuccinctComposite 0 tys2)) && (Set.isSubsetOf ids1 ids2 || Set.isSubsetOf ids2 ids1) && id1 == id2 && ((not . Set.null $ measures1 `Set.intersection` measures2)  || Set.null measures1)
     else tys1 == tys2 && id1 == id2 && ids1 == ids2 && (Map.null cons1 || Map.null cons2 || cons1 == cons2) && ((not . Set.null $ measures1 `Set.intersection` measures2) || Set.null measures1)
-succinctAnyEq (SuccinctComposite tys1) (SuccinctComposite tys2) =
+succinctAnyEq (SuccinctComposite _ tys1) (SuccinctComposite _ tys2) =
   if Set.member SuccinctAny tys1
     then let diff = tys1 `Set.difference` tys2 in Set.size diff == 0 || (Set.size diff == 1 && Set.findMin diff == SuccinctAny)
     else let diff = tys2 `Set.difference` tys1 in Set.size diff == 0 || (Set.size diff == 1 && Set.findMin diff == SuccinctAny)
@@ -312,8 +312,8 @@ base2str (TypeVarT _ id) = id
 base2str _ = ""
 
 sizeof :: SuccinctType -> Int
-sizeof (SuccinctComposite tySet) = Set.foldr (\x -> (+) (sizeof x)) 0 tySet
-sizeof (SuccinctFunction _ argSet _) = sizeof (SuccinctComposite argSet)
+sizeof (SuccinctComposite _ tySet) = Set.foldr (\x -> (+) (sizeof x)) 0 tySet
+sizeof (SuccinctFunction _ argSet _) = sizeof (SuccinctComposite 0 argSet)
 sizeof (SuccinctDatatype id ids tys cons _) = 1 + (Set.size ids) + (Set.size tys)
 sizeof (SuccinctInhabited _) = 0
 sizeof _ = 1

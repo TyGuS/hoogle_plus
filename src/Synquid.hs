@@ -400,6 +400,7 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
   -- baseDecls <- filter (flip notElem ruleOut . getDeclName) <$> addPrelude <$> readDeclarations "base" Nothing
   let baseDecls = []
   fileDecls <- readDeclarations pkgName Nothing
+  -- print fileDecls
   dts <- packageDtNames pkgName
   let parsedDecls = fst $ unzip $ map (\decl -> runState (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)
   ddts <- definedDts pkgName

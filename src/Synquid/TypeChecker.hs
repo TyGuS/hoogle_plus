@@ -308,6 +308,7 @@ checkAnnotation env t t' p = do
       typingState . errorContext .= (noPos, empty)
       
       tass' <- use (typingState . typeAssignment)
+      writeLog 2 $ text "intersection between" <+> pretty t'' <+> text "and" <+> pretty (typeSubstitute tass' t)
       return $ intersection (isBound env) t'' (typeSubstitute tass' t)
           
 -- | 'etaExpand' @t@ @f@: for a symbol @f@ of a function type @t@, the term @\X0 . ... \XN . f X0 ... XN@ where @f@ is fully applied

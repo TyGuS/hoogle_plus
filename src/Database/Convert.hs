@@ -140,6 +140,7 @@ toSynquidSkeleton (TyApp fun arg)
         ScalarT (DatatypeT id tys _) _ <- head <$> toSynquidSkeleton fun
         args <- toSynquidSkeleton arg
         return [ScalarT (DatatypeT id (args++tys) []) ()]
+    | (TyVar _) <- fun = toSynquidSkeleton arg
     | otherwise = do
         funs <- toSynquidSkeleton fun
         args <- toSynquidSkeleton arg

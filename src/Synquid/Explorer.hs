@@ -616,54 +616,125 @@ initProgramQueue env typ = do
   let pq = PQ.singleton score (p, es, [])
   return pq
 
-splitGoal :: (MonadHorn s) => Environment -> Explorer s SProgram
-splitGoal env = do
+-- | To include all the provided parameters in our solution, 
+-- we first find a junction node in the graph of paths from goal type to parameters
+-- start from the junction node, we separately find a path to all parameters and build a sketch from these paths
+-- TODO how to ensure the SOUNDNESS when splitting of the set of parameters?
+splitGoal :: (MonadHorn s, MonadIO s) => Environment -> RType -> Explorer s SProgram
+splitGoal env t = do
   -- pick up a node as the possible intersection of the paths to both the goal type and parameter types
-  let allNodes = Set.toList $ Set.filter (not . isSuccinctFunction) $ nodes True env
+  -- TODO how to sort these nodes to get the most likely composite node first?
+  let allNodes = sortOn (flip (HashMap.lookupDefault (Metadata 99999)) (env ^. graphMetadata)) 
+                 $ Set.toList $ Set.filter isSuccinctComposite $ nodes True env
   let goalTy = lastSuccinctType $ findSuccinctSymbol "__goal__"
-  -- writeLog 2 $ pretty allNodes
+
   -- try to find paths to all of the parameters and construct a partial program
   msum $ map (\xnode -> do
+    let SuccinctComposite cnt tys = xnode
+    guard (cnt >= 2)
     writeLog 2 $ text "Trying" <+> pretty xnode
-    -- tmp <- shortest env goalTy xnode
-    -- writeLog 2 $ text "Path from goal type" <+> (pretty $ map (Set.toList . Set.map getEdgeId) tmp)
-    let paths = Map.elems $ Map.map (shortestPathFromTo env xnode . SuccinctInhabited . outOfSuccinctAll . toSuccinctType . toMonotype) (env ^. arguments)
-    if foldr ((&&) . not . null) (not . null $ shortestPathFromTo env goalTy xnode) paths
-      then do
-        writeLog 2 $ text "find a path through" <+> pretty xnode
-        writeLog 2 $ pretty (map (map (Set.toList . Set.map getEdgeId)) paths)
-        let argProgs = map buildApp paths
-        writeLog 2 $ pretty argProgs
-        return $ head argProgs
+    -- TODO randomly select two types as the source node from the composite set
+    -- TODO start by choose the first two
+    let (src1, src2) = if Set.size tys == 1 then (Set.findMax tys, Set.findMax tys) else (Set.findMax tys, Set.findMax $ Set.deleteMax tys)
+    
+    paths <- liftM2 (:) (findPathTo src1 $ snd . Map.findMin $ env ^. arguments) (mapM (findPathTo src2) $ Map.elems $ Map.deleteMin $ env ^. arguments)
+
+    let goalPath = shortestPathFromTo env goalTy xnode
+    writeLog 2 $ text "path from goal:" <+> pretty (map (Set.toList . Set.map getEdgeId) goalPath)
+    writeLog 2 $ text "paths for args:" <+> pretty (map (map (Set.toList . Set.map getEdgeId)) paths)
+    -- writeLog 2 $ text "arguments now:" <+> pretty (Map.toList (env ^. arguments))
+    d <- asks . view $ _1 . auxDepth
+    writeLog 2 $ text "auxDepth now:" <+> pretty d
+    -- all the paths cannot exceed the auxDepth limitation, cannot use two nested high-order function
+    if foldr ((&&) . not . null) (not $ null goalPath) paths
+      then if foldr ((&&) . withinAuxDepth d) (withinAuxDepth d goalPath) (map ((++) goalPath) paths)
+        then do
+          writeLog 2 $ text "find a path through" <+> pretty xnode
+          -- writeLog 2 $ pretty (map (map (Set.toList . Set.map getEdgeId)) paths)
+          target <- buildApp goalPath
+          writeLog 2 $ pretty target
+          argProgs <- mapM buildApp paths
+          let typedProgs = (fillType src1 $ head argProgs) : (map (fillType src2) $ tail argProgs)
+          -- writeLog 2 $ pretty argProgs
+          filledTarget <- foldM fillHoleWithType target typedProgs 
+          writeLog 2 $ text "typedProgs" <+> pretty typedProgs
+          writeLog 2 $ text "program with holes" <+> pretty filledTarget
+          Reconstructor _ reconstructETopLevel <- asks . view $ _3
+          -- typ1 <- findRType target src1
+          -- p <- local (over (_1 . auxDepth) (-1 +))
+               -- $ reconstructETopLevel env typ1 (toRProgram $ head argProgs) 
+          p <- reconstructETopLevel env t $ toRProgram filledTarget
+          writeLog 2 $ text "find a partial program" <+> pretty p
+          return $ head argProgs
+        else do
+          writeLog 2 $ text "path has too many high-order functions for" <+> pretty xnode 
+          mzero
       else do
         writeLog 2 $ text "fail to find a path for type" <+> pretty xnode 
         mzero
     ) allNodes
   -- feed it to synquid to get a complete program
   where
+    fillType sty (Program p (_, typ, _)) = Program p (sty, typ, typ) 
+
+    withinAuxDepth d [] = d >= 0
+    withinAuxDepth d (p:ps) = if d < 0
+      then False 
+      else let x = getEdgeId $ Set.findMax p
+               rtyp = toMonotype $ fromJust $ lookupSymbol x (-1) env
+           in if x /= "" && isHigherOrder rtyp
+             then withinAuxDepth (d-1) ps
+             else withinAuxDepth d ps
+
+    findPathTo src t = do
+      tass <- use (typingState . typeAssignment)
+      return $ shortestPathFromTo env src . SuccinctInhabited . outOfSuccinctAll . toSuccinctType . typeSubstitute tass . toMonotype $ t
+    
     findSuccinctSymbol sym = outOfSuccinctAll $ HashMap.lookupDefault SuccinctAny sym $ env ^. succinctSymbols
-    isNodeValid node = let goalTy = lastSuccinctType $ findSuccinctSymbol "__goal__"
-                       in Map.foldr ((&&) . not . null 
-                                   . shortestPathFromTo env node 
-                                   . SuccinctInhabited 
-                                   . outOfSuccinctAll 
-                                   . toSuccinctType 
-                                   . toMonotype) (null $ shortestPathFromTo env goalTy node) (env ^. arguments)
+    
+    findRType prog@(Program p (sty, typ, _)) tSty = case p of
+      PApp fun arg -> let (sArg, tArg, _) = typeOf arg in if tSty == sArg then return tArg else findRType arg tSty `mplus` findRType fun tSty
+      PSymbol _ -> if sty == tSty then return typ else mzero
+      PHole -> if sty == tSty then return typ else mzero
+      _ -> error "Cannot find a type in terms more than application"
+    
+    fillHoleWithType prog@(Program p (sty, typ, _)) term@(Program _ (tsty, ttyp, _)) = case p of
+      PApp fun arg -> ((\x -> Program (PApp fun x) (sty, typ, typ)) <$> fillHoleWithType arg term) 
+                      `mplus` ((\x -> Program (PApp x arg) (sty, typ, typ)) <$> fillHoleWithType fun term)
+      PHole -> if sty == tsty then return term else mzero
+      _ -> mzero
+    
+    termWithHoles p@(Program _ (sty, typ, _)) = case typ of
+      FunctionT x tArg tRet -> let SuccinctFunction paramCnt argSet retTy = sty
+                                   arg = outOfSuccinctAll $ toSuccinctType (tArg)
+                                   args = if paramCnt > Set.size argSet || paramCnt == 1 then Set.delete arg argSet else argSet
+                               in termWithHoles (Program (PApp p (Program PHole (arg, tArg, tArg))) ((if paramCnt == 1 then retTy else SuccinctFunction (paramCnt-1) args retTy), tRet, tRet))
+      _ -> p
+    
+    fillHoleWithTerm prog@(Program p (sty, typ, _)) term@(Program _ (tsty, ttyp, _)) = case p of
+      PApp fun arg -> let (_, tArg, _) = typeOf arg in if lastType ttyp == tArg then Program (PApp fun term) (sty, typ, typ) else Program (PApp (fillHoleWithTerm fun term) arg) (sty, typ, typ)
+      _ -> prog
+    
     buildApp path = case path of
       [] -> error "cannot build term from empty path"
-      [e] -> let x = getEdgeId $ Set.findMax e
-                 rtyp = toMonotype $ fromJust $ lookupSymbol x (-1) env 
-             in Program (PSymbol x) (findSuccinctSymbol x, rtyp, rtyp)
-      e:xs -> let x = getEdgeId $ Set.findMax e
-                  rtyp = toMonotype $ fromJust $ lookupSymbol x (-1) env 
-              in if x == ""
-                then buildApp xs
-                else Program (PApp (Program (PSymbol x) (findSuccinctSymbol x, rtyp, rtyp)) (buildApp xs)) (lastSuccinctType $ findSuccinctSymbol x, lastType rtyp, lastType rtyp)
-
+      [e] -> do
+                let x = getEdgeId $ Set.findMax e
+                writeLog 2 $ text "prepare to lookup symbol" <+> text x
+                rtyp <- instantiateWithoutConstraint env (fromJust $ lookupSymbol x (-1) env) True []
+                return $ termWithHoles $ Program (PSymbol x) (findSuccinctSymbol x, rtyp, rtyp)
+      e:xs -> do
+                let x = getEdgeId $ Set.findMax e
+                if x == ""
+                  then buildApp xs
+                  else do
+                    writeLog 2 $ text "prepare to lookup symbol" <+> text x
+                    rtyp <- instantiateWithoutConstraint env (fromJust $ lookupSymbol x (-1) env) True []
+                    fillHoleWithTerm (termWithHoles $ Program (PSymbol x) (findSuccinctSymbol x, rtyp, rtyp)) <$> (buildApp xs)
+                     
 generateEWithGraph :: (MonadHorn s, MonadIO s) => Environment -> ProgramQueue -> RType -> Bool -> Bool -> Explorer s (ProgramQueue, RProgram)
 generateEWithGraph env pq typ isThenBranch isElseBranch = do
   -- [TODO] just for test
-  splitGoal env
+  splitGoal env typ
   es <- get
   res <- walkThrough env pq
   case res of
@@ -1100,7 +1171,11 @@ generateAuxGoals = do
         auxGoals .= gs
         writeLog 2 $ text "PICK AUXILIARY GOAL" <+> pretty g
         Reconstructor reconstructTopLevel _ <- asks . view $ _3
-        p <- reconstructTopLevel g
+        p <- reconstructTopLevel $ g {
+            gEnvironment = (gEnvironment g){
+              _arguments = Map.empty
+            }
+          }
         solvedAuxGoals %= Map.insert (gName g) (etaContract p)
         generateAuxGoals
   where
@@ -1143,7 +1218,8 @@ addSuccinctEdge name t env = do
       let subgraphNodes = if goalTy == SuccinctAny then allSuccinctNodes env' else reachableGraphFromNode env' goalTy
       let starters = Set.toList $ Set.filter (\typ -> isSuccinctInhabited typ || isSuccinctFunction typ || typ == (SuccinctScalar BoolT) || hasSuccinctAny typ) (allSuccinctNodes env')
       let reachableSet = (getReachableNodes env' starters) `Set.intersection` subgraphNodes
-      return $ env' { _graphFromGoal = pruneGraphByReachability (env' ^. succinctGraph) reachableSet }
+      let graphEnv = env' { _graphFromGoal = pruneGraphByReachability (env' ^. succinctGraph) reachableSet }
+      return $ distFromNode goalTy  graphEnv
   where
     getSuccinctTy tt = case toSuccinctType tt of
       SuccinctAll vars ty -> SuccinctAll vars (refineSuccinctDatatype name ty env)
