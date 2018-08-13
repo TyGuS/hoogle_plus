@@ -642,8 +642,8 @@ splitGoal env t = do
     paths <- liftM2 (:) (findPathTo src1 $ snd . Map.findMin $ env ^. arguments) (mapM (findPathTo src2) $ Map.elems $ Map.deleteMin $ env ^. arguments)
 
     let goalPath = shortestPathFromTo env goalTy xnode
-    -- writeLog 2 $ text "path from goal:" <+> pretty (map (Set.toList . Set.map getEdgeId) goalPath)
-    -- writeLog 2 $ text "paths for args:" <+> pretty (map (map (Set.toList . Set.map getEdgeId)) paths)
+    writeLog 2 $ text "path from goal:" <+> pretty (map (Set.toList . Set.map getEdgeId) goalPath)
+    writeLog 2 $ text "paths for args:" <+> pretty (map (map (Set.toList . Set.map getEdgeId)) paths)
     -- writeLog 2 $ text "arguments now:" <+> pretty (Map.toList (env ^. arguments))
     d <- asks . view $ _1 . auxDepth
     -- writeLog 2 $ text "auxDepth now:" <+> pretty d
@@ -657,9 +657,9 @@ splitGoal env t = do
           writeLog 2 $ pretty target
           argProgs <- mapM buildApp paths
           let typedProgs = (fillType src1 $ head argProgs) : (map (fillType src2) $ tail argProgs)
-          -- writeLog 2 $ pretty argProgs
+          -- writeLog 2 $ pretty Progs
           filledTarget <- foldM fillHoleWithType target typedProgs 
-          -- writeLog 2 $ text "typedProgs" <+> pretty typedProgs
+          writeLog 2 $ text "typedProgs" <+> pretty (map (\tp -> (tp, typeOf tp)) typedProgs)
           writeLog 2 $ text "program with holes" <+> pretty filledTarget
           Reconstructor _ reconstructETopLevel <- asks . view $ _3
           -- typ1 <- findRType target src1
@@ -714,8 +714,10 @@ splitGoal env t = do
       _ -> p
     
     fillHoleWithTerm prog@(Program p (sty, typ, _)) term@(Program _ (tsty, ttyp, _)) = case p of
-      PApp fun arg -> let (_, tArg, _) = typeOf arg in if lastType ttyp == tArg then Program (PApp fun term) (sty, typ, typ) else Program (PApp (fillHoleWithTerm fun term) arg) (sty, typ, typ)
-      _ -> prog
+      PApp fun arg -> ((\x -> Program (PApp fun x) (sty, typ, typ)) <$> fillHoleWithTerm arg term) 
+                      `mplus` ((\x -> Program (PApp x arg) (sty, typ, typ)) <$> fillHoleWithTerm fun term)
+      PHole -> if ttyp == typ then return term else return prog
+      _ -> return prog
     
     buildApp path = case path of
       [] -> error "cannot build term from empty path"
@@ -731,7 +733,7 @@ splitGoal env t = do
                   else do
                     writeLog 2 $ text "prepare to lookup symbol" <+> text x
                     rtyp <- instantiateWithoutConstraint env (fromJust $ lookupSymbol x (-1) env) True []
-                    fillHoleWithTerm (termWithHoles $ Program (PSymbol x) (findSuccinctSymbol x, rtyp, rtyp)) <$> (buildApp xs)
+                    (buildApp xs) >>= fillHoleWithTerm (termWithHoles $ Program (PSymbol x) (findSuccinctSymbol x, rtyp, rtyp))
                      
 generateEWithGraph :: (MonadHorn s, MonadIO s) => Environment -> ProgramQueue -> RType -> Bool -> Bool -> Explorer s (ProgramQueue, RProgram)
 generateEWithGraph env pq typ isThenBranch isElseBranch = do
@@ -794,9 +796,9 @@ generateE env typ isThenBranch isElseBranch isMatchScrutinee = do
     repeatUtilValid pq = 
       ifte (generateEWithGraph env pq typ isThenBranch isElseBranch)
         (\(pq',res) -> do
-          if containsAllArguments res
-            then return res `mplus` repeatUtilValid pq'
-            else repeatUtilValid pq'
+          -- if containsAllArguments res
+            return res `mplus` repeatUtilValid pq'
+            -- else repeatUtilValid pq'
           )
         mzero
     addLambdaLets t body [] = return body

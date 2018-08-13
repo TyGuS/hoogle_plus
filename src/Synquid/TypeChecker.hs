@@ -242,7 +242,9 @@ reconstructE env t (Program p t') = do
 
 reconstructE' env typ PHole = do
   d <- asks . view $ _1 . eGuessDepth
-  generateEUpTo env typ d
+  useFilter <- asks . view $ _1 . useSuccinct
+  pq <- initProgramQueue env typ
+  if useFilter then generateE env typ False False False else generateEUpTo env typ d
 reconstructE' env typ (PSymbol name) = do
   case lookupSymbol name (arity typ) env of
     Nothing -> throwErrorWithDescription $ text "Not in scope:" </> text name
