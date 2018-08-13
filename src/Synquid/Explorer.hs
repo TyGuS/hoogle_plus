@@ -176,10 +176,11 @@ generateI env t@(FunctionT x tArg tRes) isElseBranch = do
   pBody <- inContext ctx $ generateI (unfoldAllVariables $ addVariable x tArg $ addArgument x tArg $ env') tRes False
   return $ ctx pBody
 generateI env t@(ScalarT _ _) isElseBranch = do
-  maEnabled <- asks . view $ _1 . abduceScrutinees -- Is match abduction enabled?
-  d <- asks . view $ _1 . matchDepth
-  maPossible <- runInSolver $ hasPotentialScrutinees env -- Are there any potential scrutinees in scope?
-  if maEnabled && d > 0 && maPossible then generateMaybeMatchIf env t isElseBranch else generateMaybeIf env t isElseBranch           
+  splitGoal env t
+  -- maEnabled <- asks . view $ _1 . abduceScrutinees -- Is match abduction enabled?
+  -- d <- asks . view $ _1 . matchDepth
+  -- maPossible <- runInSolver $ hasPotentialScrutinees env -- Are there any potential scrutinees in scope?
+  -- if maEnabled && d > 0 && maPossible then generateMaybeMatchIf env t isElseBranch else generateMaybeIf env t isElseBranch           
 
 -- | Generate a possibly conditional term type @t@, depending on whether a condition is abduced
 generateMaybeIf :: (MonadHorn s, MonadIO s) => Environment -> RType -> Bool -> Explorer s RProgram
@@ -619,12 +620,13 @@ initProgramQueue env typ = do
 -- | To include all the provided parameters in our solution, 
 -- we first find a junction node in the graph of paths from goal type to parameters
 -- start from the junction node, we separately find a path to all parameters and build a sketch from these paths
--- TODO how to ensure the SOUNDNESS when splitting of the set of parameters?
-splitGoal :: (MonadHorn s, MonadIO s) => Environment -> RType -> Explorer s SProgram
+-- TODO how to ensure the SOUNDNESS when splitting of the set of parameters? 
+-- there exists a permutation of these parameters to satisfy the final solution
+splitGoal :: (MonadHorn s, MonadIO s) => Environment -> RType -> Explorer s RProgram
 splitGoal env t = do
   -- pick up a node as the possible intersection of the paths to both the goal type and parameter types
   -- TODO how to sort these nodes to get the most likely composite node first?
-  let allNodes = sortOn (flip (HashMap.lookupDefault (Metadata 99999)) (env ^. graphMetadata)) 
+  let allNodes = sortOn (flip (HashMap.lookupDefault (Metadata $ fromIntegral maxCnt)) (env ^. graphMetadata)) 
                  $ Set.toList $ Set.filter isSuccinctComposite $ nodes True env
   let goalTy = lastSuccinctType $ findSuccinctSymbol "__goal__"
 
@@ -640,16 +642,16 @@ splitGoal env t = do
     paths <- liftM2 (:) (findPathTo src1 $ snd . Map.findMin $ env ^. arguments) (mapM (findPathTo src2) $ Map.elems $ Map.deleteMin $ env ^. arguments)
 
     let goalPath = shortestPathFromTo env goalTy xnode
-    writeLog 2 $ text "path from goal:" <+> pretty (map (Set.toList . Set.map getEdgeId) goalPath)
-    writeLog 2 $ text "paths for args:" <+> pretty (map (map (Set.toList . Set.map getEdgeId)) paths)
+    -- writeLog 2 $ text "path from goal:" <+> pretty (map (Set.toList . Set.map getEdgeId) goalPath)
+    -- writeLog 2 $ text "paths for args:" <+> pretty (map (map (Set.toList . Set.map getEdgeId)) paths)
     -- writeLog 2 $ text "arguments now:" <+> pretty (Map.toList (env ^. arguments))
     d <- asks . view $ _1 . auxDepth
-    writeLog 2 $ text "auxDepth now:" <+> pretty d
+    -- writeLog 2 $ text "auxDepth now:" <+> pretty d
     -- all the paths cannot exceed the auxDepth limitation, cannot use two nested high-order function
     if foldr ((&&) . not . null) (not $ null goalPath) paths
       then if foldr ((&&) . withinAuxDepth d) (withinAuxDepth d goalPath) (map ((++) goalPath) paths)
         then do
-          writeLog 2 $ text "find a path through" <+> pretty xnode
+          -- writeLog 2 $ text "find a path through" <+> pretty xnode
           -- writeLog 2 $ pretty (map (map (Set.toList . Set.map getEdgeId)) paths)
           target <- buildApp goalPath
           writeLog 2 $ pretty target
@@ -657,7 +659,7 @@ splitGoal env t = do
           let typedProgs = (fillType src1 $ head argProgs) : (map (fillType src2) $ tail argProgs)
           -- writeLog 2 $ pretty argProgs
           filledTarget <- foldM fillHoleWithType target typedProgs 
-          writeLog 2 $ text "typedProgs" <+> pretty typedProgs
+          -- writeLog 2 $ text "typedProgs" <+> pretty typedProgs
           writeLog 2 $ text "program with holes" <+> pretty filledTarget
           Reconstructor _ reconstructETopLevel <- asks . view $ _3
           -- typ1 <- findRType target src1
@@ -665,7 +667,7 @@ splitGoal env t = do
                -- $ reconstructETopLevel env typ1 (toRProgram $ head argProgs) 
           p <- reconstructETopLevel env t $ toRProgram filledTarget
           writeLog 2 $ text "find a partial program" <+> pretty p
-          return $ head argProgs
+          return p
         else do
           writeLog 2 $ text "path has too many high-order functions for" <+> pretty xnode 
           mzero
@@ -734,7 +736,7 @@ splitGoal env t = do
 generateEWithGraph :: (MonadHorn s, MonadIO s) => Environment -> ProgramQueue -> RType -> Bool -> Bool -> Explorer s (ProgramQueue, RProgram)
 generateEWithGraph env pq typ isThenBranch isElseBranch = do
   -- [TODO] just for test
-  splitGoal env typ
+  -- splitGoal env typ
   es <- get
   res <- walkThrough env pq
   case res of
@@ -1244,8 +1246,8 @@ termScore :: Environment -> SProgram -> IO ProgramRank
 termScore env prog@(Program p (sty, rty, _)) = do
     ws <- getGraphWeights $ Set.toList $ symbolsOf prog
     let paramSymCnt = Set.size $ symbolsOf prog `Set.intersection` Map.keysSet (env ^. arguments)
-    let w = if holes == 0 then 99999 else (fromIntegral paramSymCnt) * 4000 + sum ws
-    return $ ProgramRank (99999-holes) w
+    let w = if holes == 0 then fromIntegral maxCnt else (fromIntegral paramSymCnt) * 4000 + sum ws
+    return $ ProgramRank (fromIntegral maxCnt - holes) w
     -- else 1.0 / (fromIntegral holes) +
     --   1.0 / (fromIntegral $ greatestHoleType 0 prog) + 
     --   1.0 / (fromIntegral wholes)) + 
