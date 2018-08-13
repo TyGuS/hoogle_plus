@@ -244,7 +244,20 @@ reconstructE' env typ PHole = do
   d <- asks . view $ _1 . eGuessDepth
   useFilter <- asks . view $ _1 . useSuccinct
   pq <- initProgramQueue env typ
-  if useFilter then generateE env typ False False False else generateEUpTo env typ d
+  if useFilter 
+    then do
+      pq <- initProgramQueue env typ
+      repeatUtilValid pq
+    else generateEUpTo env typ d
+  where
+    repeatUtilValid pq = 
+      ifte (generateEWithGraph env pq typ False False)
+        (\(pq',res) -> do
+          -- if containsAllArguments res
+            return res `mplus` repeatUtilValid pq'
+            -- else repeatUtilValid pq'
+          )
+        mzero
 reconstructE' env typ (PSymbol name) = do
   case lookupSymbol name (arity typ) env of
     Nothing -> throwErrorWithDescription $ text "Not in scope:" </> text name
