@@ -203,7 +203,11 @@ def process_package(url, library_name, public_api, function_counts):
         # We request the `raw` version of the source file
         file_relative_url = usage_of_library_div.a["href"]
         file_url = github_base + file_relative_url
-        file_soup = get_soup(file_url)
+        try:
+            file_soup = get_soup(file_url)
+        except exceptions.Exception as e: #404 errors may occurs
+            log_exception(e)
+            continue
         raw_file_relative_url = file_soup.\
             findAll("a", {"id": "raw-url"})[0]["href"]
         raw_file_url = github_base + raw_file_relative_url
@@ -336,7 +340,17 @@ def record_usage(raw_file_data_soup, public_api, function_counts):
             #print "Data.ByteString.null" in function_counts.keys()
             #print "-------"
             #print function_counts.keys()
-            function_counts[mapper[function]] += len(results)
+            try:
+                function_counts[mapper[function]] += len(results)
+            except exceptions.Exception as e1:
+                log_exception(e1)
+                try:
+                    function_counts[function] += len(results)
+                except exceptions.Exception as e2:
+                    log_exception(e2)
+                    exit()
+
+
 
     return function_counts
 
@@ -446,8 +460,8 @@ def main():
         if response == "y":
             print "Ok! Loading checkpoint files"
             with open(checkpoint_libraries_to_skip, 'r') as f:
-                libraries_analized = pickle.load(f)
-                num_libraries_analyzed = len(libraries_analized)
+                libraries_analyzed = pickle.load(f)
+                num_libraries_analyzed = len(libraries_analyzed)
 
             checkpoint_filename = "./checkpoints/"
             checkpoint_filename += "%s_intermediate_counts_after_%d.json" % \
@@ -460,7 +474,7 @@ def main():
             print "You selected either 'No' or an invalid option."
             print "Will not use the checkpoint."
             num_libraries_analyzed = 0
-            libraries_analized = set()
+            libraries_analyzed = set()
 
     # Scan the html table in the 'reverse dependency' site for a link
     # to the user-specified library
@@ -487,7 +501,6 @@ def main():
     # We attempt to analyze each reverse dependency
 
     for candidate_package_url in packages_urls:
-
         if candidate_package_url in libraries_analyzed:
             print "- Due to checkpoint, we're skipping library at url..."
             print "-- " + candidate_package_url
