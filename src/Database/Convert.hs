@@ -12,6 +12,7 @@ import Data.List
 import Data.Maybe
 import Data.Either
 import Data.Ord
+import Data.Foldable
 import qualified Data.Sort as Sort
 import Data.List.Split
 import Control.Lens as Lens
@@ -168,12 +169,19 @@ addTrue (ScalarT IntT _) = ScalarT IntT ftrue
 addTrue (ScalarT BoolT _) = ScalarT BoolT ftrue
 addTrue (ScalarT (TypeVarT vSubst a) _) = ScalarT (TypeVarT vSubst a) ftrue
 addTrue (FunctionT x tArg tFun) = FunctionT x (addTrue tArg) (addTrue tFun)
+addTrue AnyT = AnyT
 
 toSynquidRType typ = do
     typ' <- toSynquidSkeleton typ
     return $ addTrue $ head typ'
 -- toSynquidRSchema env (ForallT name sch) = ForallT name (toSynquidRSchema env sch)
 toSynquidRSchema (Monotype typ) = Monotype $ addTrue typ
+
+addPrelude :: [Entry] -> [Entry]
+addPrelude [] = []
+addPrelude (decl:decls) = case decl of
+    EModule mdl -> if mdl == "GHC.OldList" then takeWhile (not . isModule) decls else addPrelude decls
+    _ -> addPrelude decls
 
 processConDecls :: Monad m => [QualConDecl] -> StateT Int m [SP.ConstructorSig]
 processConDecls [] = return []
@@ -197,6 +205,7 @@ datatypeOfCon (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
         RecDecl name fields -> error "record declaration is not supported"
 
 toSynquidDecl (EDecl (TypeDecl _ name bvars typ)) = Pos (initialPos (nameStr name)) . SP.TypeDecl (nameStr name) (map varsFromBind bvars) <$> toSynquidRType typ
+toSynquidDecl (EDecl (DataFamDecl a b name bvars c)) = toSynquidDecl (EDecl (DataDecl a DataType b name bvars [] []))
 toSynquidDecl (EDecl (DataDecl _ _ _ name bvars conDecls _)) = do
     constructors <- processConDecls conDecls
     let vars = map varsFromBind bvars
@@ -242,38 +251,43 @@ readDeclarations pkg version = do
 
 type DependsOn = Map PkgName [Id]
 
-packageDependencies :: PkgName -> StateT Int IO [Declaration]
+packageDependencies :: PkgName -> IO [PkgName]
 packageDependencies pkg = do
-    gPackageDesc <- lift $ readPackageDescription verbose $ downloadDir ++ pkg ++ ".cabal"
+    gPackageDesc <- readPackageDescription silent $ downloadDir ++ pkg ++ ".cabal"
     case condLibrary gPackageDesc of
         Nothing -> return []
         Just (CondNode _ dependencies _) -> do
-            let dpkgs = map dependentPkg dependencies
-            mapM_ (\fname -> lift $ downloadFile fname Nothing >> downloadCabal fname Nothing) dpkgs
-            myDts <- lift $ packageDtNames pkg
-            myDtDefs <- lift $ packageDtDefs pkg
-            myDefinedDts <- lift $ definedDts pkg
-            theirDts <- lift $ mapM packageDtDefs dpkgs
-            decls <- dependencyClosure myDefinedDts myDts theirDts
-            let allDecls = decls ++ (snd $ unzip myDtDefs)
-            let sortedIds = topoSort $ dependencyGraph allDecls
-            let decls' = matchDtWithCons $ map (fromJust . (flip Map.lookup $ declMap allDecls)) $ nub $ sortedIds >.> ["List", "Pair"]
-            mapM toSynquidDecl decls'
-            
-            -- let foreignDts = concatMap (filter ((flip elem (myDts >.> myDefinedDts)) . fst)) theirDts
-            -- -- lift $ print foreignDts
-            -- mapM toSynquidDecl $ nub $ snd $ unzip foreignDts
+            let dps = map dependentPkg dependencies
+            -- download necessary files to resolve package dependencies
+            foldrM (\fname existDps -> 
+                ifM (downloadFile fname Nothing >> downloadCabal fname Nothing) 
+                    (return $ fname:existDps) 
+                    (return existDps)) [] dps
   where
     dependentPkg (Dependency name _) = unPackageName name
-    dependencyClosure definedDts allDts theirDts = do
-        let undefinedDts = allDts >.> definedDts
-        if length undefinedDts /= 0 
-            then do
-                let foreignDts = concatMap (filter ((flip elem undefinedDts) . fst)) theirDts
-                let newDecls = nub $ snd $ unzip foreignDts
-                let newAddedDts = Set.toList $ Set.unions $ map getDeclTy newDecls
-                (++) newDecls <$> dependencyClosure allDts newAddedDts theirDts
-            else return []
+
+declDependencies :: [Entry] -> [Entry] -> IO [Entry]
+declDependencies decls dpDecls = do
+    let closedDecls = dependencyClosure myDefinedDts myDts theirDts
+    let allDecls = closedDecls ++ (snd $ unzip myDtDefs)
+    let sortedIds = topoSort $ dependencyGraph allDecls
+    -- print sortedIds
+    -- print $ declMap allDecls
+    return $ matchDtWithCons $ map (fromJust . (flip Map.lookup $ declMap allDecls)) $ nub $ sortedIds >.> ["List", "Pair"]
+  where
+    myDts = dtNamesIn decls
+    myDtDefs = dtDefsIn decls
+    myDefinedDts = definedDtsIn decls
+    theirDts = dtDefsIn dpDecls
+    dependencyClosure definedDts allDts theirDts = let
+        undefinedDts = allDts >.> definedDts
+        in if length undefinedDts /= 0 
+            then let
+                foreignDts = filter ((flip elem undefinedDts) . fst) theirDts
+                newDecls = nub $ snd $ unzip foreignDts
+                newAddedDts = Set.toList $ Set.unions $ map getDeclTy newDecls
+                in newDecls ++ dependencyClosure allDts newAddedDts theirDts
+            else []
     declMap decls = foldr (\d -> Map.insert (getDeclName d) d) Map.empty $ filter isDataDecl decls
     dependsOn decl = case decl of
         EDecl (DataDecl _ _ _ name bvars conDecls _) -> (nameStr name, datatypeOfCon conDecls)
@@ -287,17 +301,76 @@ packageDependencies pkg = do
         then topoSortHelper vs visited graph
         else topoSortHelper vs (Set.insert v visited) graph ++ v:(topoSortHelper (Set.toList (Map.findWithDefault Set.empty v graph)) visited graph)
 
+
+-- packageDependencies :: PkgName -> StateT Int IO [Declaration]
+-- packageDependencies pkg = do
+--     gPackageDesc <- lift $ readPackageDescription verbose $ downloadDir ++ pkg ++ ".cabal"
+--     case condLibrary gPackageDesc of
+--         Nothing -> return []
+--         Just (CondNode _ dependencies _) -> do
+--             let dpkgs = map dependentPkg dependencies
+--             mapM_ (\fname -> lift $ downloadFile fname Nothing >> downloadCabal fname Nothing) dpkgs -- download necessary files to resolve package dependencies
+--             myDts <- lift $ packageDtNames pkg
+--             myDtDefs <- lift $ packageDtDefs pkg
+--             myDefinedDts <- lift $ definedDts pkg
+--             theirDts <- lift $ mapM packageDtDefs dpkgs
+--             decls <- dependencyClosure myDefinedDts myDts theirDts
+--             let allDecls = decls ++ (snd $ unzip myDtDefs)
+--             let sortedIds = topoSort $ dependencyGraph allDecls
+--             lift $ print sortedIds
+--             lift $ print $ declMap allDecls
+--             let decls' = matchDtWithCons $ map (fromJust . (flip Map.lookup $ declMap allDecls)) $ nub $ sortedIds >.> ["List", "Pair"]
+--             lift $ print decls'
+--             mapM toSynquidDecl decls'
+            
+--             -- let foreignDts = concatMap (filter ((flip elem (myDts >.> myDefinedDts)) . fst)) theirDts
+--             -- -- lift $ print foreignDts
+--             -- mapM toSynquidDecl $ nub $ snd $ unzip foreignDts
+--   where
+--     dependentPkg (Dependency name _) = unPackageName name
+--     dependencyClosure definedDts allDts theirDts = do
+--         let undefinedDts = allDts >.> definedDts
+--         if length undefinedDts /= 0 
+--             then do
+--                 let foreignDts = concatMap (filter ((flip elem undefinedDts) . fst)) theirDts
+--                 let newDecls = nub $ snd $ unzip foreignDts
+--                 let newAddedDts = Set.toList $ Set.unions $ map getDeclTy newDecls
+--                 (++) newDecls <$> dependencyClosure allDts newAddedDts theirDts
+--             else return []
+--     declMap decls = foldr (\d -> Map.insert (getDeclName d) d) Map.empty $ filter isDataDecl decls
+--     dependsOn decl = case decl of
+--         EDecl (DataDecl _ _ _ name bvars conDecls _) -> (nameStr name, datatypeOfCon conDecls)
+--         EDecl (TypeDecl _ name _ ty) -> (nameStr name, datatypeOf ty)
+--         _ -> error "[In `dependsOn`] Please filter before calling this function"
+--     dependencyGraph decls = foldr (uncurry Map.insert) Map.empty $ map dependsOn $ filter isDataDecl decls
+--     nodesOf graph = nub $ (Map.keys graph) ++ (Set.toList $ Set.unions $ Map.elems graph)
+--     topoSort graph = reverse $ topoSortHelper (nodesOf graph) Set.empty graph
+--     topoSortHelper [] _ graph = []
+--     topoSortHelper (v:vs) visited graph = if Set.member v visited
+--         then topoSortHelper vs visited graph
+--         else topoSortHelper vs (Set.insert v visited) graph ++ v:(topoSortHelper (Set.toList (Map.findWithDefault Set.empty v graph)) visited graph)
+
 isDataDecl :: Entry -> Bool
 isDataDecl decl = case decl of
     EDecl (DataDecl {}) -> True
     EDecl (TypeDecl {}) -> True
     _ -> False
 
+isModule :: Entry -> Bool
+isModule (EModule _) = True
+isModule _ = False
+
 packageDtDefs :: PkgName -> IO [(Id, Entry)]
 packageDtDefs pkg = do
     decls <- readDeclarations pkg Nothing
     -- It relies on the order of definitions exist in the source file
     return $ foldr (\decl -> ((dtNameOf decl, decl):)) [] $ filter isDataDecl decls
+  where
+    dtNameOf (EDecl (DataDecl _ _ _ name bvars conDecls _)) = nameStr name
+    dtNameOf (EDecl (TypeDecl _ name _ _)) = nameStr name
+
+dtDefsIn :: [Entry] -> [(Id, Entry)]
+dtDefsIn decls = foldr (\decl -> ((dtNameOf decl, decl):)) [] $ filter isDataDecl decls
   where
     dtNameOf (EDecl (DataDecl _ _ _ name bvars conDecls _)) = nameStr name
     dtNameOf (EDecl (TypeDecl _ name _ _)) = nameStr name
@@ -310,11 +383,22 @@ getDeclTy _ = Set.empty
 getDeclName :: Entry -> Id
 getDeclName (EDecl (DataDecl _ _ _ name bvars conDecls _)) = nameStr name
 getDeclName (EDecl (TypeDecl _ name _ ty)) = nameStr name
+getDeclName (EDecl (TypeSig _ names ty)) = nameStr $ head names
+getDeclName _ = ""
 
 packageDtNames :: PkgName -> IO [Id]
 packageDtNames pkg = do
     decls <- readDeclarations pkg Nothing
     return $ Set.toList $ Set.unions $ map getDeclTy decls
+
+dtNamesIn :: [Entry] -> [Id]
+dtNamesIn decls = Set.toList $ Set.unions $ map getDeclTy decls
+
+definedDtsIn :: [Entry] -> [Id]
+definedDtsIn decls = map dtNameOf $ filter isDataDecl decls
+  where
+    dtNameOf (EDecl (DataDecl _ _ _ name bvars conDecls _)) = nameStr name
+    dtNameOf (EDecl (TypeDecl _ name _ _)) = nameStr name
 
 definedDts :: PkgName -> IO [Id]
 definedDts pkg = do

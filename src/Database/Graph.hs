@@ -67,7 +67,7 @@ emptyDtDef = DatatypeDef [] [] [] [] Nothing
 --     let env = foldr (uncurry addDatatype) emptyEnv (map withEmptyDt $ Set.toList dts)
 --     let sigs = map fromJust . filter isJust . map (typeSignatureOf env) $ decls
 --     let env' = foldr (uncurry addPolyVariable) env sigs
---     foldM (\accEnv (id, typ) -> addSuccinctSymbol id typ accEnv) env' sigs
+--     foldM (\accEnv (id, typ) -> addSuccinctEdge id typ accEnv) env' sigs
 --   where
 --     withEmptyDt id = (id, emptyDtDef)
 --     getDeclTy decl = case decl of

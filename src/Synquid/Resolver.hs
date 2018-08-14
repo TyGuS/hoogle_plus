@@ -53,12 +53,12 @@ initResolverState = ResolverState {
 }
 
 -- | Convert a parsed program AST into a list of synthesis goals and qualifier maps
-resolveDecls :: [Declaration] -> Either ErrorMessage ([Goal], [Formula], [Formula])
+resolveDecls :: [Declaration] -> Either ErrorMessage (Environment, [Goal], [Formula], [Formula])
 resolveDecls declarations = 
   case runExcept (execStateT go initResolverState) of
     Left msg -> Left msg
     Right st -> 
-      Right (map (makeGoal (st ^. environment) (map fst (st ^. goals)) (st ^. mutuals)) (st ^. goals), st ^. condQualifiers, st ^. typeQualifiers)
+      Right (st ^. environment, map (makeGoal (st ^. environment) (map fst (st ^. goals)) (st ^. mutuals)) (st ^. goals), st ^. condQualifiers, st ^. typeQualifiers)
   where
     go = do
       -- Pass 1: collect all declarations and resolve sorts, but do not resolve refinement types yet

@@ -53,10 +53,10 @@ reconstructTopLevel (Goal funName env (Monotype typ@(FunctionT _ _ _)) impl dept
       
       let env' = foldr (\(f, t) -> addPolyVariable f (typeGeneralized . predGeneralized . Monotype $ t) . (shapeConstraints %~ Map.insert f (shape typ'))) env recCalls
       useSucc <- asks . view $ _1 . buildGraph
-      envGoal <- if useSucc then addSuccinctSymbol "__goal__" (Monotype (typ)) env' else return env'
-      envAll <- if useSucc then foldM (\e (f, t) -> addSuccinctSymbol f t e) envGoal (Map.toList (allSymbols envGoal)) else return envGoal
+      envAll <- if useSucc then foldM (\e (f, t) -> addSuccinctSymbol f t e) env' (Map.toList (allSymbols env')) else return env'
+      envGoal <- if useSucc then addSuccinctEdge "__goal__" (Monotype (typ)) envAll else return envAll
       let ctx = \p -> if null recCalls then p else Program (PFix (map fst recCalls) p) typ'
-      p <- inContext ctx  $ reconstructI envAll typ' impl
+      p <- inContext ctx  $ reconstructI envGoal typ' impl
       return $ ctx p
 
     -- | 'recursiveCalls' @t@: name-type pairs for recursive calls to a function with type @t@ (0 or 1)
@@ -111,9 +111,9 @@ reconstructTopLevel (Goal funName env (Monotype typ@(FunctionT _ _ _)) impl dept
 
 reconstructTopLevel (Goal _ env (Monotype t) impl depth _) = do
   useSucc <- asks . view $ _1 . buildGraph
-  envGoal <- if useSucc then addSuccinctSymbol "__goal__" (Monotype t) env else return env
-  envAll <- if useSucc then foldM (\e (f, t) -> addSuccinctSymbol f t e) envGoal (Map.toList (allSymbols envGoal)) else return envGoal
-  local (set (_1 . auxDepth) depth) $ reconstructI envAll t impl
+  envAll <- if useSucc then foldM (\e (f, t) -> addSuccinctSymbol f t e) env (Map.toList (allSymbols env)) else return env
+  envGoal <- if useSucc then addSuccinctEdge "__goal__" (Monotype t) envAll else return envAll
+  local (set (_1 . auxDepth) depth) $ reconstructI envGoal t impl
 
 -- | 'reconstructI' @env t impl@ :: reconstruct unknown types and terms in a judgment @env@ |- @impl@ :: @t@ where @impl@ is a (possibly) introduction term
 -- (top-down phase of bidirectional reconstruction)
@@ -136,7 +136,7 @@ reconstructI' env t@(FunctionT _ tArg tRes) impl = case impl of
     let ctx = \p -> Program (PFun y p) t
     useSucc <- asks . view $ _1 . buildGraph
     -- let useSucc = True
-    env' <- if useSucc then addSuccinctSymbol y (Monotype tArg) env else return env
+    env' <- if useSucc then addSuccinctEdge y (Monotype tArg) env else return env
     pBody <- inContext ctx $ reconstructI (unfoldAllVariables $ addVariable y tArg $ env') tRes impl
     return $ ctx pBody
   PSymbol f -> do
@@ -152,7 +152,7 @@ reconstructI' env t@(ScalarT _ _) impl = case impl of
     pDef <- inContext (\p -> Program (PLet x p (Program PHole t)) t) $ reconstructETopLevel env AnyT iDef
     let (env', tDef) = embedContext env (typeOf pDef)
     useSucc <- asks . view $ _1 . buildGraph
-    env'' <- if useSucc then addSuccinctSymbol x (Monotype tDef) env' else return env'
+    env'' <- if useSucc then addSuccinctEdge x (Monotype tDef) env' else return env'
     pBody <- inContext (\p -> Program (PLet x pDef p) t) $ reconstructI (addVariable x tDef env'') t iBody
     return $ Program (PLet x pDef pBody) t
   
@@ -219,7 +219,7 @@ reconstructCase env scrVar pScrutinee t (Case consName args iBody) consT = cut $
   let env' = foldr (uncurry addVariable) (addAssumption ass env) syms
   useSucc <- asks . view $ _1 . buildGraph
   -- let useSucc = True
-  caseEnv <- if useSucc then foldM (\e (name,ty)-> addSuccinctSymbol name (Monotype ty) e) env' syms else return env'
+  caseEnv <- if useSucc then foldM (\e (name,ty)-> addSuccinctEdge name (Monotype ty) e) env' syms else return env'
   pCaseExpr <- local (over (_1 . matchDepth) (-1 +)) $
                inContext (\p -> Program (PMatch pScrutinee [Case consName args p]) t) $ 
                reconstructI caseEnv t iBody

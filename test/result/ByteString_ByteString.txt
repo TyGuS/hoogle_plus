@@ -1,0 +1,76 @@
+__goal__ :: arg0:ByteString -> ByteString
+__goal__ = \arg0 . arg0
+__goal__ = \arg0 .
+  Data.ByteString.Char8.pack
+    (Data.ByteString.Char8.unpack
+       arg0)
+__goal__ = \arg0 .
+  Data.ByteString.Char8.pack
+    (Data.ByteString.Char8.unpack
+       (Data.ByteString.Char8.intercalate
+          arg0 Nil))
+__goal__ = \arg0 .
+  Data.ByteString.Char8.pack
+    (Data.ByteString.Char8.unpack
+       (Data.ByteString.Lazy.toStrict
+          arg0))
+__goal__ = \arg0 .
+  Data.ByteString.Char8.pack
+    (Data.ByteString.Char8.unpack
+       (Data.ByteString.Char8.drop
+          Data.ByteString.Builder.Extra.defaultChunkSize
+          arg0))
+__goal__ = \arg0 .
+  Data.ByteString.Char8.pack
+    (Data.ByteString.Char8.unpack
+       (Data.ByteString.Char8.drop
+          Data.ByteString.Builder.Extra.smallChunkSize
+          arg0))
+__goal__ = \arg0 .
+  let f0 = \x457 .
+      Data.ByteString.Char8.null
+        (Data.ByteString.Char8.intercalate
+           arg0
+           (Data.ByteString.Char8.split
+              x457
+              Data.ByteString.Char8.empty)) in
+  Data.ByteString.Char8.pack
+    (Data.ByteString.Char8.unpack
+       (Data.ByteString.Char8.dropWhile
+          f0 arg0))
+__goal__ = \arg0 .
+  let f0 = \x457 .
+      Data.ByteString.Char8.null
+        (Data.ByteString.Char8.intercalate
+           arg0
+           (Data.ByteString.Char8.split
+              x457
+              Data.ByteString.Lazy.Char8.empty))
+    in
+  Data.ByteString.Char8.pack
+    (Data.ByteString.Char8.unpack
+       (Data.ByteString.Char8.dropWhile
+          f0 arg0))
+__goal__ = \arg0 .
+  let f0 = \x457 .
+      Data.ByteString.Char8.null
+        (Data.ByteString.Char8.intercalate
+           arg0
+           (Data.ByteString.Char8.split
+              x457
+              Data.ByteString.Lazy.empty)) in
+  Data.ByteString.Char8.pack
+    (Data.ByteString.Char8.unpack
+       (Data.ByteString.Char8.dropWhile
+          f0 arg0))
+__goal__ = \arg0 .
+  let f0 = \x457 .
+      Data.ByteString.Char8.null
+        (Data.ByteString.Char8.intercalate
+           arg0
+           (Data.ByteString.Char8.split
+              x457 Data.ByteString.empty)) in
+  Data.ByteString.Char8.pack
+    (Data.ByteString.Char8.unpack
+       (Data.ByteString.Char8.dropWhile
+          f0 arg0))
