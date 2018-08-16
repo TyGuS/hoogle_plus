@@ -396,7 +396,7 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
   -- print decls
   targetDecl <- parseSignature file
   let pkgName = "bytestring"
-  downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
+  -- downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
   -- baseDecls <- filter (flip notElem ruleOut . getDeclName) <$> addPrelude <$> readDeclarations "base" Nothing
   let baseDecls = []
   fileDecls <- readDeclarations pkgName Nothing

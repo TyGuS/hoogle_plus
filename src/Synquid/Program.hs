@@ -195,17 +195,31 @@ data SuccinctEdge = SuccinctEdge {
 } deriving (Eq, Generic)
 
 instance Ord (SuccinctEdge) where
-  (<=) (SuccinctEdge id1 params1 _) (SuccinctEdge id2 params2 _) = id1 <= id2 || ((id1 == id2) && params1 <= params2)
+  (<=) (SuccinctEdge id1 params1 _) (SuccinctEdge id2 params2 _) = id1 < id2 || ((id1 == id2) && params1 <= params2)
 
 makeLenses ''SuccinctEdge
 
 getEdgeId (SuccinctEdge id _ _) = id
 
 data Metadata = Metadata {
-  _distFromGoal :: Int
-} deriving(Eq, Ord)
+  _distFromGoal :: Int,
+  _mWeight :: Double
+} deriving(Eq, Show)
 
 makeLenses ''Metadata
+
+mtComp :: Metadata -> Metadata -> Bool
+mtComp mt1 mt2 = 
+  if mt1 ^. distFromGoal < mt2 ^. distFromGoal
+    then True
+    else if mt1 ^. distFromGoal == mt2 ^. distFromGoal
+      then if mt1 ^. mWeight > mt2 ^. mWeight
+        then True
+        else False
+      else False
+
+instance Ord Metadata where
+  (<=) mt1 mt2 = (mtComp mt1 mt2) || (mt1 == mt2)          
 
 -- | Typing environment
 data Environment = Environment {

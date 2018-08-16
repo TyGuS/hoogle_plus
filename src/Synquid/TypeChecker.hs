@@ -210,8 +210,7 @@ reconstructI' env t@(ScalarT _ _) impl = case impl of
                               else ((consName, consT) :) <$> checkCases (Just dtName) cs
                           _ -> throwErrorWithDescription $ text "Not in scope: data constructor" </> squotes (text consName)
     checkCases _ [] = return []
-  
-  -- [TODO] cut here
+
 reconstructCase env scrVar pScrutinee t (Case consName args iBody) consT = cut $ do  
   runInSolver $ matchConsType (lastType consT) (typeOf pScrutinee)
   consT' <- runInSolver $ currentAssignment consT
@@ -270,22 +269,33 @@ reconstructE' env typ (PSymbol name) = do
         Just sc -> addConstraint $ Subtype env (refineBot env $ shape t) (refineTop env sc) False ""
       checkE env typ p
       return p
+-- for our situation without refinements, if one of the parameters fail to get result within the depth limitation
+-- we should throw this sketch without trying other combinations
 reconstructE' env typ (PApp iFun iArg) = do
   x <- freshVar env "x"
-  pFun <- inContext (\p -> Program (PApp p uHole) typ) $ reconstructE env (FunctionT x AnyT typ) iFun
-  let FunctionT x tArg tRes = typeOf pFun
+  ifte (local (over (_1 . eGuessDepth) (-1 +)) 
+        $ inContext (\p -> Program (PApp p uHole) typ) 
+        $ once $ reconstructE env (FunctionT x AnyT typ) iFun) -- TODO: it is not correct to do `once` here
+       (\pFun -> do
+          let FunctionT x tArg tRes = typeOf pFun
 
-  pApp <- if isFunctionType tArg
-    then do -- Higher-order argument: its value is not required for the function type, enqueue an auxiliary goal
-      d <- asks . view $ _1 . auxDepth
-      pArg <- generateHOArg env (d - 1) tArg iArg
-      return $ Program (PApp pFun pArg) tRes
-    else do -- First-order argument: generate now
-      pArg <- inContext (\p -> Program (PApp pFun p) typ) $ reconstructE env tArg iArg
-      let tRes' = appType env pArg x tRes
-      return $ Program (PApp pFun pArg) tRes'
-  checkE env typ pApp
-  return pApp
+          ifte (if isFunctionType tArg
+                  then do -- Higher-order argument: its value is not required for the function type, enqueue an auxiliary goal
+                    d <- asks . view $ _1 . auxDepth
+                    pArg <- generateHOArg env (d - 1) tArg iArg
+                    return $ Program (PApp pFun pArg) tRes
+                  else do -- First-order argument: generate now
+                    d <- view . asks $ _1 . eGuessDepth
+                    pArg <- local (over (_1 . eGuessDepth) (-1 +)) 
+                            $ inContext (\p -> Program (PApp pFun p) typ) 
+                            $ once $ reconstructE env tArg iArg -- TODO: it is not quite correct to do `once` here
+                    let tRes' = appType env pArg x tRes
+                    return $ Program (PApp pFun pArg) tRes'
+                )
+                (\pApp -> checkE env typ pApp >> return pApp)
+                mzero
+        )
+        mzero
   where
     generateHOArg env d tArg iArg = case content iArg of
       PSymbol f -> do
@@ -323,7 +333,6 @@ checkAnnotation env t t' p = do
       typingState . errorContext .= (noPos, empty)
       
       tass' <- use (typingState . typeAssignment)
-      writeLog 2 $ text "intersection between" <+> pretty t'' <+> text "and" <+> pretty (typeSubstitute tass' t)
       return $ intersection (isBound env) t'' (typeSubstitute tass' t)
           
 -- | 'etaExpand' @t@ @f@: for a symbol @f@ of a function type @t@, the term @\X0 . ... \XN . f X0 ... XN@ where @f@ is fully applied

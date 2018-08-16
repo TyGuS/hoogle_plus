@@ -21,6 +21,15 @@ type Id = String
 
 maxCnt = 99999
 
+splitBy :: Char -> String -> [String]
+splitBy _ "" = [];
+splitBy delimiterChar inputString = foldr f [""] inputString
+  where f :: Char -> [String] -> [String]
+        f currentChar allStrings@(partialString:handledStrings)
+          | currentChar == delimiterChar = "":allStrings -- start a new partial string at the head of the list of all strings
+          | otherwise = (currentChar:partialString):handledStrings -- add the current char to the partial string
+
+
 uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
 uncurry3 f (x, y, z) = f x y z
 

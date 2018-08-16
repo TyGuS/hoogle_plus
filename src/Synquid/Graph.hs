@@ -175,19 +175,6 @@ type SGraph = HashMap SuccinctType (HashMap SuccinctType (Set SuccinctEdge))
 
 -- toNGraph g = HashMap.foldrWithKey (\k v acc -> HashMap.insert (toNode k) (HashMap.foldrWithKey (\k' v' acc' -> HashMap.insert (toNode k') v' acc') acc v)) HashMap.empty g
 
-distFromNode :: SuccinctType -> Environment -> Environment
-distFromNode sty env = distFromNodeHelper (env ^. graphFromGoal) Set.empty [sty] env
-  where
-    distFromNodeHelper g visited toVisit env' = case toVisit of
-      [] -> env'
-      curr:xs -> if Set.member curr visited
-        then distFromNodeHelper g visited xs env'
-        else let children = HashMap.keys (HashMap.lookupDefault HashMap.empty curr g)
-                 currMt = HashMap.lookupDefault (Metadata 0) curr (env' ^. graphMetadata)
-                 incMt mt = Metadata {_distFromGoal = (mt ^. distFromGoal) + 1}
-             in distFromNodeHelper g (Set.insert curr visited) (xs ++ children) 
-                $ foldr (\t -> graphMetadata %~ HashMap.insertWith min t (incMt currMt)) env' children
-
 data Node = Node {
   typ :: SuccinctType, -- type of the current node
   path :: [Set SuccinctEdge] -- path from the src node, used when we compute the shortest path from some node
@@ -205,7 +192,7 @@ shortestPathFromTo env src dst = shortestPathHelper (env ^. graphFromGoal) Set.e
               | otherwise -> shortestPathHelper g (Set.insert (typ curr) visited) (vs ++ nodesWithPath curr g)
     nodesWithPath node graph = map (uncurry (makeNode $ path node)) 
                                $ HashMap.toList 
-                               -- $ HashMap.filter (\s -> Set.size s /= 1 || Set.notMember "__goal__" (Set.map getEdgeId s)) 
+                               $ HashMap.filter (\s -> Set.size s /= 1 || Set.notMember "__goal__" (Set.map getEdgeId s)) 
                                $ HashMap.lookupDefault HashMap.empty (typ node) graph
     makeNode currPath t id = Node t (currPath 
                                  ++ (let s = Set.filter ((/=) "__goal__" . getEdgeId) id 
