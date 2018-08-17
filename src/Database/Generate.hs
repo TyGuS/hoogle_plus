@@ -50,7 +50,7 @@ readModuleDecls moduleCont = do
     let myBoolOpts = BoolOptions False False False False False False False False False False False  
     let myCpphsOpts = CpphsOptions [] [] [("WORD_SIZE_IN_BITS","32"),("FLT_RADIX","2"),("SIZEOF_HSWORD","4")] [] [] myBoolOpts
     preprocessed <- runCpphs myCpphsOpts "unknown" moduleCont
-    writeFile "test.hs" preprocessed
+    -- writeFile "test.hs" preprocessed
     case parseWithMode parseMode preprocessed of
         ParseOk (Module _ (Just mhead) _ _ decls) -> return $ (EModule (moduleName mhead)) : (map (EDecl . unGADT) $ filter usefulDecl decls)
         ParseOk _ -> error "This is not a whole module"

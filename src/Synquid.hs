@@ -23,7 +23,7 @@ import Database.Graph
 import Database.Generate
 import Database.Download
 import Database.Util
-import Database.GraphWeightsProvider
+import Database.Haddock
 
 import Control.Monad
 import Control.Lens ((^.))
@@ -49,15 +49,6 @@ import Text.Parsec hiding (State)
 import Text.Parsec.Indent
 import System.Directory
 import qualified Data.ByteString as B
--- for current haddock test
-import Documentation.Haddock (processModules, withGhc, Interface(..), Documentation(..))
-import Documentation.Haddock.Types (MetaDoc(..), DocH(..), Meta(..))
-import Outputable (ppr, showSDocUnsafe, Outputable)
-import qualified Outputable as O
-import HsDecls hiding (DataDecl)
-import SrcLoc
-import HsTypes
-import HsBinds
 
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import Text.PrettyPrint.ANSI.Leijen (fill, column)
@@ -396,72 +387,6 @@ precomputeGraph pkgs = mapM_ (\pkgName -> do
     defaultUnit = Pos (initialPos "Unit") $ DataDecl "Unit" [] [] []
     pdoc = printDoc Plain
 
-isTypeSig (L _ (SigD {})) = True
-isTypeSig _ = False
-
-tyNames (L _ (SigD (TypeSig ids (HsWC _ (HsIB _ (L _ (HsFunTy (L _ (HsTyVar _ (L _ id))) (L _ (HsTyVar _ (L _ id2))))) _))))) = ([id,id2])
-tyNames _ = ([])
-
--- | Useful for debugging
-instance Outputable Meta where
-  ppr (Meta v pkg) = ppr pkg O.<+> O.text "-" O.<+> ppr v
-
-instance (Outputable m, Outputable id) => Outputable (DocH m id) where
-  ppr (DocModule m) = ppr m
-  ppr (DocIdentifier id) = ppr id
-  ppr (DocString str) = ppr str
-  ppr (DocEmpty) = O.empty
-  ppr (DocAppend a b) = ppr a O.<+> ppr b
-  ppr (DocCodeBlock d) = ppr d
-  ppr (DocWarning w) = O.text "warning"
-  ppr (DocParagraph p) = O.text "paragraph"
-  ppr (DocIdentifierUnchecked m) = O.text "idUnchecked"
-  ppr (DocEmphasis emp) = O.text "emphasis"
-  ppr (DocMonospaced ms) = O.text "monospaced"
-  ppr (DocBold _) = O.text "bold"
-  ppr (DocUnorderedList _) = O.text "unordered"
-  ppr (DocOrderedList _) = O.text "ordered"
-  ppr (DocDefList _) = O.text "defList"
-  ppr (DocHyperlink _) = O.text "Hyperlink"
-  ppr (DocPic _) = O.text "pic"
-  ppr (DocMathInline _) = O.text "DocMathInline"
-  ppr (DocMathDisplay _) = O.text "DocMathDisplay"
-  ppr (DocAName _) = O.text "DocAName"
-  ppr (DocProperty _) = O.text "DocProperty"
-  ppr (DocExamples _) = O.text "DocExamples"
-  ppr (DocHeader _) = O.text "DocHeader"
-  ppr (DocTable _) = O.text "DocTable"
-
--- DocEmpty   
--- DocAppend (DocH mod id) (DocH mod id)  
--- DocString String   
--- DocParagraph (DocH mod id)   
--- DocIdentifier id   
--- DocIdentifierUnchecked mod   
--- DocModule String   
--- DocWarning (DocH mod id)   
--- DocEmphasis (DocH mod id)  
--- DocMonospaced (DocH mod id)  
--- DocBold (DocH mod id)  
--- DocUnorderedList [DocH mod id]   
--- DocOrderedList [DocH mod id]   
--- DocDefList [(DocH mod id, DocH mod id)]  
--- DocCodeBlock (DocH mod id)   
--- DocHyperlink Hyperlink   
--- DocPic Picture   
--- DocMathInline String   
--- DocMathDisplay String  
--- DocAName String  
--- DocProperty String   
--- DocExamples [Example]  
--- DocHeader (Header (DocH mod id))   
--- DocTable (Table (DocH mod id))
-
-instance (Outputable a, Outputable b) => Outputable (MetaDoc a b) where
-  ppr (MetaDoc a b)= ppr a O.<+> ppr b
-
-instance Outputable a => Outputable (Documentation a) where
-  ppr (Documentation doc w) = ppr doc
 
 -- | Parse and resolve file, then synthesize the specified goals
 runOnFile :: SynquidParams -> ExplorerParams -> HornSolverParams -> CodegenParams
@@ -472,15 +397,13 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
   -- print decls
   
   targetDecl <- parseSignature file
+  -- let targetDecl = []
   let pkgName = "bytestring"
   -- downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
   -- baseDecls <- filter (flip notElem ruleOut . getDeclName) <$> addPrelude <$> readDeclarations "base" Nothing
   let baseDecls = []
   fileDecls <- readDeclarations pkgName Nothing
-
-  (interfaces, linkEnv) <- withGhc [] $ processModules verbose ["/tmp/Data.ByteString.Lazy.hs"] [] []
-  putStrLn $ showSDocUnsafe $ ppr (map (map (map (flip Map.lookup linkEnv) . tyNames . flip (!!) 1) . Map.elems . ifaceDeclMap) interfaces)
-  -- putStrLn $ showSDocUnsafe $ ppr (map (ifaceArgMap) interfaces)
+  parseSigs pkgName Nothing
   let parsedDecls = fst $ unzip $ map (\decl -> runState (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)
   dependsPkg <- packageDependencies pkgName -- liftM2 (++) (packageDependencies pkgName) (packageDependencies "base")
   dependsDecls <- mapM (flip readDeclarations Nothing) $ nub dependsPkg

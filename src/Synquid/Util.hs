@@ -19,6 +19,11 @@ import Debug.Trace
 -- | Identifiers
 type Id = String
 
+data QId = QId {
+  name :: Id, -- name of the type or method
+  qualMod :: [Id] -- list of ordered module name, e.g. Data.ByteString.Lazy -> [Data, ByteString, Lazy]
+} deriving(Eq, Ord, Show)
+
 uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
 uncurry3 f (x, y, z) = f x y z
 

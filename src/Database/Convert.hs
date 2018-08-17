@@ -251,12 +251,15 @@ readDeclarations pkg version = do
     --         Just v -> ifM (checkVersion pkg v) (return $ pkg ++ "-" ++ v) (return pkg)
     -- s   <- readFile $ downloadDir ++ vpkg ++ ".txt"
     -- let code = concat . rights . (map parseLine) $ splitOn "\n" s
+    -- return $ renameSigs "" code
     mdls <- downloadPkgSource pkg version
-    decls <- mapM (\mdl -> do
+    decls <- (\mdl -> do
         putStrLn $ "Parsing declarations in " ++ mdl
         toHaskellCode (downloadDir ++ mdl) >>= readModuleDecls
-        ) mdls
-    return $ renameSigs "" $ concat decls
+        
+        ) "Data.ByteString.Lazy" -- (mdls !! 5)
+    return decls
+
 
 type DependsOn = Map PkgName [Id]
 

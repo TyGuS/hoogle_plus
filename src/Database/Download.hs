@@ -87,7 +87,7 @@ downloadPkgIndex pkg version = do
             gPackageDesc <- readGenericPackageDescription silent $ downloadDir ++ pkg ++ ".cabal"
             case condLibrary gPackageDesc of
                 Nothing -> putStrLn "Nothing here" >> return []
-                Just (CondNode lib _ _) -> return $ map moduleNameStr $ exposedModules lib
+                Just (CondNode lib _ _) -> return $ map moduleNameStr $ explicitLibModules lib
         )
         (return [])
   where

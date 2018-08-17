@@ -147,39 +147,28 @@ unifySuccinct comp target boundedTys = case (comp, target) of
     else (True, [Map.singleton id target])
   (SuccinctScalar t1, SuccinctScalar t2) -> (t1 == t2, [Map.empty])
   (SuccinctDatatype id1 idSet1 tySet1 consMap1 measures1, SuccinctDatatype id2 idSet2 tySet2 consMap2 measures2) -> 
-    -- if Set.size idSet1 > 5 || Set.size idSet2 > 5
-    --   then (False, [Map.empty]) -- [TODO] return anyT here
-      -- else if idSet1 `Set.isSubsetOf` idSet2
       if idSet1 `Set.isSubsetOf` idSet2
-        then 
-          let 
-            isTyVar ty = case ty of 
-              SuccinctScalar (TypeVarT _ _) -> True
-              _                             -> False
-            getTyVar (SuccinctScalar (TypeVarT _ id)) = id
-            isBound tv = tv `elem` boundedTys -- [TODO] is the bounded value checked correctly?
-            -- bound1 = tySet1
-            bound1 = (Set.filter (not . isTyVar) tySet1) `Set.union` (Set.filter (isBound . getTyVar) (Set.filter isTyVar tySet1)) 
-            -- bound2 = (Set.filter (not . isTyVar) tySet2) `Set.union` (Set.filter (isBound . getTyVar) (Set.filter isTyVar tySet2))
-            bound2 = tySet2
-          in 
-            if bound1 `Set.isSubsetOf` bound2
-              then
-                let consMapDiff = Map.intersection consMap1 consMap2
-                    isConsMatch = Map.null consMapDiff
-                in if isConsMatch && id1 == id2
-                  then
-                    let 
-                      consDiff = idSet2 `Set.difference` idSet1
-                      tyDiff = bound2 `Set.difference` bound1
-                      freeVt = tySet1 `Set.difference` bound1
-                      optCons = idSet2 `Set.intersection` idSet1
-                      optTy = tySet1 `Set.intersection` tySet2
-                      anyFreeMap = Set.foldr (\(SuccinctScalar (TypeVarT _ t)) accMap -> Map.insert t SuccinctAny accMap) Map.empty freeVt
-                    in if Set.size freeVt > 3 || Set.size bound2 > 5
-                      then (True, [anyFreeMap])
-                      else (True, allCombos consDiff tyDiff freeVt optCons optTy (Map.union consMap1 consMap2) id2 measures2)
-                  else (False, [Map.empty])
+        then let isTyVar ty = case ty of 
+                                SuccinctScalar (TypeVarT _ _) -> True
+                                _                             -> False
+                 getTyVar (SuccinctScalar (TypeVarT _ id)) = id
+                 isBound tv = tv `elem` boundedTys -- [TODO] is the bounded value checked correctly?
+                 bound1 = (Set.filter (not . isTyVar) tySet1) `Set.union` (Set.filter (isBound . getTyVar) (Set.filter isTyVar tySet1)) 
+                 bound2 = tySet2
+             in if bound1 `Set.isSubsetOf` bound2
+              then let consMapDiff = Map.intersection consMap1 consMap2
+                       isConsMatch = Map.null consMapDiff
+                   in if isConsMatch && id1 == id2
+                    then let consDiff = idSet2 `Set.difference` idSet1
+                             tyDiff = bound2 `Set.difference` bound1
+                             freeVt = tySet1 `Set.difference` bound1
+                             optCons = idSet2 `Set.intersection` idSet1
+                             optTy = tySet1 `Set.intersection` tySet2
+                             anyFreeMap = Set.foldr (\(SuccinctScalar (TypeVarT _ t)) accMap -> Map.insert t SuccinctAny accMap) Map.empty freeVt
+                         in if Set.size freeVt > 3 || Set.size bound2 > 5
+                          then (True, [anyFreeMap])
+                          else (True, allCombos consDiff tyDiff freeVt optCons optTy (Map.union consMap1 consMap2) id2 measures2)
+                    else (False, [Map.empty])
               else (False, [Map.empty])
         else (False, [Map.empty])
   _ -> (False, [Map.empty])
