@@ -23,7 +23,7 @@ import Database.Graph
 import Database.Generate
 import Database.Download
 import Database.Util
-import Database.Haddock
+import qualified Database.Haddock as DH
 
 import Control.Monad
 import Control.Lens ((^.))
@@ -403,7 +403,7 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
   -- baseDecls <- filter (flip notElem ruleOut . getDeclName) <$> addPrelude <$> readDeclarations "base" Nothing
   let baseDecls = []
   fileDecls <- readDeclarations pkgName Nothing
-  parseSigs pkgName Nothing
+  DH.parseSigs pkgName Nothing
   let parsedDecls = fst $ unzip $ map (\decl -> runState (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)
   dependsPkg <- packageDependencies pkgName -- liftM2 (++) (packageDependencies pkgName) (packageDependencies "base")
   dependsDecls <- mapM (flip readDeclarations Nothing) $ nub dependsPkg

@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, FlexibleContexts #-}
 
 module Database.Haddock where
 
@@ -14,6 +14,7 @@ import HsTypes
 import HsBinds
 import HsDecls
 import HsExtension
+import Text.Parsec.Pos
 import Distribution.Verbosity
 import Control.Monad.State
 -- import Distribution.PackageDescription
@@ -23,6 +24,7 @@ import Database.Util
 import Synquid.Logic
 import Synquid.Type
 import Synquid.Pretty
+import Synquid.Error
 import Synquid.Program (emptyEnv, BareDeclaration, Declaration, Environment)
 import qualified Synquid.Program as SP
 
@@ -68,29 +70,37 @@ outOfBound (L _ bnd) = case bnd of
     UserTyVar (L _ id) -> showSDocUnsafe $ ppr id
     KindedTyVar (L _ id) _ -> showSDocUnsafe $ ppr id
 
+outOfLoc (L _ a) = a
+
 -- convert the result from GHC to the declarations in Synquid
 toSynquidDecl :: Monad m => LHsDecl GhcRn -> StateT Int m Declaration
 -- type signatures (the normal one, ignore the others for now)
 toSynquidDecl (L _ (SigD (TypeSig ids (HsWC _ (HsIB _ (L _ ty) _))))) = 
-    Pos (initialPos $ toStrName $ head ids) <$> toSynquidRType ty
+    Pos (initialPos $ toStrName $ head ids) . SP.FuncDecl (toStrName $ head ids) . Monotype <$> toSynquidSkeleton ty
 -- type synonyms
-toSynquidDecl (L _ (TyClD (SynDecl name vars _ rhs _))) = 
-    Pos (initialPos $ toStrName name) . SP.TypeDecl (toStrName name) (toStrVars vars) <$> toSynquidRType rhs
+toSynquidDecl (L _ (TyClD (SynDecl name vars _ (L _ rhs) _))) = 
+    Pos (initialPos $ toStrName name) . SP.TypeDecl (toStrName name) (toStrVars vars) <$> toSynquidSkeleton rhs
 -- data declarations
 toSynquidDecl (L _ (TyClD (DataDecl name vars _ def _ _))) = 
-    Pos (initialPos $ toStrName name) $ SP.DataDecl (toStrName name) (toStrVars vars) [] <$> getConstructors
+    Pos (initialPos $ toStrName name) . SP.DataDecl (toStrName name) (toStrVars vars) [] <$> getConstructors
   where
     getConstructors = mapM toConstructor $ dd_cons def
-    processConDetail (PrefixCon (L _ typ) _) = toSynquidSkeleton typ
-    processConDetail (RecCon (L a recs)) = liftM3 FunctionT (((++) "arg" . show) <$> get) (toSynquidSkeleton $ head recs) (processConDetail (RecCon (L a $ tail recs)))
-    processConDetail (InfixCon (L _ arg0) (L _ arg1)) = 
-        liftM3 FunctionT (((++) "arg" . show) <$> get) (toSynquidSkeleton arg0) (toSynquidSkeleton arg1) 
+    processConDetail (PrefixCon args) = liftM3 FunctionT (((++) "arg" . show) <$> get) 
+                                                         (toSynquidSkeleton . outOfLoc $ head args) 
+                                                         (processConDetail (PrefixCon $ tail args))
+    processConDetail (RecCon (L a recs)) = liftM3 FunctionT (((++) "arg" . show) <$> get) 
+                                                            (toSynquidSkeleton . outOfLoc . cd_fld_type . outOfLoc $ head recs) 
+                                                            (processConDetail (RecCon (L a $ tail recs)))
+    processConDetail (InfixCon (L _ arg0) (L _ arg1)) = liftM3 FunctionT (((++) "arg" . show) <$> get) 
+                                                                         (toSynquidSkeleton arg0) 
+                                                                         (toSynquidSkeleton arg1) 
     toConstructor (L _ conDecl) = case conDecl of
-        ConDeclGADT names typ _ -> SP.ConstructorSig (toStrName $ head names) <$> toSynquidSkeleton typ
+        ConDeclGADT names (HsIB _ (L _ typ) _) _ -> SP.ConstructorSig (toStrName $ head names) <$> toSynquidSkeleton typ
         ConDeclH98 name _ _ arg _ -> SP.ConstructorSig (toStrName name) <$> processConDetail arg
 -- class declarations
-toSynquidDecl (L _ (TyClD (decl@(ClassDecl {})))) = 
-    Pos (initialPos $ toStrName $ tcdLName decl) $SP.ClassDecl (toStrName $ tcdLName decl) (toStrVars $ tcdTyVars decl) <$> mapM toSynquidDecl $ tcdSigs decl -- we have a list of declarations here
+toSynquidDecl (L a (TyClD (decl@(ClassDecl {})))) = 
+    Pos (initialPos $ toStrName $ tcdLName decl) . SP.ClassDecl (toStrName $ tcdLName decl) (toStrVars $ tcdTyVars decl) 
+    <$> (mapM (toSynquidDecl . L a . SigD . outOfLoc) $ tcdSigs decl) -- we have a list of declarations here
 
 -- for debug
 tyNames (L _ (SigD (TypeSig ids (HsWC _ (HsIB _ (L _ ty) _))))) = namesOf ty

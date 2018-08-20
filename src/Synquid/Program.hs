@@ -474,7 +474,7 @@ data BareDeclaration =
   MutualDecl [Id] |                                         -- ^ Mutual recursion group
   InlineDecl Id [Id] Formula |                              -- ^ Inline predicate
   SynthesisGoal Id UProgram |                               -- ^ Name and template for the function to reconstruct
-  ClassDecl Id [Id] [ConstructorSig]                        -- ^ Type class with a list of methods
+  ClassDecl Id [Id] [Declaration]                           -- ^ Type class with a list of methods
   deriving (Eq)
 
 type Declaration = Pos BareDeclaration
