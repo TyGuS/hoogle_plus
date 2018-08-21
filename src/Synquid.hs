@@ -38,6 +38,8 @@ import Data.List
 import Data.Foldable
 import Data.Serialize
 import Data.Time.Calendar
+import qualified Data.HashMap.Strict as HashMap
+import Data.HashMap.Strict (HashMap)
 import Language.Haskell.Exts (Decl(TypeSig))
 import Data.Map ((!))
 import qualified Data.Map as Map
@@ -394,6 +396,14 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
   -- declsByFile <- parseFromFiles (libs ++ [file])
   -- let decls = concat $ map snd declsByFile
   -- print decls
+  let testGraph = HashMap.fromList [("C",HashMap.fromList [("D",3),("E",2)])
+                                   ,("D",HashMap.fromList [("F",4)])
+                                   ,("E",HashMap.fromList [("D",1),("F",2),("G",3)])
+                                   ,("F",HashMap.fromList [("G",2),("H",1)])
+                                   ,("G",HashMap.fromList [("H",2)])]
+  path <- dijkstra testGraph "C" "H"
+  print path
+  error "stop here"
   targetDecl <- parseSignature file
   let pkgName = "bytestring"
   -- downloadFile pkgName Nothing >> downloadCabal pkgName Nothing

@@ -15,6 +15,8 @@ import qualified Data.Map as Map
 import Data.Map (Map)
 import qualified Data.HashMap.Strict as HashMap
 import Data.HashMap.Strict (HashMap)
+import qualified Data.PQueue.Prio.Min as PQ
+import Data.PQueue.Prio.Min (MinPQueue)
 import Data.Hashable
 import Data.List
 import Data.Maybe
@@ -197,6 +199,29 @@ shortestPathFromTo env src dst = shortestPathHelper (env ^. graphFromGoal) Set.e
     makeNode currPath t id = Node t (currPath 
                                  ++ (let s = Set.filter ((/=) "__goal__" . getEdgeId) id 
                                      in if Set.null s then [] else [s]))
+
+-- Dijkstra's algorithm
+dijkstra :: (Hashable a, Eq a, Show a) => HashMap a (HashMap a Integer) -> a -> a -> IO [a]
+dijkstra graph src dst = dijkstraHelper HashMap.empty HashMap.empty initQueue
+  where
+    initQueue = foldr (PQ.insert maxCnt) (PQ.singleton 0 src) (HashMap.keys graph ++ concat (HashMap.elems $ HashMap.map HashMap.keys graph))
+    buildPathHelper prev curr path 
+      | HashMap.member curr prev = buildPathHelper prev (fromJust $ HashMap.lookup curr prev) (curr:path)
+      | otherwise = curr:path
+    buildPath prev = do
+      print $ HashMap.toList prev
+      return $ buildPathHelper prev dst []
+    updateDist parent node weight dist prev
+      | weight < HashMap.lookupDefault maxCnt node dist = (HashMap.insert node weight dist, HashMap.insert node parent prev)
+      | otherwise = (dist, prev)
+    dijkstraHelper dist prev queue
+      | PQ.null queue = buildPath prev
+      | otherwise = let (_, curr) = PQ.findMin queue
+                        queue' = PQ.deleteMin queue
+                        neighbours = HashMap.toList $ HashMap.lookupDefault HashMap.empty curr graph
+                        (dist', prev') = foldr (uncurry . uncurry (updateDist curr)) (dist, prev) neighbours
+                    in dijkstraHelper dist' prev' queue'
+
 
 instance (Eq k, Hashable k, Serialize k, Serialize v) => Serialize (HashMap k v) where
   put hm = S.put (HashMap.toList hm)
