@@ -8,6 +8,7 @@ import Synquid.Logic
 import Synquid.Program
 import Synquid.Succinct
 import Synquid.Pretty
+import Database.Util
 
 import qualified Data.Set as Set
 import Data.Set (Set)
@@ -15,8 +16,6 @@ import qualified Data.Map as Map
 import Data.Map (Map)
 import qualified Data.HashMap.Strict as HashMap
 import Data.HashMap.Strict (HashMap)
-import qualified Data.PQueue.Prio.Min as PQ
-import Data.PQueue.Prio.Min (MinPQueue)
 import Data.Hashable
 import Data.List
 import Data.Maybe
@@ -201,27 +200,66 @@ shortestPathFromTo env src dst = shortestPathHelper (env ^. graphFromGoal) Set.e
                                      in if Set.null s then [] else [s]))
 
 -- Dijkstra's algorithm
-dijkstra :: (Hashable a, Eq a, Show a) => HashMap a (HashMap a Integer) -> a -> a -> IO [a]
-dijkstra graph src dst = dijkstraHelper HashMap.empty HashMap.empty initQueue
+dijkstra :: (Hashable a, Eq a, Ord a, Show a) => HashMap a (HashMap a Integer) -> a -> a -> IO [a]
+dijkstra graph src dst = dijkstraHelper (HashMap.singleton src 0) HashMap.empty initQueue
   where
-    initQueue = foldr (PQ.insert maxCnt) (PQ.singleton 0 src) (HashMap.keys graph ++ concat (HashMap.elems $ HashMap.map HashMap.keys graph))
+    initQueue = nub $ src:(HashMap.keys graph ++ concat (HashMap.elems $ HashMap.map HashMap.keys graph))
     buildPathHelper prev curr path 
       | HashMap.member curr prev = buildPathHelper prev (fromJust $ HashMap.lookup curr prev) (curr:path)
       | otherwise = curr:path
     buildPath prev = do
-      print $ HashMap.toList prev
+      -- print $ HashMap.toList prev
       return $ buildPathHelper prev dst []
-    updateDist parent node weight dist prev
-      | weight < HashMap.lookupDefault maxCnt node dist = (HashMap.insert node weight dist, HashMap.insert node parent prev)
+    updateDist parent pw node weight dist prev
+      | not (HashMap.member node dist) || pw + weight < (fromJust $ HashMap.lookup node dist) = 
+        (HashMap.insert node (pw + weight) dist, HashMap.insert node parent prev)
       | otherwise = (dist, prev)
     dijkstraHelper dist prev queue
-      | PQ.null queue = buildPath prev
-      | otherwise = let (_, curr) = PQ.findMin queue
-                        queue' = PQ.deleteMin queue
+      | null queue = buildPath prev
+      | otherwise = let ([curr], queue') = splitAt 1 $ sortOn (flip (HashMap.lookupDefault infinity) dist) queue
                         neighbours = HashMap.toList $ HashMap.lookupDefault HashMap.empty curr graph
-                        (dist', prev') = foldr (uncurry . uncurry (updateDist curr)) (dist, prev) neighbours
+                        (dist', prev') = foldr (uncurry . uncurry (updateDist curr $ HashMap.lookupDefault infinity curr dist)) (dist, prev) neighbours
                     in dijkstraHelper dist' prev' queue'
 
+-- | Yen's algorithm
+-- Yen's algorithm is for finding the k shortest path in a graph
+yen :: (Hashable a, Eq a, Ord a, Show a) => HashMap a (HashMap a Integer) -> a -> a -> Int -> IO [[a]]
+yen graph src dst k = do
+  startPath <- dijkstra graph src dst
+  yenHelper 0 [startPath] []
+  where
+    -- try to find spur nodes from the first node to the next to last node
+    findSpurPath resPaths path idx = do
+      let spurNode = path !! idx
+      let rootPath = take (idx+1) path
+      let prefRootPath = take idx path
+      -- Remove the links that are part of the previous shortest paths which share the same root path.
+      let g' = foldr (\resPath g -> 
+                        if path `isPrefixOf` resPath 
+                          then HashMap.insertWith HashMap.union spurNode (HashMap.singleton (head $ resPath >.> rootPath) maxCnt) g 
+                          else g
+                        ) graph resPaths
+      -- remove the nodes in the root path from the graph
+      let g'' = HashMap.foldrWithKey (\k m res -> 
+                                        if elem k prefRootPath 
+                                          then res 
+                                          else HashMap.insert k (HashMap.filterWithKey (\k' _ -> notElem k' prefRootPath) m) res
+                                          ) HashMap.empty g'
+      spurPath <- dijkstra g'' spurNode dst
+      return $ prefRootPath ++ spurPath
+    pathLength [x] = 0
+    pathLength (x:xs) = pathLength xs + (HashMap.lookupDefault maxCnt (head xs) $ HashMap.lookupDefault HashMap.empty x graph)
+    yenHelper idx currPaths candidatePaths 
+      | idx >= k = return currPaths
+      | otherwise = do
+          let curr = currPaths !! idx
+          candidates' <- filter (flip notElem currPaths) . nub <$> foldM (\candidates i -> (flip (:) candidates) <$> findSpurPath currPaths curr i) candidatePaths [0..(length curr - 2)]
+          if null candidates'
+            then return currPaths
+            else do 
+              print candidates'
+              let (shortestP, otherCands) = splitAt 1 $ sortOn pathLength candidates'
+              yenHelper (idx + 1) (nub $ currPaths ++ shortestP) otherCands
 
 instance (Eq k, Hashable k, Serialize k, Serialize v) => Serialize (HashMap k v) where
   put hm = S.put (HashMap.toList hm)

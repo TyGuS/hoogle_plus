@@ -403,6 +403,8 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
                                    ,("G",HashMap.fromList [("H",2)])]
   path <- dijkstra testGraph "C" "H"
   print path
+  paths <- yen testGraph "C" "H" 3
+  print paths
   error "stop here"
   targetDecl <- parseSignature file
   let pkgName = "bytestring"
