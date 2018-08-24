@@ -20,7 +20,7 @@ import Debug.Trace
 type Id = String
 
 maxCnt = 99999
-infinity = 999999999
+infinity = 999999999 :: Double
 
 splitBy :: Char -> String -> [String]
 splitBy _ "" = [];

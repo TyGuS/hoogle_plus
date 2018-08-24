@@ -23,6 +23,7 @@ import Distribution.PackageDescription
 import Distribution.PackageDescription.Parse
 import Distribution.Package
 import Debug.Trace
+import System.Directory
 
 import Synquid.Type
 import Synquid.Logic
@@ -252,8 +253,8 @@ readDeclarations pkg version = do
 
 type DependsOn = Map PkgName [Id]
 
-packageDependencies :: PkgName -> IO [PkgName]
-packageDependencies pkg = do
+packageDependencies :: PkgName -> Bool -> IO [PkgName]
+packageDependencies pkg toDownload = do
     gPackageDesc <- readPackageDescription silent $ downloadDir ++ pkg ++ ".cabal"
     case condLibrary gPackageDesc of
         Nothing -> return []
@@ -261,7 +262,9 @@ packageDependencies pkg = do
             let dps = map dependentPkg dependencies
             -- download necessary files to resolve package dependencies
             foldrM (\fname existDps -> 
-                ifM (downloadFile fname Nothing >> downloadCabal fname Nothing) 
+                ifM (if toDownload 
+                        then downloadFile fname Nothing >> downloadCabal fname Nothing 
+                        else doesFileExist $ downloadDir ++ fname ++ ".txt") 
                     (return $ fname:existDps) 
                     (return existDps)) [] dps
   where

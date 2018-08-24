@@ -365,7 +365,7 @@ precomputeGraph pkgs = mapM_ (\pkgName -> do
   let baseDecls = []
   fileDecls <- readDeclarations pkgName Nothing
   let parsedDecls = fst $ unzip $ map (\decl -> runState (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)
-  dependsPkg <- packageDependencies pkgName
+  dependsPkg <- packageDependencies pkgName True
   dependsDecls <- mapM (flip readDeclarations Nothing) $ nub dependsPkg
   additionalDts <- declDependencies (baseDecls ++ fileDecls) (concat dependsDecls) >>= mapM (flip evalStateT 0 . toSynquidDecl)
   let decls = reorderDecls $ nub $ defaultDts ++ additionalDts ++ parsedDecls
@@ -401,11 +401,11 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
                                    ,("E",HashMap.fromList [("D",1),("F",2),("G",3)])
                                    ,("F",HashMap.fromList [("G",2),("H",1)])
                                    ,("G",HashMap.fromList [("H",2)])]
-  path <- dijkstra testGraph "C" "H"
-  print path
-  paths <- yen testGraph "C" "H" 3
-  print paths
-  error "stop here"
+  -- path <- dijkstra testGraph "C" "H"
+  -- print path
+  -- paths <- yen testGraph "C" "F" 2
+  -- print paths
+  -- error "stop here"
   targetDecl <- parseSignature file
   let pkgName = "bytestring"
   -- downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
@@ -416,7 +416,7 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
   dts <- packageDtNames pkgName
   let parsedDecls = fst $ unzip $ map (\decl -> runState (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)
   ddts <- definedDts pkgName
-  dependsPkg <- liftM2 (++) (packageDependencies pkgName) (packageDependencies "base")
+  dependsPkg <- packageDependencies pkgName False -- liftM2 (++) (packageDependencies pkgName) (packageDependencies "base")
   dependsDecls <- mapM (flip readDeclarations Nothing) $ nub dependsPkg
   additionalDts <- declDependencies (baseDecls ++ fileDecls) (concat dependsDecls) >>= mapM (flip evalStateT 0 . toSynquidDecl)
   -- additionalDts <- evalStateT (packageDependencies pkgName) 0
