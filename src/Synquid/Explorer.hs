@@ -781,12 +781,6 @@ generateSketch env xnode = do
       rtyp <- instantiateWithoutConstraint env (fromJust $ lookupSymbol x (-1) env) True []
       return $ termWithHoles $ Program (PSymbol x) (findSuccinctSymbol x, rtyp, rtyp)
 
-    removeTrailingEmpty path = case path of
-      [] -> []
-      (x:xs) -> if x == "" 
-             then removeTrailingEmpty xs 
-             else x:removeTrailingEmpty xs
-
     buildApp arg path = case path of
       [] -> error "cannot build term from empty path"
       e:xs -> do
@@ -824,6 +818,13 @@ generateSketch env xnode = do
 
 type SuccinctGraph = HashMap SuccinctType (HashMap SuccinctType (Set SuccinctEdge))
 
+-- helper function to remove empty ids in a path
+removeTrailingEmpty path = case path of
+  [] -> []
+  (x:xs) -> if x == "" 
+         then removeTrailingEmpty xs 
+         else x:removeTrailingEmpty xs
+
 -- Dijkstra's algorithm
 dijkstra :: (MonadHorn s, MonadIO s) => SuccinctGraph -> SuccinctType -> SuccinctType -> Explorer s [Id]
 dijkstra graph src dst = dijkstraHelper (HashMap.singleton src (0::Double)) HashMap.empty HashMap.empty initQueue
@@ -831,7 +832,7 @@ dijkstra graph src dst = dijkstraHelper (HashMap.singleton src (0::Double)) Hash
     initQueue = nub $ src:(HashMap.keys graph ++ concat (HashMap.elems $ HashMap.map HashMap.keys graph))
     buildPathHelper edge prev curr path 
       | HashMap.member curr prev = buildPathHelper edge prev (fromJust $ HashMap.lookup curr prev) ((HashMap.lookupDefault "" curr edge):path)
-      | otherwise = (HashMap.lookupDefault "" curr edge):path
+      | otherwise = removeTrailingEmpty $ (HashMap.lookupDefault "" curr edge):path
     buildPath edge prev = do
       -- print $ HashMap.toList prev
       return $ buildPathHelper edge prev dst []
@@ -839,7 +840,7 @@ dijkstra graph src dst = dijkstraHelper (HashMap.singleton src (0::Double)) Hash
       | not (HashMap.member node dist) || pw + weight < (fromJust $ HashMap.lookup node dist) =
         (HashMap.insert node (pw + weight) dist, HashMap.insert node parent prev, HashMap.insert node id edge)
       | otherwise = (dist, prev, edge)
-    notEmptyEdge e = Set.size e > 1 || (Set.size e >= 1 && getEdgeId (Set.findMax e) /= "")
+    notEmptyEdge e = Set.size e > 0
     dijkstraHelper dist prev edge queue
       | null queue = buildPath edge prev
       | otherwise = do
@@ -850,7 +851,7 @@ dijkstra graph src dst = dijkstraHelper (HashMap.singleton src (0::Double)) Hash
                                       -- liftIO $ print $ Set.size set
                                       -- liftIO $ print $ Set.map getEdgeId set
                                       ws <- getGraphWeights $ Set.toList $ Set.map getEdgeId set
-                                      let (w, id) = maximum $ zip ws $ Set.toList $ Set.map getEdgeId set
+                                      let (w, id) = maximum $ zip (map (0 -) ws) $ Set.toList $ Set.map getEdgeId set
                                       return (ty, w, id))
                              $ filter (notEmptyEdge . snd) $ HashMap.toList $ HashMap.lookupDefault HashMap.empty curr graph
         let (dist', prev', edge') = foldr (uncurry3 . (updateDist curr $ HashMap.lookupDefault infinity curr dist)) (dist, prev, edge) neighbours
@@ -860,7 +861,10 @@ dijkstra graph src dst = dijkstraHelper (HashMap.singleton src (0::Double)) Hash
 -- Yen's algorithm is for finding the k shortest path in a graph
 yen :: (MonadHorn s, MonadIO s) => SuccinctGraph -> SuccinctType -> SuccinctType -> Int -> Explorer s [[Id]]
 yen graph src dst k = do
+  liftIO $ print src
+  liftIO $ print dst
   startPath <- dijkstra graph src dst
+  liftIO $ print startPath
   yenHelper 0 [startPath] []
   where
     -- try to find spur nodes from the first node to the next to last node
