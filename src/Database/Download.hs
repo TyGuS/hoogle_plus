@@ -79,28 +79,28 @@ downloadCabal pkg version = do
         else return True
 
 -- | get all the exposed modules from the cabal file
-downloadPkgIndex :: PkgName -> Maybe Version -> IO [String]
+downloadPkgIndex :: PkgName -> Maybe Version -> IO ([String], [String])
 downloadPkgIndex pkg version = do
     putStrLn $ "Downloading package indices for " ++ pkg
     ifM (downloadCabal pkg version)
         (do
             gPackageDesc <- readGenericPackageDescription silent $ downloadDir ++ pkg ++ ".cabal"
             case condLibrary gPackageDesc of
-                Nothing -> putStrLn "Nothing here" >> return []
-                Just (CondNode lib _ _) -> return $ map moduleNameStr $ explicitLibModules lib
+                Nothing -> putStrLn "Nothing here" >> return ([], [])
+                Just (CondNode lib _ _) -> return (map moduleNameStr $ explicitLibModules lib, map moduleNameStr $ exposedModules lib)
         )
-        (return [])
+        (return ([],[]))
   where
     moduleNameStr mn = intercalate "." $ components mn
 
 -- | download all the exposed source code from Hackage for parse preparations
-downloadPkgSource :: PkgName -> Maybe Version -> IO [String]
+downloadPkgSource :: PkgName -> Maybe Version -> IO ([String], [String])
 downloadPkgSource pkg version = do
-    mdls <- downloadPkgIndex pkg version
+    (mdls, expMdls) <- downloadPkgIndex pkg version
     putStrLn $ "Downloading source code for package " ++ pkg
     mapM_ (\mdl -> do
         let url = docDownloadUrl ++ (if pkg == "base" then "base-4.9.0.0" else pkg) ++ "/docs/src/" ++ mdl ++ ".html"
         let dst = downloadDir ++ mdl
         downloadFile url dst
         ) mdls
-    return mdls
+    return (mdls, expMdls)

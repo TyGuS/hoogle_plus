@@ -252,7 +252,7 @@ readDeclarations pkg version = do
     -- s   <- readFile $ downloadDir ++ vpkg ++ ".txt"
     -- let code = concat . rights . (map parseLine) $ splitOn "\n" s
     -- return $ renameSigs "" code
-    mdls <- downloadPkgSource pkg version
+    (mdls,_) <- downloadPkgSource pkg version
     decls <- (\mdl -> do
         putStrLn $ "Parsing declarations in " ++ mdl
         toHaskellCode (downloadDir ++ mdl) >>= readModuleDecls

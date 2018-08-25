@@ -20,8 +20,8 @@ import Debug.Trace
 type Id = String
 
 data QId = QId {
-  name :: Id, -- name of the type or method
-  qualMod :: [Id] -- list of ordered module name, e.g. Data.ByteString.Lazy -> [Data, ByteString, Lazy]
+  qualMod :: [Id], -- list of ordered module name, e.g. Data.ByteString.Lazy -> [Data, ByteString, Lazy]
+  name :: Id -- name of the type or method
 } deriving(Eq, Ord, Show)
 
 uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
@@ -29,6 +29,9 @@ uncurry3 f (x, y, z) = f x y z
 
 fromRight (Right x) = x
 fromLeft (Left x) = x
+
+filterOr :: (a -> Bool) -> (a -> Bool) -> [a] -> [a]
+filterOr f g = filter (\x -> f x || g x)
 
 mapLeft :: (a -> b) -> Either a c -> Either b c
 mapLeft f (Left x) = Left $ f x

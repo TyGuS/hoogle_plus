@@ -425,7 +425,8 @@ instance Pretty BareDeclaration where
   pretty (SynthesisGoal name impl) = text name <+> operator "=" <+> pretty impl
   pretty (MutualDecl names) = keyword "mutual" <+> commaSep (map text names)
   pretty (InlineDecl name args body) = keyword "inline" <+> text name <+> hsep (map text args) <+> operator "=" <+> pretty body
-  
+  pretty (ClassDecl name tvs decls) = keyword "class" <+> text name <+> hsep (map text tvs) $+$ vsep (map pretty decls)
+
 instance Show BareDeclaration where
   show = show . pretty
 
