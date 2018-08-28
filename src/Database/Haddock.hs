@@ -174,7 +174,7 @@ parseSigs pkg version = do
             
                 -- typ <- evalStateT (toSynquidSkeleton linkEnv (typeOf decl)) 0
                 -- return (decl, map (\n -> (n, Map.lookup n linkEnv)) $ tyNames decl, typ)) sigs) elems) interfaces
-    writeFile "test.log" $ showSDocUnsafe . ppr $ map nub res
+    writeFile "test.log" $ showSDocUnsafe . ppr $ nub . concat . concat $ res
   where
     mergeHiddenModules interfaces linkEnv = foldr (\iface newIfaces -> 
         let exportedNames = ifaceExports iface
