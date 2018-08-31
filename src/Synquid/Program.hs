@@ -219,7 +219,7 @@ mtComp mt1 mt2 =
       else False
 
 instance Ord Metadata where
-  (<=) mt1 mt2 = (mtComp mt1 mt2) || (mt1 == mt2)          
+  (<=) mt1 mt2 = mt1 ^. distFromGoal <= mt2 ^. distFromGoal && mt1 ^. mWeight <= mt2 ^. mWeight
 
 -- | Typing environment
 data Environment = Environment {

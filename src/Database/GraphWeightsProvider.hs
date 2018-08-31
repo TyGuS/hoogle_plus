@@ -16,7 +16,7 @@ import qualified Data.ByteString.Lazy as B
 
 
 getJSON :: IO B.ByteString
-getJSON = B.readFile "./src/Database/bytestring_intermediate_counts_after_1000.json"
+getJSON = B.readFile "./src/Database/bytestring_after_1000_negativeLogProbs.json"
 
 getGraphWeights :: [String] -> IO [Double]
 getGraphWeights list = do

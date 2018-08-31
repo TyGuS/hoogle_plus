@@ -275,6 +275,9 @@ hasSuccinctAny (SuccinctAny) = True
 hasSuccinctAny (SuccinctDatatype _ _ tys _ _) = hasSuccinctAny (SuccinctComposite 0 tys)
 hasSuccinctAny _ = False
 
+hasSuccinctFunction (SuccinctComposite _ tys) = Set.foldr (\t acc -> acc || isSuccinctFunction t) False tys
+hasSuccinctFunction ty = error "judge has higher order function from non-composite nodes"
+
 -- does the first type make contribution to the second one's refinement
 contributeTo measures (SuccinctDatatype id1 ids1 tys1 cons1 measures1) (SuccinctDatatype id2 ids2 tys2 cons2 measures2) = 
   Set.null $ (measures2) `Set.intersection` (measures1)

@@ -273,8 +273,7 @@ reconstructE' env typ (PSymbol name) = do
 -- we should throw this sketch without trying other combinations
 reconstructE' env typ (PApp iFun iArg) = do
   x <- freshVar env "x"
-  ifte (local (over (_1 . eGuessDepth) (-1 +)) 
-        $ inContext (\p -> Program (PApp p uHole) typ) 
+  ifte (inContext (\p -> Program (PApp p uHole) typ) 
         $ once $ reconstructE env (FunctionT x AnyT typ) iFun) -- TODO: it is not correct to do `once` here
        (\pFun -> do
           let FunctionT x tArg tRes = typeOf pFun
@@ -286,8 +285,7 @@ reconstructE' env typ (PApp iFun iArg) = do
                     return $ Program (PApp pFun pArg) tRes
                   else do -- First-order argument: generate now
                     d <- view . asks $ _1 . eGuessDepth
-                    pArg <- local (over (_1 . eGuessDepth) (-1 +)) 
-                            $ inContext (\p -> Program (PApp pFun p) typ) 
+                    pArg <- inContext (\p -> Program (PApp pFun p) typ) 
                             $ once $ reconstructE env tArg iArg -- TODO: it is not quite correct to do `once` here
                     let tRes' = appType env pArg x tRes
                     return $ Program (PApp pFun pArg) tRes'

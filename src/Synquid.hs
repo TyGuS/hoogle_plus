@@ -69,7 +69,7 @@ main = do
                lfp bfs
                out_file out_module outFormat resolve
                print_spec print_stats log_ 
-               graph succinct sol_num) -> do
+               graph succinct sol_num path_search) -> do
                   let explorerParams = defaultExplorerParams {
                     _eGuessDepth = appMax,
                     _scrutineeDepth = scrutineeMax,
@@ -87,7 +87,8 @@ main = do
                     _explorerLogLevel = log_,
                     _buildGraph = graph,
                     _useSuccinct = succinct,
-                    _solutionCnt = sol_num
+                    _solutionCnt = sol_num,
+                    _pathSearch = path_search
                     }
                   let solverParams = defaultHornSolverParams {
                     isLeastFixpoint = lfp,
@@ -174,7 +175,8 @@ data CommandLineArgs
         -- | Graph params
         graph :: Bool,
         succinct :: Bool,
-        sol_num :: Int
+        sol_num :: Int,
+        path_search :: Bool
       }
       | Lifty {
         -- | Input
@@ -223,9 +225,10 @@ synt = Synthesis {
   print_spec          = True            &= help ("Show specification of each synthesis goal (default: True)"),
   print_stats         = False           &= help ("Show specification and solution size (default: False)"),
   log_                = 0               &= help ("Logger verboseness level (default: 0)") &= name "l",
-  graph               = False           &= help ("Build graph for exploration") &= name "graph",
-  succinct            = False           &= help ("Use graph to direct the term exploration") &= name "succ",
-  sol_num             = 5               &= help ("Number of solutions need to find (default: 5)") &= name "cnt"
+  graph               = False           &= help ("Build graph for exploration (default: False)") &= name "graph",
+  succinct            = False           &= help ("Use graph to direct the term exploration (default: False)") &= name "succ",
+  sol_num             = 5               &= help ("Number of solutions need to find (default: 5)") &= name "cnt",
+  path_search         = False           &= help ("Use path search algorithm to ensure the usage of provided parameters (default: False)") &= name "path"
   } &= auto &= help "Synthesize goals specified in the input file"
     where
       defaultFormat = outputFormat defaultSynquidParams
@@ -277,7 +280,8 @@ defaultExplorerParams = ExplorerParams {
   _explorerLogLevel = 0,
   _buildGraph = False,
   _useSuccinct = False,
-  _solutionCnt = 5
+  _solutionCnt = 5,
+  _pathSearch = False
 }
 
 -- | Parameters for constraint solving
