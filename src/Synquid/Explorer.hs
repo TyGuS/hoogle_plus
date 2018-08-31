@@ -38,7 +38,7 @@ import Control.Monad.Logic
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Applicative hiding (empty)
-import Control.Lens
+import Control.Lens hiding (index, indices)
 import Debug.Trace
 
 {- Interface -}
@@ -179,7 +179,22 @@ generateI env t@(FunctionT x tArg tRes) isElseBranch = do
 generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
   pathEnabled <- asks . view $ _1 . pathSearch
   if pathEnabled
-    then splitGoal env t
+    then do
+      -- TODO test tarjan
+      let tya = SuccinctDatatype ("ByteString", 0) Set.empty Set.empty Map.empty Set.empty
+      let tyb = SuccinctDatatype ("Char", 0) Set.empty Set.empty Map.empty Set.empty
+      let tyc = SuccinctDatatype ("String", 0) Set.empty Set.empty Map.empty Set.empty
+      let testGraph = HashMap.fromList [(tya, HashMap.fromList [(tyb, Set.fromList [SuccinctEdge "" 0 HashMap.empty]), (tyc, Set.fromList [SuccinctEdge "" 0 HashMap.empty])])
+                                       ,(tyb, HashMap.fromList [(tyc, Set.fromList [SuccinctEdge "" 0 HashMap.empty])])
+                                       ,(tyc, HashMap.fromList [(tyb, Set.fromList [SuccinctEdge "" 0 HashMap.empty])])]
+      let graph = (env ^. graphFromGoal)
+      tarjanSt <- liftIO $ tarjan graph
+      liftIO $ print $ length $ components tarjanSt
+      liftIO $ print $ length . nub $ (HashMap.keys graph) ++ (HashMap.foldr ((++) . HashMap.keys) [] graph)
+      -- liftIO $ print $ indices tarjanSt
+      -- liftIO $ print $ lowlink tarjanSt
+      -- liftIO $ writeFile "test.log" $ showGraphViz True env
+      splitGoal env t
     else do
       maEnabled <- asks . view $ _1 . abduceScrutinees -- Is match abduction enabled?
       d <- asks . view $ _1 . matchDepth
@@ -796,9 +811,9 @@ generateSketch env xnode = do
       rtyp <- typeSubstitute tass <$> instantiateWithoutConstraint env (fromJust $ lookupSymbol x (-1) env) True []
       let p = termWithHoles $ Program (PSymbol x) (findSuccinctSymbol x, rtyp, rtyp)
       -- TODO: just for debug
-      case p of
-        Program (PApp fun arg) _ -> writeLog 2 $ pretty fun
-        _ -> writeLog 2 $ pretty p
+      -- case p of
+      --   Program (PApp fun arg) _ -> writeLog 2 $ pretty fun
+      --   _ -> writeLog 2 $ pretty p
       return p
 
     buildApp arg path = case path of
@@ -964,6 +979,57 @@ yen graph src dst k = do
               let weightedCands = zip (map sum candWeights) candidates'
               let ([(_, shortestP)], otherCands) = splitAt 1 $ sort weightedCands
               return shortestP `mplus` yenHelper (idx + 1) (nub $ currPaths ++ [shortestP]) (snd $ unzip otherCands) 
+
+-- | tarjan return structure
+data TarjanState = TarjanState {
+  -- temporary state during the algorithm running
+  index :: Int,
+  indices :: Map SuccinctType Int,
+  lowlink :: Map SuccinctType Int,
+  stack :: [SuccinctType],
+  -- result
+  components :: [[SuccinctType]]
+}
+
+-- | tarjan's algorithm
+-- to compute the strongly connected components
+tarjan :: SuccinctGraph -> IO TarjanState
+tarjan graph = do
+    let nodes = Set.fromList $ (HashMap.keys graph) ++ (HashMap.foldr ((++) . HashMap.keys) [] graph)
+    let emptyState = TarjanState 0 Map.empty Map.empty [] []
+    foldrM (\v st -> if Map.notMember v (indices st) then strongconnect v st else return st) emptyState nodes
+  where
+    strongconnect src state = do
+      let state' = TarjanState (index state + 1) 
+                               (Map.insert src (index state) (indices state))
+                               (Map.insert src (index state) (lowlink state)) 
+                               ((stack state) ++ [src]) (components state)
+      let neighbours = HashMap.keys $ HashMap.lookupDefault HashMap.empty src graph
+      state'' <- foldrM (updateLowlink src) state' neighbours
+      if fromJust (Map.lookup src $ indices state'') == fromJust (Map.lookup src $ lowlink state'')
+        then return $ let (stk, comp) = collectComponents src (stack state'')
+                      in state'' {
+                          stack = stk, 
+                          components = if null comp then components state'' else comp:(components state'')
+                        }
+        else return state'' 
+
+    collectComponents src stack = 
+      if src /= last stack
+        then let (stack', comps) = collectComponents src (init stack) in (stack', (last stack):comps)
+        else (init stack, [src])
+    updateLowlink src w st = do
+      if Map.notMember w (indices st) 
+        then do
+          st' <- strongconnect w st
+          return $ st' {
+            lowlink = Map.insert src (min (fromJust $ Map.lookup src $ lowlink st') (fromJust $ Map.lookup w $ lowlink st')) (lowlink st')
+          }
+        else if elem w (stack st)
+          then return $ st {
+                  lowlink = Map.insert src (min (fromJust $ Map.lookup src $ lowlink st) (fromJust $ Map.lookup w $ indices st)) (lowlink st)
+                }
+          else return st
 
 
 pathAtFromTo :: (MonadHorn s, MonadIO s) => Environment -> SuccinctType -> SuccinctType -> Int -> Explorer s [Set SuccinctEdge]
