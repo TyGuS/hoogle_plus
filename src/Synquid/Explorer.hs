@@ -33,6 +33,8 @@ import qualified Data.PQueue.Prio.Max as PQ
 import Data.PQueue.Prio.Max (MaxPQueue)
 -- import qualified Data.Sequence as Seq
 import Data.Sequence (Seq)
+import Data.Heap (MinHeap)
+import qualified Data.Heap as Heap
 -- import Control.Monad.List
 import Control.Monad.Logic
 import Control.Monad.State
@@ -181,16 +183,16 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
   if pathEnabled
     then do
       -- TODO test tarjan
-      let tya = SuccinctDatatype ("ByteString", 0) Set.empty Set.empty Map.empty Set.empty
-      let tyb = SuccinctDatatype ("Char", 0) Set.empty Set.empty Map.empty Set.empty
-      let tyc = SuccinctDatatype ("String", 0) Set.empty Set.empty Map.empty Set.empty
-      let testGraph = HashMap.fromList [(tya, HashMap.fromList [(tyb, Set.fromList [SuccinctEdge "" 0 HashMap.empty]), (tyc, Set.fromList [SuccinctEdge "" 0 HashMap.empty])])
-                                       ,(tyb, HashMap.fromList [(tyc, Set.fromList [SuccinctEdge "" 0 HashMap.empty])])
-                                       ,(tyc, HashMap.fromList [(tyb, Set.fromList [SuccinctEdge "" 0 HashMap.empty])])]
-      let graph = (env ^. graphFromGoal)
-      tarjanSt <- liftIO $ tarjan graph
-      liftIO $ print $ length $ components tarjanSt
-      liftIO $ print $ length . nub $ (HashMap.keys graph) ++ (HashMap.foldr ((++) . HashMap.keys) [] graph)
+      -- let tya = SuccinctDatatype ("ByteString", 0) Set.empty Set.empty Map.empty Set.empty
+      -- let tyb = SuccinctDatatype ("Char", 0) Set.empty Set.empty Map.empty Set.empty
+      -- let tyc = SuccinctDatatype ("String", 0) Set.empty Set.empty Map.empty Set.empty
+      -- let testGraph = HashMap.fromList [(tya, HashMap.fromList [(tyb, Set.fromList [SuccinctEdge "" 0 HashMap.empty]), (tyc, Set.fromList [SuccinctEdge "" 0 HashMap.empty])])
+      --                                  ,(tyb, HashMap.fromList [(tyc, Set.fromList [SuccinctEdge "" 0 HashMap.empty])])
+      --                                  ,(tyc, HashMap.fromList [(tyb, Set.fromList [SuccinctEdge "" 0 HashMap.empty])])]
+      -- let graph = (env ^. graphFromGoal)
+      -- tarjanSt <- liftIO $ tarjan graph
+      -- liftIO $ print $ length $ components tarjanSt
+      -- liftIO $ print $ length . nub $ (HashMap.keys graph) ++ (HashMap.foldr ((++) . HashMap.keys) [] graph)
       -- liftIO $ print $ indices tarjanSt
       -- liftIO $ print $ lowlink tarjanSt
       -- liftIO $ writeFile "test.log" $ showGraphViz True env
@@ -864,38 +866,48 @@ removeTrailingEmpty path = case path of
          else x:removeTrailingEmpty xs
 
 -- Dijkstra's algorithm
+data DijkstraState = DijkstraState {
+  dijkstraDist :: HashMap SuccinctType Double,
+  dijkstraPrev :: HashMap SuccinctType SuccinctType,
+  dijkstraEdge :: HashMap SuccinctType Id
+}
+
 dijkstra :: (MonadHorn s, MonadIO s) => SuccinctGraph -> SuccinctType -> SuccinctType -> Explorer s [Id]
-dijkstra graph src dst = dijkstraHelper (HashMap.singleton src (0::Double)) HashMap.empty HashMap.empty initQueue
+dijkstra graph src dst = do
+    st <- dijkstraHelper graph initState initQueue
+    buildPath (dijkstraEdge st) (dijkstraPrev st)
   where
+    initState = DijkstraState (HashMap.singleton src (0::Double)) HashMap.empty HashMap.empty
     initQueue = nub $ src:(HashMap.keys graph ++ concat (HashMap.elems $ HashMap.map HashMap.keys graph))
     buildPathHelper edge prev curr path 
       | HashMap.member curr prev = do
-        -- liftIO $ print $ HashMap.lookup curr edge
         buildPathHelper edge prev (fromJust $ HashMap.lookup curr prev) ((HashMap.lookupDefault "" curr edge):path)
       | otherwise = return $ removeTrailingEmpty $ (HashMap.lookupDefault "" curr edge):path
-    buildPath edge prev = do
-      -- liftIO $ print $ HashMap.toList prev
-      buildPathHelper edge prev dst []
+    buildPath edge prev = buildPathHelper edge prev dst []
+    
+dijkstraHelper :: (MonadHorn s, MonadIO s) => SuccinctGraph -> DijkstraState -> [SuccinctType] -> Explorer s DijkstraState
+dijkstraHelper graph state queue
+  | null queue = return state
+  | otherwise = do
+    let dist = dijkstraDist state
+    let prev = dijkstraPrev state
+    let edge = dijkstraEdge state
+    let ([curr], queue') = splitAt 1 $ sortOn (flip (HashMap.lookupDefault infinity) dist) queue
+    neighbours <- liftIO $ mapM (\(ty, set) -> do
+                                  ws <- getGraphWeights . Set.toList $ Set.map getEdgeId set
+                                  let (w, id) = minimum . zip ws . Set.toList $ Set.map getEdgeId set
+                                  return (ty, w, id))
+                         $ filter (notEmptyEdge . snd) . HashMap.toList $ HashMap.lookupDefault HashMap.empty curr graph
+    let (dist', prev', edge') = if HashMap.member curr dist -- if the current is reachable from the source node
+                                  then foldr (uncurry3 . updateDist curr (fromJust $ HashMap.lookup curr dist)) (dist, prev, edge) neighbours
+                                  else (dist, prev, edge)
+    dijkstraHelper graph (DijkstraState dist' prev' edge') queue'
+  where
     updateDist parent pw (node, weight, id) dist prev edge
       | not (HashMap.member node dist) || pw + weight < (fromJust $ HashMap.lookup node dist) =
         (HashMap.insert node (pw + weight) dist, HashMap.insert node parent prev, HashMap.insert node id edge)
       | otherwise = (dist, prev, edge)
     notEmptyEdge e = Set.size e > 0
-    dijkstraHelper dist prev edge queue
-      | null queue = do
-        -- liftIO $ print $ HashMap.toList dist
-        buildPath edge prev
-      | otherwise = do
-        let ([curr], queue') = splitAt 1 $ sortOn (flip (HashMap.lookupDefault infinity) dist) queue
-        neighbours <- liftIO $ mapM (\(ty, set) -> do
-                                      ws <- getGraphWeights . Set.toList $ Set.map getEdgeId set
-                                      let (w, id) = minimum . zip ws . Set.toList $ Set.map getEdgeId set
-                                      return (ty, w, id))
-                             $ filter (notEmptyEdge . snd) . HashMap.toList $ HashMap.lookupDefault HashMap.empty curr graph
-        let (dist', prev', edge') = if HashMap.member curr dist -- if the current is reachable from the source node
-                                      then foldr (uncurry3 . updateDist curr (fromJust $ HashMap.lookup curr dist)) (dist, prev, edge) neighbours
-                                      else (dist, prev, edge)
-        dijkstraHelper dist' prev' edge' queue'
 
 removeEdge :: Id -> SuccinctGraph -> SuccinctGraph
 removeEdge id g = 
@@ -1030,6 +1042,57 @@ tarjan graph = do
                   lowlink = Map.insert src (min (fromJust $ Map.lookup src $ lowlink st) (fromJust $ Map.lookup w $ indices st)) (lowlink st)
                 }
           else return st
+
+-- helper function
+-- | reverse a graph
+reverseGraph :: SuccinctGraph -> SuccinctGraph
+reverseGraph graph = 
+  HashMap.foldrWithKey (\k m g ->
+    HashMap.foldrWithKey (\k' edges gr -> 
+      HashMap.insertWith HashMap.union k' (HashMap.singleton k edges) gr
+      ) g m
+    ) HashMap.empty graph
+
+-- | eppstein k-best algorithm
+-- to find the k shortest path in a graph
+eppstein :: (MonadHorn s, MonadIO s) => SuccinctGraph -> SuccinctType -> SuccinctType -> Explorer s [Set SuccinctEdge]
+eppstein graph src dst = return []
+
+  where
+    initState = DijkstraState (HashMap.singleton src (0::Double)) HashMap.empty HashMap.empty
+    initQueue = nub $ src:(HashMap.keys graph ++ concat (HashMap.elems $ HashMap.map HashMap.keys graph))
+    -- hashmap from ids (component names) to their side track weights
+    computeSideTrack :: (MonadHorn s, MonadIO s) => Explorer s (HashMap Id Double)
+    computeSideTrack = do
+      dijkstraState <- dijkstraHelper (reverseGraph graph) initState initQueue
+      let shortestDist = dijkstraDist dijkstraState
+      let shortestTree = dijkstraPrev dijkstraState
+      foldrM (\(from, m) strack -> foldrM (\(to, edges) strack' -> do
+        -- search for weight of these ids
+        let edgeNames = Set.toList $ Set.map getEdgeId edges
+        ws <- liftIO $ getGraphWeights edgeNames
+        -- sidetrack(e) = len(e) + d(head(e), t) - d(tail(e), t)
+        return $ foldr (\(name, w) strack'' -> if name == "" -- skip the empty edges
+                                                then strack''
+                                                else HashMap.insert name 
+                                                     (w + HashMap.lookupDefault 0 to shortestDist - 
+                                                          HashMap.lookupDefault 0 from shortestDist) 
+                                                     strack'')  strack' $ zip edgeNames ws
+        ) strack $ HashMap.toList m) HashMap.empty $ HashMap.toList graph
+    -- heaps for each node of the outgoing edges from this node H_out(v)
+    -- hashMap from nodes (SuccinctType) to MinHeaps
+    nodeHeaps :: (MonadHorn s, MonadIO s) => Explorer s (HashMap SuccinctType (MinHeap (Double, Id)))
+    nodeHeaps = do
+      sidetracks <- computeSideTrack
+      return $ HashMap.foldrWithKey (\from m heaps -> HashMap.insert from (HashMap.foldrWithKey (\to edges heap -> do
+        -- construct the heap with sidetracks not equal to zero
+        Set.foldr Heap.insert heap $ Set.filter (((/=) 0) . fst) 
+        -- find the sidetrack for the edges from side track map
+        -- store both the side track value and the id of the edge for easier retrieval later
+                                   $ Set.map ((\elmt -> (HashMap.lookupDefault 0 elmt sidetracks, elmt)) . getEdgeId) edges
+        ) Heap.empty m) heaps) HashMap.empty graph
+
+
 
 
 pathAtFromTo :: (MonadHorn s, MonadIO s) => Environment -> SuccinctType -> SuccinctType -> Int -> Explorer s [Set SuccinctEdge]
