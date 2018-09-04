@@ -1061,12 +1061,12 @@ eppstein graph src dst = return []
   where
     initState = DijkstraState (HashMap.singleton src (0::Double)) HashMap.empty HashMap.empty
     initQueue = nub $ src:(HashMap.keys graph ++ concat (HashMap.elems $ HashMap.map HashMap.keys graph))
+    computeDijkstraState :: (MonadHorn s, MonadIO s) => Explorer s DijkstraState
+    computeDijkstraState = dijkstraHelper (reverseGraph graph) initState initQueue
     -- hashmap from ids (component names) to their side track weights
     computeSideTrack :: (MonadHorn s, MonadIO s) => Explorer s (HashMap Id Double)
     computeSideTrack = do
-      dijkstraState <- dijkstraHelper (reverseGraph graph) initState initQueue
-      let shortestDist = dijkstraDist dijkstraState
-      let shortestTree = dijkstraPrev dijkstraState
+      shortestDist <- dijkstraDist <$> computeDijkstraState
       foldrM (\(from, m) strack -> foldrM (\(to, edges) strack' -> do
         -- search for weight of these ids
         let edgeNames = Set.toList $ Set.map getEdgeId edges
@@ -1081,8 +1081,8 @@ eppstein graph src dst = return []
         ) strack $ HashMap.toList m) HashMap.empty $ HashMap.toList graph
     -- heaps for each node of the outgoing edges from this node H_out(v)
     -- hashMap from nodes (SuccinctType) to MinHeaps
-    nodeHeaps :: (MonadHorn s, MonadIO s) => Explorer s (HashMap SuccinctType (MinHeap (Double, Id)))
-    nodeHeaps = do
+    computeNodeHeaps :: (MonadHorn s, MonadIO s) => Explorer s (HashMap SuccinctType (MinHeap (Double, Id)))
+    computeNodeHeaps = do
       sidetracks <- computeSideTrack
       return $ HashMap.foldrWithKey (\from m heaps -> HashMap.insert from (HashMap.foldrWithKey (\to edges heap -> do
         -- construct the heap with sidetracks not equal to zero
@@ -1092,6 +1092,30 @@ eppstein graph src dst = return []
                                    $ Set.map ((\elmt -> (HashMap.lookupDefault 0 elmt sidetracks, elmt)) . getEdgeId) edges
         ) Heap.empty m) heaps) HashMap.empty graph
 
+    computeOutrootHeapAt :: (MonadHorn s, MonadIO s) => SuccinctType -> Explorer s (MinHeap (Double, MinHeap (Double, Id)))
+    computeOutrootHeapAt curr = do
+      shortestTree <- dijkstraPrev <$> computeDijkstraState
+      nodeHeaps <- computeNodeHeaps
+      let currHeap = HashMap.lookupDefault Heap.empty curr nodeHeaps
+      let key = fst $ fromJust $ Heap.viewHead currHeap
+      case HashMap.lookup curr shortestTree of
+        -- if we are at the root of the shortest path tree
+        Nothing -> return $ Heap.singleton (key, currHeap)
+        -- if we are at other node of the tree, first recursively construct the parents 
+        -- and then add themselves to H_T(nextT(v))
+        Just next -> do
+          hnext <- computeOutrootHeapAt next
+          -- merge the current heap with this next heaps
+          return $ Heap.insert (key, currHeap) hnext
+
+    -- heaps for H_T(v)
+    computeOutrootHeaps :: (MonadHorn s, MonadIO s) => Explorer s (MinHeap (Double, MinHeap (Double, Id)))
+    computeOutrootHeaps = do
+      -- H_T(v) is a heap of all of the "best" sidetrack edges for each node on the shortest path from v to T.
+      -- H_T(v) is computed by adding the lowest cost sidetrack edge of v to heap H_T(nextT(v)),
+      -- where nextT(v) is the parent node of node v in the shortest path tree rooted at the target node T.
+      -- start from the src node and recursively do this computation
+      computeOutrootHeapAt src
 
 
 
