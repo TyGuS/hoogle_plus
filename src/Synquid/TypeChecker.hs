@@ -43,7 +43,7 @@ reconstructTopLevel (Goal funName env (Monotype typ@(FunctionT _ _ _)) impl dept
   where
     reconstructFix = do
       let typ' = renameAsImpl (isBound env) impl typ
-      recCalls <- runInSolver (currentAssignment typ') >>= recursiveCalls
+      -- recCalls <- runInSolver (currentAssignment typ') >>= recursiveCalls
       polymorphic <- asks . view $ _1 . polyRecursion
       predPolymorphic <- asks . view $ _1 . predPolyRecursion
       let tvs = env ^. boundTypeVars
@@ -51,11 +51,12 @@ reconstructTopLevel (Goal funName env (Monotype typ@(FunctionT _ _ _)) impl dept
       let predGeneralized sch = if predPolymorphic then foldr ForallP sch pvs else sch -- Version of @t'@ generalized in bound predicate variables of the enclosing function          
       let typeGeneralized sch = if polymorphic then foldr ForallT sch tvs else sch -- Version of @t'@ generalized in bound type variables of the enclosing function
       
-      let env' = foldr (\(f, t) -> addPolyVariable f (typeGeneralized . predGeneralized . Monotype $ t) . (shapeConstraints %~ Map.insert f (shape typ'))) env recCalls
+      -- let env' = foldr (\(f, t) -> addPolyVariable f (typeGeneralized . predGeneralized . Monotype $ t) . (shapeConstraints %~ Map.insert f (shape typ'))) env recCalls
       useSucc <- asks . view $ _1 . buildGraph
-      envAll <- if useSucc then foldM (\e (f, t) -> addSuccinctSymbol f t e) env' (Map.toList (allSymbols env')) else return env'
-      envGoal <- if useSucc then addSuccinctEdge "__goal__" (Monotype (typ)) envAll else return envAll
-      let ctx = \p -> if null recCalls then p else Program (PFix (map fst recCalls) p) typ'
+      -- envAll <- if useSucc then foldM (\e (f, t) -> addSuccinctSymbol f t e) env' (Map.toList (allSymbols env')) else return env'
+      envGoal <- if useSucc then addSuccinctEdge "__goal__" (Monotype (typ)) env else return env
+      -- let ctx = \p -> if null recCalls then p else Program (PFix (map fst recCalls) p) typ'
+      let ctx = id
       p <- inContext ctx  $ reconstructI envGoal typ' impl
       return $ ctx p
 
@@ -111,8 +112,8 @@ reconstructTopLevel (Goal funName env (Monotype typ@(FunctionT _ _ _)) impl dept
 
 reconstructTopLevel (Goal _ env (Monotype t) impl depth _) = do
   useSucc <- asks . view $ _1 . buildGraph
-  envAll <- if useSucc then foldM (\e (f, t) -> addSuccinctSymbol f t e) env (Map.toList (allSymbols env)) else return env
-  envGoal <- if useSucc then addSuccinctEdge "__goal__" (Monotype t) envAll else return envAll
+  -- envAll <- if useSucc then foldM (\e (f, t) -> addSuccinctSymbol f t e) env (Map.toList (allSymbols env)) else return env
+  envGoal <- if useSucc then addSuccinctEdge "__goal__" (Monotype t) env else return env
   local (set (_1 . auxDepth) depth) $ reconstructI envGoal t impl
 
 -- | 'reconstructI' @env t impl@ :: reconstruct unknown types and terms in a judgment @env@ |- @impl@ :: @t@ where @impl@ is a (possibly) introduction term

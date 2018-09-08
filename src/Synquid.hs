@@ -44,7 +44,7 @@ import Language.Haskell.Exts (Decl(TypeSig))
 import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Data.Maybe (mapMaybe)
+import Data.Maybe (mapMaybe, fromJust)
 import Distribution.PackDeps
 import Text.Parsec hiding (State)
 import Text.Parsec.Indent
@@ -55,6 +55,10 @@ import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import Text.PrettyPrint.ANSI.Leijen (fill, column)
 
 import Data.List.Split
+-- TODO experiment
+import qualified Z3.Base as Z3
+import System.Process
+import GHC.IO.Handle
 
 programName = "synquid"
 versionName = "0.4"
@@ -376,9 +380,14 @@ precomputeGraph pkgs = mapM_ (\pkgName -> do
   case resolveDecls decls of
     Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
     Right (env, goals, cquals, tquals) -> do
-      envAll <- evalStateT (foldrM (\(f, t) -> addGraphSymbol f t) env $ Map.toList $ allSymbols env) Map.empty
-      B.writeFile "data/graph.db" $ encode $ envAll ^. succinctGraph
-      B.writeFile "data/graphRev.db" $ encode $ envAll ^. succinctGraphRev
+      envAll <- evalStateT (foldrM (uncurry addGraphSymbol) env $ Map.toList $ allSymbols env) Map.empty
+      let allEdges = Set.toList . Set.unions . concat . map HashMap.elems $ HashMap.elems (envAll ^. succinctGraph)
+      edgeWeights <- getGraphWeights $ map getEdgeId allEdges
+      let graph' = fillEdgeWeight allEdges edgeWeights $ envAll ^. succinctGraph
+      B.writeFile "data/env.db" $ encode $ envAll {_succinctGraph = graph'}
+      -- B.writeFile "data/goal.db" $ encode $ goals
+      -- B.writeFile "data/graph.db" $ encode $ envAll ^. succinctGraph
+      -- B.writeFile "data/graphRev.db" $ encode $ envAll ^. succinctGraphRev
   ) pkgs
   where
     defaultDts = [defaultList, defaultPair, defaultUnit]
@@ -391,6 +400,15 @@ precomputeGraph pkgs = mapM_ (\pkgName -> do
       ]
     defaultUnit = Pos (initialPos "Unit") $ DataDecl "Unit" [] [] []
     pdoc = printDoc Plain
+    fillEdgeWeight edges ws graph = HashMap.foldrWithKey (
+      \from m res -> HashMap.insert from (HashMap.foldrWithKey (
+        \to set res' -> HashMap.insert to (Set.map (\e -> e {
+          _weight = case elemIndex e edges of
+                      Just idx -> ws !! idx
+                      Nothing -> 0
+            }) set) res'
+        ) HashMap.empty m) res
+      ) HashMap.empty graph
 
 
 -- | Parse and resolve file, then synthesize the specified goals
@@ -400,42 +418,71 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
   -- declsByFile <- parseFromFiles (libs ++ [file])
   -- let decls = concat $ map snd declsByFile
   -- print decls
-  let testGraph = HashMap.fromList [("C",HashMap.fromList [("D",3),("E",2)])
-                                   ,("D",HashMap.fromList [("F",4)])
-                                   ,("E",HashMap.fromList [("D",1),("F",2),("G",3)])
-                                   ,("F",HashMap.fromList [("G",2),("H",1)])
-                                   ,("G",HashMap.fromList [("H",2)])]
+  -- cfg <- Z3.mkConfig
+  -- ctx <- Z3.mkContext cfg
+  -- opt <- Z3.mkOptimize ctx
+
+  -- a1 <- Z3.mkStringSymbol ctx "a1"
+  -- a2 <- Z3.mkStringSymbol ctx "a2"
+  -- a3 <- Z3.mkStringSymbol ctx "a3"
+  -- a4 <- Z3.mkStringSymbol ctx "a3"
+  -- b <- Z3.mkBoolSort ctx
+  -- a1const <- Z3.mkConst ctx a1 b
+  -- a2const <- Z3.mkConst ctx a2 b
+  -- a3const <- Z3.mkConst ctx a3 b
+  -- a4const <- Z3.mkConst ctx a4 b
+  -- nota1 <- Z3.mkNot ctx a1const
+  -- nota2 <- Z3.mkNot ctx a2const
+  -- nota4 <- Z3.mkNot ctx a4const
+  -- invalid <- Z3.mkOr ctx [nota1, nota2]
+  -- Z3.optimizeAssertSoft ctx opt a1const "0.1" a1
+  -- Z3.optimizeAssertSoft ctx opt a2const "10.0" a1
+  -- Z3.optimizeAssert ctx opt a3const
+  -- -- Z3.optimizeAssert ctx opt nota4
+  -- Z3.optimizeAssertSoft ctx opt invalid "35" a1
+  -- res <- Z3.optimizeCheck ctx opt
+  -- print res
+  -- model <- Z3.optimizeGetModel ctx opt
+  -- Z3.modelToString ctx model >>= putStrLn
+
+  -- let testGraph = HashMap.fromList [("C",HashMap.fromList [("D",3),("E",2)])
+  --                                  ,("D",HashMap.fromList [("F",4)])
+  --                                  ,("E",HashMap.fromList [("D",1),("F",2),("G",3)])
+  --                                  ,("F",HashMap.fromList [("G",2),("H",1)])
+  --                                  ,("G",HashMap.fromList [("H",2)])]
   -- path <- dijkstra testGraph "C" "H"
   -- print path
   -- paths <- yen testGraph "C" "F" 2
   -- print paths
   -- error "stop here"
-  targetDecl <- parseSignature file
-  let pkgName = "bytestring"
+  -- targetDecl <- parseSignature file
+  -- let pkgName = "bytestring"
   -- downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
   -- baseDecls <- filter (flip notElem ruleOut . getDeclName) <$> addPrelude <$> readDeclarations "base" Nothing
-  let baseDecls = []
-  fileDecls <- readDeclarations pkgName Nothing
+  -- let baseDecls = []
+  -- fileDecls <- readDeclarations pkgName Nothing
   -- print fileDecls
-  dts <- packageDtNames pkgName
-  let parsedDecls = fst $ unzip $ map (\decl -> runState (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)
-  ddts <- definedDts pkgName
-  dependsPkg <- packageDependencies pkgName False -- liftM2 (++) (packageDependencies pkgName) (packageDependencies "base")
-  dependsDecls <- mapM (flip readDeclarations Nothing) $ nub dependsPkg
-  additionalDts <- declDependencies (baseDecls ++ fileDecls) (concat dependsDecls) >>= mapM (flip evalStateT 0 . toSynquidDecl)
+  -- dts <- packageDtNames pkgName
+  -- let parsedDecls = fst $ unzip $ map (\decl -> runState (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)
+  -- ddts <- definedDts pkgName
+  -- dependsPkg <- packageDependencies pkgName False -- liftM2 (++) (packageDependencies pkgName) (packageDependencies "base")
+  -- dependsDecls <- mapM (flip readDeclarations Nothing) $ nub dependsPkg
+  -- additionalDts <- declDependencies (baseDecls ++ fileDecls) (concat dependsDecls) >>= mapM (flip evalStateT 0 . toSynquidDecl)
   -- additionalDts <- evalStateT (packageDependencies pkgName) 0
-  let decls = reorderDecls $ nub $ defaultDts ++ additionalDts ++ parsedDecls ++ targetDecl
+  -- let decls = reorderDecls $ nub $ defaultDts ++ additionalDts ++ parsedDecls ++ targetDecl
   -- print decls
-  let declsByFile = [(pkgName, decls)]
-  case resolveDecls decls of
-    Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
-    Right (_, goals, cquals, tquals) -> when (not $ resolveOnly synquidParams) $ do
-      multiResults <- mapM (\goal -> feedGraph goal >>= synthesizeGoal cquals tquals) (requested goals)
-      let results = concatMap (\((goal, ps), stats) -> map (\p -> ((goal, p), stats)) ps) multiResults
-      when (not (null results) && showStats synquidParams) $ printStats results declsByFile
-      -- Generate output if requested
-      let libsWithDecls = collectLibDecls libs declsByFile
-      codegen (fillinCodegenParams file libsWithDecls codegenParams) (map fst results)
+  goal <- parseGoal file
+  -- let declsByFile = [(pkgName, decls)]
+  -- case resolveDecls decls of
+    -- Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
+    -- Right (_, goals, cquals, tquals) -> when (not $ resolveOnly synquidParams) $ do
+  feedEnv goal >>= synthesizeGoal [] [] -- (requested goals)
+  return ()
+  -- concatMap (\((goal, ps), stats) -> map (\p -> ((goal, p), stats)) ps) multiResults
+  -- when (not (null results) && showStats synquidParams) $ printStats results declsByFile
+  -- Generate output if requested
+  -- let libsWithDecls = collectLibDecls libs declsByFile
+  -- codegen (fillinCodegenParams file libsWithDecls codegenParams) (map fst results)
   where
     ruleOut = ["zip3", "zip4", "zip5", "zip6", "zip7"
              , "zipWith3", "zipWith4", "zipWith5", "zipWith6", "zipWith7"
@@ -450,29 +497,38 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
       ]
     defaultURec = Pos (initialPos "URec") $ DataDecl "URec" ["a"] [] []
     defaultUnit = Pos (initialPos "Unit") $ DataDecl "Unit" [] [] []
-    withEmptyDt id = (id, emptyDtDef)
-    feedGraph goal = do
-      doesExist <- liftM2 (&&) (doesFileExist "data/graph.db") (doesFileExist "data/graphRev.db")
+    feedEnv goal = do
+      doesExist <- doesFileExist "data/env.db"
       when (not doesExist) (error "Please run `stack exec -- synquid generate -p [PACKAGES]` to generate database first")
-      graphRes <- decode <$> B.readFile "data/graph.db"
-      case graphRes of
+      envRes <- decode <$> B.readFile "data/env.db"
+      case envRes of
         Left err -> error err
-        Right graph -> do
-          revRes <- decode <$> B.readFile "data/graphRev.db"
-          case revRes of
-            Left err -> error err
-            Right graphRev -> return $ goal {
-              gEnvironment = (gEnvironment goal) {
-                _succinctGraph = graph,
-                _succinctGraphRev = graphRev
-                }}
-    parseSignature sig = do
+        Right env -> return $ goal {
+            gEnvironment = env
+          }
+      -- graphRes <- decode <$> B.readFile "data/graph.db"
+      -- case graphRes of
+      --   Left err -> error err
+      --   Right graph -> do
+      --     revRes <- decode <$> B.readFile "data/graphRev.db"
+      --     case revRes of
+      --       Left err -> error err
+      --       Right graphRev -> return $ goal {
+      --         gEnvironment = (gEnvironment goal) {
+      --           _succinctGraph = graph,
+      --           _succinctGraphRev = graphRev
+      --           }}
+    parseGoal sig = do
       let transformedSig = "goal :: " ++ sig ++ "\ngoal = ??"
       parseResult <- return $ runIndent "" $ runParserT parseProgram () "" transformedSig
       case parseResult of
         Left parseErr -> (pdoc $ pretty $ toErrorMessage parseErr) >> pdoc empty >> exitFailure
         -- Right ast -> print $ vsep $ map pretty ast
-        Right decls -> return decls
+        Right (funcDecl:decl:_) -> case decl of
+          Pos _ (SynthesisGoal id uprog) -> let Pos _ (FuncDecl _ spec) = funcDecl 
+                                            in return $ Goal id emptyEnv spec uprog 3 $ initialPos "goal"
+          _ -> error "parse a signature for a none goal declaration"
+
     parseFromFiles [] = return []
     parseFromFiles (file:rest) = do
       parseResult <- parseFromFile parseProgram file

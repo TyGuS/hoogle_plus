@@ -125,7 +125,7 @@ data SchemaSkeleton r =
   Monotype (TypeSkeleton r) |
   ForallT Id (SchemaSkeleton r) |       -- Type-polymorphic
   ForallP PredSig (SchemaSkeleton r)    -- Predicate-polymorphic
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Generic)
   
 toMonotype :: SchemaSkeleton r -> TypeSkeleton r
 toMonotype (Monotype t) = t

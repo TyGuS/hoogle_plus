@@ -5,11 +5,12 @@ packages:
   - '.'
 resolver: lts-6.21
 extra-deps:
-  - z3-4.3.1
+  # - z3-4.3.1
   - pqueue-1.4.1.1
   - sort-1.0.0.0
+  - hsc2hs-0.68.3
   # - extra-1.6.9
 # extra-include-dirs:
-#  - <z3-home>/src/api
+ # - /usr/include
 # extra-lib-dirs:
 #  - <z3-home>/build  

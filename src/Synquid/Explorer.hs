@@ -31,6 +31,8 @@ import Data.Char
 import qualified Data.Foldable as Foldable
 import qualified Data.PQueue.Prio.Max as PQ
 import Data.PQueue.Prio.Max (MaxPQueue)
+import qualified Data.PQueue.Prio.Min as MinPQ
+import Data.PQueue.Prio.Min (MinPQueue)
 -- import qualified Data.Sequence as Seq
 import Data.Sequence (Seq)
 import Data.Heap (MinHeap)
@@ -186,9 +188,9 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
       -- let tya = SuccinctDatatype ("ByteString", 0) Set.empty Set.empty Map.empty Set.empty
       -- let tyb = SuccinctDatatype ("Char", 0) Set.empty Set.empty Map.empty Set.empty
       -- let tyc = SuccinctDatatype ("String", 0) Set.empty Set.empty Map.empty Set.empty
-      -- let testGraph = HashMap.fromList [(tya, HashMap.fromList [(tyb, Set.fromList [SuccinctEdge "" 0 HashMap.empty]), (tyc, Set.fromList [SuccinctEdge "" 0 HashMap.empty])])
-      --                                  ,(tyb, HashMap.fromList [(tyc, Set.fromList [SuccinctEdge "" 0 HashMap.empty])])
-      --                                  ,(tyc, HashMap.fromList [(tyb, Set.fromList [SuccinctEdge "" 0 HashMap.empty])])]
+      -- let testGraph = HashMap.fromList [(tya, HashMap.fromList [(tyb, Set.fromList [SuccinctEdge "" 0 0]), (tyc, Set.fromList [SuccinctEdge "" 0 0])])
+      --                                  ,(tyb, HashMap.fromList [(tyc, Set.fromList [SuccinctEdge "" 0 0])])
+      --                                  ,(tyc, HashMap.fromList [(tyb, Set.fromList [SuccinctEdge "" 0 0])])]
       -- let graph = (env ^. graphFromGoal)
       -- tarjanSt <- liftIO $ tarjan graph
       -- liftIO $ print $ length $ components tarjanSt
@@ -856,8 +858,6 @@ generateSketch env xnode = do
 --                                  ++ (let s = Set.filter (\e -> (getEdgeId e /= "__goal__" && getEdgeId e /= "")) id 
 --                                      in if Set.null s then [] else [s]))
 
-type SuccinctGraph = HashMap SuccinctType (HashMap SuccinctType (Set SuccinctEdge))
-
 -- helper function to remove empty ids in a path
 removeTrailingEmpty path = case path of
   [] -> []
@@ -919,7 +919,7 @@ keepOnly :: Id -> SuccinctGraph -> SuccinctGraph
 keepOnly id g = 
   HashMap.foldrWithKey (\k m gr ->
     HashMap.insert k (HashMap.foldrWithKey (\k' s m' -> 
-      HashMap.insert k' (if Set.member id $ Set.map getEdgeId s then Set.singleton (SuccinctEdge id 0 HashMap.empty) else s) m') HashMap.empty m) gr
+      HashMap.insert k' (if Set.member id $ Set.map getEdgeId s then Set.singleton $ SuccinctEdge id 0 0 else s) m') HashMap.empty m) gr
   ) HashMap.empty g
 
 -- | Algorithms for pruning the graph by the distant @dist@ from the source node @src@
@@ -1054,70 +1054,134 @@ reverseGraph graph =
     ) HashMap.empty graph
 
 -- | eppstein k-best algorithm
+data HeapItem = HeapItem ((Double, Id), MinHeap HeapItem)
+data EppsteinPath = EppsteinPath {
+  eppPrefPath :: Int,  -- index of the pref path in the path list
+  eppHeap :: EppsteinHeap  -- the heap node
+}
+type EppsteinHeap = MinHeap HeapItem
+type EppsteinQueue = MinPQueue Double EppsteinPath
+data EppsteinState = EppsteinState {
+  eppQueue :: EppsteinQueue,
+  eppPaths :: [[Id]]
+}
+
 -- to find the k shortest path in a graph
-eppstein :: (MonadHorn s, MonadIO s) => SuccinctGraph -> SuccinctType -> SuccinctType -> Explorer s [Set SuccinctEdge]
-eppstein graph src dst = return []
+-- TODO: change all the heap values to their edges
+-- eppstein :: (MonadHorn s, MonadIO s) => SuccinctGraph -> SuccinctType -> SuccinctType -> Explorer s ()
+-- eppstein graph src dst = do
+--     shortestDist <- dijkstraDist <$> computeDijkstraState
+--     -- place the root heap onto the queue
+--     let pathQueue = MinPQ.singleton (fromJust $ HashMap.lookup src shortestDist) 
+--                                     $ EppsteinPath (-1) Heap.empty
+--     pickupNPath 1 pathQueue
+--   where
+--     initState = DijkstraState (HashMap.singleton src (0::Double)) HashMap.empty HashMap.empty
+--     initQueue = nub $ src:(HashMap.keys graph ++ concat (HashMap.elems $ HashMap.map HashMap.keys graph))
 
-  where
-    initState = DijkstraState (HashMap.singleton src (0::Double)) HashMap.empty HashMap.empty
-    initQueue = nub $ src:(HashMap.keys graph ++ concat (HashMap.elems $ HashMap.map HashMap.keys graph))
-    computeDijkstraState :: (MonadHorn s, MonadIO s) => Explorer s DijkstraState
-    computeDijkstraState = dijkstraHelper (reverseGraph graph) initState initQueue
-    -- hashmap from ids (component names) to their side track weights
-    computeSideTrack :: (MonadHorn s, MonadIO s) => Explorer s (HashMap Id Double)
-    computeSideTrack = do
-      shortestDist <- dijkstraDist <$> computeDijkstraState
-      foldrM (\(from, m) strack -> foldrM (\(to, edges) strack' -> do
-        -- search for weight of these ids
-        let edgeNames = Set.toList $ Set.map getEdgeId edges
-        ws <- liftIO $ getGraphWeights edgeNames
-        -- sidetrack(e) = len(e) + d(head(e), t) - d(tail(e), t)
-        return $ foldr (\(name, w) strack'' -> if name == "" -- skip the empty edges
-                                                then strack''
-                                                else HashMap.insert name 
-                                                     (w + HashMap.lookupDefault 0 to shortestDist - 
-                                                          HashMap.lookupDefault 0 from shortestDist) 
-                                                     strack'')  strack' $ zip edgeNames ws
-        ) strack $ HashMap.toList m) HashMap.empty $ HashMap.toList graph
-    -- heaps for each node of the outgoing edges from this node H_out(v)
-    -- hashMap from nodes (SuccinctType) to MinHeaps
-    computeNodeHeaps :: (MonadHorn s, MonadIO s) => Explorer s (HashMap SuccinctType (MinHeap (Double, Id)))
-    computeNodeHeaps = do
-      sidetracks <- computeSideTrack
-      return $ HashMap.foldrWithKey (\from m heaps -> HashMap.insert from (HashMap.foldrWithKey (\to edges heap -> do
-        -- construct the heap with sidetracks not equal to zero
-        Set.foldr Heap.insert heap $ Set.filter (((/=) 0) . fst) 
-        -- find the sidetrack for the edges from side track map
-        -- store both the side track value and the id of the edge for easier retrieval later
-                                   $ Set.map ((\elmt -> (HashMap.lookupDefault 0 elmt sidetracks, elmt)) . getEdgeId) edges
-        ) Heap.empty m) heaps) HashMap.empty graph
+--     computeDijkstraState :: (MonadHorn s, MonadIO s) => Explorer s DijkstraState
+--     computeDijkstraState = dijkstraHelper (reverseGraph graph) initState initQueue
 
-    computeOutrootHeapAt :: (MonadHorn s, MonadIO s) => SuccinctType -> Explorer s (MinHeap (Double, MinHeap (Double, Id)))
-    computeOutrootHeapAt curr = do
-      shortestTree <- dijkstraPrev <$> computeDijkstraState
-      nodeHeaps <- computeNodeHeaps
-      let currHeap = HashMap.lookupDefault Heap.empty curr nodeHeaps
-      let key = fst $ fromJust $ Heap.viewHead currHeap
-      case HashMap.lookup curr shortestTree of
-        -- if we are at the root of the shortest path tree
-        Nothing -> return $ Heap.singleton (key, currHeap)
-        -- if we are at other node of the tree, first recursively construct the parents 
-        -- and then add themselves to H_T(nextT(v))
-        Just next -> do
-          hnext <- computeOutrootHeapAt next
-          -- merge the current heap with this next heaps
-          return $ Heap.insert (key, currHeap) hnext
+--     -- hashmap from ids (component names) to their side track weights
+--     computeSideTrack :: (MonadHorn s, MonadIO s) => Explorer s (HashMap Id Double)
+--     computeSideTrack = do
+--       shortestDist <- dijkstraDist <$> computeDijkstraState
+--       foldrM (\(from, m) strack -> foldrM (\(to, edges) strack' -> do
+--         -- search for weight of these ids
+--         let edgeNames = Set.toList $ Set.map getEdgeId edges
+--         ws <- liftIO $ getGraphWeights edgeNames
+--         -- sidetrack(e) = len(e) + d(head(e), t) - d(tail(e), t)
+--         return $ foldr (\(name, w) strack'' -> if name == "" -- skip the empty edges
+--                                                 then strack''
+--                                                 else HashMap.insert name 
+--                                                      (w + HashMap.lookupDefault 0 to shortestDist - 
+--                                                           HashMap.lookupDefault 0 from shortestDist) 
+--                                                      strack'')  strack' $ zip edgeNames ws
+--         ) strack $ HashMap.toList m) HashMap.empty $ HashMap.toList graph
+--     -- heaps for each node of the outgoing edges from this node H_out(v)
+--     -- hashMap from nodes (SuccinctType) to MinHeaps
+--     buildOutheap heap edges = do
+--       sidetracks <- computeSideTrack
+--       -- construct the heap with sidetracks not equal to zero
+--       Set.foldr Heap.insert heap $ Set.filter (((/=) 0) . fst) 
+--       -- find the sidetrack for the edges from side track map
+--       -- store both the side track value and the id of the edge for easier retrieval later
+--                                  $ Set.map ((\elmt -> ((HashMap.lookupDefault 0 elmt sidetracks, elmt), Heap.empty)) . getEdgeId) edges
+    
+--     computeNodeHeaps :: (MonadHorn s, MonadIO s) => Explorer s (HashMap SuccinctType EppsteinHeap)
+--     computeNodeHeaps = do
+--       let heaps = HashMap.foldrWithKey (\from m heaps -> 
+--                                           HashMap.insert from 
+--                                           (HashMap.foldrWithKey (\to edges heap -> buildOutheap heap edges) Heap.empty m) heaps) 
+--                                        HashMap.empty graph
+--       return $ fromJust $ Heap.view heaps
 
-    -- heaps for H_T(v)
-    computeOutrootHeaps :: (MonadHorn s, MonadIO s) => Explorer s (MinHeap (Double, MinHeap (Double, Id)))
-    computeOutrootHeaps = do
-      -- H_T(v) is a heap of all of the "best" sidetrack edges for each node on the shortest path from v to T.
-      -- H_T(v) is computed by adding the lowest cost sidetrack edge of v to heap H_T(nextT(v)),
-      -- where nextT(v) is the parent node of node v in the shortest path tree rooted at the target node T.
-      -- start from the src node and recursively do this computation
-      computeOutrootHeapAt src
+--     computeOutrootHeapAt :: (MonadHorn s, MonadIO s) => SuccinctType -> Explorer s EppsteinHeap
+--     computeOutrootHeapAt curr = do
+--       shortestTree <- dijkstraPrev <$> computeDijkstraState
+--       nodeHeaps <- computeNodeHeaps
+--       let currHeap = fromJust $ HashMap.lookup curr nodeHeaps
+--       case HashMap.lookup curr shortestTree of
+--         -- if we are at the root of the shortest path tree
+--         Nothing -> return $ Heap.singleton currHeap
+--         -- if we are at other node of the tree, first recursively construct the parents 
+--         -- and then add themselves to H_T(nextT(v))
+--         Just next -> do
+--           hnext <- computeOutrootHeapAt next
+--           -- merge the current heap with this next heaps
+--           return $ Heap.insert currHeap hnext
 
+--     -- heaps for H_T(v)
+--     -- a helper function
+--     composeShare :: (a -> b -> c) -> (a -> b) -> a -> c
+--     composeShare f g x = f x (g x)
 
+--     computeOutrootHeaps :: (MonadHorn s, MonadIO s) => Explorer s (HashMap SuccinctType EppsteinHeap)
+--     computeOutrootHeaps = do
+--       -- H_T(v) is a heap of all of the "best" sidetrack edges for each node on the shortest path from v to T.
+--       -- H_T(v) is computed by adding the lowest cost sidetrack edge of v to heap H_T(nextT(v)),
+--       -- where nextT(v) is the parent node of node v in the shortest path tree rooted at the target node T.
+--       -- start from the src node and recursively do this computation
+--       -- to simulate the 3-heap with binary heap, we use a tuple of (Double, MinHeap)
+--       let nodes = allSuccinctNodes graph
+--       return $ Set.foldr (composeShare HashMap.insert computeOutrootHeapAt) HashMap.empty nodes
+
+--     toExplicitPath :: (MonadHorn s, MonadIO s) => EppsteinPath -> Explorer s [Id]
+--     toExplicitPath path = undefined
+
+--     getToNode id = head . HashMap.keys . map (HashMap.filter (Set.member id . Set.map getEdgeId)) $ HashMap.elems graph
+
+--     pickupNPath n _ | n == 0 = return ()
+--     pickupNPath n q = pickupNPath (n-1) <$> pickupPath q
+
+--     pickupPath :: (MonadHorn s, MonadIO s) => EppsteinState -> Explorer s EppsteinState
+--     pickupPath state = do
+--       let ksp = eppPaths state
+--       let pathQueue = eppQueue state
+--       outrootHeaps <- computeOutrootHeaps
+--       let (cost, kpathImplicit) = MinPQ.findMin pathQueue
+--       liftIO $ print $ toExplicitPath kpathImplicit
+
+--       let (root, remain) = fromJust $ Heap.view $ eppHeap kpathImplicit
+
+--       -- push the children of this path within the heap to the queue, up to 3
+--       let children = (snd root) : (Heap.take 2 remain)
+--       let prefPath = eppPrefPath kpathImplicit
+--       prefPathCost <- liftIO $ sum <$> getGraphWeights (ksp !! prefPath)
+--       let pathQueue' = foldr (\heap q -> let candidateCost = prefPathCost + (fst . fst . fromJust $ Heap.viewHead heap)
+--                                          in MinPQ.insert candidateCost 
+--                                                          (EppsteinPath prefPath heap) 
+--                                                          q) (MinPQ.deleteMin pathQueue) children
+
+--       -- push the cross edges to the queue, the potential 4th child of the current node
+--       sidetracks <- computeSideTrack
+--       let sidetrackId = snd $ fst root
+--       return $ EppsteinState (if HashMap.member sidetrackId sidetracks
+--                                 then MinPQ.insert (prefPathCost + HashMap.lookupDefault 0 sidetrackId sidetracks)
+--                                                   (EppsteinPath (length ksp - 1) (fromJust $ HashMap.lookup (getToNode sidetrackId) outrootHeaps))
+--                                                   pathQueue'
+--                                 else pathQueue')
+--                               ksp
 
 pathAtFromTo :: (MonadHorn s, MonadIO s) => Environment -> SuccinctType -> SuccinctType -> Int -> Explorer s [Set SuccinctEdge]
 pathAtFromTo env src dst len = pathAtFromToHelper (env ^. graphFromGoal) [Node src []]
@@ -1644,7 +1708,8 @@ addSuccinctEdge name t env = do
       let starters = Set.toList $ Set.filter (\typ -> isSuccinctInhabited typ || isSuccinctFunction typ || typ == (SuccinctScalar BoolT) || hasSuccinctAny typ) (allSuccinctNodes env')
       let reachableSet = (getReachableNodes env' starters) `Set.intersection` subgraphNodes
       let graphEnv = env' { _graphFromGoal = pruneGraphByReachability (env' ^. succinctGraph) reachableSet }
-      distFromNode goalTy  graphEnv
+      -- distFromNode goalTy  graphEnv
+      return graphEnv
   where
     getSuccinctTy tt = case toSuccinctType tt of
       SuccinctAll vars ty -> SuccinctAll vars (refineSuccinctDatatype name ty env)

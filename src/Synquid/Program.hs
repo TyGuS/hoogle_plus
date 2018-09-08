@@ -31,7 +31,7 @@ data Case t = Case {
   constructor :: Id,      -- ^ Constructor name
   argNames :: [Id],       -- ^ Bindings for constructor arguments
   expr :: Program t       -- ^ Result of the match in this case
-} deriving (Eq, Ord, Functor)
+} deriving (Eq, Ord, Functor, Generic)
     
 -- | Program skeletons parametrized by information stored symbols, conditionals, and by node types
 data BareProgram t =
@@ -44,13 +44,13 @@ data BareProgram t =
   PLet Id (Program t) (Program t) |           -- ^ Let binding
   PHole |                                     -- ^ Hole (program to fill in)
   PErr                                        -- ^ Error
-  deriving (Eq, Ord, Functor)
+  deriving (Eq, Ord, Functor, Generic)
   
 -- | Programs annotated with types  
 data Program t = Program {
   content :: BareProgram t,
   typeOf :: t
-} deriving (Functor)
+} deriving (Functor, Generic)
 
 instance Eq (Program t) where
   (==) (Program l _) (Program r _) = l == r
@@ -163,13 +163,13 @@ data DatatypeDef = DatatypeDef {
   _predVariances :: [Bool],         -- ^ For each predicate parameter, whether it is contravariant
   _constructors :: [Id],            -- ^ Constructor names
   _wfMetric :: Maybe Id             -- ^ Name of the measure that serves as well founded termination metric
-} deriving (Eq, Ord)
+} deriving (Eq, Ord, Generic)
 
 makeLenses ''DatatypeDef
 
 -- | One case in a measure definition: constructor name, arguments, and body  
 data MeasureCase = MeasureCase Id [Id] Formula
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Generic)
 
 -- | User-defined measure function representation
 data MeasureDef = MeasureDef {
@@ -177,7 +177,7 @@ data MeasureDef = MeasureDef {
   _outSort :: Sort,
   _definitions :: [MeasureCase],
   _postcondition :: Formula
-} deriving (Eq, Ord)
+} deriving (Eq, Ord, Generic)
 
 makeLenses ''MeasureDef
 
@@ -191,20 +191,24 @@ makeLenses ''SuccinctContext
 data SuccinctEdge = SuccinctEdge {
   _symbolId :: Id,
   _params :: Int,
-  _weight :: HashMap SuccinctContext Double
-} deriving (Eq, Generic)
+  _weight :: Double
+} deriving (Show, Generic)
+
+instance Eq (SuccinctEdge) where
+  (==) (SuccinctEdge id1 params1 w1) (SuccinctEdge id2 params2 w2) = id1 == id2 && params1 == params2 && w1 == w2
 
 instance Ord (SuccinctEdge) where
-  (<=) (SuccinctEdge id1 params1 _) (SuccinctEdge id2 params2 _) = id1 < id2 || ((id1 == id2) && params1 <= params2)
+  (<=) (SuccinctEdge id1 params1 w1) (SuccinctEdge id2 params2 w2) = id1 <= id2 && params1 <= params2 && w1 <= w2
 
 makeLenses ''SuccinctEdge
 
 getEdgeId (SuccinctEdge id _ _) = id
+getEdgeWeight (SuccinctEdge _ _ w) = w
 
 data Metadata = Metadata {
   _distFromGoal :: Int,
   _mWeight :: Double
-} deriving(Eq, Show)
+} deriving(Eq, Show, Generic)
 
 makeLenses ''Metadata
 
@@ -245,7 +249,7 @@ data Environment = Environment {
   _measures :: Map Id MeasureDef,          -- ^ Measure definitions
   _typeSynonyms :: Map Id ([Id], RType),   -- ^ Type synonym definitions
   _unresolvedConstants :: Map Id RSchema   -- ^ Unresolved types of components (used for reporting specifications with macros)
-}
+} deriving(Generic)
 
 makeLenses ''Environment
 
@@ -524,7 +528,8 @@ data Goal = Goal {
 } deriving (Eq, Ord)
 
 unresolvedType env ident = (env ^. unresolvedConstants) Map.! ident
-unresolvedSpec goal = unresolvedType (gEnvironment goal) (gName goal)
+-- unresolvedSpec goal = unresolvedType (gEnvironment goal) (gName goal)
+unresolvedSpec goal = gSpec goal
 
 -- | analysis of program components for exploration convenience
 depth (Program p (_,t,_)) = case p of

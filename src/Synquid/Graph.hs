@@ -47,6 +47,7 @@ addGraphSymbol name sch env = do
   newt <- instantiate sch
   let succinctTy = toSuccinctType newt
   traceShow (plain $ text "Adding" <+> text name <+> text "::" <+> pretty succinctTy <+> text "for" <+> pretty newt) $ return ()
+  -- traceShow (plain $ text "polysymbols" <+> pretty (HashMap.size $ HashMap.filter isSuccinctAll $ env ^. succinctSymbols)) $ return ()
   case newt of
     (LetT id tDef tBody) -> do
       env' <- addGraphSymbol id (Monotype tDef) env
@@ -60,10 +61,11 @@ addEdgeForSymbol name succinctTy env = let
   where
     allConcreteNodes env = Set.filter isSuccinctConcrete $ allSuccinctNodes env
     polySymbols env = HashMap.filter isSuccinctAll (env ^. succinctSymbols)
+    newArrivedNodes oldEnv newEnv = allConcreteNodes newEnv `Set.difference` allConcreteNodes oldEnv
     iteration oldEnv newEnv = 
-      if Set.null $ allConcreteNodes newEnv `Set.difference` allConcreteNodes oldEnv
+      if Set.null $ newArrivedNodes oldEnv newEnv
         then newEnv
-        else iteration newEnv $ HashMap.foldrWithKey (addPolyEdge $ allConcreteNodes newEnv) newEnv $ polySymbols newEnv
+        else iteration newEnv $ HashMap.foldrWithKey (addPolyEdge $ newArrivedNodes oldEnv newEnv) newEnv $ polySymbols newEnv
 
 addPolyEdge :: Set SuccinctType -> Id -> SuccinctType -> Environment -> Environment
 addPolyEdge targets name (SuccinctAll idSet ty) env 
@@ -90,10 +92,10 @@ addEdge :: Id -> SuccinctType -> Environment -> Environment
 addEdge name (SuccinctFunction paramCnt argSet retTy) env = 
   let argTy = SuccinctComposite paramCnt argSet
       addedRevEnv = (succinctGraphRev %~ HashMap.insertWith Set.union argTy (Set.singleton retTy)) env
-      addedRetEnv = (succinctGraph %~ HashMap.insertWith mergeMapOfSet retTy (HashMap.singleton argTy (Set.singleton (SuccinctEdge {_symbolId = name, _params = paramCnt, _weight = HashMap.empty})))) addedRevEnv
+      addedRetEnv = (succinctGraph %~ HashMap.insertWith mergeMapOfSet retTy (HashMap.singleton argTy (Set.singleton $ SuccinctEdge name paramCnt 0))) addedRevEnv
   in Set.foldr (\elem acc -> 
     let revEnv = (succinctGraphRev %~ HashMap.insertWith Set.union elem (Set.singleton argTy)) acc
-    in (succinctGraph %~ HashMap.insertWith mergeMapOfSet argTy (HashMap.singleton elem (Set.singleton (SuccinctEdge {_symbolId = "", _params = 0, _weight = HashMap.empty})))) revEnv
+    in (succinctGraph %~ HashMap.insertWith mergeMapOfSet argTy (HashMap.singleton elem (Set.singleton $ SuccinctEdge "" 0 0))) revEnv
     ) addedRetEnv argSet
 addEdge name typ@(SuccinctAll idSet ty) env = 
   (if isAllBound env (extractSuccinctTyVars (lastSuccinctType ty))
@@ -101,7 +103,7 @@ addEdge name typ@(SuccinctAll idSet ty) env =
     else id) $ addPolyEdge (Set.filter isSuccinctConcrete (allSuccinctNodes env)) name typ env
 addEdge name typ env = 
   let inhabitedEnvRev = (succinctGraphRev %~ HashMap.insertWith Set.union (SuccinctInhabited typ) (Set.singleton typ)) env
-      inhabitedEnv = (succinctGraph %~ HashMap.insertWith mergeMapOfSet typ (HashMap.singleton (SuccinctInhabited typ) (Set.singleton (SuccinctEdge {_symbolId = name, _params = 0, _weight = HashMap.empty})))) inhabitedEnvRev
+      inhabitedEnv = (succinctGraph %~ HashMap.insertWith mergeMapOfSet typ (HashMap.singleton (SuccinctInhabited typ) (Set.singleton $ SuccinctEdge name 0 0))) inhabitedEnvRev
   in inhabitedEnv
 
 allSuccinctNodes :: Environment -> Set SuccinctType
@@ -173,6 +175,7 @@ pruneGraphByReachability g reachableSet = HashMap.foldrWithKey (\k v acc -> if S
 
 type SGraph = HashMap SuccinctType (HashMap SuccinctType (Set SuccinctEdge))
 -- type NGraph = HashMap Node (HashMap Node (Set SuccinctEdge))
+type SuccinctGraph = HashMap SuccinctType (HashMap SuccinctType (Set SuccinctEdge))
 
 -- toNGraph g = HashMap.foldrWithKey (\k v acc -> HashMap.insert (toNode k) (HashMap.foldrWithKey (\k' v' acc' -> HashMap.insert (toNode k') v' acc') acc v)) HashMap.empty g
 
@@ -211,8 +214,18 @@ instance Serialize UnOp
 instance Serialize BinOp
 instance Serialize SuccinctContext
 instance Serialize SuccinctEdge
+instance Serialize Environment
+instance Serialize PredSig
+instance Serialize DatatypeDef
+instance Serialize MeasureCase
+instance Serialize MeasureDef
+instance Serialize Metadata
+instance Serialize t => Serialize (Case t)
+instance Serialize t => Serialize (BareProgram t)
+instance Serialize t => Serialize (Program t)
 instance Serialize r => Serialize (TypeSkeleton r)
 instance Serialize r => Serialize (BaseType r)
+instance Serialize r => Serialize (SchemaSkeleton r)
 
 edges isPruned env = HashMap.foldrWithKey (\k v acc -> (map (\(k',v') -> (k,v',k')) (HashMap.toList v)) ++ acc) [] (if isPruned then env ^. graphFromGoal else env ^. succinctGraph)
 
@@ -235,5 +248,5 @@ showGraphViz isPruned env =
   (concatMap showEdge $ edges isPruned env) ++
   "}\n"
   where showEdge (from, t, to) = "\"" ++ (show from) ++ "\"" ++ " -> " ++ "\"" ++(show to) ++"\"" ++
-                                 " [label = \"" ++ (Set.foldr (\(SuccinctEdge s params _) str -> str++","++s) "" t) ++ "\"];\n"
+                                 " [label = \"" ++ (Set.foldr (\e str -> str++","++(show e)) "" t) ++ "\"];\n"
         showNode v = "\"" ++(show v) ++ "\"" ++"\n"

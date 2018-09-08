@@ -25,6 +25,7 @@ executable synquid
                     , FlexibleInstances
                     , TypeSynonymInstances
                     , FlexibleContexts
+                    , CPP
 
   build-depends:      base >=4.6 && <4.9
                     , containers >=0.5 && <0.6
@@ -36,7 +37,6 @@ executable synquid
                     , ansi-terminal >=0.6
                     , html ==1.*
                     , bimap >= 0.2
-                    , z3 > 4.0
                     , logict >= 0.5
                     , parsec == 3.1.*
                     , indents == 0.3.*
@@ -65,9 +65,17 @@ executable synquid
                     , sort
                     , cereal
                     , heap
+                    , process
 
-
-  ghc-options: -O2
+  Build-tools:         hsc2hs
+  ghc-options:   -O2
+  includes:            z3.h
+  -- In OS X libz3 is linked statically against libgomp.
+  -- In Windows Z3 is compiled using MS C++.
+  if os(darwin) || os(windows)
+      extra-libraries:     z3
+  else
+      extra-libraries:     gomp z3 gomp
 
   hs-source-dirs:     src
   default-language:   Haskell2010
