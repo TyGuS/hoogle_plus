@@ -24,6 +24,10 @@ import Database.Generate
 import Database.Download
 import Database.Util
 import Database.GraphWeightsProvider
+-- TODO for test of z3
+import Synquid.GraphConstraintSolver
+import Synquid.Succinct
+import Z3.Monad (evalZ3)
 
 import Control.Monad
 import Control.Lens ((^.))
@@ -55,10 +59,6 @@ import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import Text.PrettyPrint.ANSI.Leijen (fill, column)
 
 import Data.List.Split
--- TODO experiment
-import qualified Z3.Base as Z3
-import System.Process
-import GHC.IO.Handle
 
 programName = "synquid"
 versionName = "0.4"
@@ -471,6 +471,17 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
   -- additionalDts <- evalStateT (packageDependencies pkgName) 0
   -- let decls = reorderDecls $ nub $ defaultDts ++ additionalDts ++ parsedDecls ++ targetDecl
   -- print decls
+  -- let tya = SuccinctDatatype ("ByteString", 0) Set.empty Set.empty Map.empty Set.empty
+  -- let tyb = SuccinctDatatype ("Builder", 0) Set.empty Set.empty Map.empty Set.empty
+  -- let tyc = SuccinctDatatype ("Int64", 0) Set.empty Set.empty Map.empty Set.empty
+  -- let tye = SuccinctInhabited tyc
+  -- let tyf = SuccinctInhabited tya
+  -- let testGraph = HashMap.fromList [(tya, HashMap.fromList [(tyb, Set.fromList [SuccinctEdge "e1" 0 1.1]), (tyf, Set.fromList [SuccinctEdge "e5" 0 1.1])])
+  --                                  ,(tyb, HashMap.fromList [(tyc, Set.fromList [SuccinctEdge "e2" 0 2.2])])
+  --                                  -- ,(tyd, HashMap.fromList [(tyc, Set.fromList [SuccinctEdge "e3" 0 3.3])])
+  --                                  ,(tyc, HashMap.fromList [(tye, Set.fromList [SuccinctEdge "e4" 0 4.4])])
+  --                                  ]
+  -- evalZ3 $ solveGraphConstraints testGraph tya ["e4"]
   goal <- parseGoal file
   -- let declsByFile = [(pkgName, decls)]
   -- case resolveDecls decls of
@@ -503,7 +514,8 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
       envRes <- decode <$> B.readFile "data/env.db"
       case envRes of
         Left err -> error err
-        Right env -> return $ goal {
+        Right env -> do
+          return $ goal {
             gEnvironment = env
           }
       -- graphRes <- decode <$> B.readFile "data/graph.db"

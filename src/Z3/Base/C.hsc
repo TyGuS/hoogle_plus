@@ -1517,6 +1517,12 @@ foreign import ccall unsafe "Z3_optimize_from_string"
 foreign import ccall unsafe "Z3_optimize_get_model"
   z3_optimize_get_model :: Ptr Z3_context -> Ptr Z3_optimize -> IO (Ptr Z3_model)
 
+foreign import ccall unsafe "Z3_optimize_get_assertions"
+  z3_optimize_get_assertions :: Ptr Z3_context -> Ptr Z3_optimize -> IO (Ptr Z3_ast_vector)
+
+foreign import ccall unsafe "Z3_optimize_get_objectives"
+  z3_optimize_get_objectives :: Ptr Z3_context -> Ptr Z3_optimize -> IO (Ptr Z3_ast_vector)
+
 ---------------------------------------------------------------------
 -- * Error Handling
 

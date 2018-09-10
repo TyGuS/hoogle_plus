@@ -74,6 +74,7 @@ module Z3.Base (
   , Tactic
   , ApplyResult
   , Goal
+  , Optimize
   -- ** Satisfiability result
   , Result(..)
 
@@ -435,6 +436,8 @@ module Z3.Base (
   , optimizeAssertSoft
   , optimizeCheck
   , optimizeGetModel
+  , optimizeGetAssertions
+  , optimizeGetObjectives
   ) where
 
 import Z3.Base.C
@@ -2494,6 +2497,12 @@ optimizeGetModel :: Context -> Optimize -> IO Model
 optimizeGetModel ctx opt = marshal z3_optimize_get_model ctx $ \f ->
   h2c opt $ \optPtr ->
     f optPtr
+
+optimizeGetAssertions :: Context -> Optimize -> IO [AST]
+optimizeGetAssertions = liftFun1 z3_optimize_get_assertions
+
+optimizeGetObjectives :: Context -> Optimize -> IO [AST]
+optimizeGetObjectives = liftFun1 z3_optimize_get_objectives
 
 ---------------------------------------------------------------------
 -- Error handling

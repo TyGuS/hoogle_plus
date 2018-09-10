@@ -1,100 +1,137 @@
-module Synquid.GraphConstraintSolver where
+module Synquid.GraphConstraintSolver
+(
+    solveGraphConstraints
+) where
 
 import Synquid.Succinct
-import Synquid.Graph
+import Synquid.Graph hiding (nodes, edges)
+import Synquid.Program
+import Synquid.Util
 
-import qualified Z3.Base as Z3
-import Z3.Base (Context, Optimize, AST)
+import Data.List
+import Data.Maybe
+import qualified Z3.Monad as Z3
+import Z3.Base (Context, Optimize)
+import Z3.Monad (AST, MonadZ3)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
+import Control.Monad.State
 
---* path constaints
+-- * path constaints
 -- constraints for each node
 -- For a simple node: V ⇒ (E1 ∨ … ∨ En) for all outgoing edges and similar for incoming edges. 
 -- For a compound node V ⇒ (E1 ∧ … ∧ En) for incoming edges.
-nodeConstraint :: Context -> SuccinctGraph -> SuccinctType -> IO [AST]
-nodeConstraint ctx graph v = do
-    let ins = Set.toList $ allIncomingEdges graph v
-    let outs = Set.toList $ allOutgoingEdges graph v
-    boolS <- Z3.mkBoolSort ctx
-    inSyms <- mapM (Z3.mkStringSymbol ctx) ins
-    outSyms <- mapM (Z3.mkStringSymbol ctx) outs
-    vSym <- Z3.mkStringSymbol ctx (show v)
-    vConst <- Z3.mkConst ctx vSym boolS
-    inConsts <- mapM (\sym -> Z3.mkConst ctx sym boolS) inSyms
-    outConst <- mapM (\sym -> Z3.mkConst ctx sym boolS) outSyms
-    -- our graph here has reversed arrows as our design, be careful when reading this
+nodeConstraint :: MonadZ3 z3 => SuccinctGraph -> SuccinctType -> z3 ()
+nodeConstraint graph v = do
+    let ins = allIncomingEdges graph v
+    let outs = allOutgoingEdges graph v
+    boolS <- Z3.mkBoolSort
+    inSyms <- mapM Z3.mkStringSymbol ins
+    outSyms <- mapM Z3.mkStringSymbol outs
+    vSym <- Z3.mkStringSymbol (show v)
+    vConst <- Z3.mkConst vSym boolS
+    inConsts <- mapM (\sym -> Z3.mkConst sym boolS) inSyms
+    outConsts <- mapM (\sym -> Z3.mkConst sym boolS) outSyms
+    -- our graph here has reversed arrows as our theory design, be careful when reading this
     -- all incoming edges here are randomly selected
-    inCond <- Z3.mkOr ctx inConsts
-    nodeIn <- Z3.mkImplies ctx vConst inCond
+    if length inConsts > 0 
+        then Z3.mkOr inConsts >>= Z3.mkImplies vConst >>= Z3.optimizeAssert
+        else return ()
 
     -- predicates for outgoing edges depend on node type
-    outCond <- case v of
-                SuccinctComposite _ _ -> Z3.mkAnd ctx outConsts
-                _ -> Z3.mkOr ctx inConsts
-    nodeOut <- Z3.mkImplies ctx vConst outCond
-    return [nodeIn, nodeOut]
+    if length outConsts > 0
+        then case v of
+            SuccinctComposite _ -> Z3.mkAnd outConsts >>= Z3.mkImplies vConst >>= Z3.optimizeAssert
+            _                   -> Z3.mkOr  outConsts >>= Z3.mkImplies vConst >>= Z3.optimizeAssert
+        else return ()
+    -- return [nodeIn, nodeOut]
 
 -- For every edge: E ⇒ (V1 ∧ V2) for its start and end node. 
-edgeConstraint :: Context -> SuccinctGraph -> Id -> IO AST
-edgeConstraint ctx graph e = do
+edgeConstraint :: MonadZ3 z3 => SuccinctGraph -> Id -> z3 ()
+edgeConstraint graph e = do
     let nodes = verticesOf graph e
-    boolS <- Z3.mkBoolSort ctx
-    edgeSym <- Z3.mkStringSymbol ctx e
-    edgeConst <- Z3.mkConst ctx edgeSym boolS
-    nodeSyms <- mapM (Z3.mkStringSymbol ctx) nodes
-    nodeConsts <- mapM (\sym -> Z3.mkConst ctx sym boolS) nodeSyms
-    nodeCond <- Z3.mkAnd ctx nodeConsts
-    edgeCond <- Z3.mkImplies edgeConst nodeCond
-    return edgeCond
+    -- liftIO $ print e
+    -- liftIO $ print nodes
+    boolS <- Z3.mkBoolSort
+    edgeSym <- Z3.mkStringSymbol e
+    edgeConst <- Z3.mkConst edgeSym boolS
+    nodeSyms <- mapM (Z3.mkStringSymbol . show) nodes
+    nodeConsts <- mapM (\sym -> Z3.mkConst sym boolS) nodeSyms
+    nodeCond <- Z3.mkAnd nodeConsts
+    Z3.mkImplies edgeConst nodeCond >>= Z3.optimizeAssert
 
-solveGraphConstraints :: SuccinctGraph -> [SuccinctType] -> IO ()
-solveGraphConstraints graph mustContain = do
+getKSolutions :: MonadZ3 z3 => [AST] -> [AST] -> z3 ()
+getKSolutions edgeConsts nodeConsts = getKSolutions' 10
+  where
+    getKSolutions' n | n == 0 = return ()
+    getKSolutions' n = do
+        -- print the results
+        
+        liftIO $ putStrLn $ "Searching for the next path..."
+        res <- Z3.optimizeCheck
+        model <- Z3.optimizeGetModel
+        satEdges <- filterM (liftM fromJust . Z3.evalBool model) edgeConsts
+        satNodes <- filterM (liftM fromJust . Z3.evalBool model) nodeConsts
+        es <- mapM Z3.astToString satEdges
+        ns <- mapM Z3.astToString satNodes
+        liftIO $ putStrLn $ "Selected edges:"
+        liftIO $ mapM putStrLn es
+        liftIO $ putStrLn $ "Selected nodes:"
+        liftIO $ mapM putStrLn ns
+        let satPath = satEdges ++ satNodes
+        Z3.mkAnd satPath >>= Z3.mkNot >>= Z3.optimizeAssert
+        getKSolutions' (n-1)
+
+solveGraphConstraints :: MonadZ3 z3 => SuccinctGraph -> SuccinctType -> [Id] -> z3 ()
+solveGraphConstraints graph goal args = do
     let nodes = allNodes graph -- list of succinct types
     let edges = allEdges graph -- list of succinct edges
-    cfg <- Z3.mkConfig
-    ctx <- Z3.mkContext cfg
-    opt <- Z3.mkOptimize ctx
-
+    -- liftIO $ print edges
     -- generate all related constraints
-    boolS <- Z3.mkBoolSort ctx
-    nodeSyms <- mapM (Z3.mkStringSymbol ctx . show) nodes
-    nodeConsts <- mapM (\sym -> Z3.mkConst ctx sym boolS) nodeSyms
-    edgeSyms <- mapM (Z3.mkStringSymbol ctx . getEdgeId) edges
-    edgeConsts <- mapM (\sym -> Z3.mkConst ctx sym boolS) edgeSyms
-    nodeConts <- mapM (nodeConstraint ctx graph) nodes
-    edgeConts <- mapM (edgeConstraint ctx graph . getEdgeId) edges
+    boolS <- Z3.mkBoolSort
+    nodeSyms <- mapM (Z3.mkStringSymbol . show) nodes
+    nodeConsts <- mapM (\sym -> Z3.mkConst sym boolS) nodeSyms
+    edgeSyms <- mapM (Z3.mkStringSymbol . getEdgeId) edges
+    edgeConsts <- mapM (\sym -> Z3.mkConst sym boolS) edgeSyms
 
     -- add assertions to the optimization
     -- hard constraints for path connectivity
-    mapM (Z3.optimizeAssert ctx opt) (concat nodeConts ++ edgeConts)
+    mapM_ (nodeConstraint graph) nodes
+    mapM_ (edgeConstraint graph . getEdgeId) edges    
+    -- mapM_ Z3.optimizeAssert (concat nodeConts ++ edgeConts)
+
     -- hard constraints for contain both the goal node and the arg nodes
-    mustContainSyms <- mapM (Z3.mkStringSymbol ctx . show) mustContain
-    mustContainConsts <- mapM (\sym -> Z3.mkConst ctx sym boolS) mustContainSyms
-    mapM (Z3.optimizeAssert ctx opt) mustContainConsts
+    let mustContain = (show goal):args
+    mustContainSyms <- mapM Z3.mkStringSymbol mustContain
+    mustContainConsts <- mapM (\sym -> Z3.mkConst sym boolS) mustContainSyms
+    mapM_ Z3.optimizeAssert mustContainConsts
+
     -- soft constraints for contain edges
-    groupSym <- Z3.mkStringSymbol ctx "path"
-    mapM (\(ast, weight) -> Z3.optimizeAssertSoft ctx opt ast weight groupSym) 
+    groupSym <- Z3.mkStringSymbol "path"
+    mapM_ (\(ast, weight) -> do
+            notAst <- Z3.mkNot ast
+            Z3.optimizeAssertSoft notAst weight groupSym) 
          $ zip edgeConsts (map (show . getEdgeWeight) edges)
 
-    -- print the results
-    Z3.optimizeCheck ctx opt >>= print
-    Z3.optimizeGetModel ctx opt >>= Z3.modelToString ctx >>= putStrLn
+    asserts <- Z3.optimizeGetAssertions >>= mapM Z3.astToString 
+    -- liftIO $ mapM putStrLn asserts
+    getKSolutions edgeConsts nodeConsts
 
 -- util functions
-allIncomingEdges graph v = 
+allIncomingEdges graph v = Set.toList $ Set.filter (not . isInfixOf "__goal__") $
     HashMap.foldrWithKey (\from m res -> 
-        res `Set.union` HashMap.filterWithKey (\to set -> if to == v then Set.map getEdgeId set else Set.empty) m
+        HashMap.foldrWithKey (\to set res' -> if to == v then res' `Set.union` Set.map getEdgeId set else res') res m
         ) Set.empty graph
 
-allOutgoingEdges graph v = 
+allOutgoingEdges graph v = Set.toList $ Set.filter (not . isInfixOf "__goal__") $
     Set.map getEdgeId $ Set.unions $ HashMap.elems $ HashMap.lookupDefault HashMap.empty v graph
 
 -- | get the from and to nodes for an edge
 verticesOf graph e = 
     HashMap.foldrWithKey (\from m res ->
-        HashMap.foldrWithKey (\to set res' -> if e `Set.member` Set.map getEdgeId set then [from,to] else res')
+        HashMap.foldrWithKey (\to set res' -> if e `Set.member` Set.map getEdgeId set then [from,to] else res') res m
         ) [] graph
 
-allNodes graph = nub $ HashMap.keys ++ (concat . elems $ HashMap.map HashMap.keys graph)
-allEdges graph = Set.toList . Set.unions . concat . map HashMap.elems $ HashMap.elems graph
+allNodes graph = nub $ HashMap.keys graph ++ (concat . HashMap.elems $ HashMap.map HashMap.keys graph)
+allEdges graph = -- filter (not . isInfixOf "__goal__" . getEdgeId) $ 
+    Set.toList . Set.unions . concat . map HashMap.elems $ HashMap.elems graph

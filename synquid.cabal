@@ -66,6 +66,7 @@ executable synquid
                     , cereal
                     , heap
                     , process
+                    , regex-compat
 
   Build-tools:         hsc2hs
   ghc-options:   -O2

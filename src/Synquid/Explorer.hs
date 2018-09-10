@@ -17,6 +17,7 @@ import Synquid.Succinct
 import Synquid.Graph hiding (instantiate)
 import Database.GraphWeightsProvider
 import Database.Util
+import Synquid.GraphConstraintSolver
 
 import Data.Maybe
 import Data.List
@@ -44,6 +45,7 @@ import Control.Monad.Reader
 import Control.Applicative hiding (empty)
 import Control.Lens hiding (index, indices)
 import Debug.Trace
+import Z3.Monad (evalZ3)
 
 {- Interface -}
 
@@ -184,20 +186,7 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
   pathEnabled <- asks . view $ _1 . pathSearch
   if pathEnabled
     then do
-      -- TODO test tarjan
-      -- let tya = SuccinctDatatype ("ByteString", 0) Set.empty Set.empty Map.empty Set.empty
-      -- let tyb = SuccinctDatatype ("Char", 0) Set.empty Set.empty Map.empty Set.empty
-      -- let tyc = SuccinctDatatype ("String", 0) Set.empty Set.empty Map.empty Set.empty
-      -- let testGraph = HashMap.fromList [(tya, HashMap.fromList [(tyb, Set.fromList [SuccinctEdge "" 0 0]), (tyc, Set.fromList [SuccinctEdge "" 0 0])])
-      --                                  ,(tyb, HashMap.fromList [(tyc, Set.fromList [SuccinctEdge "" 0 0])])
-      --                                  ,(tyc, HashMap.fromList [(tyb, Set.fromList [SuccinctEdge "" 0 0])])]
-      -- let graph = (env ^. graphFromGoal)
-      -- tarjanSt <- liftIO $ tarjan graph
-      -- liftIO $ print $ length $ components tarjanSt
-      -- liftIO $ print $ length . nub $ (HashMap.keys graph) ++ (HashMap.foldr ((++) . HashMap.keys) [] graph)
-      -- liftIO $ print $ indices tarjanSt
-      -- liftIO $ print $ lowlink tarjanSt
-      -- liftIO $ writeFile "test.log" $ showGraphViz True env
+      liftIO $ writeFile "test.log" $ showGraphViz True env
       splitGoal env t
     else do
       maEnabled <- asks . view $ _1 . abduceScrutinees -- Is match abduction enabled?
@@ -649,6 +638,9 @@ initProgramQueue env typ = do
 -- there exists a permutation of these parameters to satisfy the final solution
 splitGoal :: (MonadHorn s, MonadIO s) => Environment -> RType -> Explorer s RProgram
 splitGoal env t = do
+  let goalTy = lastSuccinctType $ findSuccinctSymbol "__goal__"
+  let params = Map.keys (env ^. arguments)
+  liftIO $ evalZ3 $ solveGraphConstraints (env ^. graphFromGoal) goalTy params
   -- pick up a node as the possible intersection of the paths to both the goal type and parameter types
   -- TODO how to sort these nodes to get the most likely composite node first?
   auxd <- asks . view $ _1 . auxDepth
@@ -667,6 +659,8 @@ splitGoal env t = do
     writeLog 2 $ text "find a partial program" <+> pretty p
     return p
     ) allNodes
+  where
+    findSuccinctSymbol sym = outOfSuccinctAll $ HashMap.lookupDefault SuccinctAny sym $ env ^. succinctSymbols
  
 withinAuxDepth env d [] = d >= 0
 withinAuxDepth env d (p:ps) = if d < 0
@@ -679,8 +673,8 @@ withinAuxDepth env d (p:ps) = if d < 0
 
 generateSketch :: (MonadHorn s, MonadIO s) => Environment -> SuccinctType -> Explorer s SProgram
 generateSketch env xnode = do
-  let SuccinctComposite cnt tys = xnode
-  guard ((Map.size (env ^. arguments) <= 1) || cnt >= 2)
+  let SuccinctComposite tys = xnode
+  -- guard ((Map.size (env ^. arguments) <= 1) || cnt >= 2)
   writeLog 2 $ text "Trying" <+> pretty xnode
   -- writeLog 2 $ text $ showGraphViz True env
   -- randomly select two types as the source node from the composite set
@@ -731,7 +725,7 @@ generateSketch env xnode = do
       auxd <- asks . view $ _1 . auxDepth
       -- let allGoalPaths = pathAtFromTo2 env goalTy xnode dp
       -- writeLog 2 $ text "the number of paths from goal is" <+> pretty (length allGoalPaths)
-      let SuccinctComposite cnt tys = xnode
+      -- let SuccinctComposite tys = xnode
       let goalTy = lastSuccinctType $ findSuccinctSymbol "__goal__"
       goalPath <- findPathTo 1 goalTy xnode "" -- pathAtFromTo env goalTy xnode dp
       if withinAuxDepth env auxd goalPath && not (null goalPath)

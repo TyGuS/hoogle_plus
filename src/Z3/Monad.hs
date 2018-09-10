@@ -378,6 +378,13 @@ module Z3.Monad
   , solverGetUnsatCore
   , solverGetReasonUnknown
   , solverToString
+  -- * Optimizations
+  , optimizeAssert
+  , optimizeAssertSoft
+  , optimizeGetModel
+  , optimizeGetObjectives
+  , optimizeGetAssertions
+  , optimizeCheck
   -- ** Helpers
   , assert
   , check
@@ -438,6 +445,7 @@ import qualified Data.Traversable as T
 class (Applicative m, Monad m, MonadIO m) => MonadZ3 m where
   getSolver  :: m Base.Solver
   getContext :: m Base.Context
+  getOptimize :: m Base.Optimize
 
 -------------------------------------------------
 -- Lifting
@@ -493,6 +501,34 @@ liftSolver2 f a b = do
   slv <- getSolver
   liftIO $ f ctx slv a b
 
+liftOptimize0 :: MonadZ3 z3 =>
+       (Base.Context -> Base.Optimize -> IO b)
+    -> z3 b
+liftOptimize0 f_s =
+  do ctx <- getContext
+     liftIO . f_s ctx =<< getOptimize
+
+liftOptimize1 :: MonadZ3 z3 =>
+       (Base.Context -> Base.Optimize -> a -> IO b)
+    -> a -> z3 b
+liftOptimize1 f_s a =
+  do ctx <- getContext
+     liftIO . (\s -> f_s ctx s a) =<< getOptimize
+
+liftOptimize2 :: MonadZ3 z3 => (Base.Context -> Base.Optimize -> a -> b -> IO c)
+                             -> a -> b -> z3 c
+liftOptimize2 f a b = do
+  ctx <- getContext
+  opt <- getOptimize
+  liftIO $ f ctx opt a b
+
+liftOptimize3 :: MonadZ3 z3 => (Base.Context -> Base.Optimize -> a -> b -> c -> IO d)
+                             -> a -> b -> c -> z3 d
+liftOptimize3 f a b c = do
+  ctx <- getContext
+  opt <- getOptimize
+  liftIO $ f ctx opt a b c
+
 liftFixedpoint0 :: MonadFixedpoint z3 =>
        (Base.Context -> Base.Fixedpoint -> IO b)
     -> z3 b
@@ -526,11 +562,13 @@ data Z3Env
       envSolver     :: Base.Solver
     , envContext    :: Base.Context
     , envFixedpoint :: Base.Fixedpoint
+    , envOptimize   :: Base.Optimize
     }
 
 instance MonadZ3 Z3 where
   getSolver  = Z3 $ asks envSolver
   getContext = Z3 $ asks envContext
+  getOptimize = Z3 $ asks envOptimize
 
 instance MonadFixedpoint Z3 where
   getFixedpoint = Z3 $ asks envFixedpoint
@@ -553,7 +591,8 @@ newEnvWith mkContext mbLogic opts =
     ctx <- mkContext cfg
     solver <- maybe (Base.mkSolver ctx) (Base.mkSolverForLogic ctx) mbLogic
     fixedpoint <- Base.mkFixedpoint ctx
-    return $ Z3Env solver ctx fixedpoint
+    opt <- Base.mkOptimize ctx
+    return $ Z3Env solver ctx fixedpoint opt
 
 -- | Create a new Z3 environment.
 newEnv :: Maybe Logic -> Opts -> IO Z3Env
@@ -2134,6 +2173,26 @@ solverGetReasonUnknown = liftSolver0 Base.solverGetReasonUnknown
 -- | Convert the given solver into a string.
 solverToString :: MonadZ3 z3 => z3 String
 solverToString = liftSolver0 Base.solverToString
+
+-------------------------------------------------
+-- ** Optimization
+optimizeAssert :: MonadZ3 z3 => AST -> z3 ()
+optimizeAssert = liftOptimize1 Base.optimizeAssert
+
+optimizeAssertSoft :: MonadZ3 z3 => AST -> String -> Symbol -> z3 ()
+optimizeAssertSoft = liftOptimize3 Base.optimizeAssertSoft
+
+optimizeCheck :: MonadZ3 z3 => z3 Result
+optimizeCheck = liftOptimize0 Base.optimizeCheck
+
+optimizeGetModel :: MonadZ3 z3 => z3 Model
+optimizeGetModel = liftOptimize0 Base.optimizeGetModel
+
+optimizeGetAssertions :: MonadZ3 z3 => z3 [AST]
+optimizeGetAssertions = liftOptimize0 Base.optimizeGetAssertions
+
+optimizeGetObjectives :: MonadZ3 z3 => z3 [AST]
+optimizeGetObjectives = liftOptimize0 Base.optimizeGetObjectives
 
 -------------------------------------------------
 -- ** Helpers

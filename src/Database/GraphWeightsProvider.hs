@@ -35,5 +35,5 @@ getGraphWeights list = do
     toFloat v = case v of
         Just (Number num) -> read (show num) :: Double
         Just (String str) -> read (Text.unpack str) :: Double
-        Nothing -> 0 :: Double
+        Nothing -> 10000.0 :: Double
         _ -> error $ "Cannot decode as string text when trying" ++ show v

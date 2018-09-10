@@ -192,13 +192,7 @@ data SuccinctEdge = SuccinctEdge {
   _symbolId :: Id,
   _params :: Int,
   _weight :: Double
-} deriving (Show, Generic)
-
-instance Eq (SuccinctEdge) where
-  (==) (SuccinctEdge id1 params1 w1) (SuccinctEdge id2 params2 w2) = id1 == id2 && params1 == params2 && w1 == w2
-
-instance Ord (SuccinctEdge) where
-  (<=) (SuccinctEdge id1 params1 w1) (SuccinctEdge id2 params2 w2) = id1 <= id2 && params1 <= params2 && w1 <= w2
+} deriving (Eq, Ord, Show, Generic)
 
 makeLenses ''SuccinctEdge
 

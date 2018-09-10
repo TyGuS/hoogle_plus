@@ -15,6 +15,7 @@ import Control.Monad
 import Control.Lens hiding (both)
 
 import Debug.Trace
+import Text.Regex (mkRegex, subRegex)
 
 -- | Identifiers
 type Id = String
@@ -174,3 +175,11 @@ debugOutLevel = 1
 
 -- | 'debug' @level msg@ : output @msg@ at level @level@ 
 debug level msg = if level <= debugOutLevel then traceShow msg else id
+
+-- This should cover the colour codes:
+ansiRegex = mkRegex "\\[[0-9]+m" 
+
+-- Filtering involves stripping out the ^[ preceding the codes
+filterAnsi :: String -> String
+filterAnsi line = subRegex ansiRegex stripped ""
+  where stripped = filter (/= '\ESC') line
