@@ -21,8 +21,8 @@ import Control.Monad.State
 -- constraints for each node
 -- For a simple node: V ⇒ (E1 ∨ … ∨ En) for all outgoing edges and similar for incoming edges. 
 -- For a compound node V ⇒ (E1 ∧ … ∧ En) for incoming edges.
-nodeConstraint :: MonadZ3 z3 => SuccinctGraph -> SuccinctType -> z3 ()
-nodeConstraint graph v = do
+nodeConstraint :: MonadZ3 z3 => SuccinctGraph -> SuccinctType -> SuccinctType -> z3 ()
+nodeConstraint graph goal v = do
     let ins = allIncomingEdges graph v
     let outs = allOutgoingEdges graph v
     boolS <- Z3.mkBoolSort
@@ -34,7 +34,7 @@ nodeConstraint graph v = do
     outConsts <- mapM (\sym -> Z3.mkConst sym boolS) outSyms
     -- our graph here has reversed arrows as our theory design, be careful when reading this
     -- all incoming edges here are randomly selected
-    if length inConsts > 0 
+    if length inConsts > 0 && goal /= v
         then Z3.mkOr inConsts >>= Z3.mkImplies vConst >>= Z3.optimizeAssert
         else return ()
 
@@ -96,7 +96,7 @@ solveGraphConstraints graph goal args = do
 
     -- add assertions to the optimization
     -- hard constraints for path connectivity
-    mapM_ (nodeConstraint graph) nodes
+    mapM_ (nodeConstraint graph goal) nodes
     mapM_ (edgeConstraint graph . getEdgeId) edges    
     -- mapM_ Z3.optimizeAssert (concat nodeConts ++ edgeConts)
 
