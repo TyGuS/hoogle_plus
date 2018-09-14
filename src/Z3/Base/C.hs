@@ -1533,6 +1533,9 @@ foreign import ccall unsafe "Z3_optimize_inc_ref"
 foreign import ccall unsafe "Z3_optimize_dec_ref"
   z3_optimize_dec_ref :: Ptr Z3_context -> Ptr Z3_optimize -> IO ()
 
+foreign import ccall unsafe "Z3_optimize_set_params"
+  z3_optimize_set_params :: Ptr Z3_context -> Ptr Z3_optimize -> Ptr Z3_params -> IO ()
+
 foreign import ccall unsafe "Z3_optimize_assert"
   z3_optimize_assert :: Ptr Z3_context -> Ptr Z3_optimize -> Ptr Z3_ast -> IO ()
 

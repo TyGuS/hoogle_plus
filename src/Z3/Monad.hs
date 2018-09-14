@@ -385,6 +385,7 @@ module Z3.Monad
   , optimizeGetObjectives
   , optimizeGetAssertions
   , optimizeCheck
+  , optimizeSetParams
   -- ** Helpers
   , assert
   , check
@@ -2181,6 +2182,9 @@ optimizeAssert = liftOptimize1 Base.optimizeAssert
 
 optimizeAssertSoft :: MonadZ3 z3 => AST -> String -> Symbol -> z3 ()
 optimizeAssertSoft = liftOptimize3 Base.optimizeAssertSoft
+
+optimizeSetParams :: MonadZ3 z3 => Params -> z3 ()
+optimizeSetParams = liftOptimize1 Base.optimizeSetParams
 
 optimizeCheck :: MonadZ3 z3 => z3 Result
 optimizeCheck = liftOptimize0 Base.optimizeCheck

@@ -434,6 +434,7 @@ module Z3.Base (
   , optimizeSMTLib2String
   , optimizeAssert
   , optimizeAssertSoft
+  , optimizeSetParams
   , optimizeCheck
   , optimizeGetModel
   , optimizeGetAssertions
@@ -2477,6 +2478,9 @@ mkOptimize = liftFun0 z3_mk_optimize
 
 optimizeSMTLib2String :: Context -> Optimize -> String -> IO ()
 optimizeSMTLib2String = liftFun2 z3_optimize_from_string
+
+optimizeSetParams :: Context -> Optimize -> Params -> IO ()
+optimizeSetParams = liftFun2 z3_optimize_set_params
 
 optimizeAssert :: Context -> Optimize -> AST -> IO ()
 optimizeAssert = liftFun2 z3_optimize_assert

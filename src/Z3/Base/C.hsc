@@ -1492,6 +1492,9 @@ foreign import ccall unsafe "Z3_optimize_inc_ref"
 foreign import ccall unsafe "Z3_optimize_dec_ref"
   z3_optimize_dec_ref :: Ptr Z3_context -> Ptr Z3_optimize -> IO ()
 
+foreign import ccall unsafe "Z3_optimize_set_params"
+  z3_optimize_set_params :: Ptr Z3_context -> Ptr Z3_optimize -> Ptr Z3_params -> IO ()
+
 foreign import ccall unsafe "Z3_optimize_assert"
   z3_optimize_assert :: Ptr Z3_context -> Ptr Z3_optimize -> Ptr Z3_ast -> IO ()
 
@@ -1522,6 +1525,9 @@ foreign import ccall unsafe "Z3_optimize_get_assertions"
 
 foreign import ccall unsafe "Z3_optimize_get_objectives"
   z3_optimize_get_objectives :: Ptr Z3_context -> Ptr Z3_optimize -> IO (Ptr Z3_ast_vector)
+
+foreign import ccall unsafe "Z3_optimize_get_statistics"
+  z3_optimize_get_statistics :: Ptr Z3_context -> Ptr Z3_optimize -> IO (Ptr Z3_stats)
 
 ---------------------------------------------------------------------
 -- * Error Handling

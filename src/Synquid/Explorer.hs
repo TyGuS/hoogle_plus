@@ -45,7 +45,9 @@ import Control.Monad.Reader
 import Control.Applicative hiding (empty)
 import Control.Lens hiding (index, indices)
 import Debug.Trace
-import Z3.Monad (evalZ3)
+import Z3.Monad (evalZ3WithEnv, stdOpts, opt, (+?))
+import qualified Z3.Monad as Z3
+import Data.Time.Clock
 
 {- Interface -}
 
@@ -186,7 +188,8 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
   pathEnabled <- asks . view $ _1 . pathSearch
   if pathEnabled
     then do
-      liftIO $ writeFile "test.log" $ showGraphViz True env
+      -- liftIO $ writeFile "test.log" $ showGraphViz True env
+      getKSolution env
       splitGoal env t
     else do
       maEnabled <- asks . view $ _1 . abduceScrutinees -- Is match abduction enabled?
@@ -631,6 +634,26 @@ initProgramQueue env typ = do
   let pq = PQ.singleton score (p, es, [])
   return pq
 
+getKSolution :: (MonadHorn s, MonadIO s) => Environment -> Explorer s ()
+getKSolution env = do
+  let goalTy = lastSuccinctType $ findSuccinctSymbol "__goal__"
+  let params = Map.keys (env ^. arguments)
+  z3Env <- liftIO $ Z3.newEnv Nothing stdOpts
+  let edgeType = BoolSet
+  (edgeConsts, nodeConsts) <- liftIO $ evalZ3WithEnv (addGraphConstraints (env ^. graphFromGoal) goalTy params edgeType) z3Env
+  cnt <- asks . view $ _1 . solutionCnt
+  getKSolution' z3Env edgeConsts nodeConsts edgeType cnt
+  where
+    getKSolution' _ _ _ _ n | n == 0 = return ()
+    getKSolution' z3Env edgeConsts nodeConsts edgeType n = do
+      start <- liftIO $ getCurrentTime
+      liftIO $ evalZ3WithEnv (getPathSolution edgeConsts nodeConsts edgeType) z3Env
+      end <- liftIO $ getCurrentTime
+      liftIO $ print $ diffUTCTime end start
+      getKSolution' z3Env edgeConsts nodeConsts edgeType (n-1)
+
+    findSuccinctSymbol sym = outOfSuccinctAll $ HashMap.lookupDefault SuccinctAny sym $ env ^. succinctSymbols
+
 -- | To include all the provided parameters in our solution, 
 -- we first find a junction node in the graph of paths from goal type to parameters
 -- start from the junction node, we separately find a path to all parameters and build a sketch from these paths
@@ -638,15 +661,17 @@ initProgramQueue env typ = do
 -- there exists a permutation of these parameters to satisfy the final solution
 splitGoal :: (MonadHorn s, MonadIO s) => Environment -> RType -> Explorer s RProgram
 splitGoal env t = do
-  let goalTy = lastSuccinctType $ findSuccinctSymbol "__goal__"
-  let params = Map.keys (env ^. arguments)
-  liftIO $ evalZ3 $ solveGraphConstraints (env ^. graphFromGoal) goalTy params
   -- pick up a node as the possible intersection of the paths to both the goal type and parameter types
   -- TODO how to sort these nodes to get the most likely composite node first?
+  let goalTy = lastSuccinctType $ findSuccinctSymbol "__goal__"
+  let graph = env ^. graphFromGoal
+  let initState = DijkstraState (HashMap.singleton goalTy (0::Double)) HashMap.empty HashMap.empty
+  let initQueue = nub $ goalTy:(HashMap.keys graph ++ concat (HashMap.elems $ HashMap.map HashMap.keys graph))
+  dijkstraState <- dijkstraHelper graph initState initQueue 
+
   auxd <- asks . view $ _1 . auxDepth
   let isValidComp x = isSuccinctComposite x && if auxd == 0 then not (hasSuccinctFunction x) else True
-  let allNodes = sortOn (flip (HashMap.lookupDefault (Metadata (fromIntegral maxCnt) (0 :: Double))) (env ^. graphMetadata)) 
-                 $ Set.toList $ Set.filter isValidComp $ nodes True env
+  let allNodes = sortOn (flip (HashMap.lookupDefault 99999) $ dijkstraDist dijkstraState) $ Set.toList $ Set.filter isValidComp $ nodes True env
 
   writeLog 2 $ text "top 10 candidates are" <+> pretty (take 10 allNodes)
   -- try to find paths to all of the parameters and construct a partial program

@@ -90,10 +90,10 @@ generalizeFV env t =
 
 addEdge :: Id -> SuccinctType -> Environment -> Environment
 addEdge name (SuccinctFunction paramCnt argSet retTy) env = 
-  let argTy = if Set.size argSet == 1 then Set.findMin argSet else SuccinctComposite argSet
+  let argTy = if paramCnt == 1 then Set.findMin argSet else SuccinctComposite argSet
       addedRevEnv = (succinctGraphRev %~ HashMap.insertWith Set.union argTy (Set.singleton retTy)) env
       addedRetEnv = (succinctGraph %~ HashMap.insertWith mergeMapOfSet retTy (HashMap.singleton argTy (Set.singleton $ SuccinctEdge name paramCnt 0.01))) addedRevEnv
-  in if Set.size argSet == 1
+  in if paramCnt == 1
     then addedRetEnv
     else Set.foldr (\elem acc -> 
       let revEnv = (succinctGraphRev %~ HashMap.insertWith Set.union elem (Set.singleton argTy)) acc
