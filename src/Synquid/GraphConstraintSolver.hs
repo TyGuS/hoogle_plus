@@ -20,6 +20,7 @@ import Data.HashMap.Strict (HashMap)
 import qualified Data.Set as Set
 import Control.Monad.State
 import Control.Monad.Extra
+import Data.Time.Clock
 
 data EdgeType = BoolVar 
               | IntSet 
@@ -40,6 +41,14 @@ nodeConstraint graph goal args edgeType v = do
     outSyms <- mapM Z3.mkStringSymbol outs
     vSym <- Z3.mkStringSymbol (show v)
     vConst <- Z3.mkConst vSym boolS
+
+    -- disable all the other edges that go into the source nodes except that one contains the argument
+    -- TODO: what about the other inhabited components
+    when (isSuccinctInhabited v) 
+        (mapM_ (\e -> mapM_ 
+                    (\eid -> Z3.optimizeAssert =<< Z3.mkNot =<< flip Z3.mkConst boolS =<< Z3.mkStringSymbol eid) $
+                    if elem e args then [e ++ "_" ++ e' | e' <- delete e args] else []) ins)
+
     case edgeType of
         BoolVar -> do
             inConsts <- mapM (\sym -> Z3.mkConst sym boolS) inSyms
@@ -98,13 +107,46 @@ nodeConstraint graph goal args edgeType v = do
             outSyms <- concatMapM (\s -> mapM (Z3.mkStringSymbol . ((s ++ "_") ++)) args) outs
             inConsts <- mapM (\sym -> Z3.mkConst sym boolS) inSyms
             outConsts <- mapM (\sym -> Z3.mkConst sym boolS) outSyms
+
+            -- at least one of the incoming edges is selected
             when (length inConsts > 0 && goal /= v) (Z3.mkOr inConsts >>= Z3.mkImplies vConst >>= Z3.optimizeAssert)
+
+            -- all outgoing edges carry the same information as those of all incoming edges
+            when (length ins > 0 && length outs > 0)
+                (mapM_ (\arg -> do
+                    inArgs <- mapM (\s -> Z3.mkStringSymbol (s ++ "_" ++ arg) >>= flip Z3.mkConst boolS) ins
+                    outArgs <- mapM (\s -> Z3.mkStringSymbol (s ++ "_" ++ arg) >>= flip Z3.mkConst boolS) outs
+                    -- the info on some incoming edge should be contained in some outgoing edge
+                    mapM_ (\inArg -> Z3.mkOr outArgs >>= Z3.mkImplies inArg >>= Z3.optimizeAssert) inArgs
+                    -- the info on some outgoing edge should come from some incoming edge as well
+                    mapM_ (\outArg -> Z3.mkOr inArgs >>= Z3.mkImplies outArg >>= Z3.optimizeAssert) outArgs
+                ) args)
+
+            -- at least one of the outgoing edges is selected
             when (length outConsts > 0)
                 (case v of
                     SuccinctComposite _ -> Z3.mkAnd outConsts >>= Z3.mkImplies vConst >>= Z3.optimizeAssert
-                    _                   -> Z3.mkOr  outConsts >>= Z3.mkImplies vConst >>= Z3.optimizeAssert)
-
+                    _                   -> do
+                        -- connectivity constraint
+                        Z3.mkOr  outConsts >>= Z3.mkImplies vConst >>= Z3.optimizeAssert
+                        -- liftIO $ print v
+                        -- liftIO $ print $ length [(e1, e2) | e1 <- outs, e2 <- outs, e1 < e2]
+                        -- each pair of sets going out of a simple node should have the subset or superset relationship
+                        -- mapM_ (uncurry checkEdgePair) [(e1, e2) | e1 <- outs, e2 <- outs, e1 < e2]
+                )
     where
+        checkEdgePair e1 e2 = do
+            boolS <- Z3.mkBoolSort
+            mapM_ (\arg -> do
+                e1Argi <- Z3.mkStringSymbol (e1 ++ "_" ++ arg) >>= flip Z3.mkConst boolS
+                e2Argi <- Z3.mkStringSymbol (e2 ++ "_" ++ arg) >>= flip Z3.mkConst boolS
+                subsetImplies <- mapM (\argj -> do
+                    e2Argj <- Z3.mkStringSymbol (e2 ++ "_" ++ argj) >>= flip Z3.mkConst boolS
+                    e1Argj <- Z3.mkStringSymbol (e1 ++ "_" ++ argj) >>= flip Z3.mkConst boolS
+                    Z3.mkImplies e2Argj e1Argj
+                    ) $ delete arg args
+                (flip (:) [e2Argi]) <$> Z3.mkAnd subsetImplies >>= Z3.mkOr >>= Z3.mkImplies e1Argi >>= Z3.optimizeAssert
+                ) args
         subsetOrSuperset s1 s2 = do
             r1 <- Z3.mkSetSubset s1 s2
             r2 <- Z3.mkSetSubset s2 s1
@@ -142,7 +184,10 @@ getPathSolution :: MonadZ3 z3 => [AST] -> [AST] -> EdgeType -> z3 ()
 getPathSolution edgeConsts nodeConsts edgeType = do
     -- print the results
     liftIO $ putStrLn $ "Searching for the next path..."
+    start <- liftIO $ getCurrentTime
     res <- Z3.optimizeCheck
+    end <- liftIO $ getCurrentTime
+    liftIO $ print $ diffUTCTime end start
     case res of
         Sat -> do
             liftIO $ putStrLn "Sat"
@@ -230,10 +275,10 @@ addGraphConstraints graph goal args edgeType = do
         $ zip edgeConsts constWeights
 
     -- hard constraints for containing compound nodes when the argument number is greater than 2
-    when (length args > 1) (do
-        compSyms <- mapM (Z3.mkStringSymbol . show) $ filter isSuccinctComposite nodes
-        compConsts <- mapM (\sym -> Z3.mkConst sym boolS) compSyms
-        Z3.mkOr compConsts >>= Z3.optimizeAssert)
+    -- when (length args > 1) (do
+    --     compSyms <- mapM (Z3.mkStringSymbol . show) $ filter isSuccinctComposite nodes
+    --     compConsts <- mapM (\sym -> Z3.mkConst sym boolS) compSyms
+    --     Z3.mkOr compConsts >>= Z3.optimizeAssert)
 
     -- asserts <- Z3.optimizeGetAssertions >>= mapM Z3.astToString 
     -- liftIO $ mapM putStrLn asserts

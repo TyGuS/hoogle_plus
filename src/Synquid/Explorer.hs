@@ -47,7 +47,6 @@ import Control.Lens hiding (index, indices)
 import Debug.Trace
 import Z3.Monad (evalZ3WithEnv, stdOpts, opt, (+?))
 import qualified Z3.Monad as Z3
-import Data.Time.Clock
 
 {- Interface -}
 
@@ -189,7 +188,7 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
   if pathEnabled
     then do
       -- liftIO $ writeFile "test.log" $ showGraphViz True env
-      getKSolution env
+      -- getKSolution env
       splitGoal env t
     else do
       maEnabled <- asks . view $ _1 . abduceScrutinees -- Is match abduction enabled?
@@ -646,10 +645,7 @@ getKSolution env = do
   where
     getKSolution' _ _ _ _ n | n == 0 = return ()
     getKSolution' z3Env edgeConsts nodeConsts edgeType n = do
-      start <- liftIO $ getCurrentTime
       liftIO $ evalZ3WithEnv (getPathSolution edgeConsts nodeConsts edgeType) z3Env
-      end <- liftIO $ getCurrentTime
-      liftIO $ print $ diffUTCTime end start
       getKSolution' z3Env edgeConsts nodeConsts edgeType (n-1)
 
     findSuccinctSymbol sym = outOfSuccinctAll $ HashMap.lookupDefault SuccinctAny sym $ env ^. succinctSymbols
