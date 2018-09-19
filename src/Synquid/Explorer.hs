@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, FlexibleContexts, TupleSections, StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell, FlexibleContexts, TupleSections, StandaloneDeriving, DeriveDataTypeable #-}
 
 -- | Generating synthesis constraints from specifications, qualifiers, and program templates
 module Synquid.Explorer where
@@ -37,6 +37,7 @@ import Data.PQueue.Prio.Min (MinPQueue)
 -- import qualified Data.Sequence as Seq
 import Data.Sequence (Seq)
 import Data.Heap (MinHeap)
+import Data.Data (Data)
 import qualified Data.Heap as Heap
 -- import Control.Monad.List
 import Control.Monad.Logic
@@ -59,6 +60,14 @@ data FixpointStrategy =
 
 -- | Choices for the order of e-term enumeration
 data PickSymbolStrategy = PickDepthFirst | PickInterleave
+
+-- | Choices for the type of path search
+data PathStrategy =
+    DisablePath
+  | MaxSAT -- ^ Use SMT solver to find a path
+  | Dijkstra -- ^ Use dijkstra algorithm
+  | BiDijkstra -- ^ Use bidirectional dijkstra algorithm
+  deriving (Eq, Show, Data)
 
 -- | Parameters of program exploration
 data ExplorerParams = ExplorerParams {
@@ -83,7 +92,7 @@ data ExplorerParams = ExplorerParams {
   _useSuccinct :: Bool,
   _buildGraph :: Bool,
   _solutionCnt :: Int,
-  _pathSearch :: Bool
+  _pathSearch :: PathStrategy
 } 
 
 makeLenses ''ExplorerParams
@@ -95,7 +104,14 @@ data ProgramRank = ProgramRank {
   weights :: Double
 } deriving(Ord, Eq, Show)
 
-type ProgramQueue = MaxPQueue ProgramRank (SProgram, ExplorerState, [Constraint])
+data ProgramItem = ProgramItem {
+  iProgram :: SProgram,
+  iExpoState :: ExplorerState,
+  iConstraints :: [Constraint],
+  iNode :: SuccinctType
+} deriving(Ord, Eq)
+
+type ProgramQueue = MaxPQueue ProgramRank ProgramItem
 
 -- | State of program exploration
 data ExplorerState = ExplorerState {
@@ -168,6 +184,7 @@ emptyTypingState = TypingState {
 runExplorer :: (MonadHorn s, MonadIO s) => ExplorerParams -> TypingParams -> Reconstructor s -> TypingState -> Explorer s a -> s (Either ErrorMessage [a])
 runExplorer eParams tParams topLevel initTS go = do
   (ress, (PersistentState _ _ errs)) <- runStateT (observeManyT (eParams ^. solutionCnt) $ runReaderT (evalStateT go initExplorerState) (eParams, tParams, topLevel)) (PersistentState Map.empty Map.empty [])
+  -- (ress, (PersistentState _ _ errs)) <- runStateT (observeManyT 1 $ runReaderT (evalStateT go initExplorerState) (eParams, tParams, topLevel)) (PersistentState Map.empty Map.empty [])
   case ress of
     [] -> return $ Left $ head errs
     res:_ -> return $ Right ress
@@ -184,17 +201,28 @@ generateI env t@(FunctionT x tArg tRes) isElseBranch = do
   pBody <- inContext ctx $ generateI (unfoldAllVariables $ addVariable x tArg $ addArgument x tArg $ env') tRes False
   return $ ctx pBody
 generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
+  -- useSuccinct <- asks . view $ _1 . useSuccinct
+  -- let env' = if useSuccinct 
+  --             then let goalTy = outOfSuccinctAll $ lastSuccinctType (HashMap.lookupDefault SuccinctAny "__goal__" (env ^. succinctSymbols))
+  --                      starters = Set.toList $ Set.filter (\typ -> isSuccinctInhabited typ || isSuccinctFunction typ || typ == (SuccinctScalar BoolT) || hasSuccinctAny typ) (allSuccinctNodes env)
+  --                      reachableSet = getReachableNodes env starters
+  --                      graphEnv = env { _succinctGraph = pruneGraphByReachability (env ^. succinctGraph) reachableSet }
+  --                      subgraphNodes = if goalTy == SuccinctAny then allSuccinctNodes graphEnv else reachableGraphFromNode graphEnv goalTy
+  --                      in graphEnv { _graphFromGoal = pruneGraphByReachability (graphEnv ^. succinctGraph) subgraphNodes }
+  --             else env
+  let env' = env
   pathEnabled <- asks . view $ _1 . pathSearch
-  if pathEnabled
-    then do
+  case pathEnabled of
+    Dijkstra    -> splitGoal env' t
+    BiDijkstra  -> splitGoal env' t
       -- liftIO $ writeFile "test.log" $ showGraphViz True env
-      -- getKSolution env
-      splitGoal env t
-    else do
+    MaxSAT      -> getKSolution env' >> error "WIP"
+      -- splitGoal env t
+    DisablePath -> do
       maEnabled <- asks . view $ _1 . abduceScrutinees -- Is match abduction enabled?
       d <- asks . view $ _1 . matchDepth
-      maPossible <- runInSolver $ hasPotentialScrutinees env -- Are there any potential scrutinees in scope?
-      if maEnabled && d > 0 && maPossible then generateMaybeMatchIf env t isElseBranch else generateMaybeIf env t isElseBranch           
+      maPossible <- runInSolver $ hasPotentialScrutinees env' -- Are there any potential scrutinees in scope?
+      if maEnabled && d > 0 && maPossible then generateMaybeMatchIf env' t isElseBranch else generateMaybeIf env' t isElseBranch           
 
 -- | Generate a possibly conditional term type @t@, depending on whether a condition is abduced
 generateMaybeIf :: (MonadHorn s, MonadIO s) => Environment -> RType -> Bool -> Explorer s RProgram
@@ -417,7 +445,7 @@ walkThrough env pq =
   if PQ.size pq == 0
     then return (Nothing, PQ.empty)
     else do 
-      let (score,(p, pes, constraints)) = PQ.findMax pq
+      let (score, ProgramItem p pes constraints node) = PQ.findMax pq
       writeLog 2 $ text "Score for" <+> pretty (toRProgram p) <+> text "is" <+> text (show score)
       es <- get
       put $ keepIdCount es pes
@@ -446,7 +474,6 @@ walkThrough env pq =
                   [] -> fillAndEnqueue p pq')
               -- (typingState .= ts >> walkThrough env pq')
               (do currSt <- get; put $ keepIdCount currSt es; walkThrough env pq')
-          
   where
     typeOfFirstHole (Program p (sty,rty,typ)) = case p of
       PHole -> do
@@ -462,7 +489,7 @@ walkThrough env pq =
     fillAndEnqueue p pq' = do
       d <- asks . view $ _1 . eGuessDepth
       es' <- get
-      writeLog 2 $ text "*******************Filling holes in" <+> pretty (toRProgram p)
+      writeLog 2 $ text "Filling holes in" <+> pretty (toRProgram p)
       holeTy <- typeOfFirstHole p
       candidates <- uncurry3 (termWithType env) holeTy
       currSt <- get
@@ -474,10 +501,10 @@ walkThrough env pq =
         fes <- get
         put (keepIdCount fes es')
         if depth p' <= d 
-          then return (Just (p', fes, constraints')) 
+          then return (Just $ ProgramItem p' fes constraints' SuccinctAny)
           else return Nothing
         ) candidates --if hasHole p then PQ.insertBehind  prog accQ else PQ.insertBehind 1 prog accQ
-      newPQ <- foldM (\accQ prog@(p,_,_) -> do
+      newPQ <- foldM (\accQ prog@(ProgramItem p _ _ _) -> do
         score <- lift . lift . lift . liftIO $ termScore env p
         return $ PQ.insertBehind score prog accQ) pq' $ map fromJust $ filter isJust filteredCands
       walkThrough env newPQ
@@ -534,10 +561,11 @@ termWithType env sty rty typ = do
                 es' <- get
                 put $ keepIdCount es' es
                 return (p, es')
-              else do
+              else do -- it means it is a compound node here
                 d' <- asks . view $ _1 . eGuessDepth
                 tFun <- buildFunctionType pc rty
                 let succinctTy = outOfSuccinctAll (toSuccinctType (t))
+                -- p <- generateSketch env succinctTy
                 let p = Program (PSymbol id) (succinctTy, t, tFun)
                 -- writeLog 2 $ text "Trying" <+> text id
                 addConstraint $ Subtype env t tFun False "" -- Add subtyping check, unless it's a function type and incremental checking is diasbled
@@ -546,7 +574,7 @@ termWithType env sty rty typ = do
                 es' <- get
                 put $ keepIdCount es' es
                 return (p', es')
-        ) $ filter (\(SuccinctEdge id _ _) -> id /= "__goal__" && id /= "") sortedIds
+        ) $ filter (\(SuccinctEdge id _ _) -> id /= "__goal__" && id /= "" && not ("||" `isInfixOf` id)) sortedIds
   where
     buildApp 0 p = p
     buildApp paramCnt p@(Program _ (styp,rtyp,typ)) = case styp of
@@ -630,7 +658,7 @@ initProgramQueue env typ = do
   -- ts <- use typingState
   es <- get
   score <- lift . lift . lift . liftIO $ termScore env p
-  let pq = PQ.singleton score (p, es, [])
+  let pq = PQ.singleton score $ ProgramItem p es [] SuccinctAny
   return pq
 
 getKSolution :: (MonadHorn s, MonadIO s) => Environment -> Explorer s ()
@@ -662,13 +690,13 @@ splitGoal env t = do
   let goalTy = lastSuccinctType $ findSuccinctSymbol "__goal__"
   let graph = env ^. graphFromGoal
   let initState = DijkstraState (HashMap.singleton goalTy (0::Double)) HashMap.empty HashMap.empty
-  let initQueue = nub $ goalTy:(HashMap.keys graph ++ concat (HashMap.elems $ HashMap.map HashMap.keys graph))
-  dijkstraState <- dijkstraHelper graph initState initQueue 
+  let initQueue = MinPQ.singleton 0.0 goalTy -- nub $ goalTy:(HashMap.keys graph ++ concat (HashMap.elems $ HashMap.map HashMap.keys graph))
+  dijkstraState <- dijkstraHelper graph initState initQueue []
 
   auxd <- asks . view $ _1 . auxDepth
   let isValidComp x = isSuccinctComposite x && if auxd == 0 then not (hasSuccinctFunction x) else True
   let allNodes = sortOn (flip (HashMap.lookupDefault 99999) $ dijkstraDist dijkstraState) $ Set.toList $ Set.filter isValidComp $ nodes True env
-
+  -- let allNodes = Set.toList $ Set.filter isValidComp $ nodes True env
   writeLog 2 $ text "top 10 candidates are" <+> pretty (take 10 allNodes)
   -- try to find paths to all of the parameters and construct a partial program
   msum $ map (\xnode -> do
@@ -676,7 +704,7 @@ splitGoal env t = do
     -- feed it to synquid to get a complete program
     writeLog 2 $ text "program with holes" <+> pretty holedProgram
     Reconstructor _ reconstructETopLevel <- asks . view $ _3
-    p <- reconstructETopLevel env t $ toRProgram holedProgram
+    p <- once $ reconstructETopLevel env t $ toRProgram holedProgram
     writeLog 2 $ text "find a partial program" <+> pretty p
     return p
     ) allNodes
@@ -763,6 +791,7 @@ generateSketch env xnode = do
         then do
           writeLog 2 $ text "path from goal:" <+> pretty goalPath
           tass <- use (typingState . typeAssignment)
+          writeLog 2 $ text "arguments" <+> pretty (Map.toList $ env ^. arguments)
           paths <- liftM2 (:) (uncurry (flip (findPathTo (d-dp+1) src1 . SuccinctInhabited . outOfSuccinctAll . toSuccinctType . typeSubstitute tass . toMonotype)) $ Map.findMin $ env ^. arguments)
                    $ mapM (uncurry (flip (findPathTo (d-dp+1) src2 . SuccinctInhabited . outOfSuccinctAll . toSuccinctType . typeSubstitute tass . toMonotype))) $ Map.toList $ Map.deleteMin $ env ^. arguments
           writeLog 2 $ text "paths for args:" <+> pretty paths
@@ -773,6 +802,7 @@ generateSketch env xnode = do
         else mzero
 
     fillType sty (Program p (_, typ, _)) = Program p (sty, typ, typ) 
+    graphWoutGoal = removeEdge "__goal__" $ env ^. graphFromGoal
 
     findRType prog@(Program p (sty, typ, _)) tSty = case p of
       PApp fun arg -> let (sArg, tArg, _) = typeOf arg in if tSty == sArg then return tArg else findRType arg tSty `mplus` findRType fun tSty
@@ -783,7 +813,8 @@ generateSketch env xnode = do
     findSuccinctSymbol sym = outOfSuccinctAll $ HashMap.lookupDefault SuccinctAny sym $ env ^. succinctSymbols
 
     findPathTo d src t id = do
-      yen (keepOnly id $ graphWithin src 4 $ removeEdge "__goal__" $ env ^. graphFromGoal) src (t) 5
+      -- liftIO $ print $ HashMap.keys $ HashMap.lookupDefault HashMap.empty src (env ^. graphFromGoal)
+      yen (keepOnly id graphWoutGoal) src t 1
       -- writeLog 2 $ pretty paths
       -- msum $ map (return . removeTrailingEmpty) paths
       -- dijkstra (removeEdge "__goal__" $ env ^. graphFromGoal) src t
@@ -813,7 +844,7 @@ generateSketch env xnode = do
       PApp fun arg -> ifte ((\x -> Program (PApp fun x) (sty, typ, typ)) <$> fillHoleWithTerm arg term) 
                            return 
                            ((\x -> Program (PApp x arg) (sty, typ, typ)) <$> fillHoleWithTerm fun term)
-      PHole -> if ttyp == typ then return term else do
+      PHole -> if shape ttyp == shape typ then return term else do
         writeLog 2 $ text "type" <+> pretty ttyp <+> text "and type" <+> pretty typ <+> text "does not match"
         mzero
       _ -> mzero
@@ -825,58 +856,26 @@ generateSketch env xnode = do
                            in length commonNames >= 2 && (last pt1 == last pt2)
 
     newTerm x = do
-      -- writeLog 2 $ text "lookup symbol" <+> pretty x
       tass <- use $ typingState . typeAssignment
       rtyp <- typeSubstitute tass <$> instantiateWithoutConstraint env (fromJust $ lookupSymbol x (-1) env) True []
       let p = termWithHoles $ Program (PSymbol x) (findSuccinctSymbol x, rtyp, rtyp)
-      -- TODO: just for debug
-      -- case p of
-      --   Program (PApp fun arg) _ -> writeLog 2 $ pretty fun
-      --   _ -> writeLog 2 $ pretty p
       return p
 
     buildApp arg path = case path of
       [] -> error "cannot build term from empty path"
-      e:xs -> do
-        if length xs == 0 && arg /= ""
-          then newTerm arg
-          else do
-            -- let edgeNames = nubBy isNameEq $ Set.toList $ Set.map getEdgeId e
-            -- writeLog 2 $ text "edgeNames:" <+> pretty edgeNames <+> text "with" <+> pretty (length edgeNames) <+> text "elements"
-            -- ws <- liftIO $ getGraphWeights edgeNames
-            -- let wmap = foldr (uncurry Map.insert) Map.empty $ zip edgeNames ws
-            -- msum $ map (\x ->
-            let x = e
-            if x == ""
-              then buildApp arg xs
-              else do
-                nt <- newTerm x
+      e:xs | length xs == 0 && arg /= "" -> newTerm arg
+           | e == "" || "||" `isInfixOf` e -> buildApp arg xs
+           | otherwise -> do
+                nt <- newTerm e
                 if length xs == 0 then return nt else do
                   p <- buildApp arg xs
                   writeLog 2 $ text "buildApp:" <+> pretty p
                   fillHoleWithTerm nt p
-              -- ) $ reverse $ sortOn (flip (Map.findWithDefault (0::Double)) wmap) edgeNames
-
--- pathAtFromTo2 :: Environment -> SuccinctType -> SuccinctType -> Int -> [[Set SuccinctEdge]]
--- pathAtFromTo2 env src dst len = pathAtFromToHelper (env ^. graphFromGoal) [Node src []]
---   where
---     pathAtFromToHelper g toVisit = case toVisit of
---       [] -> return []
---       curr:vs | typ curr == dst && length (path curr) == len -> (path curr) : pathAtFromToHelper g vs
---               | length (path curr) > len -> pathAtFromToHelper g vs
---               | otherwise -> pathAtFromToHelper g (vs ++ nodesWithPath curr g)
---     nodesWithPath node graph = map (uncurry (makeNode $ path node)) 
---                                $ HashMap.toList 
---                                $ HashMap.filter (\s -> Set.size s /= 1 || Set.notMember "__goal__" (Set.map getEdgeId s)) 
---                                $ HashMap.lookupDefault HashMap.empty (typ node) graph
---     makeNode currPath t id = Node t (currPath 
---                                  ++ (let s = Set.filter (\e -> (getEdgeId e /= "__goal__" && getEdgeId e /= "")) id 
---                                      in if Set.null s then [] else [s]))
 
 -- helper function to remove empty ids in a path
 removeTrailingEmpty path = case path of
   [] -> []
-  (x:xs) -> if x == "" 
+  (x:xs) -> if "||" `isInfixOf` x || x == ""
          then removeTrailingEmpty xs 
          else x:removeTrailingEmpty xs
 
@@ -889,45 +888,52 @@ data DijkstraState = DijkstraState {
 
 dijkstra :: (MonadHorn s, MonadIO s) => SuccinctGraph -> SuccinctType -> SuccinctType -> Explorer s [Id]
 dijkstra graph src dst = do
-    st <- dijkstraHelper graph initState initQueue
+    st <- dijkstraHelper graph initState initQueue [dst]
     buildPath (dijkstraEdge st) (dijkstraPrev st)
   where
     initState = DijkstraState (HashMap.singleton src (0::Double)) HashMap.empty HashMap.empty
-    initQueue = nub $ src:(HashMap.keys graph ++ concat (HashMap.elems $ HashMap.map HashMap.keys graph))
+    initQueue = MinPQ.singleton 0.0 src -- nub $ src:(HashMap.keys graph ++ concat (HashMap.elems $ HashMap.map HashMap.keys graph))
     buildPathHelper edge prev curr path 
       | HashMap.member curr prev = do
         buildPathHelper edge prev (fromJust $ HashMap.lookup curr prev) ((HashMap.lookupDefault "" curr edge):path)
       | otherwise = return $ removeTrailingEmpty $ (HashMap.lookupDefault "" curr edge):path
     buildPath edge prev = buildPathHelper edge prev dst []
     
-dijkstraHelper :: (MonadHorn s, MonadIO s) => SuccinctGraph -> DijkstraState -> [SuccinctType] -> Explorer s DijkstraState
-dijkstraHelper graph state queue
+dijkstraHelper :: (MonadHorn s, MonadIO s) => SuccinctGraph -> DijkstraState -> MinPQueue Double SuccinctType -> [SuccinctType] -> Explorer s DijkstraState
+dijkstraHelper graph state queue dsts
   | null queue = return state
   | otherwise = do
     let dist = dijkstraDist state
     let prev = dijkstraPrev state
     let edge = dijkstraEdge state
-    let ([curr], queue') = splitAt 1 $ sortOn (flip (HashMap.lookupDefault infinity) dist) queue
-    neighbours <- liftIO $ mapM (\(ty, set) -> do
-                                  ws <- getGraphWeights . Set.toList $ Set.map getEdgeId set
-                                  let (w, id) = minimum . zip ws . Set.toList $ Set.map getEdgeId set
-                                  return (ty, w, id))
-                         $ filter (notEmptyEdge . snd) . HashMap.toList $ HashMap.lookupDefault HashMap.empty curr graph
-    let (dist', prev', edge') = if HashMap.member curr dist -- if the current is reachable from the source node
-                                  then foldr (uncurry3 . updateDist curr (fromJust $ HashMap.lookup curr dist)) (dist, prev, edge) neighbours
-                                  else (dist, prev, edge)
-    dijkstraHelper graph (DijkstraState dist' prev' edge') queue'
+    -- liftIO $ print $ length queue
+    let (curr, queue') = fromJust $ MinPQ.minView queue
+    -- liftIO $ print curr
+    -- let ([curr], queue') = splitAt 1 $ sortOn (flip (HashMap.lookupDefault infinity) dist) queue
+    if curr `elem` dsts
+      then return state
+      else do
+        let neighbours = map (\(ty, set) -> (ty, Set.findMin set)) $ HashMap.toList $ HashMap.lookupDefault HashMap.empty curr graph
+        (dist', prev', edge', queue'') <- do
+          if HashMap.member curr dist -- if the current is reachable from the source node
+            then return $ foldr (updateDist curr (fromJust $ HashMap.lookup curr dist)) (dist, prev, edge, queue') neighbours
+            else return (dist, prev, edge, queue')
+        dijkstraHelper graph (DijkstraState dist' prev' edge') queue'' dsts
   where
-    updateDist parent pw (node, weight, id) dist prev edge
-      | not (HashMap.member node dist) || pw + weight < (fromJust $ HashMap.lookup node dist) =
-        (HashMap.insert node (pw + weight) dist, HashMap.insert node parent prev, HashMap.insert node id edge)
-      | otherwise = (dist, prev, edge)
-    notEmptyEdge e = Set.size e > 0
+    updateDist parent pw (node, e) (dist, prev, edge, q)
+      | not (HashMap.member node dist) || pw + e ^. weight < (fromJust $ HashMap.lookup node dist) =
+        ( HashMap.insert node (pw + e ^. weight) dist
+        , HashMap.insert node parent prev
+        , HashMap.insert node (e ^. symbolId) edge
+        , MinPQ.insert (pw + e ^. weight) node q)
+      | otherwise = (dist, prev, edge, q)
+    -- notEmptyEdge e = Set.size e > 0
 
 removeEdge :: Id -> SuccinctGraph -> SuccinctGraph
 removeEdge id g = 
   HashMap.foldrWithKey (\k m gr ->
-    HashMap.insert k (HashMap.foldrWithKey (\k' s m' -> HashMap.insert k' (Set.filter ((/=) id . getEdgeId) s) m') HashMap.empty m) gr
+    HashMap.insert k (HashMap.foldrWithKey (\k' s m' -> let s' = Set.filter ((/=) id . getEdgeId) s
+                                                        in if Set.null s' then m' else HashMap.insert k' s' m') HashMap.empty m) gr
   ) HashMap.empty g
 
 keepOnly :: Id -> SuccinctGraph -> SuccinctGraph
@@ -1067,6 +1073,40 @@ reverseGraph graph =
       HashMap.insertWith HashMap.union k' (HashMap.singleton k edges) gr
       ) g m
     ) HashMap.empty graph
+
+bidijkstra :: SuccinctGraph -> SuccinctType -> SuccinctType -> IO [Id]
+bidijkstra graph src dst = undefined
+
+data RTQItem = RTQItem {
+  rtqProgram :: RProgram, -- the program we are at
+  rtqPosition :: SuccinctType -- the node where we reach this program
+}
+type RTQueue = MinPQueue Double RProgram -- the global queue for shortest path search
+
+-- roundtripGenerate :: (MonadHorn s, MonadIO s) => Environment -> SuccinctType -> [SuccinctType] -> Explorer s RProgram
+-- roundtripGenerate env goal args = do
+--   -- build a list of backward search queue for each arg type
+--   mapM_ moveForward args fwq bwq
+--   where
+--     moveForward curr = do
+--       if isSuccinctComposite curr -- if the current node is compound, wait until all the arguments for this are prepared
+--         then moveBackward curr fwq bwq -- meet with the fwq
+--         else do
+--               let neighbours = HashMap.toList $ HashMap.lookupDefault HashMap.empty curr $ env ^. graphFromGoal
+--               foldrM (uncurry $ enqueueProgram currQueue )
+
+--     moveBackward = undefined
+
+--     enqueueProgram queue prog progWgt node edges = do
+--       edgeWgt <- liftIO $ getGraphWeights $ Set.toList edges
+--       let progs = map (applyTo prog) $ Set.toList edges
+--       foldr (\(w, p) -> MinPQ.insert (progWgt + w) $ RTQItem p node) queue $ zip edgeWgt progs
+
+--     applyTo prog id = case lookupSymbol id 1 env of
+--       Just sch -> let funTy = toMonotype sch
+--                   in Program (PApp (PSymbol id funTy) prog) (lastType funTy)
+--       Nothing  -> error $ "Cannot find symbol " ++ id ++ " in the current scope"
+
 
 -- | eppstein k-best algorithm
 data HeapItem = HeapItem ((Double, Id), MinHeap HeapItem)
@@ -1260,7 +1300,7 @@ generateE env typ isThenBranch isElseBranch isMatchScrutinee = do
     then do
       q <- use termQueueState
       es <- get
-      resQ <- mapM (\(k, (prog, pes, c)) -> return $ Just (k, (prog, mergeExplorerState env es pes, c))) (PQ.toList q)
+      resQ <- mapM (\(k, ProgramItem prog pes c t) -> return $ Just (k, ProgramItem prog (mergeExplorerState env es pes) c t)) (PQ.toList q)
       return $ PQ.fromList $ map fromJust $ filter isJust resQ
     else initProgramQueue env typ
   prog@(Program pTerm pTyp) <- if useFilter && (not isMatchScrutinee) then repeatUtilValid pq else generateEUpTo env typ d
@@ -1718,13 +1758,11 @@ addSuccinctEdge name t env = do
     _ -> do
       let env' = addEdgeForSymbol name succinctTy env
       let goalTy = outOfSuccinctAll $ lastSuccinctType (HashMap.lookupDefault SuccinctAny "__goal__" (env' ^. succinctSymbols))
-      let diffTys = Set.filter isSuccinctConcrete $ ((allSuccinctNodes env')) `Set.difference` ((allSuccinctNodes env))
-      let subgraphNodes = if goalTy == SuccinctAny then allSuccinctNodes env' else reachableGraphFromNode env' goalTy
       let starters = Set.toList $ Set.filter (\typ -> isSuccinctInhabited typ || isSuccinctFunction typ || typ == (SuccinctScalar BoolT) || hasSuccinctAny typ) (allSuccinctNodes env')
-      let reachableSet = (getReachableNodes env' starters) `Set.intersection` subgraphNodes
-      let graphEnv = env' { _graphFromGoal = pruneGraphByReachability (env' ^. succinctGraph) reachableSet }
-      -- distFromNode goalTy  graphEnv
-      return graphEnv
+      let reachableSet = getReachableNodes env' starters
+      let graphEnv = env' { _succinctGraph = pruneGraphByReachability (env' ^. succinctGraph) reachableSet }
+      let subgraphNodes = if goalTy == SuccinctAny then allSuccinctNodes graphEnv else reachableGraphFromNode graphEnv goalTy
+      return $ graphEnv { _graphFromGoal = pruneGraphByReachability (graphEnv ^. succinctGraph) subgraphNodes }    
   where
     getSuccinctTy tt = case toSuccinctType tt of
       SuccinctAll vars ty -> SuccinctAll vars (refineSuccinctDatatype name ty env)

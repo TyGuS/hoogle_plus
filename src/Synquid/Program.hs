@@ -192,9 +192,12 @@ data SuccinctEdge = SuccinctEdge {
   _symbolId :: Id,
   _params :: Int,
   _weight :: Double
-} deriving (Eq, Ord, Show, Generic)
+} deriving (Eq, Show, Generic)
 
 makeLenses ''SuccinctEdge
+
+instance Ord SuccinctEdge where
+  (<=) e1 e2 = e1 ^. weight <= e2 ^. weight && e1 ^. symbolId <= e2 ^. symbolId && e1 ^. params <= e2 ^. params
 
 getEdgeId (SuccinctEdge id _ _) = id
 getEdgeWeight (SuccinctEdge _ _ w) = w

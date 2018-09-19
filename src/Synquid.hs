@@ -180,7 +180,7 @@ data CommandLineArgs
         graph :: Bool,
         succinct :: Bool,
         sol_num :: Int,
-        path_search :: Bool
+        path_search :: PathStrategy
       }
       | Lifty {
         -- | Input
@@ -232,7 +232,7 @@ synt = Synthesis {
   graph               = False           &= help ("Build graph for exploration (default: False)") &= name "graph",
   succinct            = False           &= help ("Use graph to direct the term exploration (default: False)") &= name "succ",
   sol_num             = 5               &= help ("Number of solutions need to find (default: 5)") &= name "cnt",
-  path_search         = False           &= help ("Use path search algorithm to ensure the usage of provided parameters (default: False)") &= name "path"
+  path_search         = DisablePath     &= help ("Use path search algorithm to ensure the usage of provided parameters (default: DisablePath)") &= name "path"
   } &= auto &= help "Synthesize goals specified in the input file"
     where
       defaultFormat = outputFormat defaultSynquidParams
@@ -285,7 +285,7 @@ defaultExplorerParams = ExplorerParams {
   _buildGraph = False,
   _useSuccinct = False,
   _solutionCnt = 5,
-  _pathSearch = False
+  _pathSearch = DisablePath
 }
 
 -- | Parameters for constraint solving

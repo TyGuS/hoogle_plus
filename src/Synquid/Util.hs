@@ -21,7 +21,7 @@ import Text.Regex (mkRegex, subRegex)
 type Id = String
 
 maxCnt = 99999
-infinity = 999999999 :: Double
+infinity = 1.0 / 0.0
 
 splitBy :: Char -> String -> [String]
 splitBy _ "" = [];
