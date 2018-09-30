@@ -439,6 +439,8 @@ module Z3.Base (
   , optimizeGetModel
   , optimizeGetAssertions
   , optimizeGetObjectives
+  , optimizePush
+  , optimizePop
   ) where
 
 import Z3.Base.C
@@ -2507,6 +2509,12 @@ optimizeGetAssertions = liftFun1 z3_optimize_get_assertions
 
 optimizeGetObjectives :: Context -> Optimize -> IO [AST]
 optimizeGetObjectives = liftFun1 z3_optimize_get_objectives
+
+optimizePush :: Context -> Optimize -> IO ()
+optimizePush = liftFun1 z3_optimize_push
+
+optimizePop :: Context -> Optimize -> Int -> IO ()
+optimizePop = liftFun2 z3_optimize_pop
 
 ---------------------------------------------------------------------
 -- Error handling

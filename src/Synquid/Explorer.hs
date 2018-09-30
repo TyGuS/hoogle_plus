@@ -48,6 +48,7 @@ import Control.Lens hiding (index, indices)
 import Debug.Trace
 import Z3.Monad (evalZ3WithEnv, stdOpts, opt, (+?))
 import qualified Z3.Monad as Z3
+import Data.Time.Clock
 
 {- Interface -}
 
@@ -216,7 +217,11 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
     Dijkstra    -> splitGoal env' t
     BiDijkstra  -> splitGoal env' t
       -- liftIO $ writeFile "test.log" $ showGraphViz True env
-    MaxSAT      -> getKSolution env' >> error "WIP"
+    MaxSAT      -> do
+      start <- liftIO $ getCurrentTime
+      getKSolution env'
+      end <- liftIO $ getCurrentTime
+      error $ show $ diffUTCTime end start
       -- splitGoal env t
     DisablePath -> do
       maEnabled <- asks . view $ _1 . abduceScrutinees -- Is match abduction enabled?
@@ -666,15 +671,17 @@ getKSolution env = do
   let goalTy = lastSuccinctType $ findSuccinctSymbol "__goal__"
   let params = Map.keys (env ^. arguments)
   z3Env <- liftIO $ Z3.newEnv Nothing stdOpts
-  let edgeType = BoolSet
+  let edgeType = BoolVar
   (edgeConsts, nodeConsts) <- liftIO $ evalZ3WithEnv (addGraphConstraints (env ^. graphFromGoal) goalTy params edgeType) z3Env
+  liftIO $ evalZ3WithEnv (getPathSolution (env ^. graphFromGoal) edgeConsts nodeConsts edgeType) z3Env
   cnt <- asks . view $ _1 . solutionCnt
-  getKSolution' z3Env edgeConsts nodeConsts edgeType cnt
+  return ()
+  -- getKSolution' z3Env edgeConsts nodeConsts edgeType cnt
   where
-    getKSolution' _ _ _ _ n | n == 0 = return ()
-    getKSolution' z3Env edgeConsts nodeConsts edgeType n = do
-      liftIO $ evalZ3WithEnv (getPathSolution edgeConsts nodeConsts edgeType) z3Env
-      getKSolution' z3Env edgeConsts nodeConsts edgeType (n-1)
+    -- getKSolution' _ _ _ _ n | n == 0 = return ()
+    -- getKSolution' z3Env edgeConsts nodeConsts edgeType n = do
+    --   liftIO $ evalZ3WithEnv (getPathSolution HashMap.empty edgeConsts nodeConsts edgeType) z3Env
+    --   getKSolution' z3Env edgeConsts nodeConsts edgeType (n-1)
 
     findSuccinctSymbol sym = outOfSuccinctAll $ HashMap.lookupDefault SuccinctAny sym $ env ^. succinctSymbols
 
@@ -913,7 +920,7 @@ dijkstraHelper graph state queue dsts
     if curr `elem` dsts
       then return state
       else do
-        let neighbours = map (\(ty, set) -> (ty, Set.findMin set)) $ HashMap.toList $ HashMap.lookupDefault HashMap.empty curr graph
+        let neighbours = map (\(ty, set) -> (ty, minimumBy succinctEdgeComp $ Set.toList set)) $ HashMap.toList $ HashMap.lookupDefault HashMap.empty curr graph
         (dist', prev', edge', queue'') <- do
           if HashMap.member curr dist -- if the current is reachable from the source node
             then return $ foldr (updateDist curr (fromJust $ HashMap.lookup curr dist)) (dist, prev, edge, queue') neighbours
@@ -1078,11 +1085,15 @@ bidijkstra :: SuccinctGraph -> SuccinctType -> SuccinctType -> IO [Id]
 bidijkstra graph src dst = undefined
 
 data RTQItem = RTQItem {
-  rtqProgram :: RProgram, -- the program we are at
+  rtqProgram :: RProgram, -- the program we are at      
   rtqPosition :: SuccinctType -- the node where we reach this program
 }
 type RTQueue = MinPQueue Double RProgram -- the global queue for shortest path search
 
+-- multiDijkstra :: (MonadHorn s, MonadIO s) => SuccinctGraph -> [SuccinctType] -> Explorer s RProgram
+-- multiDijkstra graph args = do
+--   where
+--     multiDijkstraHelper [state] []
 -- roundtripGenerate :: (MonadHorn s, MonadIO s) => Environment -> SuccinctType -> [SuccinctType] -> Explorer s RProgram
 -- roundtripGenerate env goal args = do
 --   -- build a list of backward search queue for each arg type
@@ -1758,7 +1769,7 @@ addSuccinctEdge name t env = do
     _ -> do
       let env' = addEdgeForSymbol name succinctTy env
       let goalTy = outOfSuccinctAll $ lastSuccinctType (HashMap.lookupDefault SuccinctAny "__goal__" (env' ^. succinctSymbols))
-      let starters = Set.toList $ Set.filter (\typ -> isSuccinctInhabited typ || isSuccinctFunction typ || typ == (SuccinctScalar BoolT) || hasSuccinctAny typ) (allSuccinctNodes env')
+      let starters = Set.toList $ Set.filter (\typ -> isSuccinctInhabited typ || isSuccinctFunction typ || hasSuccinctAny typ) (allSuccinctNodes env')
       let reachableSet = getReachableNodes env' starters
       let graphEnv = env' { _succinctGraph = pruneGraphByReachability (env' ^. succinctGraph) reachableSet }
       let subgraphNodes = if goalTy == SuccinctAny then allSuccinctNodes graphEnv else reachableGraphFromNode graphEnv goalTy

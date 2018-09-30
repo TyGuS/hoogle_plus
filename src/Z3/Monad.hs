@@ -386,6 +386,8 @@ module Z3.Monad
   , optimizeGetAssertions
   , optimizeCheck
   , optimizeSetParams
+  , optimizePush
+  , optimizePop
   -- ** Helpers
   , assert
   , check
@@ -2197,6 +2199,12 @@ optimizeGetAssertions = liftOptimize0 Base.optimizeGetAssertions
 
 optimizeGetObjectives :: MonadZ3 z3 => z3 [AST]
 optimizeGetObjectives = liftOptimize0 Base.optimizeGetObjectives
+
+optimizePush :: MonadZ3 z3 => z3 ()
+optimizePush = liftOptimize0 Base.optimizePush
+
+optimizePop :: MonadZ3 z3 => Int -> z3 ()
+optimizePop = liftOptimize1 Base.optimizePop
 
 -------------------------------------------------
 -- ** Helpers
