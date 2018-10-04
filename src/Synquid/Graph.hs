@@ -91,12 +91,12 @@ generalizeFV env t =
 addEdge :: Id -> SuccinctType -> Environment -> Environment
 addEdge name (SuccinctFunction paramCnt argSet retTy) env = 
   let argTy = if paramCnt == 1 then Set.findMin argSet else SuccinctComposite argSet
-      addedRevEnv = (succinctGraphRev %~ HashMap.insertWith Set.union argTy (Set.singleton retTy)) env
+      addedRevEnv = (succinctGraphRev %~ HashMap.insertWith mergeMapOfSet argTy (HashMap.singleton retTy (Set.singleton $ SuccinctEdge name paramCnt 0.01))) env
       addedRetEnv = (succinctGraph %~ HashMap.insertWith mergeMapOfSet retTy (HashMap.singleton argTy (Set.singleton $ SuccinctEdge name paramCnt 0.01))) addedRevEnv
   in if paramCnt == 1
     then addedRetEnv
     else Set.foldr (\elem acc -> 
-      let revEnv = (succinctGraphRev %~ HashMap.insertWith Set.union elem (Set.singleton argTy)) acc
+      let revEnv = (succinctGraphRev %~ HashMap.insertWith mergeMapOfSet elem (HashMap.singleton argTy (Set.singleton $ SuccinctEdge ("||"++(show argTy)++"||"++(show elem)++"||") 0 0.01))) acc
       in (succinctGraph %~ HashMap.insertWith mergeMapOfSet argTy (HashMap.singleton elem (Set.singleton $ SuccinctEdge ("||"++(show argTy)++"||"++(show elem)++"||") 0 0.01))) revEnv
       ) addedRetEnv argSet
 addEdge name typ@(SuccinctAll idSet ty) env = 
@@ -104,7 +104,7 @@ addEdge name typ@(SuccinctAll idSet ty) env =
     then addEdge name (generalizeFV env ty)
     else id) $ addPolyEdge (Set.filter isSuccinctConcrete (allSuccinctNodes env)) name typ env
 addEdge name typ env = 
-  let inhabitedEnvRev = (succinctGraphRev %~ HashMap.insertWith Set.union (SuccinctInhabited typ) (Set.singleton typ)) env
+  let inhabitedEnvRev = (succinctGraphRev %~ HashMap.insertWith mergeMapOfSet (SuccinctInhabited typ) (HashMap.singleton typ (Set.singleton $ SuccinctEdge name 0 0.01))) env
       inhabitedEnv = (succinctGraph %~ HashMap.insertWith mergeMapOfSet typ (HashMap.singleton (SuccinctInhabited typ) (Set.singleton $ SuccinctEdge name 0 0.01))) inhabitedEnvRev
   in inhabitedEnv
 
@@ -120,9 +120,9 @@ isReachable env typ = isReachableHelper (env ^. succinctGraph) Set.empty typ
       SuccinctComposite tys -> Set.foldr (\t acc -> acc && isReachableHelper g (Set.insert typ' visited) t) True tys
       _ -> HashMap.foldrWithKey (\i _ acc -> acc || isReachableHelper g (Set.insert typ' visited) i) False (if Set.member typ' visited then HashMap.empty else HashMap.lookupDefault HashMap.empty typ' g)
 
-getReachableNodes :: Environment -> [SuccinctType] -> Set SuccinctType
-getReachableNodes env starters = 
-  getReachableNodesHelper (env ^. succinctGraphRev) Set.empty [] starters
+getReachableNodes :: SuccinctGraph -> [SuccinctType] -> Set SuccinctType
+getReachableNodes graph starters = 
+  getReachableNodesHelper graph Set.empty [] starters
   where
     isCompositeReachable reachableSet typ = case typ of
       SuccinctComposite tySet -> Set.foldr (\b acc -> acc && (Set.member b reachableSet)) True tySet
@@ -132,14 +132,14 @@ getReachableNodes env starters =
       curr:xs -> if Set.member curr visited
         then getReachableNodesWithoutComposite g visited xs
         else let newVisited = Set.insert curr visited 
-          in getReachableNodesWithoutComposite g newVisited (xs ++ (Set.toList (Set.filter (isCompositeReachable newVisited) (HashMap.lookupDefault Set.empty curr g))))
+          in getReachableNodesWithoutComposite g newVisited (xs ++ (filter (isCompositeReachable newVisited) (HashMap.keys $ HashMap.lookupDefault HashMap.empty curr g)))
     getReachableNodesHelper g visited waitingList toVisit = case toVisit of
       [] -> visited `Set.union` (getReachableNodesWithoutComposite g visited (filter (isCompositeReachable visited) waitingList))
       curr:xs -> if Set.member curr visited 
         then getReachableNodesHelper g visited waitingList xs
         else case curr of
           SuccinctComposite _ -> getReachableNodesHelper g visited (waitingList++[curr]) xs
-          _ -> getReachableNodesHelper g (Set.insert curr visited) waitingList (xs ++ (Set.toList (HashMap.lookupDefault Set.empty curr g)))
+          _ -> getReachableNodesHelper g (Set.insert curr visited) waitingList (xs ++ (HashMap.keys (HashMap.lookupDefault HashMap.empty curr g)))
 
 reachableGraphFromNode :: Environment -> SuccinctType -> Set SuccinctType
 reachableGraphFromNode env goalTy = reachableGraphFromNodeHelper (env ^. succinctGraph) Set.empty startTys

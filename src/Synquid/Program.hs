@@ -230,7 +230,7 @@ data Environment = Environment {
   _succinctGraph :: HashMap SuccinctType (HashMap SuccinctType (Set SuccinctEdge)), -- ^ Graph built upon succinct types
   _graphFromGoal :: HashMap SuccinctType (HashMap SuccinctType (Set SuccinctEdge)),
   _graphMetadata :: HashMap SuccinctType Metadata,
-  _succinctGraphRev :: HashMap SuccinctType (Set SuccinctType), -- ^ Graph for reachability check
+  _succinctGraphRev :: HashMap SuccinctType (HashMap SuccinctType (Set SuccinctEdge)), -- ^ Graph for reachability check
   _boundTypeVars :: [Id],                  -- ^ Bound type variables
   _boundPredicates :: [PredSig],           -- ^ Argument sorts of bound abstract refinements
   _assumptions :: Set Formula,             -- ^ Unknown assumptions

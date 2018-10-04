@@ -668,21 +668,23 @@ initProgramQueue env typ = do
 
 getKSolution :: (MonadHorn s, MonadIO s) => Environment -> Explorer s ()
 getKSolution env = do
-  let goalTy = lastSuccinctType $ findSuccinctSymbol "__goal__"
+  
   let params = Map.keys (env ^. arguments)
   z3Env <- liftIO $ Z3.newEnv Nothing stdOpts
   let edgeType = BoolVar
-  (edgeConsts, nodeConsts) <- liftIO $ evalZ3WithEnv (addGraphConstraints (env ^. graphFromGoal) goalTy params edgeType) z3Env
-  liftIO $ evalZ3WithEnv (getPathSolution (env ^. graphFromGoal) edgeConsts nodeConsts edgeType) z3Env
+  (edgeConsts, nodeConsts) <- liftIO $ evalZ3WithEnv (addGraphConstraints simplifiedGraph goalTy params edgeType) z3Env
+  -- liftIO $ evalZ3WithEnv (getPathSolution simplifiedGraph edgeConsts nodeConsts edgeType) z3Env
   cnt <- asks . view $ _1 . solutionCnt
-  return ()
-  -- getKSolution' z3Env edgeConsts nodeConsts edgeType cnt
+  -- return ()
+  getKSolution' z3Env edgeConsts nodeConsts edgeType cnt
   where
-    -- getKSolution' _ _ _ _ n | n == 0 = return ()
-    -- getKSolution' z3Env edgeConsts nodeConsts edgeType n = do
-    --   liftIO $ evalZ3WithEnv (getPathSolution HashMap.empty edgeConsts nodeConsts edgeType) z3Env
-    --   getKSolution' z3Env edgeConsts nodeConsts edgeType (n-1)
-
+    simplifiedGraph = env ^. graphFromGoal
+    -- simplifiedGraph = graphWithin goalTy 4 $ HashMap.map (HashMap.map (Set.filter ((>=) 8.920956316770301 . getEdgeWeight))) (env ^. graphFromGoal)
+    getKSolution' _ _ _ _ n | n == 0 = return ()
+    getKSolution' z3Env edgeConsts nodeConsts edgeType n = do
+      liftIO $ evalZ3WithEnv (getPathSolution simplifiedGraph edgeConsts nodeConsts edgeType) z3Env
+      getKSolution' z3Env edgeConsts nodeConsts edgeType (n-1)
+    goalTy = lastSuccinctType $ findSuccinctSymbol "__goal__"
     findSuccinctSymbol sym = outOfSuccinctAll $ HashMap.lookupDefault SuccinctAny sym $ env ^. succinctSymbols
 
 -- | To include all the provided parameters in our solution, 
@@ -952,15 +954,18 @@ keepOnly id g =
 
 -- | Algorithms for pruning the graph by the distant @dist@ from the source node @src@
 graphWithin :: SuccinctType -> Int -> SuccinctGraph -> SuccinctGraph
-graphWithin src dist graph = pruneGraphByReachability graph $ graphWithinHelper graph Set.empty [src] (HashMap.singleton src 0)
+graphWithin src dist graph = pruneGraphByReachability shrunkGraph $ getReachableNodes (reverseGraph shrunkGraph) $ starters shrunkGraph
   where
+    shrunkGraph = pruneGraphByReachability graph $ graphWithinHelper graph Set.empty [src] (HashMap.singleton src 0)
+    starters g = filter (\typ -> isSuccinctInhabited typ || isSuccinctFunction typ || hasSuccinctAny typ)
+                        $ nub $ HashMap.keys g ++ (concat $ HashMap.map HashMap.keys g)
     graphWithinHelper g visited toVisit dmap = case toVisit of
       [] -> visited
       curr:xs -> if Set.member curr visited
         then graphWithinHelper g visited xs dmap
         else let children = HashMap.toList (HashMap.lookupDefault HashMap.empty curr g)
                  currDist = fromJust $ HashMap.lookup curr dmap
-                 dmap' = foldr (\(t, s) m -> HashMap.insert t (currDist + 1) m) dmap children
+                 dmap' = foldr (\(t, s) m -> HashMap.insert t (if isSuccinctComposite curr then currDist else currDist + 1) m) dmap children
              in if currDist >= dist 
               then graphWithinHelper g (Set.insert curr visited) xs dmap
               else graphWithinHelper g (Set.insert curr visited) (xs ++ (fst $ unzip children)) dmap'
@@ -1770,7 +1775,7 @@ addSuccinctEdge name t env = do
       let env' = addEdgeForSymbol name succinctTy env
       let goalTy = outOfSuccinctAll $ lastSuccinctType (HashMap.lookupDefault SuccinctAny "__goal__" (env' ^. succinctSymbols))
       let starters = Set.toList $ Set.filter (\typ -> isSuccinctInhabited typ || isSuccinctFunction typ || hasSuccinctAny typ) (allSuccinctNodes env')
-      let reachableSet = getReachableNodes env' starters
+      let reachableSet = getReachableNodes (env' ^. succinctGraphRev) starters
       let graphEnv = env' { _succinctGraph = pruneGraphByReachability (env' ^. succinctGraph) reachableSet }
       let subgraphNodes = if goalTy == SuccinctAny then allSuccinctNodes graphEnv else reachableGraphFromNode graphEnv goalTy
       return $ graphEnv { _graphFromGoal = pruneGraphByReachability (graphEnv ^. succinctGraph) subgraphNodes }    
