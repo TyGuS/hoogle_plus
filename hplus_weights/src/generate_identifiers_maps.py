@@ -49,7 +49,7 @@ def _extract_import_contents(import_statement, supported_modules):
     # Extract the module being imported
     import_components = import_statement.split()
     if len(import_components) == 0:
-        print "PROB"
+        #print "PROB"
         return (ImportMode.invalid, (None,))
     module_name = import_components[0]
     remaining_components = import_components[1:] 
