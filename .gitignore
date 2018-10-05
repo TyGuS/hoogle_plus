@@ -1,4 +1,4 @@
-.swp.*
+.swp
 dist
 dist-*
 cabal-dev
