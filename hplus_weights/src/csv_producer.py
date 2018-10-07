@@ -12,7 +12,7 @@ def create_import_files(tarball_filename):
   devnull = open(os.devnull, 'wb')
   src_dir = os.path.expanduser("~") + "/research/data/working/hackage500/"
   file_path = src_dir + tarball_filename
-  p = subprocess.Popen(["stack", "exec", "extractUsageExamples-exe", file_path], cwd="/home/djusto/research/projects/hplus-bench-utils", shell=False)
+  p = subprocess.Popen(["stack", "exec", "extractUsageExamples-exe", file_path], cwd=os.path.expanduser("~")+ "/projects/hplus-bench-utils", shell=False)
   p.wait() 
 
 def main():      
