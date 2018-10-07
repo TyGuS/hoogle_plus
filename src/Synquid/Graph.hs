@@ -9,6 +9,7 @@ import Synquid.Program
 import Synquid.Succinct
 import Synquid.Pretty
 import Database.Util
+import Database.Generate
 
 import qualified Data.Set as Set
 import Data.Set (Set)
@@ -20,11 +21,14 @@ import Data.Hashable
 import Data.List
 import Data.Maybe
 import Data.Serialize (Serialize)
+import Data.Aeson
 import qualified Data.Serialize as S
 import Control.Monad.State
 import Control.Applicative hiding (empty)
 import Control.Lens
 import Debug.Trace
+import qualified Data.Text as Text
+import qualified Data.Vector as Vector
 
 type NameCount = Map Id Int
 
@@ -228,6 +232,19 @@ instance Serialize t => Serialize (Program t)
 instance Serialize r => Serialize (TypeSkeleton r)
 instance Serialize r => Serialize (BaseType r)
 instance Serialize r => Serialize (SchemaSkeleton r)
+instance Serialize Param
+instance Serialize FunctionCode
+instance ToJSON Param where
+    toEncoding = genericToEncoding defaultOptions
+instance ToJSON FunctionCode where
+    toEncoding = genericToEncoding defaultOptions
+-- instance ToJSON Param where
+--   toJSON (Param ty cnt) = Object (HashMap.singleton (Text.pack ty) (Number cnt))
+-- instance ToJSON FunctionCode where
+--   toJSON (FunctionCode id params ret) = Object (HashMap.singleton (Text.pack id) 
+--                                           (Object $ HashMap.insert (Text.pack "params") (toJSON $ HashMap.fromList $ map paramTuple params)
+--                                                   $ HashMap.insert (Text.pack "return") (String $ Text.pack ret)
+--                                                   $ HashMap.empty))
 
 edges isPruned env = HashMap.foldrWithKey (\k v acc -> (map (\(k',v') -> (k,v',k')) (HashMap.toList v)) ++ acc) [] (if isPruned then env ^. graphFromGoal else env ^. succinctGraph)
 

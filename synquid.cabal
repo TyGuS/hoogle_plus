@@ -27,28 +27,28 @@ executable synquid
                     , FlexibleContexts
                     , CPP
 
-  build-depends:      base >=4.6 && <4.9
-                    , containers >=0.5 && <0.6
-                    , mtl >=2.2 && <2.3
-                    , transformers >=0.3 && <0.5
-                    , transformers-compat ==0.4.*
-                    , lens >=3.7
-                    , ansi-wl-pprint >=0.6 && <0.7
-                    , ansi-terminal >=0.6
-                    , html ==1.*
-                    , bimap >= 0.2
-                    , logict >= 0.5
-                    , parsec == 3.1.*
-                    , indents == 0.3.*
-                    , cmdargs ==0.10.*
+  build-depends:      base
+                    , containers
+                    , mtl
+                    , transformers
+                    , transformers-compat
+                    , lens
+                    , ansi-wl-pprint
+                    , ansi-terminal
+                    , html
+                    , bimap
+                    , logict
+                    , parsec
+                    , indents
+                    , cmdargs
                     , filepath
                     , time
-                    , haskell-src-exts == 1.17.*
+                    , haskell-src-exts
                     , safe
                     , split
                     , unordered-containers
                     , hashable
-                    , pqueue == 1.4.1.1
+                    , pqueue
                     , conduit
                     , extra
                     , conduit-extra
@@ -67,16 +67,11 @@ executable synquid
                     , heap
                     , process
                     , regex-compat
+                    , vector
+                    , inline-java
 
-  Build-tools:         hsc2hs
   ghc-options:   -O2
   includes:            z3.h
-  -- In OS X libz3 is linked statically against libgomp.
-  -- In Windows Z3 is compiled using MS C++.
-  if os(darwin) || os(windows)
-      extra-libraries:     z3
-  else
-      extra-libraries:     gomp z3 gomp
 
   hs-source-dirs:     src
   default-language:   Haskell2010

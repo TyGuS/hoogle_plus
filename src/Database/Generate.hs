@@ -1,4 +1,5 @@
 {-# LANGUAGE ViewPatterns, PatternGuards, TupleSections, OverloadedStrings, Rank2Types, DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Database.Generate where
   
@@ -9,7 +10,11 @@ import Data.Data
 import Data.Char
 import Data.List.Extra
 import Data.Either
+import GHC.Generics
 import Control.Monad.Extra
+import Synquid.Type (isFunctionType, lastType, toMonotype, shape, arity, SType, RSchema, TypeSkeleton(..))
+import qualified Synquid.Program as SP
+import Synquid.Pretty
 
 -- | An entry in the Hoogle DB
 data Entry = EPackage String
@@ -89,3 +94,34 @@ fromIdentity (Symbol name) = name
 
 getNames (EDecl (TypeSig _ names _)) = map fromIdentity names
 getNames _ = []
+
+data Param = Param {
+  paramTyp :: String, -- parameter type
+  paramCnt  :: Int    -- count of the corresponding parameter type
+} deriving(Eq, Ord, Show, Generic)
+
+data FunctionCode = FunctionCode {
+  funName   :: String,  -- function name
+  funParams :: [Param], -- function parameter types and their count
+  funReturn :: String   -- function return type
+} deriving(Eq, Ord, Show, Generic)
+
+paramTuple (Param ty cnt) = (ty, cnt)
+
+-- | count the number of parameters in each signature
+countParams :: SType -> [Param]
+countParams t@(ScalarT _ _) = [Param (show t) 1]
+countParams (FunctionT x tArg tFun) | arity tFun == 0 = [Param (show tArg) 1]
+countParams (FunctionT x tArg tFun) = 
+  let res = countParams tFun
+      currEntry = uncons $ filter ((==) (show tArg) . paramTyp) res
+  in case currEntry of
+        Nothing     -> (Param (show tArg) 1) : res
+        Just (hd,_) -> (Param (show tArg) (1 + paramCnt hd)) : (delete hd res)
+countParams t = error $ "Unexpected type " ++ show t
+
+-- | convert from the synquid type signature to the json object
+-- makeFunctionCode :: String -> RSchema -> Maybe FunctionCode
+makeFunctionCode id sch = 
+  let funcTy = shape sch 
+  in Just $ FunctionCode id (countParams funcTy) (show $ lastType funcTy)

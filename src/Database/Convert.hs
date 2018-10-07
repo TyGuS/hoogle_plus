@@ -270,17 +270,19 @@ packageDependencies pkg toDownload = do
   where
     dependentPkg (Dependency name _) = unPackageName name
 
-declDependencies :: [Entry] -> [Entry] -> IO [Entry]
-declDependencies decls dpDecls = do
-    let closedDecls = dependencyClosure myDefinedDts myDts theirDts
-    let allDecls = closedDecls ++ (snd $ unzip myDtDefs)
+declDependencies :: Id -> [Entry] -> [Entry] -> IO [Entry]
+declDependencies pkgName decls dpDecls = do
+    myDtDefs <- dtDefsIn <$> readDeclarations pkgName Nothing
+    let closedDecls = dependencyClosure myDefinedDts myDts (theirDts ++ myDtDefs)
+    let allDecls = closedDecls -- ++ (snd $ unzip myDtDefs)
     let sortedIds = topoSort $ dependencyGraph allDecls
     -- print sortedIds
     -- print $ declMap allDecls
-    return $ matchDtWithCons $ map (fromJust . (flip Map.lookup $ declMap allDecls)) $ nub $ sortedIds >.> ["List", "Pair"]
+    return $ matchDtWithCons $ map (\id -> case Map.lookup id $ declMap allDecls of
+                                             Nothing -> error $ "cannot find " ++ id
+                                             Just v -> v) $ nub $ sortedIds >.> ["List", "Pair"]
   where
     myDts = dtNamesIn decls
-    myDtDefs = dtDefsIn decls
     myDefinedDts = definedDtsIn decls
     theirDts = dtDefsIn dpDecls
     dependencyClosure definedDts allDts theirDts = let

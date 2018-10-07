@@ -96,6 +96,20 @@ allArgs (FunctionT x (ScalarT baseT _) tRes) = (Var (toSort baseT) x) : (allArgs
 allArgs (FunctionT x _ tRes) = (allArgs tRes)
 allArgs (LetT _ _ t) = allArgs t
 
+allBaseTypes :: RType -> [RType]
+allBaseTypes (ScalarT (TypeVarT _ _) _) = []
+allBaseTypes t@(ScalarT _ _) = [t]
+allBaseTypes (FunctionT _ tArg tRet) = allBaseTypes tArg ++ allBaseTypes tRet
+allBaseTypes _ = error "allBaseTypes: applied to unsupported types"
+
+-- addTrue :: SType -> RType
+-- addTrue (ScalarT BoolT _) = ScalarT BoolT ftrue
+-- addTrue (ScalarT IntT _) = ScalarT IntT ftrue
+-- addTrue (ScalarT (DatatypeT id tys _) _) = ScalarT (DatatypeT id (map addTrue tys) []) ftrue
+-- addTrue (ScalarT (TypeVarT subst id) _) = ScalarT (TypeVarT subst id) ftrue
+-- addTrue (FunctionT id tArg tRet) = FunctionT id (addTrue tArg) (addTrue tRet)
+-- addTrue _ = error "addTrue: unexpected type"
+
 -- | Free variables of a type
 varsOfType :: RType -> Set Id
 varsOfType (ScalarT baseT fml) = varsOfBase baseT `Set.union` (Set.map varName $ varsOf fml)
@@ -293,3 +307,9 @@ typeApplySolution sol (ScalarT base fml) = ScalarT base (applySolution sol fml)
 typeApplySolution sol (FunctionT x tArg tRes) = FunctionT x (typeApplySolution sol tArg) (typeApplySolution sol tRes) 
 typeApplySolution sol (LetT x tDef tBody) = LetT x (typeApplySolution sol tDef) (typeApplySolution sol tBody) 
 typeApplySolution _ AnyT = AnyT
+
+typeDepth :: RType -> Int
+typeDepth (ScalarT (DatatypeT _ tys _) _) = 1 + (maximum $ map typeDepth tys)
+typeDepth (ScalarT _ _) = 0
+typeDepth (FunctionT _ tArg tRet) = max (typeDepth tArg) (typeDepth tRet)
+typeDepth t = error $ "typeDepth: I have no idea when I come across this type"

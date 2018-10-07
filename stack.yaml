@@ -3,14 +3,16 @@ flags:
     synquid: true
 packages:
   - '.'
-resolver: lts-6.21
+resolver: lts-12.4
 extra-deps:
   # - z3-4.3.1
-  - pqueue-1.4.1.1
-  - sort-1.0.0.0
-  - hsc2hs-0.68.3
+  # - pqueue-1.4.1.1
+  # - sort-1.0.0.0
+  # - hsc2hs-0.68.3
+  # - inline-java-0.8.3
   # - extra-1.6.9
-# extra-include-dirs:
- # - /usr/include
-# extra-lib-dirs:
-#  - <z3-home>/build  
+extra-include-dirs:
+  - /usr/lib/jvm/java-8-openjdk-amd64/include
+  - /usr/lib/jvm/java-8-openjdk-amd64/include/linux/
+extra-lib-dirs:
+  - /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/amd64/server/

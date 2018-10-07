@@ -147,7 +147,7 @@ instance Pretty Sort where
   pretty AnyS = operator "?"
 
 instance Show Sort where
-  show = show . pretty
+  show = show . plain . pretty
   
 instance Pretty PredSig where
   pretty (PredSig p argSorts resSort) = hlAngles $ text p <+> text "::" <+> hsep (map (\s -> pretty s <+> text "->") argSorts) <+> pretty resSort
@@ -156,13 +156,13 @@ instance Pretty UnOp where
   pretty op = operator $ unOpTokens Map.! op
 
 instance Show UnOp where
-  show = show . pretty
+  show = show . plain . pretty
 
 instance Pretty BinOp where
   pretty op = operator $ binOpTokens Map.! op
 
 instance Show BinOp where
-  show = show . pretty
+  show = show . plain . pretty
 
 -- | Binding power of a formula
 power :: Formula -> Int
@@ -210,7 +210,7 @@ fmlDocAt n fml = condHlParens (n' <= n) (
 instance Pretty Formula where pretty e = fmlDoc e
 
 instance Show Formula where
-  show = show . pretty
+  show = show . plain . pretty
 
 instance Pretty Valuation where
   pretty val = braces $ commaSep $ map pretty $ Set.toList val
@@ -222,7 +222,7 @@ instance Pretty QSpace where
   pretty space = braces $ commaSep $ map pretty $ view qualifiers space
 
 instance Show QSpace where
-  show = show . pretty
+  show = show . plain . pretty
 
 instance Pretty QMap where
   pretty = vMapDoc text pretty
@@ -243,7 +243,7 @@ instance Pretty (BaseType Formula) where
   pretty = prettyBase (prettyTypeAt 1)
 
 instance Show (BaseType Formula) where
-  show = show . pretty
+  show = show . plain . pretty
   
 prettySType :: SType -> Doc
 prettySType (ScalarT base _) = pretty base
@@ -254,7 +254,7 @@ instance Pretty SType where
   pretty = prettySType
 
 instance Show SType where
- show = show . pretty
+ show = show . plain . pretty
 
 -- | Pretty-printed refinement type
 prettyType :: RType -> Doc
@@ -283,7 +283,7 @@ instance Pretty RType where
   pretty = prettyType
 
 instance Show RType where
- show = show . pretty
+ show = show . plain . pretty
  
 prettySchema :: Pretty (TypeSkeleton r) => SchemaSkeleton r -> Doc
 prettySchema sch = case sch of
@@ -295,13 +295,13 @@ instance Pretty SSchema where
   pretty = prettySchema
 
 instance Show SSchema where
- show = show . pretty
+ show = show . plain . pretty
 
 instance Pretty RSchema where
   pretty = prettySchema
 
 instance Show RSchema where
-  show = show . pretty
+  show = show . plain . pretty
 
 {- Programs -}  
 
@@ -343,7 +343,7 @@ instance (Pretty t) => Pretty (Program t) where
   pretty = prettyProgram
 
 instance (Pretty t) => Show (Program t) where
-  show = show . pretty
+  show = show . plain . pretty
 
 instance Pretty TypeSubstitution where
   pretty = hMapDoc text pretty
@@ -372,7 +372,7 @@ instance Pretty SortConstraint where
   pretty = prettySortConstraint
 
 instance Show SortConstraint where
-  show = show . pretty
+  show = show . plain . pretty
 
 prettyConstraint :: Constraint -> Doc
 prettyConstraint (Subtype env t1 t2 False label) = pretty env <+> operator "|-" <+> pretty t1 <+> operator "<:" <+> pretty t2 <+> parens (text label)
@@ -386,19 +386,19 @@ instance Pretty Constraint where
   pretty = prettyConstraint
 
 instance Show Constraint where
-  show = show . pretty
+  show = show . plain . pretty
 
 instance Pretty Candidate where
   pretty (Candidate sol valids invalids label) = text label <> text ":" <+> pretty sol <+> parens (pretty (Set.size valids) <+> pretty (Set.size invalids))
 
 instance Show Candidate where
-  show = show . pretty
+  show = show . plain . pretty
   
 instance Pretty Goal where
   pretty (Goal name env spec impl depth _) = pretty env <+> operator "|-" <+> text name <+> operator "::" <+> pretty spec $+$ text name <+> operator "=" <+> pretty impl $+$ parens (text "depth:" <+> pretty depth)
 
 instance Show Goal where
-  show = show. pretty
+  show = show. plain . pretty
   
 prettySpec g@(Goal name _ _ _ _ _) = text name <+> operator "::" <+> pretty (unresolvedSpec g)
 prettySolution (Goal name _ _ _ _ _) prog = text name <+> operator "=" </> pretty prog
@@ -427,7 +427,7 @@ instance Pretty BareDeclaration where
   pretty (InlineDecl name args body) = keyword "inline" <+> text name <+> hsep (map text args) <+> operator "=" <+> pretty body
   
 instance Show BareDeclaration where
-  show = show . pretty
+  show = show . plain . pretty
 
 instance Pretty a => Pretty (Pos a) where
   pretty (Pos _ x) = pretty x
@@ -449,7 +449,7 @@ instance Pretty ErrorMessage where
   pretty = prettyError
   
 instance Show ErrorMessage where
-  show = show . pretty
+  show = show . plain . pretty
 
 {- AST node counting -}
 

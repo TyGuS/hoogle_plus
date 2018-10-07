@@ -24,10 +24,8 @@ import Database.Generate
 import Database.Download
 import Database.Util
 import Database.GraphWeightsProvider
--- TODO for test of z3
-import Synquid.GraphConstraintSolver
-import Synquid.Succinct
-import Z3.Monad (evalZ3)
+import PetriNet.PolyDispatcher
+import PetriNet.PNSolver
 
 import Control.Monad
 import Control.Lens ((^.))
@@ -36,7 +34,7 @@ import System.Console.CmdArgs
 import System.Console.ANSI
 import System.FilePath
 import Text.Parsec.Pos
-import Control.Monad.State (runState, evalStateT)
+import Control.Monad.State (runState, evalStateT, execStateT)
 import Data.Char
 import Data.List
 import Data.Foldable
@@ -54,6 +52,8 @@ import Text.Parsec hiding (State)
 import Text.Parsec.Indent
 import System.Directory
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy.Char8 as LB8
+import qualified Data.Aeson as Aeson
 
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import Text.PrettyPrint.ANSI.Leijen (fill, column)
@@ -132,8 +132,8 @@ main = do
                     module_ = out_module
                   }
                   runOnFile synquidParams explorerParams solverParams codegenParams file libs
-    (Generate pkgs) -> do
-                  precomputeGraph pkgs
+    (Generate pkgs mdl d) -> do
+                  precomputeGraph pkgs mdl d
 {- Command line arguments -}
 
 deriving instance Typeable FixpointStrategy
@@ -199,7 +199,9 @@ data CommandLineArgs
       }
       | Generate {
         -- | Input
-        pkgName :: [String]
+        pkgName :: [String],
+        mdlName :: String,
+        tyDepth :: Int
       }
   deriving (Data, Typeable, Show, Eq)
 
@@ -254,7 +256,9 @@ lifty = Lifty {
       defaultFormat = outputFormat defaultSynquidParams
 
 generate = Generate {
-  pkgName             = []              &= args
+  pkgName             = []              &= args,
+  mdlName             = ""              &= help ("Module name to be generated in the given package"),
+  tyDepth             = 2               &= help ("Depth of the types to be instantiated for polymorphic type constructors")
 } &= help "Generate the type transfer graph for synthesis"
 
 mode = cmdArgsMode $ modes [synt, lifty, generate] &=
@@ -366,16 +370,17 @@ codegen params results = case params of
 collectLibDecls libs declsByFile =
   Map.filterWithKey (\k _ -> k `elem` libs) $ Map.fromList declsByFile
 
-precomputeGraph :: [PkgName] -> IO ()
-precomputeGraph pkgs = mapM_ (\pkgName -> do
+precomputeGraph :: [PkgName] -> String -> Int -> IO ()
+precomputeGraph pkgs mdl depth = mapM_ (\pkgName -> do
+  test
   downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
   -- baseDecls <- addPrelude <$> readDeclarations "base" Nothing
   let baseDecls = []
-  fileDecls <- readDeclarations pkgName Nothing
+  fileDecls <- filter (isPrefixOf mdl . getDeclName) <$> readDeclarations pkgName Nothing
   let parsedDecls = fst $ unzip $ map (\decl -> runState (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)
   dependsPkg <- packageDependencies pkgName True
   dependsDecls <- mapM (flip readDeclarations Nothing) $ nub dependsPkg
-  additionalDts <- declDependencies (baseDecls ++ fileDecls) (concat dependsDecls) >>= mapM (flip evalStateT 0 . toSynquidDecl)
+  additionalDts <- declDependencies pkgName (baseDecls ++ fileDecls) (concat dependsDecls) >>= mapM (flip evalStateT 0 . toSynquidDecl)
   let decls = reorderDecls $ nub $ defaultDts ++ additionalDts ++ parsedDecls
   case resolveDecls decls of
     Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
@@ -385,12 +390,17 @@ precomputeGraph pkgs = mapM_ (\pkgName -> do
       edgeWeights <- getGraphWeights $ map getEdgeId allEdges
       let graph' = fillEdgeWeight allEdges edgeWeights $ envAll ^. succinctGraph
       B.writeFile "data/env.db" $ encode $ envAll {_succinctGraph = graph'}
-      -- B.writeFile "data/goal.db" $ encode $ goals
-      -- B.writeFile "data/graph.db" $ encode $ envAll ^. succinctGraph
-      -- B.writeFile "data/graphRev.db" $ encode $ envAll ^. succinctGraphRev
+      st <- execStateT (dispatch $ Set.fromList [ ScalarT BoolT ftrue
+                                                , ScalarT IntT  ftrue
+                                                , ScalarT (TypeVarT Map.empty "X") ftrue
+                                                , ScalarT (TypeVarT Map.empty "T") ftrue
+                                                , ScalarT (TypeVarT Map.empty "S") ftrue
+                                                ]) (initDispatchState envAll)
+      writeFile ("data/" ++ pkgName ++ ".db") $ LB8.unpack $ Aeson.encode $ map (uncurry makeFunctionCode) $ Map.toList (st ^. resultList)
   ) pkgs
   where
-    defaultDts = [defaultList, defaultPair, defaultUnit]
+    initDispatchState env = DispatchState depth (allSymbols env) Map.empty Set.empty Map.empty
+    defaultDts = [defaultList, defaultUnit]
     defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
         ConstructorSig "Nil"  $ ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue
       , ConstructorSig "Cons" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "xs" (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue) (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue))
@@ -415,85 +425,9 @@ precomputeGraph pkgs = mapM_ (\pkgName -> do
 runOnFile :: SynquidParams -> ExplorerParams -> HornSolverParams -> CodegenParams
                            -> String -> [String] -> IO ()
 runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
-  -- declsByFile <- parseFromFiles (libs ++ [file])
-  -- let decls = concat $ map snd declsByFile
-  -- print decls
-  -- cfg <- Z3.mkConfig
-  -- ctx <- Z3.mkContext cfg
-  -- opt <- Z3.mkOptimize ctx
-
-  -- a1 <- Z3.mkStringSymbol ctx "a1"
-  -- a2 <- Z3.mkStringSymbol ctx "a2"
-  -- a3 <- Z3.mkStringSymbol ctx "a3"
-  -- a4 <- Z3.mkStringSymbol ctx "a3"
-  -- b <- Z3.mkBoolSort ctx
-  -- a1const <- Z3.mkConst ctx a1 b
-  -- a2const <- Z3.mkConst ctx a2 b
-  -- a3const <- Z3.mkConst ctx a3 b
-  -- a4const <- Z3.mkConst ctx a4 b
-  -- nota1 <- Z3.mkNot ctx a1const
-  -- nota2 <- Z3.mkNot ctx a2const
-  -- nota4 <- Z3.mkNot ctx a4const
-  -- invalid <- Z3.mkOr ctx [nota1, nota2]
-  -- Z3.optimizeAssertSoft ctx opt a1const "0.1" a1
-  -- Z3.optimizeAssertSoft ctx opt a2const "10.0" a1
-  -- Z3.optimizeAssert ctx opt a3const
-  -- -- Z3.optimizeAssert ctx opt nota4
-  -- Z3.optimizeAssertSoft ctx opt invalid "35" a1
-  -- res <- Z3.optimizeCheck ctx opt
-  -- print res
-  -- model <- Z3.optimizeGetModel ctx opt
-  -- Z3.modelToString ctx model >>= putStrLn
-
-  -- let testGraph = HashMap.fromList [("C",HashMap.fromList [("D",3),("E",2)])
-  --                                  ,("D",HashMap.fromList [("F",4)])
-  --                                  ,("E",HashMap.fromList [("D",1),("F",2),("G",3)])
-  --                                  ,("F",HashMap.fromList [("G",2),("H",1)])
-  --                                  ,("G",HashMap.fromList [("H",2)])]
-  -- path <- dijkstra testGraph "C" "H"
-  -- print path
-  -- paths <- yen testGraph "C" "F" 2
-  -- print paths
-  -- error "stop here"
-  -- targetDecl <- parseSignature file
-  -- let pkgName = "bytestring"
-  -- downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
-  -- baseDecls <- filter (flip notElem ruleOut . getDeclName) <$> addPrelude <$> readDeclarations "base" Nothing
-  -- let baseDecls = []
-  -- fileDecls <- readDeclarations pkgName Nothing
-  -- print fileDecls
-  -- dts <- packageDtNames pkgName
-  -- let parsedDecls = fst $ unzip $ map (\decl -> runState (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)
-  -- ddts <- definedDts pkgName
-  -- dependsPkg <- packageDependencies pkgName False -- liftM2 (++) (packageDependencies pkgName) (packageDependencies "base")
-  -- dependsDecls <- mapM (flip readDeclarations Nothing) $ nub dependsPkg
-  -- additionalDts <- declDependencies (baseDecls ++ fileDecls) (concat dependsDecls) >>= mapM (flip evalStateT 0 . toSynquidDecl)
-  -- additionalDts <- evalStateT (packageDependencies pkgName) 0
-  -- let decls = reorderDecls $ nub $ defaultDts ++ additionalDts ++ parsedDecls ++ targetDecl
-  -- print decls
-  -- let tya = SuccinctDatatype ("ByteString", 0) Set.empty Set.empty Map.empty Set.empty
-  -- let tyb = SuccinctDatatype ("Builder", 0) Set.empty Set.empty Map.empty Set.empty
-  -- let tyc = SuccinctDatatype ("Int64", 0) Set.empty Set.empty Map.empty Set.empty
-  -- let tye = SuccinctInhabited tyc
-  -- let tyf = SuccinctInhabited tya
-  -- let testGraph = HashMap.fromList [(tya, HashMap.fromList [(tyb, Set.fromList [SuccinctEdge "e1" 0 1.1]), (tyf, Set.fromList [SuccinctEdge "e5" 0 1.1])])
-  --                                  ,(tyb, HashMap.fromList [(tyc, Set.fromList [SuccinctEdge "e2" 0 2.2])])
-  --                                  -- ,(tyd, HashMap.fromList [(tyc, Set.fromList [SuccinctEdge "e3" 0 3.3])])
-  --                                  ,(tyc, HashMap.fromList [(tye, Set.fromList [SuccinctEdge "e4" 0 4.4])])
-  --                                  ]
-  -- evalZ3 $ solveGraphConstraints testGraph tya ["e4"]
   goal <- parseGoal file
-  -- let declsByFile = [(pkgName, decls)]
-  -- case resolveDecls decls of
-    -- Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
-    -- Right (_, goals, cquals, tquals) -> when (not $ resolveOnly synquidParams) $ do
   feedEnv goal >>= synthesizeGoal [] [] -- (requested goals)
   return ()
-  -- concatMap (\((goal, ps), stats) -> map (\p -> ((goal, p), stats)) ps) multiResults
-  -- when (not (null results) && showStats synquidParams) $ printStats results declsByFile
-  -- Generate output if requested
-  -- let libsWithDecls = collectLibDecls libs declsByFile
-  -- codegen (fillinCodegenParams file libsWithDecls codegenParams) (map fst results)
   where
     ruleOut = ["zip3", "zip4", "zip5", "zip6", "zip7"
              , "zipWith3", "zipWith4", "zipWith5", "zipWith6", "zipWith7"
