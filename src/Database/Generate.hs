@@ -19,7 +19,7 @@ import Synquid.Pretty
 -- | An entry in the Hoogle DB
 data Entry = EPackage String
            | EModule String
-           | EDecl Decl
+           | EDecl (Decl ())
              deriving (Data,Typeable,Show,Eq)
 
 parseMode :: ParseMode
@@ -28,41 +28,46 @@ parseMode = defaultParseMode{extensions=map EnableExtension es}
                ,TypeFamilies,FlexibleContexts,FunctionalDependencies,ImplicitParams,MagicHash,UnboxedTuples
                ,ParallelArrays,UnicodeSyntax,DataKinds,PolyKinds]
 
-myParseDecl = parseDeclWithMode parseMode -- partial application, to share the initialisation cost
+myParseDecl = fmap (fmap $ const ()) . parseDeclWithMode parseMode -- partial application, to share the initialisation cost
 
-unGADT (GDataDecl a b c d e _  [] f) = DataDecl a b c d e [] f
+unGADT (GDataDecl a b c d _  [] e) = DataDecl a b c d [] e
 unGADT x = x
 
-applyFun1 :: [Type] -> Type
-applyFun1 [x] = x
-applyFun1 (x:xs) = TyFun x $ applyFun1 xs
+applyType :: Type a -> [Type a] -> Type a
+applyType x (t:ts) = applyType (TyApp (ann t) x t) ts
+applyType x [] = x
 
-unapplyFun :: Type -> [Type]
-unapplyFun (TyFun x y) = x : unapplyFun y
+applyFun1 :: [Type a] -> Type a
+applyFun1 [x] = x
+applyFun1 (x:xs) = TyFun (ann x) x $ applyFun1 xs
+
+unapplyFun :: Type a -> [Type a]
+unapplyFun (TyFun _ x y) = x : unapplyFun y
 unapplyFun x = [x]
 
-readItem :: String -> Maybe Decl
+readItem :: String -> Maybe (Decl ())
 readItem x | ParseOk y <- myParseDecl x = Just $ unGADT y
 readItem x -- newtype
     | Just x <- stripPrefix "newtype " x
-    , ParseOk (DataDecl a b c d e f g) <- fmap unGADT $ myParseDecl $ "data " ++ x
-    = Just $ DataDecl a b c d e f g
+    , ParseOk (DataDecl an _ b c d e) <- fmap unGADT $ myParseDecl $ "data " ++ x
+    = Just $ DataDecl an (NewType ()) b c d e
 readItem x -- constructors
-    | ParseOk (GDataDecl _ _ _ _ _ _ [GadtDecl s name _ ty] _) <- myParseDecl $ "data Data where " ++ x
-    , let f (TyBang _ (TyParen x@TyApp{})) = x
-          f (TyBang _ x) = x
+    | ParseOk (GDataDecl _ _ _ _ _ [GadtDecl s name _ ty] _) <- myParseDecl $ "data Data where " ++ x
+    , let f (TyBang _ _ _ (TyParen _ x@TyApp{})) = x
+          f (TyBang _ _ _ x) = x
           f x = x
     = Just $ TypeSig s [name] $ applyFun1 $ map f $ unapplyFun ty
 readItem ('(':xs) -- tuple constructors
     | (com,')':rest) <- span (== ',') xs
     , ParseOk (TypeSig s [Ident{}] ty) <- myParseDecl $ replicate (length com + 2) 'a' ++ rest
-    = Just $ TypeSig s [Ident $ '(':com++")"] ty
+    = Just $ TypeSig s [Ident s $ '(':com++")"] ty
 readItem (stripPrefix "data (" -> Just xs)  -- tuple data type
     | (com,')':rest) <- span (== ',') xs
-    , ParseOk (DataDecl a b c d e f g) <- fmap unGADT $ myParseDecl $
+    , ParseOk (DataDecl a b c d e f) <- fmap unGADT $ myParseDecl $
         "data " ++ replicate (length com + 2) 'A' ++ rest
-    = Just $ DataDecl a b c ( (op $ '(':com++")") d) e f g
-    where op s x = x
+    = Just $ DataDecl a b c ( (op $ '(':com++")") d) e f
+    where op s DHead{} = DHead () $ Ident () s
+          op s x = x
 readItem _ = Nothing
 
 parseLine :: String -> Either String [Entry]
@@ -89,8 +94,9 @@ fixLine ('[':':':xs) | (a,']':b) <- break (== ']') xs = "(:" ++ a ++ ")" ++ b
 fixLine x | "class " `isPrefixOf` x = fst $ breakOn " where " x
 fixLine x = x
 
-fromIdentity (Ident name) = name
-fromIdentity (Symbol name) = name
+
+fromIdentity (Ident _ name) = name
+fromIdentity (Symbol _ name) = name
 
 getNames (EDecl (TypeSig _ names _)) = map fromIdentity names
 getNames _ = []

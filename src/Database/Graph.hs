@@ -14,12 +14,12 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Control.Lens
 import Debug.Trace
-import Distribution.PackDeps
-import qualified Distribution.Version as DV
-import Distribution.Verbosity
-import Distribution.PackageDescription
-import Distribution.PackageDescription.Parse
-import Distribution.Package
+-- import Distribution.PackDeps
+-- import qualified Distribution.Version as DV
+-- import Distribution.Verbosity
+-- import Distribution.PackageDescription
+-- import Distribution.PackageDescription.Parsec
+-- import Distribution.Package
 
 import Synquid.Succinct
 import Synquid.Pretty
@@ -59,20 +59,6 @@ typeSignatureOf decl = case decl of
 
 emptyDtDef = DatatypeDef [] [] [] [] Nothing
 
--- packageEnv :: MonadIO m => PkgName -> StateT ExplorerState m Environment
--- packageEnv pkg = undefined
--- do
---     decls <- liftIO $ readDeclations pkg Nothing
---     let dts = Set.unions $ map getDeclTy decls
---     let env = foldr (uncurry addDatatype) emptyEnv (map withEmptyDt $ Set.toList dts)
---     let sigs = map fromJust . filter isJust . map (typeSignatureOf env) $ decls
---     let env' = foldr (uncurry addPolyVariable) env sigs
---     foldM (\accEnv (id, typ) -> addSuccinctEdge id typ accEnv) env' sigs
---   where
---     withEmptyDt id = (id, emptyDtDef)
---     getDeclTy decl = case decl of
---         EDecl (TypeSig _ names ty) -> datatypeOf ty
---         _ -> Set.empty
 
 packageTypes :: PkgName -> Set RType
 packageTypes = undefined

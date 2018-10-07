@@ -34,7 +34,7 @@ import System.Console.CmdArgs
 import System.Console.ANSI
 import System.FilePath
 import Text.Parsec.Pos
-import Control.Monad.State (runState, evalStateT, execStateT)
+import Control.Monad.State (runState, evalStateT, execStateT, evalState)
 import Data.Char
 import Data.List
 import Data.Foldable
@@ -466,7 +466,7 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
       --           }}
     parseGoal sig = do
       let transformedSig = "goal :: " ++ sig ++ "\ngoal = ??"
-      parseResult <- return $ runIndent "" $ runParserT parseProgram () "" transformedSig
+      parseResult <- return $ flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" transformedSig
       case parseResult of
         Left parseErr -> (pdoc $ pretty $ toErrorMessage parseErr) >> pdoc empty >> exitFailure
         -- Right ast -> print $ vsep $ map pretty ast

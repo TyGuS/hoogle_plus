@@ -26,6 +26,40 @@ executable synquid
                     , TypeSynonymInstances
                     , FlexibleContexts
                     , CPP
+  other-modules: Database.Convert
+                 Database.Download
+                 Database.Generate
+                 Database.Graph
+                 Database.GraphWeightsProvider
+                 Database.Util
+                 PetriNet.PNSolver
+                 PetriNet.PolyDispatcher
+                 Synquid.Codegen
+                 Synquid.Error
+                 Synquid.Explorer
+                 Synquid.Graph
+                 Synquid.GraphConstraintSolver
+                 Synquid.HornSolver
+                 Synquid.HtmlOutput
+                 Synquid.Logic
+                 Synquid.Parser
+                 Synquid.Pretty
+                 Synquid.Program
+                 Synquid.Resolver
+                 Synquid.SolverMonad
+                 Synquid.Stats
+                 Synquid.Succinct
+                 Synquid.Synthesizer
+                 Synquid.Tokens
+                 Synquid.Type
+                 Synquid.TypeChecker
+                 Synquid.TypeConstraintSolver
+                 Synquid.Util
+                 Synquid.Z3
+                 Z3.Base
+                 Z3.Base.C
+                 Z3.Monad
+                 Z3.Opts
 
   build-depends:      base
                     , containers
@@ -69,9 +103,15 @@ executable synquid
                     , regex-compat
                     , vector
                     , inline-java
+                    , jvm
 
   ghc-options:   -O2
   includes:            z3.h
+  
+  if os(darwin) || os(windows)
+      extra-libraries:     z3
+  else
+      extra-libraries:     gomp z3 gomp
 
   hs-source-dirs:     src
   default-language:   Haskell2010

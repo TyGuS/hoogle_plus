@@ -52,7 +52,7 @@ downloadFile pkg version = do
                 response <- http request manager
                 if responseStatus response /= ok200
                     then return False -- error "Connection Error"
-                    else responseBody response $$+- sinkFile (downloadDir ++ vpkg ++ ".txt") >> return True
+                    else runConduit (responseBody response .| sinkFile (downloadDir ++ vpkg ++ ".txt")) >> return True
         else return True
 
 downloadCabal :: PkgName -> Maybe Version -> IO Bool
@@ -68,5 +68,5 @@ downloadCabal pkg version = do
                 response <- http request manager
                 if responseStatus response /= ok200
                     then return False -- error "Connection Error"
-                    else responseBody response $$+- sinkFile (downloadDir ++ pkg ++ ".cabal") >> return True
+                    else runConduit (responseBody response .| sinkFile (downloadDir ++ pkg ++ ".cabal")) >> return True
         else return True

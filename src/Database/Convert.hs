@@ -20,7 +20,7 @@ import Control.Monad.State
 import Text.Parsec.Pos
 import Distribution.Verbosity
 import Distribution.PackageDescription
-import Distribution.PackageDescription.Parse
+import Distribution.PackageDescription.Parsec
 import Distribution.Package
 import Debug.Trace
 import System.Directory
@@ -37,75 +37,85 @@ import Database.Download
 -- import Synquid.Succinct
 
 prependName prefix name  = case name of
-    Ident var -> Ident (prefix ++ "." ++ var)
-    Symbol var -> Symbol (prefix ++ "." ++ var)
+    Ident l var -> Ident l (prefix ++ "." ++ var)
+    Symbol l var -> Symbol l (prefix ++ "." ++ var)
 
 nameStr name = case name of
-    Ident var -> var
-    Symbol sym -> sym
+    Ident _ var -> var
+    Symbol _ sym -> sym
 
-isIdentity (Ident _) = True
-isIdentity (Symbol _) = False
+isIdentity (Ident _ _) = True
+isIdentity (Symbol _ _) = False
 
-moduleNameStr (ModuleName name) = name
+moduleNameStr (ModuleName _ name) = name
 
-consStr (TyCon name) = case name of
-    Qual moduleName consName -> (moduleNameStr moduleName) ++ "." ++ (nameStr consName)
-    UnQual name -> nameStr name
-    Special name -> specialConsStr name
-consStr (TyApp fun arg) = consStr fun
-consStr (TyFun arg ret) = (consStr arg) ++ "To" ++ (consStr ret)
-consStr (TyList typ) = "List"++(consStr typ)
+declHeadName (DHead _ name) = nameStr name
+declHeadName (DHInfix _ bvar name) = nameStr name
+declHeadName (DHParen _ head) = declHeadName head
+declHeadName (DHApp _ head _) = declHeadName head
+
+declHeadVars (DHead _ _) = []
+declHeadVars (DHInfix _ bvar name) = [varsFromBind bvar]
+declHeadVars (DHParen _ head) = declHeadVars head
+declHeadVars (DHApp _ head bvar) = varsFromBind bvar : (declHeadVars head)
+
+consStr (TyCon _ name) = case name of
+    Qual _ moduleName consName -> (moduleNameStr moduleName) ++ "." ++ (nameStr consName)
+    UnQual _ name -> nameStr name
+    Special _ name -> specialConsStr name
+consStr (TyApp _ fun arg) = consStr fun
+consStr (TyFun _ arg ret) = (consStr arg) ++ "To" ++ (consStr ret)
+consStr (TyList _ typ) = "List"++(consStr typ)
 consStr _ = "_"
 
-specialConsStr (UnitCon) = "Unit"
-specialConsStr (ListCon) = "List"
-specialConsStr (FunCon) = "Fun"
+specialConsStr (UnitCon _) = "Unit"
+specialConsStr (ListCon _) = "List"
+specialConsStr (FunCon _) = "Fun"
 specialConsStr _ = "_"
 
-allTypeVars (TyForall _ _ typ) = allTypeVars typ
-allTypeVars (TyFun arg ret) = allTypeVars arg `Set.union` allTypeVars ret
-allTypeVars (TyTuple _ typs) = foldr (\t vars -> vars `Set.union` allTypeVars t) Set.empty typs
+allTypeVars (TyForall _ _ _ typ) = allTypeVars typ
+allTypeVars (TyFun _ arg ret) = allTypeVars arg `Set.union` allTypeVars ret
+allTypeVars (TyTuple _ _ typs) = foldr (\t vars -> vars `Set.union` allTypeVars t) Set.empty typs
 -- allTypeVars (TyUnboxedSum _ typs) = foldr (\t vars -> vars `Set.union` allTypeVars t) Set.empty typs
-allTypeVars (TyList typ) = allTypeVars typ
-allTypeVars (TyApp fun arg) = allTypeVars fun `Set.union` allTypeVars arg
-allTypeVars (TyVar name) = Set.singleton $ nameStr name
-allTypeVars (TyCon name) = Set.empty
-allTypeVars (TyParen typ) = allTypeVars typ
-allTypeVars (TyInfix typ1 _ typ2) = allTypeVars typ1 `Set.union` allTypeVars typ2
-allTypeVars (TyKind typ _) = allTypeVars typ
-allTypeVars (TyEquals ltyp rtyp) = allTypeVars ltyp `Set.union` allTypeVars rtyp
+allTypeVars (TyList _ typ) = allTypeVars typ
+allTypeVars (TyApp _ fun arg) = allTypeVars fun `Set.union` allTypeVars arg
+allTypeVars (TyVar _ name) = Set.singleton $ nameStr name
+allTypeVars (TyCon _ name) = Set.empty
+allTypeVars (TyParen _ typ) = allTypeVars typ
+allTypeVars (TyInfix _ typ1 _ typ2) = allTypeVars typ1 `Set.union` allTypeVars typ2
+allTypeVars (TyKind _ typ _) = allTypeVars typ
+allTypeVars (TyEquals _ ltyp rtyp) = allTypeVars ltyp `Set.union` allTypeVars rtyp
 allTypeVars _ = Set.empty
 
-datatypeOf (TyForall _ _ typ) = datatypeOf typ
-datatypeOf (TyFun arg ret) = datatypeOf arg `Set.union` datatypeOf ret
-datatypeOf (TyTuple _ typs) = foldr (\t vars -> vars `Set.union` datatypeOf t) (Set.singleton "Pair") typs
+datatypeOf (TyForall _ _ _ typ) = datatypeOf typ
+datatypeOf (TyFun _ arg ret) = datatypeOf arg `Set.union` datatypeOf ret
+datatypeOf (TyTuple _ _ typs) = foldr (\t vars -> vars `Set.union` datatypeOf t) (Set.singleton "Pair") typs
 -- datatypeOf (TyUnboxedSum _ typs) = foldr (\t vars -> vars `Set.union` datatypeOf t) Set.empty typs
-datatypeOf (TyList typ) = Set.singleton "List" `Set.union` datatypeOf typ
-datatypeOf (TyApp fun arg) = datatypeOf fun `Set.union` datatypeOf arg
-datatypeOf (TyVar name) = Set.empty
-datatypeOf t@(TyCon name) | Special _ <- name = Set.empty
-datatypeOf t@(TyCon name) | otherwise = Set.singleton $ consStr t
-datatypeOf (TyParen typ) = datatypeOf typ
-datatypeOf (TyInfix typ1 _ typ2) = datatypeOf typ1 `Set.union` datatypeOf typ2
-datatypeOf (TyKind typ _) = datatypeOf typ
-datatypeOf (TyEquals ltyp rtyp) = datatypeOf ltyp `Set.union` datatypeOf rtyp
+datatypeOf (TyList _ typ) = Set.singleton "List" `Set.union` datatypeOf typ
+datatypeOf (TyApp _ fun arg) = datatypeOf fun `Set.union` datatypeOf arg
+datatypeOf (TyVar _ name) = Set.empty
+datatypeOf t@(TyCon _ name) | Special _ _ <- name = Set.empty
+datatypeOf t@(TyCon _ name) | otherwise = Set.singleton $ consStr t
+datatypeOf (TyParen _ typ) = datatypeOf typ
+datatypeOf (TyInfix _ typ1 _ typ2) = datatypeOf typ1 `Set.union` datatypeOf typ2
+datatypeOf (TyKind _ typ _) = datatypeOf typ
+datatypeOf (TyEquals _ ltyp rtyp) = datatypeOf ltyp `Set.union` datatypeOf rtyp
 datatypeOf _ = Set.empty
 
 matchDtWithCons :: [Entry] -> [Entry]
 matchDtWithCons [] = []
 matchDtWithCons (decl:decls) = case decl of
-    EDecl (DataDecl a b c name bvars conDecls d) -> case decls of
+    EDecl (DataDecl a b c hd conDecls d) -> case decls of
         [] -> decl : matchDtWithCons decls
-        decl':decls' | EDecl (TypeSig _ names typ) <- decl' -> if names !! 0 == name 
-                                                                   then let conDecl = QualConDecl a [] c (ConDecl name [typ]) 
-                                                                        in (EDecl (DataDecl a b c name bvars (conDecl:conDecls) d)): matchDtWithCons decls'
+        decl':decls' | EDecl (TypeSig _ names typ) <- decl' -> if nameStr (head names) == declHeadName hd 
+                                                                   then let conDecl = QualConDecl a Nothing c (ConDecl a (head names) [typ]) 
+                                                                        in (EDecl (DataDecl a b c hd (conDecl:conDecls) d)): matchDtWithCons decls'
                                                                    else decl : matchDtWithCons decls
                      | otherwise -> decl : matchDtWithCons decls
     _ -> decl : matchDtWithCons decls
 
 
-toSynquidSchema :: Monad m => Type -> StateT Int m SSchema
+toSynquidSchema :: Monad m => Type () -> StateT Int m SSchema
 toSynquidSchema typ = do
     typs <- toSynquidSkeleton typ
     typ' <- return $ head typs
@@ -114,50 +124,50 @@ toSynquidSchema typ = do
         -- then  return $ Monotype typ'
         -- else return $ foldr ForallT (Monotype typ') $ allTypeVars typ
 
-toSynquidSkeleton :: Monad m => Type -> StateT Int m [SType]
-toSynquidSkeleton (TyForall _ _ typ) = toSynquidSkeleton typ
-toSynquidSkeleton (TyFun arg ret) = do
+toSynquidSkeleton :: Monad m => Type () -> StateT Int m [SType]
+toSynquidSkeleton (TyForall _ _ _ typ) = toSynquidSkeleton typ
+toSynquidSkeleton (TyFun _ arg ret) = do
     counter <- get
     -- traceShow ((show counter)) $ return ()
     put (counter + 1)
     ret' <- toSynquidSkeleton ret
     arg' <- toSynquidSkeleton arg
     return [FunctionT ("arg"++show counter) (head arg') (head ret')]
-toSynquidSkeleton (TyParen typ) = toSynquidSkeleton typ
-toSynquidSkeleton (TyKind typ _) = toSynquidSkeleton typ
-toSynquidSkeleton t@(TyCon name) = case name of
-    Qual moduleName consName -> return [ScalarT (DatatypeT ((moduleNameStr moduleName) ++ "." ++ (nameStr consName)) [] []) ()]
-    UnQual name -> case nameStr name of
+toSynquidSkeleton (TyParen _ typ) = toSynquidSkeleton typ
+toSynquidSkeleton (TyKind _ typ _) = toSynquidSkeleton typ
+toSynquidSkeleton t@(TyCon _ name) = case name of
+    Qual _ moduleName consName -> return [ScalarT (DatatypeT ((moduleNameStr moduleName) ++ "." ++ (nameStr consName)) [] []) ()]
+    UnQual _ name -> case nameStr name of
         "Int" -> return [ScalarT IntT ()]
         "Bool" -> return [ScalarT BoolT ()]
         xarg -> return [ScalarT (DatatypeT xarg [] []) ()]
-    Special name -> return [ScalarT (DatatypeT (specialConsStr name) [] []) ()]
-toSynquidSkeleton (TyApp fun arg) 
-    | (TyCon name) <- fun = do
+    Special _ name -> return [ScalarT (DatatypeT (specialConsStr name) [] []) ()]
+toSynquidSkeleton (TyApp _ fun arg) 
+    | (TyCon _ name) <- fun = do
         ScalarT (DatatypeT id tys _) _ <- head <$> toSynquidSkeleton fun
         args <- toSynquidSkeleton arg
         return [ScalarT (DatatypeT id (args++tys) []) ()]
-    | (TyApp fun' arg') <- fun = do
+    | (TyApp _ fun' arg') <- fun = do
         ScalarT (DatatypeT id tys _) _ <- head <$> toSynquidSkeleton fun
         args <- toSynquidSkeleton arg
         return [ScalarT (DatatypeT id (args++tys) []) ()]
-    | (TyVar _) <- fun = toSynquidSkeleton arg
+    | (TyVar _ _) <- fun = toSynquidSkeleton arg
     | otherwise = do
         funs <- toSynquidSkeleton fun
         args <- toSynquidSkeleton arg
         return $ funs ++ args
-toSynquidSkeleton (TyVar name) = return [ScalarT (TypeVarT Map.empty $ nameStr name) ()]
-toSynquidSkeleton (TyList typ) = do
+toSynquidSkeleton (TyVar _ name) = return [ScalarT (TypeVarT Map.empty $ nameStr name) ()]
+toSynquidSkeleton (TyList _ typ) = do
     typ' <- toSynquidSkeleton typ
     return [ScalarT (DatatypeT ("List") typ' []) ()]
-toSynquidSkeleton (TyTuple _ typs) = do
+toSynquidSkeleton (TyTuple _ _ typs) = do
     fst <- toSynquidSkeleton (head typs)
     snd <- toSynquidSkeleton (typs !! 1)
     return [ScalarT (DatatypeT ("Pair") (fst++snd) []) ()]
 toSynquidSkeleton _ = return [AnyT]
 
-varsFromBind (KindedVar name _) = nameStr name
-varsFromBind (UnkindedVar name) = nameStr name
+varsFromBind (KindedVar _ name _) = nameStr name
+varsFromBind (UnkindedVar _ name) = nameStr name
 
 -- decomposeDH :: DeclHead () -> (Maybe String, [String])
 -- decomposeDH (DHead _ name) = (Just $ nameStr name, [])
@@ -185,36 +195,37 @@ addPrelude (decl:decls) = case decl of
     EModule mdl -> if mdl == "GHC.OldList" then takeWhile (not . isModule) decls else addPrelude decls
     _ -> addPrelude decls
 
-processConDecls :: Monad m => [QualConDecl] -> StateT Int m [SP.ConstructorSig]
+processConDecls :: Monad m => [QualConDecl ()] -> StateT Int m [SP.ConstructorSig]
 processConDecls [] = return []
 processConDecls (decl:decls) = let QualConDecl _ _ _ conDecl = decl in 
     case conDecl of
-        ConDecl name typs -> do
+        ConDecl _ name typs -> do
             typ <- toSynquidRType $ head typs
             (:) (SP.ConstructorSig (nameStr name) typ) <$> (processConDecls decls)
-        InfixConDecl typl name typr -> do
+        InfixConDecl _ typl name typr -> do
             typl' <- toSynquidRType typl
             typr' <- toSynquidRType typr
             (:) (SP.ConstructorSig (nameStr name) (FunctionT "arg0" typl' typr')) <$> (processConDecls decls)
-        RecDecl name fields -> error "record declaration is not supported"
+        RecDecl _ name fields -> error "record declaration is not supported"
 
-datatypeOfCon :: [QualConDecl] -> Set Id
+datatypeOfCon :: [QualConDecl ()] -> Set Id
 datatypeOfCon [] = Set.empty
 datatypeOfCon (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
     case conDecl of
-        ConDecl name typs -> Set.unions $ map datatypeOf typs
-        InfixConDecl typl name typr -> datatypeOf typl `Set.union` datatypeOf typr
-        RecDecl name fields -> error "record declaration is not supported"
+        ConDecl _ name typs -> Set.unions $ map datatypeOf typs
+        InfixConDecl _ typl name typr -> datatypeOf typl `Set.union` datatypeOf typr
+        RecDecl _ name fields -> error "record declaration is not supported"
 
-toSynquidDecl (EDecl (TypeDecl _ name bvars typ)) = Pos (initialPos (nameStr name)) . SP.TypeDecl (nameStr name) (map varsFromBind bvars) <$> toSynquidRType typ
-toSynquidDecl (EDecl (DataFamDecl a b name bvars c)) = toSynquidDecl (EDecl (DataDecl a DataType b name bvars [] []))
-toSynquidDecl (EDecl (DataDecl _ _ _ name bvars conDecls _)) = do
+toSynquidDecl (EDecl (TypeDecl _ head typ)) = Pos (initialPos $ declHeadName head) . SP.TypeDecl (declHeadName head) (declHeadVars head) <$> toSynquidRType typ
+toSynquidDecl (EDecl (DataFamDecl a b head c)) = toSynquidDecl (EDecl (DataDecl a (DataType a) b head [] []))
+toSynquidDecl (EDecl (DataDecl _ _ _ head conDecls _)) = do
     constructors <- processConDecls conDecls
-    let vars = map varsFromBind bvars
-    return $ Pos (initialPos (nameStr name)) $ SP.DataDecl (nameStr name) vars [] constructors
+    let name = declHeadName head
+    let vars = declHeadVars head
+    return $ Pos (initialPos name) $ SP.DataDecl name vars [] constructors
 toSynquidDecl (EDecl (TypeSig _ names typ)) = do
     sch <- toSynquidSchema typ
-    return $ Pos (initialPos (nameStr $ names !! 0)) $ SP.FuncDecl (head (map nameStr names)) (toSynquidRSchema sch)
+    return $ Pos (initialPos (nameStr $ names !! 0)) $ SP.FuncDecl (nameStr $ head names) (toSynquidRSchema sch)
 toSynquidDecl decl = return $ Pos (initialPos "") $ SP.QualifierDecl [] -- [TODO] a fake conversion
 
 reorderDecls :: [Declaration] -> [Declaration]
@@ -234,13 +245,6 @@ renameSigs currModule (decl:decls) = case decl of
     EDecl (TypeSig loc names ty) -> (EDecl (TypeSig loc (map (prependName currModule) names) ty)):(renameSigs currModule decls)
     _ -> decl:(renameSigs currModule decls)
 
-addSynonym :: [Entry] -> [Entry]
-addSynonym [] = []
-addSynonym (decl:decls) = case decl of
-    EDecl (TypeDecl loc name _ typ) -> let typ' = TyFun (TyCon (UnQual name)) typ
-        in (EDecl (TypeSig loc [Ident ((nameStr name)++"To"++(consStr typ))] typ')):(addSynonym decls)
-    _ -> decl:(addSynonym decls)
-
 readDeclarations :: PkgName -> Maybe Version -> IO [Entry]
 readDeclarations pkg version = do
     vpkg <- do 
@@ -255,7 +259,7 @@ type DependsOn = Map PkgName [Id]
 
 packageDependencies :: PkgName -> Bool -> IO [PkgName]
 packageDependencies pkg toDownload = do
-    gPackageDesc <- readPackageDescription silent $ downloadDir ++ pkg ++ ".cabal"
+    gPackageDesc <- readGenericPackageDescription silent $ downloadDir ++ pkg ++ ".cabal"
     case condLibrary gPackageDesc of
         Nothing -> return []
         Just (CondNode _ dependencies _) -> do
@@ -296,8 +300,8 @@ declDependencies pkgName decls dpDecls = do
             else []
     declMap decls = foldr (\d -> Map.insert (getDeclName d) d) Map.empty $ filter isDataDecl decls
     dependsOn decl = case decl of
-        EDecl (DataDecl _ _ _ name bvars conDecls _) -> (nameStr name, datatypeOfCon conDecls)
-        EDecl (TypeDecl _ name _ ty) -> (nameStr name, datatypeOf ty)
+        EDecl (DataDecl _ _ _ head conDecls _) -> (declHeadName head, datatypeOfCon conDecls)
+        EDecl (TypeDecl _ head ty) -> (declHeadName head, datatypeOf ty)
         _ -> error "[In `dependsOn`] Please filter before calling this function"
     dependencyGraph decls = foldr (uncurry Map.insert) Map.empty $ map dependsOn $ filter isDataDecl decls
     nodesOf graph = nub $ (Map.keys graph) ++ (Set.toList $ Set.unions $ Map.elems graph)
@@ -366,29 +370,27 @@ isModule :: Entry -> Bool
 isModule (EModule _) = True
 isModule _ = False
 
+dtNameOf :: Entry -> String
+dtNameOf (EDecl (DataDecl _ _ _ head conDecls _)) = declHeadName head
+dtNameOf (EDecl (TypeDecl _ head _)) = declHeadName head
+
 packageDtDefs :: PkgName -> IO [(Id, Entry)]
 packageDtDefs pkg = do
     decls <- readDeclarations pkg Nothing
     -- It relies on the order of definitions exist in the source file
     return $ foldr (\decl -> ((dtNameOf decl, decl):)) [] $ filter isDataDecl decls
-  where
-    dtNameOf (EDecl (DataDecl _ _ _ name bvars conDecls _)) = nameStr name
-    dtNameOf (EDecl (TypeDecl _ name _ _)) = nameStr name
 
 dtDefsIn :: [Entry] -> [(Id, Entry)]
 dtDefsIn decls = foldr (\decl -> ((dtNameOf decl, decl):)) [] $ filter isDataDecl decls
-  where
-    dtNameOf (EDecl (DataDecl _ _ _ name bvars conDecls _)) = nameStr name
-    dtNameOf (EDecl (TypeDecl _ name _ _)) = nameStr name
 
 getDeclTy :: Entry -> Set Id
 getDeclTy (EDecl (TypeSig _ names ty)) = datatypeOf ty
-getDeclTy (EDecl (TypeDecl _ _ _ ty)) = datatypeOf ty
+getDeclTy (EDecl (TypeDecl _ _ ty)) = datatypeOf ty
 getDeclTy _ = Set.empty
 
 getDeclName :: Entry -> Id
-getDeclName (EDecl (DataDecl _ _ _ name bvars conDecls _)) = nameStr name
-getDeclName (EDecl (TypeDecl _ name _ ty)) = nameStr name
+getDeclName (EDecl (DataDecl _ _ _ head conDecls _)) = declHeadName head
+getDeclName (EDecl (TypeDecl _ head ty)) = declHeadName head
 getDeclName (EDecl (TypeSig _ names ty)) = nameStr $ head names
 getDeclName _ = ""
 
@@ -401,16 +403,10 @@ dtNamesIn :: [Entry] -> [Id]
 dtNamesIn decls = Set.toList $ Set.unions $ map getDeclTy decls
 
 definedDtsIn :: [Entry] -> [Id]
-definedDtsIn decls = map dtNameOf $ filter isDataDecl decls
-  where
-    dtNameOf (EDecl (DataDecl _ _ _ name bvars conDecls _)) = nameStr name
-    dtNameOf (EDecl (TypeDecl _ name _ _)) = nameStr name
+definedDtsIn decls = map dtNameOf $ filter isDataDecl decls    
 
 definedDts :: PkgName -> IO [Id]
 definedDts pkg = do
     decls <- readDeclarations pkg Nothing
     let dtDecls = filter isDataDecl decls
     return $ map dtNameOf dtDecls
-  where
-    dtNameOf (EDecl (DataDecl _ _ _ name bvars conDecls _)) = nameStr name
-    dtNameOf (EDecl (TypeDecl _ name _ _)) = nameStr name
