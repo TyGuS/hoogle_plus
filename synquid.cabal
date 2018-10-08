@@ -9,9 +9,12 @@ description:          Synquid is a simple functional programming language with r
 author:               Nadia Polikarpova
 maintainer:           nadia.polikarpova@gmail.com
 category:             Language
-build-type:           Simple
+build-type:           Custom
 extra-source-files:   README.md
-cabal-version:        >=1.10
+cabal-version:        >=1.18
+
+custom-setup
+  setup-depends: Cabal>=1.18, base<5, inline-java
 
 flag synquid
   Description: Build the synquid executable
@@ -104,6 +107,7 @@ executable synquid
                     , vector
                     , inline-java
                     , jvm
+                    , jni
 
   ghc-options:   -O2
   includes:            z3.h

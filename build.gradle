@@ -1,0 +1,15 @@
+apply plugin: 'java'
+apply plugin: 'application'
+
+mainClassName = "bogus.class.name"
+
+// startScripts {
+//    classpath += files('/mnt/c/Users/aaron/Desktop/hoogle_plus/src/sypet/sypet.jar')
+// }
+
+dependencies {
+	compile files('/mnt/c/Users/aaron/Desktop/hoogle_plus/src/sypet/sypet.jar'
+		         ,'/mnt/c/Users/aaron/Desktop/hoogle_plus/src/sypet/lib/apt.jar'
+		         ,'/mnt/c/Users/aaron/Desktop/hoogle_plus/src/sypet/lib/commons-lang3-3.4.jar')
+	runtime files('/mnt/c/Users/aaron/Desktop/hoogle_plus/src/sypet/lib/*.jar')
+}
