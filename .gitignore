@@ -26,3 +26,8 @@ cabal.project.local~
 *.png
 data/
 *node_modules/*
+.idea
+.python-version
+*output/
+*.pyc
+.pyc
