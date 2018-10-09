@@ -1,0 +1,6 @@
+flags: {}
+packages:
+- .
+extra-deps:
+- hse-cpp-0.2
+resolver: lts-12.6
