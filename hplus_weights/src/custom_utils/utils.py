@@ -28,6 +28,12 @@ def get_soup(url):
     return text_soup
 
 
+def get_repo_root():
+    git_repo = git.Repo(os.path.abspath(__file__), search_parent_directories=True)
+    git_root = git_repo.git.rev_parse("--show-toplevel")
+    return os.path.abspath(git_root)
+
+
 def get_data_path(data_folder_name):
     """
     Given a folder path, create the parent structure and path necessary to access that folder.
@@ -38,9 +44,7 @@ def get_data_path(data_folder_name):
     Return:
         absolute path to folder
     """
-    git_repo = git.Repo(os.path.abspath(__file__), search_parent_directories=True)
-    git_root = git_repo.git.rev_parse("--show-toplevel")
-    data_dir_path = os.path.join(git_root, DATA_DIR, data_folder_name)
+    data_dir_path = os.path.join(get_repo_root(), DATA_DIR, data_folder_name)
     if not os.path.exists(data_dir_path):
         os.makedirs(data_dir_path)
     return data_dir_path

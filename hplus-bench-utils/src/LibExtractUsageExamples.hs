@@ -45,6 +45,17 @@ import Data.Aeson
 import qualified Data.ByteString.Lazy as B
 import qualified Data.HashMap.Strict as HM
 import Language.Haskell.Exts.CPP
+import Data.Git.Storage (findRepoMaybe, openRepo, gitRepoPath)
+
+
+getCurrentGitRepoPath :: IO Filepath
+getCurrentGitRepoPath = do
+    mbPath <- findRepoMaybe
+    mbRepo <- mbPath <$> openRepo
+    mbRootPath <- mbRepo <$> gitRepoPath
+    case mbRootPath of
+        Just rootPath -> rootPath
+        Nothing -> error "you done goofed. get it in git"
 
 -- TODO
 -- 1. Save to CSV of format (example, type, timestamp, origin filename)

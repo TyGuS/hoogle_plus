@@ -1,13 +1,15 @@
 import os
 import subprocess
-from custom_utils.utils import get_data_path
+from custom_utils.utils import (get_data_path, get_repo_root)
 
 def create_import_files(tarball_filename):
 
   devnull = open(os.devnull, 'wb') #python >= 2.4
   src_dir = get_data_path("working/hackage500/")
   file_path = src_dir + tarball_filename
-  p = subprocess.Popen(["stack", "exec", "extractImports", file_path], cwd="/home/djusto/research/projects3ils", shell=False)
+  root = get_repo_root()
+  bench_path = os.path.join(root, "hplus-bench-utils")
+  p = subprocess.Popen(["stack", "exec", "extractImports-exe", file_path], cwd=bench_path, shell=False)
   p.wait() 
 
 def main():      
