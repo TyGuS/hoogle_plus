@@ -232,10 +232,10 @@ instance Serialize t => Serialize (Program t)
 instance Serialize r => Serialize (TypeSkeleton r)
 instance Serialize r => Serialize (BaseType r)
 instance Serialize r => Serialize (SchemaSkeleton r)
-instance Serialize Param
+-- instance Serialize Param
 instance Serialize FunctionCode
-instance ToJSON Param where
-    toEncoding = genericToEncoding defaultOptions
+-- instance ToJSON Param where
+--     toEncoding = genericToEncoding defaultOptions
 instance ToJSON FunctionCode where
     toEncoding = genericToEncoding defaultOptions
 -- instance ToJSON Param where

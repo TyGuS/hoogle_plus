@@ -309,7 +309,8 @@ typeApplySolution sol (LetT x tDef tBody) = LetT x (typeApplySolution sol tDef) 
 typeApplySolution _ AnyT = AnyT
 
 typeDepth :: RType -> Int
-typeDepth (ScalarT (DatatypeT _ tys _) _) = 1 + (maximum $ map typeDepth tys)
+typeDepth (ScalarT (DatatypeT _ tys _) _) | length tys == 0 = 0
+typeDepth (ScalarT (DatatypeT _ tys _) _) | otherwise       = 1 + (maximum $ map typeDepth tys)
 typeDepth (ScalarT _ _) = 0
 typeDepth (FunctionT _ tArg tRet) = max (typeDepth tArg) (typeDepth tRet)
 typeDepth t = error $ "typeDepth: I have no idea when I come across this type"

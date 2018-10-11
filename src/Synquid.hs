@@ -25,7 +25,6 @@ import Database.Download
 import Database.Util
 import Database.GraphWeightsProvider
 import PetriNet.PolyDispatcher
-import PetriNet.PNSolver
 
 import Control.Monad
 import Control.Lens ((^.))
@@ -372,7 +371,6 @@ collectLibDecls libs declsByFile =
 
 precomputeGraph :: [PkgName] -> String -> Int -> IO ()
 precomputeGraph pkgs mdl depth = mapM_ (\pkgName -> do
-  test
   downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
   -- baseDecls <- addPrelude <$> readDeclarations "base" Nothing
   let baseDecls = []
@@ -390,17 +388,19 @@ precomputeGraph pkgs mdl depth = mapM_ (\pkgName -> do
       edgeWeights <- getGraphWeights $ map getEdgeId allEdges
       let graph' = fillEdgeWeight allEdges edgeWeights $ envAll ^. succinctGraph
       B.writeFile "data/env.db" $ encode $ envAll {_succinctGraph = graph'}
-      st <- execStateT (dispatch $ Set.fromList [ ScalarT BoolT ftrue
-                                                , ScalarT IntT  ftrue
-                                                , ScalarT (TypeVarT Map.empty "X") ftrue
-                                                , ScalarT (TypeVarT Map.empty "T") ftrue
-                                                , ScalarT (TypeVarT Map.empty "S") ftrue
+      -- st <- execStateT (dispatch $ Set.fromList [ ScalarT BoolT ftrue
+      --                                           , ScalarT IntT  ftrue
+      --                                           , ScalarT (DatatypeT "Char" [] []) ftrue
+      --                                           , ScalarT (TypeVarT Map.empty "T") ftrue
+      --                                           ]) (initDispatchState envAll)
+      st <- execStateT (dispatch $ Set.fromList [ ScalarT (TypeVarT Map.empty "T") ftrue
                                                 ]) (initDispatchState envAll)
       writeFile ("data/" ++ pkgName ++ ".db") $ LB8.unpack $ Aeson.encode $ map (uncurry makeFunctionCode) $ Map.toList (st ^. resultList)
+      -- test ["List (Maybe (T))", "T"] "T"
   ) pkgs
   where
     initDispatchState env = DispatchState depth (allSymbols env) Map.empty Set.empty Map.empty
-    defaultDts = [defaultList, defaultUnit]
+    defaultDts = [defaultList, defaultPair, defaultUnit]
     defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
         ConstructorSig "Nil"  $ ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue
       , ConstructorSig "Cons" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "xs" (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue) (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue))

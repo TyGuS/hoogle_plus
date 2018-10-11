@@ -18,6 +18,7 @@ import Synquid.Graph hiding (instantiate)
 import Database.GraphWeightsProvider
 import Database.Util
 import Synquid.GraphConstraintSolver
+import qualified PetriNet.PNSolver as PNSolver
 
 import Data.Maybe
 import Data.List
@@ -49,6 +50,8 @@ import Debug.Trace
 import Z3.Monad (evalZ3WithEnv, stdOpts, opt, (+?))
 import qualified Z3.Monad as Z3
 import Data.Time.Clock
+import qualified Data.ByteString.Lazy.Char8 as LB8
+import qualified Data.Aeson as Aeson
 
 {- Interface -}
 
@@ -68,6 +71,7 @@ data PathStrategy =
   | MaxSAT -- ^ Use SMT solver to find a path
   | Dijkstra -- ^ Use dijkstra algorithm
   | BiDijkstra -- ^ Use bidirectional dijkstra algorithm
+  | PetriNet -- ^ Use PetriNet and SyPet
   deriving (Eq, Show, Data)
 
 -- | Parameters of program exploration
@@ -223,6 +227,12 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
       end <- liftIO $ getCurrentTime
       error $ show $ diffUTCTime end start
       -- splitGoal env t
+    PetriNet    -> do
+      m <- evalStateT (PNSolver.instantiate (PNSolver.initSigs env)) (PNSolver.InstantiateState Map.empty)
+      liftIO $ writeFile ("data/base.db") $ LB8.unpack $ Aeson.encode $ map (uncurry PNSolver.encodeFunction) $ Map.toList m
+      let args = map (show . PNSolver.abstract . shape . toMonotype) $ Map.elems (env' ^. arguments)
+      liftIO $ PNSolver.findPath args (show $ PNSolver.abstract $ shape t)
+      generateMaybeMatchIf env' t isElseBranch
     DisablePath -> do
       maEnabled <- asks . view $ _1 . abduceScrutinees -- Is match abduction enabled?
       d <- asks . view $ _1 . matchDepth
