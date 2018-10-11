@@ -1,0 +1,397 @@
+{
+  "cmu.symonster": [
+    {
+      "name": "cmu.symonster.Triangle",
+      "retType": "cmu.symonster.Triangle",
+      "argType": "cmu.symonster.MyPoint",
+      "argType": "cmu.symonster.MyPoint",
+      "argType": "cmu.symonster.MyPoint",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.Triangle",
+      "isConstructor": true,
+      "method": "<cmu.symonster.Triangle: void <init>(cmu.symonster.MyPoint,cmu.symonster.MyPoint,cmu.symonster.MyPoint)>"
+    },
+    {
+      "name": "setName",
+      "retType": "void",
+      "argType": "java.lang.String",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.MyPoint",
+      "isConstructor": false,
+      "method": "<cmu.symonster.MyPoint: void setName(java.lang.String)>"
+    },
+    {
+      "name": "getX",
+      "retType": "int",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.MyPoint",
+      "isConstructor": false,
+      "method": "<cmu.symonster.MyPoint: int getX()>"
+    },
+    {
+      "name": "getY",
+      "retType": "int",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.MyPoint",
+      "isConstructor": false,
+      "method": "<cmu.symonster.MyPoint: int getY()>"
+    },
+    {
+      "name": "getPitch",
+      "retType": "double",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.MyPoint",
+      "isConstructor": false,
+      "method": "<cmu.symonster.MyPoint: double getPitch()>"
+    },
+    {
+      "name": "getRoll",
+      "retType": "double",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.MyPoint",
+      "isConstructor": false,
+      "method": "<cmu.symonster.MyPoint: double getRoll()>"
+    },
+    {
+      "name": "getYaw",
+      "retType": "double",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.MyPoint",
+      "isConstructor": false,
+      "method": "<cmu.symonster.MyPoint: double getYaw()>"
+    },
+    {
+      "name": "getName",
+      "retType": "java.lang.String",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.MyPoint",
+      "isConstructor": false,
+      "method": "<cmu.symonster.MyPoint: java.lang.String getName()>"
+    },
+    {
+      "name": "cmu.symonster.MyPoint",
+      "retType": "cmu.symonster.MyPoint",
+      "argType": "java.lang.String",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.MyPoint",
+      "isConstructor": true,
+      "method": "<cmu.symonster.MyPoint: void <init>(java.lang.String)>"
+    },
+    {
+      "name": "cmu.symonster.MyPoint",
+      "retType": "cmu.symonster.MyPoint",
+      "argType": "int",
+      "argType": "int",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.MyPoint",
+      "isConstructor": true,
+      "method": "<cmu.symonster.MyPoint: void <init>(int,int)>"
+    },
+    {
+      "name": "cmu.symonster.MyPoint",
+      "retType": "cmu.symonster.MyPoint",
+      "argType": "double",
+      "argType": "double",
+      "argType": "double",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.MyPoint",
+      "isConstructor": true,
+      "method": "<cmu.symonster.MyPoint: void <init>(double,double,double)>"
+    },
+    {
+      "name": "setName",
+      "retType": "void",
+      "argType": "java.lang.String",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.Point",
+      "isConstructor": false,
+      "method": "<cmu.symonster.Point: void setName(java.lang.String)>"
+    },
+    {
+      "name": "getName",
+      "retType": "java.lang.String",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.Point",
+      "isConstructor": false,
+      "method": "<cmu.symonster.Point: java.lang.String getName()>"
+    },
+    {
+      "name": "setX",
+      "retType": "void",
+      "argType": "int",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.Point",
+      "isConstructor": false,
+      "method": "<cmu.symonster.Point: void setX(int)>"
+    },
+    {
+      "name": "setY",
+      "retType": "void",
+      "argType": "int",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.Point",
+      "isConstructor": false,
+      "method": "<cmu.symonster.Point: void setY(int)>"
+    },
+    {
+      "name": "getX",
+      "retType": "int",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.Point",
+      "isConstructor": false,
+      "method": "<cmu.symonster.Point: int getX()>"
+    },
+    {
+      "name": "getY",
+      "retType": "int",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.Point",
+      "isConstructor": false,
+      "method": "<cmu.symonster.Point: int getY()>"
+    },
+    {
+      "name": "getPitch",
+      "retType": "double",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.Point",
+      "isConstructor": false,
+      "method": "<cmu.symonster.Point: double getPitch()>"
+    },
+    {
+      "name": "setPitch",
+      "retType": "void",
+      "argType": "double",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.Point",
+      "isConstructor": false,
+      "method": "<cmu.symonster.Point: void setPitch(double)>"
+    },
+    {
+      "name": "setRoll",
+      "retType": "void",
+      "argType": "double",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.Point",
+      "isConstructor": false,
+      "method": "<cmu.symonster.Point: void setRoll(double)>"
+    },
+    {
+      "name": "getRoll",
+      "retType": "double",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.Point",
+      "isConstructor": false,
+      "method": "<cmu.symonster.Point: double getRoll()>"
+    },
+    {
+      "name": "setYaw",
+      "retType": "void",
+      "argType": "double",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.Point",
+      "isConstructor": false,
+      "method": "<cmu.symonster.Point: void setYaw(double)>"
+    },
+    {
+      "name": "getYaw",
+      "retType": "double",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.Point",
+      "isConstructor": false,
+      "method": "<cmu.symonster.Point: double getYaw()>"
+    },
+    {
+      "name": "cmu.symonster.Point",
+      "retType": "cmu.symonster.Point",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.Point",
+      "isConstructor": true,
+      "method": "<cmu.symonster.Point: void <init>()>"
+    },
+    {
+      "name": "setName",
+      "retType": "void",
+      "argType": "java.lang.String",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.Rectangle",
+      "isConstructor": false,
+      "method": "<cmu.symonster.Rectangle: void setName(java.lang.String)>"
+    },
+    {
+      "name": "getName",
+      "retType": "java.lang.String",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.Rectangle",
+      "isConstructor": false,
+      "method": "<cmu.symonster.Rectangle: java.lang.String getName()>"
+    },
+    {
+      "name": "cmu.symonster.TriangleA1",
+      "retType": "cmu.symonster.TriangleA1",
+      "argType": "cmu.symonster.MyPoint",
+      "argType": "cmu.symonster.MyPoint",
+      "argType": "cmu.symonster.MyPoint",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.TriangleA1",
+      "isConstructor": true,
+      "method": "<cmu.symonster.TriangleA1: void <init>(cmu.symonster.MyPoint,cmu.symonster.MyPoint,cmu.symonster.MyPoint)>"
+    },
+    {
+      "name": "getP1",
+      "retType": "cmu.symonster.MyPoint",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.TriangleA1",
+      "isConstructor": false,
+      "method": "<cmu.symonster.TriangleA1: cmu.symonster.MyPoint getP1()>"
+    },
+    {
+      "name": "getP2",
+      "retType": "cmu.symonster.MyPoint",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.TriangleA1",
+      "isConstructor": false,
+      "method": "<cmu.symonster.TriangleA1: cmu.symonster.MyPoint getP2()>"
+    },
+    {
+      "name": "getP3",
+      "retType": "cmu.symonster.MyPoint",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.TriangleA1",
+      "isConstructor": false,
+      "method": "<cmu.symonster.TriangleA1: cmu.symonster.MyPoint getP3()>"
+    },
+    {
+      "name": "setName",
+      "retType": "void",
+      "argType": "java.lang.String",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.TriangleA1",
+      "isConstructor": false,
+      "method": "<cmu.symonster.TriangleA1: void setName(java.lang.String)>"
+    },
+    {
+      "name": "cmu.symonster.TriangleA2",
+      "retType": "cmu.symonster.TriangleA2",
+      "argType": "cmu.symonster.MyPoint",
+      "argType": "cmu.symonster.MyPoint",
+      "argType": "cmu.symonster.MyPoint",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.TriangleA2",
+      "isConstructor": true,
+      "method": "<cmu.symonster.TriangleA2: void <init>(cmu.symonster.MyPoint,cmu.symonster.MyPoint,cmu.symonster.MyPoint)>"
+    },
+    {
+      "name": "getP1",
+      "retType": "cmu.symonster.MyPoint",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.TriangleA2",
+      "isConstructor": false,
+      "method": "<cmu.symonster.TriangleA2: cmu.symonster.MyPoint getP1()>"
+    },
+    {
+      "name": "getP2",
+      "retType": "cmu.symonster.MyPoint",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.TriangleA2",
+      "isConstructor": false,
+      "method": "<cmu.symonster.TriangleA2: cmu.symonster.MyPoint getP2()>"
+    },
+    {
+      "name": "getP3",
+      "retType": "cmu.symonster.MyPoint",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.TriangleA2",
+      "isConstructor": false,
+      "method": "<cmu.symonster.TriangleA2: cmu.symonster.MyPoint getP3()>"
+    },
+    {
+      "name": "setType",
+      "retType": "void",
+      "argType": "java.lang.String",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.TriangleA2",
+      "isConstructor": false,
+      "method": "<cmu.symonster.TriangleA2: void setType(java.lang.String)>"
+    },
+    {
+      "name": "cmu.symonster.TriangleB",
+      "retType": "cmu.symonster.TriangleB",
+      "argType": "cmu.symonster.MyPoint",
+      "argType": "cmu.symonster.MyPoint",
+      "argType": "cmu.symonster.MyPoint",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.TriangleB",
+      "isConstructor": true,
+      "method": "<cmu.symonster.TriangleB: void <init>(cmu.symonster.MyPoint,cmu.symonster.MyPoint,cmu.symonster.MyPoint)>"
+    },
+    {
+      "name": "getP1",
+      "retType": "cmu.symonster.MyPoint",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.TriangleB",
+      "isConstructor": false,
+      "method": "<cmu.symonster.TriangleB: cmu.symonster.MyPoint getP1()>"
+    },
+    {
+      "name": "getP2",
+      "retType": "cmu.symonster.MyPoint",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.TriangleB",
+      "isConstructor": false,
+      "method": "<cmu.symonster.TriangleB: cmu.symonster.MyPoint getP2()>"
+    },
+    {
+      "name": "getP3",
+      "retType": "cmu.symonster.MyPoint",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.TriangleB",
+      "isConstructor": false,
+      "method": "<cmu.symonster.TriangleB: cmu.symonster.MyPoint getP3()>"
+    },
+    {
+      "name": "setName",
+      "retType": "void",
+      "argType": "java.lang.String",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.TriangleB",
+      "isConstructor": false,
+      "method": "<cmu.symonster.TriangleB: void setName(java.lang.String)>"
+    },
+    {
+      "name": "setType",
+      "retType": "void",
+      "argType": "java.lang.String",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.TriangleB",
+      "isConstructor": false,
+      "method": "<cmu.symonster.TriangleB: void setType(java.lang.String)>"
+    },
+    {
+      "name": "cmu.symonster.TriangleA",
+      "retType": "cmu.symonster.TriangleA",
+      "argType": "cmu.symonster.MyPoint",
+      "argType": "cmu.symonster.MyPoint",
+      "argType": "cmu.symonster.MyPoint",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.TriangleA",
+      "isConstructor": true,
+      "method": "<cmu.symonster.TriangleA: void <init>(cmu.symonster.MyPoint,cmu.symonster.MyPoint,cmu.symonster.MyPoint)>"
+    },
+    {
+      "name": "cmu.symonster.Shape",
+      "retType": "cmu.symonster.Shape",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.Shape",
+      "isConstructor": true,
+      "method": "<cmu.symonster.Shape: void <init>()>"
+    },
+    {
+      "name": "getCoordinates",
+      "retType": "java.util.Vector",
+      "isStatic": false,
+      "hostClass": "cmu.symonster.Shape",
+      "isConstructor": false,
+      "method": "<cmu.symonster.Shape: java.util.Vector getCoordinates()>"
+    }
+  ]
+}

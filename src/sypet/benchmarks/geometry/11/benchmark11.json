@@ -1,0 +1,22 @@
+{
+  "id": 11,
+  "methodName": "shear",
+  "paramNames": [
+    "sypet_arg0",
+    "sypet_arg1",
+    "sypet_arg2"
+  ],
+  "srcTypes": [
+    "java.awt.geom.Rectangle2D",
+    "double",
+    "double"
+  ],
+  "tgtType": "java.awt.geom.Rectangle2D",
+  "packages": [
+    "java.awt.geom.Rectangle2D", "java.awt.geom.Area", "java.awt.geom.AffineTransform", "java.awt.Shape"
+  ],
+  "libs": [
+    "../lib/rt7.jar"
+  ],
+  "testPath": "benchmarks/geometry/11/TestSource.java"
+}

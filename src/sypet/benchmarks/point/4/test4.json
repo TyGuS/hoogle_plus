@@ -1,0 +1,18 @@
+{
+  "id": 4,
+  "methodName": "convert",
+  "paramNames": [
+    "sypet_arg0"
+  ],
+  "srcTypes": [
+    "cmu.symonster.MyPoint"
+  ],
+  "tgtType": "cmu.symonster.Point",
+  "packages": [
+    "cmu.symonster"
+  ],
+  "libs": [
+    "./lib/point.jar"
+  ],
+  "testPath": "benchmarks/point/4/TestSource.java"
+}

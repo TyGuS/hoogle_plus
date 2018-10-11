@@ -1,0 +1,14 @@
+{
+  "id": 21,
+  "methodName": "f",
+  "paramNames": [
+    "arg0"
+  ],
+  "srcTypes": [
+    "maybe.Maybe<java.lang.String>"
+  ],
+  "tgtType": "java.lang.String",
+  "packages": ["maybe"],
+  "libs": ["./lib/maybe.jar"],
+  "testPath": "benchmarks/bytestring/20/TestSource.java"
+}

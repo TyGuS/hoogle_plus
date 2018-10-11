@@ -1,0 +1,26 @@
+{
+  "context-menu": {
+    "atom-text-editor": [
+      {
+        "label": "Run SyPet",
+        "command": "test-atom-package:toggle"
+      }
+    ]
+  },
+  "menu": [
+    {
+      "label": "Packages",
+      "submenu": [
+        {
+          "label": "test-atom-package",
+          "submenu": [
+            {
+              "label": "Toggle",
+              "command": "test-atom-package:toggle"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
