@@ -64,7 +64,7 @@ case "`uname`" in
     ;;
 esac
 
-CLASSPATH=$APP_HOME/lib/synquid.jar:$APP_HOME/lib/*.jar
+CLASSPATH=$APP_HOME/lib/synquid.jar:$APP_HOME/lib/sypet.jar:$APP_HOME/lib/apt.jar:$APP_HOME/lib/commons-lang3-3.4.jar:$APP_HOME/lib/*.jar
 
 # Determine the Java command to use to start the JVM.
 if [ -n "$JAVA_HOME" ] ; then

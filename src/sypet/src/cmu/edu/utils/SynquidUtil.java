@@ -34,19 +34,19 @@ public class SynquidUtil {
 	private static PetriNet net;
 	private static Encoding encoding;
 	private static List<String> srcTypes;
-	private static String tgtTypes;
+	private static String tgtType;
 	private static int loc = 1;
 
-	public static init(List<String> srcTypes, String tgtType)
+	public static void init(List<String> srcs, String tgt)
 		throws FileNotFoundException, IOException, TimeoutException {
-		this.srcTypes = srcTypes;
-		this.tgtType = tgtType;
+		srcTypes = srcs;
+		tgtType = tgt;
 		getSigs("data/base.db");
 		net = buildNet.build(functions);
 		buildNet.setMaxTokens(srcTypes);
 	}
 
-	public static buildNextEncoding() {
+	public static void buildNextEncoding() {
 		// create a formula that has the same semantics as the petri-net
 		encoding = new SequentialEncoding(net, loc);
 		// set initial state and final state
@@ -58,6 +58,16 @@ public class SynquidUtil {
         // Perform reachability analysis
         List<Variable> result = Encoding.solver.findPath(loc);
         List<Function> signatures = new ArrayList<>();
+
+        // Increase a location until we have a result
+        result = Encoding.solver.findPath(loc);
+        while (result.isEmpty()){
+        	loc++;
+        	System.out.println("Finding path for length " + loc);
+        	buildNextEncoding();
+        	result = Encoding.solver.findPath(loc);
+        }
+
 		for (Variable s : result) {
 			Function sig = functionMap.get(s.getName());
 			if (sig != null) { // check if s is a line of a code
@@ -68,7 +78,6 @@ public class SynquidUtil {
         try { 
         	return former.solveHaskell();
         } catch (TimeoutException e) {
-			sat = false;
 			return "";
 		}
 	}

@@ -361,6 +361,7 @@ public class CodeFormer {
         int slotCount = 0;
 
         //Add method signature
+        resultBuilder.append("f = ");
         for (int i = 0 ; i < inputTypes.size() ; i++){
             resultBuilder.append("\\");
             resultBuilder.append(convVarName(varCount));
@@ -378,10 +379,10 @@ public class CodeFormer {
             // remove the number index for each funcation name here
             int funNameEndAt = sig.getFunName().lastIndexOf('_') ;
             if(funNameEndAt != -1){
-                builder.append(sig.getFunName().substring(0, funNameEndAt));
+                builder.append(sig.getFunName().substring(0, funNameEndAt).replace('.','_'));
             }
             else{
-                builder.append(sig.getFunName());
+                builder.append(sig.getFunName().replace('.','_'));
             }
             builder.append(" ");
             for (int i = 0; i < sig.getFunParams().size() ; i++){

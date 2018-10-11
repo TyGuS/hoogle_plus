@@ -13,6 +13,7 @@ import Foreign.JNI (withJVM)
 import Language.Java (reify, reflect)
 import Language.Java.Inline
 import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
@@ -24,7 +25,11 @@ import Data.Foldable
 import Data.List
 import Data.List.Extra
 import Database.Generate
+import Text.Parsec hiding (State)
+import Text.Parsec.Indent
+import Text.Parsec.Pos
 
+import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Program
 import Synquid.Type
 import Synquid.Util
@@ -142,9 +147,12 @@ findPath src dst = do
             String tgtType = $tgt;
             cmu.edu.utils.SynquidUtil.init(srcTypes, tgtType);
             cmu.edu.utils.SynquidUtil.buildNextEncoding();
-        } |]
-        code <- [java | {
+        } |] :: IO ()
+        code <- [java| {
             return cmu.edu.utils.SynquidUtil.synthesize();
         } |]
-        xs <- reify code
-        print xs
+        codeText <- reify code
+        let codeCheck = flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" $ Text.unpack codeText
+        case codeCheck of
+            Left err   -> error err
+            Right decl -> print decl
