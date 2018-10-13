@@ -62,6 +62,8 @@ instance Ord (Program t) where
 type UProgram = Program RType
 -- | Refinement-typed programs
 type RProgram = Program RType
+-- | Simple-typed programs
+type TProgram = Program SType
 -- | Succinct typed programs
 -- data SuccinctProgram = SuccinctProgram {
 --   prog :: BareProgram,

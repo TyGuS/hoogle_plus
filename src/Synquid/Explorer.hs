@@ -231,7 +231,7 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
       m <- evalStateT (PNSolver.instantiate (PNSolver.initSigs env)) (PNSolver.InstantiateState Map.empty)
       liftIO $ writeFile ("data/base.db") $ LB8.unpack $ Aeson.encode $ map (uncurry PNSolver.encodeFunction) $ Map.toList m
       let args = map (show . PNSolver.abstract . shape . toMonotype) $ Map.elems (env' ^. arguments)
-      liftIO $ PNSolver.findPath args (show $ PNSolver.abstract $ shape t)
+      liftIO $ PNSolver.findPath env' args (show $ PNSolver.abstract $ shape t)
       generateMaybeMatchIf env' t isElseBranch
     DisablePath -> do
       maEnabled <- asks . view $ _1 . abduceScrutinees -- Is match abduction enabled?
