@@ -5,6 +5,7 @@
 {-# LANGUAGE DeriveGeneric  #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -fplugin=Language.Java.Inline.Plugin #-}
+{-# OPTIONS_GHC -fplugin-opt=Language.Java.Inline.Plugin:dump-java #-}
 
 module PetriNet.PNSolver where
 
@@ -24,6 +25,7 @@ import Control.Monad.State
 import Data.Foldable
 import Data.List
 import Data.Maybe
+import Data.Either
 import Data.List.Extra
 import Database.Generate
 import Text.Parsec hiding (State)
@@ -36,7 +38,7 @@ import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Program
 import Synquid.Type
 import Synquid.Logic
-import Synquid.Util
+import Synquid.Util hiding(fromRight)
 import Synquid.Error
 import Synquid.Pretty
 import PetriNet.PolyDispatcher
@@ -212,7 +214,7 @@ solveTypeConstraint env (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT i
                 let (expected, actual) = st ^. typingError
                 return ([expected], [actual])
 
-checkType :: Environment -> RType -> Declaration -> IO ()
+checkType :: Environment -> RType -> Declaration -> IO (Either TProgram SType)
 checkType env typ (Pos _ (SynthesisGoal id p)) = do
     -- liftIO $ print $ env ^. boundTypeVars
     -- print id
@@ -221,42 +223,79 @@ checkType env typ (Pos _ (SynthesisGoal id p)) = do
     (p', st) <- runStateT (checkProgramType env (shape typ) p) emptyTypingState
     -- print p'
     print $ st ^. typingError
+    return $ if st ^. isChecked then Left (fromJust p') else Right $ snd $ st ^. typingError
     -- print $ st ^. typeAssignment
+
+distinguish :: SType -> AbstractSkeleton -> [AbstractSkeleton]
+distinguish (ScalarT (DatatypeT id _     _) _) t@(ADatatypeT id' _  ) | id /= id' = [t]
+distinguish (ScalarT (DatatypeT id tArgs _) _)   (ADatatypeT id' ats) | id == id' = 
+    map (ADatatypeT id') $ distinguish' tArgs ats
+  where
+    distinguish' [] ts = [ts]
+    -- split the current node into two when we cannot distinguish the error type from its abstract representation
+    distinguish' (arg:_) [] = let dt@(ADatatypeT id _) = abstract Nothing arg 
+                              in [[dt], [AExclusion (Set.singleton id)]]
+    distinguish' (arg:args) (arg':args') = 
+        let darg = distinguish arg arg'
+        in if length darg > 1 -- if we get several new representations, stop refining
+            then map (\a -> [a]) darg
+            else map ((:) arg') $ distinguish' args args' -- otherwise append the current arg to the recursive result
+distinguish _ t = [t]
 
 -- compare whether the existing datatype is distinguishable from the error type we found
 -- if not, split that type and reinstantiate all the polymorphic functions
 -- keep the abstracted argument types and return types!!
-refineAbstraction :: Environment -> SType -> IO ()
-refineAbstraction env errTy = undefined
+refineAbstraction :: (MonadIO m) => Environment -> SType -> StateT InstantiateState m Environment
+refineAbstraction env errTy = do
+    let typs  = Set.fromList $ concatMap allAbstractBase $ Map.elems (env ^. abstractSymbols)
+    let typs' = concatMap (distinguish errTy) typs
+    let absSymbols = Map.foldrWithKey (\id t -> Map.insert id (abstract Nothing $ shape $ toMonotype t)) Map.empty $ allSymbols env
+    let argNames = Map.keys (env ^. arguments)
+    let absSymbols' = foldr (\a m -> Map.delete a m) absSymbols argNames
+    sigs <- foldM (\acc -> (<$>) (Map.union acc) . uncurry (instantiateWith typs')) Map.empty (Map.toList absSymbols')
+    let env' = over abstractSymbols (Map.union sigs) env
+    return env'
 
-findPath :: Environment -> [RType] -> [Id] -> RType -> AbstractSkeleton -> IO ()
+findPath :: Environment -> [RType] -> [Id] -> RType -> AbstractSkeleton -> IO ([Either ParseError [Declaration]])
 findPath env src args dst ex = do
-    withJVM [ fromString ("-Djava.class.path=src/sypet/sypet.jar:"                 ++ 
+    -- print $ "before reflect"
+    symbols <- reflect (Text.pack . LB8.unpack . Aeson.encode $ map (uncurry encodeFunction) $ Map.toList (env ^. abstractSymbols))
+    -- print $ symbols
+    -- symbols <- reflect (Text.pack "")
+    tgt <- reflect (Text.pack $ show $ abstract (Just ex) $ shape dst)
+    srcTypes <- reflect (map (Text.pack . show . abstract (Just ex) . shape) src)
+    argNames <- reflect (map (Text.pack) args)
+    code <- [java| {
+        java.util.List<java.lang.String> srcTypes = java.util.Arrays.asList($srcTypes);
+        java.util.List<java.lang.String> argNames = java.util.Arrays.asList($argNames);
+        String tgtType = $tgt;
+        // System.out.println(srcTypes.toString());
+        // System.out.println(tgtType);
+        cmu.edu.utils.SynquidUtil.init(srcTypes, argNames, tgtType, $symbols);
+        cmu.edu.utils.SynquidUtil.buildNextEncoding();
+        java.util.List<java.lang.String> res = cmu.edu.utils.SynquidUtil.synthesize();
+        return res.toArray(new String[res.size()]);
+    } |]
+    codeTexts <- reify code
+    -- liftIO $ Text.putStrLn codeText
+    let codeCheck = map (flip evalState (initialPos "goal") . runIndentParserT parseProgram () "" . Text.unpack) codeTexts
+    return codeCheck
+
+findProgram :: Environment -> [RType] -> [Id] -> RType -> AbstractSkeleton -> IO ()
+findProgram env src args dst ex = withJVM [ fromString ("-Djava.class.path=src/sypet/sypet.jar:"                 ++ 
                                             "src/sypet/lib/sat4j-pb.jar:"          ++
                                             "src/sypet/lib/commons-lang3-3.4.jar:" ++
                                             "src/sypet/lib/gson-2.8.5.jar:"        ++
                                             "src/sypet/lib/apt.jar")
-            ] $ do
-        symbols <- reflect (Text.pack . LB8.unpack . Aeson.encode $ map (uncurry encodeFunction) $ Map.toList (env ^. abstractSymbols))
-        tgt <- reflect (Text.pack $ show $ abstract (Just ex) $ shape dst)
-        srcTypes <- reflect (map (Text.pack . show . abstract (Just ex) . shape) src)
-        argNames <- reflect (map (Text.pack) args)
-        [java| {
-            java.util.List<java.lang.String> srcTypes = java.util.Arrays.asList($srcTypes);
-            java.util.List<java.lang.String> argNames = java.util.Arrays.asList($argNames);
-            String tgtType = $tgt;
-            // System.out.println(srcTypes.toString());
-            // System.out.println(tgtType);
-            cmu.edu.utils.SynquidUtil.init(srcTypes, argNames, tgtType, $symbols);
-            cmu.edu.utils.SynquidUtil.buildNextEncoding();
-        } |] :: IO ()
-        code <- [java| {
-            java.util.List<java.lang.String> res = cmu.edu.utils.SynquidUtil.synthesize();
-            return res.toArray(new String[res.size()]);
-        } |]
-        codeTexts <- reify code
-        -- liftIO $ Text.putStrLn codeText
-        let codeCheck = map (flip evalState (initialPos "goal") . runIndentParserT parseProgram () "" . Text.unpack) codeTexts
-        mapM_ (\cc -> case cc of
-                        Left err   -> error "parse error"
-                        Right decl -> liftIO $ checkType env dst $ head decl) codeCheck
+                                            ] $ do
+    paths <- findPath env src args dst ex
+    checkRes <- mapM (\p -> case p of
+                                Left err   -> error "parse error"
+                                Right decl -> checkType env dst $ head decl) paths
+    let correctRes = filter isLeft checkRes
+    if length correctRes > 1
+        then print $ head correctRes
+        else do
+            env' <- evalStateT (refineAbstraction env $ fromRight AnyT $ head checkRes) (InstantiateState Map.empty)
+            -- [java| { System.gc(); } |] :: IO ()
+            findProgram env' src args dst ex

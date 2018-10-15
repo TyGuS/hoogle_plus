@@ -236,7 +236,7 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
       (m, ex) <- evalStateT (PNSolver.instantiate absSymbols') (PNSolver.InstantiateState Map.empty)
       let env' = set abstractSymbols m env
       -- liftIO $ writeFile ("data/base.db") $ LB8.unpack $ Aeson.encode $ map (uncurry PNSolver.encodeFunction) $ Map.toList m
-      liftIO $ (PNSolver.findPath env' args argNames t ex)
+      liftIO $ (PNSolver.findProgram env' args argNames t ex)
       return $ Program PErr AnyT
       -- generateMaybeMatchIf env' t isElseBranch
     DisablePath -> do

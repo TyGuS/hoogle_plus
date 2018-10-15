@@ -31,7 +31,7 @@ import uniol.apt.adt.pn.Transition;
 public class SynquidUtil {
 	private static List<Function> functions;
 	private static Map<String, Function> functionMap = new HashMap<>();
-	private static BuildNet buildNet = new BuildNet(new ArrayList<>());
+	private static BuildNet buildNet;
 	private static PetriNet net;
 	private static Encoding encoding;
 	private static List<String> srcTypes;
@@ -44,7 +44,9 @@ public class SynquidUtil {
 		srcTypes = srcs;
 		tgtType = tgt;
 		args = argNames;
+		functionMap.clear();
 		getSigs(symbols);
+		buildNet = new BuildNet(new ArrayList<>());
 		net = buildNet.build(functions);
 		buildNet.setMaxTokens(srcTypes);
 	}
@@ -94,6 +96,7 @@ public class SynquidUtil {
 		Type listFuncType = new TypeToken<ArrayList<Function>>(){}.getType();
 		functions = gson.fromJson(reader, listFuncType);
 		for(Function fun : functions) {
+			// System.out.println(fun.getFunName());
 			functionMap.put(fun.getFunName(), fun);
 		}
 		return;
