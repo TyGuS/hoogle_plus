@@ -37,6 +37,7 @@ executable synquid
                  Database.Util
                  PetriNet.PNSolver
                  PetriNet.PolyDispatcher
+                 PetriNet.AbstractType
                  Synquid.Codegen
                  Synquid.Error
                  Synquid.Explorer

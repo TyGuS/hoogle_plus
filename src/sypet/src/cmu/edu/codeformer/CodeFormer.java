@@ -127,15 +127,12 @@ public class CodeFormer {
         addAtLeastOneSlot();
     }
 
-    public CodeFormer(List<Function> sigs, List<String> inputTypes, String retType) {
+    public CodeFormer(List<Function> sigs, List<String> inputTypes, String retType, List<String> args) {
         this.inputTypes = inputTypes;
         this.retType = retType;
         this.sigs = null;
         this.functions = sigs;
-        this.varNames = new ArrayList<String>();
-        for(int i = 0; i < inputTypes.size(); i++) {
-            varNames.add("arg"+i);
-        }
+        this.varNames = args;
         this.methodName = null;
         this.subclassMap = new HashMap<>();
         this.superclassMap = new HashMap<>();
@@ -218,12 +215,30 @@ public class CodeFormer {
 
     }
 
-    public String solveHaskell() throws TimeoutException {
+    public List<String> solveHaskell() throws TimeoutException {
         //Solve
-        int[] satResult;
+        List<String> result = new ArrayList<>();
         try {
+            int[] satResult;
             if (solver.isSatisfiable()){
                 satResult = solver.model();
+                //A list only with filtered positive elements in the result.
+                List<Integer> satList = new ArrayList<>();
+
+                //Block this version, and filter the result with only positive ones.
+                VecInt block = new VecInt();
+                for (Integer id : satResult){
+                    block.push(-id);
+                    if (id > 0) satList.add(id);
+                }
+                try {
+                    solver.addClause(block);
+                } catch (ContradictionException e) {
+                    unsat = true;
+                }
+
+                //formCode
+                result.add(formHaskellCode(satList));
             }
             else{
                 unsat = true;
@@ -234,24 +249,7 @@ public class CodeFormer {
             throw new TimeoutException();
         }
 
-        //A list only with filtered positive elements in the result.
-        List<Integer> satList = new ArrayList<>();
-
-        //Block this version, and filter the result with only positive ones.
-        VecInt block = new VecInt();
-        for (Integer id : satResult){
-            block.push(-id);
-            if (id > 0) satList.add(id);
-        }
-        try {
-            solver.addClause(block);
-        } catch (ContradictionException e) {
-            unsat = true;
-        }
-
-        //formCode
-        return formHaskellCode(satList);
-
+        return result;
     }
 
     /**
@@ -379,6 +377,7 @@ public class CodeFormer {
             // remove the number index for each funcation name here
             int funNameEndAt = sig.getFunName().lastIndexOf('_') ;
             if(funNameEndAt != -1){
+                // builder.append(sig.getFunName().replace('.','_'));
                 builder.append(sig.getFunName().substring(0, funNameEndAt).replace('.','_'));
             }
             else{

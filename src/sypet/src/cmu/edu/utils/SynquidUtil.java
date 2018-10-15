@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.io.FileReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.StringReader;
 import java.util.Map;
 import java.util.HashMap;
 
@@ -34,14 +35,16 @@ public class SynquidUtil {
 	private static PetriNet net;
 	private static Encoding encoding;
 	private static List<String> srcTypes;
+	private static List<String> args;
 	private static String tgtType;
 	private static int loc = 1;
 
-	public static void init(List<String> srcs, String tgt)
+	public static void init(List<String> srcs, List<String> argNames, String tgt, String symbols)
 		throws FileNotFoundException, IOException, TimeoutException {
 		srcTypes = srcs;
 		tgtType = tgt;
-		getSigs("data/base.db");
+		args = argNames;
+		getSigs(symbols);
 		net = buildNet.build(functions);
 		buildNet.setMaxTokens(srcTypes);
 	}
@@ -54,7 +57,7 @@ public class SynquidUtil {
         encoding.setState(EncodingUtil.setGoalState(net, tgtType), loc);
 	}
 
-	public static String synthesize() {
+	public static List<String> synthesize() {
         // Perform reachability analysis
         List<Variable> result = Encoding.solver.findPath(loc);
         List<Function> signatures = new ArrayList<>();
@@ -74,18 +77,19 @@ public class SynquidUtil {
 				signatures.add(sig);
 			}
 		}
-        CodeFormer former = new CodeFormer(signatures, srcTypes, tgtType);
+        CodeFormer former = new CodeFormer(signatures, srcTypes, tgtType, args);
         try { 
         	return former.solveHaskell();
         } catch (TimeoutException e) {
-			return "";
+			return null;
 		}
 	}
 
 	// process signatures and construct the Petri Net
-	private static void getSigs(String sigPath) throws FileNotFoundException  {
+	private static void getSigs(String symbols) throws FileNotFoundException  {
 		// read all the function signatures from a JSON file
-		JsonReader reader = new JsonReader(new FileReader(sigPath));
+		// JsonReader reader = new JsonReader(new FileReader(sigPath));
+		JsonReader reader = new JsonReader(new StringReader(symbols));
 		Gson gson = new Gson();
 		Type listFuncType = new TypeToken<ArrayList<Function>>(){}.getType();
 		functions = gson.fromJson(reader, listFuncType);

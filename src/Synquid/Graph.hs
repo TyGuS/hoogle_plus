@@ -9,7 +9,7 @@ import Synquid.Program
 import Synquid.Succinct
 import Synquid.Pretty
 import Database.Util
-import Database.Generate
+import PetriNet.AbstractType
 
 import qualified Data.Set as Set
 import Data.Set (Set)
@@ -232,12 +232,11 @@ instance Serialize t => Serialize (Program t)
 instance Serialize r => Serialize (TypeSkeleton r)
 instance Serialize r => Serialize (BaseType r)
 instance Serialize r => Serialize (SchemaSkeleton r)
+instance Serialize AbstractSkeleton
 -- instance Serialize Param
 instance Serialize FunctionCode
 -- instance ToJSON Param where
 --     toEncoding = genericToEncoding defaultOptions
-instance ToJSON FunctionCode where
-    toEncoding = genericToEncoding defaultOptions
 -- instance ToJSON Param where
 --   toJSON (Param ty cnt) = Object (HashMap.singleton (Text.pack ty) (Number cnt))
 -- instance ToJSON FunctionCode where

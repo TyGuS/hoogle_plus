@@ -25,6 +25,7 @@ import Database.Download
 import Database.Util
 import Database.GraphWeightsProvider
 import PetriNet.PolyDispatcher
+import qualified PetriNet.PNSolver as PNS
 
 import Control.Monad
 import Control.Lens ((^.))
@@ -51,8 +52,6 @@ import Text.Parsec hiding (State)
 import Text.Parsec.Indent
 import System.Directory
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy.Char8 as LB8
-import qualified Data.Aeson as Aeson
 
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import Text.PrettyPrint.ANSI.Leijen (fill, column)
@@ -393,9 +392,10 @@ precomputeGraph pkgs mdl depth = mapM_ (\pkgName -> do
       --                                           , ScalarT (DatatypeT "Char" [] []) ftrue
       --                                           , ScalarT (TypeVarT Map.empty "T") ftrue
       --                                           ]) (initDispatchState envAll)
-      st <- execStateT (dispatch $ Set.fromList [ ScalarT (TypeVarT Map.empty "T") ftrue
-                                                ]) (initDispatchState envAll)
-      writeFile ("data/" ++ pkgName ++ ".db") $ LB8.unpack $ Aeson.encode $ map (uncurry makeFunctionCode) $ Map.toList (st ^. resultList)
+      -- st <- execStateT (dispatch $ Set.fromList [ ScalarT (TypeVarT Map.empty "t") ftrue
+      --                                           ]) (initDispatchState envAll)
+      -- writeFile ("data/" ++ pkgName ++ ".db") $ LB8.unpack $ Aeson.encode $ map (uncurry makeFunctionCode) $ Map.toList (st ^. resultList)
+      -- writeFile ("data/abstract_" ++ pkgName ++ ".db") $ LB8.unpack $ Aeson.encode $ map (\(id, t) -> PNS.encodeFunction id (PNS.abstract $ shape t)) $ Map.toList (st ^. resultList)
       -- test ["List (Maybe (T))", "T"] "T"
   ) pkgs
   where
@@ -429,19 +429,6 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
   feedEnv goal >>= synthesizeGoal [] [] -- (requested goals)
   return ()
   where
-    ruleOut = ["zip3", "zip4", "zip5", "zip6", "zip7"
-             , "zipWith3", "zipWith4", "zipWith5", "zipWith6", "zipWith7"
-             , "unzip3", "unzip4", "unzip5", "unzip6", "unzip7"]
-    defaultDts = [defaultList, defaultPair, defaultUnit]
-    defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
-        ConstructorSig "Nil"  $ ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue
-      , ConstructorSig "Cons" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "xs" (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue) (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue))
-      ]
-    defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [] [
-        ConstructorSig "Pair" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "y" (ScalarT (TypeVarT Map.empty "b") ftrue) (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue))
-      ]
-    defaultURec = Pos (initialPos "URec") $ DataDecl "URec" ["a"] [] []
-    defaultUnit = Pos (initialPos "Unit") $ DataDecl "Unit" [] [] []
     feedEnv goal = do
       doesExist <- doesFileExist "data/env.db"
       when (not doesExist) (error "Please run `stack exec -- synquid generate -p [PACKAGES]` to generate database first")
@@ -449,21 +436,7 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
       case envRes of
         Left err -> error err
         Right env -> do
-          return $ goal {
-            gEnvironment = env
-          }
-      -- graphRes <- decode <$> B.readFile "data/graph.db"
-      -- case graphRes of
-      --   Left err -> error err
-      --   Right graph -> do
-      --     revRes <- decode <$> B.readFile "data/graphRev.db"
-      --     case revRes of
-      --       Left err -> error err
-      --       Right graphRev -> return $ goal {
-      --         gEnvironment = (gEnvironment goal) {
-      --           _succinctGraph = graph,
-      --           _succinctGraphRev = graphRev
-      --           }}
+          return $ goal { gEnvironment = env }
     parseGoal sig = do
       let transformedSig = "goal :: " ++ sig ++ "\ngoal = ??"
       parseResult <- return $ flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" transformedSig
@@ -471,8 +444,12 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
         Left parseErr -> (pdoc $ pretty $ toErrorMessage parseErr) >> pdoc empty >> exitFailure
         -- Right ast -> print $ vsep $ map pretty ast
         Right (funcDecl:decl:_) -> case decl of
-          Pos _ (SynthesisGoal id uprog) -> let Pos _ (FuncDecl _ spec) = funcDecl 
-                                            in return $ Goal id emptyEnv spec uprog 3 $ initialPos "goal"
+          Pos _ (SynthesisGoal id uprog) -> 
+            let Pos _ (FuncDecl _ sch) = funcDecl 
+            in do
+              let tvs = Set.toList $ typeVarsOf (toMonotype sch)
+              let spec = foldl (flip ForallT) sch tvs
+              return $ Goal id emptyEnv spec uprog 3 $ initialPos "goal"
           _ -> error "parse a signature for a none goal declaration"
 
     parseFromFiles [] = return []
@@ -490,10 +467,6 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
     pdoc = printDoc (outputFormat synquidParams)
     synthesizeGoal cquals tquals goal = do
       when (showSpec synquidParams) $ pdoc (prettySpec goal)
-      -- print empty
-      -- print $ vMapDoc pretty pretty (allSymbols $ gEnvironment goal)
-      -- print $ pretty (gSpec goal)
-      -- print $ vMapDoc pretty pretty (_measures $ gEnvironment goal)
       (mProg, stats) <- synthesize explorerParams solverParams goal cquals tquals
       case mProg of
         Left typeErr -> pdoc (pretty typeErr) >> pdoc empty >> exitFailure

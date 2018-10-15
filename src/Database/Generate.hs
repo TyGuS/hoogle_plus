@@ -106,13 +106,7 @@ getNames _ = []
 --   paramCnt  :: Int    -- count of the corresponding parameter type
 -- } deriving(Eq, Ord, Show, Generic)
 
-type Param = String -- parameter type
 
-data FunctionCode = FunctionCode {
-  funName   :: String,  -- function name
-  funParams :: [Param], -- function parameter types and their count
-  funReturn :: String   -- function return type
-} deriving(Eq, Ord, Show, Generic)
 
 -- | count the number of parameters in each signature
 -- countParams :: SType -> [Param]
@@ -125,14 +119,14 @@ data FunctionCode = FunctionCode {
 --         Nothing     -> (Param (show tArg) 1) : res
 --         Just (hd,_) -> (Param (show tArg) (1 + paramCnt hd)) : (delete hd res)
 -- countParams t = error $ "Unexpected type " ++ show t
-paramList :: SType -> [Param]
-paramList t@(ScalarT _ _) = [show t]
-paramList (FunctionT x tArg tFun) | arity tFun == 0 = [show tArg]
-paramList (FunctionT x tArg tFun) = (show tArg) : (paramList tFun)
-paramList t = error $ "Unexpected type " ++ show t
+-- paramList :: SType -> [Param]
+-- paramList t@(ScalarT _ _) = [show t]
+-- paramList (FunctionT x tArg tFun) | arity tFun == 0 = [show tArg]
+-- paramList (FunctionT x tArg tFun) = (show tArg) : (paramList tFun)
+-- paramList t = error $ "Unexpected type " ++ show t
 
 -- | convert from the synquid type signature to the json object
 -- makeFunctionCode :: String -> RSchema -> Maybe FunctionCode
-makeFunctionCode id sch = 
-  let funcTy = shape sch 
-  in Just $ FunctionCode id (paramList funcTy) (show $ lastType funcTy)
+-- makeFunctionCode id sch = 
+--   let funcTy = shape sch 
+--   in Just $ FunctionCode id (paramList funcTy) (show $ lastType funcTy)

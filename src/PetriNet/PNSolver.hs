@@ -23,26 +23,25 @@ import Control.Lens
 import Control.Monad.State
 import Data.Foldable
 import Data.List
+import Data.Maybe
 import Data.List.Extra
 import Database.Generate
 import Text.Parsec hiding (State)
 import Text.Parsec.Indent
 import Text.Parsec.Pos
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Lazy.Char8 as LB8
 
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Program
 import Synquid.Type
+import Synquid.Logic
 import Synquid.Util
 import Synquid.Error
 import Synquid.Pretty
 import PetriNet.PolyDispatcher
-
-data AbstractSkeleton = 
-      ADatatypeT Id [AbastractSkeleton] -- explicit datatypes
-    | AExclusion [Id] -- not included datatypes
-    | ATypeVarT Id -- type variable is only temporarily before building the PetriNet
-    | AFunctionT AbstractSkeleton AbstractSkeleton
-    deriving (Eq, Ord, Show, Generic)
+import PetriNet.AbstractType
+import Database.Convert
 
 data InstantiateState = InstantiateState {
     _functionIdx :: Map Id Int
@@ -50,58 +49,12 @@ data InstantiateState = InstantiateState {
 
 makeLenses ''InstantiateState
 
-abstract :: SType -> AbstractSkeleton
-abstract (ScalarT (DatatypeT id _ _) _) = ADatatypeT id []
-abstract (ScalarT BoolT _)              = ADatatypeT "Bool" []
-abstract (ScalarT IntT _)               = ADatatypeT "Int" []
-abstract (ScalarT (TypeVarT _ id) _)    = ATypeVarT id
-abstract (FunctionT x tArg tRet)        = AFunctionT (abstract tArg) (abstract tRet)
+-- initSigs :: Environment -> Map Id AbstractSkeleton
+-- initSigs env = Map.map (abstract . shape . toMonotype) $ allSymbols env -- get all symbols in the environment
 
-allAbstractBase :: AbstractSkeleton -> [AbstractSkeleton]
-allAbstractBase t@(ADatatypeT _ _)     = [t]
-allAbstractBase (AFunctionT tArg tRet) = allAbstractBase tArg ++ allAbstractBase tRet
-allAbstractBase (ATypeVarT _)          = []
-allAbstractBase t@(AExclusion _)       = [t]
 
-allAbstractVar :: AbstractSkeleton -> [Id]
-allAbstractVar (ATypeVarT id)         = [id]
-allAbstractVar (ADatatypeT _ _)       = []
-allAbstractVar (AFunctionT tArg tRet) = allAbstractVar tArg ++ allAbstractVar tRet
-allAbstractVar (AExclusion _)         = []
-
-hasAbstractVar :: AbstractSkeleton -> Bool
-hasAbstractVar (ATypeVarT id)         = True
-hasAbstractVar (ADatatypeT _ _)       = False
-hasAbstractVar (AExclusion _)         = False
-hasAbstractVar (AFunctionT tArg tRet) = hasAbstractVar tArg || hasAbstractVar tRet
-
-abstractSubstitute :: Id -> AbstractBase -> AbstractSkeleton -> AbstractSkeleton
-abstractSubstitute id bt t@(ADatatypeT _ _)     = t
-abstractSubstitute id bt t@(AExclusion _)       = t
-abstractSubstitute id bt t@(ATypeVarT var)      = if id == var then AScalarT bt else t
-abstractSubstitute id bt (AFunctionT tArg tRet) = AFunctionT (abstractSubstitute id bt tArg) (abstractSubstitute id bt tRet)
-
-abstractParamList :: AbstractSkeleton -> [Param]
-abstractParamList t@(ADatatypeT _)                            = [show t]
-abstractParamList t@(AExclusion _)                            = ["~" ++ show t]
-abstractParamList (AFunctionT tArg tFun) | AScalarT _ <- tFun = [show tArg]
-abstractParamList (AFunctionT tArg tFun)                      = (show tArg) : (abstractParamList tFun)
-abstractParamList t                                           = error $ "Unexpected type " ++ show t
-
-lastAbstractType :: AbstractSkeleton -> AbstractSkeleton
-lastAbstractType (AFunctionT tArg tFun) = lastAbstractType tFun
-lastAbstractType t                      = t
-
-encodeFunction :: Id -> AbstractSkeleton -> Maybe FunctionCode
-encodeFunction id t@(ADatatypeT _ _)       = Just $ FunctionCode id [] (show t)
-encodeFunction id t@(AExclusion tys)       = Just $ FunctionCode id [] ("~" ++ show tys)
-encodeFunction id   (ATypeVarT  _)         = error "Cannot encode a variable"
-encodeFunction id t@(AFunctionT tArg tRet) = Just $ FunctionCode id (abstractParamList t) (show $ lastAbstractType t)
-
-initSigs :: Environment -> Map Id AbstractSkeleton
-initSigs env = Map.map (abstract . shape . toMonotype) $ allSymbols env -- get all symbols in the environment
-
-instantiate :: (MonadIO m) => Map Id AbstractSkeleton -> StateT InstantiateState m (Map Id AbstractSkeleton)
+-- TODO: start with only the datatypes in the query
+instantiate :: (MonadIO m) => Map Id AbstractSkeleton -> StateT InstantiateState m (Map Id AbstractSkeleton, AbstractSkeleton)
 instantiate sigs = instantiate' sigs $ Map.filter (not . hasAbstractVar) sigs
     where 
         removeSuffix id ty = (removeLast '_' id, ty)
@@ -114,9 +67,13 @@ instantiate sigs = instantiate' sigs $ Map.filter (not . hasAbstractVar) sigs
             -- liftIO $ print ("typs'", typs')
             if typs' /= typs
                 then instantiate' sigs $ Map.fromList $ nubOn (uncurry removeSuffix) $ Map.toList $ Map.union sigsAcc sigs'
-                else return $ Map.fromList $ nubOn (uncurry removeSuffix) $ Map.toList $ Map.union sigsAcc sigs'
+                else do
+                    let currSigs = Map.fromList $ nubOn (uncurry removeSuffix) $ Map.toList $ Map.union sigsAcc sigs'
+                    let allDts = foldr (\(ADatatypeT id _) acc -> id `Set.insert` acc) Set.empty $ Set.fromList $ concatMap allAbstractBase $ Map.elems currSigs
+                    exSigs <- foldM (\acc -> (<$>) (Map.union acc) . uncurry (instantiateWith [AExclusion allDts])) Map.empty (Map.toList sigs)
+                    return $ (Map.fromList $ nubOn (uncurry removeSuffix) $ Map.toList $ Map.union currSigs exSigs, AExclusion allDts)
 
-instantiateWith :: (MonadIO m) => [AbstractBase] -> Id -> AbstractSkeleton -> StateT InstantiateState m (Map Id AbstractSkeleton)
+instantiateWith :: (MonadIO m) => [AbstractSkeleton] -> Id -> AbstractSkeleton -> StateT InstantiateState m (Map Id AbstractSkeleton)
 instantiateWith typs id sk = do
     let vars = allAbstractVar sk
     let multiSubsts    = map (zip vars) $ multiPermutation (length vars) typs
@@ -135,82 +92,171 @@ instantiateWith typs id sk = do
             modify (over functionIdx $ Map.insert prefix (idx+1))
             return $ prefix ++ "_" ++ show idx
 
-findPath :: Environment -> [String] -> String -> IO ()
-findPath env src dst = do
+data TypingState = TypingState {
+    _nameCounter :: Map Id Int,  -- name map for generating fresh names (type variables, parameters)
+    _typeAssignment :: Map Id SType,  -- current type assignment for each type variable
+    _typingError :: (SType, SType), -- typing error message, represented by the expected type and actual type
+    _isChecked :: Bool -- is the current state check passed
+}
+
+emptyTypingState = TypingState {
+    _nameCounter = Map.empty,
+    _typeAssignment = Map.empty,
+    _typingError = (AnyT, AnyT),
+    _isChecked = True
+}
+
+makeLenses ''TypingState
+
+freshId :: (MonadIO m) => Id -> StateT TypingState m Id
+freshId prefix = do
+    indices <- flip (^.) nameCounter <$> get
+    let idx = Map.findWithDefault 0 prefix indices
+    modify (over nameCounter $ Map.insert prefix (idx+1))
+    return $ prefix ++ "_" ++ show idx
+
+-- | Replace all bound type variables with fresh free variables
+freshType :: (MonadIO m) => RSchema -> StateT TypingState m RType
+freshType sch = do
+  t <- freshType' Map.empty sch
+  return t
+  where
+    freshType' subst (ForallT a sch) = do
+      a' <- freshId "A"
+      freshType' (Map.insert a (vart a' ftrue) subst) sch    
+    freshType' subst (Monotype t) = return $ typeSubstitute subst $ t
+
+checkProgramType :: (MonadIO m) => Environment -> SType -> UProgram -> StateT TypingState m (Maybe TProgram)
+checkProgramType env typ (Program (PSymbol sym) _) = do
+    -- lookup the symbol type in current scope
+    t <- case lookupSymbol (map (\c -> if c == '_' then '.' else c) sym) 0 env of
+            Nothing  -> error $ "checkProgramType: cannot find symbol " ++ sym ++ " in the current environment"
+            Just sch -> shape <$> freshType sch
+    -- solve the type constraint t == typ
+    liftIO $ putStrLn $ "Solving constraint " ++ show typ ++ " == " ++ show t
+    solveTypeConstraint env typ t
+    st <- get
+    return $ if st ^. isChecked then Just (Program (PSymbol sym) t) else Nothing
+checkProgramType env typ (Program (PApp pFun pArg) _) = do
+    -- first check the function type with @AnyT@ as parameters and @typ@ as returns
+    liftIO $ putStrLn $ "Checking type for " ++ show pFun
+    fun <- checkProgramType env (FunctionT "x" AnyT typ) pFun
+    case fun of
+        Nothing -> return Nothing -- if the check fails, stop here and return error state
+        Just f  -> do -- otherwise continue check for the argument type
+            let FunctionT _ tArg tRet = typeOf f
+            arg <- checkProgramType env tArg pArg
+            case arg of
+                Nothing -> return Nothing
+                Just a  -> return $ Just (Program (PApp f a) tRet)
+-- peel until we get a E-term
+checkProgramType env typ (Program (PFun x body) _) = checkProgramType env typ body
+
+solveTypeConstraint :: (MonadIO m) => Environment -> SType -> SType -> StateT TypingState m ()
+solveTypeConstraint _ AnyT _ = modify $ set isChecked True
+solveTypeConstraint _ _ AnyT = modify $ set isChecked True
+solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ id') _) | isBound env id = do
+    st <- get
+    if id' `Map.member` (st ^. typeAssignment)
+        then do
+            let typ = fromJust $ Map.lookup id' $ st ^. typeAssignment
+            liftIO $ putStrLn $ "Solving constraint " ++ show typ ++ " == " ++ show tv
+            solveTypeConstraint env tv typ
+        else do
+            modify $ set isChecked True
+            modify $ over typeAssignment (Map.insert id' tv)
+solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t | isBound env id = do
+    modify $ set isChecked False
+    modify $ set typingError (tv, t)
+solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t = do
+    st <- get
+    if id `Map.member` (st ^. typeAssignment)
+        then do
+            let typ = fromJust $ Map.lookup id $ st ^. typeAssignment
+            liftIO $ putStrLn $ "Solving constraint " ++ show tv ++ " == " ++ show typ
+            solveTypeConstraint env typ t
+        else do
+            modify $ set isChecked False
+            modify $ set typingError (tv, t)
+solveTypeConstraint env (FunctionT _ tArg tRet) (FunctionT _ tArg' tRet') = do
+    liftIO $ putStrLn $ "Solving constraint " ++ show tArg ++ " == " ++ show tArg'
+    solveTypeConstraint env tArg tArg'
+    st <- get
+    when (st ^. isChecked) (do
+        liftIO $ putStrLn $ "Solving constraint " ++ show tRet ++ " == " ++ show tRet'
+        solveTypeConstraint env tRet tRet')
+solveTypeConstraint _ (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT id' tArgs' _) _) | id /= id' = do
+    modify $ set isChecked False
+    modify $ set typingError (ScalarT (DatatypeT id [] []) (), ScalarT (DatatypeT id' [] []) ())
+solveTypeConstraint env (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT id' tArgs' _) _) | id == id' = do
+    (expected, actual) <- solveTypeConstraint' env tArgs tArgs'
+    modify $ set typingError (ScalarT (DatatypeT id expected []) (), ScalarT (DatatypeT id' actual []) ())
+  where
+    solveTypeConstraint' _ []  [] = do
+        modify $ set isChecked True
+        return ([],[])
+    solveTypeConstraint' env (ty:tys) (ty':tys') = do
+        liftIO $ putStrLn $ "Solving constraint " ++ show ty ++ " == " ++ show ty'
+        solveTypeConstraint env ty ty'
+        st <- get
+        -- if the checking between ty and ty' succeeds, proceed to others
+        if st ^. isChecked
+            then do
+                (expected, actual) <- solveTypeConstraint' env tys tys'
+                st' <- get
+                -- if the typing check fails, prepend current argument to the error message
+                if not $ st' ^. isChecked
+                    then return (ty:expected , ty':actual)
+                    else return ([], [])
+            else do
+                let (expected, actual) = st ^. typingError
+                return ([expected], [actual])
+
+checkType :: Environment -> RType -> Declaration -> IO ()
+checkType env typ (Pos _ (SynthesisGoal id p)) = do
+    -- liftIO $ print $ env ^. boundTypeVars
+    -- print id
+    putStrLn $ "Find program"
+    print p
+    (p', st) <- runStateT (checkProgramType env (shape typ) p) emptyTypingState
+    -- print p'
+    print $ st ^. typingError
+    -- print $ st ^. typeAssignment
+
+-- compare whether the existing datatype is distinguishable from the error type we found
+-- if not, split that type and reinstantiate all the polymorphic functions
+-- keep the abstracted argument types and return types!!
+refineAbstraction :: Environment -> SType -> IO ()
+refineAbstraction env errTy = undefined
+
+findPath :: Environment -> [RType] -> [Id] -> RType -> AbstractSkeleton -> IO ()
+findPath env src args dst ex = do
     withJVM [ fromString ("-Djava.class.path=src/sypet/sypet.jar:"                 ++ 
                                             "src/sypet/lib/sat4j-pb.jar:"          ++
                                             "src/sypet/lib/commons-lang3-3.4.jar:" ++
                                             "src/sypet/lib/gson-2.8.5.jar:"        ++
                                             "src/sypet/lib/apt.jar")
             ] $ do
-        tgt <- reflect (Text.pack dst)
-        srcTypes <- reflect (map Text.pack src)  
+        symbols <- reflect (Text.pack . LB8.unpack . Aeson.encode $ map (uncurry encodeFunction) $ Map.toList (env ^. abstractSymbols))
+        tgt <- reflect (Text.pack $ show $ abstract (Just ex) $ shape dst)
+        srcTypes <- reflect (map (Text.pack . show . abstract (Just ex) . shape) src)
+        argNames <- reflect (map (Text.pack) args)
         [java| {
-            java.util.List<java.lang.String> srcTypes = java.util.Arrays.asList($srcTypes);;
+            java.util.List<java.lang.String> srcTypes = java.util.Arrays.asList($srcTypes);
+            java.util.List<java.lang.String> argNames = java.util.Arrays.asList($argNames);
             String tgtType = $tgt;
-            cmu.edu.utils.SynquidUtil.init(srcTypes, tgtType);
+            // System.out.println(srcTypes.toString());
+            // System.out.println(tgtType);
+            cmu.edu.utils.SynquidUtil.init(srcTypes, argNames, tgtType, $symbols);
             cmu.edu.utils.SynquidUtil.buildNextEncoding();
         } |] :: IO ()
         code <- [java| {
-            return cmu.edu.utils.SynquidUtil.synthesize();
+            java.util.List<java.lang.String> res = cmu.edu.utils.SynquidUtil.synthesize();
+            return res.toArray(new String[res.size()]);
         } |]
-        codeText <- reify code
-        let codeCheck = flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" $ Text.unpack codeText
-        case codeCheck of
-            Left err   -> error "parse error"
-            Right decl -> liftIO $ checkType env $ head decl
-
-checkType :: Environment -> Declaration -> IO ()
-checkType env (Pos _ (SynthesisGoal id p)) = do
-    print id
-    print p
-
-data TypingState = TypingState {
-    _nameCounter :: Map Id Int,  -- name map for generating fresh names (type variables, parameters)
-    _typeAssignment :: Map Id SType  -- current type assignment for each type variable
-    _typingError :: (AbstractSkeleton, AbstractSkeleton), -- typing error message, represented by the expected type and actual type
-    _isChecked :: Bool -- is the current state check passed
-}
-
-makeLenses ''TypingState
-
-checkProgramType :: (MonadIO m) => Environment -> SType -> TProgram -> StateT m TypingState (Either () ())
-checkProgramType env typ (Program (PSymbol sym) _) = do
-    -- lookup the symbol type in current scope
-    let t = case lookupSymbol sym 0 env of
-              Nothing  -> error $ "checkProgramType: cannot find symbol " ++ sym ++ " in the current environment"
-              Just sch -> shape $ toMonotype sch
-    -- solve the type constraint t <: typ
-    solveTypeConstraint typ t
-checkProgramType env typ (Program (PApp pFun pArg) _) = do
-    -- first check the function type with @AnyT@ as parameters and @typ@ as returns
-    checkProgramType env (FunctionT "x" AnyT typ) pFun
-    -- if the check fails, stop here and return error state
-    -- otherwise continue check for the argument types
-
-solveTypeConstraint :: (MonadIO m) => SType -> SType -> StateT m TypingState ()
-solveTypeConstraint (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT id' tArgs' _) _) | id /= id' = do
-    modify $ set isChecked False
-    modify $ set typingError (ADatatypeT id [], ADatatypeT id' [])
-solveTypeConstraint (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT id' tArgs' _) _) | id == id' = do
-    solveTypeConstraint' tArgs tArgs'
-    state <- get
-    let (expected, actual) = state' ^. typingError
-    modify $ set typingError (ADatatypeT id expected, ADatatypeT id' actual)
-  where
-    solveTypeConstraint' []  [] = do
-        modify $ set isChecked True
-        return ()
-    solveTypeConstraint' (ty:tys) (ty':tys') = do
-        solveTypeConstraint ty ty'
-        state <- get
-        -- if the checking between ty and ty' succeeds, proceed to others
-        when (state ^. isChecked) $ do
-            solveTypeConstraint' tys tys'
-            state' <- get
-            -- if the typing check fails, prepend current argument to the error message
-            when (not $ state' ^. isChecked) $ do
-                let (expected, actual) = state' ^. typingError
-                case expected of
-                    _:_ -> modify $ set typingError ((abstract ty): expected , (abstract ty'): actual )
-                    _   -> modify $ set typingError ((abstract ty):[expected], (abstract ty'):[actual])
+        codeTexts <- reify code
+        -- liftIO $ Text.putStrLn codeText
+        let codeCheck = map (flip evalState (initialPos "goal") . runIndentParserT parseProgram () "" . Text.unpack) codeTexts
+        mapM_ (\cc -> case cc of
+                        Left err   -> error "parse error"
+                        Right decl -> liftIO $ checkType env dst $ head decl) codeCheck

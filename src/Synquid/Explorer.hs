@@ -18,6 +18,7 @@ import Synquid.Graph hiding (instantiate)
 import Database.GraphWeightsProvider
 import Database.Util
 import Synquid.GraphConstraintSolver
+import PetriNet.AbstractType  
 import qualified PetriNet.PNSolver as PNSolver
 
 import Data.Maybe
@@ -215,29 +216,34 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
   --                      subgraphNodes = if goalTy == SuccinctAny then allSuccinctNodes graphEnv else reachableGraphFromNode graphEnv goalTy
   --                      in graphEnv { _graphFromGoal = pruneGraphByReachability (graphEnv ^. succinctGraph) subgraphNodes }
   --             else env
-  let env' = env
+  -- let env' = env
   pathEnabled <- asks . view $ _1 . pathSearch
   case pathEnabled of
-    Dijkstra    -> splitGoal env' t
-    BiDijkstra  -> splitGoal env' t
+    Dijkstra    -> splitGoal env t
+    BiDijkstra  -> splitGoal env t
       -- liftIO $ writeFile "test.log" $ showGraphViz True env
     MaxSAT      -> do
       start <- liftIO $ getCurrentTime
-      getKSolution env'
+      getKSolution env
       end <- liftIO $ getCurrentTime
       error $ show $ diffUTCTime end start
       -- splitGoal env t
     PetriNet    -> do
-      m <- evalStateT (PNSolver.instantiate (PNSolver.initSigs env)) (PNSolver.InstantiateState Map.empty)
-      liftIO $ writeFile ("data/base.db") $ LB8.unpack $ Aeson.encode $ map (uncurry PNSolver.encodeFunction) $ Map.toList m
-      let args = map (show . PNSolver.abstract . shape . toMonotype) $ Map.elems (env' ^. arguments)
-      liftIO $ PNSolver.findPath env' args (show $ PNSolver.abstract $ shape t)
-      generateMaybeMatchIf env' t isElseBranch
+      let absSymbols = Map.foldrWithKey (\id t -> Map.insert id (abstract Nothing $ shape $ toMonotype t)) Map.empty $ allSymbols env
+      let argNames = Map.keys (env ^. arguments)
+      let args = map toMonotype $ Map.elems (env ^. arguments)
+      let absSymbols' = foldr (\a m -> Map.delete a m) absSymbols argNames
+      (m, ex) <- evalStateT (PNSolver.instantiate absSymbols') (PNSolver.InstantiateState Map.empty)
+      let env' = set abstractSymbols m env
+      -- liftIO $ writeFile ("data/base.db") $ LB8.unpack $ Aeson.encode $ map (uncurry PNSolver.encodeFunction) $ Map.toList m
+      liftIO $ (PNSolver.findPath env' args argNames t ex)
+      return $ Program PErr AnyT
+      -- generateMaybeMatchIf env' t isElseBranch
     DisablePath -> do
       maEnabled <- asks . view $ _1 . abduceScrutinees -- Is match abduction enabled?
       d <- asks . view $ _1 . matchDepth
-      maPossible <- runInSolver $ hasPotentialScrutinees env' -- Are there any potential scrutinees in scope?
-      if maEnabled && d > 0 && maPossible then generateMaybeMatchIf env' t isElseBranch else generateMaybeIf env' t isElseBranch           
+      maPossible <- runInSolver $ hasPotentialScrutinees env -- Are there any potential scrutinees in scope?
+      if maEnabled && d > 0 && maPossible then generateMaybeMatchIf env t isElseBranch else generateMaybeIf env t isElseBranch           
 
 -- | Generate a possibly conditional term type @t@, depending on whether a condition is abduced
 generateMaybeIf :: (MonadHorn s, MonadIO s) => Environment -> RType -> Bool -> Explorer s RProgram

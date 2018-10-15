@@ -9,6 +9,7 @@ import Synquid.Error
 import Synquid.Tokens
 import Synquid.Util
 import Synquid.Succinct
+import PetriNet.AbstractType
 
 import Data.Maybe
 import Data.Either
@@ -228,6 +229,7 @@ data Environment = Environment {
   -- | Variable part:
   _symbols :: Map Int (Map Id RSchema),    -- ^ Variables and constants (with their refinement types), indexed by arity
   _arguments :: Map Id RSchema,            -- ^ Function arguments, required in all the solutions
+  _abstractSymbols :: Map Id AbstractSkeleton,
   _succinctSymbols :: HashMap Id SuccinctType,    -- ^ Symbols with succinct types
   _succinctGraph :: HashMap SuccinctType (HashMap SuccinctType (Set SuccinctEdge)), -- ^ Graph built upon succinct types
   _graphFromGoal :: HashMap SuccinctType (HashMap SuccinctType (Set SuccinctEdge)),
@@ -261,6 +263,7 @@ instance Ord Environment where
 emptyEnv = Environment {
   _symbols = Map.empty,
   _arguments = Map.empty,
+  _abstractSymbols = Map.empty,
   _succinctSymbols = HashMap.empty,
   _succinctGraph = HashMap.empty,
   _graphFromGoal = HashMap.empty,
