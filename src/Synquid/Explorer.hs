@@ -53,6 +53,8 @@ import qualified Z3.Monad as Z3
 import Data.Time.Clock
 import qualified Data.ByteString.Lazy.Char8 as LB8
 import qualified Data.Aeson as Aeson
+import Data.String (fromString)
+import Foreign.JNI (withJVM)
 
 {- Interface -}
 
@@ -229,14 +231,19 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
       error $ show $ diffUTCTime end start
       -- splitGoal env t
     PetriNet    -> do
-      let absSymbols = Map.foldrWithKey (\id t -> Map.insert id (abstract Nothing $ shape $ toMonotype t)) Map.empty $ allSymbols env
-      let argNames = Map.keys (env ^. arguments)
-      let args = map toMonotype $ Map.elems (env ^. arguments)
-      let absSymbols' = foldr (\a m -> Map.delete a m) absSymbols argNames
-      (m, ex) <- evalStateT (PNSolver.instantiate absSymbols') (PNSolver.InstantiateState Map.empty)
-      let env' = set abstractSymbols m env
+      -- (m, ex) <- evalStateT (PNSolver.instantiate absSymbols') (PNSolver.InstantiateState Map.empty)
+      -- let env' = set abstractSymbols m env
       -- liftIO $ writeFile ("data/base.db") $ LB8.unpack $ Aeson.encode $ map (uncurry PNSolver.encodeFunction) $ Map.toList m
-      liftIO $ (PNSolver.findProgram env' args argNames t ex)
+      let args = (Monotype t):(Map.elems $ env ^. arguments)
+      -- start with all the datatypes defined in the queries
+      let initialState = Map.singleton "" $ foldr (Set.union . allDatatypes . toMonotype) Set.empty args 
+      liftIO $ (withJVM [ fromString ("-Djava.class.path=src/sypet/sypet.jar:"  ++ 
+                                                    "src/sypet/lib/sat4j-pb.jar:"          ++
+                                                    "src/sypet/lib/commons-lang3-3.4.jar:" ++
+                                                    "src/sypet/lib/gson-2.8.5.jar:"        ++
+                                                    "src/sypet/lib/apt.jar")
+                            ] $ evalStateT (PNSolver.findProgram env t)
+                              $ set PNSolver.abstractionLevel initialState PNSolver.emptyTypingState)
       return $ Program PErr AnyT
       -- generateMaybeMatchIf env' t isElseBranch
     DisablePath -> do

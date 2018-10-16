@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric  #-}
+{-# LANGUAGE FlexibleContexts #-}
 -- | Refinement Types
 module Synquid.Type where
 
@@ -77,6 +78,18 @@ fromSort IntS = ScalarT IntT ftrue
 fromSort (VarS name) = ScalarT (TypeVarT Map.empty name) ftrue
 fromSort (DataS name sArgs) = ScalarT (DatatypeT name (map fromSort sArgs) []) ftrue -- TODO: what to do with pArgs?
 fromSort AnyS = AnyT
+
+scalarName (ScalarT (DatatypeT name _ _) _) = name
+scalarName (ScalarT IntT _) = "Int"
+scalarName (ScalarT BoolT _) = "Bool"
+scalarName (ScalarT (TypeVarT _ name) _) = name
+scalarName t = error $ "scalarName error: cannot be applied to " ++ show t
+
+allDatatypes (FunctionT _ tArg tRet) = allDatatypes tArg `Set.union` allDatatypes tRet
+allDatatypes (ScalarT (DatatypeT id tArgs _) _) = id `Set.insert` foldr (Set.union . allDatatypes) Set.empty tArgs
+allDatatypes (ScalarT IntT _) = Set.singleton "Int"
+allDatatypes (ScalarT BoolT _) = Set.singleton "Bool"
+allDatatypes (ScalarT (TypeVarT _ id) _) = Set.empty
 
 arity :: TypeSkeleton r -> Int
 arity (FunctionT _ _ t) = 1 + arity t
