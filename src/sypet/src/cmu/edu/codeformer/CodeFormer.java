@@ -377,7 +377,7 @@ public class CodeFormer {
             // remove the number index for each funcation name here
             int funNameEndAt = sig.getFunName().lastIndexOf('_') ;
             if(funNameEndAt != -1){
-                // builder.append(sig.getFunName().replace('.','_'));
+                // System.out.println(sig.getFunName().replace('.','_'));
                 builder.append(sig.getFunName().substring(0, funNameEndAt).replace('.','_'));
             }
             else{

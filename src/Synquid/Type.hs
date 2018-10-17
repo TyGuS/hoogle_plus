@@ -31,13 +31,6 @@ data TypeSkeleton r =
   AnyT
   deriving (Eq, Ord, Generic)
 
-extractBaseRefinements (DatatypeT _ typs fmls) = (Set.unions $ map extractRefinements typs) `Set.union` Set.fromList fmls
-extractBaseRefinements _ = Set.empty
-extractRefinements (ScalarT baseTyp fml) = Set.insert fml (extractBaseRefinements baseTyp)
-extractRefinements (FunctionT _ tArg tRet) = extractRefinements tArg `Set.union` extractRefinements tRet
-extractRefinements (LetT _ tDef t) = extractRefinements tDef `Set.union` extractRefinements t
-extractRefinements _ = Set.empty
-
 contextual x tDef (FunctionT y tArg tRes) = FunctionT y (contextual x tDef tArg) (contextual x tDef tRes)
 contextual _ _ AnyT = AnyT
 contextual x tDef t = LetT x tDef t
@@ -115,14 +108,6 @@ allBaseTypes t@(ScalarT _ _) = [t]
 allBaseTypes (FunctionT _ tArg tRet) = allBaseTypes tArg ++ allBaseTypes tRet
 allBaseTypes _ = error "allBaseTypes: applied to unsupported types"
 
--- addTrue :: SType -> RType
--- addTrue (ScalarT BoolT _) = ScalarT BoolT ftrue
--- addTrue (ScalarT IntT _) = ScalarT IntT ftrue
--- addTrue (ScalarT (DatatypeT id tys _) _) = ScalarT (DatatypeT id (map addTrue tys) []) ftrue
--- addTrue (ScalarT (TypeVarT subst id) _) = ScalarT (TypeVarT subst id) ftrue
--- addTrue (FunctionT id tArg tRet) = FunctionT id (addTrue tArg) (addTrue tRet)
--- addTrue _ = error "addTrue: unexpected type"
-
 -- | Free variables of a type
 varsOfType :: RType -> Set Id
 varsOfType (ScalarT baseT fml) = varsOfBase baseT `Set.union` (Set.map varName $ varsOf fml)
@@ -183,6 +168,14 @@ type TypeSubstitution = Map Id RType
 
 asSortSubst :: TypeSubstitution -> SortSubstitution
 asSortSubst = Map.map (toSort . baseTypeOf)
+
+stypeSubstitute :: Map Id SType -> SType -> SType
+stypeSubstitute subst t@(ScalarT (TypeVarT _ id) r) = 
+  if id `Map.member` subst then fromJust $ Map.lookup id subst else t
+stypeSubstitute subst t@(ScalarT (DatatypeT name tArgs p) r) = ScalarT (DatatypeT name (map (stypeSubstitute subst) tArgs) p) r
+stypeSubstitute subst t@(ScalarT _ _) = t
+stypeSubstitute subst (FunctionT x tArg tRes) = FunctionT x (stypeSubstitute subst tArg) (stypeSubstitute subst tRes)
+stypeSubstitute subst t = t
 
 -- | 'typeSubstitute' @t@ : substitute all free type variables in @t@
 typeSubstitute :: TypeSubstitution -> RType -> RType

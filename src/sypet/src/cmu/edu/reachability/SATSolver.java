@@ -176,7 +176,7 @@ public class SATSolver {
 	}
 	
 	public List<Variable> findPath(int loc){
-		
+		// System.out.println("Finding path for length " + loc);
 		ArrayList<Variable> res = new ArrayList<>();
 		// TODO: what happens when loc -> loc+1
 		// 1) initial state can be encoded as constraints

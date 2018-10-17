@@ -233,17 +233,6 @@ instance Serialize r => Serialize (TypeSkeleton r)
 instance Serialize r => Serialize (BaseType r)
 instance Serialize r => Serialize (SchemaSkeleton r)
 instance Serialize AbstractSkeleton
--- instance Serialize Param
-instance Serialize FunctionCode
--- instance ToJSON Param where
---     toEncoding = genericToEncoding defaultOptions
--- instance ToJSON Param where
---   toJSON (Param ty cnt) = Object (HashMap.singleton (Text.pack ty) (Number cnt))
--- instance ToJSON FunctionCode where
---   toJSON (FunctionCode id params ret) = Object (HashMap.singleton (Text.pack id) 
---                                           (Object $ HashMap.insert (Text.pack "params") (toJSON $ HashMap.fromList $ map paramTuple params)
---                                                   $ HashMap.insert (Text.pack "return") (String $ Text.pack ret)
---                                                   $ HashMap.empty))
 
 edges isPruned env = HashMap.foldrWithKey (\k v acc -> (map (\(k',v') -> (k,v',k')) (HashMap.toList v)) ++ acc) [] (if isPruned then env ^. graphFromGoal else env ^. succinctGraph)
 

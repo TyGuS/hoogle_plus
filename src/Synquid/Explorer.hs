@@ -237,14 +237,16 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
       let args = (Monotype t):(Map.elems $ env ^. arguments)
       -- start with all the datatypes defined in the queries
       let initialState = Map.singleton "" $ foldr (Set.union . allDatatypes . toMonotype) Set.empty args 
+      maxLevel <- asks . view $ _1 . explorerLogLevel
       liftIO $ (withJVM [ fromString ("-Djava.class.path=src/sypet/sypet.jar:"  ++ 
                                                     "src/sypet/lib/sat4j-pb.jar:"          ++
                                                     "src/sypet/lib/commons-lang3-3.4.jar:" ++
                                                     "src/sypet/lib/gson-2.8.5.jar:"        ++
                                                     "src/sypet/lib/apt.jar")
                             ] $ evalStateT (PNSolver.findProgram env t)
-                              $ set PNSolver.abstractionLevel initialState PNSolver.emptyTypingState)
-      return $ Program PErr AnyT
+                              $ set PNSolver.abstractionLevel initialState 
+                              $ PNSolver.emptyTypingState {PNSolver._logLevel = maxLevel})
+      -- return $ Program PErr AnyT
       -- generateMaybeMatchIf env' t isElseBranch
     DisablePath -> do
       maEnabled <- asks . view $ _1 . abduceScrutinees -- Is match abduction enabled?

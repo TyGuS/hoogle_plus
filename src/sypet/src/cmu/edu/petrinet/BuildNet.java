@@ -408,17 +408,14 @@ public class BuildNet {
 		}
 
 	}
-	public PetriNet build(List<Function> functions) {
+	public PetriNet build(List<Function> functions, List<String> inputs) {
 		// long begin = System.nanoTime();
+		addPlace("void");
 		for (Function sig : functions) {
 			petrinet.createTransition(sig.getFunName());
 			addPlace(sig.getFunReturn());
-			// if this function has no parameters, we are able to use it as clone node?
-			// TODO: maybe we shall give all the inhabited nodes with some intial token
-			// and do not require these inhabited token to be totally consumed at last
 			if (sig.getFunParams().size() == 0) {
-				addFlow(sig.getFunReturn(), sig.getFunName(),1);
-				addFlow(sig.getFunName(), sig.getFunReturn(), 2);
+				addFlow("void", sig.getFunName(), 1);
 			} else {
 				// create places for all function parameter types
 				// and add edges from parameters to function transition
@@ -426,10 +423,11 @@ public class BuildNet {
 					addPlace(param);
 					addFlow(param, sig.getFunName(), 1);
 				}
-				// add edge from function transition to the return type
-				addFlow(sig.getFunName(), sig.getFunReturn(),1);
 			}
+			// add edge from function transition to the return type
+			addFlow(sig.getFunName(), sig.getFunReturn(),1);
 		}
+		setMaxTokens(inputs);
 		// long end = System.nanoTime();
 		// System.out.println("Time for construct Petri Net: " + (end-begin)/ 1000000000.0);
 		return petrinet;

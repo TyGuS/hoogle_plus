@@ -60,6 +60,7 @@ import Synquid.Program
 import Synquid.Tokens
 import Synquid.Util
 import Synquid.Succinct
+import PetriNet.AbstractType
 
 import Text.PrettyPrint.ANSI.Leijen hiding ((<+>), (<$>), hsep, vsep)
 import qualified Text.PrettyPrint.ANSI.Leijen as L
@@ -536,3 +537,12 @@ instance Hashable SuccinctType where
 instance Hashable SuccinctContext where
   hash sctx = hash (sctx ^. srcType)
   hashWithSalt s sctx = s + hash sctx
+
+instance Pretty AbstractSkeleton where
+    pretty (ADatatypeT id args) = text id <+> hsep (map pretty args)
+    pretty (AExclusion ids) = operator "~" <+> hlBraces (commaSep $ map pretty (Set.toList ids)) 
+    pretty (ATypeVarT id) = text id
+    pretty (AFunctionT tArg tRet) = pretty tArg <+> operator "->" <+> pretty tRet
+
+-- instance Show AbstractSkeleton where
+--     show = show . plain . pretty

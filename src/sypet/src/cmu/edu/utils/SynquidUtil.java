@@ -47,8 +47,7 @@ public class SynquidUtil {
 		functionMap.clear();
 		getSigs(symbols);
 		buildNet = new BuildNet(new ArrayList<>());
-		net = buildNet.build(functions);
-		buildNet.setMaxTokens(srcTypes);
+		net = buildNet.build(functions, srcTypes);
 	}
 
 	public static void buildNextEncoding() {
@@ -61,6 +60,7 @@ public class SynquidUtil {
 
 	public static List<String> synthesize() {
         // Perform reachability analysis
+        System.out.println("Number of functions:"+functions.size());
         List<Variable> result = Encoding.solver.findPath(loc);
         List<Function> signatures = new ArrayList<>();
 
@@ -68,7 +68,6 @@ public class SynquidUtil {
         result = Encoding.solver.findPath(loc);
         while (result.isEmpty()){
         	loc++;
-        	System.out.println("Finding path for length " + loc);
         	buildNextEncoding();
         	result = Encoding.solver.findPath(loc);
         }
