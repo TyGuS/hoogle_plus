@@ -60,12 +60,11 @@ public class SynquidUtil {
 
 	public static List<String> synthesize() {
         // Perform reachability analysis
-        System.out.println("Number of functions:"+functions.size());
+        // System.out.println("Number of functions:"+functions.size());
         List<Variable> result = Encoding.solver.findPath(loc);
         List<Function> signatures = new ArrayList<>();
 
         // Increase a location until we have a result
-        result = Encoding.solver.findPath(loc);
         while (result.isEmpty()){
         	loc++;
         	buildNextEncoding();

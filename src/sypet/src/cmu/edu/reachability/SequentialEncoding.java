@@ -66,9 +66,9 @@ public class SequentialEncoding implements Encoding {
 
 		createVariables();
 		createConstraints();
-		System.out.println("#constraints = " + solver.getNbConstraints());
-		System.out.println("#variables = " + nbVariables);
-		System.out.println("#variables in solver = " + solver.getNbVariables());
+		// System.out.println("#constraints = " + solver.getNbConstraints());
+		// System.out.println("#variables = " + nbVariables);
+		// System.out.println("#variables in solver = " + solver.getNbVariables());
 	}
 
 	public void setAtLeastK(List<Pair<String, Integer>> atLeastK) {
