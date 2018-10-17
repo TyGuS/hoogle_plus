@@ -12,7 +12,7 @@ def create_import_files(tarball_filename):
   p = subprocess.Popen(["stack", "exec", "extractImports-exe", file_path], cwd=bench_path, shell=False)
   p.wait() 
 
-def main():      
+def main():
 
   src_dir = get_data_path("working/hackage500/")
   tarballs = os.listdir(src_dir)
@@ -22,7 +22,7 @@ def main():
     create_import_files(tarball)
     cnt += 1
     if cnt % 50 == 0:
-      print "%d/%d" % (cnt, total)
+      print("%d/%d" % (cnt, total))
 
 if __name__ == '__main__':
   main()

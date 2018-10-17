@@ -29,6 +29,7 @@ import Data.Foldable (foldl, foldMap)
 import Data.Generics.Uniplate.Data
 import Control.Monad.Writer
 import System.IO
+import System.FilePath.Posix (takeDirectory, (</>))
 import Language.Haskell.Ghcid
 import Hoogle
 import Control.Monad.State
@@ -45,17 +46,21 @@ import Data.Aeson
 import qualified Data.ByteString.Lazy as B
 import qualified Data.HashMap.Strict as HM
 import Language.Haskell.Exts.CPP
-import Data.Git.Storage (findRepoMaybe, openRepo, gitRepoPath)
+import Data.Git.Storage as Git
+import qualified Filesystem.Path.CurrentOS  as CurrentOS
+import qualified Data.ByteString.Internal as BSI
+import System.Directory (createDirectoryIfMissing)
 
 
-getCurrentGitRepoPath :: IO Filepath
-getCurrentGitRepoPath = do
-    mbPath <- findRepoMaybe
-    mbRepo <- mbPath <$> openRepo
-    mbRootPath <- mbRepo <$> gitRepoPath
-    case mbRootPath of
-        Just rootPath -> rootPath
-        Nothing -> error "you done goofed. get it in git"
+getPathFromGitRoot :: FilePath -> IO FilePath
+getPathFromGitRoot desiredDirectory = do
+    root <- (takeDirectory . BSI.unpackChars . CurrentOS.encode) <$> Git.findRepo
+    let path = root </> desiredDirectory
+    createDirectoryIfMissing True path
+    return path
+
+getOutputDir :: IO FilePath
+getOutputDir = getPathFromGitRoot "hplus_weights/output/data"
 
 -- TODO
 -- 1. Save to CSV of format (example, type, timestamp, origin filename)
@@ -110,9 +115,9 @@ computeFilePaths filePath =
 
 
 loadHashMaps name= do
-  let dataDir = "/home/djusto/research/data/"
+  dataDir <- getOutputDir
   --let inputsDir  = dataDir ++ "inputs/hackage500Maps/"
-  let workingDir = dataDir ++ "working/hackage500Maps/"
+  let workingDir = dataDir ++ "/working/hackage500Maps/"
 
   let qualMapPath = workingDir ++ name ++ "_qual.json"
   let explMapPath = workingDir ++ name ++ "_expl.json"
@@ -179,7 +184,9 @@ extractImports = do
   let fileNameArr = (splitOn "/" $ head $ splitOn ".hs" filePath)
   let fileName = fileNameArr !! (length fileNameArr -1) 
   --print fileName
-  let outDir = "/home/djusto/research/data/working/hackage500Imports/" 
+  dataDir <- getOutputDir
+  let outDir = dataDir </> "working/hackage500Imports/"
+  createDirectoryIfMissing True outDir
   let outPath = outDir ++ fileName ++ ".txt" 
 
 
@@ -197,8 +204,9 @@ extractUsageExamples = do
 
   let fileNameArr = (splitOn "/" $ head $ splitOn ".hs" filePath)
   let fileName = fileNameArr !! (length fileNameArr -1) 
-
-  let outDir = "/home/djusto/research/data/working/hackage500CSVs/" 
+  dataDir <- getOutputDir
+  let outDir = dataDir </> "working/hackage500CSVs/"
+  createDirectoryIfMissing True outDir
   let outPath = outDir ++ fileName ++ ".csv"
 
   (qualMap, explMap) <- loadHashMaps fileName

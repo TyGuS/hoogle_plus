@@ -6,6 +6,8 @@ import string
 
 from enum import Enum
 from collections import defaultdict
+from custom_utils.utils import (get_data_path, get_repo_root)
+
 
 class ImportMode(Enum):
     invalid = 0
@@ -15,9 +17,7 @@ class ImportMode(Enum):
     full = 4
 
 def load_supported_APIs():
-    home_path = os.path.expanduser('~') 
-    supported_modules_dir = home_path + \
-        "/research/data/inputs/hplusSupported/"
+    supported_modules_dir = get_repo_root() + "/hplus_weights/supported_modules/"
     supported_module_path = supported_modules_dir + "bytestring.api"
 
     module_functions_map = defaultdict(set)
@@ -90,11 +90,8 @@ def _extract_import_contents(import_statement, supported_modules):
 
 
 def get_qualifying_maps(import_statements):
-
     qualification_map = {}
     explicit_names_map = {}
-
-    #print import_statements
 
     supported_modules, module_maps = load_supported_APIs()
     import_contents = map(lambda x: \
@@ -135,34 +132,30 @@ def get_qualifying_maps(import_statements):
     return qualification_map, explicit_names_map 
 
 
-    
-
-def main():
-    
-    # File path to the haskell file to process
-    file_path = sys.argv[1]
-    
-    
-    hs_imports = ""
-    with open(file_path, 'r') as f:
+def generate_identifier_maps(tarball_path):
+    with open(tarball_path, 'r') as f:
         hs_imports = f.read()
-    
+
     hs_imports = hs_imports.split('\n')
     qualification_map, explicit_names_map = get_qualifying_maps(hs_imports)
-    file_name = file_path.split("/")[-1].replace('.txt', '')
-    output_file_dir = os.path.expanduser("~") + "/research/data/working/hackage500Maps/"
+    file_name = tarball_path.split("/")[-1].replace('.txt', '')
+    output_file_dir = get_data_path("working/hackage500Maps/")
 
-    qual_map_outpath = output_file_dir + file_name + "_qual.json" 
+    qual_map_outpath = output_file_dir + file_name + "_qual.json"
     expl_map_outpath = output_file_dir + file_name + "_expl.json"
     with open(qual_map_outpath, 'w') as f:
-        json.dump(qualification_map,f )
+        json.dump(qualification_map, f)
 
     with open(expl_map_outpath, 'w') as f:
         json.dump(explicit_names_map, f)
     
 
+def main():
+    # File path to the haskell file to process
+    file_path = sys.argv[1]
+    generate_identifier_maps(file_path)
 
 
-# Run the main function when this file is runned as a script
+# Run the main function when this file is run as a script
 if __name__ == '__main__':
     main()
