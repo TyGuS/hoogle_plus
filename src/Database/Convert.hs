@@ -1,6 +1,6 @@
 module Database.Convert where
 
-import Language.Haskell.Exts
+import Language.Haskell.Exts hiding (PApp)
 import qualified Data.Set as Set
 import Data.Set (Set)
 import qualified Data.Map as Map
@@ -19,15 +19,15 @@ import Control.Lens as Lens
 import Control.Monad.State
 import Text.Parsec.Pos
 import Distribution.Verbosity
-import Distribution.PackageDescription
+import Distribution.PackageDescription hiding (Var)
 import Distribution.PackageDescription.Parsec
 import Distribution.Package
 import Debug.Trace
 import System.Directory
 
 import Synquid.Type
-import Synquid.Logic
-import Synquid.Program (emptyEnv, BareDeclaration, Declaration, Environment)
+import Synquid.Logic hiding (Var)
+import Synquid.Program (emptyEnv, BareDeclaration, Declaration, Environment, BareProgram(..), UProgram, Program(..))
 import qualified Synquid.Program as SP
 import Synquid.Util
 import Synquid.Error
@@ -38,11 +38,11 @@ import Database.Download
 
 prependName prefix name  = case name of
     Ident l var -> Ident l (prefix ++ "." ++ var)
-    Symbol l var -> Symbol l (prefix ++ "." ++ var)
+    Symbol l var -> Symbol l (prefix ++ ".(" ++ var ++ ")")
 
 nameStr name = case name of
     Ident _ var -> var
-    Symbol _ sym -> sym
+    Symbol _ sym -> "(" ++ sym ++ ")"
 
 isIdentity (Ident _ _) = True
 isIdentity (Symbol _ _) = False
@@ -59,10 +59,12 @@ declHeadVars (DHInfix _ bvar name) = [varsFromBind bvar]
 declHeadVars (DHParen _ head) = declHeadVars head
 declHeadVars (DHApp _ head bvar) = varsFromBind bvar : (declHeadVars head)
 
-consStr (TyCon _ name) = case name of
+qnameStr name = case name of
     Qual _ moduleName consName -> (moduleNameStr moduleName) ++ "." ++ (nameStr consName)
     UnQual _ name -> nameStr name
     Special _ name -> specialConsStr name
+
+consStr (TyCon _ name) = qnameStr name
 consStr (TyApp _ fun arg) = consStr fun
 consStr (TyFun _ arg ret) = (consStr arg) ++ "To" ++ (consStr ret)
 consStr (TyList _ typ) = "List"++(consStr typ)
@@ -410,3 +412,12 @@ definedDts pkg = do
     decls <- readDeclarations pkg Nothing
     let dtDecls = filter isDataDecl decls
     return $ map dtNameOf dtDecls
+
+toSynquidProgram :: Exp SrcSpanInfo -> UProgram
+toSynquidProgram (Lambda _ pats body) = 
+    foldr (\(PVar _ name) p -> Program (PFun (nameStr name) p) AnyT) (toSynquidProgram body) pats
+toSynquidProgram (Var _ qname) = Program (PSymbol (qnameStr qname)) AnyT
+toSynquidProgram (App _ fun arg) = Program (PApp (toSynquidProgram fun) (toSynquidProgram arg)) AnyT
+toSynquidProgram (Paren _ e) = toSynquidProgram e
+toSynquidProgram (Con _ qname) = Program (PSymbol (qnameStr qname)) AnyT
+toSynquidProgram e = error $ show e

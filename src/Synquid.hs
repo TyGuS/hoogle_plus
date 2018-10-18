@@ -130,8 +130,8 @@ main = do
                     module_ = out_module
                   }
                   runOnFile synquidParams explorerParams solverParams codegenParams file libs
-    (Generate pkgs mdl d) -> do
-                  precomputeGraph pkgs mdl d
+    (Generate pkgs mdls d) -> do
+                  precomputeGraph pkgs mdls d
 {- Command line arguments -}
 
 deriving instance Typeable FixpointStrategy
@@ -198,7 +198,7 @@ data CommandLineArgs
       | Generate {
         -- | Input
         pkgName :: [String],
-        mdlName :: String,
+        mdlName :: [String],
         tyDepth :: Int
       }
   deriving (Data, Typeable, Show, Eq)
@@ -231,7 +231,7 @@ synt = Synthesis {
   log_                = 0               &= help ("Logger verboseness level (default: 0)") &= name "l",
   graph               = False           &= help ("Build graph for exploration (default: False)") &= name "graph",
   succinct            = False           &= help ("Use graph to direct the term exploration (default: False)") &= name "succ",
-  sol_num             = 5               &= help ("Number of solutions need to find (default: 5)") &= name "cnt",
+  sol_num             = 1               &= help ("Number of solutions need to find (default: 5)") &= name "cnt",
   path_search         = DisablePath     &= help ("Use path search algorithm to ensure the usage of provided parameters (default: DisablePath)") &= name "path"
   } &= auto &= help "Synthesize goals specified in the input file"
     where
@@ -254,8 +254,8 @@ lifty = Lifty {
       defaultFormat = outputFormat defaultSynquidParams
 
 generate = Generate {
-  pkgName             = []              &= args,
-  mdlName             = ""              &= help ("Module name to be generated in the given package"),
+  pkgName             = []              &= args &= help ("Package names to be generated"),
+  mdlName             = []              &= args &= help ("Module names to be generated in the given packages"),
   tyDepth             = 2               &= help ("Depth of the types to be instantiated for polymorphic type constructors")
 } &= help "Generate the type transfer graph for synthesis"
 
@@ -286,7 +286,7 @@ defaultExplorerParams = ExplorerParams {
   _explorerLogLevel = 0,
   _buildGraph = False,
   _useSuccinct = False,
-  _solutionCnt = 5,
+  _solutionCnt = 1,
   _pathSearch = DisablePath
 }
 
@@ -368,25 +368,29 @@ codegen params results = case params of
 collectLibDecls libs declsByFile =
   Map.filterWithKey (\k _ -> k `elem` libs) $ Map.fromList declsByFile
 
-precomputeGraph :: [PkgName] -> String -> Int -> IO ()
-precomputeGraph pkgs mdl depth = mapM_ (\pkgName -> do
-  downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
-  -- baseDecls <- addPrelude <$> readDeclarations "base" Nothing
-  let baseDecls = []
-  fileDecls <- filter (isPrefixOf mdl . getDeclName) <$> readDeclarations pkgName Nothing
-  let parsedDecls = fst $ unzip $ map (\decl -> runState (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)
-  dependsPkg <- packageDependencies pkgName True
-  dependsDecls <- mapM (flip readDeclarations Nothing) $ nub dependsPkg
-  additionalDts <- declDependencies pkgName (baseDecls ++ fileDecls) (concat dependsDecls) >>= mapM (flip evalStateT 0 . toSynquidDecl)
-  let decls = reorderDecls $ nub $ defaultDts ++ additionalDts ++ parsedDecls
+precomputeGraph :: [PkgName] -> [String] -> Int -> IO ()
+precomputeGraph pkgs mdls depth = do
+  -- print pkgs
+  pkgDecls <- mapM (\pkgName -> do
+    downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
+    -- baseDecls <- addPrelude <$> readDeclarations "base" Nothing
+    let baseDecls = []
+    fileDecls <- filter (isIncludedModule . getDeclName) <$> readDeclarations pkgName Nothing
+    let parsedDecls = fst $ unzip $ map (\decl -> runState (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)
+    dependsPkg <- packageDependencies pkgName True
+    dependsDecls <- mapM (flip readDeclarations Nothing) $ nub dependsPkg
+    additionalDts <- declDependencies pkgName (baseDecls ++ fileDecls) (concat dependsDecls) >>= mapM (flip evalStateT 0 . toSynquidDecl)
+    return $ additionalDts ++ parsedDecls
+    ) pkgs
+  let decls = reorderDecls $ nub $ defaultDts ++ concat pkgDecls
   case resolveDecls decls of
     Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
-    Right (env, goals, cquals, tquals) -> do
-      envAll <- evalStateT (foldrM (uncurry addGraphSymbol) env $ Map.toList $ allSymbols env) Map.empty
-      let allEdges = Set.toList . Set.unions . concat . map HashMap.elems $ HashMap.elems (envAll ^. succinctGraph)
-      edgeWeights <- getGraphWeights $ map getEdgeId allEdges
-      let graph' = fillEdgeWeight allEdges edgeWeights $ envAll ^. succinctGraph
-      B.writeFile "data/env.db" $ encode $ envAll {_succinctGraph = graph'}
+    Right (env, _, _, _) -> do
+      -- envAll <- evalStateT (foldrM (uncurry addGraphSymbol) env $ Map.toList $ allSymbols env) Map.empty
+      -- let allEdges = Set.toList . Set.unions . concat . map HashMap.elems $ HashMap.elems (envAll ^. succinctGraph)
+      -- edgeWeights <- getGraphWeights $ map getEdgeId allEdges
+      -- let graph' = fillEdgeWeight allEdges edgeWeights $ envAll ^. succinctGraph
+      B.writeFile "data/env.db" $ encode env -- {_succinctGraph = graph'}
       -- st <- execStateT (dispatch $ Set.fromList [ ScalarT BoolT ftrue
       --                                           , ScalarT IntT  ftrue
       --                                           , ScalarT (DatatypeT "Char" [] []) ftrue
@@ -397,8 +401,8 @@ precomputeGraph pkgs mdl depth = mapM_ (\pkgName -> do
       -- writeFile ("data/" ++ pkgName ++ ".db") $ LB8.unpack $ Aeson.encode $ map (uncurry makeFunctionCode) $ Map.toList (st ^. resultList)
       -- writeFile ("data/abstract_" ++ pkgName ++ ".db") $ LB8.unpack $ Aeson.encode $ map (\(id, t) -> PNS.encodeFunction id (PNS.abstract $ shape t)) $ Map.toList (st ^. resultList)
       -- test ["List (Maybe (T))", "T"] "T"
-  ) pkgs
   where
+    isIncludedModule name = foldr ((||) . flip isPrefixOf name) False mdls
     initDispatchState env = DispatchState depth (allSymbols env) Map.empty Set.empty Map.empty
     defaultDts = [defaultList, defaultPair, defaultUnit]
     defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [

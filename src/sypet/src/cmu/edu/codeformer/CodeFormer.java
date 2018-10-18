@@ -42,6 +42,7 @@ import org.sat4j.specs.ContradictionException;
 import org.sat4j.specs.ISolver;
 import org.sat4j.specs.IVecInt;
 import org.sat4j.specs.TimeoutException;
+import com.google.gson.Gson;
 import soot.Type;
 
 import java.util.*;
@@ -168,7 +169,22 @@ public class CodeFormer {
         //Setup constrains
         addSingleVariableConstrainsHaskell();
         addAtLeastOneSlotHaskell();
-        // System.out.println(solver.toString());
+        // block the solutions in exclusion array
+        // for (Integer[] arr : toExclude) {
+        //     VecInt block = new VecInt();
+        //     for(Integer id : arr) {
+        //         System.out.print(id + ",");
+        //         block.push(-id);
+        //     }
+        //     System.out.println("\n");
+        //     try {
+        //         solver.addClause(block);
+        //         System.out.println("successfully add block");
+        //     } catch (ContradictionException e) {
+        //         System.out.println("add block fail");
+        //         unsat = true;
+        //     }
+        // }
     }
 
     /**
@@ -215,16 +231,16 @@ public class CodeFormer {
 
     }
 
-    public List<String> solveHaskell() throws TimeoutException {
+    public FormerResult solveHaskell() throws TimeoutException {
         //Solve
-        List<String> result = new ArrayList<>();
+        // List<String> result = new ArrayList<>();
         try {
+            // start solving for a new result
             int[] satResult;
             if (solver.isSatisfiable()){
                 satResult = solver.model();
                 //A list only with filtered positive elements in the result.
                 List<Integer> satList = new ArrayList<>();
-
                 //Block this version, and filter the result with only positive ones.
                 VecInt block = new VecInt();
                 for (Integer id : satResult){
@@ -238,7 +254,11 @@ public class CodeFormer {
                 }
 
                 //formCode
-                result.add(formHaskellCode(satList));
+                FormerResult solverResult = new FormerResult();
+                solverResult.setCode(formHaskellCode(satList));
+                Integer[] satArr = Arrays.stream(satResult).boxed().toArray( Integer[]::new );
+                solverResult.setSatList(satArr);
+                return solverResult;
             }
             else{
                 unsat = true;
@@ -249,7 +269,8 @@ public class CodeFormer {
             throw new TimeoutException();
         }
 
-        return result;
+        // System.out.println("unsat");
+        // return "";
     }
 
     /**
@@ -359,14 +380,13 @@ public class CodeFormer {
         int slotCount = 0;
 
         //Add method signature
-        resultBuilder.append("f = ");
+        resultBuilder.append("\\");
         for (int i = 0 ; i < inputTypes.size() ; i++){
-            resultBuilder.append("\\");
             resultBuilder.append(convVarName(varCount));
             varCount += 1;
-            resultBuilder.append(". ");
+            resultBuilder.append(" ");
         }
-        resultBuilder.append("\n");
+        resultBuilder.append(" -> ");
 
         List<String[]> var2code = new ArrayList<>();
         for (Function sig : functions){
@@ -378,10 +398,10 @@ public class CodeFormer {
             int funNameEndAt = sig.getFunName().lastIndexOf('_') ;
             if(funNameEndAt != -1){
                 // System.out.println(sig.getFunName().replace('.','_'));
-                builder.append(sig.getFunName().substring(0, funNameEndAt).replace('.','_'));
+                builder.append(sig.getFunName().substring(0, funNameEndAt));
             }
             else{
-                builder.append(sig.getFunName().replace('.','_'));
+                builder.append(sig.getFunName());
             }
             builder.append(" ");
             for (int i = 0; i < sig.getFunParams().size() ; i++){

@@ -109,6 +109,7 @@ executable synquid
                     , inline-java
                     , jvm
                     , jni
+                    , scientific
 
   ghc-options:   -O2
   includes:            z3.h
