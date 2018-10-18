@@ -9,5 +9,5 @@ Execute in the `hoogle_plus` directory:
 ```
 ./build.sh
 stack exec -- synquid generate -p "base" -m Data.Maybe
-stack exec -- synquid synthesis [DESIRED TYPE] --graph --succinct [OPTIONAL ARGS]
+stack exec -- synquid synthesis [DESIRED TYPE] --path=PetriNet [OPTIONAL ARGS]
 ```
