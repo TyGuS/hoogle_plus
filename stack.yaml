@@ -16,3 +16,4 @@ extra-include-dirs:
   - /usr/lib/jvm/java-8-openjdk-amd64/include/linux/
 extra-lib-dirs:
   - /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/amd64/server/
+  - /home/michael/sync/research/hoogle_plus/src/sypet/

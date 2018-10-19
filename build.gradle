@@ -3,13 +3,13 @@ apply plugin: 'application'
 
 mainClassName = "bogus.class.name"
 
-// startScripts {
-//    classpath += files('/mnt/c/Users/aaron/Desktop/hoogle_plus/src/sypet/sypet.jar')
-// }
+ startScripts {
+    classpath += files('/home/michael/sync/research/hoogle_plu/src/sypet/lib')
+ }
 
 dependencies {
-	compile files('/mnt/c/Users/aaron/Desktop/hoogle_plus/src/sypet/sypet.jar'
-		         ,'/mnt/c/Users/aaron/Desktop/hoogle_plus/src/sypet/lib/apt.jar'
-		         ,'/mnt/c/Users/aaron/Desktop/hoogle_plus/src/sypet/lib/commons-lang3-3.4.jar')
-	runtime files('/mnt/c/Users/aaron/Desktop/hoogle_plus/src/sypet/lib/*.jar')
+	compile files('/home/michael/sync/research/hoogle_plus/src/sypet/sypet.jar'
+		         ,'/home/michael/sync/research/hoogle_plus/src/sypet/lib/apt.jar'
+		         ,'/home/michael/sync/research/hoogle_plus/src/sypet/lib/commons-lang3-3.4.jar')
+	runtime files('/home/michael/sync/research/hoogle_plus/src/sypet/lib/*.jar')
 }
