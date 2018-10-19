@@ -26,6 +26,7 @@ import Data.Maybe
 import Data.Either
 import Data.Int
 import Data.Scientific
+import qualified Data.Char as Char
 import qualified Data.Vector as Vector
 import Data.List.Extra
 import Database.Generate
@@ -138,20 +139,27 @@ freshType sch = do
       freshType' (Map.insert a (vart a' ftrue) subst) sch    
     freshType' subst (Monotype t) = return $ typeSubstitute subst $ t
 
--- instantiate :: (MonadIO m) => Environment -> Map Id AbstractSkeleton -> PNSolver m (Map Id AbstractSkeleton)
--- instantiate env sigs = do
---   where
---     instantiate' sigs sigsAcc = do
---         let typs = Set.fromList $ concatMap (allAbstractBase (env ^. boundTypeVars)) (Map.union sigsAcc sigs)
---         writeLog 3 $ "Current abstract types:" <+> pretty (Set.toList typs)
-
-
 -- TODO: start with only the datatypes in the query
 instantiate :: (MonadIO m) => Environment -> Map Id AbstractSkeleton -> PNSolver m (Map Id AbstractSkeleton)
 instantiate env sigs = instantiate' sigs $ Map.filter (not . hasAbstractVar) sigs
   where 
     removeSuffix id ty = (removeLast '_' id, ty)
+    constructType abstraction key | key `Map.notMember` abstraction = 
+        let currDt     = if null (splitBy ',' key) then "" else last $ splitBy ',' key
+        in if currDt == "" then [AExclusion Set.empty]
+                           else if Char.isUpper $ head currDt then [ADatatypeT currDt [AExclusion Set.empty]]
+                                                              else [ATypeVarT currDt, AExclusion (Set.singleton currDt)] -- this is bounded type variables
+    constructType abstraction key | key `Map.member`    abstraction = 
+        let nextKeys   = fromJust $ Map.lookup key abstraction
+            currDt     = if null (splitBy ',' key) then "" else last $ splitBy ',' key
+        in if currDt == ""
+            then [AExclusion nextKeys] ++ concatMap (constructType abstraction . (++) (key ++ ",")) (Set.toList nextKeys)
+            else if Char.isUpper $ head currDt
+                then map (ADatatypeT currDt . (:[])) $ [AExclusion nextKeys] ++ concatMap (constructType abstraction . (++) (key ++ ",")) (Set.toList nextKeys)
+                else [ATypeVarT currDt, AExclusion (Set.singleton currDt)] -- this is bounded type variables
     instantiate' sigs sigsAcc = do
+        st <- get
+        writeLog 0 $ text "current abstraction types:" <+> pretty (constructType (st ^. abstractionLevel) "")
         let typs = Set.fromList $ concatMap (allAbstractBase (env ^. boundTypeVars)) (Map.union sigsAcc sigs)
         sigs' <- foldM (\acc -> (<$>) (Map.union acc) . uncurry (instantiateWith env $ Set.toList typs)) Map.empty (Map.toList sigs)
         -- iteratively compute for new added types
@@ -200,7 +208,7 @@ distinguish env level key (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT
     -- split the current node into two when we cannot distinguish the error type from its abstract representation
     distinguish' key [] [] = level -- error "distinguish error: these two types are exactly the same"
     distinguish' key [] ((ScalarT (TypeVarT _ id) _):_) | isBound env id = Map.insertWith Set.union key (Set.singleton id) level
-    distinguish' key [] ((ScalarT (TypeVarT _ id) _):_) | otherwise      = level
+    distinguish' key [] ((ScalarT (TypeVarT _ _) _):_) = level
     distinguish' key [] (t:_) = Map.insertWith Set.union key (Set.singleton $ scalarName t) level
     distinguish' key args [] = distinguish' key [] args
     distinguish' key (arg:args) (arg':args') = 
@@ -208,8 +216,13 @@ distinguish env level key (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT
         in if level' /= level then level' -- if we get several new representations, stop refining
                               else distinguish' key args args' -- otherwise append the current arg to the recursive result
 -- TODO: need change to support higher order functions
+distinguish env level key (ScalarT (TypeVarT _ id) _) (ScalarT (TypeVarT _ id') _) | id == id' = level
+distinguish env level key (ScalarT (TypeVarT _ id) _) (ScalarT (TypeVarT _ id') _) | id /= id' = 
+    let level' = if isBound env id  then Map.insertWith Set.union key (Set.singleton id ) level 
+                                    else level 
+    in           if isBound env id' then Map.insertWith Set.union key (Set.singleton id') level'
+                                    else level'
 distinguish env level key (ScalarT (TypeVarT _ id) _) t | isBound env id = Map.insertWith Set.union key (Set.singleton (scalarName t)) level
-distinguish env level key (ScalarT (TypeVarT _ id) _) t = level
 distinguish env level key t (ScalarT (TypeVarT _ id) _) | isBound env id = Map.insertWith Set.union key (Set.singleton (scalarName t)) level
 distinguish env level key t tv@(ScalarT (TypeVarT _ _) _) = level
 distinguish env level key (FunctionT _ tArg tRes) (FunctionT _ tArg' tRes') = 
@@ -405,8 +418,8 @@ findPath env dst = do
         java.util.List<java.lang.String> argNames = java.util.Arrays.asList($argNames);
         java.util.List<java.lang.String> solutions = java.util.Arrays.asList($excludeLists);
         String tgtType = $tgt;
-        // System.out.println(srcTypes.toString());
-        // System.out.println(tgtType);
+        System.out.println("Arguments:" + srcTypes.toString());
+        System.out.println("Target:" + tgtType);
         cmu.edu.utils.SynquidUtil.init(srcTypes, argNames, tgtType, $symbols, solutions, $loc);
         cmu.edu.utils.SynquidUtil.buildNextEncoding();
         //java.util.List<java.lang.String> res = cmu.edu.utils.SynquidUtil.synthesize();
