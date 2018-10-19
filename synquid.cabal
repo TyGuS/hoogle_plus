@@ -14,7 +14,7 @@ extra-source-files:   README.md
 cabal-version:        >=1.18
 
 custom-setup
-  setup-depends: Cabal>=1.18, base<5, inline-java
+  setup-depends: Cabal>=1.18, base<5, inline-java, directory
 
 flag synquid
   Description: Build the synquid executable

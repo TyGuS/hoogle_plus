@@ -11,5 +11,5 @@ dependencies {
 	compile files('/home/michael/sync/research/hoogle_plus/src/sypet/sypet.jar'
 		         ,'/home/michael/sync/research/hoogle_plus/src/sypet/lib/apt.jar'
 		         ,'/home/michael/sync/research/hoogle_plus/src/sypet/lib/commons-lang3-3.4.jar')
-	runtime files('/home/michael/sync/research/hoogle_plus/src/sypet/lib/*.jar')
 }
+

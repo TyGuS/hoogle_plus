@@ -71,7 +71,7 @@ main = do
                lfp bfs
                out_file out_module outFormat resolve
                print_spec print_stats log_ 
-               graph succinct sol_num path_search) -> do
+               graph succinct sol_num path_search higher_order) -> do
                   let explorerParams = defaultExplorerParams {
                     _eGuessDepth = appMax,
                     _scrutineeDepth = scrutineeMax,
@@ -90,7 +90,8 @@ main = do
                     _buildGraph = graph,
                     _useSuccinct = succinct,
                     _solutionCnt = sol_num,
-                    _pathSearch = path_search
+                    _pathSearch = path_search,
+                    _useHO = higher_order
                     }
                   let solverParams = defaultHornSolverParams {
                     isLeastFixpoint = lfp,
@@ -130,8 +131,8 @@ main = do
                     module_ = out_module
                   }
                   runOnFile synquidParams explorerParams solverParams codegenParams file libs
-    (Generate pkgs mdls d) -> do
-                  precomputeGraph pkgs mdls d
+    (Generate pkgs mdls d ho) -> do
+                  precomputeGraph pkgs mdls d ho
 {- Command line arguments -}
 
 deriving instance Typeable FixpointStrategy
@@ -178,7 +179,8 @@ data CommandLineArgs
         graph :: Bool,
         succinct :: Bool,
         sol_num :: Int,
-        path_search :: PathStrategy
+        path_search :: PathStrategy,
+        higher_order :: Bool
       }
       | Lifty {
         -- | Input
@@ -197,9 +199,10 @@ data CommandLineArgs
       }
       | Generate {
         -- | Input
-        pkgName :: [String],
-        mdlName :: [String],
-        tyDepth :: Int
+        pkg_name :: [String],
+        module_name :: [String],
+        type_depth :: Int,
+        higher_order :: Bool
       }
   deriving (Data, Typeable, Show, Eq)
 
@@ -232,7 +235,8 @@ synt = Synthesis {
   graph               = False           &= help ("Build graph for exploration (default: False)") &= name "graph",
   succinct            = False           &= help ("Use graph to direct the term exploration (default: False)") &= name "succ",
   sol_num             = 1               &= help ("Number of solutions need to find (default: 5)") &= name "cnt",
-  path_search         = DisablePath     &= help ("Use path search algorithm to ensure the usage of provided parameters (default: DisablePath)") &= name "path"
+  path_search         = DisablePath     &= help ("Use path search algorithm to ensure the usage of provided parameters (default: DisablePath)") &= name "path",
+  higher_order        = False           &= help ("Include higher order functions (default: False)")
   } &= auto &= help "Synthesize goals specified in the input file"
     where
       defaultFormat = outputFormat defaultSynquidParams
@@ -254,10 +258,11 @@ lifty = Lifty {
       defaultFormat = outputFormat defaultSynquidParams
 
 generate = Generate {
-  pkgName             = []              &= args &= help ("Package names to be generated"),
-  mdlName             = []              &= args &= help ("Module names to be generated in the given packages"),
-  tyDepth             = 2               &= help ("Depth of the types to be instantiated for polymorphic type constructors")
-} &= help "Generate the type transfer graph for synthesis"
+  pkg_name             = []              &= args &= help ("Package names to be generated"),
+  module_name          = []              &= args &= help ("Module names to be generated in the given packages"),
+  type_depth           = 2               &= help ("Depth of the types to be instantiated for polymorphic type constructors"),
+  higher_order         = False           &= help ("Include higher order functions (default: False)")
+} &= help "Generate the type conversion database for synthesis"
 
 mode = cmdArgsMode $ modes [synt, lifty, generate] &=
   help "Synquid program synthesizer" &=
@@ -287,7 +292,8 @@ defaultExplorerParams = ExplorerParams {
   _buildGraph = False,
   _useSuccinct = False,
   _solutionCnt = 1,
-  _pathSearch = DisablePath
+  _pathSearch = DisablePath,
+  _useHO = False
 }
 
 -- | Parameters for constraint solving
@@ -368,8 +374,8 @@ codegen params results = case params of
 collectLibDecls libs declsByFile =
   Map.filterWithKey (\k _ -> k `elem` libs) $ Map.fromList declsByFile
 
-precomputeGraph :: [PkgName] -> [String] -> Int -> IO ()
-precomputeGraph pkgs mdls depth = do
+precomputeGraph :: [PkgName] -> [String] -> Int -> Bool -> IO ()
+precomputeGraph pkgs mdls depth useHO = do
   -- print pkgs
   pkgDecls <- mapM (\pkgName -> do
     downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
@@ -390,7 +396,11 @@ precomputeGraph pkgs mdls depth = do
       -- let allEdges = Set.toList . Set.unions . concat . map HashMap.elems $ HashMap.elems (envAll ^. succinctGraph)
       -- edgeWeights <- getGraphWeights $ map getEdgeId allEdges
       -- let graph' = fillEdgeWeight allEdges edgeWeights $ envAll ^. succinctGraph
-      B.writeFile "data/env.db" $ encode env -- {_succinctGraph = graph'}
+      B.writeFile "data/env.db" $ encode $ env {
+          _symbols = if useHO then env ^. symbols 
+                              else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols
+      }
+      -- {_succinctGraph = graph'}
       -- st <- execStateT (dispatch $ Set.fromList [ ScalarT BoolT ftrue
       --                                           , ScalarT IntT  ftrue
       --                                           , ScalarT (DatatypeT "Char" [] []) ftrue

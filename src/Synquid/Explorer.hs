@@ -100,7 +100,8 @@ data ExplorerParams = ExplorerParams {
   _useSuccinct :: Bool,
   _buildGraph :: Bool,
   _solutionCnt :: Int,
-  _pathSearch :: PathStrategy
+  _pathSearch :: PathStrategy,
+  _useHO :: Bool
 } 
 
 makeLenses ''ExplorerParams
@@ -172,22 +173,6 @@ type Explorer s = StateT ExplorerState (
 -- which the explorer calls for auxiliary goals             
 data Reconstructor s = Reconstructor (Goal -> Explorer s RProgram) (Environment -> RType -> UProgram -> Explorer s RProgram)
 
--- | empty typing state, just for initialization
-emptyTypingState = TypingState {
-  _typingConstraints = [],
-  _typeAssignment = Map.empty,
-  _predAssignment = Map.empty,
-  _qualifierMap = Map.empty,
-  _candidates = [],
-  _initEnv = emptyEnv,
-  _idCount = Map.empty,
-  _isFinal = False,
-  _simpleConstraints = [],
-  _hornClauses = [],
-  _consistencyChecks = [],
-  _errorContext = (noPos, empty)
-}
-
 -- | 'runExplorer' @eParams tParams initTS go@ : execute exploration @go@ with explorer parameters @eParams@, typing parameters @tParams@ in typing state @initTS@
 runExplorer :: (MonadHorn s, MonadIO s) => ExplorerParams -> TypingParams -> Reconstructor s -> TypingState -> Explorer s a -> s (Either ErrorMessage [a])
 runExplorer eParams tParams topLevel initTS go = do
@@ -234,7 +219,9 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
       -- (m, ex) <- evalStateT (PNSolver.instantiate absSymbols') (PNSolver.InstantiateState Map.empty)
       -- let env' = set abstractSymbols m env
       -- liftIO $ writeFile ("data/base.db") $ LB8.unpack $ Aeson.encode $ map (uncurry PNSolver.encodeFunction) $ Map.toList m
-      let args = (Monotype t):(Map.elems $ env ^. arguments)
+      useHO <- asks . view $ _1 . useHO
+      let env' = if useHO then env else env { _symbols = Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols }
+      let args = (Monotype t):(Map.elems $ env' ^. arguments)
       -- start with all the datatypes defined in the queries
       let initialState = Map.singleton "" $ foldr (Set.union . allDatatypes . toMonotype) Set.empty args 
       maxLevel <- asks . view $ _1 . explorerLogLevel
@@ -244,7 +231,7 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
                                                     "src/sypet/lib/commons-lang3-3.4.jar:" ++
                                                     "src/sypet/lib/gson-2.8.5.jar:"        ++
                                                     "src/sypet/lib/apt.jar")
-                            ] $ evalStateT (PNSolver.findFirstN env t cnt 1)
+                            ] $ evalStateT (PNSolver.findFirstN env' t cnt 1)
                               $ set PNSolver.abstractionLevel initialState 
                               $ PNSolver.emptyTypingState {PNSolver._logLevel = maxLevel})
       -- return $ Program PErr AnyT
