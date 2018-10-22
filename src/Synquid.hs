@@ -19,7 +19,6 @@ import Synquid.Codegen
 import Synquid.Stats
 import Synquid.Graph hiding (Node(..))
 import Database.Convert
-import Database.Graph
 import Database.Generate
 import Database.Download
 import Database.Util
@@ -382,10 +381,11 @@ precomputeGraph pkgs mdls depth useHO = do
     -- baseDecls <- addPrelude <$> readDeclarations "base" Nothing
     let baseDecls = []
     fileDecls <- filter (isIncludedModule . getDeclName) <$> readDeclarations pkgName Nothing
-    let parsedDecls = fst $ unzip $ map (\decl -> runState (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)
+    -- readDeclarations pkgName Nothing >>= print
+    parsedDecls <- mapM (\decl -> evalStateT (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)
     dependsPkg <- packageDependencies pkgName True
     dependsDecls <- mapM (flip readDeclarations Nothing) $ nub dependsPkg
-    additionalDts <- declDependencies pkgName (baseDecls ++ fileDecls) (concat dependsDecls) >>= mapM (flip evalStateT 0 . toSynquidDecl)
+    additionalDts <- declDependencies pkgName (baseDecls ++ fileDecls) (concat dependsDecls) >>= mapM (flip evalStateT 0 . toSynquidDecl) 
     return $ additionalDts ++ parsedDecls
     ) pkgs
   let decls = reorderDecls $ nub $ defaultDts ++ concat pkgDecls
