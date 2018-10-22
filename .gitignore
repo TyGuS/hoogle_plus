@@ -1,3 +1,4 @@
+.swp
 dist
 dist-*
 cabal-dev
@@ -26,3 +27,8 @@ cabal.project.local~
 data/
 *node_modules/*
 .vscode/*
+.idea
+.python-version
+*output/
+*.pyc
+.pyc

@@ -1,0 +1,9 @@
+flags: {}
+packages:
+- .
+extra-deps:
+- hse-cpp-0.2
+- git-0.2.2
+- patience-0.1.1
+
+resolver: lts-12.6

@@ -1,0 +1,125 @@
+-- This file has been generated from package.yaml by hpack version 0.28.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: ca3b4f4902a8e34c58e8994861f92cdc2a8839293537dd880efdc271995338ea
+
+name:           hplus-bench-utils
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/githubuser/hplus-bench-utils#readme>
+homepage:       https://github.com/githubuser/hplus-bench-utils#readme
+bug-reports:    https://github.com/githubuser/hplus-bench-utils/issues
+author:         Author name here
+maintainer:     example@example.com
+copyright:      2018 Author name here
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+cabal-version:  >= 1.10
+extra-source-files:
+    ChangeLog.md
+    README.md
+
+source-repository head
+  type: git
+  location: https://github.com/githubuser/hplus-bench-utils
+
+library
+  exposed-modules:
+      LibExtractUsageExamples, AppUtils, ImportUtils, CsvUtils
+  other-modules:
+      Paths_hplus_bench_utils
+  hs-source-dirs:
+      src
+  build-depends:
+      base >=4.7 && <5
+    , haskell-src-exts == 1.20.2
+    , uniplate == 1.6.12
+    , template-haskell == 2.13.0.0
+    , mtl == 2.2.2
+    , ghcid == 0.7
+    , hoogle == 5.0.17.3
+    , split == 0.2.3.3
+    , bytestring == 0.10.8.2
+    , text == 1.2.3.0
+    , cassava == 0.5.1.0
+    , vector == 0.12.0.1
+    , aeson == 1.3.1.1
+    , unordered-containers
+    , hse-cpp
+    , git
+    , filepath
+    , system-filepath == 0.4.14
+    , directory
+  default-language: Haskell2010
+  extensions: ScopedTypeVariables, TemplateHaskell, TypeFamilies
+
+executable extractUsageExamples-exe
+  main-is: extractUsageExamples.hs
+  other-modules:
+      Paths_hplus_bench_utils
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , hplus-bench-utils
+    , haskell-src-exts == 1.20.2
+    , uniplate == 1.6.12
+    , template-haskell == 2.13.0.0
+    , mtl == 2.2.2
+    , ghcid == 0.7
+    , hoogle == 5.0.17.3
+    , split == 0.2.3.3
+    , bytestring == 0.10.8.2
+    , text == 1.2.3.0
+    , cassava == 0.5.1.0
+    , vector == 0.12.0.1
+    , aeson == 1.3.1.1
+    , unordered-containers
+    , hse-cpp
+  default-language: Haskell2010
+  extensions: ScopedTypeVariables, TemplateHaskell, TypeFamilies
+
+executable extractImports-exe
+  main-is: extractImports.hs
+  other-modules:
+      Paths_hplus_bench_utils
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , hplus-bench-utils
+    , haskell-src-exts == 1.20.2
+    , uniplate == 1.6.12
+    , template-haskell == 2.13.0.0
+    , mtl == 2.2.2
+    , ghcid == 0.7
+    , hoogle == 5.0.17.3
+    , split == 0.2.3.3
+    , bytestring == 0.10.8.2
+    , text == 1.2.3.0
+    , cassava == 0.5.1.0
+    , vector == 0.12.0.1
+    , aeson == 1.3.1.1
+    , unordered-containers
+    , hse-cpp
+    , git
+    , filepath
+    , system-filepath == 0.4.14
+  default-language: Haskell2010
+  extensions: ScopedTypeVariables, TemplateHaskell, TypeFamilies
+
+test-suite hplus-bench-utils-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_hplus_bench_utils
+  hs-source-dirs:
+      test
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , hplus-bench-utils
+  default-language: Haskell2010
