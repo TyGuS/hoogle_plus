@@ -102,7 +102,7 @@ instance Serialize FunctionCode
 abstractParamList :: AbstractSkeleton -> [AbstractSkeleton]
 abstractParamList t@(ADatatypeT _ _) = [t]
 abstractParamList t@(AExclusion _)   = [t]
-abstractParamList (AFunctionT tArg tFun) = 
+abstractParamList (AFunctionT tArg tFun) =
     case tFun of
         ADatatypeT _ _  -> [tArg]
         AExclusion _    -> [tArg]
@@ -136,20 +136,20 @@ freshType sch = do
   where
     freshType' subst (ForallT a sch) = do
       a' <- freshId "A"
-      freshType' (Map.insert a (vart a' ftrue) subst) sch    
+      freshType' (Map.insert a (vart a' ftrue) subst) sch
     freshType' subst (Monotype t) = return $ typeSubstitute subst $ t
 
 -- TODO: start with only the datatypes in the query
 instantiate :: (MonadIO m) => Environment -> Map Id AbstractSkeleton -> PNSolver m (Map Id AbstractSkeleton)
 instantiate env sigs = instantiate' sigs $ Map.filter (not . hasAbstractVar) sigs
-  where 
+  where
     removeSuffix id ty = (removeLast '_' id, ty)
-    constructType abstraction key | key `Map.notMember` abstraction = 
+    constructType abstraction key | key `Map.notMember` abstraction =
         let currDt     = if null (splitBy ',' key) then "" else last $ splitBy ',' key
         in if currDt == "" then [AExclusion Set.empty]
                            else if Char.isUpper $ head currDt then [ADatatypeT currDt [AExclusion Set.empty]]
                                                               else [ATypeVarT currDt, AExclusion (Set.singleton currDt)] -- this is bounded type variables
-    constructType abstraction key | key `Map.member`    abstraction = 
+    constructType abstraction key | key `Map.member`    abstraction =
         let nextKeys   = fromJust $ Map.lookup key abstraction
             currDt     = if null (splitBy ',' key) then "" else last $ splitBy ',' key
         in if currDt == ""
@@ -189,7 +189,7 @@ instantiateWith env typs id sk = do
             return $ prefix ++ "_" ++ show idx
 
 cutoff :: Map Id (Set Id) -> Id -> AbstractSkeleton -> AbstractSkeleton
-cutoff level key (ADatatypeT id tArgs) | key `Map.member` level = 
+cutoff level key (ADatatypeT id tArgs) | key `Map.member` level =
     let currIds = fromJust $ Map.lookup key level
     in if id `Set.member` currIds then ADatatypeT id (nub $ map (cutoff level (key ++ id)) tArgs)
                                   else AExclusion currIds
@@ -200,9 +200,9 @@ cutoff level key t@(AExclusion _)  = if key `Map.member` level then AExclusion (
 cutoff _ _ t = t
 
 distinguish :: Environment -> Map Id (Set Id) -> Id -> SType -> SType -> Map Id (Set Id)
-distinguish env level key (ScalarT (DatatypeT id _ _) _) (ScalarT (DatatypeT id' _ _) _) | id /= id' = 
+distinguish env level key (ScalarT (DatatypeT id _ _) _) (ScalarT (DatatypeT id' _ _) _) | id /= id' =
     Map.insertWith Set.union key (Set.fromList [id, id']) level
-distinguish env level key (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT id' tArgs' _) _) | id == id' = 
+distinguish env level key (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT id' tArgs' _) _) | id == id' =
     distinguish' (key ++ id) tArgs tArgs'
   where
     -- split the current node into two when we cannot distinguish the error type from its abstract representation
@@ -211,25 +211,25 @@ distinguish env level key (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT
     distinguish' key [] ((ScalarT (TypeVarT _ _) _):_) = level
     distinguish' key [] (t:_) = Map.insertWith Set.union key (Set.singleton $ scalarName t) level
     distinguish' key args [] = distinguish' key [] args
-    distinguish' key (arg:args) (arg':args') = 
+    distinguish' key (arg:args) (arg':args') =
         let level' = distinguish env level key arg arg'
         in if level' /= level then level' -- if we get several new representations, stop refining
                               else distinguish' key args args' -- otherwise append the current arg to the recursive result
 -- TODO: need change to support higher order functions
 distinguish env level key (ScalarT (TypeVarT _ id) _) (ScalarT (TypeVarT _ id') _) | id == id' = level
-distinguish env level key (ScalarT (TypeVarT _ id) _) (ScalarT (TypeVarT _ id') _) | id /= id' = 
-    let level' = if isBound env id  then Map.insertWith Set.union key (Set.singleton id ) level 
-                                    else level 
+distinguish env level key (ScalarT (TypeVarT _ id) _) (ScalarT (TypeVarT _ id') _) | id /= id' =
+    let level' = if isBound env id  then Map.insertWith Set.union key (Set.singleton id ) level
+                                    else level
     in           if isBound env id' then Map.insertWith Set.union key (Set.singleton id') level'
                                     else level'
 distinguish env level key (ScalarT (TypeVarT _ id) _) t | isBound env id = Map.insertWith Set.union key (Set.singleton (scalarName t)) level
 distinguish env level key t (ScalarT (TypeVarT _ id) _) | isBound env id = Map.insertWith Set.union key (Set.singleton (scalarName t)) level
 distinguish env level key t tv@(ScalarT (TypeVarT _ _) _) = level
-distinguish env level key (FunctionT _ tArg tRes) (FunctionT _ tArg' tRes') = 
+distinguish env level key (FunctionT _ tArg tRes) (FunctionT _ tArg' tRes') =
     distinguish env level key tArg tArg' `Map.union` distinguish env level key tRes tRes'
 distinguish env level _ AnyT _ = level
 distinguish env level _ _ AnyT = level
-distinguish env level key t1 t2 = if t1 == t2 then level 
+distinguish env level key t1 t2 = if t1 == t2 then level
                                               else Map.insertWith Set.union key (Set.fromList [scalarName t1, scalarName t2]) level
 
 checkProgramType :: (MonadIO m) => Environment -> SType -> UProgram -> PNSolver m (Maybe RProgram)
@@ -299,7 +299,7 @@ solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ 
             solveTypeConstraint env tv typ
         else modify $ over typeAssignment (Map.insert id' tv)
 solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ id') _) = do
-    st <- get 
+    st <- get
     if id `Map.member` (st ^. typeAssignment)
         then do
             let typ = fromJust $ Map.lookup id $ st ^. typeAssignment
@@ -384,7 +384,7 @@ checkType env typ p = do
     modify $ set isChecked True
     p' <- checkProgramType env (shape typ) p
     st <- get
-    if st ^. isChecked then return $ Left (fromJust p') 
+    if st ^. isChecked then return $ Left (fromJust p')
                        else return $ Right (snd (st ^. typingError))
 
 findPath :: (MonadIO m) => Environment -> RType -> PNSolver m String
@@ -395,7 +395,7 @@ findPath env dst = do
     -- abstract all the symbols in the current environment
     start <- liftIO $ getCurrentTime
     freshSymbols <- mapM (\(id, sch) -> do t <- freshType sch; return (id, t)) $ Map.toList $ allSymbols env
-    let absSymbols = foldr (\(id, t) -> Map.insert id $ abstract (env ^. boundTypeVars) (st ^. abstractionLevel) "" 
+    let absSymbols = foldr (\(id, t) -> Map.insert id $ abstract (env ^. boundTypeVars) (st ^. abstractionLevel) ""
                                                       $ shape t) Map.empty freshSymbols
     let argIds = Map.keys (env ^. arguments)
     let args = map toMonotype $ Map.elems (env ^. arguments)
@@ -404,8 +404,9 @@ findPath env dst = do
     writeLog 3 $ text "Current signature abstractions" <+> text (show (Map.toList sigs))
 
     -- encode all the abstracted signatures into JSON string and pass it to SyPet
-    symbols <- liftIO $ reflect (Text.pack . LB8.unpack . Aeson.encode $ map (uncurry encodeFunction) 
+    let jsonBlob = (Text.pack . LB8.unpack . Aeson.encode $ map (uncurry encodeFunction)
                                 $ Map.toList $ foldr Map.delete sigs argIds)
+    symbols <- liftIO $ reflect jsonBlob
     tgt <- liftIO $ reflect (Text.pack $ show $ abstract (env ^. boundTypeVars) (st ^. abstractionLevel) "" $ shape dst)
     srcTypes <- liftIO $ reflect (map (Text.pack . show . abstract (env ^. boundTypeVars) (st ^. abstractionLevel) "" . shape) args)
     argNames <- liftIO $ reflect (map Text.pack argIds)
@@ -435,7 +436,7 @@ findProgram :: (MonadIO m) => Environment -> RType -> PNSolver m RProgram
 findProgram env dst = do
     jsonResult <- findPath env dst
     -- liftIO $  print jsonResult
-    (code, loc) <- liftIO $ parseJson $ LB8.pack jsonResult  
+    (code, loc) <- liftIO $ parseJson $ LB8.pack jsonResult
     let prog = case parseExp code of
                 ParseOk exp -> toSynquidProgram exp
                 ParseFailed loc err -> error err
@@ -462,7 +463,7 @@ findProgram env dst = do
         let decodeResult = Aeson.eitherDecode jsonResult
         let result = case decodeResult of
                         Left err -> error err
-                        Right v  -> case v of 
+                        Right v  -> case v of
                             Aeson.Object contents -> ((fromJust $ HashMap.lookup "code" contents)
                                                      -- ,(fromJust $ HashMap.lookup "satList" contents)
                                                      ,(fromJust $ HashMap.lookup "loc" contents))
