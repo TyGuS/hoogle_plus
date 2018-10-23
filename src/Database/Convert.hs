@@ -38,7 +38,7 @@ import Database.Download
 
 prependName prefix name  = case name of
     Ident l var -> Ident l (prefix ++ "." ++ var)
-    Symbol l var -> Symbol l (prefix ++ ".(" ++ var ++ ")")
+    Symbol l var -> Ident l (prefix ++ ".(" ++ var ++ ")")
 
 nameStr name = case name of
     Ident _ var -> var
@@ -117,7 +117,7 @@ matchDtWithCons (decl:decls) = case decl of
     _ -> decl : matchDtWithCons decls
 
 
-toSynquidSchema :: Monad m => Type () -> StateT Int m SSchema
+toSynquidSchema :: (MonadIO m) => Type () -> StateT Int m SSchema
 toSynquidSchema typ = do
     typs <- toSynquidSkeleton typ
     typ' <- return $ head typs
@@ -126,8 +126,10 @@ toSynquidSchema typ = do
         -- then  return $ Monotype typ'
         -- else return $ foldr ForallT (Monotype typ') $ allTypeVars typ
 
-toSynquidSkeleton :: Monad m => Type () -> StateT Int m [SType]
-toSynquidSkeleton (TyForall _ _ _ typ) = toSynquidSkeleton typ
+toSynquidSkeleton :: (MonadIO m) => Type () -> StateT Int m [SType]
+toSynquidSkeleton t@(TyForall _ _ _ typ) = do
+    liftIO $ print t
+    toSynquidSkeleton typ
 toSynquidSkeleton (TyFun _ arg ret) = do
     counter <- get
     -- traceShow ((show counter)) $ return ()
@@ -185,10 +187,11 @@ addTrue (ScalarT (TypeVarT vSubst a) _) = ScalarT (TypeVarT vSubst a) ftrue
 addTrue (FunctionT x tArg tFun) = FunctionT x (addTrue tArg) (addTrue tFun)
 addTrue AnyT = AnyT
 
+toSynquidRType :: (MonadIO m) => Type () -> StateT Int m RType
 toSynquidRType typ = do
     typ' <- toSynquidSkeleton typ
     return $ addTrue $ head typ'
--- toSynquidRSchema env (ForallT name sch) = ForallT name (toSynquidRSchema env sch)
+
 toSynquidRSchema (Monotype typ) = Monotype $ addTrue typ
 
 addPrelude :: [Entry] -> [Entry]
@@ -197,7 +200,7 @@ addPrelude (decl:decls) = case decl of
     EModule mdl -> if mdl == "GHC.OldList" then takeWhile (not . isModule) decls else addPrelude decls
     _ -> addPrelude decls
 
-processConDecls :: Monad m => [QualConDecl ()] -> StateT Int m [SP.ConstructorSig]
+processConDecls :: (MonadIO m) => [QualConDecl ()] -> StateT Int m [SP.ConstructorSig]
 processConDecls [] = return []
 processConDecls (decl:decls) = let QualConDecl _ _ _ conDecl = decl in 
     case conDecl of
@@ -218,7 +221,10 @@ datatypeOfCon (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
         InfixConDecl _ typl name typr -> datatypeOf typl `Set.union` datatypeOf typr
         RecDecl _ name fields -> error "record declaration is not supported"
 
-toSynquidDecl (EDecl (TypeDecl _ head typ)) = Pos (initialPos $ declHeadName head) . SP.TypeDecl (declHeadName head) (declHeadVars head) <$> toSynquidRType typ
+toSynquidDecl :: (MonadIO m) => Entry -> StateT Int m Declaration
+toSynquidDecl (EDecl (TypeDecl _ head typ)) = do
+    -- liftIO $ print $ declHeadName head
+    Pos (initialPos $ declHeadName head) . SP.TypeDecl (declHeadName head) (declHeadVars head) <$> toSynquidRType typ
 toSynquidDecl (EDecl (DataFamDecl a b head c)) = toSynquidDecl (EDecl (DataDecl a (DataType a) b head [] []))
 toSynquidDecl (EDecl (DataDecl _ _ _ head conDecls _)) = do
     constructors <- processConDecls conDecls
@@ -226,6 +232,7 @@ toSynquidDecl (EDecl (DataDecl _ _ _ head conDecls _)) = do
     let vars = declHeadVars head
     return $ Pos (initialPos name) $ SP.DataDecl name vars [] constructors
 toSynquidDecl (EDecl (TypeSig _ names typ)) = do
+    liftIO $ print $ names
     sch <- toSynquidSchema typ
     return $ Pos (initialPos (nameStr $ names !! 0)) $ SP.FuncDecl (nameStr $ head names) (toSynquidRSchema sch)
 toSynquidDecl decl = return $ Pos (initialPos "") $ SP.QualifierDecl [] -- [TODO] a fake conversion

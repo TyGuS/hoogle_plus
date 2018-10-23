@@ -250,6 +250,7 @@ prettySType :: SType -> Doc
 prettySType (ScalarT base _) = pretty base
 prettySType (FunctionT _ t1 t2) = hlParens (pretty t1 <+> operator "->" <+> pretty t2)
 prettySType AnyT = text "_"
+prettySType ErrorT = text "Error"
 
 instance Pretty SType where
   pretty = prettySType
@@ -274,6 +275,7 @@ prettyTypeAt n t = condHlParens (n' <= n) (
     ScalarT base (BoolLit True) -> pretty base
     ScalarT base fml -> hlBraces (pretty base <> operator "|" <> pretty fml)
     AnyT -> text "_"
+    ErrorT -> text "Error"
     FunctionT x t1 t2 -> text x <> operator ":" <> prettyTypeAt n' t1 <+> operator "->" <+> prettyTypeAt 0 t2
     LetT x t1 t2 -> text "LET" <+> text x <> operator ":" <> prettyTypeAt n' t1 <+> operator "IN" <+> prettyTypeAt 0 t2
   )

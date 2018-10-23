@@ -19,7 +19,6 @@ import Synquid.Codegen
 import Synquid.Stats
 import Synquid.Graph hiding (Node(..))
 import Database.Convert
-import Database.Graph
 import Database.Generate
 import Database.Download
 import Database.Util
@@ -381,11 +380,12 @@ getDeclarationsFromCabal modelNames pkgName = do
   -- baseDecls <- addPrelude <$> readDeclarations "base" Nothing
   let baseDecls = []
   fileDecls <- filter (isIncludedModule . getDeclName) <$> readDeclarations pkgName Nothing
-  let parsedDecls = fst $ unzip $ map (\decl -> runState (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)
+  -- readDeclarations pkgName Nothing >>= print
+  parsedDecls <- mapM (\decl -> evalStateT (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)
   dependsPkg <- packageDependencies pkgName True
   dependsDecls <- mapM (flip readDeclarations Nothing) $ nub dependsPkg
   additionalDts <- declDependencies pkgName (baseDecls ++ fileDecls) (concat dependsDecls) >>= mapM (flip evalStateT 0 . toSynquidDecl)
-  return $ Debug.Trace.trace ("getDeclarationsFromCabal: " ++ pkgName) $ additionalDts ++ parsedDecls
+  return $ additionalDts ++ parsedDecls
   where
     isIncludedModule name = foldr ((||) . flip isPrefixOf name) False modelNames
 
