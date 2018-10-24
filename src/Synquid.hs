@@ -400,19 +400,11 @@ precomputeGraph pkgs mdls depth useHO = do
           _symbols = if useHO then env ^. symbols 
                               else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols
       }
-      -- {_succinctGraph = graph'}
-      -- st <- execStateT (dispatch $ Set.fromList [ ScalarT BoolT ftrue
-      --                                           , ScalarT IntT  ftrue
-      --                                           , ScalarT (DatatypeT "Char" [] []) ftrue
-      --                                           , ScalarT (TypeVarT Map.empty "T") ftrue
-      --                                           ]) (initDispatchState envAll)
-      -- st <- execStateT (dispatch $ Set.fromList [ ScalarT (TypeVarT Map.empty "t") ftrue
-      --                                           ]) (initDispatchState envAll)
-      -- writeFile ("data/" ++ pkgName ++ ".db") $ LB8.unpack $ Aeson.encode $ map (uncurry makeFunctionCode) $ Map.toList (st ^. resultList)
-      -- writeFile ("data/abstract_" ++ pkgName ++ ".db") $ LB8.unpack $ Aeson.encode $ map (\(id, t) -> PNS.encodeFunction id (PNS.abstract $ shape t)) $ Map.toList (st ^. resultList)
-      -- test ["List (Maybe (T))", "T"] "T"
   where
-    isIncludedModule name = foldr ((||) . flip isPrefixOf name) False mdls
+    isIncludedModule name = foldr ((||) . flip isPrefixOf (skipLParen name)) False mdls
+    skipLParen [] = []
+    skipLParen ('(':name) = name
+    skipLParen name = name
     initDispatchState env = DispatchState depth (allSymbols env) Map.empty Set.empty Map.empty
     defaultDts = [defaultList, defaultPair, defaultUnit]
     defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
@@ -462,7 +454,7 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
             let Pos _ (FuncDecl _ sch) = funcDecl 
             in do
               let tvs = Set.toList $ typeVarsOf (toMonotype sch)
-              let spec = foldl (flip ForallT) sch tvs
+              let spec = foldr (ForallT . flip (,) []) sch tvs
               return $ Goal id emptyEnv spec uprog 3 $ initialPos "goal"
           _ -> error "parse a signature for a none goal declaration"
 

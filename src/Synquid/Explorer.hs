@@ -220,7 +220,8 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
       -- let env' = set abstractSymbols m env
       -- liftIO $ writeFile ("data/base.db") $ LB8.unpack $ Aeson.encode $ map (uncurry PNSolver.encodeFunction) $ Map.toList m
       useHO <- asks . view $ _1 . useHO
-      let env' = if useHO then env else env { _symbols = Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols }
+      envConstraint <- liftIO $ PNSolver.parseTypeClass env
+      let env' = if useHO then envConstraint else envConstraint { _symbols = Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ envConstraint ^. symbols }
       let args = (Monotype t):(Map.elems $ env' ^. arguments)
       -- start with all the datatypes defined in the queries
       let initialState = Map.singleton "" $ foldr (Set.union . allDatatypes . toMonotype) Set.empty args 
@@ -1644,7 +1645,7 @@ instantiate env sch top argNames = do
   writeLog 3 (text "INSTANTIATE" <+> pretty sch $+$ text "INTO" <+> pretty t)
   return t
   where
-    instantiate' subst pSubst (ForallT a sch) = do
+    instantiate' subst pSubst (ForallT (a,_) sch) = do
       a' <- freshId "A"
       addConstraint $ WellFormed env (vart a' ftrue)
       instantiate' (Map.insert a (vart a' (BoolLit top)) subst) pSubst sch
@@ -1672,7 +1673,7 @@ instantiateWithoutConstraint env sch top argNames = do
   t <- instantiate' Map.empty Map.empty sch
   return t
   where
-    instantiate' subst pSubst (ForallT a sch) = do
+    instantiate' subst pSubst (ForallT (a,_) sch) = do
       a' <- freshId "A"
       instantiate' (Map.insert a (vart a' (BoolLit top)) subst) pSubst sch
     instantiate' subst pSubst (ForallP (PredSig p argSorts _) sch) = do

@@ -291,7 +291,7 @@ instance Show RType where
 prettySchema :: Pretty (TypeSkeleton r) => SchemaSkeleton r -> Doc
 prettySchema sch = case sch of
   Monotype t -> pretty t
-  ForallT a sch' -> hlAngles (text a) <+> operator "." <+> prettySchema sch'
+  ForallT (a, cs) sch' -> (if null cs then empty else hlParens (commaSep (map (\c -> text (c ++ " " ++ a)) cs)) <+> operator "=>") <+> hlAngles (text a)  <+> operator "." <+> prettySchema sch'
   ForallP sig sch' -> pretty sig <+> operator "." <+> prettySchema sch'
 
 instance Pretty SSchema where

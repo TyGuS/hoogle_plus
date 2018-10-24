@@ -72,7 +72,7 @@ repair eParams tParams goal violations = do
       requiredTypes .= violations
       replaceViolations (addBoundVars (gSpec goal) $ gEnvironment goal) (gImpl goal)
       
-    addBoundVars (ForallT a sch) env = addTypeVar a $ addBoundVars sch env
+    addBoundVars (ForallT (a,_) sch) env = addTypeVar a $ addBoundVars sch env
     addBoundVars (ForallP sig sch) env = addBoundPredicate sig $ addBoundVars sch env
     addBoundVars (Monotype _) env = env
       
@@ -99,7 +99,7 @@ stripTags t = t
 {- Localization -}
     
 localizeTopLevel :: MonadHorn s => Goal -> Explorer s RProgram
-localizeTopLevel (Goal funName env (ForallT a sch) impl depth pos) = localizeTopLevel (Goal funName (addTypeVar a env) sch impl depth pos)
+localizeTopLevel (Goal funName env (ForallT (a,_) sch) impl depth pos) = localizeTopLevel (Goal funName (addTypeVar a env) sch impl depth pos)
 localizeTopLevel (Goal funName env (ForallP sig sch) impl depth pos) = localizeTopLevel (Goal funName (addBoundPredicate sig env) sch impl depth pos)
 localizeTopLevel (Goal funName env (Monotype typ@(FunctionT _ _ _)) impl depth _) = do
   let typ' = renameAsImpl (isBound env) impl typ
@@ -109,7 +109,7 @@ localizeTopLevel (Goal funName env (Monotype typ@(FunctionT _ _ _)) impl depth _
   let tvs = env ^. boundTypeVars
   let pvs = env ^. boundPredicates      
   let predGeneralized sch = if predPolymorphic then foldr ForallP sch pvs else sch -- Version of @t'@ generalized in bound predicate variables of the enclosing function          
-  let typeGeneralized sch = if polymorphic then foldr ForallT sch tvs else sch -- Version of @t'@ generalized in bound type variables of the enclosing function
+  let typeGeneralized sch = if polymorphic then foldr (ForallT . flip (,) []) sch tvs else sch -- Version of @t'@ generalized in bound type variables of the enclosing function
   
   let env' = foldr (\(f, t) -> addPolyVariable f (typeGeneralized . predGeneralized . Monotype $ t) . (shapeConstraints %~ Map.insert f (shape typ'))) env recCalls
   let ctx = \p -> if null recCalls then p else Program (PFix (map fst recCalls) p) typ'
