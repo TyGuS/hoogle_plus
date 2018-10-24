@@ -11,6 +11,8 @@ extra-deps:
   # - hsc2hs-0.68.3
   # - inline-java-0.8.3
   # - extra-1.6.9
+ghc-options:
+  synquid: -fwarn-incomplete-patterns
 extra-include-dirs:
   - /usr/lib/jvm/java-8-openjdk-amd64/include
   - /usr/lib/jvm/java-8-openjdk-amd64/include/linux/
