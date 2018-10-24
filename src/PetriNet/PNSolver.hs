@@ -379,11 +379,13 @@ checkType env typ p = do
     modify $ set isChecked True
     top <- topDownCheck env (shape typ) p
     ifM (view isChecked <$> get)
-        (return $ Just top)
         (do
-            writeLog 3 $ text "Top down type checking get" <+> pretty top
+            writeLog 2 $ text "Top down check OK: " <+> pretty top
+            return $ Just top)
+        (do
+            writeLog 2 $ text "Top down type checking get" <+> pretty top
             modify $ set isChecked True
-            bottomUpCheck env top
+            -- bottomUpCheck env top
             return Nothing)
 
 findPath :: (MonadIO m) => Environment -> RType -> PNSolver m String
@@ -400,7 +402,7 @@ findPath env dst = do
     let args = map toMonotype $ Map.elems (env ^. arguments)
     sigs <- if Map.null (st ^. currentSigs) then instantiate env absSymbols else return (st ^. currentSigs)
     modify $ set currentSigs sigs
-    writeLog 3 $ text "Current signature abstractions" <+> text (show (Map.toList sigs))
+    -- writeLog 3 $ text "Current signature abstractions\n" <+> text (show (Map.toList sigs))
 
     -- encode all the abstracted signatures into JSON string and pass it to SyPet
     let jsonBlob = (Text.pack . LB8.unpack . Aeson.encode $ map (uncurry encodeFunction)
@@ -434,7 +436,7 @@ findPath env dst = do
 findProgram :: (MonadIO m) => Environment -> RType -> PNSolver m RProgram
 findProgram env dst = do
     jsonResult <- findPath env dst
-    -- liftIO $  print jsonResult
+    liftIO $  print jsonResult
     (code, loc) <- liftIO $ parseJson $ LB8.pack jsonResult
     let prog = case parseExp code of
                 ParseOk exp -> toSynquidProgram exp
@@ -452,6 +454,7 @@ findProgram env dst = do
             liftIO $ putStrLn "************************************************"
             return p -- return the first correct program we find
         else do
+            modify $ over currentSolutions ((:) code)
             modify $ set currentSigs Map.empty
             modify $ set nameCounter Map.empty
             modify $ set typeAssignment Map.empty
