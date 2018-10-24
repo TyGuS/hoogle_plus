@@ -26,3 +26,6 @@ cabal.project.local~
 data/
 .gradle/
 build/distributions/
+.idea/
+tags
+.python-version
