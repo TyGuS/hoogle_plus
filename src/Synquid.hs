@@ -56,7 +56,6 @@ import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import Text.PrettyPrint.ANSI.Leijen (fill, column)
 
 import Data.List.Split
-import Debug.Trace
 
 programName = "synquid"
 versionName = "0.4"
@@ -70,7 +69,7 @@ main = do
                appMax scrutineeMax matchMax auxMax fix genPreds explicitMatch unfoldLocals partial incremental consistency memoize symmetry
                lfp bfs
                out_file out_module outFormat resolve
-               print_spec print_stats log_
+               print_spec print_stats log_ 
                graph succinct sol_num path_search higher_order) -> do
                   let explorerParams = defaultExplorerParams {
                     _eGuessDepth = appMax,
@@ -374,29 +373,21 @@ codegen params results = case params of
 collectLibDecls libs declsByFile =
   Map.filterWithKey (\k _ -> k `elem` libs) $ Map.fromList declsByFile
 
-getDeclarationsFromCabal :: [String] -> PkgName -> IO [Pos BareDeclaration]
-getDeclarationsFromCabal modelNames pkgName = do
-  downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
-  -- baseDecls <- addPrelude <$> readDeclarations "base" Nothing
-  let baseDecls = []
-  fileDecls <- filter (isIncludedModule . getDeclName) <$> readDeclarations pkgName Nothing
-  -- readDeclarations pkgName Nothing >>= print
-  parsedDecls <- mapM (\decl -> evalStateT (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)
-  dependsPkg <- packageDependencies pkgName True
-  dependsDecls <- mapM (flip readDeclarations Nothing) $ nub dependsPkg
-  additionalDts <- declDependencies pkgName (baseDecls ++ fileDecls) (concat dependsDecls) >>= mapM (flip evalStateT 0 . toSynquidDecl)
-  return $ additionalDts ++ parsedDecls
-  where
-    isIncludedModule name = foldr ((||) . flip isPrefixOf name) False modelNames
-
-
-writeEnvFile :: Environment -> IO ()
-writeEnvFile environment = B.writeFile "data/env.db" $ encode $ environment
-
 precomputeGraph :: [PkgName] -> [String] -> Int -> Bool -> IO ()
 precomputeGraph pkgs mdls depth useHO = do
   -- print pkgs
-  pkgDecls <- mapM (getDeclarationsFromCabal mdls) pkgs
+  pkgDecls <- mapM (\pkgName -> do
+    downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
+    -- baseDecls <- addPrelude <$> readDeclarations "base" Nothing
+    let baseDecls = []
+    fileDecls <- filter (isIncludedModule . getDeclName) <$> readDeclarations pkgName Nothing
+    -- readDeclarations pkgName Nothing >>= print
+    parsedDecls <- mapM (\decl -> evalStateT (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)
+    dependsPkg <- packageDependencies pkgName True
+    dependsDecls <- mapM (flip readDeclarations Nothing) $ nub dependsPkg
+    additionalDts <- declDependencies pkgName (baseDecls ++ fileDecls) (concat dependsDecls) >>= mapM (flip evalStateT 0 . toSynquidDecl) 
+    return $ additionalDts ++ parsedDecls
+    ) pkgs
   let decls = reorderDecls $ nub $ defaultDts ++ concat pkgDecls
   case resolveDecls decls of
     Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
@@ -405,23 +396,15 @@ precomputeGraph pkgs mdls depth useHO = do
       -- let allEdges = Set.toList . Set.unions . concat . map HashMap.elems $ HashMap.elems (envAll ^. succinctGraph)
       -- edgeWeights <- getGraphWeights $ map getEdgeId allEdges
       -- let graph' = fillEdgeWeight allEdges edgeWeights $ envAll ^. succinctGraph
-      writeEnvFile env {
-          _symbols = if useHO then env ^. symbols
+      B.writeFile "data/env.db" $ encode $ env {
+          _symbols = if useHO then env ^. symbols 
                               else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols
       }
-      -- {_succinctGraph = graph'}
-      -- st <- execStateT (dispatch $ Set.fromList [ ScalarT BoolT ftrue
-      --                                           , ScalarT IntT  ftrue
-      --                                           , ScalarT (DatatypeT "Char" [] []) ftrue
-      --                                           , ScalarT (TypeVarT Map.empty "T") ftrue
-      --                                           ]) (initDispatchState envAll)
-      -- st <- execStateT (dispatch $ Set.fromList [ ScalarT (TypeVarT Map.empty "t") ftrue
-      --                                           ]) (initDispatchState envAll)
-      -- writeFile ("data/" ++ pkgName ++ ".db") $ LB8.unpack $ Aeson.encode $ map (uncurry makeFunctionCode) $ Map.toList (st ^. resultList)
-      -- writeFile ("data/abstract_" ++ pkgName ++ ".db") $ LB8.unpack $ Aeson.encode $ map (\(id, t) -> PNS.encodeFunction id (PNS.abstract $ shape t)) $ Map.toList (st ^. resultList)
-      -- test ["List (Maybe (T))", "T"] "T"
   where
-    getDeclarations name = foldr ((||) . flip isPrefixOf name) False mdls
+    isIncludedModule name = foldr ((||) . flip isPrefixOf (skipLParen name)) False mdls
+    skipLParen [] = []
+    skipLParen ('(':name) = name
+    skipLParen name = name
     initDispatchState env = DispatchState depth (allSymbols env) Map.empty Set.empty Map.empty
     defaultDts = [defaultList, defaultPair, defaultUnit]
     defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
@@ -449,7 +432,7 @@ runOnFile :: SynquidParams -> ExplorerParams -> HornSolverParams -> CodegenParam
                            -> String -> [String] -> IO ()
 runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
   goal <- parseGoal file
-  feedEnv goal >>= synthesizeGoal synquidParams explorerParams solverParams [] [] -- (requested goals)
+  feedEnv goal >>= synthesizeGoal [] [] -- (requested goals)
   return ()
   where
     feedEnv goal = do
@@ -467,11 +450,11 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
         Left parseErr -> (pdoc $ pretty $ toErrorMessage parseErr) >> pdoc empty >> exitFailure
         -- Right ast -> print $ vsep $ map pretty ast
         Right (funcDecl:decl:_) -> case decl of
-          Pos _ (SynthesisGoal id uprog) ->
-            let Pos _ (FuncDecl _ sch) = funcDecl
+          Pos _ (SynthesisGoal id uprog) -> 
+            let Pos _ (FuncDecl _ sch) = funcDecl 
             in do
               let tvs = Set.toList $ typeVarsOf (toMonotype sch)
-              let spec = foldl (flip ForallT) sch tvs
+              let spec = foldr (ForallT . flip (,) []) sch tvs
               return $ Goal id emptyEnv spec uprog 3 $ initialPos "goal"
           _ -> error "parse a signature for a none goal declaration"
 
@@ -486,53 +469,46 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
     requested goals = case goalFilter synquidParams of
       Just filt -> filter (\goal -> gName goal `elem` filt) goals
       _ -> goals
-    pdoc = pdocFromParams synquidParams
 
-pdocFromParams synquidParams = printDoc (outputFormat synquidParams)
-
-synthesizeGoal synquidParams explorerParams solverParams cquals tquals goal = do
-  when (showSpec synquidParams) $ pdoc (prettySpec goal)
-  (mProg, stats) <- synthesize explorerParams solverParams goal cquals tquals
-  case mProg of
-    Left typeErr -> pdoc (pretty typeErr) >> pdoc empty >> exitFailure
-    Right progs -> do
-      mapM_ (\prog -> pdoc (prettySolution goal prog)) progs
-      pdoc empty
-      return ((goal, progs), stats)
-  where
-    pdoc = pdocFromParams synquidParams
-
-printStats synquidParams results declsByFile = do
-  let env = gEnvironment (fst $ fst $ head results)
-  let measureCount = Map.size $ _measures $ env
-  let namesOfConstants decls = mapMaybe (\decl ->
-       case decl of
-         Pos { node = FuncDecl name _ } -> Just name
-         _ -> Nothing
-       ) decls
-  let totalSizeOf = sum . map (typeNodeCount . toMonotype .unresolvedType env)
-  let policySize = Map.fromList $ map (\(file, decls) -> (file, totalSizeOf $ namesOfConstants decls)) declsByFile
-  let getStatsFor ((goal, prog), stats) =
-         StatsRow
-         (gName goal)
-         (typeNodeCount $ toMonotype $ unresolvedSpec goal)
-         (programNodeCount $ gImpl goal)   -- size of implementation template (before synthesis/repair)
-         (programNodeCount prog)           -- size of generated solution
-         (stats ! TypeCheck) (stats ! Repair) (stats ! Recheck) (sum $ Map.elems stats)  -- time measurements
-  let perResult = map getStatsFor results
-  let specSize = sum $ map (typeNodeCount . toMonotype . unresolvedSpec . fst . fst) results
-  let solutionSize = sum $ map (programNodeCount . snd . fst) results
-  pdoc $ vsep $ [
-            parens (text "Goals:" <+> pretty (length results)),
-            parens (text "Measures:" <+> pretty measureCount)] ++
-          if repairPolicies synquidParams
-            then [
-              parens (text "Policy size:" <+> (text $ show policySize)),
-              statsTable perResult]
-            else [
-              parens (text "Spec size:" <+> pretty specSize),
-              parens (text "Solution size:" <+> pretty solutionSize)
-            ] ++
-          [empty]
-  where
-    pdoc = pdocFromParams synquidParams
+    pdoc = printDoc (outputFormat synquidParams)
+    synthesizeGoal cquals tquals goal = do
+      when (showSpec synquidParams) $ pdoc (prettySpec goal)
+      (mProg, stats) <- synthesize explorerParams solverParams goal cquals tquals
+      case mProg of
+        Left typeErr -> pdoc (pretty typeErr) >> pdoc empty >> exitFailure
+        Right progs -> do
+          mapM_ (\prog -> pdoc (prettySolution goal prog)) progs
+          pdoc empty
+          return ((goal, progs), stats)
+    printStats results declsByFile = do
+      let env = gEnvironment (fst $ fst $ head results)
+      let measureCount = Map.size $ _measures $ env
+      let namesOfConstants decls = mapMaybe (\decl ->
+           case decl of
+             Pos { node = FuncDecl name _ } -> Just name
+             _ -> Nothing
+           ) decls
+      let totalSizeOf = sum . map (typeNodeCount . toMonotype .unresolvedType env)
+      let policySize = Map.fromList $ map (\(file, decls) -> (file, totalSizeOf $ namesOfConstants decls)) declsByFile
+      let getStatsFor ((goal, prog), stats) =
+             StatsRow
+             (gName goal)
+             (typeNodeCount $ toMonotype $ unresolvedSpec goal)
+             (programNodeCount $ gImpl goal)   -- size of implementation template (before synthesis/repair)
+             (programNodeCount prog)           -- size of generated solution
+             (stats ! TypeCheck) (stats ! Repair) (stats ! Recheck) (sum $ Map.elems stats)  -- time measurements
+      let perResult = map getStatsFor results
+      let specSize = sum $ map (typeNodeCount . toMonotype . unresolvedSpec . fst . fst) results
+      let solutionSize = sum $ map (programNodeCount . snd . fst) results
+      pdoc $ vsep $ [
+                parens (text "Goals:" <+> pretty (length results)),
+                parens (text "Measures:" <+> pretty measureCount)] ++
+              if repairPolicies synquidParams
+                then [
+                  parens (text "Policy size:" <+> (text $ show policySize)),
+                  statsTable perResult]
+                else [
+                  parens (text "Spec size:" <+> pretty specSize),
+                  parens (text "Solution size:" <+> pretty solutionSize)
+                ] ++
+              [empty]

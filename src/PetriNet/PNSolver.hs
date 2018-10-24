@@ -129,60 +129,83 @@ freshId prefix = do
     return $ prefix ++ "_" ++ show idx
 
 -- | Replace all bound type variables with fresh free variables
-freshType :: (MonadIO m) => RSchema -> PNSolver m RType
-freshType sch = do
-  t <- freshType' Map.empty sch
-  return t
+freshType :: (MonadIO m) => RSchema -> PNSolver m (RType, [(Id,[Id])])
+freshType sch = freshType' Map.empty [] sch
   where
-    freshType' subst (ForallT a sch) = do
+    freshType' subst constraints (ForallT (a,constraint) sch) = do
       a' <- freshId "A"
-      freshType' (Map.insert a (vart a' ftrue) subst) sch
-    freshType' subst (Monotype t) = return $ typeSubstitute subst $ t
+      freshType' (Map.insert a (vart a' ftrue) subst) ((a',constraint):constraints) sch
+    freshType' subst constraints (Monotype t) = return (typeSubstitute subst $ t, constraints)
 
 -- TODO: start with only the datatypes in the query
-instantiate :: (MonadIO m) => Environment -> Map Id AbstractSkeleton -> PNSolver m (Map Id AbstractSkeleton)
-instantiate env sigs = instantiate' sigs $ Map.filter (not . hasAbstractVar) sigs
+instantiate :: (MonadIO m) => Environment -> Map Id (AbstractSkeleton,[(Id,[Id])]) -> PNSolver m (Map Id AbstractSkeleton)
+instantiate env sigs = instantiate' sigs $ Map.map fst $ Map.filter (not . hasAbstractVar . fst) sigs
   where
     removeSuffix id ty = (removeLast '_' id, ty)
     constructType abstraction key | key `Map.notMember` abstraction =
         let currDt     = if null (splitBy ',' key) then "" else last $ splitBy ',' key
         in if currDt == "" then [AExclusion Set.empty]
-                           else if Char.isUpper $ head currDt then [ADatatypeT currDt [AExclusion Set.empty]]
-                                                              else [ATypeVarT currDt, AExclusion (Set.singleton currDt)] -- this is bounded type variables
+                           else nub $ if Char.isUpper $ head currDt
+                                        then case Map.lookup currDt (env ^. datatypes) of
+                                                Just def -> if null $ def ^. typeParams then [ADatatypeT currDt []] else [ADatatypeT currDt [AExclusion Set.empty]]
+                                                Nothing  -> error $ "instantiate: cannot find datatype " ++ currDt ++ " in the environment"
+                                        else [ATypeVarT currDt, AExclusion (Set.singleton currDt)] -- this is bounded type variables
     constructType abstraction key | key `Map.member`    abstraction =
         let nextKeys   = fromJust $ Map.lookup key abstraction
             currDt     = if null (splitBy ',' key) then "" else last $ splitBy ',' key
         in if currDt == ""
-            then [AExclusion nextKeys] ++ concatMap (constructType abstraction . (++) (key ++ ",")) (Set.toList nextKeys)
+            then nub $ [AExclusion nextKeys] ++ concatMap (constructType abstraction . (++) (key ++ ",")) (Set.toList nextKeys)
             else if Char.isUpper $ head currDt
-                then map (ADatatypeT currDt . (:[])) $ [AExclusion nextKeys] ++ concatMap (constructType abstraction . (++) (key ++ ",")) (Set.toList nextKeys)
-                else [ATypeVarT currDt, AExclusion (Set.singleton currDt)] -- this is bounded type variables
+                then case Map.lookup currDt (env ^. datatypes) of
+                        Just def -> if null $ def ^. typeParams then [ADatatypeT currDt []] else nub $ map (ADatatypeT currDt . (:[])) $ [AExclusion nextKeys] ++ concatMap (constructType abstraction . (++) (key ++ ",")) (Set.toList nextKeys)
+                        Nothing  -> error $ "instantiate: cannot find datatype " ++ currDt ++ " in the environment"
+                else nub $ [ATypeVarT currDt, AExclusion (Set.singleton currDt)] -- this is bounded type variables
     instantiate' sigs sigsAcc = do
         st <- get
-        writeLog 0 $ text "current abstraction types:" <+> pretty (constructType (st ^. abstractionLevel) "")
-        let typs = Set.fromList $ concatMap (allAbstractBase (env ^. boundTypeVars)) (Map.union sigsAcc sigs)
-        sigs' <- foldM (\acc -> (<$>) (Map.union acc) . uncurry (instantiateWith env $ Set.toList typs)) Map.empty (Map.toList sigs)
+        -- writeLog 0 $ text "current abstraction types:" <+> pretty (constructType (st ^. abstractionLevel) "")
+        let typs = constructType (st ^. abstractionLevel) ""
+        -- let typs = Set.fromList $ concatMap (allAbstractBase (env ^. boundTypeVars)) (Map.union sigsAcc sigs)
+        sigs' <- foldM (\acc -> (<$>) (Map.union acc) . uncurry (instantiateWith env typs)) Map.empty (Map.toList sigs)
         -- iteratively compute for new added types
-        let typs' = Set.fromList $ concatMap (allAbstractBase (env ^. boundTypeVars)) sigs'
+        -- let typs' = Set.fromList $ concatMap (allAbstractBase (env ^. boundTypeVars)) sigs'
         -- writeLog 3 $ pretty (Set.toList typs)
         -- writeLog 3 $ pretty (Set.toList typs')
-        if typs' /= typs
-            then instantiate' sigs $ Map.fromList $ nubOn (uncurry removeSuffix) $ Map.toList $ Map.union sigsAcc sigs'
-            else return $ Map.fromList $ nubOn (uncurry removeSuffix) $ Map.toList $ Map.union sigsAcc sigs'
+        -- if typs' /= typs
+        --     then instantiate' sigs $ Map.fromList $ nubOn (uncurry removeSuffix) $ Map.toList $ Map.union sigsAcc sigs'
+        return $ Map.fromList $ nubOn (uncurry removeSuffix) $ Map.toList $ Map.union sigsAcc sigs'
 
-instantiateWith :: (MonadIO m) => Environment -> [AbstractSkeleton] -> Id -> AbstractSkeleton -> PNSolver m (Map Id AbstractSkeleton)
-instantiateWith env typs id sk = do
+instantiateWith :: (MonadIO m) => Environment -> [AbstractSkeleton] -> Id -> (AbstractSkeleton, [(Id,[Id])]) -> PNSolver m (Map Id AbstractSkeleton)
+instantiateWith env typs id (sk, constraints) = do
+    liftIO $ print id
     let vars = Set.toList $ allAbstractVar sk
-    let multiSubsts    = map (zip vars) $ multiPermutation (length vars) typs
-    let substedSymbols = map (foldr (\(id, t) acc -> if id `Set.notMember` allAbstractVar t then abstractSubstitute (env ^. boundTypeVars) id t acc else acc) sk) multiSubsts
+    let constraintMap = Map.fromList constraints
+    liftIO $ print constraintMap
+    -- liftIO $ print $ env ^. typeClasses
+    liftIO $ print $ map (flip (Map.findWithDefault Set.empty) (env ^. typeClasses)) $ (Map.findWithDefault [] "A_14" constraintMap)
+    liftIO $ print $ map (flip (Map.findWithDefault Set.empty) (env ^. typeClasses)) $ (Map.findWithDefault [] "A_15" constraintMap)
+    let multiSubsts = map (zip vars) $ multiPermutation (length vars) typs
+    liftIO $ print multiSubsts
+    let validSubsts = filter (foldr (\(id, t) acc -> (unifierValid constraintMap id t) && acc) True) multiSubsts
+    let substedSymbols = map (foldr (\(id, t) acc -> abstractSubstitute (env ^. boundTypeVars) id t acc) sk) validSubsts
     st <- get
     foldrM (\t accMap -> do
         newId <- newSymbolName id
         return $ Map.insert newId (cutoff (st ^. abstractionLevel) "" t) accMap) Map.empty substedSymbols
     where
+        outerName (ADatatypeT id _) = Left id
+        outerName (ATypeVarT id) = Right Set.empty
+        outerName (AExclusion names) = Right names
+
         multiPermutation len elmts | len == 0 = []
         multiPermutation len elmts | len == 1 = [[e] | e <- elmts]
         multiPermutation len elmts            = nub $ [ l:r | l <- elmts, r <- multiPermutation (len - 1) elmts]
+
+        unifierValid constraintMap id t =
+            let constraints = map (flip (Map.findWithDefault Set.empty) (env ^. typeClasses)) $ (Map.findWithDefault [] id constraintMap)
+            in case outerName t of
+                Left name -> foldr ((&&) . Set.member name) True constraints -- containts id
+                Right names -> foldr ((&&) . not . Set.null . flip Set.difference names) True constraints -- not contains names
+
         newSymbolName prefix = do
             indices <- flip (^.) nameCounter <$> get
             let idx = Map.findWithDefault 0 prefix indices
@@ -222,7 +245,6 @@ distinguish env level tass key (ScalarT (DatatypeT id tArgs _) _) (ScalarT (Data
         in if level' /= level then level' -- if we get several new representations, stop refining
                               else distinguish' key tass args args' -- otherwise append the current arg to the recursive result
 -- TODO: need change to support higher order functions
-
 distinguish env level tass key (ScalarT (TypeVarT _ id) _) (ScalarT (TypeVarT _ id') _) | id == id' = level
 -- has unsubtituted type variables, substitute them and recheck
 distinguish env level tass key (ScalarT (TypeVarT _ id) _) t | id `Map.member` tass =
@@ -250,9 +272,13 @@ topDownCheck :: (MonadIO m) => Environment -> SType -> UProgram -> PNSolver m RP
 topDownCheck env typ p@(Program (PSymbol sym) _) = do
     -- lookup the symbol type in current scope
     writeLog 3 $ text "Checking type for" <+> pretty p
+    -- liftIO $ print (allSymbols env)
     t <- case lookupSymbol sym 0 env of
-            Nothing  -> error $ "topDownCheck: cannot find symbol " ++ sym ++ " in the current environment"
-            Just sch -> freshType sch
+            Nothing  ->
+                case lookupSymbol ("(" ++ sym ++ ")") 0 env of -- symbol name with parenthesis
+                    Nothing  -> error $ "topDownCheck: cannot find symbol " ++ sym ++ " in the current environment"
+                    Just sch -> fst <$> freshType sch
+            Just sch -> fst <$> freshType sch
     -- solve the type constraint t == typ
     writeLog 3 $ text "Solving constraint" <+> pretty typ <+> text "==" <+> pretty t
     solveTypeConstraint env typ (shape t)
@@ -284,8 +310,11 @@ bottomUpCheck env p@(Program (PSymbol sym) typ) = do
     -- lookup the symbol type in current scope
     writeLog 3 $ text "Checking type for" <+> pretty p
     t <- case lookupSymbol sym 0 env of
-            Nothing  -> error $ "topDownCheck: cannot find symbol " ++ sym ++ " in the current environment"
-            Just sch -> freshType sch
+            Nothing  ->
+                case lookupSymbol ("(" ++ sym ++ ")") 0 env of -- symbol name with parenthesis
+                    Nothing  -> error $ "bottomUpCheck: cannot find symbol " ++ sym ++ " in the current environment"
+                    Just sch -> fst <$> freshType sch
+            Just sch -> fst <$> freshType sch
     -- solveTypeConstraint env (shape typ) (shape t)
     writeLog 3 $ text "Distinguishing" <+> pretty (shape typ) <+> text "and" <+> pretty (shape t)
     tass <- view typeAssignment <$> get
@@ -379,35 +408,49 @@ checkType env typ p = do
     modify $ set isChecked True
     top <- topDownCheck env (shape typ) p
     ifM (view isChecked <$> get)
+        (return $ Just top)
         (do
-            writeLog 2 $ text "Top down check OK: " <+> pretty top
-            return $ Just top)
-        (do
-            writeLog 2 $ text "Top down type checking get" <+> pretty top
+            writeLog 3 $ text "Top down type checking get" <+> pretty top
             modify $ set isChecked True
-            -- bottomUpCheck env top
+            bottomUpCheck env top
             return Nothing)
 
-findPath :: (MonadIO m) => Environment -> RType -> PNSolver m String
+parseTypeClass :: Environment -> IO Environment
+parseTypeClass env = do
+    content <- readFile "typeClass.json"
+    case Aeson.eitherDecode (LB8.pack content) of
+        Left err -> error err
+        Right v  -> case v of
+            Aeson.Object contents -> do
+                let classMap = HashMap.foldrWithKey (\k v -> Map.insert (Text.unpack k) (map getString $ getArray v)) Map.empty contents
+                let transClasses = Map.foldrWithKey insertSet Map.empty classMap
+                return $ set typeClasses transClasses env
+            _  -> error "parseTypeClass: unknown error when decoding the JSON string"
+  where
+    getArray (Aeson.Array arr) = Vector.toList arr
+    getString (Aeson.String str) = Text.unpack str
+    insertSet t cs m = foldr (flip (Map.insertWith Set.union) (Set.singleton t)) m cs
+
+findPath :: (MonadIO m) => Environment -> RType -> PNSolver m ()
 findPath env dst = do
     writeLog 3 $ text "Start looking for a new path"
     st <- get
-    writeLog 1 $ text "Current abstraction level" <+> pretty (Map.toList $ Map.map Set.toList $ st ^. abstractionLevel)
+    -- liftIO $ print $ env' ^. typeClasses
+    -- writeLog 1 $ text "Current abstraction level" <+> pretty (Map.toList $ Map.map Set.toList $ st ^. abstractionLevel)
     -- abstract all the symbols in the current environment
     start <- liftIO $ getCurrentTime
-    freshSymbols <- mapM (\(id, sch) -> do t <- freshType sch; return (id, t)) $ Map.toList $ allSymbols env
-    let absSymbols = foldr (\(id, t) -> Map.insert id $ abstract (env ^. boundTypeVars) (st ^. abstractionLevel) ""
-                                                      $ shape t) Map.empty freshSymbols
+    freshSymbols <- mapM (\(id, sch) -> do (t,c) <- freshType sch; return (id, t, c)) $ Map.toList $ allSymbols env
+    let absSymbols = foldr (\(id, t, c) -> Map.insert id (abstract (env ^. boundTypeVars) (st ^. abstractionLevel) ""
+                                                          $ shape t, c)) Map.empty freshSymbols
     let argIds = Map.keys (env ^. arguments)
     let args = map toMonotype $ Map.elems (env ^. arguments)
     sigs <- if Map.null (st ^. currentSigs) then instantiate env absSymbols else return (st ^. currentSigs)
     modify $ set currentSigs sigs
-    -- writeLog 3 $ text "Current signature abstractions\n" <+> text (show (Map.toList sigs))
+    writeLog 3 $ text "Current signature abstractions" <+> text (show (Map.toList sigs))
 
     -- encode all the abstracted signatures into JSON string and pass it to SyPet
-    let jsonBlob = (Text.pack . LB8.unpack . Aeson.encode $ map (uncurry encodeFunction)
+    symbols <- liftIO $ reflect (Text.pack . LB8.unpack . Aeson.encode $ map (uncurry encodeFunction)
                                 $ Map.toList $ foldr Map.delete sigs argIds)
-    symbols <- liftIO $ reflect jsonBlob
     tgt <- liftIO $ reflect (Text.pack $ show $ abstract (env ^. boundTypeVars) (st ^. abstractionLevel) "" $ shape dst)
     srcTypes <- liftIO $ reflect (map (Text.pack . show . abstract (env ^. boundTypeVars) (st ^. abstractionLevel) "" . shape) args)
     argNames <- liftIO $ reflect (map Text.pack argIds)
@@ -415,7 +458,7 @@ findPath env dst = do
     loc <- liftIO $ reflect (st ^. currentLoc)
     end <- liftIO $ getCurrentTime
     writeLog 1 $ text "Time for preparing data" <+> text (show $ diffUTCTime end start)
-    code <- liftIO $ [java| {
+    liftIO $ [java| {
         java.util.List<java.lang.String> srcTypes = java.util.Arrays.asList($srcTypes);
         java.util.List<java.lang.String> argNames = java.util.Arrays.asList($argNames);
         java.util.List<java.lang.String> solutions = java.util.Arrays.asList($excludeLists);
@@ -423,20 +466,23 @@ findPath env dst = do
         System.out.println("Arguments:" + srcTypes.toString());
         System.out.println("Target:" + tgtType);
         cmu.edu.utils.SynquidUtil.init(srcTypes, argNames, tgtType, $symbols, solutions, $loc);
+    } |]
+    -- codeText <- liftIO $ reify code
+    -- parse the result into AST in Synquid
+    -- let codeCheck = flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" (Text.unpack codeText)
+    -- return $ Text.unpack codeText
+
+findProgram :: (MonadIO m) => Environment -> RType -> PNSolver m RProgram
+findProgram env dst = do
+    findPath env dst
+    code <- liftIO $ [java| {
         cmu.edu.utils.SynquidUtil.buildNextEncoding();
         //java.util.List<java.lang.String> res = cmu.edu.utils.SynquidUtil.synthesize();
         java.lang.String res = cmu.edu.utils.SynquidUtil.synthesize();
         return res;
     } |]
-    codeText <- liftIO $ reify code
-    -- parse the result into AST in Synquid
-    -- let codeCheck = flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" (Text.unpack codeText)
-    return $ Text.unpack codeText
-
-findProgram :: (MonadIO m) => Environment -> RType -> PNSolver m RProgram
-findProgram env dst = do
-    jsonResult <- findPath env dst
-    liftIO $  print jsonResult
+    jsonResult <- liftIO $ Text.unpack <$> reify code
+    -- liftIO $  print jsonResult
     (code, loc) <- liftIO $ parseJson $ LB8.pack jsonResult
     let prog = case parseExp code of
                 ParseOk exp -> toSynquidProgram exp
@@ -445,7 +491,7 @@ findProgram env dst = do
     modify $ set currentLoc loc
     if isJust checkRes
         then do -- FIXME when the program type checks and prepare to find the next one, save time for reconstructing the components
-            let Just p = checkRes
+            let Just p =    checkRes
             -- add the satisfied solution to current state for future exclusion
             modify $ over currentSolutions ((:) code)
             st <- get

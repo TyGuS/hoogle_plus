@@ -136,7 +136,7 @@ isVarRefinemnt _ = False
 -- | Polymorphic type skeletons (parametrized by refinements)
 data SchemaSkeleton r = 
   Monotype (TypeSkeleton r) |
-  ForallT Id (SchemaSkeleton r) |       -- Type-polymorphic
+  ForallT (Id, [Id]) (SchemaSkeleton r) | -- Type-polymorphic, each type variable may have some class constraints
   ForallP PredSig (SchemaSkeleton r)    -- Predicate-polymorphic
   deriving (Eq, Ord, Generic)
   
@@ -146,7 +146,7 @@ toMonotype (ForallT _ t) = toMonotype t
 toMonotype (ForallP _ t) = toMonotype t
 
 boundVarsOf :: SchemaSkeleton r -> [Id]
-boundVarsOf (ForallT a sch) = a : boundVarsOf sch
+boundVarsOf (ForallT (a,_) sch) = a : boundVarsOf sch
 boundVarsOf _ = []
 
 -- | Building types
@@ -203,7 +203,7 @@ noncaptureTypeSubst tVars tArgs t =
 
 schemaSubstitute :: TypeSubstitution -> RSchema -> RSchema
 schemaSubstitute tass (Monotype t) = Monotype $ typeSubstitute tass t
-schemaSubstitute tass (ForallT a sch) = ForallT a $ schemaSubstitute (Map.delete a tass) sch
+schemaSubstitute tass (ForallT (a,cs) sch) = ForallT (a,cs) $ schemaSubstitute (Map.delete a tass) sch
 schemaSubstitute tass (ForallP sig sch) = ForallP sig $ schemaSubstitute tass sch
 
 typeSubstitutePred :: Substitution -> RType -> RType

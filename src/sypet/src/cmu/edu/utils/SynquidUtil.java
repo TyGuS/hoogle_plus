@@ -95,6 +95,7 @@ public class SynquidUtil {
                         Gson gson = new Gson();
                         String res = gson.toJson(formerResult);
                         long end = System.nanoTime();
+                        System.out.println(formerResult.getCode());
                         // System.out.println("Time for finding a solution: " + ((end-start)/1000000000.0));
                         return res;
                     } catch (TimeoutException e) {
@@ -108,7 +109,7 @@ public class SynquidUtil {
             loc++;
             buildNextEncoding();
         }
-        
+        // return "";
     }
 
     // process signatures and construct the Petri Net
