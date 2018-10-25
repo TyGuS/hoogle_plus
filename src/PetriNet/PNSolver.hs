@@ -176,15 +176,15 @@ instantiate env sigs = instantiate' sigs $ Map.map fst $ Map.filter (not . hasAb
 
 instantiateWith :: (MonadIO m) => Environment -> [AbstractSkeleton] -> Id -> (AbstractSkeleton, [(Id,[Id])]) -> PNSolver m (Map Id AbstractSkeleton)
 instantiateWith env typs id (sk, constraints) = do
-    liftIO $ print id
+    -- liftIO $ print id
     let vars = Set.toList $ allAbstractVar sk
     let constraintMap = Map.fromList constraints
-    liftIO $ print constraintMap
+    -- liftIO $ print constraintMap
     -- liftIO $ print $ env ^. typeClasses
-    liftIO $ print $ map (flip (Map.findWithDefault Set.empty) (env ^. typeClasses)) $ (Map.findWithDefault [] "A_14" constraintMap)
-    liftIO $ print $ map (flip (Map.findWithDefault Set.empty) (env ^. typeClasses)) $ (Map.findWithDefault [] "A_15" constraintMap)
+    -- liftIO $ print $ map (flip (Map.findWithDefault Set.empty) (env ^. typeClasses)) $ (Map.findWithDefault [] "A_14" constraintMap)
+    -- liftIO $ print $ map (flip (Map.findWithDefault Set.empty) (env ^. typeClasses)) $ (Map.findWithDefault [] "A_15" constraintMap)
     let multiSubsts = map (zip vars) $ multiPermutation (length vars) typs
-    liftIO $ print multiSubsts
+    -- liftIO $ print multiSubsts
     let validSubsts = filter (foldr (\(id, t) acc -> (unifierValid constraintMap id t) && acc) True) multiSubsts
     let substedSymbols = map (foldr (\(id, t) acc -> abstractSubstitute (env ^. boundTypeVars) id t acc) sk) validSubsts
     st <- get
@@ -463,8 +463,8 @@ findPath env dst = do
         java.util.List<java.lang.String> argNames = java.util.Arrays.asList($argNames);
         java.util.List<java.lang.String> solutions = java.util.Arrays.asList($excludeLists);
         String tgtType = $tgt;
-        System.out.println("Arguments:" + srcTypes.toString());
-        System.out.println("Target:" + tgtType);
+        //System.out.println("Arguments:" + srcTypes.toString());
+        //System.out.println("Target:" + tgtType);
         cmu.edu.utils.SynquidUtil.init(srcTypes, argNames, tgtType, $symbols, solutions, $loc);
     } |]
     -- codeText <- liftIO $ reify code

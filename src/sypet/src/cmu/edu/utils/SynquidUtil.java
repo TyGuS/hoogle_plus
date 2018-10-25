@@ -41,7 +41,7 @@ public class SynquidUtil {
     private static int loc = 1;
     private static List<String> toExclude;
 
-    public static void init(List<String> srcs, List<String> argNames, String tgt, String symbols, 
+    public static void init(List<String> srcs, List<String> argNames, String tgt, String symbols,
                             List<String> solutions, Integer startLoc)
         throws FileNotFoundException, IOException, TimeoutException {
         long start = System.nanoTime();
@@ -70,10 +70,10 @@ public class SynquidUtil {
         // Perform reachability analysis
         // System.out.println("Number of functions:"+functions.size());
         long start = System.nanoTime();
-        
+
         // Increase a location until we have a result
         while (true){
-            System.out.println("Current loc is:" + loc);
+            // System.out.println("Current loc is:" + loc);
             List<Variable> result = Encoding.solver.findPath(loc);
             while (!result.isEmpty()){
                 List<Function> signatures = new ArrayList<>();
