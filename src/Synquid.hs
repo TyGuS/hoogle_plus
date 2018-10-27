@@ -8,7 +8,7 @@ import Synquid.Program
 import Synquid.Error
 import Synquid.Pretty
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
-import Synquid.Resolver (resolveDecls)
+import Synquid.Resolver (resolveDecls, ResolverState (..), initResolverState, resolveSchema)
 import Synquid.SolverMonad
 import Synquid.HornSolver
 import Synquid.TypeConstraintSolver
@@ -34,6 +34,7 @@ import System.Console.ANSI
 import System.FilePath
 import Text.Parsec.Pos
 import Control.Monad.State (runState, evalStateT, execStateT, evalState)
+import Control.Monad.Except (runExcept)
 import Data.Char
 import Data.List
 import Data.Foldable
@@ -378,17 +379,16 @@ precomputeGraph pkgs mdls depth useHO = do
   -- print pkgs
   pkgDecls <- mapM (\pkgName -> do
     downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
-    -- baseDecls <- addPrelude <$> readDeclarations "base" Nothing
-    let baseDecls = []
-    fileDecls <- filter (isIncludedModule . getDeclName) <$> readDeclarations pkgName Nothing
-    -- readDeclarations pkgName Nothing >>= print
-    parsedDecls <- mapM (\decl -> evalStateT (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)
+    declMap <- readDeclarations pkgName Nothing
+    let fileDecls = concatMap (\mdl -> Map.findWithDefault [] mdl declMap) mdls
+    parsedDecls <- mapM (\decl -> evalStateT (toSynquidDecl decl) 0) fileDecls
     dependsPkg <- packageDependencies pkgName True
-    dependsDecls <- mapM (flip readDeclarations Nothing) $ nub dependsPkg
-    additionalDts <- declDependencies pkgName (baseDecls ++ fileDecls) (concat dependsDecls) >>= mapM (flip evalStateT 0 . toSynquidDecl) 
+    dependsDecls <- concatMap (concat . Map.elems) <$> (mapM (flip readDeclarations Nothing) $ nub dependsPkg)
+    additionalDts <- declDependencies pkgName fileDecls dependsDecls >>= mapM (flip evalStateT 0 . toSynquidDecl) 
     return $ additionalDts ++ parsedDecls
     ) pkgs
   let decls = reorderDecls $ nub $ defaultDts ++ concat pkgDecls
+  -- print decls
   case resolveDecls decls of
     Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
     Right (env, _, _, _) -> do
@@ -401,12 +401,12 @@ precomputeGraph pkgs mdls depth useHO = do
                               else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols
       }
   where
-    isIncludedModule name = foldr ((||) . flip isPrefixOf (skipLParen name)) False mdls
     skipLParen [] = []
     skipLParen ('(':name) = name
     skipLParen name = name
-    initDispatchState env = DispatchState depth (allSymbols env) Map.empty Set.empty Map.empty
-    defaultDts = [defaultList, defaultPair, defaultUnit]
+    defaultDts = [defaultList, defaultPair, defaultUnit, defaultInt, defaultBool]
+    defaultInt = Pos (initialPos "Int") $ DataDecl "Int" [] [] []
+    defaultBool = Pos (initialPos "Bool") $ DataDecl "Bool" [] [] []
     defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
         ConstructorSig "Nil"  $ ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue
       , ConstructorSig "Cons" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "xs" (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue) (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue))
@@ -442,7 +442,8 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
       case envRes of
         Left err -> error err
         Right env -> do
-          return $ goal { gEnvironment = env }
+          let Right spec = runExcept $ evalStateT (resolveSchema (gSpec goal)) (initResolverState { _environment = env })
+          return $ goal { gEnvironment = env, gSpec = spec }
     parseGoal sig = do
       let transformedSig = "goal :: " ++ sig ++ "\ngoal = ??"
       parseResult <- return $ flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" transformedSig

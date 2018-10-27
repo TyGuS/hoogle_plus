@@ -148,16 +148,39 @@ public class CodeFormer {
         }
 
         //Add slots and variables to the signatures table
+        Map<Integer, Function> addedFunctions = new HashMap<>();
         for (Function sig : functions){
-            for (String type : sig.getFunParams()){
+            for (String type : sig.getFunParams()) {
+                if (type.charAt(0) == 'f') continue; // skip higher-order parameter
                 slotTypes.addEntry(type,slotNumber);
                 lastValueOfSlot.put(slotNumber,retNumber);
+                slotNumber += 1;
+            }
+            for (Function ho : sig.getHoParams()) {
+                // for (int i = 0; i < ho.getFunParams().size(); i++) {
+                //     String type = ho.getFunParams().get(i);
+                //     addedFunctions.put(functions.indexOf(sig), new Function(new ArrayList<String>(), new ArrayList<Function>(), type, "x"+i));
+                //     returnedValTypes.addEntry(type, retNumber);
+                //     returnedValFuncs.put(retNumber, "x"+i);
+                //     retNumber += 1;
+                // }
+                slotTypes.addEntry(ho.getFunReturn(), slotNumber);
+                lastValueOfSlot.put(slotNumber, retNumber);
                 slotNumber += 1;
             }
             returnedValTypes.addEntry(sig.getFunReturn(),retNumber);
             returnedValFuncs.put(retNumber, sig.getFunName());
             retNumber += 1;
         }
+
+        // for(Map.Entry<Integer, Function> entry : addedFunctions.entrySet()) {
+        //     this.functions.add(0, entry.getValue());
+        // }
+
+        for(Function f : this.functions) {
+            System.out.println(f.getFunName());
+        }
+
         //Add method return value
         if (retType != null)
         {
@@ -404,7 +427,27 @@ public class CodeFormer {
                 builder.append(sig.getFunName());
             }
             builder.append(" ");
-            for (int i = 0; i < sig.getFunParams().size() ; i++){
+
+            // first order parameter
+            for (int i = 0; i < sig.getFunParams().size(); i++){
+                if (slotCount >= satResult.size())
+                    return error;
+                if(sig.getFunParams().get(i).charAt(0) == 'f') {
+                    builder.append(sig.getFunParams().get(i));
+                    builder.append(" ");
+                    continue;
+                }
+                int id = satResult.get(slotCount);
+                slotCount ++;
+                int returnedValue = calculateReturnedValue(id);
+                int slotValue = calculateSlotValue(id);
+                //assert (slotValue == slotCount);
+                builder.append(convVarName(returnedValue));
+                builder.append(" ");
+            }
+
+            // higher order parameter
+            for (int i = 0; i < sig.getHoParams().size(); i++){
                 if (slotCount >= satResult.size())
                     return error;
                 int id = satResult.get(slotCount);
@@ -412,8 +455,12 @@ public class CodeFormer {
                 int returnedValue = calculateReturnedValue(id);
                 int slotValue = calculateSlotValue(id);
                 //assert (slotValue == slotCount);
-                builder.append(convVarName(returnedValue));
-                if (i != sig.getFunParams().size() - 1){
+                // builder.append(sig.getHoParams().get(i).getFunName());
+                String [] highOrder = new String[2];
+                highOrder[0] = sig.getHoParams().get(i).getFunName();
+                highOrder[1] = "\\x" + i + " -> " + convVarName(returnedValue);
+                var2code.add(highOrder);
+                if (i != sig.getHoParams().size() - 1){
                     builder.append(" ");
                 }
             }
@@ -435,8 +482,8 @@ public class CodeFormer {
         // or maybe we can keep the ANF form
         Collections.reverse(var2code);
         for(String [] code : var2code) {
-            // System.out.println(code[0]);
-            // System.out.println(code[1]);
+            System.out.println(code[0]);
+            System.out.println(code[1]);
             if(returnExpr.contains(code[0])) {
                 returnExpr = returnExpr.replace(code[0], "(" + code[1] + ")");
             }else{
@@ -444,6 +491,8 @@ public class CodeFormer {
             }
         }
         resultBuilder.append(returnExpr);
+
+        // System.out.println(var2code.toString());
         return resultBuilder.toString();
     }
 

@@ -7,6 +7,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.Map;
+import java.util.Set;
 import java.util.HashMap;
 
 import com.google.gson.Gson;
@@ -40,6 +41,7 @@ public class SynquidUtil {
     private static String tgtType;
     private static int loc = 1;
     private static List<String> toExclude;
+    private static int variableCounter = 0;
 
     public static void init(List<String> srcs, List<String> argNames, String tgt, String symbols, 
                             List<String> solutions, Integer startLoc)
@@ -68,18 +70,37 @@ public class SynquidUtil {
 
     public static String synthesize() {
         // Perform reachability analysis
-        // System.out.println("Number of functions:"+functions.size());
         long start = System.nanoTime();
-        
         // Increase a location until we have a result
         while (true){
             System.out.println("Current loc is:" + loc);
             List<Variable> result = Encoding.solver.findPath(loc);
             while (!result.isEmpty()){
+                System.out.println(result.toString());
                 List<Function> signatures = new ArrayList<>();
                 for (Variable s : result) {
-                    Function sig = functionMap.get(s.getName());
+                    String name = s.getName();
+                    // each time we see an entry point, add all the parameters as variables
+                    if(name.contains("|entry")) {
+                        Transition tr = net.getTransition(name);
+                        for (Flow f : tr.getPostsetEdges()) {
+                            Place p = f.getPlace();
+                            if(!p.getId().contains("|")){
+                                signatures.add(new Function(new ArrayList<String>(), new ArrayList<Function>(), p.getId(), "x"+variableCounter));
+                                variableCounter += 1;
+                            }
+                        }
+                    }
+                    // remove the name suffix and get the higher-order function name
+                    int suffixIdx = name.lastIndexOf('|');
+                    if(suffixIdx != -1) {
+                        name = name.substring(0, suffixIdx);
+                    }
+                    Function sig = functionMap.get(name);
                     if (sig != null) { // check if s is a line of a code
+                        if (signatures.contains(sig)) {
+                            signatures.remove(sig);
+                        }
                         signatures.add(sig);
                     }
                 }
