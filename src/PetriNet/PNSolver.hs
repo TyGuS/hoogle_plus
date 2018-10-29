@@ -401,6 +401,9 @@ solveTypeConstraint env t1@(ScalarT (DatatypeT id tArgs _) _) t2@(ScalarT (Datat
         checked <- view isChecked <$> get
         -- if the checking between ty and ty' succeeds, proceed to others
         when (checked) (solveTypeConstraint' env tys tys')
+solveTypeConstraint env t1@(ScalarT bt1 _) t2@(ScalarT bt2 _) | bt1 /= bt2 =
+    modify $ set isChecked False
+solveTypeConstraint env t1@(ScalarT bt1 _) t2@(ScalarT bt2 _) = return ()
 
 checkType :: (MonadIO m) => Environment -> RType -> UProgram -> PNSolver m (Maybe RProgram)
 checkType env typ p = do
