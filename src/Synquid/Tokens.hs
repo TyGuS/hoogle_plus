@@ -9,8 +9,8 @@ import Data.Char
 
 -- | Keywords
 keywords :: [String]
-keywords = ["Bool", "data", "else", "error", "False", "if", "in", "inline", 
-  "Int", "let", "match", "measure", "predicate", "qualifier", "Set", "termination",
+keywords = ["data", "else", "error", "False", "if", "in", "inline", 
+  "let", "match", "measure", "predicate", "qualifier", "termination",
   "then", "True", "type", "with", "where"
   ]
 

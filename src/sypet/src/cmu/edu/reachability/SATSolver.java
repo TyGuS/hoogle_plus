@@ -193,9 +193,12 @@ public class SATSolver {
 				VecInt block = new VecInt();
 				for (Integer id : id2variable.keySet()){
 					if (model[id-1] > 0){
-						block.push(-id);
 						res.add(id2variable.get(id));
 					}
+				}
+				// TODO: change the way of blocking the previous result
+				for(Integer id : model) {
+					block.push(-id);
 				}
 
 				// block model
