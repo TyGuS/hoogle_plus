@@ -70,7 +70,7 @@ main = do
                appMax scrutineeMax matchMax auxMax fix genPreds explicitMatch unfoldLocals partial incremental consistency memoize symmetry
                lfp bfs
                out_file out_module outFormat resolve
-               print_spec print_stats log_ 
+               print_spec print_stats log_
                graph succinct sol_num path_search higher_order) -> do
                   let explorerParams = defaultExplorerParams {
                     _eGuessDepth = appMax,
@@ -376,7 +376,7 @@ collectLibDecls libs declsByFile =
 
 precomputeGraph :: [PkgName] -> [String] -> Int -> Bool -> IO ()
 precomputeGraph pkgs mdls depth useHO = do
-  -- print pkgs
+  print pkgs
   pkgDecls <- mapM (\pkgName -> do
     downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
     declMap <- readDeclarations pkgName Nothing
@@ -384,11 +384,11 @@ precomputeGraph pkgs mdls depth useHO = do
     parsedDecls <- mapM (\decl -> evalStateT (toSynquidDecl decl) 0) fileDecls
     dependsPkg <- packageDependencies pkgName True
     dependsDecls <- concatMap (concat . Map.elems) <$> (mapM (flip readDeclarations Nothing) $ nub dependsPkg)
-    additionalDts <- declDependencies pkgName fileDecls dependsDecls >>= mapM (flip evalStateT 0 . toSynquidDecl) 
+    additionalDts <- declDependencies pkgName fileDecls dependsDecls >>= mapM (flip evalStateT 0 . toSynquidDecl)
     return $ additionalDts ++ parsedDecls
     ) pkgs
   let decls = reorderDecls $ nub $ defaultDts ++ concat pkgDecls
-  -- print decls
+  print decls
   case resolveDecls decls of
     Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
     Right (env, _, _, _) -> do
@@ -397,7 +397,7 @@ precomputeGraph pkgs mdls depth useHO = do
       -- edgeWeights <- getGraphWeights $ map getEdgeId allEdges
       -- let graph' = fillEdgeWeight allEdges edgeWeights $ envAll ^. succinctGraph
       B.writeFile "data/env.db" $ encode $ env {
-          _symbols = if useHO then env ^. symbols 
+          _symbols = if useHO then env ^. symbols
                               else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols
       }
   where
@@ -451,8 +451,8 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
         Left parseErr -> (pdoc $ pretty $ toErrorMessage parseErr) >> pdoc empty >> exitFailure
         -- Right ast -> print $ vsep $ map pretty ast
         Right (funcDecl:decl:_) -> case decl of
-          Pos _ (SynthesisGoal id uprog) -> 
-            let Pos _ (FuncDecl _ sch) = funcDecl 
+          Pos _ (SynthesisGoal id uprog) ->
+            let Pos _ (FuncDecl _ sch) = funcDecl
             in do
               let tvs = Set.toList $ typeVarsOf (toMonotype sch)
               let spec = foldr (ForallT . flip (,) []) sch tvs
