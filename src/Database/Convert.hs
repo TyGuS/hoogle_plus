@@ -121,7 +121,9 @@ resolveContext (CxTuple _ assts) = groupTuples . concat <$> mapM resolveAsst ass
 resolveContext (CxEmpty _)       = return []
 
 resolveAsst :: (MonadIO m) => Asst () -> StateT Int m [(Id, [Id])]
-resolveAsst (ClassA _ qname typs) = return [(Set.findMin . Set.unions $ map allTypeVars typs, [qnameStr qname])]
+resolveAsst a@(ClassA _ qname typs) = if Set.null tyVars then return [] else return [(Set.findMin tyVars, [qnameStr qname])]
+  where
+    tyVars = Set.unions $ map allTypeVars typs
 resolveAsst (ParenA _ asst) = resolveAsst asst
 resolveAsst a = error $ "Unknown " ++ show a
 
@@ -154,10 +156,7 @@ toSynquidSkeleton (TyParen _ typ) = toSynquidSkeleton typ
 toSynquidSkeleton (TyKind _ typ _) = toSynquidSkeleton typ
 toSynquidSkeleton t@(TyCon _ name) = case name of
     Qual _ moduleName consName -> return [ScalarT (DatatypeT ((moduleNameStr moduleName) ++ "." ++ (nameStr consName)) [] []) ()]
-    UnQual _ name -> case nameStr name of
-        "Int" -> return [ScalarT IntT ()]
-        "Bool" -> return [ScalarT BoolT ()]
-        xarg -> return [ScalarT (DatatypeT xarg [] []) ()]
+    UnQual _ name -> return [ScalarT (DatatypeT (nameStr name) [] []) ()]
     Special _ name -> return [ScalarT (DatatypeT (specialConsStr name) [] []) ()]
 toSynquidSkeleton (TyApp _ fun arg)
     | (TyCon _ name) <- fun = do
@@ -257,6 +256,14 @@ toSynquidDecl (EDecl (TypeSig _ names typ)) = do
         Just sch -> return $ Pos (initialPos (nameStr $ names !! 0)) $ SP.FuncDecl (nameStr $ head names) (toSynquidRSchema sch)
 toSynquidDecl decl = return $ Pos (initialPos "") $ SP.QualifierDecl [] -- [TODO] a fake conversion
 
+-- synonymMap :: [Declaration] -> Map Id Declaration
+-- synonymMap []           = Map.empty
+-- synonymMap (decl:decls) = case decl of
+--     Pos _ (SP.TypeDecl id _ typ) -> Map.insert id decl (synonymMap decls)
+--     _ -> synonymMap decls
+
+
+
 reorderDecls :: [Declaration] -> [Declaration]
 reorderDecls decls = Sort.sortOn toInt decls
   where
@@ -266,15 +273,15 @@ reorderDecls decls = Sort.sortOn toInt decls
     toInt (Pos _ (SP.FuncDecl {})) = 99
     toInt (Pos _ (SP.SynthesisGoal {})) = 100
 
-renameSigs :: String -> [Entry] -> [Entry]
-renameSigs _ [] = []
+renameSigs :: String -> [Entry] -> Map Id [Entry]
+renameSigs _ [] = Map.empty
 renameSigs currModule (decl:decls) = case decl of
-    EModule mdl -> decl:(renameSigs mdl decls)
-    EPackage _ -> decl:(renameSigs currModule decls)
-    EDecl (TypeSig loc names ty) -> (EDecl (TypeSig loc (map (prependName currModule) names) ty)):(renameSigs currModule decls)
-    _ -> decl:(renameSigs currModule decls)
+    EModule mdl -> Map.insertWith (++) mdl [decl] (renameSigs mdl decls)
+    EPackage _ -> renameSigs currModule decls
+    EDecl (TypeSig loc names ty) -> Map.insertWith (++) currModule [EDecl (TypeSig loc (map (prependName currModule) names) ty)] (renameSigs currModule decls)
+    _ -> Map.insertWith (++) currModule [decl] (renameSigs currModule decls)
 
-readDeclarations :: PkgName -> Maybe Version -> IO [Entry]
+readDeclarations :: PkgName -> Maybe Version -> IO (Map Id [Entry])
 readDeclarations pkg version = do
     vpkg <- do 
         case version of
@@ -305,7 +312,7 @@ packageDependencies pkg toDownload = do
 
 declDependencies :: Id -> [Entry] -> [Entry] -> IO [Entry]
 declDependencies pkgName decls dpDecls = do
-    myDtDefs <- dtDefsIn <$> readDeclarations pkgName Nothing
+    myDtDefs <- dtDefsIn . concat . Map.elems <$> readDeclarations pkgName Nothing
     let closedDecls = dependencyClosure myDefinedDts myDts (theirDts ++ myDtDefs)
     let allDecls = closedDecls -- ++ (snd $ unzip myDtDefs)
     let sortedIds = topoSort $ dependencyGraph allDecls
@@ -354,7 +361,7 @@ dtNameOf (EDecl (TypeDecl _ head _)) = declHeadName head
 
 packageDtDefs :: PkgName -> IO [(Id, Entry)]
 packageDtDefs pkg = do
-    decls <- readDeclarations pkg Nothing
+    decls <- concat . Map.elems <$> readDeclarations pkg Nothing
     -- It relies on the order of definitions exist in the source file
     return $ foldr (\decl -> ((dtNameOf decl, decl):)) [] $ filter isDataDecl decls
 
@@ -372,10 +379,10 @@ getDeclName (EDecl (TypeDecl _ head ty)) = declHeadName head
 getDeclName (EDecl (TypeSig _ names ty)) = nameStr $ head names
 getDeclName _ = ""
 
-packageDtNames :: PkgName -> IO [Id]
-packageDtNames pkg = do
-    decls <- readDeclarations pkg Nothing
-    return $ Set.toList $ Set.unions $ map getDeclTy decls
+-- packageDtNames :: PkgName -> IO [Id]
+-- packageDtNames pkg = do
+--     decls <- readDeclarations pkg Nothing
+--     return $ Set.toList $ Set.unions $ map getDeclTy decls
 
 dtNamesIn :: [Entry] -> [Id]
 dtNamesIn decls = Set.toList $ Set.unions $ map getDeclTy decls
@@ -383,11 +390,8 @@ dtNamesIn decls = Set.toList $ Set.unions $ map getDeclTy decls
 definedDtsIn :: [Entry] -> [Id]
 definedDtsIn decls = map dtNameOf $ filter isDataDecl decls    
 
-definedDts :: PkgName -> IO [Id]
-definedDts pkg = do
-    decls <- readDeclarations pkg Nothing
-    let dtDecls = filter isDataDecl decls
-    return $ map dtNameOf dtDecls
+-- definedDts :: [Entry] -> IO [Id]
+-- definedDts decls = map dtNameOf $ filter isDataDecl decls
 
 toSynquidProgram :: Exp SrcSpanInfo -> UProgram
 toSynquidProgram (Lambda _ pats body) = 

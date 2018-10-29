@@ -227,8 +227,8 @@ parseUnrefTypeNoArgs = do
   return $ ScalarT baseType ftrue  
   where
     parseBaseType = choice [
-      BoolT <$ reserved "Bool",
-      IntT <$ reserved "Int",
+      -- (DatatypeT "Bool" [] []) <$ reserved "Bool",
+      -- (DatatypeT "Int"  [] []) <$ reserved "Int",
       (\name -> DatatypeT name [][]) <$> parseTypeName,
       TypeVarT Map.empty <$> parseIdentifier]
   
@@ -257,14 +257,14 @@ parseSort = withPos (parseSortWithArgs <|> parseSortAtom <?> "sort")
   where
     parseSortAtom = choice [
       parens parseSort,
-      BoolS <$ reserved "Bool",
-      IntS <$ reserved "Int",
+      -- BoolS <$ reserved "Bool",
+      -- IntS <$ reserved "Int",
       VarS <$> parseIdentifier,
       flip DataS [] <$> parseTypeName
       ]
       
     parseSortWithArgs = choice [
-      SetS <$> (reserved "Set" >> sameOrIndented >> parseSortAtom),
+      -- SetS <$> (reserved "Set" >> sameOrIndented >> parseSortAtom),
       do
         typeName <- parseTypeName        
         typeParams <- many (sameOrIndented >> parseSortAtom)
