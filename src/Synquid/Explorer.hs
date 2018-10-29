@@ -224,7 +224,7 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
       let env' = if useHO then envConstraint else envConstraint { _symbols = Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ envConstraint ^. symbols }
       let args = (Monotype t):(Map.elems $ env' ^. arguments)
       -- start with all the datatypes defined in the queries
-      let initialState = Map.singleton "" $ foldr (Set.union . Set.map Left . allDatatypes . toMonotype) Set.empty args 
+      let initialState = Map.singleton "" $ foldr (Set.union . allDatatypes . toMonotype) Set.empty args 
       maxLevel <- asks . view $ _1 . explorerLogLevel
       cnt <- asks . view $ _1 . solutionCnt
       liftIO $ (withJVM [ fromString ("-Djava.class.path=src/sypet/sypet.jar:"  ++ 
@@ -233,7 +233,7 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
                                                     "src/sypet/lib/gson-2.8.5.jar:"        ++
                                                     "src/sypet/lib/apt.jar")
                             ] $ evalStateT (PNSolver.findFirstN env' t cnt 1)
-                              $ set PNSolver.abstractionSemantic initialState 
+                              $ set PNSolver.abstractionLevel initialState 
                               $ PNSolver.emptyTypingState {PNSolver._logLevel = maxLevel})
       -- return $ Program PErr AnyT
       -- generateMaybeMatchIf env' t isElseBranch

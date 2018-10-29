@@ -9,9 +9,5 @@
 	"Float": ["Bounded","Enum","Eq","Integral","Data","Num","Ord","Read","Real","Show","Ix","Fractional","Floating","RealFloat","RealFrac"],
 	"Double": ["Bounded","Enum","Eq","Integral","Data","Num","Ord","Read","Real","Show","Ix","Fractional","Floating","RealFloat","RealFrac"],
 	"Word": ["Bounded","Enum","Eq","Integral","Data","Num","Ord","Read","Real","Show","Ix"],
-	"Integer": ["Bounded","Enum","Eq","Integral","Data","Num","Ord","Read","Real","Show","Ix"],
-	"t": ["Eq","Ord"],
-	"Map": ["Eq","Ord"],
-	"Set": ["Eq","Ord"],
-	"a": ["Eq","Ord"]
+	"Integer": ["Bounded","Enum","Eq","Integral","Data","Num","Ord","Read","Real","Show","Ix"]
 }
