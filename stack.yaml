@@ -16,6 +16,8 @@ ghc-options:
 extra-include-dirs:
   - /usr/lib/jvm/java-8-openjdk-amd64/include
   - /usr/lib/jvm/java-8-openjdk-amd64/include/linux/
+  - /home/michael/opt/include
 extra-lib-dirs:
   - /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/amd64/server/
-  - /home/michael/sync/research/hoogle_plus/src/sypet/
+  - /home/michael/hoogle_plus/src/sypet/
+  - /home/michael/opt/lib/
