@@ -177,9 +177,9 @@ public class CodeFormer {
         //     this.functions.add(0, entry.getValue());
         // }
 
-        for(Function f : this.functions) {
-            System.out.println(f.getFunName());
-        }
+        // for(Function f : this.functions) {
+        //     System.out.println(f.getFunName());
+        // }
 
         //Add method return value
         if (retType != null)
@@ -403,15 +403,17 @@ public class CodeFormer {
         int slotCount = 0;
 
         //Add method signature
-        resultBuilder.append("\\");
-        for (int i = 0 ; i < inputTypes.size() ; i++){
-            resultBuilder.append(convVarName(varCount));
-            varCount += 1;
-            resultBuilder.append(" ");
-        }
-        resultBuilder.append(" -> ");
+        // resultBuilder.append("\\");
+        varCount += inputTypes.size();
+        // for (int i = 0 ; i < inputTypes.size() ; i++){
+        //     resultBuilder.append(convVarName(varCount));
+        //     varCount += 1;
+        //     resultBuilder.append(" ");
+        // }
+        // resultBuilder.append(" -> ");
 
         List<String[]> var2code = new ArrayList<>();
+        int variableCounter = 0;
         for (Function sig : functions){
             StringBuilder builder = new StringBuilder();
             String [] v = new String[2];
@@ -458,7 +460,8 @@ public class CodeFormer {
                 // builder.append(sig.getHoParams().get(i).getFunName());
                 String [] highOrder = new String[2];
                 highOrder[0] = sig.getHoParams().get(i).getFunName();
-                highOrder[1] = "\\x" + i + " -> " + convVarName(returnedValue);
+                highOrder[1] = "\\x" + variableCounter + " -> " + convVarName(returnedValue);
+                variableCounter += 1;
                 var2code.add(highOrder);
                 if (i != sig.getHoParams().size() - 1){
                     builder.append(" ");
@@ -482,8 +485,8 @@ public class CodeFormer {
         // or maybe we can keep the ANF form
         Collections.reverse(var2code);
         for(String [] code : var2code) {
-            System.out.println(code[0]);
-            System.out.println(code[1]);
+            // System.out.println(code[0]);
+            // System.out.println(code[1]);
             if(returnExpr.contains(code[0])) {
                 returnExpr = returnExpr.replace(code[0], "(" + code[1] + ")");
             }else{

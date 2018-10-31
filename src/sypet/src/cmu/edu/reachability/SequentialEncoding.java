@@ -54,6 +54,7 @@ public class SequentialEncoding implements Encoding {
     PetriNet pnet = null;
     int nbVariables = 1;
     int nbConstraints = 0;
+    List<String> mustTransitions = new ArrayList<>();
 
     public SequentialEncoding(PetriNet pnet, int loc) {
         this.pnet = pnet;
@@ -69,6 +70,21 @@ public class SequentialEncoding implements Encoding {
         // System.out.println("#constraints = " + solver.getNbConstraints());
         // System.out.println("#variables = " + nbVariables);
         // System.out.println("#variables in solver = " + solver.getNbVariables());
+    }
+
+    public SequentialEncoding(PetriNet pnet, int loc, List<String> hoArgs) {
+        this.pnet = pnet;
+        this.loc = loc;
+
+        // clean the data structures before creating a new encoding
+        place2variable.clear();
+        transition2variable.clear();
+        solver.reset();
+
+        mustTransitions = hoArgs;
+
+        createVariables();
+        createConstraints();
     }
 
     public void setAtLeastK(List<Pair<String, Integer>> atLeastK) {
@@ -359,6 +375,21 @@ public class SequentialEncoding implements Encoding {
 
     }
 
+    private void mustFireTransitions() {
+        for(String name : mustTransitions) {
+            Transition tr = pnet.getTransition(name);
+            VecInt clause = new VecInt();
+            for(int t = 0; t < loc; t++) {
+                Pair<Transition, Integer> pair = new ImmutablePair<Transition, Integer>(tr, t);
+                Variable var = transition2variable.get(pair);
+                clause.push(var.getId());
+            }
+
+            // at least one transition is going to be fired
+            solver.addClause(clause);
+        }
+    }
+
     @Override
     public void createVariables() {
         assert (pnet != null);
@@ -433,6 +464,8 @@ public class SequentialEncoding implements Encoding {
         // if no transitions were fired that used the place p then the marking
         // of p remains the same from times step t to t+1
         noTransitionTokens();
+
+        mustFireTransitions();
 
     }
 

@@ -46,4 +46,15 @@ public class Function {
 	public void setFunName(String name) {
 		funName = name;
 	}
+
+	public void print() {
+		System.err.print(funName + "::");
+        for(String t : funParams) {
+            System.err.print(t + "->");
+        }
+        System.err.println(funReturn);
+        for(Function f : hoParams) {
+        	f.print();
+        }
+	}
 }

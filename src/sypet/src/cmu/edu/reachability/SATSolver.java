@@ -194,12 +194,13 @@ public class SATSolver {
 				for (Integer id : id2variable.keySet()){
 					if (model[id-1] > 0){
 						res.add(id2variable.get(id));
+						block.push(-id);
 					}
 				}
 				// TODO: change the way of blocking the previous result
-				for(Integer id : model) {
-					block.push(-id);
-				}
+				// for(Integer id : model) {
+					// block.push(-id);
+				// }
 
 				// block model
 				try {

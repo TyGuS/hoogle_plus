@@ -408,13 +408,11 @@ public class BuildNet {
         }
 
     }
+
     public PetriNet build(List<Function> functions, List<String> inputs) {
         for (Function sig : functions) {
             addHaskellTransition(sig);
         }
-        // System.out.println(petrinet.getPlaces().toString());
-        // System.out.println(petrinet.getTransitions().toString());
-        // System.out.println(petrinet.getEdges().toString());
         setMaxTokens(inputs);
         return petrinet;
     }
