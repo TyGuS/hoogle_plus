@@ -64,7 +64,7 @@ data TypingState = TypingState {
     _typingError :: (SType, SType), -- typing error message, represented by the expected type and actual type
     _abstractionLevel :: Map Id (Set Id), -- current abstraction level
     _isChecked :: Bool, -- is the current state check passed
-    _currentSolutions :: [RProgram], -- type checked solutions
+    _currentSolutions :: [String], -- type checked solutions
     _currentLoc :: Int32, -- current solution depth
     _currentSigs :: Map Id AbstractSkeleton, -- current instantiated signatures
     _logLevel :: Int -- temporary for log level
@@ -273,15 +273,12 @@ topDownCheck env typ p@(Program (PSymbol sym) _) = do
     -- lookup the symbol type in current scope
     writeLog 3 $ text "Checking type for" <+> pretty p
     -- liftIO $ print (allSymbols env)
-    (t,c) <- case lookupSymbol sym 0 env of
-                Nothing  -> 
-                    case lookupSymbol ("(" ++ sym ++ ")") 0 env of -- symbol name with parenthesis
-                        Nothing  -> do
-                            writeLog 2 $ text "topDownCheck: cannot find symbol" <+> text sym <+> text "in the current environment"
-                            modify $ set isChecked False
-                            return (AnyT, [])
-                        Just sch -> freshType sch
-                Just sch -> freshType sch
+    t <- case lookupSymbol sym 0 env of
+            Nothing  ->
+                case lookupSymbol ("(" ++ sym ++ ")") 0 env of -- symbol name with parenthesis
+                    Nothing  -> error $ "topDownCheck: cannot find symbol " ++ sym ++ " in the current environment"
+                    Just sch -> fst <$> freshType sch
+            Just sch -> fst <$> freshType sch
     -- solve the type constraint t == typ
     writeLog 3 $ text "Solving constraint" <+> pretty typ <+> text "==" <+> pretty t
     solveTypeConstraint env typ (shape t)
@@ -305,15 +302,7 @@ topDownCheck env typ p@(Program (PApp pFun pArg) _) = do
             (return $ Program (PApp f arg) (addTrue typ)) -- if check fails
 
 -- peel until we get a E-term
-topDownCheck env typ@(FunctionT _ tArg tRet) p@(Program (PFun x body) _) = do
-    writeLog 3 $ text "Checking type for" <+> pretty p
-    body' <- topDownCheck (addVariable x (addTrue tArg) env) tRet body
-    ifM (view isChecked <$> get)
-        (return $ Program (PFun x body') (FunctionT x (addTrue tArg) (typeOf body')))
-        (return $ Program (PFun x body') (addTrue typ))
--- topDownCheck env typ p@(Program (PFun x body) AnyT) = do
---     writeLog 3 $ text "Checking type for" <+> pretty p
---     topDownCheck (addVariable x AnyT env) typ body
+topDownCheck env typ (Program (PFun x body) _) = topDownCheck env typ body
 
 bottomUpCheck :: (MonadIO m) => Environment -> RProgram -> StateT TypingState m (Maybe RProgram)
 bottomUpCheck env p@(Program PHole _) = return $ Just p
@@ -424,9 +413,9 @@ checkType env typ p = do
     ifM (view isChecked <$> get)
         (return $ Just top)
         (do
-            -- writeLog 3 $ text "Top down type checking get" <+> pretty top
-            -- modify $ set isChecked True
-            -- bottomUpCheck env top
+            writeLog 3 $ text "Top down type checking get" <+> pretty top
+            modify $ set isChecked True
+            bottomUpCheck env top
             return Nothing)
 
 parseTypeClass :: Environment -> IO Environment
@@ -456,17 +445,19 @@ findPath env dst = do
     freshSymbols <- mapM (\(id, sch) -> do (t,c) <- freshType sch; return (id, t, c)) $ Map.toList $ allSymbols env
     let absSymbols = foldr (\(id, t, c) -> Map.insert id (abstract (env ^. boundTypeVars) (st ^. abstractionLevel) ""
                                                           $ shape t, c)) Map.empty freshSymbols
-    let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
+    let argIds = Map.keys (env ^. arguments)
+    let args = map toMonotype $ Map.elems (env ^. arguments)
     sigs <- if Map.null (st ^. currentSigs) then instantiate env absSymbols else return (st ^. currentSigs)
     modify $ set currentSigs sigs
+    writeLog 3 $ text "Current signature abstractions" <+> text (show (Map.toList sigs))
+
     -- encode all the abstracted signatures into JSON string and pass it to SyPet
-    symbols <- liftIO $ reflect (Text.pack . LB8.unpack . Aeson.encode $ map (uncurry encodeFunction) 
-                                $ Map.toList $ foldr Map.delete sigs $ Map.keys foArgs)
-    tgt <- liftIO $ reflect (Text.pack $ show $ abstract (env ^. boundTypeVars) (st ^. abstractionSemantic) "" $ shape dst)
-    srcTypes <- liftIO $ reflect (map (Text.pack . show . abstract (env ^. boundTypeVars) (st ^. abstractionSemantic) "" . shape . toMonotype) $ Map.elems foArgs)
-    argNames <- liftIO $ reflect (map Text.pack $ Map.keys foArgs)
-    hoArgs <- liftIO $ reflect (map Text.pack $ Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments))
-    excludeLists <- liftIO $ reflect (map (Text.pack . show) (st ^. currentSolutions))
+    symbols <- liftIO $ reflect (Text.pack . LB8.unpack . Aeson.encode $ map (uncurry encodeFunction)
+                                $ Map.toList $ foldr Map.delete sigs argIds)
+    tgt <- liftIO $ reflect (Text.pack $ show $ abstract (env ^. boundTypeVars) (st ^. abstractionLevel) "" $ shape dst)
+    srcTypes <- liftIO $ reflect (map (Text.pack . show . abstract (env ^. boundTypeVars) (st ^. abstractionLevel) "" . shape) args)
+    argNames <- liftIO $ reflect (map Text.pack argIds)
+    excludeLists <- liftIO $ reflect (map Text.pack (st ^. currentSolutions))
     loc <- liftIO $ reflect (st ^. currentLoc)
     end <- liftIO $ getCurrentTime
     writeLog 1 $ text "Time for preparing data" <+> text (show $ diffUTCTime end start)
@@ -474,40 +465,64 @@ findPath env dst = do
         java.util.List<java.lang.String> srcTypes = java.util.Arrays.asList($srcTypes);
         java.util.List<java.lang.String> argNames = java.util.Arrays.asList($argNames);
         java.util.List<java.lang.String> solutions = java.util.Arrays.asList($excludeLists);
-        java.util.List<java.lang.String> hoArgs = java.util.Arrays.asList($hoArgs);
         String tgtType = $tgt;
-        System.out.println("Arguments:" + srcTypes.toString());
-        System.out.println("Target:" + tgtType);
-        cmu.edu.utils.SynquidUtil.init(srcTypes, argNames, hoArgs, tgtType, $symbols, solutions, $loc);
-        cmu.edu.utils.SynquidUtil.buildNextEncoding();
+        //System.out.println("Arguments:" + srcTypes.toString());
+        //System.out.println("Target:" + tgtType);
+        cmu.edu.utils.SynquidUtil.init(srcTypes, argNames, tgtType, $symbols, solutions, $loc);
     } |]
+    -- codeText <- liftIO $ reify code
+    -- parse the result into AST in Synquid
+    -- let codeCheck = flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" (Text.unpack codeText)
+    -- return $ Text.unpack codeText
 
 findProgram :: (MonadIO m) => Environment -> RType -> PNSolver m RProgram
 findProgram env dst = do
     findPath env dst
     code <- liftIO $ [java| {
-        java.util.List<String> codeList = cmu.edu.utils.SynquidUtil.synthesize();
-        String[] codeArr = new String[codeList.size()];
-        return codeList.toArray(codeArr);
+        cmu.edu.utils.SynquidUtil.buildNextEncoding();
+        //java.util.List<java.lang.String> res = cmu.edu.utils.SynquidUtil.synthesize();
+        java.lang.String res = cmu.edu.utils.SynquidUtil.synthesize();
+        return res;
     } |]
-    codeResult <- liftIO $ map Text.unpack <$> reify code
-    checkResult <- mapM parseAndCheck codeResult
-    let codes = catMaybes checkResult
-    solutions <- view currentSolutions <$> get
-    if (null codes) || (head codes `elem` solutions)
-        then findProgram env dst 
-        else do
+    jsonResult <- liftIO $ Text.unpack <$> reify code
+    -- liftIO $  print jsonResult
+    (code, loc) <- liftIO $ parseJson $ LB8.pack jsonResult
+    let prog = case parseExp code of
+                ParseOk exp -> toSynquidProgram exp
+                ParseFailed loc err -> error err
+    checkRes <- checkType env dst prog
+    modify $ set currentLoc loc
+    if isJust checkRes
+        then do -- FIXME when the program type checks and prepare to find the next one, save time for reconstructing the components
+            let Just p =    checkRes
+            -- add the satisfied solution to current state for future exclusion
+            modify $ over currentSolutions ((:) code)
+            st <- get
             liftIO $ putStrLn "*******************SOLUTION*********************"
-            liftIO $ print $ head codes
+            liftIO $ print p
             liftIO $ putStrLn "************************************************"
-            modify $ over currentSolutions ((:) (head codes))
-            return $ head codes
+            return p -- return the first correct program we find
+        else do
+            modify $ over currentSolutions ((:) code)
+            modify $ set currentSigs Map.empty
+            modify $ set nameCounter Map.empty
+            modify $ set typeAssignment Map.empty
+            findProgram env dst
   where
-    parseAndCheck code = do
-        let prog = case parseExp code of
-                    ParseOk exp -> toSynquidProgram exp
-                    ParseFailed loc err -> error err
-        checkType env dst prog
+    parseJson jsonResult = do
+        let decodeResult = Aeson.eitherDecode jsonResult
+        let result = case decodeResult of
+                        Left err -> error err
+                        Right v  -> case v of
+                            Aeson.Object contents -> ((fromJust $ HashMap.lookup "code" contents)
+                                                     -- ,(fromJust $ HashMap.lookup "satList" contents)
+                                                     ,(fromJust $ HashMap.lookup "loc" contents))
+                            _  -> error "findProgram: unknown error when decoding the JSON string"
+        -- let (Aeson.String code, Aeson.Array arr, Aeson.Number num) = result
+        let (Aeson.String code, Aeson.Number num) = result
+        return ( Text.unpack code
+               -- , map (\(Aeson.Number num) -> (fromJust (toBoundedInteger num))::Int32) (Vector.toList arr)
+               , (fromJust (toBoundedInteger num))::Int32)
 
 findFirstN :: (MonadIO m) => Environment -> RType -> Int -> Int -> PNSolver m RProgram
 findFirstN env dst n cnt | cnt == n  = findProgram env dst
