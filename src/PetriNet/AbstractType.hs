@@ -42,7 +42,7 @@ withinSemantic semantic key id = (id `Set.member` possibleIds, possibleIds)
 
 abstract :: [Id] -> AbstractionSemantic -> Id -> SType -> AbstractSkeleton
 abstract bound semantic key (ScalarT (DatatypeT id tArgs _) _) | key `Map.member` semantic = 
-    if inSeman then ADatatypeT id (nub $ map (abstract bound semantic (key ++ "," ++ id)) tArgs) 
+    if inSeman then ADatatypeT id (map (abstract bound semantic (key ++ "," ++ id)) tArgs)
                else AExclusion allIds
   where
     (inSeman, allIds) = withinSemantic semantic key id

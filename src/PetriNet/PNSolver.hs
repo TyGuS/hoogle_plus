@@ -213,7 +213,7 @@ instantiateWith env typs id (sk, constraints) = do
 
 cutoff :: AbstractionSemantic -> Id -> AbstractSkeleton -> AbstractSkeleton
 cutoff semantic key (ADatatypeT id tArgs) = 
-    if id `Set.member` possibleIds then ADatatypeT id (nub $ map (cutoff semantic (key ++ "," ++ id)) tArgs)
+    if id `Set.member` possibleIds then ADatatypeT id (map (cutoff semantic (key ++ "," ++ id)) tArgs)
                                else AExclusion possibleIds
   where
     currIds        = Map.findWithDefault Set.empty key semantic
@@ -423,31 +423,31 @@ solveTypeConstraint env t1@(ScalarT (DatatypeT id tArgs _) _) t2@(ScalarT (Datat
 solveTypeConstraint env t1 t2 _ = error $ "unknown types " ++ show t1 ++ " or " ++ show t2
 
 unify :: (MonadIO m) => Environment -> Id -> SType -> Map Id [Id] -> PNSolver m ()
-unify env v t@(ScalarT (DatatypeT name _ _) _) constraints | v `Map.member` constraints = 
-    if foldr ((&&) . Set.member name) True instances -- containts id and it has instance definition for each type classes constraints
-        then modify $ over typeAssignment (Map.insert v t)
-        else do
-            writeLog 3 $ text "Unify fails:" <+> pretty t <+> text "is not in" <+> pretty (Set.toList firstUnsat)
-            -- get first unsatisfied type class, and distinguish this type out of all the other defined instances
-            modify $ set isChecked False
-            modify $ over abstractionSemantic (Map.insertWith Set.union "" (Set.singleton $ Right firstUnsat))
-  where
-    classes = Map.findWithDefault [] v constraints
-    getInstances c = Map.findWithDefault Set.empty c (env ^. typeClasses)
-    instances = map getInstances classes
-    firstUnsat = minimum $ filter (not . Set.member name) instances
-unify env v t@(ScalarT (TypeVarT _ name) _) constraints | isBound env name = 
-  if foldr ((&&) . Set.member name) True instances -- containts id and it has instance definition for each type classes constraints
-        then modify $ over typeAssignment (Map.insert v t)
-        else do-- get first unsatisfied type class, and distinguish this type out of all the other defined instances
-            writeLog 3 $ text "Unify fails:" <+> pretty t <+> text "is not in" <+> pretty (Set.toList firstUnsat)
-            modify $ set isChecked False
-            modify $ over abstractionSemantic (Map.insertWith Set.union "" (Set.singleton $ Right firstUnsat))
- where
-    classes = Map.findWithDefault [] v constraints
-    getInstances c = Map.findWithDefault Set.empty c (env ^. typeClasses)
-    instances = map getInstances classes
-    firstUnsat = minimum $ filter (not . Set.member name) instances
+-- unify env v t@(ScalarT (DatatypeT name _ _) _) constraints | v `Map.member` constraints = 
+--     if foldr ((&&) . Set.member name) True instances -- containts id and it has instance definition for each type classes constraints
+--         then modify $ over typeAssignment (Map.insert v t)
+--         else do
+--             writeLog 3 $ text "Unify fails:" <+> pretty t <+> text "is not in" <+> pretty (Set.toList firstUnsat)
+--             -- get first unsatisfied type class, and distinguish this type out of all the other defined instances
+--             modify $ set isChecked False
+--             modify $ over abstractionSemantic (Map.insertWith Set.union "" (Set.singleton $ Right firstUnsat))
+--   where
+--     classes = Map.findWithDefault [] v constraints
+--     getInstances c = Map.findWithDefault Set.empty c (env ^. typeClasses)
+--     instances = map getInstances classes
+--     firstUnsat = minimum $ filter (not . Set.member name) instances
+-- unify env v t@(ScalarT (TypeVarT _ name) _) constraints | isBound env name = 
+--   if foldr ((&&) . Set.member name) True instances -- containts id and it has instance definition for each type classes constraints
+--         then modify $ over typeAssignment (Map.insert v t)
+--         else do-- get first unsatisfied type class, and distinguish this type out of all the other defined instances
+--             writeLog 3 $ text "Unify fails:" <+> pretty t <+> text "is not in" <+> pretty (Set.toList firstUnsat)
+--             modify $ set isChecked False
+--             modify $ over abstractionSemantic (Map.insertWith Set.union "" (Set.singleton $ Right firstUnsat))
+--  where
+--     classes = Map.findWithDefault [] v constraints
+--     getInstances c = Map.findWithDefault Set.empty c (env ^. typeClasses)
+--     instances = map getInstances classes
+--     firstUnsat = minimum $ filter (not . Set.member name) instances
 unify env v t _ = modify $ over typeAssignment (Map.insert v t)
 
 checkType :: (MonadIO m) => Environment -> RType -> UProgram -> PNSolver m (Maybe RProgram)
@@ -482,7 +482,7 @@ parseTypeClass env = do
 findPath :: (MonadIO m) => Environment -> RType -> PNSolver m ()
 findPath env dst = do
     writeLog 3 $ text "Start looking for a new path"
-    writeLog 3 $ text "Current datatypes:" <+> text (show $ Map.keys $ env ^. datatypes)
+    -- writeLog 3 $ text "Current symbols:" <+> pretty (Map.toList $ allSymbols env)
     st <- get
     -- abstract all the symbols in the current environment
     start <- liftIO $ getCurrentTime

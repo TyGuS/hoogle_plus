@@ -162,11 +162,11 @@ toSynquidSkeleton (TyApp _ fun arg)
     | (TyCon _ name) <- fun = do
         ScalarT (DatatypeT id tys _) _ <- head <$> toSynquidSkeleton fun
         args <- toSynquidSkeleton arg
-        return [ScalarT (DatatypeT id (args++tys) []) ()]
+        return [ScalarT (DatatypeT id (tys ++ args) []) ()]
     | (TyApp _ fun' arg') <- fun = do
         ScalarT (DatatypeT id tys _) _ <- head <$> toSynquidSkeleton fun
         args <- toSynquidSkeleton arg
-        return [ScalarT (DatatypeT id (args++tys) []) ()]
+        return [ScalarT (DatatypeT id (tys ++ args) []) ()]
     | (TyVar _ _) <- fun = return [] -- this is a wrapped type variable, do not support now
     | otherwise = do
         funs <- toSynquidSkeleton fun
