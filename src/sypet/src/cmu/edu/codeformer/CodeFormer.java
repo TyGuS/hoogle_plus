@@ -158,6 +158,15 @@ public class CodeFormer {
             returnedValFuncs.put(retNumber, sig.getFunName());
             retNumber += 1;
         }
+
+        // for(Map.Entry<Integer, Function> entry : addedFunctions.entrySet()) {
+        //     this.functions.add(0, entry.getValue());
+        // }
+
+        // for(Function f : this.functions) {
+        //     System.out.println(f.getFunName());
+        // }
+
         //Add method return value
         if (retType != null)
         {
@@ -380,15 +389,17 @@ public class CodeFormer {
         int slotCount = 0;
 
         //Add method signature
-        resultBuilder.append("\\");
-        for (int i = 0 ; i < inputTypes.size() ; i++){
-            resultBuilder.append(convVarName(varCount));
-            varCount += 1;
-            resultBuilder.append(" ");
-        }
-        resultBuilder.append(" -> ");
+        // resultBuilder.append("\\");
+        varCount += inputTypes.size();
+        // for (int i = 0 ; i < inputTypes.size() ; i++){
+        //     resultBuilder.append(convVarName(varCount));
+        //     varCount += 1;
+        //     resultBuilder.append(" ");
+        // }
+        // resultBuilder.append(" -> ");
 
         List<String[]> var2code = new ArrayList<>();
+        int variableCounter = 0;
         for (Function sig : functions){
             StringBuilder builder = new StringBuilder();
             String [] v = new String[2];
@@ -413,7 +424,25 @@ public class CodeFormer {
                 int slotValue = calculateSlotValue(id);
                 //assert (slotValue == slotCount);
                 builder.append(convVarName(returnedValue));
-                if (i != sig.getFunParams().size() - 1){
+                builder.append(" ");
+            }
+
+            // higher order parameter
+            for (int i = 0; i < sig.getHoParams().size(); i++){
+                if (slotCount >= satResult.size())
+                    return error;
+                int id = satResult.get(slotCount);
+                slotCount ++;
+                int returnedValue = calculateReturnedValue(id);
+                int slotValue = calculateSlotValue(id);
+                //assert (slotValue == slotCount);
+                // builder.append(sig.getHoParams().get(i).getFunName());
+                String [] highOrder = new String[2];
+                highOrder[0] = sig.getHoParams().get(i).getFunName();
+                highOrder[1] = "\\x" + variableCounter + " -> " + convVarName(returnedValue);
+                variableCounter += 1;
+                var2code.add(highOrder);
+                if (i != sig.getHoParams().size() - 1){
                     builder.append(" ");
                 }
             }
