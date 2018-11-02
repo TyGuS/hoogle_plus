@@ -16,3 +16,4 @@ main = do
                  ++ "}"
     writeFile "build.gradle" buildFile
     defaultMainWithHooks (gradleHooks simpleUserHooks)
+

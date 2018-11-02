@@ -4,8 +4,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveGeneric  #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# OPTIONS_GHC -fplugin=Language.Java.Inline.Plugin #-}
-{-# OPTIONS_GHC -fplugin-opt=Language.Java.Inline.Plugin:dump-java #-}
+{-# --OPTIONS_GHC -fplugin=Language.Java.Inline.Plugin #-}
+{-# --OPTIONS_GHC -fplugin-opt=Language.Java.Inline.Plugin:dump-java #-}
 
 module PetriNet.PNSolver where
 
@@ -22,6 +22,7 @@ import Control.Lens
 import Control.Monad.State
 import Data.Foldable
 import Data.List
+import Data.List.Extra (nubOrd)
 import Data.Maybe
 import Data.Either hiding (fromLeft, fromRight)
 import Data.Int
@@ -145,7 +146,7 @@ instantiate env sigs = instantiate' sigs $ Map.map fst $ Map.filter (not . hasAb
     constructType abstraction key | key `Map.notMember` abstraction =
         let currDt     = if null (splitBy ',' key) then "" else last $ splitBy ',' key
         in if currDt == "" then [AExclusion Set.empty]
-                           else nub $ if Char.isUpper $ head currDt
+                           else nubOrd $ if Char.isUpper $ head currDt
                                         then case Map.lookup currDt (env ^. datatypes) of
                                                 Just def -> if null $ def ^. typeParams then [ADatatypeT currDt []] else [ADatatypeT currDt [AExclusion Set.empty]]
                                                 Nothing  -> error $ "instantiate: cannot find datatype " ++ currDt ++ " in the environment"
@@ -154,12 +155,12 @@ instantiate env sigs = instantiate' sigs $ Map.map fst $ Map.filter (not . hasAb
         let nextKeys   = fromJust $ Map.lookup key abstraction
             currDt     = if null (splitBy ',' key) then "" else last $ splitBy ',' key
         in if currDt == ""
-            then nub $ [AExclusion nextKeys] ++ concatMap (constructType abstraction . (++) (key ++ ",")) (Set.toList nextKeys)
+            then nubOrd $ [AExclusion nextKeys] ++ concatMap (constructType abstraction . (++) (key ++ ",")) (Set.toList nextKeys)
             else if Char.isUpper $ head currDt
                 then case Map.lookup currDt (env ^. datatypes) of
-                        Just def -> if null $ def ^. typeParams then [ADatatypeT currDt []] else nub $ map (ADatatypeT currDt . (:[])) $ [AExclusion nextKeys] ++ concatMap (constructType abstraction . (++) (key ++ ",")) (Set.toList nextKeys)
+                        Just def -> if null $ def ^. typeParams then [ADatatypeT currDt []] else nubOrd $ map (ADatatypeT currDt . (:[])) $ [AExclusion nextKeys] ++ concatMap (constructType abstraction . (++) (key ++ ",")) (Set.toList nextKeys)
                         Nothing  -> error $ "instantiate: cannot find datatype " ++ currDt ++ " in the environment"
-                else nub $ [ATypeVarT currDt, AExclusion (Set.singleton currDt)] -- this is bounded type variables
+                else nubOrd $ [ATypeVarT currDt, AExclusion (Set.singleton currDt)] -- this is bounded type variables
     instantiate' sigs sigsAcc = do
         st <- get
         -- writeLog 0 $ text "current abstraction types:" <+> pretty (constructType (st ^. abstractionLevel) "")
@@ -198,7 +199,7 @@ instantiateWith env typs id (sk, constraints) = do
 
         multiPermutation len elmts | len == 0 = []
         multiPermutation len elmts | len == 1 = [[e] | e <- elmts]
-        multiPermutation len elmts            = nub $ [ l:r | l <- elmts, r <- multiPermutation (len - 1) elmts]
+        multiPermutation len elmts            = nubOrd $ [ l:r | l <- elmts, r <- multiPermutation (len - 1) elmts]
 
         unifierValid constraintMap id t =
             let constraints = map (flip (Map.findWithDefault Set.empty) (env ^. typeClasses)) $ (Map.findWithDefault [] id constraintMap)
@@ -215,7 +216,7 @@ instantiateWith env typs id (sk, constraints) = do
 cutoff :: Map Id (Set Id) -> Id -> AbstractSkeleton -> AbstractSkeleton
 cutoff level key (ADatatypeT id tArgs) | key `Map.member` level =
     let currIds = fromJust $ Map.lookup key level
-    in if id `Set.member` currIds then ADatatypeT id (nub $ map (cutoff level (key ++ "," ++ id)) tArgs)
+    in if id `Set.member` currIds then ADatatypeT id (nubOrd $ map (cutoff level (key ++ "," ++ id)) tArgs)
                                   else AExclusion currIds
 cutoff level key (ADatatypeT id tArgs) | otherwise = AExclusion Set.empty
 cutoff level key (AFunctionT tArg tRet) = AFunctionT (cutoff level key tArg) (cutoff level key tRet)
@@ -268,6 +269,8 @@ distinguish env level tass key t1 t2 =
     in if t1' == t2' then level
                      else Map.insertWith Set.union key (Set.fromList [scalarName t1', scalarName t2']) level
 
+{-# SCC distinguish #-}
+
 topDownCheck :: (MonadIO m) => Environment -> SType -> UProgram -> PNSolver m RProgram
 topDownCheck env typ p@(Program (PSymbol sym) _) = do
     -- lookup the symbol type in current scope
@@ -319,7 +322,8 @@ bottomUpCheck env p@(Program (PSymbol sym) typ) = do
     writeLog 3 $ text "Distinguishing" <+> pretty (shape typ) <+> text "and" <+> pretty (shape t)
     tass <- view typeAssignment <$> get
     curr <- view abstractionLevel <$> get
-    modify $ set abstractionLevel $ distinguish env curr tass "" (shape typ) (shape t)
+    -- TODO: the following line enables abstraction refinement
+    -- modify $  set abstractionLevel $ distinguish env curr tass "" (shape typ) (shape t)
     return $ Just $ Program (PSymbol sym) t
 bottomUpCheck env (Program (PApp pFun pArg) typ) = do
     fun <- bottomUpCheck env pFun
@@ -337,7 +341,9 @@ bottomUpCheck env (Program (PApp pFun pArg) typ) = do
                     writeLog 3 $ text "Distinguishing" <+> pretty (shape $ typeOf a) <+> text "and" <+> pretty (shape tArg)
                     let argLevel = distinguish env curr tass "" (shape $ typeOf a) (shape tArg)
                     writeLog 3 $ text "Distinguishing" <+> pretty (shape typ) <+> text "and" <+> pretty (shape tRet)
-                    modify $ set abstractionLevel $ distinguish env argLevel tass "" (shape typ) (shape tRet)
+                    -- writeLog 1 $ text "would distinguish" <+> (text (show $ distinguish env argLevel tass "" (shape typ) (shape tRet)))
+                    -- TODO: the following line enables abstraction refinement
+                    -- modify $ set abstractionLevel $ distinguish env argLevel tass "" (shape typ) (shape tRet)
                     ifM (view isChecked <$> get)
                         (return $ Just $ Program (PApp f a) tRet) -- Either type to store the conflict types
                         (return Nothing)
@@ -461,15 +467,16 @@ findPath env dst = do
     loc <- liftIO $ reflect (st ^. currentLoc)
     end <- liftIO $ getCurrentTime
     writeLog 1 $ text "Time for preparing data" <+> text (show $ diffUTCTime end start)
-    liftIO $ [java| {
-        java.util.List<java.lang.String> srcTypes = java.util.Arrays.asList($srcTypes);
-        java.util.List<java.lang.String> argNames = java.util.Arrays.asList($argNames);
-        java.util.List<java.lang.String> solutions = java.util.Arrays.asList($excludeLists);
-        String tgtType = $tgt;
-        //System.out.println("Arguments:" + srcTypes.toString());
-        //System.out.println("Target:" + tgtType);
-        cmu.edu.utils.SynquidUtil.init(srcTypes, argNames, tgtType, $symbols, solutions, $loc);
-    } |]
+    undefined
+    -- liftIO $ [java| {
+        -- java.util.List<java.lang.String> srcTypes = java.util.Arrays.asList($srcTypes);
+        -- java.util.List<java.lang.String> argNames = java.util.Arrays.asList($argNames);
+        -- java.util.List<java.lang.String> solutions = java.util.Arrays.asList($excludeLists);
+        -- String tgtType = $tgt;
+        -- //System.out.println("Arguments:" + srcTypes.toString());
+        -- //System.out.println("Target:" + tgtType);
+        -- cmu.edu.utils.SynquidUtil.init(srcTypes, argNames, tgtType, $symbols, solutions, $loc);
+    -- } |]
     -- codeText <- liftIO $ reify code
     -- parse the result into AST in Synquid
     -- let codeCheck = flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" (Text.unpack codeText)
@@ -478,12 +485,13 @@ findPath env dst = do
 findProgram :: (MonadIO m) => Environment -> RType -> PNSolver m RProgram
 findProgram env dst = do
     findPath env dst
-    code <- liftIO $ [java| {
-        cmu.edu.utils.SynquidUtil.buildNextEncoding();
-        //java.util.List<java.lang.String> res = cmu.edu.utils.SynquidUtil.synthesize();
-        java.lang.String res = cmu.edu.utils.SynquidUtil.synthesize();
-        return res;
-    } |]
+    -- code <- liftIO $ [java| {
+        -- cmu.edu.utils.SynquidUtil.buildNextEncoding();
+        -- //java.util.List<java.lang.String> res = cmu.edu.utils.SynquidUtil.synthesize();
+        -- java.lang.String res = cmu.edu.utils.SynquidUtil.synthesize();
+        -- return res;
+    -- } |]
+    code <- undefined
     jsonResult <- liftIO $ Text.unpack <$> reify code
     -- liftIO $  print jsonResult
     (code, loc) <- liftIO $ parseJson $ LB8.pack jsonResult
