@@ -229,10 +229,12 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
       cnt <- asks . view $ _1 . solutionCnt
       liftIO $ (withJVM [ fromString ("-Djava.class.path=src/sypet/sypet.jar:"  ++ 
                                                     "src/sypet/lib/sat4j-pb.jar:"          ++
+                                                    "src/sypet/lib/sat4j-maxsat.jar:"      ++
                                                     "src/sypet/lib/commons-lang3-3.4.jar:" ++
                                                     "src/sypet/lib/gson-2.8.5.jar:"        ++
                                                     "src/sypet/lib/apt.jar")
                             ] $ evalStateT (PNSolver.findPath env' t >> PNSolver.findFirstN env' t cnt 1)
+                            -- ] $ evalStateT (PNSolver.findFirstN env' t cnt 1)
                               $ set PNSolver.abstractionSemantic initialState 
                               $ PNSolver.emptyTypingState {PNSolver._logLevel = maxLevel})
       -- return $ Program PErr AnyT

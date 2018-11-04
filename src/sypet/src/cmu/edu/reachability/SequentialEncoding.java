@@ -390,6 +390,22 @@ public class SequentialEncoding implements Encoding {
         }
     }
 
+    private void weightedTransitions() {
+        for(Transition tr : pnet.getTransitions()){
+            for(int t = 0; t < loc; t++) {
+                Pair<Transition, Integer> pair = new ImmutablePair<Transition, Integer>(tr, t);
+                Variable var = transition2variable.get(pair);
+                VecInt clause = new VecInt();
+                clause.push(-var.getId());
+                if(tr.getId().contains("intersection")) {
+                    solver.addSoftClause(1, clause);
+                } else {
+                    solver.addSoftClause(100, clause);
+                }
+            }
+        }
+    }
+
     @Override
     public void createVariables() {
         assert (pnet != null);
@@ -466,6 +482,8 @@ public class SequentialEncoding implements Encoding {
         noTransitionTokens();
 
         mustFireTransitions();
+
+        weightedTransitions();
 
     }
 

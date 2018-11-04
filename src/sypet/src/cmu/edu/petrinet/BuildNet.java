@@ -442,12 +442,6 @@ public class BuildNet {
             //recursively add this argument as a transition
             Function hoParam = sig.getHoParams().get(i);
  
-            // entry assignes one token to the parameters of higher order argument
-            for(String param : hoParam.getFunParams()) {
-                addPlace(param);
-                addFlow(entry, param, 1);
-            }
-
             // the return type of the HO argument goes into exit
             addPlace(hoParam.getFunReturn());
             addFlow(hoParam.getFunReturn(), exit, 1);
@@ -457,6 +451,23 @@ public class BuildNet {
             addPlace(special);
             addFlow(entry, special, 1);
             addFlow(special, exit, 1);
+
+            // entry assignes one token to the parameters of higher order argument
+            for(String param : hoParam.getFunParams()) {
+                addPlace(param);
+                addFlow(entry, param, 1);
+
+                // consume some ho arguments
+                // addPlace("void");
+                // String consume = param + "|consume";
+                // if(!petrinet.containsTransition(consume)) {
+                //     petrinet.createTransition(consume);
+                // }
+                // addFlow(param, consume, 1);
+                // addFlow(special, consume, 1);
+                // addFlow(consume, "void", 1);
+                // addFlow(consume, special, 1);
+            }
 
             // exit point goes to the return type of function
             addFlow(exit, sig.getFunReturn(), 1);

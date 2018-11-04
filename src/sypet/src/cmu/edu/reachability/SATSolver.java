@@ -42,6 +42,7 @@ import org.sat4j.core.VecInt;
 //import org.sat4j.minisat.SolverFactory;
 //import org.sat4j.specs.ISolver;
 import org.sat4j.pb.IPBSolver;
+import org.sat4j.maxsat.WeightedMaxSatDecorator;
 import org.sat4j.pb.SolverFactory;
 import org.sat4j.specs.ContradictionException;
 import org.sat4j.specs.TimeoutException;
@@ -50,7 +51,8 @@ import cmu.edu.reachability.SATSolver.ConstraintType;
 
 public class SATSolver {
 	
-	private IPBSolver solver = null;
+	private IPBSolver pbSolver = null;
+	private WeightedMaxSatDecorator solver = null;
 	private boolean unsat = false;
 	private VecInt assumptions;
 	
@@ -63,13 +65,15 @@ public class SATSolver {
 	public VecInt loc_variables;
 	
 	public SATSolver(){
-		solver = SolverFactory.newDefault();
+		pbSolver = SolverFactory.newDefault();
+		solver = new WeightedMaxSatDecorator(pbSolver);
 		assumptions = new VecInt();
 		loc_variables = new VecInt();
 	}
 	
 	public void reset(){
-		solver = SolverFactory.newDefault();
+		pbSolver = SolverFactory.newDefault();
+		solver = new WeightedMaxSatDecorator(pbSolver);
 		unsat = false;
 		id2variable.clear();
 		nbVariables = 0;
@@ -107,7 +111,15 @@ public class SATSolver {
 	
 	public void addClause(VecInt constraint) {
 		try {
-			solver.addClause(constraint);
+			solver.addHardClause(constraint);
+		} catch (ContradictionException e) {
+			unsat = false;
+		}
+	}
+
+	public void addSoftClause(int weight, VecInt constraint) {
+		try {
+			solver.addSoftClause(weight, constraint);
 		} catch (ContradictionException e) {
 			unsat = false;
 		}
@@ -160,7 +172,7 @@ public class SATSolver {
 	public void setTrue(int v){
 		try{
 			VecInt clause = new VecInt(new int[] {v});
-			solver.addClause(clause);
+			solver.addHardClause(clause);
 		} catch (ContradictionException e) {
 			unsat = true;
 		}
@@ -169,7 +181,7 @@ public class SATSolver {
 	public void setFalse(int v){
 		try{
 			VecInt clause = new VecInt(new int[] {-v});
-			solver.addClause(clause);
+			solver.addHardClause(clause);
 		} catch (ContradictionException e) {
 			unsat = true;
 		}
@@ -208,7 +220,7 @@ public class SATSolver {
 					// ~getX(loc=1) OR ~setX(loc=2) OR ~setY(loc=3) OR L1
 					//block.push(loc_variables.get(loc-1));
 					//assumptions.push(-loc_variables.get(loc-1));
-					solver.addClause(block);
+					solver.addHardClause(block);
 				}
 				catch (ContradictionException e) {
 					unsat = true;

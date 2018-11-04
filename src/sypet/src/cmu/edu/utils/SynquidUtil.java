@@ -268,8 +268,9 @@ public class SynquidUtil {
         for(Function fun : functions) {
             // System.out.println(fun.getFunName());
             functionMap.put(fun.getFunName(), fun);
-            fun.print();
+            // fun.print();
         }
+        System.err.println("Total number of functions:" + functions.size());
         return;
     }
 

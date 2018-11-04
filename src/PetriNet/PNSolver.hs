@@ -149,9 +149,9 @@ constructType env abstraction key
     | key `Map.notMember` abstraction && currDt == "" = [AExclusion Set.empty]
     | key `Map.notMember` abstraction && isDt = [ADatatypeT currDt $ replicate dtParams (AExclusion Set.empty)]
     | key `Map.notMember` abstraction = [ATypeVarT currDt, AExclusion (Set.singleton currDt)] -- this is bounded type variables
-    | currDt == "" = nub $ AExclusion allIds : anyOneIds ++ concatMap (constructType env abstraction . (++) (key ++ ",")) (Set.toList allIds)
-    | isDt = nub $ map (ADatatypeT currDt) $ listOfN dtParams $ (AExclusion allIds) : anyOneIds ++ concatMap (constructType env abstraction . (++) (key ++ ",")) (Set.toList allIds)
-    | otherwise = nub $ [ATypeVarT currDt, AExclusion (Set.singleton currDt)] -- this is bounded type variables
+    | currDt == "" = nubOrd $ AExclusion allIds : anyOneIds ++ concatMap (constructType env abstraction . (++) (key ++ ",")) (Set.toList allIds)
+    | isDt = nubOrd $ map (ADatatypeT currDt) $ listOfN dtParams $ (AExclusion allIds) : anyOneIds ++ concatMap (constructType env abstraction . (++) (key ++ ",")) (Set.toList allIds)
+    | otherwise = nubOrd $ [ATypeVarT currDt, AExclusion (Set.singleton currDt)] -- this is bounded type variables
   where
     currDt = if null (splitBy ',' key) 
                 then "" 
@@ -181,7 +181,7 @@ instantiate env sigs = instantiate' sigs $ Map.map fst $ Map.filter (not . hasAb
         writeLog 3 $ text "Current abstraction semantics:" <+> text (show (st ^. abstractionSemantic))
         writeLog 3 $ text "Current abstract types:" <+> pretty typs 
         sigs' <- foldM (\acc -> (<$>) (Map.union acc) . uncurry (instantiateWith env typs)) Map.empty (Map.toList sigs)
-        return $ Map.fromList $ nubOn (uncurry removeSuffix) $ Map.toList $ Map.union sigsAcc sigs'
+        return $ Map.fromList $ nubOrdOn (uncurry removeSuffix) $ Map.toList $ Map.union sigsAcc sigs'
 
 instantiateWith :: (MonadIO m) => Environment -> [AbstractSkeleton] -> Id -> (AbstractSkeleton, ClassConstraint) -> PNSolver m (Map Id AbstractSkeleton)
 instantiateWith env typs id (sk, constraints) = do
@@ -190,6 +190,7 @@ instantiateWith env typs id (sk, constraints) = do
     let multiSubsts = map (zip vars) $ multiPermutation (length vars) typs
     let validSubsts = filter (foldr (\(id, t) acc -> (unifierValid constraintMap id t) && acc) True) multiSubsts
     let substedSymbols = map (foldr (\(id, t) acc -> abstractSubstitute (env ^. boundTypeVars) id t acc) sk) validSubsts
+    -- writeLog 3 $ text id <+> text "::" <+> pretty sk
     st <- get
     foldrM (\t accMap -> do
         newId <- newSymbolName id
@@ -197,13 +198,13 @@ instantiateWith env typs id (sk, constraints) = do
     where
         multiPermutation len elmts | len == 0 = []
         multiPermutation len elmts | len == 1 = [[e] | e <- elmts]
-        multiPermutation len elmts            = nub $ [ l:r | l <- elmts, r <- multiPermutation (len - 1) elmts]
+        multiPermutation len elmts            = nubOrd $ [ l:r | l <- elmts, r <- multiPermutation (len - 1) elmts]
         
-        unifierValid constraintMap id t =
-            let constraints = map (flip (Map.findWithDefault Set.empty) (env ^. typeClasses)) $ (Map.findWithDefault [] id constraintMap)
-            in case outerName t of
-                Left names -> foldr ((&&) . not . Set.null . Set.intersection names) True constraints -- containts id
-                Right names -> foldr ((&&) . not . Set.null . flip Set.difference names) True constraints -- not contains names
+        unifierValid constraintMap id t = True
+            -- let constraints = map (flip (Map.findWithDefault Set.empty) (env ^. typeClasses)) $ (Map.findWithDefault [] id constraintMap)
+            -- in case outerName t of
+            --     Left names -> foldr ((&&) . not . Set.null . Set.intersection names) True constraints -- containts id
+            --     Right names -> foldr ((&&) . not . Set.null . flip Set.difference names) True constraints -- not contains names
 
         newSymbolName prefix = do
             indices <- flip (^.) nameCounter <$> get
@@ -308,8 +309,6 @@ topDownCheck env typ p@(Program (PApp pFun pArg) _) = do
         ifM (view isChecked <$> get)
             (return $ Program (PApp f arg) tRet)
             (return $ Program (PApp f arg) (addTrue typ)) -- if check fails
-
--- peel until we get a E-term
 topDownCheck env typ@(FunctionT _ tArg tRet) p@(Program (PFun x body) _) = do
     writeLog 3 $ text "Checking type for" <+> pretty p
     body' <- topDownCheck (addVariable x (addTrue tArg) env) tRet body
@@ -328,7 +327,9 @@ bottomUpCheck env p@(Program (PSymbol sym) typ) = do
     (t,c) <- case lookupSymbol sym 0 env of
                 Nothing  -> 
                     case lookupSymbol ("(" ++ sym ++ ")") 0 env of -- symbol name with parenthesis
-                        Nothing  -> error $ "bottomUpCheck: cannot find symbol " ++ sym ++ " in the current environment"
+                        Nothing  -> do
+                            modify $ set isChecked False
+                            return (AnyT, []) -- error $ "bottomUpCheck: cannot find symbol " ++ sym ++ " in the current environment"
                         Just sch -> freshType sch
                 Just sch -> freshType sch
     -- solveTypeConstraint env (shape typ) (shape t)
@@ -336,7 +337,9 @@ bottomUpCheck env p@(Program (PSymbol sym) typ) = do
     tass <- view typeAssignment <$> get
     curr <- view abstractionSemantic <$> get
     modify $ set abstractionSemantic $ distinguish env curr tass "" (shape typ) (shape t)
-    return $ Just $ (Program (PSymbol sym) t, c)
+    ifM (view isChecked <$> get)
+        (return $ Just $ (Program (PSymbol sym) t, c))
+        (return Nothing)
 bottomUpCheck env (Program (PApp pFun pArg) typ) = do
     fun <- bottomUpCheck env pFun
     case fun of
@@ -347,7 +350,7 @@ bottomUpCheck env (Program (PApp pFun pArg) typ) = do
             case arg of
                 Nothing -> return Nothing
                 Just (a, aConstraints) -> do
-                    writeLog 3 $ text "Solving constraint" <+> pretty (shape $ typeOf a) <+> text "==" <+> pretty (shape tArg)
+                    writeLog 3 $ text "Solving constraint for" <+> pretty a <+> pretty (shape $ typeOf a) <+> text "==" <+> pretty (shape tArg)
                     solveTypeConstraint env (shape $ typeOf a) (shape tArg) (Map.fromList (fConstraints ++ aConstraints))
                     tass <- view typeAssignment <$> get
                     curr <- view abstractionSemantic <$> get
@@ -358,7 +361,12 @@ bottomUpCheck env (Program (PApp pFun pArg) typ) = do
                     ifM (view isChecked <$> get)
                         (return $ Just $ (Program (PApp f a) tRet, fConstraints ++ aConstraints)) -- Either type to store the conflict types
                         (return Nothing)
-bottomUpCheck env (Program (PFun _ body) _) = bottomUpCheck env body
+bottomUpCheck env p@(Program (PFun x body) (FunctionT _ tArg tRet)) = do
+    writeLog 3 $ text "Checking type for" <+> pretty p
+    body' <- bottomUpCheck (addVariable x (addTrue tArg) env) body
+    case body' of
+        Nothing -> return Nothing
+        Just (b,c) -> return $ Just (Program (PFun x b) (FunctionT x tArg (typeOf b)), c)
 
 solveTypeConstraint :: (MonadIO m) => Environment -> SType -> SType -> Map Id [Id] -> StateT TypingState m ()
 solveTypeConstraint _ AnyT _ _ = return ()
@@ -517,6 +525,7 @@ findPath env dst = do
 
 findProgram :: (MonadIO m) => Environment -> RType -> PNSolver m RProgram
 findProgram env dst = do
+    -- findPath env dst
     code <- liftIO $ [java| {
         java.util.List<String> codeList = cmu.edu.utils.SynquidUtil.synthesize();
         String[] codeArr = new String[codeList.size()];
@@ -527,7 +536,9 @@ findProgram env dst = do
     let codes = catMaybes checkResult
     solutions <- view currentSolutions <$> get
     if (null codes) || (head codes `elem` solutions)
-        then findProgram env dst 
+        then do
+            -- modify $ set currentSigs Map.empty
+            findProgram env dst 
         else do
             liftIO $ putStrLn "*******************SOLUTION*********************"
             liftIO $ print $ head codes

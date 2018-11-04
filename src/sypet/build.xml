@@ -13,6 +13,7 @@
     <javac target="1.8" source="1.8" srcdir="src" destdir="bin" debug="true">
         <classpath>
             <pathelement location="lib/sat4j-pb.jar"/>
+            <pathelement location="lib/sat4j-maxsat.jar"/>
             <pathelement location="lib/soot-trunk.jar"/>
             <pathelement location="lib/gson-2.8.5.jar"/>
             <pathelement location="lib/commons-lang3-3.4.jar"/>
@@ -32,6 +33,7 @@
         <classpath>
             <pathelement location="${this.dir}/sypet.jar"/>
             <pathelement location="lib/sat4j-pb.jar"/>
+            <pathelement location="lib/sat4j-maxsat.jar"/>
             <pathelement location="lib/soot-trunk.jar"/>
             <pathelement location="lib/gson-2.8.5.jar"/>
             <pathelement location="lib/commons-lang3-3.4.jar"/>
