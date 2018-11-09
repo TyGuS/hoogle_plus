@@ -22,6 +22,8 @@ import Database.Util
 docVersionsUrl = "https://hackage.haskell.org/packages/docs"
 docDownloadUrl = "https://hackage.haskell.org/package/"
 
+bannedBuildDeps = ["rts"]
+
 -- | check whether the doc of the given version is available by querying to https://hackage.haskell.org/packages/docs
 checkVersion :: PkgName -> Version -> IO Bool
 checkVersion pkg version = do
@@ -39,21 +41,24 @@ packageNameWithVersion pkg version = case version of
     Nothing -> return pkg
     Just v  -> ifM (checkVersion pkg v) (return $ pkg ++ "-" ++ v) (return pkg)
 
-downloadFile :: PkgName -> Maybe Version -> IO Bool
+downloadFile :: PkgName -> Maybe Version -> IO FilePath
 downloadFile pkg version = do
     vpkg <- packageNameWithVersion pkg version
-    doesExist <- doesFileExist $ downloadDir ++ vpkg ++ ".txt"
-    if not doesExist 
+    let downloadPath = downloadDir ++ vpkg ++ ".txt"
+    doesExist <- doesFileExist downloadPath
+    if not doesExist
         then do
             hPutStrLn stderr $ "Downloading file " ++ vpkg ++ " from Hackage..."
-            request <- parseRequest $ docDownloadUrl ++ vpkg ++ "/docs/" ++ pkg ++ ".txt"
+            let url = docDownloadUrl ++ vpkg ++ "/docs/" ++ pkg ++ ".txt"
+            request <- parseRequest $ url
             manager <- newManager tlsManagerSettings
             runResourceT $ do
                 response <- http request manager
-                if responseStatus response /= ok200
-                    then return False -- error "Connection Error"
-                    else runConduit (responseBody response .| sinkFile (downloadDir ++ vpkg ++ ".txt")) >> return True
-        else return True
+                let responseCode = responseStatus response
+                if  responseCode /= ok200
+                    then error $ "Connection Error on resource: " ++ url ++ " : " ++ show responseCode
+                    else runConduit (responseBody response .| sinkFile downloadPath) >> return downloadPath
+        else return downloadPath
 
 downloadCabal :: PkgName -> Maybe Version -> IO Bool
 downloadCabal pkg version = do

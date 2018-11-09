@@ -377,10 +377,12 @@ precomputeGraph :: [PkgName] -> [String] -> Int -> Bool -> IO ()
 precomputeGraph pkgs mdls depth useHO = do
   print pkgs
   pkgDecls <- mapM (\pkgName -> do
-    downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
+    declarationFilePath <- downloadFile pkgName Nothing
+    downloadCabal pkgName Nothing
     -- baseDecls <- addPrelude <$> readDeclarations "base" Nothing
     let baseDecls = []
-    fileDecls <- filter (isIncludedModule . getDeclName) <$> readDeclarations pkgName Nothing
+    fileDecls <- filter (isIncludedModule . getDeclName) <$>
+        readDeclarationsFromFile declarationFilePath
     mapM_ print fileDecls
     -- readDeclarations pkgName Nothing >>= print
     parsedDecls <- mapM (\decl -> evalStateT (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)

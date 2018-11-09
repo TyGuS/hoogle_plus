@@ -108,8 +108,8 @@ matchDtWithCons [] = []
 matchDtWithCons (decl:decls) = case decl of
     EDecl (DataDecl a b c hd conDecls d) -> case decls of
         [] -> decl : matchDtWithCons decls
-        decl':decls' | EDecl (TypeSig _ names typ) <- decl' -> if nameStr (head names) == declHeadName hd 
-                                                                   then let conDecl = QualConDecl a Nothing c (ConDecl a (head names) [typ]) 
+        decl':decls' | EDecl (TypeSig _ names typ) <- decl' -> if nameStr (head names) == declHeadName hd
+                                                                   then let conDecl = QualConDecl a Nothing c (ConDecl a (head names) [typ])
                                                                         in (EDecl (DataDecl a b c hd (conDecl:conDecls) d)): matchDtWithCons decls'
                                                                    else decl : matchDtWithCons decls
                      | otherwise -> decl : matchDtWithCons decls
@@ -130,16 +130,17 @@ toSynquidSchema (TyForall _ _ (Just ctx) typ) = do -- if this type has some cont
     typs <- toSynquidSkeleton typ
     case typs of
         [] -> return Nothing
-        _  -> do
-            let typ' = head typs
+        ty:tys  -> do
             classQuals <- resolveContext ctx
-            return $ Just $ foldr ForallT (Monotype typ') classQuals
+            return $ Just $ foldr ForallT (Monotype ty) classQuals
 toSynquidSchema typ = do
     typs <- toSynquidSkeleton typ
     case typs of
         [] -> return Nothing
-        _  -> return $ Just . Monotype $ head typs
+        ty:tys  -> return $ Just $ Monotype ty
 
+-- toSynquidSchema converts a haskell type into an unrefined type
+-- This is a lossy operation.
 toSynquidSkeleton :: (MonadIO m) => Type () -> StateT Int m [SType]
 toSynquidSkeleton t@(TyForall _ _ _ typ) = toSynquidSkeleton typ
 toSynquidSkeleton (TyFun _ arg ret) = do
@@ -159,16 +160,25 @@ toSynquidSkeleton t@(TyCon _ name) = case name of
         "Bool" -> return [ScalarT BoolT ()]
         xarg -> return [ScalarT (DatatypeT xarg [] []) ()]
     Special _ name -> return [ScalarT (DatatypeT (specialConsStr name) [] []) ()]
-toSynquidSkeleton (TyApp _ fun arg)
+toSynquidSkeleton t@(TyApp _ fun arg)
     | (TyCon _ name) <- fun = do
         ScalarT (DatatypeT id tys _) _ <- head <$> toSynquidSkeleton fun
         args <- toSynquidSkeleton arg
         return [ScalarT (DatatypeT id (args++tys) []) ()]
     | (TyApp _ fun' arg') <- fun = do
+        btys <- toSynquidSkeleton fun
+        trace ("tyapp (tyapp) ()" ++ (show btys)) return []
         ScalarT (DatatypeT id tys _) _ <- head <$> toSynquidSkeleton fun
         args <- toSynquidSkeleton arg
         return [ScalarT (DatatypeT id (args++tys) []) ()]
-    | (TyVar _ _) <- fun = return [] -- this is a wrapped type variable, do not support now
+-- TyApp () (TyVar () (Ident () "m")) (TyVar () (Ident () "a"))
+    | tyv@(TyVar _ name) <- fun = do
+            ScalarT (baseType) _ <- head <$> toSynquidSkeleton arg
+            return [ScalarT
+                (TypeAppT
+                    (TypeVarT Map.empty $ nameStr name)
+                    baseType) ()]
+    | (TyVar _ _) <- fun = error $ "Unhandled TyApp case: " ++ show t
     | otherwise = do
         funs <- toSynquidSkeleton fun
         args <- toSynquidSkeleton arg
@@ -181,7 +191,7 @@ toSynquidSkeleton (TyTuple _ _ typs) = do
     fst <- toSynquidSkeleton (head typs)
     snd <- toSynquidSkeleton (typs !! 1)
     return [ScalarT (DatatypeT ("Pair") (fst++snd) []) ()]
-toSynquidSkeleton t = return [] -- error $ "Unhandled case " ++ show t
+toSynquidSkeleton t = error $ "Unhandled case " ++ show t
 
 varsFromBind (KindedVar _ name _) = nameStr name
 varsFromBind (UnkindedVar _ name) = nameStr name
@@ -193,12 +203,18 @@ varsFromBind (UnkindedVar _ name) = nameStr name
 -- decomposeDH (DHApp _ funHead varBind) = let (name, vars) = decomposeDH funHead in (name, (varsFromBind varBind):vars)
 
 -- | Add true as the refinement to convert all types into RType
-addTrue (ScalarT (DatatypeT name tArgs pArgs) _) = ScalarT (DatatypeT name (map addTrue tArgs) []) ftrue
-addTrue (ScalarT IntT _) = ScalarT IntT ftrue
-addTrue (ScalarT BoolT _) = ScalarT BoolT ftrue
-addTrue (ScalarT (TypeVarT vSubst a) _) = ScalarT (TypeVarT vSubst a) ftrue
+addTrue :: TypeSkeleton a -> RType
 addTrue (FunctionT x tArg tFun) = FunctionT x (addTrue tArg) (addTrue tFun)
+addTrue (LetT id bindings bound) = LetT id (addTrue bindings) (addTrue bound)
 addTrue AnyT = AnyT
+addTrue (ScalarT baseTy _) = ScalarT (addTrueBase baseTy) ftrue
+    where
+        addTrueBase :: BaseType r -> BaseType Formula
+        addTrueBase (TypeAppT l r) = TypeAppT (addTrueBase l) (addTrueBase r)
+        addTrueBase (DatatypeT name tArgs rs) = DatatypeT name (map addTrue tArgs) []
+        addTrueBase BoolT = BoolT
+        addTrueBase IntT = IntT
+        addTrueBase (TypeVarT sub name) = TypeVarT sub name
 
 toSynquidRType :: (MonadIO m) => Type () -> StateT Int m RType
 toSynquidRType typ = do
@@ -217,7 +233,7 @@ addPrelude (decl:decls) = case decl of
 
 processConDecls :: (MonadIO m) => [QualConDecl ()] -> StateT Int m [SP.ConstructorSig]
 processConDecls [] = return []
-processConDecls (decl:decls) = let QualConDecl _ _ _ conDecl = decl in 
+processConDecls (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
     case conDecl of
         ConDecl _ name typs -> do
             typ <- toSynquidRType $ head typs
@@ -226,7 +242,7 @@ processConDecls (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
         InfixConDecl _ typl name typr -> do
             typl' <- toSynquidRType typl
             typr' <- toSynquidRType typr
-            if hasAny typl' || hasAny typr' 
+            if hasAny typl' || hasAny typr'
                 then processConDecls decls
                 else (:) (SP.ConstructorSig (nameStr name) (FunctionT "arg0" typl' typr')) <$> (processConDecls decls)
         RecDecl _ name fields -> error "record declaration is not supported"
@@ -243,7 +259,7 @@ toSynquidDecl :: (MonadIO m) => Entry -> StateT Int m Declaration
 toSynquidDecl (EDecl (TypeDecl _ head typ)) = do
     typ' <- toSynquidRType typ
     if hasAny typ' then return $ Pos (initialPos "") $ SP.QualifierDecl [] -- a fake conversion
-                   else return $ Pos (initialPos $ declHeadName head) $ SP.TypeDecl (declHeadName head) (declHeadVars head) typ' 
+                   else return $ Pos (initialPos $ declHeadName head) $ SP.TypeDecl (declHeadName head) (declHeadVars head) typ'
 toSynquidDecl (EDecl (DataFamDecl a b head c)) = toSynquidDecl (EDecl (DataDecl a (DataType a) b head [] []))
 toSynquidDecl (EDecl (DataDecl _ _ _ head conDecls _)) = do
     constructors <- processConDecls conDecls
@@ -276,12 +292,21 @@ renameSigs currModule (decl:decls) = case decl of
 
 readDeclarations :: PkgName -> Maybe Version -> IO [Entry]
 readDeclarations pkg version = do
-    vpkg <- do 
+    vpkg <- do
         case version of
             Nothing -> return pkg
             Just v -> ifM (checkVersion pkg v) (return $ pkg ++ "-" ++ v) (return pkg)
     s   <- readFile $ downloadDir ++ vpkg ++ ".txt"
-    let code = concat . rights . (map parseLine) $ splitOn "\n" s
+    let declEntries = map parseLine $ splitOn "\n" s
+    let code = concat $ rights declEntries
+    -- mapM_ putStrLn (lefts declEntries)
+    return $ renameSigs "" code
+
+readDeclarationsFromFile :: FilePath -> IO [Entry]
+readDeclarationsFromFile filePath = do
+    s <- readFile filePath
+    let declEntries = map parseLine $ splitOn "\n" s
+    let code = concat $ rights declEntries
     return $ renameSigs "" code
 
 type DependsOn = Map PkgName [Id]
@@ -292,14 +317,15 @@ packageDependencies pkg toDownload = do
     case condLibrary gPackageDesc of
         Nothing -> return []
         Just (CondNode _ dependencies _) -> do
-            let dps = map dependentPkg dependencies
+            let allDeps = map dependentPkg dependencies
+            let deps = filter (\x -> not $ x `elem` bannedBuildDeps) allDeps
             -- download necessary files to resolve package dependencies
-            foldrM (\fname existDps -> 
-                ifM (if toDownload 
-                        then downloadFile fname Nothing >> downloadCabal fname Nothing 
-                        else doesFileExist $ downloadDir ++ fname ++ ".txt") 
-                    (return $ fname:existDps) 
-                    (return existDps)) [] dps
+            foldrM (\fname existDps ->
+                ifM (if toDownload
+                        then downloadFile fname Nothing >> downloadCabal fname Nothing
+                        else doesFileExist $ downloadDir ++ fname ++ ".txt")
+                    (return $ fname:existDps)
+                    (return existDps)) [] deps
   where
     dependentPkg (Dependency name _) = unPackageName name
 
@@ -318,7 +344,7 @@ declDependencies pkgName decls dpDecls = do
     theirDts = dtDefsIn dpDecls
     dependencyClosure definedDts allDts theirDts = let
         undefinedDts = allDts >.> definedDts
-        in if length undefinedDts /= 0 
+        in if length undefinedDts /= 0
             then let
                 foreignDts = filter ((flip elem undefinedDts) . fst) theirDts
                 newDecls = nub $ snd $ unzip foreignDts
@@ -381,7 +407,7 @@ dtNamesIn :: [Entry] -> [Id]
 dtNamesIn decls = Set.toList $ Set.unions $ map getDeclTy decls
 
 definedDtsIn :: [Entry] -> [Id]
-definedDtsIn decls = map dtNameOf $ filter isDataDecl decls    
+definedDtsIn decls = map dtNameOf $ filter isDataDecl decls
 
 definedDts :: PkgName -> IO [Id]
 definedDts pkg = do
@@ -390,7 +416,7 @@ definedDts pkg = do
     return $ map dtNameOf dtDecls
 
 toSynquidProgram :: Exp SrcSpanInfo -> UProgram
-toSynquidProgram (Lambda _ pats body) = 
+toSynquidProgram (Lambda _ pats body) =
     foldr (\(PVar _ name) p -> Program (PFun (nameStr name) p) AnyT) (toSynquidProgram body) pats
 toSynquidProgram (Var _ qname) = Program (PSymbol (qnameStr qname)) AnyT
 toSynquidProgram (App _ fun arg) = Program (PApp (toSynquidProgram fun) (toSynquidProgram arg)) AnyT
