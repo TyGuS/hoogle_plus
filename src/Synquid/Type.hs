@@ -222,13 +222,16 @@ typeSubstitutePred pSubst t = let tsp = typeSubstitutePred pSubst
 
 -- | 'typeVarsOf' @t@ : all type variables in @t@
 typeVarsOf :: TypeSkeleton r -> Set Id
-typeVarsOf t@(ScalarT baseT r) = case baseT of
-  TypeVarT _ name -> Set.singleton name
-  -- DatatypeT _ tArgs _ -> Set.unions (map typeVarsOf tArgs)
-  _ -> Set.empty
-typeVarsOf (FunctionT _ tArg tRes) = typeVarsOf tArg `Set.union` typeVarsOf tRes
-typeVarsOf (LetT _ tDef tBody) = typeVarsOf tDef `Set.union` typeVarsOf tBody
-typeVarsOf _ = Set.empty
+typeVarsOf tySk
+    | (ScalarT baseT r) <- tySk = typeVarsOfBase baseT
+    | (FunctionT _ tArg tRes) <- tySk = typeVarsOf tArg `Set.union` typeVarsOf tRes
+    | (LetT _ tDef tBody) <- tySk = typeVarsOf tDef `Set.union` typeVarsOf tBody
+    | otherwise = Set.empty
+    where
+        typeVarsOfBase base = case base of
+            TypeVarT _ name -> Set.singleton name
+            TypeAppT l r -> Set.union (typeVarsOfBase l) (typeVarsOf r)
+            _ -> Set.empty
 
 {- Refinement types -}
 

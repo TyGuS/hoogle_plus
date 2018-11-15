@@ -4,8 +4,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveGeneric  #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# -- OPTIONS_GHC -fplugin=Language.Java.Inline.Plugin #-}
-{-# -- OPTIONS_GHC -fplugin-opt=Language.Java.Inline.Plugin:dump-java #-}
+{-# OPTIONS_GHC -fplugin=Language.Java.Inline.Plugin #-}
+{-# OPTIONS_GHC -fplugin-opt=Language.Java.Inline.Plugin:dump-java #-}
 
 module PetriNet.PNSolver where
 
@@ -467,31 +467,27 @@ findPath env dst = do
     loc <- liftIO $ reflect (st ^. currentLoc)
     end <- liftIO $ getCurrentTime
     writeLog 1 $ text "Time for preparing data" <+> text (show $ diffUTCTime end start)
-    undefined
-    -- liftIO $ [java| {
-        -- java.util.List<java.lang.String> srcTypes = java.util.Arrays.asList($srcTypes);
-        -- java.util.List<java.lang.String> argNames = java.util.Arrays.asList($argNames);
-        -- java.util.List<java.lang.String> solutions = java.util.Arrays.asList($excludeLists);
-        -- String tgtType = $tgt;
-        -- //System.out.println("Arguments:" + srcTypes.toString());
-        -- //System.out.println("Target:" + tgtType);
-        -- cmu.edu.utils.SynquidUtil.init(srcTypes, argNames, tgtType, $symbols, solutions, $loc);
-    -- } |]
-    -- codeText <- liftIO $ reify code
-    -- parse the result into AST in Synquid
-    -- let codeCheck = flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" (Text.unpack codeText)
-    -- return $ Text.unpack codeText
+    -- undefined
+    liftIO $ [java| {
+        java.util.List<java.lang.String> srcTypes = java.util.Arrays.asList($srcTypes);
+        java.util.List<java.lang.String> argNames = java.util.Arrays.asList($argNames);
+        java.util.List<java.lang.String> solutions = java.util.Arrays.asList($excludeLists);
+        String tgtType = $tgt;
+        //System.out.println("Arguments:" + srcTypes.toString());
+        //System.out.println("Target:" + tgtType);
+        cmu.edu.utils.SynquidUtil.init(srcTypes, argNames, tgtType, $symbols, solutions, $loc);
+    } |]
 
 findProgram :: (MonadIO m) => Environment -> RType -> PNSolver m RProgram
 findProgram env dst = do
     findPath env dst
-    -- code <- liftIO $ [java| {
-        -- cmu.edu.utils.SynquidUtil.buildNextEncoding();
-        -- //java.util.List<java.lang.String> res = cmu.edu.utils.SynquidUtil.synthesize();
-        -- java.lang.String res = cmu.edu.utils.SynquidUtil.synthesize();
-        -- return res;
-    -- } |]
-    code <- undefined
+    code <- liftIO $ [java| {
+        cmu.edu.utils.SynquidUtil.buildNextEncoding();
+        //java.util.List<java.lang.String> res = cmu.edu.utils.SynquidUtil.synthesize();
+        java.lang.String res = cmu.edu.utils.SynquidUtil.synthesize();
+        return res;
+    } |]
+    -- code <- undefined
     jsonResult <- liftIO $ Text.unpack <$> reify code
     -- liftIO $  print jsonResult
     (code, loc) <- liftIO $ parseJson $ LB8.pack jsonResult

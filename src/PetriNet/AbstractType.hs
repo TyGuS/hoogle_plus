@@ -17,6 +17,7 @@ import qualified Data.Set as Set
 import Data.Aeson
 import Data.Maybe
 import Data.List
+import Debug.Trace
 
 data AbstractSkeleton =
       ADatatypeT Id [AbstractSkeleton] -- explicit datatypes
@@ -30,7 +31,7 @@ abstract :: [Id] -> Map Id (Set Id) -> Id -> SType -> AbstractSkeleton
     -- let currIds = fromJust $ Map.lookup key level
     -- in if id `Set.member` currIds then ADatatypeT id (nubOrd $ map (abstract bound level (key ++ "," ++ id)) tArgs)
                                   -- else AExclusion currIds
--- abstract bound level key (ScalarT (DatatypeT id tArgs _) _) = AExclusion Set.empty
+-- abstract bound level key (ScalarT (TypeAppT l r) _) = AExclusion Set.empty
 -- abstract bound level key (ScalarT BoolT _) = abstract bound level key (ScalarT (DatatypeT "Bool" [] []) ())
 -- abstract bound level key (ScalarT IntT _) = abstract bound level key (ScalarT (DatatypeT "Int"  [] []) ())
 abstract bound level key (ScalarT (TypeVarT _ id) _) | id `elem` bound =
@@ -40,6 +41,7 @@ abstract bound level key (ScalarT (TypeVarT _ id) _) | id `elem` bound =
                               else AExclusion Set.empty
 abstract bound level key (ScalarT (TypeVarT _ id) _) = ATypeVarT id
 abstract bound level key (FunctionT x tArg tRet) = AFunctionT (abstract bound level key tArg) (abstract bound level key tRet)
+abstract bound level key f = trace (show f) undefined
 
 allAbstractBase :: [Id] -> AbstractSkeleton -> [AbstractSkeleton]
 allAbstractBase bound t@(ADatatypeT _ _)     = if hasAbstractVar t then [] else [t]

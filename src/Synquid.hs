@@ -56,6 +56,7 @@ import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import Text.PrettyPrint.ANSI.Leijen (fill, column)
 
 import Data.List.Split
+import Debug.Trace
 
 programName = "synquid"
 versionName = "0.4"
@@ -431,17 +432,6 @@ precomputeGraph pkgs mdls depth useHO = do
                         (ScalarT (TypeVarT Map.empty "a") ftrue))
                     (ScalarT (TypeVarT Map.empty "b") ftrue)) ftrue))
         ]
-    -- defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
-        -- ConstructorSig "Nil"  $ ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue
-      -- , ConstructorSig "Cons" $ FunctionT "x"
-      --    (ScalarT (TypeVarT Map.empty "a") ftrue)
-      --    (FunctionT "xs"
-      --        (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)
-      --        (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue))
-      -- ]
-    -- defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [] [
-        -- ConstructorSig "Pair" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "y" (ScalarT (TypeVarT Map.empty "b") ftrue) (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue))
-      -- ]
     defaultUnit = Pos (initialPos "Unit") $ DataDecl "Unit" [] [] []
     pdoc = printDoc Plain
     fillEdgeWeight edges ws graph = HashMap.foldrWithKey (
@@ -458,8 +448,8 @@ precomputeGraph pkgs mdls depth useHO = do
 -- | Parse and resolve file, then synthesize the specified goals
 runOnFile :: SynquidParams -> ExplorerParams -> HornSolverParams -> CodegenParams
                            -> String -> [String] -> IO ()
-runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
-  goal <- parseGoal file
+runOnFile synquidParams explorerParams solverParams codegenParams sig libs = do
+  goal <- parseGoal sig
   feedEnv goal >>= synthesizeGoal [] [] -- (requested goals)
   return ()
   where
@@ -473,6 +463,7 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
           return $ goal { gEnvironment = env }
     parseGoal sig = do
       let transformedSig = "goal :: " ++ sig ++ "\ngoal = ??"
+      trace transformedSig $ return ()
       parseResult <- return $ flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" transformedSig
       case parseResult of
         Left parseErr -> (pdoc $ pretty $ toErrorMessage parseErr) >> pdoc empty >> exitFailure

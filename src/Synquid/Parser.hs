@@ -225,18 +225,23 @@ parseTypeAtom = choice [
 parseUnrefTypeNoArgs = do
   baseType <- parseBaseType
   return $ ScalarT baseType ftrue
-  where
-    parseBaseType = choice [
-      BoolT <$ reserved "Bool",
-      IntT <$ reserved "Int",
-      -- (\name -> DatatypeT name [][]) <$> parseTypeName,
-      TypeVarT Map.empty <$> parseIdentifier]
+
+parseBaseType = choice [
+    BoolT <$ reserved "Bool",
+    IntT <$ reserved "Int",
+    (\name -> TypeConT name ) <$> parseTypeName,
+    TypeVarT Map.empty <$> parseIdentifier]
 
 parseUnrefTypeWithArgs = do
-  name <- parseTypeName
+  constr <- parseTypeConst
   typeArgs <- many (sameOrIndented >> parseTypeAtom)
-  predArgs <- many (sameOrIndented >> angles parsePredArg)
-  return undefined
+  many (sameOrIndented >> angles parsePredArg)
+  return $ ScalarT (foldr (flip TypeAppT) constr typeArgs) ftrue
+  where
+        parseTypeConst = choice
+            [ (\name -> TypeConT name ) <$> parseTypeName
+            , TypeVarT Map.empty <$> parseIdentifier
+            ]
   -- return $ ScalarT (DatatypeT name typeArgs predArgs) ftrue
 
 parsePredArg = braces parseFormula <|> (flip (Pred AnyS) [] <$> parseIdentifier)
