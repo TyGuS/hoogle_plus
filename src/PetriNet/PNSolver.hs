@@ -41,6 +41,7 @@ import Debug.Trace
 import Language.Haskell.Exts.Parser (parseExp, ParseResult(..))
 import qualified Data.HashMap.Strict as HashMap
 import Data.Time.Clock
+import qualified Z3.Monad as Z3
 
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Program
@@ -49,8 +50,9 @@ import Synquid.Logic
 import Synquid.Util
 import Synquid.Error
 import Synquid.Pretty
-import PetriNet.PolyDispatcher
 import PetriNet.AbstractType
+import PetriNet.PNBuilder
+import PetriNet.PNEncoder
 import Database.Convert
 
 -- data InstantiateState = InstantiateState {
@@ -65,7 +67,7 @@ data TypingState = TypingState {
     _abstractionSemantic :: AbstractionSemantic, -- current abstraction level
     _isChecked :: Bool, -- is the current state check passed
     _currentSolutions :: [RProgram], -- type checked solutions
-    _currentLoc :: Int32, -- current solution depth
+    _currentLoc :: Int, -- current solution depth
     _currentSigs :: Map Id AbstractSkeleton, -- current instantiated signatures
     _logLevel :: Int -- temporary for log level
 }
@@ -86,19 +88,6 @@ makeLenses ''TypingState
 
 type PNSolver m = StateT TypingState m
 
--- for encoding abstractions into JSON string
-type Param = String -- parameter type
-
-data FunctionCode = FunctionCode {
-  funName   :: String,  -- function name
-  hoParams  :: [FunctionCode],
-  funParams :: [Param], -- function parameter types and their count
-  funReturn :: String   -- function return type
-} deriving(Eq, Ord, Show, Generic)
-
-instance ToJSON FunctionCode where
-    toEncoding = genericToEncoding defaultOptions
-instance Serialize FunctionCode
 
 abstractParamList :: AbstractSkeleton -> [AbstractSkeleton]
 abstractParamList t@(ADatatypeT _ _) = [t]
@@ -487,6 +476,7 @@ parseTypeClass env = do
     getString (Aeson.String str) = Text.unpack str
     insertSet t cs m = foldr (flip (Map.insertWith Set.union) (Set.singleton t)) m cs
 
+{-
 findPath :: (MonadIO m) => Environment -> RType -> PNSolver m ()
 findPath env dst = do
     writeLog 3 $ text "Start looking for a new path"
@@ -522,16 +512,45 @@ findPath env dst = do
         cmu.edu.utils.SynquidUtil.init(srcTypes, argNames, hoArgs, tgtType, $symbols, solutions, $loc);
         cmu.edu.utils.SynquidUtil.buildNextEncoding();
     } |]
+-}
+
+findPath :: (MonadIO m) => Environment -> RType -> PNSolver m ()
+findPath env dst = do
+    writeLog 3 $ text "Start looking for a new path"
+    st <- get
+    start <- liftIO $ getCurrentTime
+    freshSymbols <- mapM (\(id, sch) -> do (t,c) <- freshType sch; return (id, t, c)) $ Map.toList $ allSymbols env
+    let absSymbols = foldr (\(id, t, c) -> Map.insert id (abstract (env ^. boundTypeVars) (st ^. abstractionSemantic) "" 
+                                                          $ shape t, c)) Map.empty freshSymbols
+    let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
+    sigs <- if Map.null (st ^. currentSigs) then instantiate env absSymbols else return (st ^. currentSigs)
+    modify $ set currentSigs sigs
+    let symbols = map (uncurry encodeFunction) 
+                      $ Map.toList $ foldr Map.delete sigs $ Map.keys foArgs
+    let tgt = show $ abstract (env ^. boundTypeVars) 
+                              (st ^. abstractionSemantic) "" $ shape dst
+    let srcTypes = map (show . abstract (env ^. boundTypeVars) (st ^. abstractionSemantic) "" 
+                             . shape 
+                             . toMonotype) $ Map.elems foArgs
+    let loc = st ^. currentLoc
+    let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+    let net = buildPetriNet symbols srcTypes
+    liftIO $ encoderSolve net loc hoArgs
+    end <- liftIO $ getCurrentTime
+    writeLog 1 $ text "Time for preparing data" <+> text (show $ diffUTCTime end start)
+    error "stop!"
 
 findProgram :: (MonadIO m) => Environment -> RType -> PNSolver m RProgram
 findProgram env dst = do
     -- findPath env dst
-    code <- liftIO $ [java| {
+    {- code <- liftIO $ [java| {
         java.util.List<String> codeList = cmu.edu.utils.SynquidUtil.synthesize();
         String[] codeArr = new String[codeList.size()];
         return codeList.toArray(codeArr);
     } |]
     codeResult <- liftIO $ map Text.unpack <$> reify code
+    -}
+    let codeResult = []
     checkResult <- mapM parseAndCheck codeResult
     let codes = catMaybes checkResult
     solutions <- view currentSolutions <$> get

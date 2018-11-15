@@ -30,9 +30,17 @@ splitBy _ "" = [];
 splitBy delimiterChar inputString = foldr f [""] inputString
   where f :: Char -> [String] -> [String]
         f currentChar allStrings@(partialString:handledStrings)
-          | currentChar == delimiterChar = "":allStrings -- start a new partial string at the head of the list of all strings
-          | otherwise = (currentChar:partialString):handledStrings -- add the current char to the partial string
+          -- start a new partial string at the head of the list of all strings
+          | currentChar == delimiterChar = "":allStrings          
+          -- add the current char to the partial string
+          | otherwise = (currentChar:partialString):handledStrings
 
+deleteAt :: Int -> [a] -> [a]
+deleteAt i xs = reverse res
+  where
+    base = (0, [])
+    fold_fn (idx, a) x = if idx == i then (idx+1, a) else (idx+1, x:a)
+    (_, res) = foldl fold_fn base xs
 
 uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
 uncurry3 f (x, y, z) = f x y z
