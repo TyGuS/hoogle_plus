@@ -410,13 +410,38 @@ precomputeGraph pkgs mdls depth useHO = do
     skipLParen name = name
     initDispatchState env = DispatchState depth (allSymbols env) Map.empty Set.empty Map.empty
     defaultDts = [defaultList, defaultPair, defaultUnit]
-    defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
-        ConstructorSig "Nil"  $ ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue
-      , ConstructorSig "Cons" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "xs" (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue) (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue))
-      ]
-    defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [] [
-        ConstructorSig "Pair" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "y" (ScalarT (TypeVarT Map.empty "b") ftrue) (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue))
-      ]
+    defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] []
+        [ ConstructorSig "Nil" $ ScalarT (TypeAppT
+            (TypeConT "List") (ScalarT (TypeVarT Map.empty "a") ftrue)) ftrue
+        , ConstructorSig "Cons" $ FunctionT "x"
+            (ScalarT (TypeVarT Map.empty "a") ftrue)
+            (FunctionT "xs"
+                (ScalarT (TypeAppT (TypeConT "List")
+                    (ScalarT (TypeVarT Map.empty "a") ftrue)) ftrue)
+                (ScalarT (TypeAppT (TypeConT "List")
+                    (ScalarT (TypeVarT Map.empty "a") ftrue)) ftrue))
+        ]
+    defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] []
+        [ ConstructorSig "Pair" $ FunctionT "x"
+            (ScalarT (TypeVarT Map.empty "a") ftrue)
+            (FunctionT "y"
+                (ScalarT (TypeVarT Map.empty "b") ftrue)
+                (ScalarT (TypeAppT
+                    (TypeAppT (TypeConT "Pair")
+                        (ScalarT (TypeVarT Map.empty "a") ftrue))
+                    (ScalarT (TypeVarT Map.empty "b") ftrue)) ftrue))
+        ]
+    -- defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
+        -- ConstructorSig "Nil"  $ ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue
+      -- , ConstructorSig "Cons" $ FunctionT "x"
+      --    (ScalarT (TypeVarT Map.empty "a") ftrue)
+      --    (FunctionT "xs"
+      --        (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)
+      --        (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue))
+      -- ]
+    -- defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [] [
+        -- ConstructorSig "Pair" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "y" (ScalarT (TypeVarT Map.empty "b") ftrue) (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue))
+      -- ]
     defaultUnit = Pos (initialPos "Unit") $ DataDecl "Unit" [] [] []
     pdoc = printDoc Plain
     fillEdgeWeight edges ws graph = HashMap.foldrWithKey (

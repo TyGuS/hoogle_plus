@@ -26,13 +26,13 @@ data AbstractSkeleton =
     deriving (Eq, Ord, Show, Generic)
 
 abstract :: [Id] -> Map Id (Set Id) -> Id -> SType -> AbstractSkeleton
-abstract bound level key (ScalarT (DatatypeT id tArgs _) _) | key `Map.member` level =
-    let currIds = fromJust $ Map.lookup key level
-    in if id `Set.member` currIds then ADatatypeT id (nubOrd $ map (abstract bound level (key ++ "," ++ id)) tArgs)
-                                  else AExclusion currIds
-abstract bound level key (ScalarT (DatatypeT id tArgs _) _) = AExclusion Set.empty
-abstract bound level key (ScalarT BoolT _) = abstract bound level key (ScalarT (DatatypeT "Bool" [] []) ())
-abstract bound level key (ScalarT IntT _) = abstract bound level key (ScalarT (DatatypeT "Int"  [] []) ())
+-- abstract bound level key (ScalarT (DatatypeT id tArgs _) _) | key `Map.member` level =
+    -- let currIds = fromJust $ Map.lookup key level
+    -- in if id `Set.member` currIds then ADatatypeT id (nubOrd $ map (abstract bound level (key ++ "," ++ id)) tArgs)
+                                  -- else AExclusion currIds
+-- abstract bound level key (ScalarT (DatatypeT id tArgs _) _) = AExclusion Set.empty
+-- abstract bound level key (ScalarT BoolT _) = abstract bound level key (ScalarT (DatatypeT "Bool" [] []) ())
+-- abstract bound level key (ScalarT IntT _) = abstract bound level key (ScalarT (DatatypeT "Int"  [] []) ())
 abstract bound level key (ScalarT (TypeVarT _ id) _) | id `elem` bound =
     if key `Map.member` level then let currIds = fromJust $ Map.lookup key level
                                     in if id `Set.member` currIds then ATypeVarT id

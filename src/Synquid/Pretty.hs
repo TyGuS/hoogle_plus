@@ -235,8 +235,9 @@ prettyBase prettyType base = case base of
   IntT -> text "Int"
   BoolT -> text "Bool"
   TypeVarT s name -> if Map.null s then text name else hMapDoc pretty pretty s <> text name
-  DatatypeT name tArgs pArgs -> text name <+> hsep (map prettyType tArgs) <+> hsep (map (hlAngles . pretty) pArgs)
-  TypeAppT l r -> text "(" <+> prettyBase prettyType l <+> prettyBase prettyType r <+> text ")"
+  -- DatatypeT name tArgs pArgs -> text name <+> hsep (map prettyType tArgs) <+> hsep (map (hlAngles . pretty) pArgs)
+  TypeAppT l r -> hlParens $ prettyBase prettyType l <+> prettyType r
+  TypeConT name -> text name
 
 instance Pretty (BaseType ()) where
   pretty = prettyBase (hlParens . pretty)
@@ -266,8 +267,8 @@ prettyType t = prettyTypeAt 0 t
 -- | Binding power of a type
 typePower :: RType -> Int
 typePower FunctionT {} = 1
-typePower (ScalarT (DatatypeT _ tArgs pArgs) r)
-  | ((not (null tArgs) || not (null pArgs)) && (r == ftrue)) = 2
+-- typePower (ScalarT (DatatypeT _ tArgs pArgs) r)
+  -- | ((not (null tArgs) || not (null pArgs)) && (r == ftrue)) = 2
 typePower _ = 3
 
 prettyTypeAt :: Int -> RType -> Doc
@@ -475,7 +476,7 @@ fmlNodeCount' f = fmlNodeCount f
 
 -- | 'typeNodeCount' @t@ : cumulative size of all refinements in @t@
 typeNodeCount :: RType -> Int
-typeNodeCount (ScalarT (DatatypeT _ tArgs pArgs) fml) = fmlNodeCount' fml + sum (map typeNodeCount tArgs) + sum (map fmlNodeCount' pArgs)
+-- typeNodeCount (ScalarT (DatatypeT _ tArgs pArgs) fml) = fmlNodeCount' fml + sum (map typeNodeCount tArgs) + sum (map fmlNodeCount' pArgs)
 typeNodeCount (ScalarT _ fml) = fmlNodeCount' fml
 typeNodeCount (FunctionT _ tArg tRes) = typeNodeCount tArg + typeNodeCount tRes
 

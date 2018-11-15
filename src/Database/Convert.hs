@@ -129,19 +129,19 @@ toSynquidSchema :: (MonadIO m) => Type () -> StateT Int m (Maybe SSchema)
 toSynquidSchema (TyForall _ _ (Just ctx) typ) = do -- if this type has some context
     typs <- toSynquidSkeleton typ
     case typs of
-        [] -> return Nothing
-        ty:tys  -> do
+        Nothing -> return Nothing
+        Just ty -> do
             classQuals <- resolveContext ctx
             return $ Just $ foldr ForallT (Monotype ty) classQuals
 toSynquidSchema typ = do
     typs <- toSynquidSkeleton typ
     case typs of
-        [] -> return Nothing
-        ty:tys  -> return $ Just $ Monotype ty
+        Nothing -> return Nothing
+        Just ty  -> return $ Just $ Monotype ty
 
 -- toSynquidSchema converts a haskell type into an unrefined type
 -- This is a lossy operation.
-toSynquidSkeleton :: (MonadIO m) => Type () -> StateT Int m [SType]
+toSynquidSkeleton :: (MonadIO m) => Type () -> StateT Int m (Maybe SType)
 toSynquidSkeleton t@(TyForall _ _ _ typ) = toSynquidSkeleton typ
 toSynquidSkeleton (TyFun _ arg ret) = do
     counter <- get
@@ -149,48 +149,40 @@ toSynquidSkeleton (TyFun _ arg ret) = do
     put (counter + 1)
     ret' <- toSynquidSkeleton ret
     arg' <- toSynquidSkeleton arg
-    if null ret' || null arg' then return []
-                              else return [FunctionT ("arg"++show counter) (head arg') (head ret')]
+    if isNothing ret' || isNothing arg'
+        then return Nothing
+        else let
+            arg'' = fromJust arg'
+            ret'' = fromJust ret'
+            in
+            return . Just $ FunctionT ("arg"++show counter) (arg'') (ret'')
 toSynquidSkeleton (TyParen _ typ) = toSynquidSkeleton typ
 toSynquidSkeleton (TyKind _ typ _) = toSynquidSkeleton typ
 toSynquidSkeleton t@(TyCon _ name) = case name of
-    Qual _ moduleName consName -> return [ScalarT (DatatypeT ((moduleNameStr moduleName) ++ "." ++ (nameStr consName)) [] []) ()]
+    Qual _ moduleName consName -> return . Just $ ScalarT (TypeConT ((moduleNameStr moduleName) ++ "." ++ (nameStr consName))) ()
     UnQual _ name -> case nameStr name of
-        "Int" -> return [ScalarT IntT ()]
-        "Bool" -> return [ScalarT BoolT ()]
-        xarg -> return [ScalarT (DatatypeT xarg [] []) ()]
-    Special _ name -> return [ScalarT (DatatypeT (specialConsStr name) [] []) ()]
-toSynquidSkeleton t@(TyApp _ fun arg)
-    | (TyCon _ name) <- fun = do
-        ScalarT (DatatypeT id tys _) _ <- head <$> toSynquidSkeleton fun
-        args <- toSynquidSkeleton arg
-        return [ScalarT (DatatypeT id (args++tys) []) ()]
-    | (TyApp _ fun' arg') <- fun = do
-        btys <- toSynquidSkeleton fun
-        trace ("tyapp (tyapp) ()" ++ (show btys)) return []
-        ScalarT (DatatypeT id tys _) _ <- head <$> toSynquidSkeleton fun
-        args <- toSynquidSkeleton arg
-        return [ScalarT (DatatypeT id (args++tys) []) ()]
--- TyApp () (TyVar () (Ident () "m")) (TyVar () (Ident () "a"))
-    | tyv@(TyVar _ name) <- fun = do
-            ScalarT (baseType) _ <- head <$> toSynquidSkeleton arg
-            return [ScalarT
-                (TypeAppT
-                    (TypeVarT Map.empty $ nameStr name)
-                    baseType) ()]
-    | (TyVar _ _) <- fun = error $ "Unhandled TyApp case: " ++ show t
-    | otherwise = do
-        funs <- toSynquidSkeleton fun
-        args <- toSynquidSkeleton arg
-        return $ funs ++ args
-toSynquidSkeleton (TyVar _ name) = return [ScalarT (TypeVarT Map.empty $ nameStr name) ()]
+        "Int" -> return . Just $ ScalarT IntT ()
+        "Bool" -> return . Just $ ScalarT BoolT ()
+        xarg -> return . Just $ ScalarT (TypeConT xarg) ()
+    Special _ name -> return . Just $ ScalarT (TypeConT (specialConsStr name)) ()
+toSynquidSkeleton t@(TyApp _ fun arg) = do
+    Just (ScalarT baseTyFun _) <- toSynquidSkeleton fun
+    Just tyargs <- toSynquidSkeleton arg
+    return . Just $ ScalarT (TypeAppT baseTyFun tyargs) ()
+toSynquidSkeleton (TyVar _ name) = return . Just $ ScalarT (TypeVarT Map.empty $ nameStr name) ()
 toSynquidSkeleton (TyList _ typ) = do
-    typ' <- toSynquidSkeleton typ
-    return [ScalarT (DatatypeT ("List") typ' []) ()]
+    Just typ' <- toSynquidSkeleton typ
+    return . Just $ ScalarT (TypeAppT (TypeConT "List") typ') ()
 toSynquidSkeleton (TyTuple _ _ typs) = do
     fst <- toSynquidSkeleton (head typs)
     snd <- toSynquidSkeleton (typs !! 1)
-    return [ScalarT (DatatypeT ("Pair") (fst++snd) []) ()]
+    if (isNothing fst && isNothing snd)
+        then (return Nothing)
+        else let
+            fst' = fromJust fst
+            snd' = fromJust snd
+            in
+            return . Just $ ScalarT (TypeAppT (TypeAppT (TypeConT "Pair") fst') snd') ()
 toSynquidSkeleton t = error $ "Unhandled case " ++ show t
 
 varsFromBind (KindedVar _ name _) = nameStr name
@@ -210,16 +202,16 @@ addTrue AnyT = AnyT
 addTrue (ScalarT baseTy _) = ScalarT (addTrueBase baseTy) ftrue
     where
         addTrueBase :: BaseType r -> BaseType Formula
-        addTrueBase (TypeAppT l r) = TypeAppT (addTrueBase l) (addTrueBase r)
-        addTrueBase (DatatypeT name tArgs rs) = DatatypeT name (map addTrue tArgs) []
         addTrueBase BoolT = BoolT
         addTrueBase IntT = IntT
+        addTrueBase (TypeConT id) = TypeConT id
         addTrueBase (TypeVarT sub name) = TypeVarT sub name
+        addTrueBase (TypeAppT l r) = TypeAppT (addTrueBase l) (addTrue r)
 
 toSynquidRType :: (MonadIO m) => Type () -> StateT Int m RType
 toSynquidRType typ = do
     typ' <- toSynquidSkeleton typ
-    if null typ' then return AnyT else (return $ addTrue $ head typ')
+    return $ fromMaybe AnyT (addTrue <$> typ')
 
 toSynquidRSchema :: SSchema -> RSchema
 toSynquidRSchema (Monotype typ) = Monotype $ addTrue typ

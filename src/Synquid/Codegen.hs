@@ -139,7 +139,7 @@ instance AsHaskellDecl (Id, DatatypeDef) where
               \x -> QualConDecl unknownLoc Nothing Nothing (ConDecl unknownLoc (Ident unknownLoc x) (ctorArgs x))
       ctorArgs name = toHsType env (allSymbols env ! name)
                       |> argTypes
-      typeClss = if null ctors 
+      typeClss = if null ctors
         then []
         else defaultTypeClasses |>> (\x -> Deriving unknownLoc (Just $ DerivStock unknownLoc) [IRule unknownLoc Nothing Nothing (IHCon unknownLoc x)])
 
@@ -185,10 +185,10 @@ instance AsHaskellType (TypeSkeleton r) where
 instance AsHaskellType (BaseType r) where
   toHsType env BoolT = TyCon unknownLoc $ UnQual unknownLoc $ Ident unknownLoc "Bool"
   toHsType env IntT = TyCon unknownLoc $ UnQual unknownLoc $ Ident unknownLoc "Int"
-  toHsType env (DatatypeT name tArgs pArgs) =
-    foldl (TyApp unknownLoc) typeCtor $ map (toHsType env) tArgs
-    where
-      typeCtor = TyCon unknownLoc $ UnQual unknownLoc $ Ident unknownLoc name
+  -- toHsType env (DatatypeT name tArgs pArgs) =
+    -- foldl (TyApp unknownLoc) typeCtor $ map (toHsType env) tArgs
+    -- where
+      -- typeCtor = TyCon unknownLoc $ UnQual unknownLoc $ Ident unknownLoc name
   toHsType env (TypeVarT _ name) = TyVar unknownLoc $ Ident unknownLoc name
 
 instance AsHaskellExp (Program r) where
@@ -259,7 +259,7 @@ importTmpl = ImportDecl {
     importPkg = Nothing,
     importAs = Nothing,
     importSpecs = Nothing }
-    
+
 filterOutDeps deps env =
   let isDeclOf name Pos {node = (DataDecl name' _ _ _)} = (name == name')
       isDeclOf _ _ = False

@@ -4,8 +4,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveGeneric  #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# OPTIONS_GHC -fplugin=Language.Java.Inline.Plugin #-}
-{-# OPTIONS_GHC -fplugin-opt=Language.Java.Inline.Plugin:dump-java #-}
+{-# -- OPTIONS_GHC -fplugin=Language.Java.Inline.Plugin #-}
+{-# -- OPTIONS_GHC -fplugin-opt=Language.Java.Inline.Plugin:dump-java #-}
 
 module PetriNet.PNSolver where
 
@@ -229,22 +229,22 @@ distinguish env level _ _ AnyT _ = level
 distinguish env level _ _ _ AnyT = level
 distinguish env level _ _ ErrorT _ = level
 distinguish env level _ _ _ ErrorT = level
-distinguish env level _ key (ScalarT (DatatypeT id _ _) _) (ScalarT (DatatypeT id' _ _) _) | id /= id' =
-    Map.insertWith Set.union key (Set.fromList [id, id']) level
-distinguish env level tass key (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT id' tArgs' _) _) | id == id' =
-    distinguish' (key ++ "," ++ id) tass tArgs tArgs'
-  where
+-- distinguish env level _ key (ScalarT (DatatypeT id _ _) _) (ScalarT (DatatypeT id' _ _) _) | id /= id' =
+    -- Map.insertWith Set.union key (Set.fromList [id, id']) level
+-- distinguish env level tass key (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT id' tArgs' _) _) | id == id' =
+    -- distinguish' (key ++ "," ++ id) tass tArgs tArgs'
+  -- where
     -- split the current node into two when we cannot distinguish the error type from its abstract representation
-    distinguish' key _ [] [] = level -- error "distinguish error: these two types are exactly the same"
-    distinguish' key _ [] ((ScalarT (TypeVarT _ id) _):_) | isBound env id = Map.insertWith Set.union key (Set.singleton id) level
-    distinguish' key tass [] ((ScalarT (TypeVarT _ id) _):_) | id `Map.member` tass = distinguish' key tass [] [fromJust $ Map.lookup id tass]
-    distinguish' key _ [] ((ScalarT (TypeVarT _ id) _):_) = level
-    distinguish' key tass [] (t:_) = Map.insertWith Set.union key (Set.singleton $ scalarName (stypeSubstitute tass t)) level
-    distinguish' key tass args [] = distinguish' key tass [] args
-    distinguish' key tass (arg:args) (arg':args') =
-        let level' = distinguish env level tass key arg arg'
-        in if level' /= level then level' -- if we get several new representations, stop refining
-                              else distinguish' key tass args args' -- otherwise append the current arg to the recursive result
+    -- distinguish' key _ [] [] = level -- error "distinguish error: these two types are exactly the same"
+    -- distinguish' key _ [] ((ScalarT (TypeVarT _ id) _):_) | isBound env id = Map.insertWith Set.union key (Set.singleton id) level
+    -- distinguish' key tass [] ((ScalarT (TypeVarT _ id) _):_) | id `Map.member` tass = distinguish' key tass [] [fromJust $ Map.lookup id tass]
+    -- distinguish' key _ [] ((ScalarT (TypeVarT _ id) _):_) = level
+    -- distinguish' key tass [] (t:_) = Map.insertWith Set.union key (Set.singleton $ scalarName (stypeSubstitute tass t)) level
+    -- distinguish' key tass args [] = distinguish' key tass [] args
+    -- distinguish' key tass (arg:args) (arg':args') =
+        -- let level' = distinguish env level tass key arg arg'
+        -- in if level' /= level then level' -- if we get several new representations, stop refining
+                              -- else distinguish' key tass args args' -- otherwise append the current arg to the recursive result
 -- TODO: need change to support higher order functions
 distinguish env level tass key (ScalarT (TypeVarT _ id) _) (ScalarT (TypeVarT _ id') _) | id == id' = level
 -- has unsubtituted type variables, substitute them and recheck
@@ -395,18 +395,18 @@ solveTypeConstraint env (FunctionT _ tArg tRet) (FunctionT _ tArg' tRet') = do
     when (st ^. isChecked) (do
         writeLog 3 $ text "Solving constraint" <+> pretty tRet <+> "==" <+> pretty tRet'
         solveTypeConstraint env tRet tRet')
-solveTypeConstraint env t1@(ScalarT (DatatypeT id tArgs _) _) t2@(ScalarT (DatatypeT id' tArgs' _) _) | id /= id' = do
-    modify $ set isChecked False
-solveTypeConstraint env t1@(ScalarT (DatatypeT id tArgs _) _) t2@(ScalarT (DatatypeT id' tArgs' _) _) | id == id' = do
-    solveTypeConstraint' env tArgs tArgs'
-  where
-    solveTypeConstraint' _ []  [] = return ()
-    solveTypeConstraint' env (ty:tys) (ty':tys') = do
-        writeLog 3 $ text "Solving constraint" <+> pretty ty <+> "==" <+> pretty ty'
-        solveTypeConstraint env ty ty'
-        checked <- view isChecked <$> get
+-- solveTypeConstraint env t1@(ScalarT (DatatypeT id tArgs _) _) t2@(ScalarT (DatatypeT id' tArgs' _) _) | id /= id' = do
+    -- modify $ set isChecked False
+-- solveTypeConstraint env t1@(ScalarT (DatatypeT id tArgs _) _) t2@(ScalarT (DatatypeT id' tArgs' _) _) | id == id' = do
+    -- solveTypeConstraint' env tArgs tArgs'
+  -- where
+    -- solveTypeConstraint' _ []  [] = return ()
+    -- solveTypeConstraint' env (ty:tys) (ty':tys') = do
+        -- writeLog 3 $ text "Solving constraint" <+> pretty ty <+> "==" <+> pretty ty'
+        -- solveTypeConstraint env ty ty'
+        -- checked <- view isChecked <$> get
         -- if the checking between ty and ty' succeeds, proceed to others
-        when (checked) (solveTypeConstraint' env tys tys')
+        -- when (checked) (solveTypeConstraint' env tys tys')
 solveTypeConstraint env t1@(ScalarT bt1 _) t2@(ScalarT bt2 _) | bt1 /= bt2 =
     modify $ set isChecked False
 solveTypeConstraint env t1@(ScalarT bt1 _) t2@(ScalarT bt2 _) = return ()
@@ -467,16 +467,16 @@ findPath env dst = do
     loc <- liftIO $ reflect (st ^. currentLoc)
     end <- liftIO $ getCurrentTime
     writeLog 1 $ text "Time for preparing data" <+> text (show $ diffUTCTime end start)
-    -- undefined
-    liftIO $ [java| {
-        java.util.List<java.lang.String> srcTypes = java.util.Arrays.asList($srcTypes);
-        java.util.List<java.lang.String> argNames = java.util.Arrays.asList($argNames);
-        java.util.List<java.lang.String> solutions = java.util.Arrays.asList($excludeLists);
-        String tgtType = $tgt;
-        //System.out.println("Arguments:" + srcTypes.toString());
-        //System.out.println("Target:" + tgtType);
-        cmu.edu.utils.SynquidUtil.init(srcTypes, argNames, tgtType, $symbols, solutions, $loc);
-    } |]
+    undefined
+    -- liftIO $ [java| {
+        -- java.util.List<java.lang.String> srcTypes = java.util.Arrays.asList($srcTypes);
+        -- java.util.List<java.lang.String> argNames = java.util.Arrays.asList($argNames);
+        -- java.util.List<java.lang.String> solutions = java.util.Arrays.asList($excludeLists);
+        -- String tgtType = $tgt;
+        -- //System.out.println("Arguments:" + srcTypes.toString());
+        -- //System.out.println("Target:" + tgtType);
+        -- cmu.edu.utils.SynquidUtil.init(srcTypes, argNames, tgtType, $symbols, solutions, $loc);
+    -- } |]
     -- codeText <- liftIO $ reify code
     -- parse the result into AST in Synquid
     -- let codeCheck = flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" (Text.unpack codeText)
@@ -485,13 +485,13 @@ findPath env dst = do
 findProgram :: (MonadIO m) => Environment -> RType -> PNSolver m RProgram
 findProgram env dst = do
     findPath env dst
-    code <- liftIO $ [java| {
-        cmu.edu.utils.SynquidUtil.buildNextEncoding();
-        //java.util.List<java.lang.String> res = cmu.edu.utils.SynquidUtil.synthesize();
-        java.lang.String res = cmu.edu.utils.SynquidUtil.synthesize();
-        return res;
-    } |]
-    -- code <- undefined
+    -- code <- liftIO $ [java| {
+        -- cmu.edu.utils.SynquidUtil.buildNextEncoding();
+        -- //java.util.List<java.lang.String> res = cmu.edu.utils.SynquidUtil.synthesize();
+        -- java.lang.String res = cmu.edu.utils.SynquidUtil.synthesize();
+        -- return res;
+    -- } |]
+    code <- undefined
     jsonResult <- liftIO $ Text.unpack <$> reify code
     -- liftIO $  print jsonResult
     (code, loc) <- liftIO $ parseJson $ LB8.pack jsonResult

@@ -178,19 +178,19 @@ resolveSignatures foo@(FuncDecl name _)  = do
   sch <- uses environment ((Map.! name) . allSymbols)
   sch' <- resolveSchema sch
   environment %= addPolyConstant name sch'
-resolveSignatures (DataDecl dtName tParams pParams ctors) = mapM_ resolveConstructorSignature ctors
-  where
-    resolveConstructorSignature (ConstructorSig name _) = do
-      sch <- uses environment ((Map.! name) . allSymbols)
-      sch' <- resolveSchema sch
-      let nominalType = ScalarT (DatatypeT dtName (map vartAll tParams) (map nominalPredApp (map fst pParams))) ftrue
-      let returnType = lastType (toMonotype sch')
-      if nominalType == returnType
-        then do
-          let nominalSort = toSort $ baseTypeOf nominalType
-          let sch'' = addRefinementToLastSch sch' (Var nominalSort valueVarName |=| Cons nominalSort name (allArgs (toMonotype sch')))
-          environment %= addPolyConstant name sch''
-        else throwResError (commaSep [text "Constructor" <+> text name <+> text "must return type" <+> pretty nominalType, text "got" <+> pretty returnType])
+-- resolveSignatures (DataDecl dtName tParams pParams ctors) = mapM_ resolveConstructorSignature ctors
+  -- where
+    -- resolveConstructorSignature (ConstructorSig name _) = do
+      -- sch <- uses environment ((Map.! name) . allSymbols)
+      -- sch' <- resolveSchema sch
+      -- let nominalType = ScalarT (DatatypeT dtName (map vartAll tParams) (map nominalPredApp (map fst pParams))) ftrue
+      -- let returnType = lastType (toMonotype sch')
+      -- if nominalType == returnType
+        -- then do
+          -- let nominalSort = toSort $ baseTypeOf nominalType
+          -- let sch'' = addRefinementToLastSch sch' (Var nominalSort valueVarName |=| Cons nominalSort name (allArgs (toMonotype sch')))
+          -- environment %= addPolyConstant name sch''
+        -- else throwResError (commaSep [text "Constructor" <+> text name <+> text "must return type" <+> pretty nominalType, text "got" <+> pretty returnType])
 resolveSignatures (MeasureDecl measureName _ _ post defCases _) = do
   (outSort : (inSort@(DataS dtName sArgs) : _)) <- uses (environment . globalPredicates) (Map.! measureName)
   datatype <- uses (environment . datatypes) (Map.! dtName)
@@ -254,36 +254,36 @@ resolveSchema sch = do
         Monotype <$> resolveType t
 
 resolveType :: RType -> Resolver RType
-resolveType (ScalarT (DatatypeT name tArgs pArgs) fml) = do
-  ds <- use $ environment . datatypes
-  case Map.lookup name ds of
-    Nothing -> do
-      t' <- substituteTypeSynonym name tArgs >>= resolveType
-      fml' <- resolveTypeRefinement (toSort $ baseTypeOf t') fml
-      return $ addRefinement t' fml'
-    Just (DatatypeDef tParams pParams _ _ _) -> do
-      when (length tArgs /= length tParams) $
-        throwResError $ text "Datatype" <+> text name <+> text "expected" <+> pretty (length tParams) <+> text "type arguments and got" <+> pretty (length tArgs)
-      when (length pArgs /= length pParams) $
-        throwResError $ text "Datatype" <+> text name <+> text "expected" <+> pretty (length pParams) <+> text "predicate arguments and got" <+> pretty (length pArgs)
+-- resolveType (ScalarT (DatatypeT name tArgs pArgs) fml) = do
+  -- ds <- use $ environment . datatypes
+  -- case Map.lookup name ds of
+    -- Nothing -> do
+      -- t' <- substituteTypeSynonym name tArgs >>= resolveType
+      -- fml' <- resolveTypeRefinement (toSort $ baseTypeOf t') fml
+      -- return $ addRefinement t' fml'
+    -- Just (DatatypeDef tParams pParams _ _ _) -> do
+      -- when (length tArgs /= length tParams) $
+        -- throwResError $ text "Datatype" <+> text name <+> text "expected" <+> pretty (length tParams) <+> text "type arguments and got" <+> pretty (length tArgs)
+      -- when (length pArgs /= length pParams) $
+        -- throwResError $ text "Datatype" <+> text name <+> text "expected" <+> pretty (length pParams) <+> text "predicate arguments and got" <+> pretty (length pArgs)
       -- Resolve type arguments:
-      tArgs' <- mapM resolveType tArgs
+      -- tArgs' <- mapM resolveType tArgs
       -- Resolve predicate arguments:
-      let subst = noncaptureSortSubst tParams (map (toSort . baseTypeOf) tArgs')
-      pArgs' <- zipWithM (resolvePredArg subst) pParams pArgs
-      let baseT' = DatatypeT name tArgs' pArgs'
+      -- let subst = noncaptureSortSubst tParams (map (toSort . baseTypeOf) tArgs')
+      -- pArgs' <- zipWithM (resolvePredArg subst) pParams pArgs
+      -- let baseT' = DatatypeT name tArgs' pArgs'
       -- Resolve refinementL
-      fml' <- resolveTypeRefinement (toSort baseT') fml
-      return $ ScalarT baseT' fml'
-  where
-    resolvePredArg :: (Sort -> Sort) -> PredSig -> Formula -> Resolver Formula
-    resolvePredArg subst (PredSig _ argSorts BoolS) fml = withLocalEnv $ do
-      let argSorts' = map subst argSorts
-      let vars = zipWith Var argSorts' deBrujns
-      environment %= addAllVariables vars
-      case fml of
-        Pred _ p [] -> resolveTypeRefinement AnyS (Pred BoolS p vars)
-        _ -> resolveTypeRefinement AnyS fml
+      -- fml' <- resolveTypeRefinement (toSort baseT') fml
+      -- return $ ScalarT baseT' fml'
+  -- where
+    -- resolvePredArg :: (Sort -> Sort) -> PredSig -> Formula -> Resolver Formula
+    -- resolvePredArg subst (PredSig _ argSorts BoolS) fml = withLocalEnv $ do
+      -- let argSorts' = map subst argSorts
+      -- let vars = zipWith Var argSorts' deBrujns
+      -- environment %= addAllVariables vars
+      -- case fml of
+        -- Pred _ p [] -> resolveTypeRefinement AnyS (Pred BoolS p vars)
+        -- _ -> resolveTypeRefinement AnyS fml
 
 resolveType (ScalarT baseT fml) = ScalarT baseT <$> resolveTypeRefinement (toSort baseT) fml
 
