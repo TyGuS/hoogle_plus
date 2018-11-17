@@ -26,22 +26,43 @@ data AbstractSkeleton =
     | AFunctionT AbstractSkeleton AbstractSkeleton
     deriving (Eq, Ord, Show, Generic)
 
-abstract :: [Id] -> Map Id (Set Id) -> Id -> SType -> AbstractSkeleton
--- abstract bound level key (ScalarT (DatatypeT id tArgs _) _) | key `Map.member` level =
-    -- let currIds = fromJust $ Map.lookup key level
-    -- in if id `Set.member` currIds then ADatatypeT id (nubOrd $ map (abstract bound level (key ++ "," ++ id)) tArgs)
-                                  -- else AExclusion currIds
--- abstract bound level key (ScalarT (TypeAppT l r) _) = AExclusion Set.empty
--- abstract bound level key (ScalarT BoolT _) = abstract bound level key (ScalarT (DatatypeT "Bool" [] []) ())
--- abstract bound level key (ScalarT IntT _) = abstract bound level key (ScalarT (DatatypeT "Int"  [] []) ())
-abstract bound level key (ScalarT (TypeVarT _ id) _) | id `elem` bound =
-    if key `Map.member` level then let currIds = fromJust $ Map.lookup key level
-                                    in if id `Set.member` currIds then ATypeVarT id
-                                                                  else AExclusion currIds
-                              else AExclusion Set.empty
-abstract bound level key (ScalarT (TypeVarT _ id) _) = ATypeVarT id
-abstract bound level key (FunctionT x tArg tRet) = AFunctionT (abstract bound level key tArg) (abstract bound level key tRet)
-abstract bound level key f = trace (show f) undefined
+type AbstractionSemantic = Map Id (Set (Either Id (Set Id)))
+-- type AbstractSemantic = Map Id (Set Id)
+
+isAFunctionT (AFunctionT {}) = True
+isAFunctionT _ = False
+
+withinSemantic :: AbstractionSemantic -> Id -> Id -> (Bool, Set Id)
+withinSemantic semantic key id = (id `Set.member` possibleIds, possibleIds)
+  where
+    currIds        = Map.findWithDefault Set.empty key semantic
+    unionEither id = Set.union (if isLeft id then Set.singleton (fromLeft id) else fromRight id)
+    possibleIds    = Set.foldr unionEither Set.empty currIds
+
+
+abstract :: [Id] -> AbstractionSemantic -> Id -> SType -> AbstractSkeleton
+abstract bound semantic key (ScalarT (DatatypeT id tArgs _) _) | key `Map.member` semantic = 
+    if inSeman then ADatatypeT id (map (abstract bound semantic (key ++ "," ++ id)) tArgs)
+               else AExclusion allIds
+  where
+    (inSeman, allIds) = withinSemantic semantic key id
+abstract bound semantic key (ScalarT (DatatypeT id tArgs _) _) = AExclusion Set.empty
+abstract bound semantic key (ScalarT BoolT _) = abstract bound semantic key (ScalarT (DatatypeT "Bool" [] []) ())
+abstract bound semantic key (ScalarT IntT _) = abstract bound semantic key (ScalarT (DatatypeT "Int"  [] []) ())
+abstract bound semantic key (ScalarT (TypeVarT _ id) _) | id `elem` bound || key /= "" = 
+    if inSeman then ATypeVarT id 
+               else AExclusion allIds
+  where
+    (inSeman, allIds) = withinSemantic semantic key id
+abstract bound semantic key (ScalarT (TypeVarT _ id) _) | key == "" = ATypeVarT id
+-- abstract bound semantic key (ScalarT (TypeVarT _ id) _) = ATypeVarT id
+abstract bound semantic key (FunctionT x tArg tRet) = AFunctionT (abstract bound semantic key tArg) (abstract bound semantic key tRet)
+
+outerName :: AbstractSkeleton -> Either (Set Id) (Set Id)
+outerName (ADatatypeT id _) = Left (Set.singleton id)
+outerName (ATypeVarT id) = Right Set.empty
+outerName (AExclusion names) = Right names
+outerName (AOneOf names) = Left names
 
 allAbstractBase :: [Id] -> AbstractSkeleton -> [AbstractSkeleton]
 allAbstractBase bound t@(ADatatypeT _ _)     = if hasAbstractVar t then [] else [t]
