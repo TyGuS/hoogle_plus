@@ -6,6 +6,7 @@ module PetriNet.PNEncoder where
 
 import Data.Maybe
 import Data.List
+import Data.Hashable
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
@@ -62,53 +63,107 @@ instance MonadZ3 Encoder where
     getOptimize = gets (envOptimize . z3env)
 
 -- | create a new encoder in z3
-createEncoder :: Encoder ()
-createEncoder = do
+createEncoder :: [Id] -> Id -> Encoder ()
+createEncoder inputs ret = do
     -- create all the type variables for encoding
     createVariables
     -- add all the constraints for the solver
-    -- createConstraints
+    createConstraints
+    -- set initial and final state for solver
+    setInitialState inputs
+    setFinalState ret
+
+-- | set the initial state for the solver, where we have tokens only in void or inputs
+-- the tokens in the other places should be zero
+setInitialState :: [Id] -> Encoder ()
+setInitialState inputs = do
+    places <- pnPlaces . petriNet <$> get
+    let nonInputs = HashMap.filterWithKey (\k _ -> notElem k inputs) places
+    mapM_ emptyOther $ HashMap.elems nonInputs
+    -- assign tokens to each input types
+    mapM_ (uncurry assignToken) inputCounts
+  where
+    inputCounts = map (\t -> (head t, length t)) $ group $ sort inputs
+    assignToken t v = do
+        places <- pnPlaces . petriNet <$> get
+        placeMap <- place2variable <$> get
+        let p = case HashMap.lookup t places of
+                    Just p -> p
+                    Nothing -> error $ "cannot find place " ++ t
+        tVar <- mkZ3Var $ case HashMap.lookup (p,0,v) placeMap of
+                              Just v -> v
+                              Nothing -> error $ "cannot find variable " ++ show (p,0,v)
+        optimizeAssert tVar
+    emptyOther p = do
+        placeMap <- place2variable <$> get
+        let v = if placeId p == "void" then 1 else 0
+        tVar <- mkZ3Var $ case HashMap.lookup (p,0,v) placeMap of
+                              Just v -> v
+                              Nothing -> error $ "cannot find variable" ++ show (p,0,v)
+        optimizeAssert tVar
+
+-- | set the final solver state, we allow only one token in the return type
+-- and maybe several tokens in the "void" place
+setFinalState :: Id -> Encoder ()
+setFinalState ret = do
+    -- the return value should have only one token
+    includeRet
+    -- other places excluding void and ret should have nothing
+    places <- pnPlaces . petriNet <$> get
+    let nonOutputs = HashMap.filterWithKey (\k _ -> k /= ret) places
+    mapM_ excludeOther $ HashMap.elems nonOutputs
+  where
+    includeRet = do
+        places <- pnPlaces . petriNet <$> get
+        placeMap <- place2variable <$> get
+        let retPlace = findVariable ret places
+        l <- loc <$> get
+        retVar <- mkZ3Var $ findVariable (retPlace,l,1) placeMap
+        optimizeAssert retVar
+    excludeOther p = do
+        l <- loc <$> get
+        placeMap <- place2variable <$> get
+        when (placeId p /= "void") $ do
+            tVar <- mkZ3Var $ findVariable (p,l,0) placeMap
+            optimizeAssert tVar
 
 solveAndGetModel :: Encoder [(Transition, Int)]
 solveAndGetModel = do
-    -- res <- optimizeCheck
-    let res = Sat
+    res <- optimizeCheck
     case res of
         Sat -> do
-            boolS <- mkBoolSort
-            sym <- mkStringSymbol "x"
-            var <- mkConst sym boolS
-            assert var
-            solverCheck
-            model <- solverGetModel
-            {- transMap <- transition2variable <$> get
-            selected <- filterM (checkTransition model) $ HashMap.toList transMap
-            return $ fst $ unzip selected -}
-            bMay <- eval model var
-            case bMay of
-                Just b -> do
-                    bStr <- astToString b
-                    error $ bStr
-                Nothing -> error "model check fails" 
+            model <- optimizeGetModel
+            transMap <- transition2variable <$> get
+            selected <- filterM (checkLit model) $ HashMap.toList transMap
+            let selectedTr = fst $ unzip selected
+            blockTr <- mapM (\t -> mkZ3Var $ findVariable t transMap) selectedTr
+            placeMap <- place2variable <$> get
+            selectedPlaces <- filterM (checkLit model) $ HashMap.toList placeMap
+            let selectedP = fst $ unzip selectedPlaces
+            -- liftIO $ print selectedP
+            blockP <- mapM (\p -> mkZ3Var $ findVariable p placeMap) selectedP
+            mkAnd (blockTr ++ blockP) >>= mkNot >>= optimizeAssert
+            return selectedTr
         _ -> do
             liftIO $ print "unsat"
             return []
   where
-    checkTransition model ((tr, t), v) = do
+    checkLit model (k, v) = do
         trVar <- mkZ3Var v
-        varStr <- astToString trVar
-        bMay <- eval model trVar
+        bMay <- evalBool model trVar
         case bMay of
-            Just b -> do
-                bStr <- astToString b
-                error $ bStr
-            Nothing -> error $ "cannot eval the variable" ++ show (tr,t)
+            Just b -> return b
+            Nothing -> error $ "cannot eval the variable" ++ show k
 
-encoderSolve :: PetriNet -> Int -> [Id] -> IO ()
-encoderSolve net loc hoArgs = do
+encoderInit :: PetriNet -> Int -> [Id] -> [Id] -> Id -> IO EncodeState
+encoderInit net loc hoArgs inputs ret = do
     z3Env <- initialZ3Env
     let initialState = EncodeState z3Env net loc 1 HashMap.empty HashMap.empty HashMap.empty hoArgs
-    evalStateT (createEncoder >> solveAndGetModel) initialState >>= print
+    execStateT (createEncoder inputs ret) initialState
+
+encoderSolve :: EncodeState -> IO ([(Transition, Int)], EncodeState)
+encoderSolve st = do
+    runStateT solveAndGetModel st
 
 addPlaceVar ::  Place -> Encoder ()
 addPlaceVar p = do
@@ -173,6 +228,10 @@ mkZ3Var var = do
     const <- mkConst varSymbol boolS
     return const
 
+findVariable :: (Eq k, Hashable k, Show k) => k -> HashMap k v -> v
+findVariable k m = case HashMap.lookup k m of
+                        Just v -> v
+                        Nothing -> error $ "cannot find variable for " ++ show k
 
 -- | at each timestamp, only one transition can be fired
 sequentialTransitions ::  Encoder ()
@@ -183,8 +242,8 @@ sequentialTransitions = do
   where
     fireAt transitions t = do
         transMap <- transition2variable <$> get
-        let transVar = map (\tr -> HashMap.lookup (tr,t) transMap) transitions
-        transZ3Var <- mapM (mkZ3Var . fromJust) transVar
+        let transVar = map (\tr -> findVariable (tr,t) transMap) transitions
+        transZ3Var <- mapM mkZ3Var transVar
         mapM_ (fireIth transZ3Var) [0..(length transitions - 1)]
 
     fireIth transitions i = do
@@ -204,8 +263,8 @@ tokenRestrictions = do
     onlyOneToken t p = do
         placeMap <- place2variable <$> get
         let mt = placeMaxToken p 
-        let placeVars = map (\v -> HashMap.lookup (p, t, v) placeMap) [0..mt]
-        placeZ3Vars <- mapM (mkZ3Var . fromJust) placeVars
+        let placeVars = map (\v -> findVariable (p, t, v) placeMap) [0..mt]
+        placeZ3Vars <- mapM mkZ3Var placeVars
         mapM_ (placeHasT placeZ3Vars) [0..mt]
 
     placeHasT vars v = do
@@ -226,17 +285,17 @@ noTransitionTokens = do
 
     noFirePlace t p = do
         trans <- pnTransitions . petriNet <$> get
-        let transitions = map (\i -> fromJust $ HashMap.lookup i trans) 
+        let transitions = map (\i -> findVariable i trans) 
                         $ Set.toList $ placePreset p `Set.union` placePostset p
         transMap <- transition2variable <$> get
-        let trVars = map (\tr -> HashMap.lookup (tr, t) transMap) transitions
-        trZ3Vars <- mapM (mkZ3Var . fromJust) trVars
+        let trVars = map (\tr -> findVariable (tr, t) transMap) transitions
+        trZ3Vars <- mapM (mkZ3Var) trVars
         mapM_ (noFireToken t p trZ3Vars) [0..(placeMaxToken p)]
         
     noFireToken t p trVars v = do
         placeMap <- place2variable <$> get
-        curr <- mkZ3Var $ fromJust $ HashMap.lookup (p, t, v) placeMap
-        next <- mkZ3Var $ fromJust $ HashMap.lookup (p, t + 1, v) placeMap
+        curr <- mkZ3Var $ findVariable (p, t, v) placeMap
+        next <- mkZ3Var $ findVariable (p, t + 1, v) placeMap
         unfiredTrans <- mapM mkNot trVars
         mkAnd (curr:unfiredTrans) >>= flip mkImplies next >>= optimizeAssert
 
@@ -253,27 +312,28 @@ preconditionsTransitions = do
     -- get enough resources for current places to fire the tr
     getSatisfiedPlaces t trVar f = do
         places <- pnPlaces . petriNet <$> get
-        let p = fromJust $ HashMap.lookup (flowPlace f) places
+        let p = case HashMap.lookup (flowPlace f) places of
+                    Just pp -> pp
+                    Nothing -> error $ "cannot find place " ++ (flowPlace f)
         let w = flowWeight f
         placeMap <- place2variable <$> get
-        let satPlaces = map (\v -> fromJust $ HashMap.lookup (p,t,v) placeMap) 
+        let satPlaces = map (\v -> findVariable (p,t,v) placeMap) 
                             [w..(placeMaxToken p)]
         mapM mkZ3Var satPlaces >>= mkOr >>= mkImplies trVar >>= optimizeAssert
 
     -- whether the src and dst places in the current tr is the same or "void"
     hasComplementary places p postFlow preFlow =   
         placeId p == "void" || 
-       (fromJust (HashMap.lookup (flowPlace preFlow) places) == p && 
+       ((findVariable (flowPlace preFlow) places) == p && 
         flowWeight preFlow == flowWeight postFlow)
 
     -- if the dest place has reached its maximum token, we cannot fire the tr
     hasReachedMax t tr trVar preFlows f = do
         places <- pnPlaces . petriNet <$> get
-        let p = fromJust $ HashMap.lookup (flowPlace f) places
+        let p = findVariable (flowPlace f) places
         let w1 = flowWeight f
         placeMap <- place2variable <$> get
-        maxTokenVar <- mkZ3Var $ fromJust 
-                               $ HashMap.lookup (p,t,placeMaxToken p) placeMap
+        maxTokenVar <- mkZ3Var $ findVariable (p,t,placeMaxToken p) placeMap
         if foldr ((||) . (hasComplementary places p f)) False preFlows
             then return ()
             else mkNot maxTokenVar >>= mkImplies trVar >>= optimizeAssert
@@ -281,11 +341,11 @@ preconditionsTransitions = do
     fireFor t tr = do
         flows <- pnFlows . petriNet <$> get
         transMap <- transition2variable <$> get
-        trVar <- mkZ3Var $ fromJust $ HashMap.lookup (tr, t) transMap
-        let preFlows = map (\f -> fromJust $ HashMap.lookup f flows)
+        trVar <- mkZ3Var $ findVariable (tr, t) transMap
+        let preFlows = map (\f -> findVariable f flows)
                            (Set.toList $ transitionPreset tr)
         mapM_ (getSatisfiedPlaces t trVar) preFlows
-        let postFlows = map (\f -> fromJust $ HashMap.lookup f flows)
+        let postFlows = map (\f -> findVariable f flows)
                             (Set.toList $ transitionPostset tr)
         mapM_ (hasReachedMax t tr trVar preFlows) postFlows
 
@@ -293,38 +353,41 @@ postconditionsTransitions ::  Encoder ()
 postconditionsTransitions = do
     l <- loc <$> get
     trans <- HashMap.elems . pnTransitions . petriNet <$> get
-    mapM_ (uncurry placesToChange) $ zip [0..(l-1)] trans
+    -- liftIO $ print $ "all transitions:" ++ show trans 
+    mapM_ (uncurry placesToChange) $ [(t, tr) | t <- [0..(l-1)], tr <- trans]
   where
     addChangedPlace places pre f changeList = 
         let pid = flowPlace f
-            p = fromJust $ HashMap.lookup pid places
-            w = if pre then flowWeight f else - (flowWeight f)
-        in HashMap.insert p (w + HashMap.lookupDefault 0 p changeList) changeList
+            p = findVariable pid places 
+            w = if pre then -(flowWeight f) else flowWeight f
+        in HashMap.insertWith (+) p w changeList
 
     connectBefAft t trVar p diff x = do
         placeMap <- place2variable <$> get
-        before <- mkZ3Var $ fromJust $ HashMap.lookup (p,t,x) placeMap
-        after <- mkZ3Var $ fromJust $ HashMap.lookup (p,t+1,x+diff) placeMap
+        before <- mkZ3Var $ findVariable (p, t, x) placeMap
+        after <- mkZ3Var $ findVariable (p, t + 1, x + diff) placeMap
+        -- liftIO $ print $ "(" ++ show (placeId p,t,x) ++ ") => " ++ show (placeId p, t+1, x+diff) 
         mkAnd [before, trVar] >>= flip mkImplies after >>= optimizeAssert
 
     mkChange t trVar p diff = do
-        placeMap <- place2variable <$> get
         let validTokens = [ x | x <- [0..(placeMaxToken p)]
-                              , (x+diff > 0 && x+diff <= placeMaxToken p) 
+                              , (x + diff >= 0 && x + diff <= placeMaxToken p) 
                               || placeId p == "void" ]
-        mapM_ (connectBefAft t trVar p diff) validTokens
+        let d = if placeId p == "void" then 0 else diff
+        mapM_ (connectBefAft t trVar p d) validTokens
 
     placesToChange t tr = do
         flows <- pnFlows . petriNet <$> get
         places <- pnPlaces . petriNet <$> get
-        let preFlows = map (\f -> fromJust $ HashMap.lookup f flows)
+        let preFlows = map (\f -> findVariable f flows)
                            (Set.toList $ transitionPreset tr)
         let preChange = foldr (addChangedPlace places True) HashMap.empty preFlows
-        let postFlows = map (\f -> fromJust $ HashMap.lookup f flows)
+        let postFlows = map (\f -> findVariable f flows)
                             (Set.toList $ transitionPostset tr)
         let toChange = foldr (addChangedPlace places False) preChange postFlows
         transMap <- transition2variable <$> get
-        trVar <- mkZ3Var $ fromJust $ HashMap.lookup (tr, t) transMap
+        trVar <- mkZ3Var $ findVariable (tr, t) transMap
+        -- liftIO $ print $ "prepare to fire " ++ show (tr, t)
         mapM_ (uncurry (mkChange t trVar)) (HashMap.toList toChange)
 
 mustFireTransitions ::  Encoder ()
@@ -338,7 +401,6 @@ mustFireTransitions = do
     fireTransition tr = do
         transMap <- transition2variable <$> get
         l <- loc <$> get
-        trVars <- mapM (\t -> mkZ3Var . fromJust $ HashMap.lookup (tr, t) transMap)
-                     $ [0..(l-1)]
+        trVars <- mapM (\t -> mkZ3Var $ findVariable (tr, t) transMap) [0..(l-1)]
         mkOr trVars >>= optimizeAssert
         

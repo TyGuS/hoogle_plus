@@ -143,26 +143,39 @@ addFlow from to w pn = PetriNet places transitions flows
     flowId = mkFlowId pn from to
 
     currFlow = if flowId `HashMap.member` (pnFlows pn) 
-                 then let f = fromJust (HashMap.lookup flowId (pnFlows pn)) in f { flowWeight = w + flowWeight f } 
+                 then let f = fromJust (HashMap.lookup flowId (pnFlows pn)) 
+                       in f { flowWeight = w + flowWeight f } 
                  else  mkFlow pn from to w
 
     updatePlacePost tid p = p { placePostset = Set.insert tid (placePostset p) }
     updatePlacePre  tid p = p { placePreset  = Set.insert tid (placePreset  p) }
-    updateTransitionPost tr = tr { transitionPostset = Set.insert flowId (transitionPostset tr) }
-    updateTransitionPre  tr = tr { transitionPreset  = Set.insert flowId (transitionPreset  tr) }
+    updateTransitionPost tr = tr { 
+        transitionPostset = Set.insert flowId (transitionPostset tr) 
+      }
+    updateTransitionPre  tr = tr { 
+        transitionPreset  = Set.insert flowId (transitionPreset  tr) 
+      }
 
     -- update the places so that it has correct preset and postset
     (placeId, place, transId, transition) = 
       if from `HashMap.member` (pnPlaces pn) -- if the added flow goes out of a place, update its postset
         then ( from
-             , updatePlacePost to (fromJust (HashMap.lookup from (pnPlaces pn)))
+             , updatePlacePost to (case (HashMap.lookup from (pnPlaces pn)) of
+                                       Just s -> s
+                                       Nothing -> error $ "cannot find place " ++ from)
              , to
-             , updateTransitionPre (fromJust (HashMap.lookup to (pnTransitions pn)))
+             , updateTransitionPre (case (HashMap.lookup to (pnTransitions pn)) of
+                                       Just t -> t
+                                       Nothing -> error $ "cannot find transition " ++ to)
              )
         else ( to
-             , updatePlacePre from (fromJust (HashMap.lookup to (pnPlaces pn)))
+             , updatePlacePre from (case (HashMap.lookup to (pnPlaces pn)) of
+                                        Just p -> p
+                                        Nothing -> error $ "cannot find place " ++ to)
              , from
-             , updateTransitionPost (fromJust (HashMap.lookup from (pnTransitions pn)))
+             , updateTransitionPost (case (HashMap.lookup from (pnTransitions pn)) of
+                                        Just t -> t
+                                        Nothing -> error $ "cannot find transition " ++ from)
              )
 
     places = HashMap.insert placeId place (pnPlaces pn)
@@ -172,11 +185,12 @@ addFlow from to w pn = PetriNet places transitions flows
 addFunction :: FunctionCode -> PetriNet -> PetriNet
 addFunction (FunctionCode name hoParams params ret) pn = pn'
   where
-    placedPn = foldr addPlace pn (ret : params)
+    placedPn = foldr addPlace pn ("void" : ret : params)
     transitionedPn = addTransition name placedPn
-    weightedParams = map (\p -> (p , name, 1)) params
+    assignedParams = map (\p -> (p , name, 1))
+                         $ if null params then ["void"] else params
     retedPn = addFlow name ret 1 transitionedPn
-    flowedPn = foldr (uncurry3 addFlow) retedPn weightedParams
+    flowedPn = foldr (uncurry3 addFlow) retedPn assignedParams
 
     -- assume there is no nested higher order parameters
     addHoParam elmt pn = addExit elmt (addEntry elmt (addSpecial elmt pn))
@@ -211,24 +225,27 @@ setMaxToken inputs pn = pn {
 
     transitions = HashMap.elems $ pnTransitions pn
 
-    inputPlaces = HashMap.keys $ HashMap.filter (flip elem inputs . placeId) 
-                               $ pnPlaces pn
-
-    inputCounts = map (\t -> (head t, length t)) $ group $ sort inputPlaces
+    inputCounts = map (\t -> (head t, length t)) $ group $ sort inputs
 
     updateMt p mt = p { placeMaxToken = max (placeMaxToken p) mt }
 
     setMaxToken places pid mt = 
-        updateMt (fromJust $ HashMap.lookup pid places) mt
+        updateMt (case HashMap.lookup pid places of
+                      Just p -> p
+                      Nothing -> error $ "cannot find place " ++ pid) mt
 
     checkTransition tr cntMap = 
         let flows    = pnFlows pn
-            preFlows = map (\f -> fromJust $ HashMap.lookup f flows)
+            preFlows = map (\f -> case HashMap.lookup f flows of
+                                      Just ff -> ff
+                                      Nothing -> error $ "cannot find flow " ++ f)
                            $ Set.toList $ transitionPreset tr
         in foldr updateByFlow cntMap preFlows
     updateByFlow f cntMap = 
         let places = pnPlaces pn
-            src    = fromJust $ HashMap.lookup (flowPlace f) places
+            src    = case HashMap.lookup (flowPlace f) places of
+                        Just p -> p
+                        Nothing -> error $ "cannot find place " ++ (flowPlace f)
             w      = flowWeight f
         in HashMap.insertWith max (flowPlace f) w cntMap
     tredCnt = foldr checkTransition counts transitions

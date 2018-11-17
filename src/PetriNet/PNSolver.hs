@@ -60,7 +60,7 @@ import Database.Convert
 -- } deriving(Eq, Ord, Show)
 
 -- makeLenses ''InstantiateState
-data TypingState = TypingState {
+data SolverState = SolverState {
     _nameCounter :: Map Id Int,  -- name map for generating fresh names (type variables, parameters)
     _typeAssignment :: Map Id SType,  -- current type assignment for each type variable
     _typingError :: (SType, SType), -- typing error message, represented by the expected type and actual type
@@ -72,7 +72,7 @@ data TypingState = TypingState {
     _logLevel :: Int -- temporary for log level
 }
 
-emptyTypingState = TypingState {
+emptySolverState = SolverState {
     _nameCounter = Map.empty,
     _typeAssignment = Map.empty,
     _typingError = (AnyT, AnyT),
@@ -84,9 +84,9 @@ emptyTypingState = TypingState {
     _logLevel = 0
 }
 
-makeLenses ''TypingState
+makeLenses ''SolverState
 
-type PNSolver m = StateT TypingState m
+type PNSolver m = StateT SolverState m
 
 
 abstractParamList :: AbstractSkeleton -> [AbstractSkeleton]
@@ -308,7 +308,7 @@ topDownCheck env typ@(FunctionT _ tArg tRet) p@(Program (PFun x body) _) = do
 --     writeLog 3 $ text "Checking type for" <+> pretty p
 --     topDownCheck (addVariable x AnyT env) typ body
 
-bottomUpCheck :: (MonadIO m) => Environment -> RProgram -> StateT TypingState m (Maybe (RProgram, ClassConstraint))
+bottomUpCheck :: (MonadIO m) => Environment -> RProgram -> PNSolver m (Maybe (RProgram, ClassConstraint))
 bottomUpCheck env p@(Program PHole _) = return $ Just (p, [])
 bottomUpCheck env p@(Program (PSymbol sym) typ) = do
     -- lookup the symbol type in current scope
@@ -357,7 +357,7 @@ bottomUpCheck env p@(Program (PFun x body) (FunctionT _ tArg tRet)) = do
         Nothing -> return Nothing
         Just (b,c) -> return $ Just (Program (PFun x b) (FunctionT x tArg (typeOf b)), c)
 
-solveTypeConstraint :: (MonadIO m) => Environment -> SType -> SType -> Map Id [Id] -> StateT TypingState m ()
+solveTypeConstraint :: (MonadIO m) => Environment -> SType -> SType -> Map Id [Id] -> PNSolver m ()
 solveTypeConstraint _ AnyT _ _ = return ()
 solveTypeConstraint _ _ AnyT _ = return ()
 solveTypeConstraint _ ErrorT _ _ = return ()
@@ -514,7 +514,7 @@ findPath env dst = do
     } |]
 -}
 
-findPath :: (MonadIO m) => Environment -> RType -> PNSolver m ()
+findPath :: (MonadIO m) => Environment -> RType -> PNSolver m EncodeState
 findPath env dst = do
     writeLog 3 $ text "Start looking for a new path"
     st <- get
@@ -535,10 +535,27 @@ findPath env dst = do
     let loc = st ^. currentLoc
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
     let net = buildPetriNet symbols srcTypes
-    liftIO $ encoderSolve net loc hoArgs
+    writeLog 2 $ text "parameter types are" <+> pretty srcTypes
+    writeLog 2 $ text "return type is" <+> pretty tgt
+    st <- liftIO $ encoderInit net loc hoArgs srcTypes tgt
     end <- liftIO $ getCurrentTime
     writeLog 1 $ text "Time for preparing data" <+> text (show $ diffUTCTime end start)
-    error "stop!"
+    return st
+
+-- | temporary function
+findNPath :: (MonadIO m) => Environment -> RType -> Int -> EncodeState -> PNSolver m ()
+findNPath _ _ 0 _ = error "Stop!"
+findNPath env dst n st = do
+    (res, st') <- liftIO $ encoderSolve st
+    if (null res) 
+        then do
+            currSt <- get
+            modify $ set currentLoc ((currSt ^. currentLoc) + 1)
+            st'' <- findPath env dst
+            findNPath env dst (n-1) st''
+        else do
+            liftIO $ print res
+            findNPath env dst (n-1) st'
 
 findProgram :: (MonadIO m) => Environment -> RType -> PNSolver m RProgram
 findProgram env dst = do

@@ -49,12 +49,12 @@ abstract bound semantic key (ScalarT (DatatypeT id tArgs _) _) | key `Map.member
 abstract bound semantic key (ScalarT (DatatypeT id tArgs _) _) = AExclusion Set.empty
 abstract bound semantic key (ScalarT BoolT _) = abstract bound semantic key (ScalarT (DatatypeT "Bool" [] []) ())
 abstract bound semantic key (ScalarT IntT _) = abstract bound semantic key (ScalarT (DatatypeT "Int"  [] []) ())
-abstract bound semantic key (ScalarT (TypeVarT _ id) _) | key == "" = ATypeVarT id
-abstract bound semantic key (ScalarT (TypeVarT _ id) _) = -- | id `elem` bound = 
+abstract bound semantic key (ScalarT (TypeVarT _ id) _) | id `elem` bound || key /= "" = 
     if inSeman then ATypeVarT id 
                else AExclusion allIds
   where
     (inSeman, allIds) = withinSemantic semantic key id
+abstract bound semantic key (ScalarT (TypeVarT _ id) _) | key == "" = ATypeVarT id
 -- abstract bound semantic key (ScalarT (TypeVarT _ id) _) = ATypeVarT id
 abstract bound semantic key (FunctionT x tArg tRet) = AFunctionT (abstract bound semantic key tArg) (abstract bound semantic key tRet)
 
