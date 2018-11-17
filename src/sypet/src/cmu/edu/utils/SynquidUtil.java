@@ -72,14 +72,14 @@ public class SynquidUtil {
     }
 
     public static List<Function> getPath() {
-        System.err.println("Current loc is:" + loc);
+        // System.err.println("Current loc is:" + loc);
         List<Variable> result = Encoding.solver.findPath(loc);
         while(result.isEmpty()) {
             loc++;
             buildNextEncoding();
             result = Encoding.solver.findPath(loc);
         }
-        System.err.println(result.toString());
+        // System.err.println(result.toString());
         int variableCounter = 0;
         List<Function> signatures = new ArrayList<>();
         for (Variable s : result) {
@@ -136,13 +136,13 @@ public class SynquidUtil {
             name = name.substring(0, funNameEndAt);
         }
         funApplication.add(name);
-        System.err.println("Building function for " + name);
+        // System.err.println("Building function for " + name);
         for(String p : function.getFunParams()) {
             List<String> subterms = new ArrayList<>();
             if (p.charAt(0) == 'f') { // if this is a HO argument
                 for(Function hof : function.getHoParams()) {
                     if(hof.getFunName().equals(p)) {
-                        System.err.println("Looking for higher order parameters for " + name);
+                        // System.err.println("Looking for higher order parameters for " + name);
                         String hoFunctionHeader = "\\";
                         for(String param : hof.getFunParams()) {
                             hoFunctionHeader += "x" + xcounter + " ";
@@ -160,10 +160,10 @@ public class SynquidUtil {
             }
             List<String> partialApplication = new ArrayList<>();
             if(subterms == null) {
-                System.err.println("Cannot find terms with type " + p);
-                System.err.println("Current typedTerms are");
+                // System.err.println("Cannot find terms with type " + p);
+                // System.err.println("Current typedTerms are");
                 for(String t : typedTerms.keySet()) {
-                    System.err.println(t + "," + typedTerms.get(t).toString());
+                    // System.err.println(t + "," + typedTerms.get(t).toString());
                 }
                 return new ArrayList<String>();
             } else {
@@ -192,20 +192,20 @@ public class SynquidUtil {
                 name = name.substring(0, funNameEndAt);
             }
             if(!code.contains(name)) {
-                System.err.println("Does not include " + name);
+                // System.err.println("Does not include " + name);
                 return false;
             } else {
                 code = code.replace(name, "");
-                System.err.println(code);
+                // System.err.println(code);
             }
         }
         for(String arg : args) {
             if(!code.contains(arg)) {
-                System.err.println("Does not include " + arg);
+                // System.err.println("Does not include " + arg);
                 return false;
             } else {
                 code = code.replace(arg, "");
-                System.err.println(code);
+                // System.err.println(code);
             }
         }
         // for(String arg : hoArgs) {
@@ -249,7 +249,7 @@ public class SynquidUtil {
         List<String> res = fillSketch(signatures, srcTypes, args);
         List<String> resultCode = new ArrayList<>();
         for(String program : res) {
-            System.err.println(program);
+            // System.err.println(program);
             if(hasAllFunctions(signatures, program)) {
                 resultCode.add(program);
             }
@@ -270,7 +270,7 @@ public class SynquidUtil {
             functionMap.put(fun.getFunName(), fun);
             // fun.print();
         }
-        System.err.println("Total number of functions:" + functions.size());
+        // System.err.println("Total number of functions:" + functions.size());
         return;
     }
 
