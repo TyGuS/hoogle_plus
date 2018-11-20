@@ -83,7 +83,7 @@ mkPlace id = Place id Set.empty Set.empty 1
 
 -- | get the unique id of a place
 getPlaceId :: Place -> Id
-getPlaceId (Place id _ _ _) = id
+getPlaceId = placeId
 
 -- | add a place to the petri net
 -- if it already exists, do nothing
@@ -103,7 +103,7 @@ mkTransition id = Transition id Set.empty Set.empty
 
 -- | get the unique id of a transition
 getTransitionId :: Transition -> Id
-getTransitionId (Transition id _ _) = id
+getTransitionId = transitionId
 
 -- | add a transition to the petri net
 addTransition :: Id -> PetriNet -> PetriNet
@@ -183,7 +183,7 @@ addFlow from to w pn = PetriNet places transitions flows
     flows = HashMap.insert flowId currFlow (pnFlows pn)
 
 addFunction :: FunctionCode -> PetriNet -> PetriNet
-addFunction (FunctionCode name hoParams params ret) pn = pn'
+addFunction (FunctionCode name [] params ret) pn = pn'
   where
     placedPn = foldr addPlace pn ("void" : ret : params)
     transitionedPn = addTransition name placedPn
@@ -191,19 +191,21 @@ addFunction (FunctionCode name hoParams params ret) pn = pn'
                          $ if null params then ["void"] else params
     retedPn = addFlow name ret 1 transitionedPn
     flowedPn = foldr (uncurry3 addFlow) retedPn assignedParams
+    pn' = flowedPn
+
+addFunction (FunctionCode name hoParams params ret) pn = pn'
+  where
+    paramToAdd = filter (not . isPrefixOf "f") params
 
     -- assume there is no nested higher order parameters
     addHoParam elmt pn = addExit elmt (addEntry elmt (addSpecial elmt pn))
-    addSpecial (i, hop) pn = addPlace (name ++ "|sepcial" ++ (show i)) pn
-    connectParamToTr entry p pn = 
-        if take 1 p /= "f" 
-            then addFlow p entry 1 (addPlace p pn)
-            else addPlace p pn
-    connectTrToParam entry p pn = addFlow entry p 1 (addPlace p pn)
+    addSpecial (i, _) pn = addPlace (name ++ "|special" ++ (show i)) pn
+    connectParamToTr entry p pn = addFlow p entry 1 pn
+    connectTrToParam entry p pn = addFlow entry p 1 pn
     addEntry (i, hop) pn = 
         let entry = name ++ "|entry" ++ (show i)
             special = name ++ "|special" ++ (show i)
-            input = foldr (connectParamToTr entry) (addTransition entry pn) params -- consume all the other first order arguments
+            input = foldr (connectParamToTr entry) (addTransition entry pn) paramToAdd -- consume all the other first order arguments
             output = foldr (connectTrToParam entry) input (special:(funParams hop)) -- produce all the parameters for ho argument
         in output
     addExit (i, hop) pn = let exit = name ++ "|exit" ++ (show i)
@@ -212,7 +214,7 @@ addFunction (FunctionCode name hoParams params ret) pn = pn'
                            $ addFlow (funReturn hop) exit 1  -- return type of ho argument to exit
                            $ addFlow special exit 1  -- special node to exit
                            $ addTransition exit pn
-    pn' = foldr addHoParam flowedPn $ zip [1,2..] hoParams
+    pn' = foldr addHoParam pn $ zip [1,2..] hoParams
 
 setMaxToken :: [Id] -> PetriNet -> PetriNet
 setMaxToken inputs pn = pn {

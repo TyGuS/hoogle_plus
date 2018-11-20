@@ -4,32 +4,26 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveGeneric  #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# OPTIONS_GHC -fplugin=Language.Java.Inline.Plugin #-}
-{-# OPTIONS_GHC -fplugin-opt=Language.Java.Inline.Plugin:dump-java #-}
 
 module PetriNet.PNSolver where
 
-import Language.Java (reify, reflect)
-import Language.Java.Inline
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
 import GHC.Generics
 import Control.Lens
 import Control.Monad.State
 import Data.Foldable
 import Data.List
 import Data.Maybe
-import Data.Either hiding (fromLeft, fromRight)
-import Data.Int
-import Data.Scientific
 import qualified Data.Char as Char
-import qualified Data.Vector as Vector
+import Data.Either hiding (fromLeft, fromRight)
 import Data.List.Extra
-import Database.Generate
 import Text.Parsec hiding (State)
 import Text.Parsec.Indent
 import Text.Parsec.Pos
@@ -53,11 +47,9 @@ import Synquid.Pretty
 import PetriNet.AbstractType
 import PetriNet.PNBuilder
 import PetriNet.PNEncoder
+import HooglePlus.CodeFormer
 import Database.Convert
-
--- data InstantiateState = InstantiateState {
---     _functionIdx :: Map Id Int
--- } deriving(Eq, Ord, Show)
+import Database.Generate
 
 -- makeLenses ''InstantiateState
 data SolverState = SolverState {
@@ -68,7 +60,11 @@ data SolverState = SolverState {
     _isChecked :: Bool, -- is the current state check passed
     _currentSolutions :: [RProgram], -- type checked solutions
     _currentLoc :: Int, -- current solution depth
-    _currentSigs :: Map Id AbstractSkeleton, -- current instantiated signatures
+    _functionMap :: HashMap Id FunctionCode,
+    _targetType :: Id,
+    _sourceTypes :: [Id],
+    _paramNames :: [Id],
+    -- _currentSigs :: Map Id AbstractSkeleton, -- current instantiated signatures
     _logLevel :: Int -- temporary for log level
 }
 
@@ -80,14 +76,17 @@ emptySolverState = SolverState {
     _isChecked = True,
     _currentSolutions = [],
     _currentLoc = 1,
-    _currentSigs = Map.empty,
+    _functionMap = HashMap.empty,
+    _targetType = "",
+    _sourceTypes = [],
+    _paramNames = [],
+    -- _currentSigs = Map.empty,
     _logLevel = 0
 }
 
 makeLenses ''SolverState
 
 type PNSolver m = StateT SolverState m
-
 
 abstractParamList :: AbstractSkeleton -> [AbstractSkeleton]
 abstractParamList t@(ADatatypeT _ _) = [t]
@@ -154,13 +153,14 @@ constructType env abstraction key
     dtParams = case Map.lookup currDt (env ^. datatypes) of
         Just def -> length (def ^. typeParams)
         Nothing  -> error $ "constructType: cannot find datatype " ++ currDt ++ " in the environment\n" ++ "here are the datatypes: " ++ (show $ Map.keys $ env ^. datatypes)
+    
     listOfN 0 _  = []
     listOfN 1 xs = map (: []) xs
     listOfN n xs = [x:y | x <- xs, y <- listOfN (n-1) xs]
 
--- TODO: start with only the datatypes in the query
-instantiate :: (MonadIO m) => Environment -> Map Id (AbstractSkeleton, ClassConstraint) -> PNSolver m (Map Id AbstractSkeleton)
-instantiate env sigs = instantiate' sigs $ Map.map fst $ Map.filter (not . hasAbstractVar . fst) sigs
+instantiate :: (MonadIO m) => Environment -> [(Id, AbstractSkeleton)] -> PNSolver m (Map Id AbstractSkeleton)
+instantiate env sigs = 
+    Map.fromList <$> instantiate' sigs (filter (not . hasAbstractVar . snd) sigs)
   where 
     removeSuffix id ty = (removeLast '_' id, ty)
     
@@ -169,31 +169,22 @@ instantiate env sigs = instantiate' sigs $ Map.map fst $ Map.filter (not . hasAb
         let typs = constructType env (st ^. abstractionSemantic) ""
         writeLog 3 $ text "Current abstraction semantics:" <+> text (show (st ^. abstractionSemantic))
         writeLog 3 $ text "Current abstract types:" <+> pretty typs 
-        sigs' <- foldM (\acc -> (<$>) (Map.union acc) . uncurry (instantiateWith env typs)) Map.empty (Map.toList sigs)
-        return $ Map.fromList $ nubOrdOn (uncurry removeSuffix) $ Map.toList $ Map.union sigsAcc sigs'
+        sigs' <- foldM (\acc -> (<$>) ((++) acc) . uncurry (instantiateWith env typs)) [] sigs
+        return $ nubOrdOn (uncurry removeSuffix) (sigsAcc ++ sigs')
 
-instantiateWith :: (MonadIO m) => Environment -> [AbstractSkeleton] -> Id -> (AbstractSkeleton, ClassConstraint) -> PNSolver m (Map Id AbstractSkeleton)
-instantiateWith env typs id (sk, constraints) = do
+instantiateWith :: (MonadIO m) => Environment -> [AbstractSkeleton] -> Id -> AbstractSkeleton -> PNSolver m [(Id, AbstractSkeleton)]
+instantiateWith env typs id sk = do
     let vars = Set.toList $ allAbstractVar sk
-    let constraintMap = Map.fromList constraints
     let multiSubsts = map (zip vars) $ multiPermutation (length vars) typs
-    let validSubsts = filter (foldr (\(id, t) acc -> (unifierValid constraintMap id t) && acc) True) multiSubsts
-    let substedSymbols = map (foldr (\(id, t) acc -> abstractSubstitute (env ^. boundTypeVars) id t acc) sk) validSubsts
-    -- writeLog 3 $ text id <+> text "::" <+> pretty sk
+    let substedSymbols = map (foldr (\(id, t) acc -> abstractSubstitute (env ^. boundTypeVars) id t acc) sk) multiSubsts
     st <- get
     foldrM (\t accMap -> do
         newId <- newSymbolName id
-        return $ Map.insert newId (cutoff (st ^. abstractionSemantic) "" t) accMap) Map.empty substedSymbols
+        return $ (newId, cutoff (st ^. abstractionSemantic) "" t):accMap) [] substedSymbols
     where
         multiPermutation len elmts | len == 0 = []
         multiPermutation len elmts | len == 1 = [[e] | e <- elmts]
         multiPermutation len elmts            = nubOrd $ [ l:r | l <- elmts, r <- multiPermutation (len - 1) elmts]
-        
-        unifierValid constraintMap id t = True
-            -- let constraints = map (flip (Map.findWithDefault Set.empty) (env ^. typeClasses)) $ (Map.findWithDefault [] id constraintMap)
-            -- in case outerName t of
-            --     Left names -> foldr ((&&) . not . Set.null . Set.intersection names) True constraints -- containts id
-            --     Right names -> foldr ((&&) . not . Set.null . flip Set.difference names) True constraints -- not contains names
 
         newSymbolName prefix = do
             indices <- flip (^.) nameCounter <$> get
@@ -420,31 +411,6 @@ solveTypeConstraint env t1@(ScalarT (DatatypeT id tArgs _) _) t2@(ScalarT (Datat
 solveTypeConstraint env t1 t2 _ = error $ "unknown types " ++ show t1 ++ " or " ++ show t2
 
 unify :: (MonadIO m) => Environment -> Id -> SType -> Map Id [Id] -> PNSolver m ()
--- unify env v t@(ScalarT (DatatypeT name _ _) _) constraints | v `Map.member` constraints = 
---     if foldr ((&&) . Set.member name) True instances -- containts id and it has instance definition for each type classes constraints
---         then modify $ over typeAssignment (Map.insert v t)
---         else do
---             writeLog 3 $ text "Unify fails:" <+> pretty t <+> text "is not in" <+> pretty (Set.toList firstUnsat)
---             -- get first unsatisfied type class, and distinguish this type out of all the other defined instances
---             modify $ set isChecked False
---             modify $ over abstractionSemantic (Map.insertWith Set.union "" (Set.singleton $ Right firstUnsat))
---   where
---     classes = Map.findWithDefault [] v constraints
---     getInstances c = Map.findWithDefault Set.empty c (env ^. typeClasses)
---     instances = map getInstances classes
---     firstUnsat = minimum $ filter (not . Set.member name) instances
--- unify env v t@(ScalarT (TypeVarT _ name) _) constraints | isBound env name = 
---   if foldr ((&&) . Set.member name) True instances -- containts id and it has instance definition for each type classes constraints
---         then modify $ over typeAssignment (Map.insert v t)
---         else do-- get first unsatisfied type class, and distinguish this type out of all the other defined instances
---             writeLog 3 $ text "Unify fails:" <+> pretty t <+> text "is not in" <+> pretty (Set.toList firstUnsat)
---             modify $ set isChecked False
---             modify $ over abstractionSemantic (Map.insertWith Set.union "" (Set.singleton $ Right firstUnsat))
---  where
---     classes = Map.findWithDefault [] v constraints
---     getInstances c = Map.findWithDefault Set.empty c (env ^. typeClasses)
---     instances = map getInstances classes
---     firstUnsat = minimum $ filter (not . Set.member name) instances
 unify env v t _ = modify $ over typeAssignment (Map.insert v t)
 
 checkType :: (MonadIO m) => Environment -> RType -> UProgram -> PNSolver m (Maybe RProgram)
@@ -460,121 +426,92 @@ checkType env typ p = do
             -- bottomUpCheck env top
             return Nothing)
 
-parseTypeClass :: Environment -> IO Environment
-parseTypeClass env = do
-    content <- readFile "typeClass.json"
-    case Aeson.eitherDecode (LB8.pack content) of
-        Left err -> error err
-        Right v  -> case v of 
-            Aeson.Object contents -> do
-                let classMap = HashMap.foldrWithKey (\k v -> Map.insert (Text.unpack k) (map getString $ getArray v)) Map.empty contents
-                let transClasses = Map.foldrWithKey insertSet Map.empty classMap
-                return $ set typeClasses transClasses env
-            _  -> error "parseTypeClass: unknown error when decoding the JSON string"
+initNet :: MonadIO m => Environment -> PNSolver m PetriNet
+initNet env = do
+    let binds = env ^. boundTypeVars
+    abstraction <- view abstractionSemantic <$> get
+    let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
+    -- first abstraction all the symbols with fresh type variables and then instantiate them
+    absSymbols <- mapM (uncurry (abstractSymbol binds abstraction)) 
+                      $ Map.toList $ allSymbols env
+    sigs <- instantiate env absSymbols
+    symbols <- mapM (addEncodedFunction) 
+                    -- first order arguments are tokens but not transitions in petri net
+                    $ Map.toList $ foldr Map.delete sigs $ Map.keys foArgs
+    let srcTypes = map ( show 
+                       . abstract binds abstraction 
+                       . shape 
+                       . toMonotype) $ Map.elems foArgs
+    modify $ set sourceTypes srcTypes
+    return $ buildPetriNet symbols srcTypes
   where
-    getArray (Aeson.Array arr) = Vector.toList arr
-    getString (Aeson.String str) = Text.unpack str
-    insertSet t cs m = foldr (flip (Map.insertWith Set.union) (Set.singleton t)) m cs
+    abstractSymbol binds abstraction id sch = do
+        (t, _) <- freshType sch
+        let absTy = abstract binds abstraction (shape t)
+        return (id, absTy)
 
-{-
-findPath :: (MonadIO m) => Environment -> RType -> PNSolver m ()
-findPath env dst = do
-    writeLog 3 $ text "Start looking for a new path"
-    -- writeLog 3 $ text "Current symbols:" <+> pretty (Map.toList $ allSymbols env)
-    st <- get
-    -- abstract all the symbols in the current environment
-    start <- liftIO $ getCurrentTime
-    freshSymbols <- mapM (\(id, sch) -> do (t,c) <- freshType sch; return (id, t, c)) $ Map.toList $ allSymbols env
-    let absSymbols = foldr (\(id, t, c) -> Map.insert id (abstract (env ^. boundTypeVars) (st ^. abstractionSemantic) "" 
-                                                          $ shape t, c)) Map.empty freshSymbols
-    let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
-    sigs <- if Map.null (st ^. currentSigs) then instantiate env absSymbols else return (st ^. currentSigs)
-    modify $ set currentSigs sigs
-    -- encode all the abstracted signatures into JSON string and pass it to SyPet
-    symbols <- liftIO $ reflect (Text.pack . LB8.unpack . Aeson.encode $ map (uncurry encodeFunction) 
-                                $ Map.toList $ foldr Map.delete sigs $ Map.keys foArgs)
-    tgt <- liftIO $ reflect (Text.pack $ show $ abstract (env ^. boundTypeVars) (st ^. abstractionSemantic) "" $ shape dst)
-    srcTypes <- liftIO $ reflect (map (Text.pack . show . abstract (env ^. boundTypeVars) (st ^. abstractionSemantic) "" . shape . toMonotype) $ Map.elems foArgs)
-    argNames <- liftIO $ reflect (map Text.pack $ Map.keys foArgs)
-    hoArgs <- liftIO $ reflect (map Text.pack $ Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments))
-    excludeLists <- liftIO $ reflect (map (Text.pack . show) (st ^. currentSolutions))
-    loc <- liftIO $ reflect (st ^. currentLoc)
-    end <- liftIO $ getCurrentTime
-    writeLog 1 $ text "Time for preparing data" <+> text (show $ diffUTCTime end start)
-    liftIO $ [java| {
-        java.util.List<java.lang.String> srcTypes = java.util.Arrays.asList($srcTypes);
-        java.util.List<java.lang.String> argNames = java.util.Arrays.asList($argNames);
-        java.util.List<java.lang.String> solutions = java.util.Arrays.asList($excludeLists);
-        java.util.List<java.lang.String> hoArgs = java.util.Arrays.asList($hoArgs);
-        String tgtType = $tgt;
-        System.out.println("Arguments:" + srcTypes.toString());
-        System.out.println("Target:" + tgtType);
-        cmu.edu.utils.SynquidUtil.init(srcTypes, argNames, hoArgs, tgtType, $symbols, solutions, $loc);
-        cmu.edu.utils.SynquidUtil.buildNextEncoding();
-    } |]
--}
+    addEncodedFunction (id, f) = do
+        let ef = encodeFunction id f
+        modify $ over functionMap (HashMap.insert id ef)
+        return ef
 
-findPath :: (MonadIO m) => Environment -> RType -> PNSolver m EncodeState
-findPath env dst = do
-    writeLog 3 $ text "Start looking for a new path"
-    st <- get
-    start <- liftIO $ getCurrentTime
-    freshSymbols <- mapM (\(id, sch) -> do (t,c) <- freshType sch; return (id, t, c)) $ Map.toList $ allSymbols env
-    let absSymbols = foldr (\(id, t, c) -> Map.insert id (abstract (env ^. boundTypeVars) (st ^. abstractionSemantic) "" 
-                                                          $ shape t, c)) Map.empty freshSymbols
+
+incPathLen :: (MonadIO m) => Environment -> RType -> PetriNet -> PNSolver m EncodeState
+incPathLen env dst net = do
+    let binds = env ^. boundTypeVars
+    abstraction <- view abstractionSemantic <$> get
+    modify $ set targetType $ show $ abstract binds abstraction $ shape dst
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
-    sigs <- if Map.null (st ^. currentSigs) then instantiate env absSymbols else return (st ^. currentSigs)
-    modify $ set currentSigs sigs
-    let symbols = map (uncurry encodeFunction) 
-                      $ Map.toList $ foldr Map.delete sigs $ Map.keys foArgs
-    let tgt = show $ abstract (env ^. boundTypeVars) 
-                              (st ^. abstractionSemantic) "" $ shape dst
-    let srcTypes = map (show . abstract (env ^. boundTypeVars) (st ^. abstractionSemantic) "" 
-                             . shape 
-                             . toMonotype) $ Map.elems foArgs
-    let loc = st ^. currentLoc
-    let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    let net = buildPetriNet symbols srcTypes
+    modify $ set paramNames $ Map.keys foArgs
+    srcTypes <- view sourceTypes <$> get
+    tgt <- view targetType <$> get
     writeLog 2 $ text "parameter types are" <+> pretty srcTypes
     writeLog 2 $ text "return type is" <+> pretty tgt
+    loc <- view currentLoc <$> get
+    let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
     st <- liftIO $ encoderInit net loc hoArgs srcTypes tgt
-    end <- liftIO $ getCurrentTime
-    writeLog 1 $ text "Time for preparing data" <+> text (show $ diffUTCTime end start)
     return st
 
--- | temporary function
-findNPath :: (MonadIO m) => Environment -> RType -> Int -> EncodeState -> PNSolver m ()
-findNPath _ _ 0 _ = error "Stop!"
-findNPath env dst n st = do
+findPath :: (MonadIO m) => Environment -> RType -> PetriNet -> EncodeState -> PNSolver m CodePieces
+findPath env dst net st = do
     (res, st') <- liftIO $ encoderSolve st
-    if (null res) 
-        then do
+    case res of
+        [] -> do
             currSt <- get
             modify $ set currentLoc ((currSt ^. currentLoc) + 1)
-            st'' <- findPath env dst
-            findNPath env dst (n-1) st''
-        else do
-            liftIO $ print res
-            findNPath env dst (n-1) st'
+            st'' <- incPathLen env dst net
+            findPath env dst net st''
+        _  -> do
+            fm <- view functionMap <$> get
+            src <- view sourceTypes <$> get
+            args <- view paramNames <$> get
+            let sortedRes = sortOn snd res
+            let sigNames = map removeSuffix 
+                         $ filter skipEntry 
+                         $ map (transitionId . fst) sortedRes
+            let sigs = map (findFunction fm) sigNames
+            let initialFormer = FormerState 0 HashMap.empty
+            liftIO $ evalStateT (generateProgram sigs src args) initialFormer
+  where
+    findFunction fm name = 
+        let name' = name
+        in case HashMap.lookup name' fm of
+            Just fc -> fc
+            Nothing -> error $ "cannot find function " ++ name'
 
-findProgram :: (MonadIO m) => Environment -> RType -> PNSolver m RProgram
-findProgram env dst = do
-    -- findPath env dst
-    {- code <- liftIO $ [java| {
-        java.util.List<String> codeList = cmu.edu.utils.SynquidUtil.synthesize();
-        String[] codeArr = new String[codeList.size()];
-        return codeList.toArray(codeArr);
-    } |]
-    codeResult <- liftIO $ map Text.unpack <$> reify code
-    -}
-    let codeResult = []
-    checkResult <- mapM parseAndCheck codeResult
+    skipEntry = not . isInfixOf "|entry"
+    removeSuffix = removeLast '|'
+
+findProgram :: (MonadIO m) => Environment -> RType -> PetriNet -> EncodeState -> PNSolver m RProgram
+findProgram env dst net st = do
+    codeResult <- findPath env dst net st
+    liftIO $ print codeResult
+    checkResult <- mapM parseAndCheck $ Set.toList codeResult
     let codes = catMaybes checkResult
     solutions <- view currentSolutions <$> get
     if (null codes) || (head codes `elem` solutions)
         then do
-            -- modify $ set currentSigs Map.empty
-            findProgram env dst 
+            findProgram env dst net st
         else do
             liftIO $ putStrLn "*******************SOLUTION*********************"
             liftIO $ print $ head codes
@@ -588,9 +525,9 @@ findProgram env dst = do
                     ParseFailed loc err -> error err
         checkType env dst prog
 
-findFirstN :: (MonadIO m) => Environment -> RType -> Int -> Int -> PNSolver m RProgram
-findFirstN env dst n cnt | cnt == n  = findProgram env dst
-findFirstN env dst n cnt | otherwise = findProgram env dst >> findFirstN env dst n (cnt+1)
+findFirstN :: (MonadIO m) => Environment -> RType -> PetriNet -> EncodeState -> Int -> PNSolver m RProgram
+findFirstN env dst net st cnt | cnt == 1  = findProgram env dst net st
+findFirstN env dst net st cnt | otherwise = findProgram env dst net st >> findFirstN env dst net st (cnt-1)
 
 writeLog level msg = do
     st <- get

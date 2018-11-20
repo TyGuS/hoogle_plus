@@ -9,12 +9,9 @@ description:          Synquid is a simple functional programming language with r
 author:               Nadia Polikarpova
 maintainer:           nadia.polikarpova@gmail.com
 category:             Language
-build-type:           Custom
+build-type:           Simple
 extra-source-files:   README.md
 cabal-version:        >=1.18
-
-custom-setup
-  setup-depends: Cabal>=1.18, base<5, inline-java, directory
 
 flag synquid
   Description: Build the synquid executable
@@ -37,6 +34,9 @@ executable synquid
                  PetriNet.PNSolver
                  PetriNet.PolyDispatcher
                  PetriNet.AbstractType
+                 PetriNet.PNBuilder
+                 PetriNet.PNEncoder
+                 HooglePlus.CodeFormer
                  Synquid.Codegen
                  Synquid.Error
                  Synquid.Explorer
@@ -105,10 +105,7 @@ executable synquid
                     , process
                     , regex-compat
                     , vector
-                    , inline-java
-                    , jvm
-                    , jni
-                    , scientific
+                    , MissingH
 
   ghc-options:   -O2
   includes:            z3.h

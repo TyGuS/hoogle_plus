@@ -54,7 +54,6 @@ import Data.Time.Clock
 import qualified Data.ByteString.Lazy.Char8 as LB8
 import qualified Data.Aeson as Aeson
 import Data.String (fromString)
-import Foreign.JNI (withJVM)
 
 {- Interface -}
 
@@ -216,34 +215,27 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
       error $ show $ diffUTCTime end start
       -- splitGoal env t
     PetriNet    -> do
-      -- (m, ex) <- evalStateT (PNSolver.instantiate absSymbols') (PNSolver.InstantiateState Map.empty)
-      -- let env' = set abstractSymbols m env
-      -- liftIO $ writeFile ("data/base.db") $ LB8.unpack $ Aeson.encode $ map (uncurry PNSolver.encodeFunction) $ Map.toList m
       useHO <- asks . view $ _1 . useHO
-      envConstraint <- liftIO $ PNSolver.parseTypeClass env
-      let env' = if useHO then envConstraint else envConstraint { _symbols = Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ envConstraint ^. symbols }
+      let env' = if useHO then env 
+                          else env { _symbols = Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols }
       let args = (Monotype t):(Map.elems $ env' ^. arguments)
       -- start with all the datatypes defined in the queries
       let initialState = Map.singleton "" $ foldr (Set.union . Set.map Left . allDatatypes . toMonotype) Set.empty args 
       maxLevel <- asks . view $ _1 . explorerLogLevel
       cnt <- asks . view $ _1 . solutionCnt
-      {- liftIO $ (withJVM [ fromString ("-Djava.class.path=src/sypet/sypet.jar:"  ++ 
-                                                    "src/sypet/lib/sat4j-pb.jar:"          ++
-                                                    "src/sypet/lib/sat4j-maxsat.jar:"      ++
-                                                    "src/sypet/lib/commons-lang3-3.4.jar:" ++
-                                                    "src/sypet/lib/gson-2.8.5.jar:"        ++
-                                                    "src/sypet/lib/apt.jar")
-                            ] $ -} 
-      evalStateT (PNSolver.findPath env' t >>= PNSolver.findNPath env' t 5 >> PNSolver.findFirstN env' t cnt 1)
+      evalStateT (runPNSolver env' cnt)
                  $ set PNSolver.abstractionSemantic initialState 
                  $ PNSolver.emptySolverState {PNSolver._logLevel = maxLevel}
-      -- return $ Program PErr AnyT
-      -- generateMaybeMatchIf env' t isElseBranch
     DisablePath -> do
       maEnabled <- asks . view $ _1 . abduceScrutinees -- Is match abduction enabled?
       d <- asks . view $ _1 . matchDepth
       maPossible <- runInSolver $ hasPotentialScrutinees env -- Are there any potential scrutinees in scope?
       if maEnabled && d > 0 && maPossible then generateMaybeMatchIf env t isElseBranch else generateMaybeIf env t isElseBranch           
+  where
+    runPNSolver env' cnt = do
+      net <- PNSolver.initNet env'
+      st <- PNSolver.incPathLen env' t net
+      PNSolver.findFirstN env' t net st cnt
 
 -- | Generate a possibly conditional term type @t@, depending on whether a condition is abduced
 generateMaybeIf :: (MonadHorn s, MonadIO s) => Environment -> RType -> Bool -> Explorer s RProgram

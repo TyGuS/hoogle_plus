@@ -2,7 +2,11 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module PetriNet.PNEncoder where
+module PetriNet.PNEncoder(
+      EncodeState(..)
+    , encoderInit
+    , encoderSolve
+    ) where
 
 import Data.Maybe
 import Data.List
@@ -18,6 +22,7 @@ import PetriNet.PNBuilder
 import Synquid.Util
 
 data VarType = VarPlace | VarTransition | VarFlow
+    deriving(Eq, Ord, Show)
 
 data Variable = Variable {
   varId :: Int,
@@ -25,7 +30,7 @@ data Variable = Variable {
   varTimestamp :: Int,
   varValue :: Int,
   varType :: VarType
-}
+} deriving(Eq, Ord, Show)
 
 data Z3Env = Z3Env {
   envSolver  :: Z3.Solver,
@@ -130,6 +135,14 @@ setFinalState ret = do
 solveAndGetModel :: Encoder [(Transition, Int)]
 solveAndGetModel = do
     res <- optimizeCheck
+    l <- loc <$> get
+    when (l == 3) (do
+        
+        p2v <- place2variable <$> get
+        t2v <- transition2variable <$> get
+        ass <- optimizeGetAssertions
+        assStr <- mapM astToString ass
+        liftIO $ writeFile "test.log" $ (concat $ intersperse "\n" assStr) ++ show p2v ++ "\n" ++ show t2v)
     case res of
         Sat -> do
             model <- optimizeGetModel
@@ -140,7 +153,7 @@ solveAndGetModel = do
             placeMap <- place2variable <$> get
             selectedPlaces <- filterM (checkLit model) $ HashMap.toList placeMap
             let selectedP = fst $ unzip selectedPlaces
-            -- liftIO $ print selectedP
+            liftIO $ print $ map (\(p,i,j) -> (placeId p, i, j)) selectedP
             blockP <- mapM (\p -> mkZ3Var $ findVariable p placeMap) selectedP
             mkAnd (blockTr ++ blockP) >>= mkNot >>= optimizeAssert
             return selectedTr
@@ -244,12 +257,14 @@ sequentialTransitions = do
         transMap <- transition2variable <$> get
         let transVar = map (\tr -> findVariable (tr,t) transMap) transitions
         transZ3Var <- mapM mkZ3Var transVar
-        mapM_ (fireIth transZ3Var) [0..(length transitions - 1)]
+        allPossible <- mapM (fireIth transZ3Var) [0..(length transitions - 1)]
+        mkOr allPossible >>= optimizeAssert
 
     fireIth transitions i = do
         let otherTrans = deleteAt i transitions
-        allOtherTrans <- mapM mkNot otherTrans >>= mkAnd
-        mkImplies (transitions !! i) allOtherTrans >>= optimizeAssert
+        allOtherTrans <- mapM mkNot otherTrans
+        mkAnd ((transitions !! i):allOtherTrans)
+        -- mkImplies (transitions !! i) allOtherTrans >>= optimizeAssert
 
 -- | at each timestamp, each place can only have some specific number of tokens
 tokenRestrictions ::  Encoder ()
@@ -265,12 +280,14 @@ tokenRestrictions = do
         let mt = placeMaxToken p 
         let placeVars = map (\v -> findVariable (p, t, v) placeMap) [0..mt]
         placeZ3Vars <- mapM mkZ3Var placeVars
-        mapM_ (placeHasT placeZ3Vars) [0..mt]
+        allPossible <- mapM (placeHasT placeZ3Vars) [0..mt]
+        mkOr allPossible >>= optimizeAssert
 
     placeHasT vars v = do
         let otherTokens = deleteAt v vars
-        allOtherTokens <- mapM mkNot otherTokens >>= mkAnd
-        mkImplies (vars !! v) allOtherTokens >>= optimizeAssert
+        allOtherTokens <- mapM mkNot otherTokens --  >>= mkAnd
+        mkAnd ((vars !! v) : allOtherTokens)
+        -- mkImplies (vars !! v) allOtherTokens >>= optimizeAssert
 
 -- | if this place has no connected transition fired, 
 -- it has the same # of tokens
