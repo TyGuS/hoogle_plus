@@ -7,7 +7,9 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.Map;
+import java.util.Set;
 import java.util.HashMap;
+import java.util.HashSet;
 
 import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
@@ -37,17 +39,20 @@ public class SynquidUtil {
     private static Encoding encoding;
     private static List<String> srcTypes;
     private static List<String> args;
+    private static List<String> hoArgs;
     private static String tgtType;
     private static int loc = 1;
+    private static int xcounter = 0;
     private static List<String> toExclude;
 
-    public static void init(List<String> srcs, List<String> argNames, String tgt, String symbols,
-                            List<String> solutions, Integer startLoc)
+    public static void init(List<String> srcs, List<String> argNames, List<String> higherOrderArgs, String tgt, 
+                            String symbols, List<String> solutions, Integer startLoc)
         throws FileNotFoundException, IOException, TimeoutException {
         long start = System.nanoTime();
         srcTypes = srcs;
         tgtType = tgt;
         args = argNames;
+        hoArgs = higherOrderArgs;
         functionMap.clear();
         getSigs(symbols);
         buildNet = new BuildNet(new ArrayList<>());
@@ -60,7 +65,7 @@ public class SynquidUtil {
 
     public static void buildNextEncoding() {
         // create a formula that has the same semantics as the petri-net
-        encoding = new SequentialEncoding(net, loc);
+        encoding = new SequentialEncoding(net, loc, hoArgs);
         // set initial state and final state
         encoding.setState(EncodingUtil.setInitialState(net, srcTypes), 0);
         encoding.setState(EncodingUtil.setGoalState(net, tgtType), loc);
@@ -166,7 +171,6 @@ public class SynquidUtil {
                     for(String fun : funApplication) {
                         partialApplication.add(fun + " " + subterm);
                     }
-                    // sat = !former.isUnsat();
                 }
                 funApplication = partialApplication;
             }
@@ -249,10 +253,8 @@ public class SynquidUtil {
             if(hasAllFunctions(signatures, program)) {
                 resultCode.add(program);
             }
-            loc++;
-            buildNextEncoding();
         }
-        // return "";
+        return resultCode;
     }
 
     // process signatures and construct the Petri Net

@@ -224,7 +224,7 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
       let env' = if useHO then envConstraint else envConstraint { _symbols = Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ envConstraint ^. symbols }
       let args = (Monotype t):(Map.elems $ env' ^. arguments)
       -- start with all the datatypes defined in the queries
-      let initialState = Map.singleton "" $ foldr (Set.union . allDatatypes . toMonotype) Set.empty args
+      let initialState = Map.singleton "" $ foldr (Set.union . Set.map Left . allDatatypes . toMonotype) Set.empty args
       maxLevel <- asks . view $ _1 . explorerLogLevel
       cnt <- asks . view $ _1 . solutionCnt
       liftIO $ (withJVM [ fromString ("-Djava.class.path=src/sypet/sypet.jar:"  ++
@@ -235,7 +235,7 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
                                                     "src/sypet/lib/apt.jar")
                             ] $ evalStateT (PNSolver.findPath env' t >> PNSolver.findFirstN env' t cnt 1)
                             -- ] $ evalStateT (PNSolver.findFirstN env' t cnt 1)
-                              $ set PNSolver.abstractionSemantic initialState 
+                              $ set PNSolver.abstractionSemantic initialState
                               $ PNSolver.emptyTypingState {PNSolver._logLevel = maxLevel})
       -- return $ Program PErr AnyT
       -- generateMaybeMatchIf env' t isElseBranch
@@ -297,20 +297,19 @@ generateCondition env fml = do
 optionalInPartial :: (MonadHorn s, MonadIO s) => RType -> Explorer s RProgram -> Explorer s RProgram
 optionalInPartial t gen = ifM (asks . view $ _1 . partialSolution) (ifte gen return (return $ Program PHole t)) gen
 
-generateMatch _ _ = undefined
 -- | Generate a match term of type @t@
--- generateMatch env t = do
-  -- d <- asks . view $ _1 . matchDepth
-  -- if d == 0
-    -- then mzero
-    -- else do
-      -- (Program p tScr) <- local (over _1 (\params -> set eGuessDepth (view scrutineeDepth params) params))
-                      -- $ inContext (\p -> Program (PMatch p []) t)
-                      -- $ generateE env anyDatatype False False True-- Generate a scrutinee of an arbitrary type
-      -- let (env', tScr') = embedContext env tScr
-      -- let pScrutinee = Program p tScr'
+generateMatch env t = do
+  d <- asks . view $ _1 . matchDepth
+  if d == 0
+    then mzero
+    else do
+      (Program p tScr) <- local (over _1 (\params -> set eGuessDepth (view scrutineeDepth params) params))
+                      $ inContext (\p -> Program (PMatch p []) t)
+                      $ generateE env anyDatatype False False True -- Generate a scrutinee of an arbitrary type
+      let (env', tScr') = embedContext env tScr
+      let pScrutinee = Program p tScr'
 
-      -- case tScr of
+      case tScr of
         -- (ScalarT (DatatypeT scrDT _ _) _) -> do -- Type of the scrutinee is a datatype
           -- let ctors = ((env ^. datatypes) Map.! scrDT) ^. constructors
 
@@ -327,7 +326,7 @@ generateMatch _ _ = undefined
           -- let pThen = Program (PMatch pScrutinee (pCase : pCases)) t
           -- generateElse env t False cond condUnknown pThen                                                               -- Generate the else branch
 
-        -- _ -> mzero -- Type of the scrutinee is not a datatype: it cannot be used in a match
+        _ -> mzero -- Type of the scrutinee is not a datatype: it cannot be used in a match
 
 generateFirstCase env scrVar pScrutinee t consName = do
   case Map.lookup consName (allSymbols env) of

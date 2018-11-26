@@ -159,24 +159,17 @@ toSynquidSkeleton (TyFun _ arg ret) = do
 toSynquidSkeleton (TyParen _ typ) = toSynquidSkeleton typ
 toSynquidSkeleton (TyKind _ typ _) = toSynquidSkeleton typ
 toSynquidSkeleton t@(TyCon _ name) = case name of
-    Qual _ moduleName consName -> return [ScalarT (DatatypeT ((moduleNameStr moduleName) ++ "." ++ (nameStr consName)) [] []) ()]
-    UnQual _ name -> return [ScalarT (DatatypeT (nameStr name) [] []) ()]
-    Special _ name -> return [ScalarT (DatatypeT (specialConsStr name) [] []) ()]
-toSynquidSkeleton (TyApp _ fun arg)
-    | (TyCon _ name) <- fun = do
-        ScalarT (DatatypeT id tys _) _ <- head <$> toSynquidSkeleton fun
-        args <- toSynquidSkeleton arg
-        return [ScalarT (DatatypeT id (tys ++ args) []) ()]
-    | (TyApp _ fun' arg') <- fun = do
-        ScalarT (DatatypeT id tys _) _ <- head <$> toSynquidSkeleton fun
-        args <- toSynquidSkeleton arg
-        return [ScalarT (DatatypeT id (tys ++ args) []) ()]
-    | (TyVar _ _) <- fun = return [] -- this is a wrapped type variable, do not support now
-    | otherwise = do
-        funs <- toSynquidSkeleton fun
-        args <- toSynquidSkeleton arg
-        return $ funs ++ args
-toSynquidSkeleton (TyVar _ name) = return [ScalarT (TypeVarT Map.empty $ nameStr name) ()]
+    Qual _ moduleName consName -> return . Just $ ScalarT (TypeConT ((moduleNameStr moduleName) ++ "." ++ (nameStr consName))) ()
+    UnQual _ name -> case nameStr name of
+        "Int" -> return . Just $ ScalarT IntT ()
+        "Bool" -> return . Just $ ScalarT BoolT ()
+        xarg -> return . Just $ ScalarT (TypeConT xarg) ()
+    Special _ name -> return . Just $ ScalarT (TypeConT (specialConsStr name)) ()
+toSynquidSkeleton t@(TyApp _ fun arg) = do
+    Just (ScalarT baseTyFun _) <- toSynquidSkeleton fun
+    Just tyargs <- toSynquidSkeleton arg
+    return . Just $ ScalarT (TypeAppT baseTyFun tyargs) ()
+toSynquidSkeleton (TyVar _ name) = return . Just $ ScalarT (TypeVarT Map.empty $ nameStr name) ()
 toSynquidSkeleton (TyList _ typ) = do
     Just typ' <- toSynquidSkeleton typ
     return . Just $ ScalarT (TypeAppT (TypeConT "List") typ') ()
