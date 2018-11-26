@@ -136,13 +136,13 @@ solveAndGetModel :: Encoder [(Transition, Int)]
 solveAndGetModel = do
     res <- optimizeCheck
     l <- loc <$> get
-    when (l == 3) (do
+    -- when (l == 3) (do
         
-        p2v <- place2variable <$> get
-        t2v <- transition2variable <$> get
-        ass <- optimizeGetAssertions
-        assStr <- mapM astToString ass
-        liftIO $ writeFile "test.log" $ (concat $ intersperse "\n" assStr) ++ show p2v ++ "\n" ++ show t2v)
+    --     p2v <- place2variable <$> get
+    --     t2v <- transition2variable <$> get
+    --     ass <- optimizeGetAssertions
+    --     assStr <- mapM astToString ass
+        -- liftIO $ writeFile "test.log" $ (concat $ intersperse "\n" assStr) ++ show p2v ++ "\n" ++ show t2v)
     case res of
         Sat -> do
             model <- optimizeGetModel
@@ -153,12 +153,15 @@ solveAndGetModel = do
             placeMap <- place2variable <$> get
             selectedPlaces <- filterM (checkLit model) $ HashMap.toList placeMap
             let selectedP = fst $ unzip selectedPlaces
-            liftIO $ print $ map (\(p,i,j) -> (placeId p, i, j)) selectedP
+            -- liftIO $ print $ map (\(p,i,j) -> (placeId p, i, j)) selectedP
             blockP <- mapM (\p -> mkZ3Var $ findVariable p placeMap) selectedP
             mkAnd (blockTr ++ blockP) >>= mkNot >>= optimizeAssert
             return selectedTr
-        _ -> do
+        Unsat -> do
             liftIO $ print "unsat"
+            return []
+        Undef -> do
+            liftIO $ print "undef"
             return []
   where
     checkLit model (k, v) = do
