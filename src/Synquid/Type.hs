@@ -65,7 +65,7 @@ hasAny (FunctionT _ tArg tRes) = hasAny tArg || hasAny tRes
 hasAny (LetT _ tDef tBody) = hasAny tDef || hasAny tBody
 
 -- | Convention to indicate "any datatype" (for synthesizing match scrtuinees)
--- anyDatatype = ScalarT (DatatypeT dontCare [] []) ftrue
+anyDatatype = ScalarT (TypeAppT (TypeVarT Map.empty dontCare) AnyT) ftrue
 
 toSort BoolT = BoolS
 toSort IntT = IntS
