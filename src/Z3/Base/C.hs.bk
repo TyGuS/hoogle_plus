@@ -1,7 +1,5 @@
 {-# LINE 1 "src/Z3/Base/C.hsc" #-}
-{-# LANGUAGE EmptyDataDecls #-}
-{-# LINE 2 "src/Z3/Base/C.hsc" #-}
-{-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE EmptyDataDecls, ForeignFunctionInterface, CPP #-}
 
 -- |
 -- Module    : Z3.Base.C
@@ -32,7 +30,6 @@ import Foreign.C.Types
 import Foreign.C.String
 
 
-{-# LINE 33 "src/Z3/Base/C.hsc" #-}
 
 
 ---------------------------------------------------------------------
@@ -78,17 +75,19 @@ data Z3_params
 
 data Z3_ast_vector
 
+data Z3_optimize
+
 -- | Reference: <http://z3prover.github.io/api/html/group__capi.html#ga6c2de6ea89b244e37c3ffb17a9ea2a89>
 newtype Z3_lbool = Z3_lbool CInt
   deriving Eq
 
 z3_l_true, z3_l_false, z3_l_undef :: Z3_lbool
 z3_l_true  = Z3_lbool (1)
-{-# LINE 84 "src/Z3/Base/C.hsc" #-}
-z3_l_false = Z3_lbool (-1)
 {-# LINE 85 "src/Z3/Base/C.hsc" #-}
-z3_l_undef = Z3_lbool (0)
+z3_l_false = Z3_lbool (-1)
 {-# LINE 86 "src/Z3/Base/C.hsc" #-}
+z3_l_undef = Z3_lbool (0)
+{-# LINE 87 "src/Z3/Base/C.hsc" #-}
 
 -- | Reference: <http://z3prover.github.io/api/html/group__capi.html#ga3a65ded0ada3ee285865759a21140eeb>
 newtype Z3_bool = Z3_bool CInt
@@ -100,10 +99,10 @@ type Z3_error_handler = Ptr Z3_context -> Z3_error_code -> IO ()
 z3_true, z3_false :: Z3_bool
 -- | Reference: <http://z3prover.github.io/api/html/group__capi.html#gad86c8730a2e4e61bac585b240a6288d4>
 z3_true  = Z3_bool(1)
-{-# LINE 97 "src/Z3/Base/C.hsc" #-}
+{-# LINE 98 "src/Z3/Base/C.hsc" #-}
 -- | Reference: <http://z3prover.github.io/api/html/group__capi.html#ga1d9cee57472b2c7623642f123b8f1781>
 z3_false = Z3_bool(0)
-{-# LINE 99 "src/Z3/Base/C.hsc" #-}
+{-# LINE 100 "src/Z3/Base/C.hsc" #-}
 
 -- | Reference: <http://z3prover.github.io/api/html/group__capi.html#ga49f047b93b0282e686956678da5b86b1>
 type Z3_string = CString
@@ -112,13 +111,13 @@ type Z3_string = CString
 type Z3_ast_print_mode = CInt
 z3_print_smtlib_full :: Z3_ast_print_mode
 z3_print_smtlib_full = 0
-{-# LINE 107 "src/Z3/Base/C.hsc" #-}
+{-# LINE 108 "src/Z3/Base/C.hsc" #-}
 z3_print_low_level :: Z3_ast_print_mode
 z3_print_low_level = 1
-{-# LINE 109 "src/Z3/Base/C.hsc" #-}
+{-# LINE 110 "src/Z3/Base/C.hsc" #-}
 z3_print_smtlib2_compliant :: Z3_ast_print_mode
 z3_print_smtlib2_compliant = 2
-{-# LINE 111 "src/Z3/Base/C.hsc" #-}
+{-# LINE 112 "src/Z3/Base/C.hsc" #-}
 
 -- | Reference: <http://z3prover.github.io/api/html/group__capi.html#gaa9f9e7b1b5b81381fab96debbaaa638f>
 type Z3_error_code = CInt
@@ -149,71 +148,71 @@ z3_dec_ref_error      =  11
 z3_exception          :: Z3_error_code
 z3_exception          =  12
 
-{-# LINE 129 "src/Z3/Base/C.hsc" #-}
+{-# LINE 130 "src/Z3/Base/C.hsc" #-}
 
 -- | Reference: <http://z3prover.github.io/api/html/group__capi.html#ga4cd6ad05aba48f4b679f0c13310ed2a4>
 type Z3_sort_kind = CInt
 z3_uninterpreted_sort :: Z3_sort_kind
 z3_uninterpreted_sort = 0
-{-# LINE 134 "src/Z3/Base/C.hsc" #-}
+{-# LINE 135 "src/Z3/Base/C.hsc" #-}
 z3_bool_sort :: Z3_sort_kind
 z3_bool_sort = 1
-{-# LINE 136 "src/Z3/Base/C.hsc" #-}
+{-# LINE 137 "src/Z3/Base/C.hsc" #-}
 z3_int_sort :: Z3_sort_kind
 z3_int_sort = 2
-{-# LINE 138 "src/Z3/Base/C.hsc" #-}
+{-# LINE 139 "src/Z3/Base/C.hsc" #-}
 z3_real_sort :: Z3_sort_kind
 z3_real_sort = 3
-{-# LINE 140 "src/Z3/Base/C.hsc" #-}
+{-# LINE 141 "src/Z3/Base/C.hsc" #-}
 z3_bv_sort :: Z3_sort_kind
 z3_bv_sort = 4
-{-# LINE 142 "src/Z3/Base/C.hsc" #-}
+{-# LINE 143 "src/Z3/Base/C.hsc" #-}
 z3_array_sort :: Z3_sort_kind
 z3_array_sort = 5
-{-# LINE 144 "src/Z3/Base/C.hsc" #-}
+{-# LINE 145 "src/Z3/Base/C.hsc" #-}
 z3_datatype_sort :: Z3_sort_kind
 z3_datatype_sort = 6
-{-# LINE 146 "src/Z3/Base/C.hsc" #-}
+{-# LINE 147 "src/Z3/Base/C.hsc" #-}
 z3_relation_sort :: Z3_sort_kind
 z3_relation_sort = 7
-{-# LINE 148 "src/Z3/Base/C.hsc" #-}
+{-# LINE 149 "src/Z3/Base/C.hsc" #-}
 z3_finite_domain_sort :: Z3_sort_kind
 z3_finite_domain_sort = 8
-{-# LINE 150 "src/Z3/Base/C.hsc" #-}
+{-# LINE 151 "src/Z3/Base/C.hsc" #-}
 z3_floating_point_sort :: Z3_sort_kind
 z3_floating_point_sort = 9
-{-# LINE 152 "src/Z3/Base/C.hsc" #-}
+{-# LINE 153 "src/Z3/Base/C.hsc" #-}
 z3_rounding_mode_sort :: Z3_sort_kind
 z3_rounding_mode_sort = 10
-{-# LINE 154 "src/Z3/Base/C.hsc" #-}
+{-# LINE 155 "src/Z3/Base/C.hsc" #-}
 z3_unknown_sort :: Z3_sort_kind
 z3_unknown_sort = 1000
-{-# LINE 156 "src/Z3/Base/C.hsc" #-}
+{-# LINE 157 "src/Z3/Base/C.hsc" #-}
 
 
 -- | Reference: <http://z3prover.github.io/api/html/group__capi.html#ga015148ad21a032e79a496629651dedb8>
 type Z3_ast_kind = CInt
 z3_numeral_ast :: Z3_ast_kind
 z3_numeral_ast = 0
-{-# LINE 162 "src/Z3/Base/C.hsc" #-}
+{-# LINE 163 "src/Z3/Base/C.hsc" #-}
 z3_app_ast :: Z3_ast_kind
 z3_app_ast = 1
-{-# LINE 164 "src/Z3/Base/C.hsc" #-}
+{-# LINE 165 "src/Z3/Base/C.hsc" #-}
 z3_var_ast :: Z3_ast_kind
 z3_var_ast = 2
-{-# LINE 166 "src/Z3/Base/C.hsc" #-}
+{-# LINE 167 "src/Z3/Base/C.hsc" #-}
 z3_quantifier_ast :: Z3_ast_kind
 z3_quantifier_ast = 3
-{-# LINE 168 "src/Z3/Base/C.hsc" #-}
+{-# LINE 169 "src/Z3/Base/C.hsc" #-}
 z3_sort_ast :: Z3_ast_kind
 z3_sort_ast = 4
-{-# LINE 170 "src/Z3/Base/C.hsc" #-}
+{-# LINE 171 "src/Z3/Base/C.hsc" #-}
 z3_func_decl_ast :: Z3_ast_kind
 z3_func_decl_ast = 5
-{-# LINE 172 "src/Z3/Base/C.hsc" #-}
+{-# LINE 173 "src/Z3/Base/C.hsc" #-}
 z3_unknown_ast :: Z3_ast_kind
 z3_unknown_ast = 1000
-{-# LINE 174 "src/Z3/Base/C.hsc" #-}
+{-# LINE 175 "src/Z3/Base/C.hsc" #-}
 
 
 ---------------------------------------------------------------------
@@ -1523,6 +1522,56 @@ foreign import ccall unsafe "Z3_parse_smtlib2_file"
 -- | Referece <http://z3prover.github.io/api/html/group__capi.html#ga96b11da43464071c4ec35418d1cc3483>
 foreign import ccall unsafe "Z3_get_parser_error"
   z3_get_parser_error :: Ptr Z3_context -> IO Z3_string
+
+-- | 
+foreign import ccall unsafe "Z3_mk_optimize"
+  z3_mk_optimize :: Ptr Z3_context -> IO (Ptr Z3_optimize)
+
+foreign import ccall unsafe "Z3_optimize_inc_ref"
+  z3_optimize_inc_ref :: Ptr Z3_context -> Ptr Z3_optimize -> IO ()
+
+foreign import ccall unsafe "Z3_optimize_dec_ref"
+  z3_optimize_dec_ref :: Ptr Z3_context -> Ptr Z3_optimize -> IO ()
+
+foreign import ccall unsafe "Z3_optimize_set_params"
+  z3_optimize_set_params :: Ptr Z3_context -> Ptr Z3_optimize -> Ptr Z3_params -> IO ()
+
+foreign import ccall unsafe "Z3_optimize_assert"
+  z3_optimize_assert :: Ptr Z3_context -> Ptr Z3_optimize -> Ptr Z3_ast -> IO ()
+
+foreign import ccall unsafe "Z3_optimize_assert_soft"
+  z3_optimize_assert_soft :: Ptr Z3_context 
+                          -> Ptr Z3_optimize 
+                          -> Ptr Z3_ast 
+                          -> Z3_string 
+                          -> Ptr Z3_symbol 
+                          -> IO ()
+
+foreign import ccall unsafe "Z3_optimize_check"
+  z3_optimize_check :: Ptr Z3_context
+                    -> Ptr Z3_optimize
+                    -> IO Z3_lbool
+
+foreign import ccall unsafe "Z3_optimize_from_string"
+  z3_optimize_from_string :: Ptr Z3_context
+                          -> Ptr Z3_optimize
+                          -> Z3_string
+                          -> IO ()
+
+foreign import ccall unsafe "Z3_optimize_get_model"
+  z3_optimize_get_model :: Ptr Z3_context -> Ptr Z3_optimize -> IO (Ptr Z3_model)
+
+foreign import ccall unsafe "Z3_optimize_get_assertions"
+  z3_optimize_get_assertions :: Ptr Z3_context -> Ptr Z3_optimize -> IO (Ptr Z3_ast_vector)
+
+foreign import ccall unsafe "Z3_optimize_get_objectives"
+  z3_optimize_get_objectives :: Ptr Z3_context -> Ptr Z3_optimize -> IO (Ptr Z3_ast_vector)
+
+foreign import ccall unsafe "Z3_optimize_push"
+    z3_optimize_push :: Ptr Z3_context -> Ptr Z3_optimize -> IO ()
+
+foreign import ccall unsafe "Z3_optimize_pop"
+    z3_optimize_pop :: Ptr Z3_context -> Ptr Z3_optimize -> CUInt -> IO ()
 
 ---------------------------------------------------------------------
 -- * Error Handling
