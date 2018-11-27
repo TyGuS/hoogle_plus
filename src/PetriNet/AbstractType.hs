@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveGeneric  #-}
 {-# LANGUAGE FlexibleContexts #-}
 
@@ -40,15 +39,18 @@ withinSemantic semantic key id = (id `Set.member` possibleIds, possibleIds)
     possibleIds    = Set.foldr unionEither Set.empty currIds
 
 
+-- Abstract a type into its skeleton
 abstract :: [Id] -> AbstractionSemantic -> Id -> SType -> AbstractSkeleton
--- abstract bound semantic key (ScalarT (DatatypeT id tArgs _) _) | key `Map.member` semantic =
-    -- if inSeman then ADatatypeT id (map (abstract bound semantic (key ++ "," ++ id)) tArgs)
-               -- else AExclusion allIds
-  -- where
-    -- (inSeman, allIds) = withinSemantic semantic key id
--- abstract bound semantic key (ScalarT (DatatypeT id tArgs _) _) = AExclusion Set.empty
--- abstract bound semantic key (ScalarT BoolT _) = abstract bound semantic key (ScalarT (DatatypeT "Bool" [] []) ())
--- abstract bound semantic key (ScalarT IntT _) = abstract bound semantic key (ScalarT (DatatypeT "Int"  [] []) ())
+abstract bound semantic key (ScalarT (DatatypeT id tArgs _) _) | key `Map.member` semantic =
+    if inSeman then ADatatypeT id (map (abstract bound semantic (key ++ "," ++ id)) tArgs)
+               else AExclusion allIds
+  where
+    (inSeman, allIds) = withinSemantic semantic key id
+abstract bound semantic key (ScalarT (DatatypeT id tArgs _) _) = AExclusion Set.empty
+abstract bound semantic key (ScalarT (TypeAppT () tArg _) _) = AExclusion Set.empty
+abstract bound semantic key (ScalarT (TypeConT id) _) | not (key `Map.member` semantic) = AExclusion Set.empty
+abstract bound semantic key (ScalarT BoolT _) = abstract bound semantic key (ScalarT (TypeConT "Bool") ())
+abstract bound semantic key (ScalarT IntT _) = abstract bound semantic key (ScalarT (TypeConT "Int") ())
 abstract bound semantic key (ScalarT (TypeVarT _ id) _) | id `elem` bound || key /= "" =
     if inSeman then ATypeVarT id
                else AExclusion allIds

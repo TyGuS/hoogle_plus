@@ -84,8 +84,10 @@ scalarName (ScalarT BoolT _) = "Bool"
 scalarName (ScalarT (TypeVarT _ name) _) = name
 scalarName t = error $ "scalarName error: cannot be applied to " ++ show t
 
+allDatatypes :: TypeSkeleton r -> Set.Set Id
 allDatatypes (FunctionT _ tArg tRet) = allDatatypes tArg `Set.union` allDatatypes tRet
--- allDatatypes (ScalarT (DatatypeT id tArgs _) _) = id `Set.insert` foldr (Set.union . allDatatypes) Set.empty tArgs
+allDatatypes (ScalarT (TypeAppT conn tArg) x) = Set.union (allDatatypes (ScalarT conn x)) (allDatatypes tArg)
+allDatatypes (ScalarT (TypeConT id) _) = Set.singleton id
 allDatatypes (ScalarT IntT _) = Set.singleton "Int"
 allDatatypes (ScalarT BoolT _) = Set.singleton "Bool"
 allDatatypes (ScalarT (TypeVarT _ id) _) = Set.empty
