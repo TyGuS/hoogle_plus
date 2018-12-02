@@ -97,6 +97,16 @@ arity (FunctionT _ _ t) = 1 + arity t
 arity (LetT _ _ t) = arity t
 arity _ = 0
 
+-- typeAppToArgs converts a typeApp to a list of its args and the constructor
+-- which could be either a TypeConT or a TypeVarT
+typeAppToArgs :: BaseType r -> (BaseType r, [TypeSkeleton r])
+typeAppToArgs (TypeAppT l r) = case typeAppToArgs l of
+    (TypeConT id, skels) -> (TypeConT id, skels ++ [r])
+    (TypeVarT m id, skels) -> (TypeVarT m id, skels ++ [r])
+typeAppToArgs (TypeConT id) = (TypeConT id, [])
+typeAppToArgs (TypeVarT m id) = (TypeVarT m id, [])
+
+
 lastType (FunctionT _ _ tRes) = lastType tRes
 lastType (LetT _ _ t) = lastType t
 lastType t = t
@@ -259,7 +269,7 @@ shape (ScalarT baseTy _) = ScalarT (shapeBase baseTy) ()
     where
         shapeBase IntT = IntT
         shapeBase BoolT = BoolT
-        -- shapeBase (DatatypeT name tArgs pArgs) = DatatypeT name (map shape tArgs) (replicate (length pArgs) ())
+        shapeBase (TypeConT id) = TypeConT id
         shapeBase (TypeVarT _ a) = TypeVarT Map.empty a
         shapeBase (TypeAppT l r) = TypeAppT (shapeBase l) (shape r)
 

@@ -277,7 +277,7 @@ distinguish env semantic tass key t1 t2 =
 topDownCheck :: (MonadIO m) => Environment -> SType -> UProgram -> PNSolver m RProgram
 topDownCheck env typ p@(Program (PSymbol sym) _) = do
     -- lookup the symbol type in current scope
-    writeLog 3 $ text "Checking type for" <+> pretty p
+    writeLog 3 $ text "Checking type for program symbol:" <+> pretty p
     -- liftIO $ print (allSymbols env)
     (t,c) <- case lookupSymbol sym 0 env of
                 Nothing  ->
@@ -292,11 +292,12 @@ topDownCheck env typ p@(Program (PSymbol sym) _) = do
     writeLog 3 $ text "Solving constraint" <+> pretty typ <+> text "==" <+> pretty t
     solveTypeConstraint env typ (shape t) (Map.fromList c)
     ifM (view isChecked <$> get)
-        (return $ Program (PSymbol sym) t)
-        (return $ Program (PSymbol sym) (addTrue typ))
+        (Debug.Trace.trace "type checks OK" (return $ Program (PSymbol sym) t))
+        (Debug.Trace.trace "type checks FAIL" (return $ Program (PSymbol sym) (addTrue typ)))
+
 topDownCheck env typ p@(Program (PApp pFun pArg) _) = do
     -- first check the function type with @AnyT@ as parameters and @typ@ as returns
-    writeLog 3 $ text "Checking type for" <+> pretty p
+    writeLog 3 $ text "Checking type for program app:" <+> pretty p
     fun <- topDownCheck env (FunctionT "x" AnyT typ) pFun
     ifM (view isChecked <$> get)
         (checkArgumentType fun)
@@ -309,8 +310,9 @@ topDownCheck env typ p@(Program (PApp pFun pArg) _) = do
         ifM (view isChecked <$> get)
             (return $ Program (PApp f arg) tRet)
             (return $ Program (PApp f arg) (addTrue typ)) -- if check fails
+
 topDownCheck env typ@(FunctionT _ tArg tRet) p@(Program (PFun x body) _) = do
-    writeLog 3 $ text "Checking type for" <+> pretty p
+    writeLog 3 $ text "Checking function type for" <+> pretty p
     body' <- topDownCheck (addVariable x (addTrue tArg) env) tRet body
     ifM (view isChecked <$> get)
         (return $ Program (PFun x body') (FunctionT x (addTrue tArg) (typeOf body')))
@@ -318,6 +320,7 @@ topDownCheck env typ@(FunctionT _ tArg tRet) p@(Program (PFun x body) _) = do
 -- topDownCheck env typ p@(Program (PFun x body) AnyT) = do
 --     writeLog 3 $ text "Checking type for" <+> pretty p
 --     topDownCheck (addVariable x AnyT env) typ body
+
 
 bottomUpCheck :: (MonadIO m) => Environment -> RProgram -> StateT TypingState m (Maybe (RProgram, ClassConstraint))
 bottomUpCheck env p@(Program PHole _) = return $ Just (p, [])
@@ -368,11 +371,14 @@ bottomUpCheck env p@(Program (PFun x body) (FunctionT _ tArg tRet)) = do
         Nothing -> return Nothing
         Just (b,c) -> return $ Just (Program (PFun x b) (FunctionT x tArg (typeOf b)), c)
 
+okTypes t1 t2 = Debug.Trace.trace ("types are equal: " ++ (show t1) ++ " == " ++ (show t2))
+
 solveTypeConstraint :: (MonadIO m) => Environment -> SType -> SType -> Map Id [Id] -> StateT TypingState m ()
 solveTypeConstraint _ AnyT _ _ = return ()
 solveTypeConstraint _ _ AnyT _ = return ()
 solveTypeConstraint _ ErrorT _ _ = return ()
 solveTypeConstraint _ _ ErrorT _ = return ()
+solveTypeConstraint _ ty1@(ScalarT t1 _) ty2@(ScalarT t2 _) _ | t1 == t2 = okTypes ty1 ty2 $ return ()
 solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ id') _) _ | id == id' = return ()
 solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ id') _) constraints | isBound env id && isBound env id' =
     modify $ set isChecked False
@@ -404,10 +410,10 @@ solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t constraints = do
     if id `Map.member` (st ^. typeAssignment)
         then do
             let typ = fromJust $ Map.lookup id $ st ^. typeAssignment
-            writeLog 3 $ text "Solving constraint" <+> pretty typ <+> "==" <+> pretty t
+            writeLog 3 $ text "Solving constraint" <+> pretty id <+> "|->" <+> pretty typ <+> "==" <+> pretty t
             solveTypeConstraint env typ t constraints
         else do
-            unify env id t constraints
+            unify env id t constraints  -- MJ: how should this act with a Higher kinded type var
 solveTypeConstraint env t tv@(ScalarT (TypeVarT _ id) _) constraints = solveTypeConstraint env tv t constraints
 solveTypeConstraint env (FunctionT _ tArg tRet) (FunctionT _ tArg' tRet') constraints = do
     writeLog 3 $ text "Solving constraint" <+> pretty tArg <+> "==" <+> pretty tArg'
@@ -416,6 +422,20 @@ solveTypeConstraint env (FunctionT _ tArg tRet) (FunctionT _ tArg' tRet') constr
     when (st ^. isChecked) (do
         writeLog 3 $ text "Solving constraint" <+> pretty tRet <+> "==" <+> pretty tRet'
         solveTypeConstraint env tRet tRet' constraints)
+solveTypeConstraint env t1@(ScalarT (TypeAppT left right) _) t2@(ScalarT (TypeAppT left' right') _) _ |
+    (left == left') && (right == right') = return ()
+solveTypeConstraint env t1@(ScalarT bt1@(TypeAppT left right) _) t2@(ScalarT bt2@(TypeAppT left' right') _) constraints = do
+    let (base1, tArgs1) = typeAppToArgs bt1
+    let (base2, tArgs2) = typeAppToArgs bt2
+    if (base1 /= base2)  --TODO: this would check for tyvars too for HKTv
+        then (modify $ set isChecked False)
+        else if (length tArgs1 /= length tArgs2)
+            then (modify $ set isChecked False)
+            else (mapM_ (\(t1', t2') -> solveTypeConstraint env t1' t2' constraints) (zip tArgs1 tArgs2))
+    -- figure out how to check left vs left'
+solveTypeConstraint env t1@(ScalarT (TypeConT id) _) t2@(ScalarT (TypeConT id') _) _ |
+    id /= id' = modify $ set isChecked False
+solveTypeConstraint env t1@(ScalarT (TypeConT id) _) t2@(ScalarT (TypeConT id') _) _ | id == id' = return ()
 -- solveTypeConstraint env t1@(ScalarT (DatatypeT id tArgs _) _) t2@(ScalarT (DatatypeT id' tArgs' _) _) _ | id /= id' = do
     -- modify $ set isChecked False
 -- solveTypeConstraint env t1@(ScalarT (DatatypeT id tArgs _) _) t2@(ScalarT (DatatypeT id' tArgs' _) _) constraints | id == id' = do
@@ -428,9 +448,12 @@ solveTypeConstraint env (FunctionT _ tArg tRet) (FunctionT _ tArg' tRet') constr
         -- checked <- view isChecked <$> get
         -- -- if the checking between ty and ty' succeeds, proceed to others
         -- when (checked) (solveTypeConstraint' env tys tys')
-solveTypeConstraint env t1 t2 _ = error $ "unknown types " ++ show t1 ++ " or " ++ show t2
+solveTypeConstraint env t1 t2 _ = Debug.Trace.trace ("unknown types " ++ show t1 ++ " or " ++ show t2)
+    (modify $ set isChecked False)
 
 unify :: (MonadIO m) => Environment -> Id -> SType -> Map Id [Id] -> PNSolver m ()
+-- unify env v t@(ScalarT (TypeAppT l r) _) constraints | v `Map.member` constraints = error $ "unable to unify typeapp: var: "++ (show v) ++ " type: " ++ (show t)
+unify env v t@(ScalarT (TypeConT _) _) constraints = error $ "unable to unify typecon: var: "++ (show v) ++ " type: " ++ (show t) ++ " is v in constraints: " ++ (show $ v `Map.member` constraints)
 -- unify env v t@(ScalarT (DatatypeT name _ _) _) constraints | v `Map.member` constraints =
 --     if foldr ((&&) . Set.member name) True instances -- containts id and it has instance definition for each type classes constraints
 --         then modify $ over typeAssignment (Map.insert v t)
@@ -444,18 +467,33 @@ unify :: (MonadIO m) => Environment -> Id -> SType -> Map Id [Id] -> PNSolver m 
 --     getInstances c = Map.findWithDefault Set.empty c (env ^. typeClasses)
 --     instances = map getInstances classes
 --     firstUnsat = minimum $ filter (not . Set.member name) instances
--- unify env v t@(ScalarT (TypeVarT _ name) _) constraints | isBound env name =
---   if foldr ((&&) . Set.member name) True instances -- containts id and it has instance definition for each type classes constraints
---         then modify $ over typeAssignment (Map.insert v t)
---         else do-- get first unsatisfied type class, and distinguish this type out of all the other defined instances
---             writeLog 3 $ text "Unify fails:" <+> pretty t <+> text "is not in" <+> pretty (Set.toList firstUnsat)
---             modify $ set isChecked False
---             modify $ over abstractionSemantic (Map.insertWith Set.union "" (Set.singleton $ Right firstUnsat))
---  where
---     classes = Map.findWithDefault [] v constraints
---     getInstances c = Map.findWithDefault Set.empty c (env ^. typeClasses)
---     instances = map getInstances classes
---     firstUnsat = minimum $ filter (not . Set.member name) instances
+unify env v t@(ScalarT bt@(TypeAppT l r) _) constraints | v `Map.member` constraints = let
+    (TypeConT name, _) = typeAppToArgs bt
+    classes = Map.findWithDefault [] v constraints
+    getInstances c = Map.findWithDefault Set.empty c (env ^. typeClasses)
+    instances = map getInstances classes
+    firstUnsat = minimum $ filter (not . Set.member name) instances
+    in
+    if foldr ((&&) . Set.member name) True instances -- containts id and it has instance definition for each type classes constraints
+        then modify $ over typeAssignment (Map.insert v t)
+        else do
+            writeLog 3 $ text "Unify fails:" <+> pretty t <+> text "is not in" <+> pretty (Set.toList firstUnsat)
+            -- get first unsatisfied type class, and distinguish this type out of all the other defined instances
+            modify $ set isChecked False
+            modify $ over abstractionSemantic (Map.insertWith Set.union "" (Set.singleton $ Right firstUnsat))
+
+unify env v t@(ScalarT (TypeVarT _ name) _) constraints | isBound env name =
+  if foldr ((&&) . Set.member name) True instances -- containts id and it has instance definition for each type classes constraints
+        then modify $ over typeAssignment (Map.insert v t)
+        else do-- get first unsatisfied type class, and distinguish this type out of all the other defined instances
+            writeLog 3 $ text "Unify fails:" <+> pretty t <+> text "is not in" <+> pretty (Set.toList firstUnsat)
+            modify $ set isChecked False
+            modify $ over abstractionSemantic (Map.insertWith Set.union "" (Set.singleton $ Right firstUnsat))
+  where
+    classes = Map.findWithDefault [] v constraints
+    getInstances c = Map.findWithDefault Set.empty c (env ^. typeClasses)
+    instances = map getInstances classes
+    firstUnsat = minimum $ filter (not . Set.member name) instances
 unify env v t _ = modify $ over typeAssignment (Map.insert v t)
 
 checkType :: (MonadIO m) => Environment -> RType -> UProgram -> PNSolver m (Maybe RProgram)
@@ -519,6 +557,9 @@ findPath env dst = do
         String tgtType = $tgt;
         System.out.println("Arguments:" + srcTypes.toString());
         System.out.println("Target:" + tgtType);
+        System.out.println("Solutions:" + solutions.toString());
+        System.out.println("HO-Args:" + hoArgs.toString());
+        System.out.println("Symbols:" + $symbols.toString());
         cmu.edu.utils.SynquidUtil.init(srcTypes, argNames, hoArgs, tgtType, $symbols, solutions, $loc);
         cmu.edu.utils.SynquidUtil.buildNextEncoding();
     } |]

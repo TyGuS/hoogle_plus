@@ -16,6 +16,7 @@ import Data.Aeson
 import Data.Maybe
 import Data.Either (isLeft)
 import Data.List
+import Debug.Trace
 
 data AbstractSkeleton =
       ADatatypeT Id [AbstractSkeleton] -- explicit datatypes
@@ -41,14 +42,19 @@ withinSemantic semantic key id = (id `Set.member` possibleIds, possibleIds)
 
 -- Abstract a type into its skeleton
 abstract :: [Id] -> AbstractionSemantic -> Id -> SType -> AbstractSkeleton
-abstract bound semantic key (ScalarT (DatatypeT id tArgs _) _) | key `Map.member` semantic =
-    if inSeman then ADatatypeT id (map (abstract bound semantic (key ++ "," ++ id)) tArgs)
-               else AExclusion allIds
-  where
-    (inSeman, allIds) = withinSemantic semantic key id
-abstract bound semantic key (ScalarT (DatatypeT id tArgs _) _) = AExclusion Set.empty
-abstract bound semantic key (ScalarT (TypeAppT () tArg _) _) = AExclusion Set.empty
+abstract bound semantic key (ScalarT tyapp@(TypeAppT tCon tArg) fml) = let
+    (tcon, args) = typeAppToArgs tyapp
+    in case tcon of
+        TypeConT id -> let
+            (inSeman, allIds) = withinSemantic semantic key id
+            in if inSeman
+                then ADatatypeT id (map (abstract bound semantic (key ++ "," ++ id)) args)
+                else AExclusion allIds
+        tyvar@(TypeVarT m id) -> Debug.Trace.trace ("abstracting higher kinded type variable: " ++ id) (
+            abstract bound semantic key (ScalarT tyvar fml))
+        _ -> error "the impossible has happened"
 abstract bound semantic key (ScalarT (TypeConT id) _) | not (key `Map.member` semantic) = AExclusion Set.empty
+abstract bound semantic key (ScalarT (TypeConT id) _) = ADatatypeT id []
 abstract bound semantic key (ScalarT BoolT _) = abstract bound semantic key (ScalarT (TypeConT "Bool") ())
 abstract bound semantic key (ScalarT IntT _) = abstract bound semantic key (ScalarT (TypeConT "Int") ())
 abstract bound semantic key (ScalarT (TypeVarT _ id) _) | id `elem` bound || key /= "" =
@@ -56,8 +62,7 @@ abstract bound semantic key (ScalarT (TypeVarT _ id) _) | id `elem` bound || key
                else AExclusion allIds
   where
     (inSeman, allIds) = withinSemantic semantic key id
-abstract bound semantic key (ScalarT (TypeVarT _ id) _) | key == "" = ATypeVarT id
--- abstract bound semantic key (ScalarT (TypeVarT _ id) _) = ATypeVarT id
+abstract bound semantic key (ScalarT (TypeVarT _ id) _) = ATypeVarT id
 abstract bound semantic key (FunctionT x tArg tRet) = AFunctionT (abstract bound semantic key tArg) (abstract bound semantic key tRet)
 
 outerName :: AbstractSkeleton -> Either (Set Id) (Set Id)
