@@ -4,8 +4,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveGeneric  #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# OPTIONS_GHC -fplugin=Language.Java.Inline.Plugin #-}
-{-# OPTIONS_GHC -fplugin-opt=Language.Java.Inline.Plugin:dump-java #-}
+{-# -- OPTIONS_GHC -fplugin=Language.Java.Inline.Plugin #-}
+{-# -- OPTIONS_GHC -fplugin-opt=Language.Java.Inline.Plugin:dump-java #-}
 
 module PetriNet.PNSolver where
 
@@ -103,7 +103,7 @@ instance Serialize FunctionCode
 abstractParamList :: AbstractSkeleton -> [AbstractSkeleton]
 abstractParamList t@(ADatatypeT _ _) = [t]
 abstractParamList t@(AExclusion _)   = [t]
-abstractParamList (AFunctionT tArg tFun) = 
+abstractParamList (AFunctionT tArg tFun) =
     case tFun of
         ADatatypeT _ _  -> [tArg]
         AExclusion _    -> [tArg]
@@ -141,11 +141,11 @@ freshType sch = freshType' Map.empty [] sch
   where
     freshType' subst constraints (ForallT (a,constraint) sch) = do
         a' <- freshId "A"
-        freshType' (Map.insert a (vart a' ftrue) subst) ((a',constraint):constraints) sch    
+        freshType' (Map.insert a (vart a' ftrue) subst) ((a',constraint):constraints) sch
     freshType' subst constraints (Monotype t) = return (typeSubstitute subst $ t, constraints)
 
 constructType :: Environment -> AbstractionSemantic -> Id -> [AbstractSkeleton]
-constructType env abstraction key 
+constructType env abstraction key
     | key `Map.notMember` abstraction && currDt == "" = [AExclusion Set.empty]
     | key `Map.notMember` abstraction && isDt = [ADatatypeT currDt $ replicate dtParams (AExclusion Set.empty)]
     | key `Map.notMember` abstraction = [ATypeVarT currDt, AExclusion (Set.singleton currDt)] -- this is bounded type variables
@@ -153,8 +153,8 @@ constructType env abstraction key
     | isDt = nubOrd $ map (ADatatypeT currDt) $ listOfN dtParams $ (AExclusion allIds) : anyOneIds ++ concatMap (constructType env abstraction . (++) (key ++ ",")) (Set.toList allIds)
     | otherwise = nubOrd $ [ATypeVarT currDt, AExclusion (Set.singleton currDt)] -- this is bounded type variables
   where
-    currDt = if null (splitBy ',' key) 
-                then "" 
+    currDt = if null (splitBy ',' key)
+                then ""
                 else if Map.member (last $ splitBy ',' key) (env ^. datatypes) || Char.isLower (head $ last $ splitBy ',' key)
                     then last $ splitBy ',' key
                     else ""
@@ -172,14 +172,14 @@ constructType env abstraction key
 -- TODO: start with only the datatypes in the query
 instantiate :: (MonadIO m) => Environment -> Map Id (AbstractSkeleton, ClassConstraint) -> PNSolver m (Map Id AbstractSkeleton)
 instantiate env sigs = instantiate' sigs $ Map.map fst $ Map.filter (not . hasAbstractVar . fst) sigs
-  where 
+  where
     removeSuffix id ty = (removeLast '_' id, ty)
-    
+
     instantiate' sigs sigsAcc = do
         st <- get
         let typs = constructType env (st ^. abstractionSemantic) ""
         writeLog 3 $ text "Current abstraction semantics:" <+> text (show (st ^. abstractionSemantic))
-        writeLog 3 $ text "Current abstract types:" <+> pretty typs 
+        writeLog 3 $ text "Current abstract types:" <+> pretty typs
         sigs' <- foldM (\acc -> (<$>) (Map.union acc) . uncurry (instantiateWith env typs)) Map.empty (Map.toList sigs)
         return $ Map.fromList $ nubOrdOn (uncurry removeSuffix) $ Map.toList $ Map.union sigsAcc sigs'
 
@@ -199,7 +199,7 @@ instantiateWith env typs id (sk, constraints) = do
         multiPermutation len elmts | len == 0 = []
         multiPermutation len elmts | len == 1 = [[e] | e <- elmts]
         multiPermutation len elmts            = nubOrd $ [ l:r | l <- elmts, r <- multiPermutation (len - 1) elmts]
-        
+
         unifierValid constraintMap id t = True
             -- let constraints = map (flip (Map.findWithDefault Set.empty) (env ^. typeClasses)) $ (Map.findWithDefault [] id constraintMap)
             -- in case outerName t of
@@ -213,7 +213,7 @@ instantiateWith env typs id (sk, constraints) = do
             return $ prefix ++ "_" ++ show idx
 
 cutoff :: AbstractionSemantic -> Id -> AbstractSkeleton -> AbstractSkeleton
-cutoff semantic key (ADatatypeT id tArgs) = 
+cutoff semantic key (ADatatypeT id tArgs) =
     if id `Set.member` possibleIds then ADatatypeT id (map (cutoff semantic (key ++ "," ++ id)) tArgs)
                                else AExclusion possibleIds
   where
@@ -233,9 +233,9 @@ distinguish env semantic _ _ AnyT _ = semantic
 distinguish env semantic _ _ _ AnyT = semantic
 distinguish env semantic _ _ ErrorT _ = semantic
 distinguish env semantic _ _ _ ErrorT = semantic
-distinguish env semantic _ key (ScalarT (DatatypeT id _ _) _) (ScalarT (DatatypeT id' _ _) _) | id /= id' = 
+distinguish env semantic _ key (ScalarT (DatatypeT id _ _) _) (ScalarT (DatatypeT id' _ _) _) | id /= id' =
     Map.insertWith Set.union key (Set.fromList [Left id, Left id']) semantic
-distinguish env semantic tass key (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT id' tArgs' _) _) | id == id' = 
+distinguish env semantic tass key (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT id' tArgs' _) _) | id == id' =
     distinguish' (key ++ "," ++ id) tass tArgs tArgs'
   where
     -- split the current node into two when we cannot distinguish the error type from its abstract representation
@@ -245,14 +245,14 @@ distinguish env semantic tass key (ScalarT (DatatypeT id tArgs _) _) (ScalarT (D
     distinguish' key _ [] ((ScalarT (TypeVarT _ id) _):_) = semantic
     distinguish' key tass [] (t:_) = Map.insertWith Set.union key (Set.singleton $ Left $ scalarName (stypeSubstitute tass t)) semantic
     distinguish' key tass args [] = distinguish' key tass [] args
-    distinguish' key tass (arg:args) (arg':args') = 
+    distinguish' key tass (arg:args) (arg':args') =
         let semantic' = distinguish env semantic tass key arg arg'
         in if semantic' /= semantic then semantic' -- if we get several new representations, stop refining
                               else distinguish' key tass args args' -- otherwise append the current arg to the recursive result
 -- TODO: need change to support higher order functions
 distinguish env semantic tass key (ScalarT (TypeVarT _ id) _) (ScalarT (TypeVarT _ id') _) | id == id' = semantic
 -- has unsubtituted type variables, substitute them and recheck
-distinguish env semantic tass key (ScalarT (TypeVarT _ id) _) t | id `Map.member` tass = 
+distinguish env semantic tass key (ScalarT (TypeVarT _ id) _) t | id `Map.member` tass =
     distinguish env semantic tass key (fromJust $ Map.lookup id tass) t
 distinguish env semantic tass key t (ScalarT (TypeVarT _ id) _) | id `Map.member` tass =
     distinguish env semantic tass key t (fromJust $ Map.lookup id tass)
@@ -265,13 +265,13 @@ distinguish env semantic tass key (ScalarT (TypeVarT {}) _) (ScalarT (TypeVarT {
 distinguish env semantic tass key (ScalarT (TypeVarT _ _) _) t = Map.insertWith Set.union key (Set.singleton (Left $ scalarName t)) semantic
 distinguish env semantic tass key t tv@(ScalarT (TypeVarT _ _) _) = distinguish env semantic tass key tv t
     -- Map.insertWith Set.union key (Set.singleton $ Left $ scalarName (stypeSubstitute tass t)) semantic
-distinguish env semantic tass key (FunctionT _ tArg tRes) (FunctionT _ tArg' tRes') = 
+distinguish env semantic tass key (FunctionT _ tArg tRes) (FunctionT _ tArg' tRes') =
     Map.unionWith Set.union (distinguish env semantic tass key tArg tArg')
                             (distinguish env semantic tass key tRes tRes')
-distinguish env semantic tass key t1 t2 = 
+distinguish env semantic tass key t1 t2 =
     let t1' = stypeSubstitute tass t1
         t2' = stypeSubstitute tass t2
-    in if t1' == t2' then semantic 
+    in if t1' == t2' then semantic
                      else Map.insertWith Set.union key (Set.fromList [Left $ scalarName t1', Left $ scalarName t2']) semantic
 
 topDownCheck :: (MonadIO m) => Environment -> SType -> UProgram -> PNSolver m RProgram
@@ -280,7 +280,7 @@ topDownCheck env typ p@(Program (PSymbol sym) _) = do
     writeLog 3 $ text "Checking type for" <+> pretty p
     -- liftIO $ print (allSymbols env)
     (t,c) <- case lookupSymbol sym 0 env of
-                Nothing  -> 
+                Nothing  ->
                     case lookupSymbol ("(" ++ sym ++ ")") 0 env of -- symbol name with parenthesis
                         Nothing  -> do
                             writeLog 2 $ text "topDownCheck: cannot find symbol" <+> text sym <+> text "in the current environment"
@@ -291,9 +291,9 @@ topDownCheck env typ p@(Program (PSymbol sym) _) = do
     -- solve the type constraint t == typ
     writeLog 3 $ text "Solving constraint" <+> pretty typ <+> text "==" <+> pretty t
     solveTypeConstraint env typ (shape t) (Map.fromList c)
-    ifM (view isChecked <$> get) 
-        (return $ Program (PSymbol sym) t) 
-        (return $ Program (PSymbol sym) (addTrue typ)) 
+    ifM (view isChecked <$> get)
+        (return $ Program (PSymbol sym) t)
+        (return $ Program (PSymbol sym) (addTrue typ))
 topDownCheck env typ p@(Program (PApp pFun pArg) _) = do
     -- first check the function type with @AnyT@ as parameters and @typ@ as returns
     writeLog 3 $ text "Checking type for" <+> pretty p
@@ -325,7 +325,7 @@ bottomUpCheck env p@(Program (PSymbol sym) typ) = do
     -- lookup the symbol type in current scope
     writeLog 3 $ text "Checking type for" <+> pretty p
     (t,c) <- case lookupSymbol sym 0 env of
-                Nothing  -> 
+                Nothing  ->
                     case lookupSymbol ("(" ++ sym ++ ")") 0 env of -- symbol name with parenthesis
                         Nothing  -> do
                             modify $ set isChecked False
@@ -385,7 +385,7 @@ solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ 
             solveTypeConstraint env tv typ constraints
         else unify env id' tv constraints
 solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ id') _) constraints = do
-    st <- get 
+    st <- get
     if id `Map.member` (st ^. typeAssignment)
         then do
             let typ = fromJust $ Map.lookup id $ st ^. typeAssignment
@@ -431,7 +431,7 @@ solveTypeConstraint env t1@(ScalarT (DatatypeT id tArgs _) _) t2@(ScalarT (Datat
 solveTypeConstraint env t1 t2 _ = error $ "unknown types " ++ show t1 ++ " or " ++ show t2
 
 unify :: (MonadIO m) => Environment -> Id -> SType -> Map Id [Id] -> PNSolver m ()
--- unify env v t@(ScalarT (DatatypeT name _ _) _) constraints | v `Map.member` constraints = 
+-- unify env v t@(ScalarT (DatatypeT name _ _) _) constraints | v `Map.member` constraints =
 --     if foldr ((&&) . Set.member name) True instances -- containts id and it has instance definition for each type classes constraints
 --         then modify $ over typeAssignment (Map.insert v t)
 --         else do
@@ -444,7 +444,7 @@ unify :: (MonadIO m) => Environment -> Id -> SType -> Map Id [Id] -> PNSolver m 
 --     getInstances c = Map.findWithDefault Set.empty c (env ^. typeClasses)
 --     instances = map getInstances classes
 --     firstUnsat = minimum $ filter (not . Set.member name) instances
--- unify env v t@(ScalarT (TypeVarT _ name) _) constraints | isBound env name = 
+-- unify env v t@(ScalarT (TypeVarT _ name) _) constraints | isBound env name =
 --   if foldr ((&&) . Set.member name) True instances -- containts id and it has instance definition for each type classes constraints
 --         then modify $ over typeAssignment (Map.insert v t)
 --         else do-- get first unsatisfied type class, and distinguish this type out of all the other defined instances
@@ -476,7 +476,7 @@ parseTypeClass env = do
     content <- readFile "typeClass.json"
     case Aeson.eitherDecode (LB8.pack content) of
         Left err -> error err
-        Right v  -> case v of 
+        Right v  -> case v of
             Aeson.Object contents -> do
                 let classMap = HashMap.foldrWithKey (\k v -> Map.insert (Text.unpack k) (map getString $ getArray v)) Map.empty contents
                 let transClasses = Map.foldrWithKey insertSet Map.empty classMap
@@ -495,13 +495,13 @@ findPath env dst = do
     -- abstract all the symbols in the current environment
     start <- liftIO $ getCurrentTime
     freshSymbols <- mapM (\(id, sch) -> do (t,c) <- freshType sch; return (id, t, c)) $ Map.toList $ allSymbols env
-    let absSymbols = foldr (\(id, t, c) -> Map.insert id (abstract (env ^. boundTypeVars) (st ^. abstractionSemantic) "" 
+    let absSymbols = foldr (\(id, t, c) -> Map.insert id (abstract (env ^. boundTypeVars) (st ^. abstractionSemantic) ""
                                                           $ shape t, c)) Map.empty freshSymbols
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
     sigs <- if Map.null (st ^. currentSigs) then instantiate env absSymbols else return (st ^. currentSigs)
     modify $ set currentSigs sigs
     -- encode all the abstracted signatures into JSON string and pass it to SyPet
-    symbols <- liftIO $ reflect (Text.pack . LB8.unpack . Aeson.encode $ map (uncurry encodeFunction) 
+    symbols <- liftIO $ reflect (Text.pack . LB8.unpack . Aeson.encode $ map (uncurry encodeFunction)
                                 $ Map.toList $ foldr Map.delete sigs $ Map.keys foArgs)
     tgt <- liftIO $ reflect (Text.pack $ show $ abstract (env ^. boundTypeVars) (st ^. abstractionSemantic) "" $ shape dst)
     srcTypes <- liftIO $ reflect (map (Text.pack . show . abstract (env ^. boundTypeVars) (st ^. abstractionSemantic) "" . shape . toMonotype) $ Map.elems foArgs)
@@ -511,26 +511,28 @@ findPath env dst = do
     loc <- liftIO $ reflect (st ^. currentLoc)
     end <- liftIO $ getCurrentTime
     writeLog 1 $ text "Time for preparing data" <+> text (show $ diffUTCTime end start)
-    liftIO $ [java| {
-        java.util.List<java.lang.String> srcTypes = java.util.Arrays.asList($srcTypes);
-        java.util.List<java.lang.String> argNames = java.util.Arrays.asList($argNames);
-        java.util.List<java.lang.String> solutions = java.util.Arrays.asList($excludeLists);
-        java.util.List<java.lang.String> hoArgs = java.util.Arrays.asList($hoArgs);
-        String tgtType = $tgt;
-        System.out.println("Arguments:" + srcTypes.toString());
-        System.out.println("Target:" + tgtType);
-        cmu.edu.utils.SynquidUtil.init(srcTypes, argNames, hoArgs, tgtType, $symbols, solutions, $loc);
-        cmu.edu.utils.SynquidUtil.buildNextEncoding();
-    } |]
+    undefined
+    -- liftIO $ [java| {
+        -- java.util.List<java.lang.String> srcTypes = java.util.Arrays.asList($srcTypes);
+        -- java.util.List<java.lang.String> argNames = java.util.Arrays.asList($argNames);
+        -- java.util.List<java.lang.String> solutions = java.util.Arrays.asList($excludeLists);
+        -- java.util.List<java.lang.String> hoArgs = java.util.Arrays.asList($hoArgs);
+        -- String tgtType = $tgt;
+        -- System.out.println("Arguments:" + srcTypes.toString());
+        -- System.out.println("Target:" + tgtType);
+        -- cmu.edu.utils.SynquidUtil.init(srcTypes, argNames, hoArgs, tgtType, $symbols, solutions, $loc);
+        -- cmu.edu.utils.SynquidUtil.buildNextEncoding();
+    -- } |]
 
 findProgram :: (MonadIO m) => Environment -> RType -> PNSolver m RProgram
 findProgram env dst = do
     -- findPath env dst
-    code <- liftIO $ [java| {
-        java.util.List<String> codeList = cmu.edu.utils.SynquidUtil.synthesize();
-        String[] codeArr = new String[codeList.size()];
-        return codeList.toArray(codeArr);
-    } |]
+    code <- undefined
+    -- code <- liftIO $ [java| {
+        -- java.util.List<String> codeList = cmu.edu.utils.SynquidUtil.synthesize();
+        -- String[] codeArr = new String[codeList.size()];
+        -- return codeList.toArray(codeArr);
+    -- } |]
     codeResult <- liftIO $ map Text.unpack <$> reify code
     checkResult <- mapM parseAndCheck codeResult
     let codes = catMaybes checkResult
@@ -538,7 +540,7 @@ findProgram env dst = do
     if (null codes) || (head codes `elem` solutions)
         then do
             -- modify $ set currentSigs Map.empty
-            findProgram env dst 
+            findProgram env dst
         else do
             liftIO $ putStrLn "*******************SOLUTION*********************"
             liftIO $ print $ head codes

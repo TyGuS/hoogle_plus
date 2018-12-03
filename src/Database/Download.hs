@@ -43,16 +43,20 @@ downloadFile :: PkgName -> Maybe Version -> IO Bool
 downloadFile pkg version = do
     vpkg <- packageNameWithVersion pkg version
     doesExist <- doesFileExist $ downloadDir ++ vpkg ++ ".txt"
-    if not doesExist 
+    if not doesExist
         then do
             hPutStrLn stderr $ "Downloading file " ++ vpkg ++ " from Hackage..."
-            request <- parseRequest $ docDownloadUrl ++ vpkg ++ "/docs/" ++ pkg ++ ".txt"
+            let url = docDownloadUrl ++ vpkg ++ "/docs/" ++ pkg ++ ".txt"
+            request <- parseRequest url
             manager <- newManager tlsManagerSettings
             runResourceT $ do
                 response <- http request manager
                 if responseStatus response /= ok200
                     then return False -- error "Connection Error"
-                    else runConduit (responseBody response .| sinkFile (downloadDir ++ vpkg ++ ".txt")) >> return True
+                    else do
+                        let body = responseBody response
+                        runConduit (body .| sinkFile (downloadDir ++ vpkg ++ ".txt"))
+                        return True
         else return True
 
 downloadCabal :: PkgName -> Maybe Version -> IO Bool
