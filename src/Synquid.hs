@@ -71,7 +71,7 @@ main = do
                lfp bfs
                out_file out_module outFormat resolve
                print_spec print_stats log_ 
-               graph succinct sol_num path_search higher_order) -> do
+               graph succinct sol_num path_search higher_order path_solver) -> do
                   let explorerParams = defaultExplorerParams {
                     _eGuessDepth = appMax,
                     _scrutineeDepth = scrutineeMax,
@@ -91,7 +91,8 @@ main = do
                     _useSuccinct = succinct,
                     _solutionCnt = sol_num,
                     _pathSearch = path_search,
-                    _useHO = higher_order
+                    _useHO = higher_order,
+                    _pathSolver = path_solver
                     }
                   let solverParams = defaultHornSolverParams {
                     isLeastFixpoint = lfp,
@@ -180,7 +181,8 @@ data CommandLineArgs
         succinct :: Bool,
         sol_num :: Int,
         path_search :: PathStrategy,
-        higher_order :: Bool
+        higher_order :: Bool,
+        path_solver :: PNS.PathSolver
       }
       | Lifty {
         -- | Input
@@ -236,7 +238,8 @@ synt = Synthesis {
   succinct            = False           &= help ("Use graph to direct the term exploration (default: False)") &= name "succ",
   sol_num             = 1               &= help ("Number of solutions need to find (default: 5)") &= name "cnt",
   path_search         = DisablePath     &= help ("Use path search algorithm to ensure the usage of provided parameters (default: DisablePath)") &= name "path",
-  higher_order        = False           &= help ("Include higher order functions (default: False)")
+  higher_order        = False           &= help ("Include higher order functions (default: False)"),
+  path_solver         = PNS.SATSolver   &= help ("Choose SAT or SMT solver for PetriNet encoding (default: SATSolver)")
   } &= auto &= help "Synthesize goals specified in the input file"
     where
       defaultFormat = outputFormat defaultSynquidParams
@@ -293,7 +296,8 @@ defaultExplorerParams = ExplorerParams {
   _useSuccinct = False,
   _solutionCnt = 1,
   _pathSearch = DisablePath,
-  _useHO = False
+  _useHO = False,
+  _pathSolver = PNS.SATSolver
 }
 
 -- | Parameters for constraint solving
@@ -442,8 +446,10 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
       case envRes of
         Left err -> error err
         Right env -> do
-          let Right spec = runExcept $ evalStateT (resolveSchema (gSpec goal)) (initResolverState { _environment = env })
-          return $ goal { gEnvironment = env, gSpec = spec }
+          let spec = runExcept $ evalStateT (resolveSchema (gSpec goal)) (initResolverState { _environment = env })
+          case spec of
+            Right sp -> return $ goal { gEnvironment = env, gSpec = sp }
+            Left parseErr -> (pdoc $ pretty parseErr) >> pdoc empty >> exitFailure
     parseGoal sig = do
       let transformedSig = "goal :: " ++ sig ++ "\ngoal = ??"
       parseResult <- return $ flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" transformedSig

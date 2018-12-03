@@ -36,6 +36,8 @@ executable synquid
                  PetriNet.AbstractType
                  PetriNet.PNBuilder
                  PetriNet.PNEncoder
+                 PetriNet.Encoder
+                 PetriNet.PNEncoderSMT
                  HooglePlus.CodeFormer
                  Synquid.Codegen
                  Synquid.Error

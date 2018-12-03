@@ -4,6 +4,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveGeneric  #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
 module PetriNet.PNSolver where
 
@@ -21,6 +22,7 @@ import Control.Monad.State
 import Data.Foldable
 import Data.List
 import Data.Maybe
+import Data.Data (Data)
 import qualified Data.Char as Char
 import Data.Either hiding (fromLeft, fromRight)
 import Data.List.Extra
@@ -47,6 +49,8 @@ import Synquid.Pretty
 import PetriNet.AbstractType
 import PetriNet.PNBuilder
 import PetriNet.PNEncoder
+import PetriNet.Encoder
+import PetriNet.PNEncoderSMT
 import HooglePlus.CodeFormer
 import Database.Convert
 import Database.Generate
@@ -85,6 +89,11 @@ emptySolverState = SolverState {
 makeLenses ''SolverState
 
 type PNSolver m = StateT SolverState m
+
+data PathSolver = 
+    SATSolver
+  | SMTSolver
+  deriving(Data, Show, Eq)
 
 abstractParamList :: AbstractSkeleton -> [AbstractSkeleton]
 abstractParamList t@(ADatatypeT _ _) = [t]
@@ -435,17 +444,11 @@ initNet env = do
     sigs <- instantiate env absSymbols
     symbols <- mapM (addEncodedFunction) 
                     -- first order arguments are tokens but not transitions in petri net
-                    -- $ Map.toList $ Map.filterWithKey (\k _ -> not (isInfixOf "Pair" k)) $ foldr Map.delete sigs $ Map.keys foArgs
                     $ Map.toList $ foldr Map.delete sigs $ Map.keys foArgs
     let srcTypes = map ( show 
                        . abstract binds abstraction 
                        . shape 
                        . toMonotype) $ Map.elems foArgs
-    -- let srcTypes = [show (ATypeVarT "a"), show (ATypeVarT "L")]
-    -- symbols <- mapM addEncodedFunction [ ("fromMaybe", AFunctionT (ATypeVarT "a") (AFunctionT (ATypeVarT "M") (ATypeVarT "a")))
-    --                                    , ("catMaybes", AFunctionT (ATypeVarT "L") (ATypeVarT "L"))
-    --                                    , ("listToMaybe", AFunctionT (ATypeVarT "L") (ATypeVarT "M")) 
-    --                                    ]
     modify $ set sourceTypes srcTypes
     return $ buildPetriNet symbols srcTypes
   where
@@ -459,32 +462,35 @@ initNet env = do
         modify $ over functionMap (HashMap.insert id ef)
         return ef
 
-
-incPathLen :: (MonadIO m) => Environment -> RType -> PetriNet -> PNSolver m EncodeState
-incPathLen env dst net = do
+resetEncoder :: (MonadIO m) => Environment -> RType -> PathSolver -> PetriNet -> PNSolver m EncoderType
+resetEncoder env dst solver net = do
     let binds = env ^. boundTypeVars
     abstraction <- view abstractionSemantic <$> get
-    modify $ set targetType $ show $ abstract binds abstraction $ shape dst
-    -- modify $ set targetType $ show (ATypeVarT "a")
+    let tgt = show $ abstract binds abstraction $ shape dst
+    modify $ set targetType tgt
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
     modify $ set paramNames $ Map.keys foArgs
     srcTypes <- view sourceTypes <$> get
-    tgt <- view targetType <$> get
     writeLog 2 $ text "parameter types are" <+> pretty srcTypes
     writeLog 2 $ text "return type is" <+> pretty tgt
     loc <- view currentLoc <$> get
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    st <- liftIO $ encoderInit net loc hoArgs srcTypes tgt
-    return st
+    liftIO $ case solver of
+                SATSolver -> encoderInit net loc hoArgs srcTypes tgt
+                SMTSolver -> encoderInitSMT net loc hoArgs srcTypes tgt
 
-findPath :: (MonadIO m) => Environment -> RType -> PetriNet -> EncodeState -> PNSolver m (CodePieces, EncodeState)
+findPath :: (MonadIO m) => Environment -> RType -> PetriNet -> EncoderType -> PNSolver m (CodePieces, EncoderType)
 findPath env dst net st = do
-    (res, st') <- liftIO $ encoderSolve st
+    (res, st') <- liftIO $ case st of 
+                            Left s -> encoderSolve s
+                            Right s -> encoderSolveSMT s
     case res of
         [] -> do
             currSt <- get
             modify $ set currentLoc ((currSt ^. currentLoc) + 1)
-            st'' <- incPathLen env dst net
+            st'' <- case st' of 
+                        Left  _ -> resetEncoder env dst SATSolver net
+                        Right _ -> resetEncoder env dst SMTSolver net
             findPath env dst net st''
         _  -> do
             fm <- view functionMap <$> get
@@ -508,22 +514,28 @@ findPath env dst net st = do
     skipEntry = not . isInfixOf "|entry"
     removeSuffix = removeLast '|'
 
-findProgram :: (MonadIO m) => Environment -> RType -> PetriNet -> EncodeState -> PNSolver m (RProgram, EncodeState)
+findProgram :: (MonadIO m) => Environment -> RType -> PetriNet -> EncoderType -> PNSolver m (RProgram, EncoderType)
 findProgram env dst net st = do
     (codeResult, st') <- findPath env dst net st
     liftIO $ print codeResult
     checkResult <- mapM parseAndCheck $ Set.toList codeResult
     let codes = catMaybes checkResult
     solutions <- view currentSolutions <$> get
-    if (null codes) || (head codes `elem` solutions)
+    if null codes
         then do
+            -- net' <- initNet env
+            -- st'' <- resetEncoder env dst net'
+            -- findProgram env dst net' st''
             findProgram env dst net st'
-        else do
-            liftIO $ putStrLn "*******************SOLUTION*********************"
-            liftIO $ print $ head codes
-            liftIO $ putStrLn "************************************************"
-            modify $ over currentSolutions ((:) (head codes))
-            return $ (head codes, st')
+        else if head codes `elem` solutions
+            then do
+                findProgram env dst net st'
+            else do
+                liftIO $ putStrLn "*******************SOLUTION*********************"
+                liftIO $ print $ head codes
+                liftIO $ putStrLn "************************************************"
+                modify $ over currentSolutions ((:) (head codes))
+                return $ (head codes, st')
   where
     parseAndCheck code = do
         let prog = case parseExp code of
@@ -531,7 +543,7 @@ findProgram env dst net st = do
                     ParseFailed loc err -> error err
         checkType env dst prog
 
-findFirstN :: (MonadIO m) => Environment -> RType -> PetriNet -> EncodeState -> Int -> PNSolver m RProgram
+findFirstN :: (MonadIO m) => Environment -> RType -> PetriNet -> EncoderType -> Int -> PNSolver m RProgram
 findFirstN env dst net st cnt | cnt == 1  = do
     (res, _) <- findProgram env dst net st
     return res

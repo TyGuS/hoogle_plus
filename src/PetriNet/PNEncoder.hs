@@ -18,47 +18,9 @@ import Z3.Monad hiding(Z3Env, newEnv)
 import qualified Z3.Base as Z3
 import Control.Monad.State
 
+import PetriNet.Encoder hiding(Encoder)
 import PetriNet.PNBuilder
 import Synquid.Util
-
-data VarType = VarPlace | VarTransition | VarFlow
-    deriving(Eq, Ord, Show)
-
-data Variable = Variable {
-  varId :: Int,
-  varName :: String,
-  varTimestamp :: Int,
-  varValue :: Int,
-  varType :: VarType
-} deriving(Eq, Ord, Show)
-
-data Z3Env = Z3Env {
-  envSolver  :: Z3.Solver,
-  envContext :: Z3.Context,
-  envOptimize :: Z3.Optimize
-}
-
-newEnv :: Maybe Logic -> Opts -> IO Z3Env
-newEnv mbLogic opts =
-  Z3.withConfig $ \cfg -> do
-    setOpts cfg opts
-    ctx <- Z3.mkContext cfg
-    opt <- Z3.mkOptimize ctx
-    solver <- maybe (Z3.mkSolver ctx) (Z3.mkSolverForLogic ctx) mbLogic
-    return $ Z3Env solver ctx opt
-
-initialZ3Env = newEnv Nothing stdOpts
-
-data EncodeState = EncodeState {
-  z3env :: Z3Env,
-  petriNet :: PetriNet,
-  loc :: Int,
-  nbVariable :: Int,
-  place2variable :: HashMap (Place, Int, Int) Variable,
-  transition2variable :: HashMap (Transition, Int) Variable,
-  id2variable :: HashMap Int Variable,
-  mustFirers :: [Id]
-}
 
 type Encoder = StateT EncodeState IO
 
@@ -136,13 +98,7 @@ solveAndGetModel :: Encoder [(Transition, Int)]
 solveAndGetModel = do
     res <- optimizeCheck
     l <- loc <$> get
-    -- when (l == 3) (do
-        
-    --     p2v <- place2variable <$> get
-    --     t2v <- transition2variable <$> get
-    --     ass <- optimizeGetAssertions
-    --     assStr <- mapM astToString ass
-        -- liftIO $ writeFile "test.log" $ (concat $ intersperse "\n" assStr) ++ show p2v ++ "\n" ++ show t2v)
+
     case res of
         Sat -> do
             model <- optimizeGetModel
@@ -153,7 +109,6 @@ solveAndGetModel = do
             placeMap <- place2variable <$> get
             selectedPlaces <- filterM (checkLit model) $ HashMap.toList placeMap
             let selectedP = fst $ unzip selectedPlaces
-            -- liftIO $ print $ map (\(p,i,j) -> (placeId p, i, j)) selectedP
             blockP <- mapM (\p -> mkZ3Var $ findVariable p placeMap) selectedP
             mkAnd (blockTr ++ blockP) >>= mkNot >>= optimizeAssert
             return selectedTr
@@ -171,15 +126,16 @@ solveAndGetModel = do
             Just b -> return b
             Nothing -> error $ "cannot eval the variable" ++ show k
 
-encoderInit :: PetriNet -> Int -> [Id] -> [Id] -> Id -> IO EncodeState
+encoderInit :: PetriNet -> Int -> [Id] -> [Id] -> Id -> IO EncoderType
 encoderInit net loc hoArgs inputs ret = do
     z3Env <- initialZ3Env
     let initialState = EncodeState z3Env net loc 1 HashMap.empty HashMap.empty HashMap.empty hoArgs
-    execStateT (createEncoder inputs ret) initialState
+    Left <$> execStateT (createEncoder inputs ret) initialState
 
-encoderSolve :: EncodeState -> IO ([(Transition, Int)], EncodeState)
+encoderSolve :: EncodeState -> IO ([(Transition, Int)], EncoderType)
 encoderSolve st = do
-    runStateT solveAndGetModel st
+    (a, s) <- runStateT solveAndGetModel st
+    return (a, Left s)
 
 addPlaceVar ::  Place -> Encoder ()
 addPlaceVar p = do

@@ -18,7 +18,8 @@ import Synquid.Graph hiding (instantiate)
 import Database.GraphWeightsProvider
 import Database.Util
 import Synquid.GraphConstraintSolver
-import PetriNet.AbstractType  
+import PetriNet.AbstractType
+import PetriNet.PNSolver (PathSolver)
 import qualified PetriNet.PNSolver as PNSolver
 
 import Data.Maybe
@@ -100,7 +101,8 @@ data ExplorerParams = ExplorerParams {
   _buildGraph :: Bool,
   _solutionCnt :: Int,
   _pathSearch :: PathStrategy,
-  _useHO :: Bool
+  _useHO :: Bool,
+  _pathSolver :: PathSolver
 } 
 
 makeLenses ''ExplorerParams
@@ -192,17 +194,7 @@ generateI env t@(FunctionT x tArg tRes) isElseBranch = do
   env' <- if useSucc then addSuccinctEdge x (Monotype tArg) env else return env
   pBody <- inContext ctx $ generateI (unfoldAllVariables $ addVariable x tArg $ addArgument x tArg $ env') tRes False
   return $ ctx pBody
-generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
-  -- useSuccinct <- asks . view $ _1 . useSuccinct
-  -- let env' = if useSuccinct 
-  --             then let goalTy = outOfSuccinctAll $ lastSuccinctType (HashMap.lookupDefault SuccinctAny "__goal__" (env ^. succinctSymbols))
-  --                      starters = Set.toList $ Set.filter (\typ -> isSuccinctInhabited typ || isSuccinctFunction typ || typ == (SuccinctScalar BoolT) || hasSuccinctAny typ) (allSuccinctNodes env)
-  --                      reachableSet = getReachableNodes env starters
-  --                      graphEnv = env { _succinctGraph = pruneGraphByReachability (env ^. succinctGraph) reachableSet }
-  --                      subgraphNodes = if goalTy == SuccinctAny then allSuccinctNodes graphEnv else reachableGraphFromNode graphEnv goalTy
-  --                      in graphEnv { _graphFromGoal = pruneGraphByReachability (graphEnv ^. succinctGraph) subgraphNodes }
-  --             else env
-  -- let env' = env
+generateI env t@(ScalarT _ _) isElseBranch = do
   pathEnabled <- asks . view $ _1 . pathSearch
   case pathEnabled of
     Dijkstra    -> splitGoal env t
@@ -223,7 +215,8 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
       let initialState = Map.singleton "" $ foldr (Set.union . Set.map Left . allDatatypes . toMonotype) Set.empty args 
       maxLevel <- asks . view $ _1 . explorerLogLevel
       cnt <- asks . view $ _1 . solutionCnt
-      evalStateT (runPNSolver env' cnt)
+      solver <- asks. view $ _1 . pathSolver
+      evalStateT (runPNSolver env' solver cnt)
                  $ set PNSolver.abstractionSemantic initialState 
                  $ PNSolver.emptySolverState {PNSolver._logLevel = maxLevel}
     DisablePath -> do
@@ -232,9 +225,9 @@ generateI env t@(ScalarT _ _) isElseBranch = do -- splitGoal env t
       maPossible <- runInSolver $ hasPotentialScrutinees env -- Are there any potential scrutinees in scope?
       if maEnabled && d > 0 && maPossible then generateMaybeMatchIf env t isElseBranch else generateMaybeIf env t isElseBranch           
   where
-    runPNSolver env' cnt = do
+    runPNSolver env' solver cnt = do
       net <- PNSolver.initNet env'
-      st <- PNSolver.incPathLen env' t net
+      st <- PNSolver.resetEncoder env' t solver net
       PNSolver.findFirstN env' t net st cnt
 
 -- | Generate a possibly conditional term type @t@, depending on whether a condition is abduced
