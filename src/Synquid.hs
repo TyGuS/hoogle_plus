@@ -37,6 +37,7 @@ import Control.Monad.State (runState, evalStateT, execStateT, evalState)
 import Control.Monad.Except (runExcept)
 import Data.Char
 import Data.List
+import qualified Data.List.Extra as DLE
 import Data.Foldable
 import Data.Serialize
 import Data.Time.Calendar
@@ -396,15 +397,18 @@ precomputeGraph pkgs mdls depth useHO = do
   -- print decls
   case resolveDecls decls of
     Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
-    Right (env, _, _, _) -> do
+    Right (env, goal, cond, quals) -> do
+      let newSymbols = if useHO
+          then env ^. symbols
+          else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols
+      let qualifiedNames = DLE.nubOrd $ concatMap Map.keys (Map.elems $ newSymbols)
+      writeFile "data/declarations.txt" $ concat (intersperse "\n" qualifiedNames)
+      -- putStrLn $ concat [(show $ _symbols env), (show decls), (show goal), (show cond), show quals]
       -- envAll <- evalStateT (foldrM (uncurry addGraphSymbol) env $ Map.toList $ allSymbols env) Map.empty
       -- let allEdges = Set.toList . Set.unions . concat . map HashMap.elems $ HashMap.elems (envAll ^. succinctGraph)
       -- edgeWeights <- getGraphWeights $ map getEdgeId allEdges
       -- let graph' = fillEdgeWeight allEdges edgeWeights $ envAll ^. succinctGraph
-      B.writeFile "data/env.db" $ encode $ env {
-          _symbols = if useHO then env ^. symbols
-                              else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols
-      }
+      B.writeFile "data/env.db" $ encode $ env {_symbols =  newSymbols}
   where
     skipLParen [] = []
     skipLParen ('(':name) = name
