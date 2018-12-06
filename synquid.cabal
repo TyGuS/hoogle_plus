@@ -35,6 +35,7 @@ executable synquid
                  Database.GraphWeightsProvider
                  Database.Util
                  PetriNet.PNSolver
+                 PetriNet.Types
                  PetriNet.PolyDispatcher
                  PetriNet.AbstractType
                  Synquid.Codegen
@@ -74,6 +75,7 @@ executable synquid
                     , ansi-terminal
                     , html
                     , bimap
+                    , hint
                     , logict
                     , parsec
                     , indents
@@ -112,7 +114,7 @@ executable synquid
 
   ghc-options:   -O2
   includes:            z3.h
-  
+
   if os(darwin) || os(windows)
       extra-libraries:     z3
   else

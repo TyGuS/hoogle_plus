@@ -40,6 +40,7 @@ import Data.List
 import qualified Data.List.Extra as DLE
 import Data.Foldable
 import Data.Serialize
+import qualified Data.Set
 import Data.Time.Calendar
 import qualified Data.HashMap.Strict as HashMap
 import Data.HashMap.Strict (HashMap)
@@ -394,7 +395,7 @@ precomputeGraph pkgs mdls depth useHO = do
             return $ additionalDts ++ parsedDecls
     ) pkgs
   let decls = reorderDecls $ nub $ defaultDts ++ concat pkgDecls
-  -- print decls
+  print decls
   case resolveDecls decls of
     Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
     Right (env, goal, cond, quals) -> do
@@ -408,7 +409,10 @@ precomputeGraph pkgs mdls depth useHO = do
       -- let allEdges = Set.toList . Set.unions . concat . map HashMap.elems $ HashMap.elems (envAll ^. succinctGraph)
       -- edgeWeights <- getGraphWeights $ map getEdgeId allEdges
       -- let graph' = fillEdgeWeight allEdges edgeWeights $ envAll ^. succinctGraph
-      B.writeFile "data/env.db" $ encode $ env {_symbols =  newSymbols}
+      B.writeFile "data/env.db" $ encode $ env {
+            _symbols = newSymbols,
+            _included_modules = Set.fromList mdls
+      }
   where
     skipLParen [] = []
     skipLParen ('(':name) = name

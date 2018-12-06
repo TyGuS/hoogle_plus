@@ -4,8 +4,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveGeneric  #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# -- OPTIONS_GHC -fplugin=Language.Java.Inline.Plugin #-}
-{-# -- OPTIONS_GHC -fplugin-opt=Language.Java.Inline.Plugin:dump-java #-}
+{-# OPTIONS_GHC -fplugin=Language.Java.Inline.Plugin #-}
+{-# OPTIONS_GHC -fplugin-opt=Language.Java.Inline.Plugin:dump-java #-}
 
 module PetriNet.PNSolver where
 
@@ -51,6 +51,7 @@ import Synquid.Error
 import Synquid.Pretty
 import PetriNet.PolyDispatcher
 import PetriNet.AbstractType
+import PetriNet.Types
 import Database.Convert
 
 -- data InstantiateState = InstantiateState {
@@ -511,28 +512,28 @@ findPath env dst = do
     loc <- liftIO $ reflect (st ^. currentLoc)
     end <- liftIO $ getCurrentTime
     writeLog 1 $ text "Time for preparing data" <+> text (show $ diffUTCTime end start)
-    undefined
-    -- liftIO $ [java| {
-        -- java.util.List<java.lang.String> srcTypes = java.util.Arrays.asList($srcTypes);
-        -- java.util.List<java.lang.String> argNames = java.util.Arrays.asList($argNames);
-        -- java.util.List<java.lang.String> solutions = java.util.Arrays.asList($excludeLists);
-        -- java.util.List<java.lang.String> hoArgs = java.util.Arrays.asList($hoArgs);
-        -- String tgtType = $tgt;
-        -- System.out.println("Arguments:" + srcTypes.toString());
-        -- System.out.println("Target:" + tgtType);
-        -- cmu.edu.utils.SynquidUtil.init(srcTypes, argNames, hoArgs, tgtType, $symbols, solutions, $loc);
-        -- cmu.edu.utils.SynquidUtil.buildNextEncoding();
-    -- } |]
+    -- undefined
+    liftIO $ [java| {
+        java.util.List<java.lang.String> srcTypes = java.util.Arrays.asList($srcTypes);
+        java.util.List<java.lang.String> argNames = java.util.Arrays.asList($argNames);
+        java.util.List<java.lang.String> solutions = java.util.Arrays.asList($excludeLists);
+        java.util.List<java.lang.String> hoArgs = java.util.Arrays.asList($hoArgs);
+        String tgtType = $tgt;
+        System.out.println("Arguments:" + srcTypes.toString());
+        System.out.println("Target:" + tgtType);
+        cmu.edu.utils.SynquidUtil.init(srcTypes, argNames, hoArgs, tgtType, $symbols, solutions, $loc);
+        cmu.edu.utils.SynquidUtil.buildNextEncoding();
+    } |]
 
 findProgram :: (MonadIO m) => Environment -> RType -> PNSolver m RProgram
 findProgram env dst = do
     -- findPath env dst
-    code <- undefined
-    -- code <- liftIO $ [java| {
-        -- java.util.List<String> codeList = cmu.edu.utils.SynquidUtil.synthesize();
-        -- String[] codeArr = new String[codeList.size()];
-        -- return codeList.toArray(codeArr);
-    -- } |]
+    -- code <- undefined
+    code <- liftIO $ [java| {
+        java.util.List<String> codeList = cmu.edu.utils.SynquidUtil.synthesize();
+        String[] codeArr = new String[codeList.size()];
+        return codeList.toArray(codeArr);
+    } |]
     codeResult <- liftIO $ map Text.unpack <$> reify code
     checkResult <- mapM parseAndCheck codeResult
     let codes = catMaybes checkResult
@@ -542,11 +543,19 @@ findProgram env dst = do
             -- modify $ set currentSigs Map.empty
             findProgram env dst
         else do
-            liftIO $ putStrLn "*******************SOLUTION*********************"
-            liftIO $ print $ head codes
-            liftIO $ putStrLn "************************************************"
-            modify $ over currentSolutions ((:) (head codes))
-            return $ head codes
+            let solutionProgram = head codes
+            doesHaskellTypeCheck <- liftIO $ haskellTypeChecks env dst solutionProgram
+            if not doesHaskellTypeCheck && doesHaskellTypeCheck
+                then do
+                    modify $ over currentSolutions ((:) solutionProgram)
+                    findProgram env dst
+                else do
+                    liftIO $ putStrLn "*******************SOLUTION*********************"
+                    liftIO $ putStrLn $ show $ Map.elems $ _arguments env
+                    liftIO $ print $ solutionProgram
+                    liftIO $ putStrLn "************************************************"
+                    modify $ over currentSolutions ((:) solutionProgram)
+                    return $ solutionProgram
   where
     parseAndCheck code = do
         let prog = case parseExp code of
