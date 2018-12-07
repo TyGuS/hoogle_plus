@@ -35,7 +35,7 @@ executable synquid
                  Database.GraphWeightsProvider
                  Database.Util
                  PetriNet.PNSolver
-                 PetriNet.Types
+                 PetriNet.GHCChecker
                  PetriNet.PolyDispatcher
                  PetriNet.AbstractType
                  Synquid.Codegen

@@ -51,7 +51,7 @@ import Synquid.Error
 import Synquid.Pretty
 import PetriNet.PolyDispatcher
 import PetriNet.AbstractType
-import PetriNet.Types
+import PetriNet.GHCChecker
 import Database.Convert
 
 -- data InstantiateState = InstantiateState {
