@@ -315,6 +315,9 @@ prettyCase cas = hang tab $ text (constructor cas) <+> hsep (map text $ argNames
 
 prettyProgram :: (Pretty t) => Program t -> Doc
 prettyProgram (Program p typ) = case p of
+    PSymbol "Nil" -> text "[]"
+    PSymbol "Cons" -> text "(.)"
+    PSymbol "Pair" -> text "(,)"
     PSymbol s -> case asInteger s of
                   Nothing -> if s == valueVarName then special s else text s
                   Just n -> intLiteral n

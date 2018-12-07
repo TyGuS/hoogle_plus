@@ -545,7 +545,7 @@ findProgram env dst = do
         else do
             let solutionProgram = head codes
             doesHaskellTypeCheck <- liftIO $ haskellTypeChecks env dst solutionProgram
-            if not doesHaskellTypeCheck && doesHaskellTypeCheck
+            if not doesHaskellTypeCheck
                 then do
                     modify $ over currentSolutions ((:) solutionProgram)
                     findProgram env dst

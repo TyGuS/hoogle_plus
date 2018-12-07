@@ -9,6 +9,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.HashMap.Strict (HashMap)
 import Data.Hashable
 import Data.List
+import qualified Data.List.Extra as DLE
 import Data.Maybe
 import Data.Either
 import Data.Ord
@@ -108,8 +109,8 @@ matchDtWithCons [] = []
 matchDtWithCons (decl:decls) = case decl of
     EDecl (DataDecl a b c hd conDecls d) -> case decls of
         [] -> decl : matchDtWithCons decls
-        decl':decls' | EDecl (TypeSig _ names typ) <- decl' -> if nameStr (head names) == declHeadName hd 
-                                                                   then let conDecl = QualConDecl a Nothing c (ConDecl a (head names) [typ]) 
+        decl':decls' | EDecl (TypeSig _ names typ) <- decl' -> if nameStr (head names) == declHeadName hd
+                                                                   then let conDecl = QualConDecl a Nothing c (ConDecl a (head names) [typ])
                                                                         in (EDecl (DataDecl a b c hd (conDecl:conDecls) d)): matchDtWithCons decls'
                                                                    else decl : matchDtWithCons decls
                      | otherwise -> decl : matchDtWithCons decls
@@ -216,7 +217,7 @@ addPrelude (decl:decls) = case decl of
 
 processConDecls :: (MonadIO m) => [QualConDecl ()] -> StateT Int m [SP.ConstructorSig]
 processConDecls [] = return []
-processConDecls (decl:decls) = let QualConDecl _ _ _ conDecl = decl in 
+processConDecls (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
     case conDecl of
         ConDecl _ name typs -> do
             typ <- toSynquidRType $ head typs
@@ -225,7 +226,7 @@ processConDecls (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
         InfixConDecl _ typl name typr -> do
             typl' <- toSynquidRType typl
             typr' <- toSynquidRType typr
-            if hasAny typl' || hasAny typr' 
+            if hasAny typl' || hasAny typr'
                 then processConDecls decls
                 else (:) (SP.ConstructorSig (nameStr name) (FunctionT "arg0" typl' typr')) <$> (processConDecls decls)
         RecDecl _ name fields -> error "record declaration is not supported"
@@ -242,7 +243,7 @@ toSynquidDecl :: (MonadIO m) => Entry -> StateT Int m Declaration
 toSynquidDecl (EDecl (TypeDecl _ head typ)) = do
     typ' <- toSynquidRType typ
     if hasAny typ' then return $ Pos (initialPos "") $ SP.QualifierDecl [] -- a fake conversion
-                   else return $ Pos (initialPos $ declHeadName head) $ SP.TypeDecl (declHeadName head) (declHeadVars head) typ' 
+                   else return $ Pos (initialPos $ declHeadName head) $ SP.TypeDecl (declHeadName head) (declHeadVars head) typ'
 toSynquidDecl (EDecl (DataFamDecl a b head c)) = toSynquidDecl (EDecl (DataDecl a (DataType a) b head [] []))
 toSynquidDecl (EDecl (DataDecl _ _ _ head conDecls _)) = do
     constructors <- processConDecls conDecls
@@ -255,6 +256,17 @@ toSynquidDecl (EDecl (TypeSig _ names typ)) = do
         Nothing  -> return $ Pos (initialPos "") $ SP.QualifierDecl [] -- a fake conversion
         Just sch -> return $ Pos (initialPos (nameStr $ names !! 0)) $ SP.FuncDecl (nameStr $ head names) (toSynquidRSchema sch)
 toSynquidDecl decl = return $ Pos (initialPos "") $ SP.QualifierDecl [] -- [TODO] a fake conversion
+
+
+-- addTypeDeclarations updates a map from type name -> modules defining that
+-- type with more entries from a module.
+addTypeDeclarations :: Id -> [Entry] -> Map String [String] -> Map String [String]
+addTypeDeclarations moduleName entries mpTyToMdl = let
+    typeDecls = DLE.nubOrd $ map dtNameOf $ filter isDataDecl entries
+    addTypeDeclaration :: String -> Map String [String] -> Map String [String]
+    addTypeDeclaration = Map.alter (Just . (:) moduleName . fromMaybe [])
+    in
+        foldr addTypeDeclaration mpTyToMdl typeDecls
 
 -- synonymMap :: [Declaration] -> Map Id Declaration
 -- synonymMap []           = Map.empty
@@ -283,7 +295,7 @@ renameSigs currModule (decl:decls) = case decl of
 
 readDeclarations :: PkgName -> Maybe Version -> IO (Map Id [Entry])
 readDeclarations pkg version = do
-    vpkg <- do 
+    vpkg <- do
         case version of
             Nothing -> return pkg
             Just v -> ifM (checkVersion pkg v) (return $ pkg ++ "-" ++ v) (return pkg)
@@ -301,11 +313,11 @@ packageDependencies pkg toDownload = do
         Just (CondNode _ dependencies _) -> do
             let dps = map dependentPkg dependencies
             -- download necessary files to resolve package dependencies
-            foldrM (\fname existDps -> 
-                ifM (if toDownload 
-                        then downloadFile fname Nothing >> downloadCabal fname Nothing 
-                        else doesFileExist $ downloadDir ++ fname ++ ".txt") 
-                    (return $ fname:existDps) 
+            foldrM (\fname existDps ->
+                ifM (if toDownload
+                        then downloadFile fname Nothing >> downloadCabal fname Nothing
+                        else doesFileExist $ downloadDir ++ fname ++ ".txt")
+                    (return $ fname:existDps)
                     (return existDps)) [] dps
   where
     dependentPkg (Dependency name _) = unPackageName name
@@ -325,7 +337,7 @@ declDependencies pkgName decls dpDecls = do
     theirDts = dtDefsIn dpDecls
     dependencyClosure definedDts allDts theirDts = let
         undefinedDts = allDts >.> definedDts
-        in if length undefinedDts /= 0 
+        in if length undefinedDts /= 0
             then let
                 foreignDts = filter ((flip elem undefinedDts) . fst) theirDts
                 newDecls = nub $ snd $ unzip foreignDts
@@ -388,13 +400,13 @@ dtNamesIn :: [Entry] -> [Id]
 dtNamesIn decls = Set.toList $ Set.unions $ map getDeclTy decls
 
 definedDtsIn :: [Entry] -> [Id]
-definedDtsIn decls = map dtNameOf $ filter isDataDecl decls    
+definedDtsIn decls = map dtNameOf $ filter isDataDecl decls
 
 -- definedDts :: [Entry] -> IO [Id]
 -- definedDts decls = map dtNameOf $ filter isDataDecl decls
 
 toSynquidProgram :: Exp SrcSpanInfo -> UProgram
-toSynquidProgram (Lambda _ pats body) = 
+toSynquidProgram (Lambda _ pats body) =
     foldr (\(PVar _ name) p -> Program (PFun (nameStr name) p) AnyT) (toSynquidProgram body) pats
 toSynquidProgram (Var _ qname) = Program (PSymbol (qnameStr qname)) AnyT
 toSynquidProgram (App _ fun arg) = Program (PApp (toSynquidProgram fun) (toSynquidProgram arg)) AnyT

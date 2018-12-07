@@ -22,15 +22,13 @@ haskellTypeChecks env goalType prog = let
     funcSig = mkFunctionSigStr (map toMonotype argTypes) goalType
     body = mkLambdaStr argNames prog
     expr = body ++ " :: " ++ funcSig
-    moduleList = map (\m -> (m, Nothing)) modules
     hintQuery :: Interpreter Bool
     hintQuery = do
-        say $ "Importing: \n" ++ (unlines modules)
-        setImportsQ moduleList
-        say $ "typeChecks: " ++ expr
-        result <- typeChecks expr
-        say $ "checker says: " ++ (show result)
-        return result
+        setImports ("Prelude":modules)
+        say $ "importing: " ++ unlines modules
+        -- Ensures that if there's a problem we'll know
+        Language.Haskell.Interpreter.typeOf expr
+        typeChecks expr
     in do
         r <- runInterpreter hintQuery
         case r of
@@ -38,6 +36,8 @@ haskellTypeChecks env goalType prog = let
             Right False -> (putStrLn "Program does not typecheck") >> return False
             Right True -> (putStrLn "Program typechecks according to Haskell!") >> return True
 
+-- mkFunctionSigStr generates a function's type signature:
+-- Int -> Data.Foo.Foo -> Bar
 mkFunctionSigStr :: [RType] -> RType -> String
 mkFunctionSigStr [] tyRet = show tyRet
 mkFunctionSigStr (argTy:argTys) tyRet
@@ -47,7 +47,7 @@ mkFunctionSigStr (argTy:argTys) tyRet
 -- (\x -> \y -> body))
 mkLambdaStr :: [String] -> UProgram -> String
 mkLambdaStr args body = let
-    bodyStr = show (pretty body)
+    bodyStr = show body
     oneLineBody = unwords $ lines bodyStr
     addFuncArg arg rest = Pretty.parens $ text ("\\" ++ arg ++ " -> ") <+> rest
     in
