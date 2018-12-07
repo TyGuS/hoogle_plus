@@ -4,6 +4,8 @@ import Language.Haskell.Interpreter
 
 import qualified Data.Set as Set hiding (map)
 import Data.Map as Map hiding (map, foldr)
+import Control.Exception
+
 import Synquid.Program
 import Synquid.Type
 import Synquid.Pretty as Pretty
@@ -26,13 +28,15 @@ haskellTypeChecks env goalType prog = let
     hintQuery = do
         setImports ("Prelude":modules)
         say $ "importing: " ++ unlines modules
+        say $ "Checking:"
+        say $ expr
         -- Ensures that if there's a problem we'll know
         Language.Haskell.Interpreter.typeOf expr
         typeChecks expr
     in do
         r <- runInterpreter hintQuery
         case r of
-            Left err -> (putStrLn $ show err) >> return False
+            Left err -> (putStrLn $ displayException err) >> return False
             Right False -> (putStrLn "Program does not typecheck") >> return False
             Right True -> (putStrLn "Program typechecks according to Haskell!") >> return True
 

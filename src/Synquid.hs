@@ -389,13 +389,11 @@ precomputeGraph pkgs mdls depth useHO = do
             let fileDecls = concatMap (\mdl -> Map.findWithDefault [] mdl declMap) mdls
             parsedDecls <- mapM (\decl -> evalStateT (toSynquidDecl decl) 0) fileDecls
             dependsPkg <- packageDependencies pkgName True
-            putStrLn (show dependsPkg)
             dependsDecls <- concatMap (concat . Map.elems) <$> (mapM (flip readDeclarations Nothing) $ nub dependsPkg)
             additionalDts <- declDependencies pkgName fileDecls dependsDecls >>= mapM (flip evalStateT 0 . toSynquidDecl)
             return $ additionalDts ++ parsedDecls
     ) pkgs
   let decls = reorderDecls $ nub $ defaultDts ++ concat pkgDecls
-  print decls
   case resolveDecls decls of
     Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
     Right (env, goal, cond, quals) -> do
@@ -455,8 +453,10 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
       case envRes of
         Left err -> error err
         Right env -> do
-          let Right spec = runExcept $ evalStateT (resolveSchema (gSpec goal)) (initResolverState { _environment = env })
-          return $ goal { gEnvironment = env, gSpec = spec }
+          let result = runExcept $ evalStateT (resolveSchema (gSpec goal)) (initResolverState { _environment = env })
+          case result of
+            Left err' -> error $ show err'
+            Right spec -> return $ goal { gEnvironment = env, gSpec = spec }
     parseGoal sig = do
       let transformedSig = "goal :: " ++ sig ++ "\ngoal = ??"
       parseResult <- return $ flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" transformedSig
