@@ -61,7 +61,7 @@ setInitialState inputs = do
                                   Just v -> v
                                   Nothing -> error $ "cannot find variable " ++ show (p,0)
         mkIntNum v >>= mkEq tVar >>= optimizeAssert
-    emptyOther p = do
+    emptyOther p = do 
         placeMap <- place2variableSMT <$> get
         let v = if placeId p == "void" then 1 else 0
         tVar <- mkZ3IntVar $ case HashMap.lookup (p,0) placeMap of
@@ -107,9 +107,7 @@ solveAndGetModel = do
             let selectedTr = fst $ unzip selected
             blockTr <- mapM (\t -> mkZ3BoolVar $ findVariable t transMap) selectedTr
             placeMap <- place2variableSMT <$> get
-            selectedPlaces <- filterM (checkLit model) $ HashMap.toList placeMap
-            let selectedP = fst $ unzip selectedPlaces
-            blockP <- mapM (\p -> mkZ3IntVar $ findVariable p placeMap) selectedP
+            blockP <- mapM (checkIntLit model) $ HashMap.toList placeMap
             mkAnd (blockTr ++ blockP) >>= mkNot >>= optimizeAssert
             return selectedTr
         Unsat -> do
@@ -124,6 +122,13 @@ solveAndGetModel = do
         bMay <- evalBool model trVar
         case bMay of
             Just b -> return b
+            Nothing -> error $ "cannot eval the variable" ++ show k
+
+    checkIntLit model (k, v) = do
+        pVar <- mkZ3IntVar v
+        iMay <- eval model pVar
+        case iMay of
+            Just i -> mkEq pVar i
             Nothing -> error $ "cannot eval the variable" ++ show k
 
 encoderInitSMT :: PetriNet -> Int -> [Id] -> [Id] -> Id -> IO EncoderType
@@ -318,19 +323,13 @@ postconditionsTransitions = do
             w = if pre then -(flowWeight f) else flowWeight f
         in HashMap.insertWith (+) p w changeList
 
-    connectBefAft t trVar p diff x = do
+    mkChange t trVar p diff = do
+        let d = if placeId p == "void" then 0 else diff
         placeMap <- place2variableSMT <$> get
         before <- mkZ3IntVar $ findVariable (p, t) placeMap
         after <- mkZ3IntVar $ findVariable (p, t + 1) placeMap
-        diffw <- mkIntNum diff
+        diffw <- mkIntNum d
         mkAdd [before, diffw] >>= mkEq after >>= mkImplies trVar >>= optimizeAssert
-
-    mkChange t trVar p diff = do
-        let validTokens = [ x | x <- [0..(placeMaxToken p)]
-                              , (x + diff >= 0 && x + diff <= placeMaxToken p) 
-                              || placeId p == "void" ]
-        let d = if placeId p == "void" then 0 else diff
-        mapM_ (connectBefAft t trVar p d) validTokens
 
     placesToChange t tr = do
         flows <- pnFlows . petriNetSMT <$> get
