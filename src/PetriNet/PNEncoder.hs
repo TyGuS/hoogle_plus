@@ -21,6 +21,7 @@ import Control.Monad.State
 import PetriNet.Encoder hiding(Encoder)
 import PetriNet.PNBuilder
 import Synquid.Util
+import Database.GraphWeightsProvider
 
 type Encoder = StateT EncodeState IO
 
@@ -192,6 +193,8 @@ createConstraints = do
     noTransitionTokens
 
     mustFireTransitions
+
+    weightedTransitions
 
 mkZ3Var ::  Variable -> Encoder AST
 mkZ3Var var = do
@@ -379,4 +382,21 @@ mustFireTransitions = do
         l <- loc <$> get
         trVars <- mapM (\t -> mkZ3Var $ findVariable (tr, t) transMap) [0..(l-1)]
         mkOr trVars >>= optimizeAssert
-        
+
+-- add weights to each transition
+-- transitions with smaller weights is more likely to be fired, calculated as -log(p)    
+weightedTransitions :: Encoder ()
+weightedTransitions = do
+    transitions <- HashMap.elems . pnTransitions . petriNet <$> get
+    l <- loc <$> get
+    mapM_ fireWeightedTransition [(tr, t) | tr <- transitions, t <- [0..(l-1)]]
+  where
+    fireWeightedTransition (tr, t) = do
+        transMap <- transition2variable <$> get
+        trVar <- mkZ3Var $ findVariable (tr, t) transMap
+        -- classify all the variables as their timestamp
+        gr <- mkStringSymbol ("time:" ++ show t)
+        w <- liftIO $ getGraphWeight (transitionId tr)
+        -- liftIO $ print (transitionId tr)
+        unchoose <- mkNot trVar
+        optimizeAssertSoft unchoose (show w) gr
