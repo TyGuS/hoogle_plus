@@ -429,6 +429,7 @@ checkType env typ p = do
     ifM (view isChecked <$> get)
         (return $ Just top)
         (do
+            liftIO $ putStrLn "INSTRUMENTED: DIY Type checker failed this program"
             -- writeLog 3 $ text "Top down type checking get" <+> pretty top
             -- modify $ set isChecked True
             -- bottomUpCheck env top
@@ -436,6 +437,7 @@ checkType env typ p = do
 
 initNet :: MonadIO m => Environment -> PNSolver m PetriNet
 initNet env = do
+    startTime <- liftIO $ getCurrentTime
     let binds = env ^. boundTypeVars
     abstraction <- view abstractionSemantic <$> get
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
@@ -451,7 +453,11 @@ initNet env = do
                        . shape
                        . toMonotype) $ Map.elems foArgs
     modify $ set sourceTypes srcTypes
-    return $ buildPetriNet symbols srcTypes
+    let net = buildPetriNet symbols srcTypes
+    endTime <- liftIO $ getCurrentTime
+    let diff = diffUTCTime endTime startTime
+    liftIO $ putStrLn $ "INSTRUMENTED: time spent creating graph: " ++ (show diff)
+    return net
   where
     abstractSymbol binds abstraction id sch = do
         (t, _) <- freshType sch
@@ -537,6 +543,7 @@ findProgram env dst net st = do
                 doesHaskellTypeCheck <- liftIO $ haskellTypeChecks env dst solutionProgram
                 if not doesHaskellTypeCheck
                     then do
+                        liftIO $ putStrLn "INSTRUMENTED: GHC Type checker failed"
                         modify $ over currentSolutions ((:) solutionProgram)
                         findProgram env dst net st'
                     else do
