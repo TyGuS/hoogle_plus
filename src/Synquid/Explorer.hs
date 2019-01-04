@@ -21,6 +21,7 @@ import Synquid.GraphConstraintSolver
 import PetriNet.AbstractType
 import PetriNet.PNSolver (PathSolver)
 import qualified PetriNet.PNSolver as PNSolver
+import qualified HooglePlus.Encoder as HEncoder
 
 import Data.Maybe
 import Data.List
@@ -75,6 +76,7 @@ data PathStrategy =
   | Dijkstra -- ^ Use dijkstra algorithm
   | BiDijkstra -- ^ Use bidirectional dijkstra algorithm
   | PetriNet -- ^ Use PetriNet and SyPet
+  | PNSMT -- ^ Use PetriNet and SMT solver
   deriving (Eq, Show, Data)
 
 -- | Parameters of program exploration
@@ -219,6 +221,37 @@ generateI env t@(ScalarT _ _) isElseBranch = do
       evalStateT (runPNSolver env' solver cnt)
                  $ set PNSolver.abstractionSemantic initialState 
                  $ PNSolver.emptySolverState {PNSolver._logLevel = maxLevel}
+    PNSMT -> do
+      let tvs = env ^. boundTypeVars
+      let args = map toMonotype (Map.elems (env ^. arguments))
+      z3env <- liftIO HEncoder.initialZ3Env
+      let initialSt = HEncoder.EncoderState { 
+        HEncoder.z3env = z3env,
+            {-
+ Cons2
+             Data.Maybe.Just2
+             Data.Maybe.Nothing2
+             Data.Maybe.catMaybes2
+             Data.Maybe.fromJust2
+             Data.Maybe.fromMaybe2
+             Data.Maybe.isJust2
+             Data.Maybe.isNothing2
+             Data.Maybe.listToMaybe2
+             Data.Maybe.maybeToList2
+             Nil2
+             Pair2
+             arg02
+ -}
+        -- HEncoder.signatures = Map.filterWithKey (\k v -> k == "Data.Maybe.isJust" || k == "Data.Maybe.Just" || k == "Nil" || k == "Cons" || k == "Data.Maybe.fromJust" || k == "Data.Maybe.Nothing" || k == "Data.Maybe.isNothing" || k == "Data.Maybe.catMaybes" || k == "Data.Maybe.listToMaybe" || k == "Data.Maybe.fromMaybe") (allSymbols env),
+        HEncoder.signatures = Map.filterWithKey (\k v -> k == "Data.Maybe.catMaybes" || k == "Data.Maybe.listToMaybe" || k == "Data.Maybe.fromMaybe") (allSymbols env),
+        -- HEncoder.signatures = foldr Map.delete (allSymbols env) (Map.keys (env ^. arguments)),
+        HEncoder.datatypes = Map.empty,
+        HEncoder.boundTvs = Set.fromList tvs,
+        HEncoder.places = [],
+        HEncoder.nameCounter = Map.empty
+      }   
+      liftIO $ evalStateT (HEncoder.runTest tvs args t) initialSt
+      error "test"
     DisablePath -> do
       maEnabled <- asks . view $ _1 . abduceScrutinees -- Is match abduction enabled?
       d <- asks . view $ _1 . matchDepth

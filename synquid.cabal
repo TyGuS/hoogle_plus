@@ -39,6 +39,7 @@ executable synquid
                  PetriNet.Encoder
                  PetriNet.PNEncoderSMT
                  HooglePlus.CodeFormer
+                 HooglePlus.Encoder
                  Synquid.Codegen
                  Synquid.Error
                  Synquid.Explorer

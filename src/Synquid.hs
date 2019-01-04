@@ -25,7 +25,6 @@ import Database.Util
 import Database.GraphWeightsProvider
 import PetriNet.PolyDispatcher
 import qualified PetriNet.PNSolver as PNS
-import HooglePlus.Encoder
 
 import Control.Monad
 import Control.Lens ((^.))
@@ -436,10 +435,6 @@ precomputeGraph pkgs mdls depth useHO = do
 runOnFile :: SynquidParams -> ExplorerParams -> HornSolverParams -> CodegenParams
                            -> String -> [String] -> IO ()
 runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
-  -- TODO: this is for micro test
-  runTest
-  error "stop here"
-
   goal <- parseGoal file
   feedEnv goal >>= synthesizeGoal [] [] -- (requested goals)
   return ()
