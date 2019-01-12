@@ -110,9 +110,9 @@ createPlaces l = do
     int <- mkIntSort
     typ <- typeSort <$> get
     parr <- mkArraySort typ int
-    pls <- mapM (createPlaceAt parr) [0..l]
+    pl <- createPlaceAt parr l
     st <- get
-    put $ st { places = pls }
+    put $ st { places = (places st) ++ [pl] }
   where
     createPlaceAt parr i = do
         pi <- mkStringSymbol ("p" ++ show i)
@@ -152,7 +152,7 @@ mkArg tvMap t = error $ "mkArg: unsupported argument type " ++ show t
 createFuncs :: Int -> Encoder ()
 createFuncs l = do
     sigs <- signatures <$> get
-    mapM_ createFunc [(f, t) | f <- Map.toList sigs, t <- [0..(l-1)]]
+    mapM_ createFunc [(f, l-1) | f <- Map.toList sigs ]
   where
     createFunc ((id, typ), i) = do
         liftIO $ print typ
@@ -285,15 +285,16 @@ setFinal tvs tRet i = do
 
 encode :: [Id] -> [RType] -> RType -> Int -> Encoder ()
 encode tvs args tRet i = do
-    -- optimizePush
-    push
-    liftIO $ print $ "trying length of " ++ show i
     -- create list of place arrays
     createPlaces i
     -- create constraints
     createFuncs i
     -- set initial state
     setInitial tvs args
+
+    -- optimizePush
+    push
+    liftIO $ print $ "trying length of " ++ show i
     -- set final state
     setFinal tvs tRet i
     -- at least one transition is fired at each time
@@ -320,8 +321,8 @@ encode tvs args tRet i = do
                 -- asstStr <- mapM astToString unsatCore
                 -- liftIO $ mapM_ putStrLn asstStr
                 {- optimizePop 0 -}
-                -- pop 1
-                solverReset
+                pop 1
+                -- solverReset
                 encode tvs args tRet (i+1)
   where
     -- fire only one transition at each timestamp
@@ -356,4 +357,5 @@ runTest :: [Id] -> [RType] -> RType -> Encoder ()
 runTest tvs args ret = do
     fillDts
     createType
+    createPlaces 0
     encode tvs args ret 1

@@ -222,29 +222,15 @@ generateI env t@(ScalarT _ _) isElseBranch = do
                  $ set PNSolver.abstractionSemantic initialState 
                  $ PNSolver.emptySolverState {PNSolver._logLevel = maxLevel}
     PNSMT -> do
+      cnt <- asks . view $ _1 . solutionCnt
       let tvs = env ^. boundTypeVars
       let args = map toMonotype (Map.elems (env ^. arguments))
       z3env <- liftIO HEncoder.initialZ3Env
+      let required = Map.filterWithKey (\k v -> k == "Data.Maybe.fromMaybe" || k == "Data.Maybe.listToMaybe" || k == "Data.Maybe.catMaybes") (allSymbols env)
+      let optional = foldr Map.delete (allSymbols env) ("Data.Maybe.fromMaybe" : "Data.Maybe.listToMaybe" : "Data.Maybe.catMaybes" : Map.keys (env ^. arguments))
       let initialSt = HEncoder.EncoderState { 
         HEncoder.z3env = z3env,
-            {-
- Cons2
-             Data.Maybe.Just2
-             Data.Maybe.Nothing2
-             Data.Maybe.catMaybes2
-             Data.Maybe.fromJust2
-             Data.Maybe.fromMaybe2
-             Data.Maybe.isJust2
-             Data.Maybe.isNothing2
-             Data.Maybe.listToMaybe2
-             Data.Maybe.maybeToList2
-             Nil2
-             Pair2
-             arg02
- -}
-        -- HEncoder.signatures = Map.filterWithKey (\k v -> k == "Data.Maybe.isJust" || k == "Data.Maybe.Just" || k == "Nil" || k == "Cons" || k == "Data.Maybe.fromJust" || k == "Data.Maybe.Nothing" || k == "Data.Maybe.isNothing" || k == "Data.Maybe.catMaybes" || k == "Data.Maybe.listToMaybe" || k == "Data.Maybe.fromMaybe") (allSymbols env),
-        HEncoder.signatures = Map.filterWithKey (\k v -> k == "Data.Maybe.catMaybes" || k == "Data.Maybe.listToMaybe" || k == "Data.Maybe.fromMaybe") (allSymbols env),
-        -- HEncoder.signatures = foldr Map.delete (allSymbols env) (Map.keys (env ^. arguments)),
+        HEncoder.signatures = required `Map.union` Map.take cnt optional,
         HEncoder.datatypes = Map.empty,
         HEncoder.boundTvs = Set.fromList tvs,
         HEncoder.places = [],
