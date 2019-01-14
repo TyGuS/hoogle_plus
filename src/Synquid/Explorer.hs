@@ -228,12 +228,15 @@ generateI env t@(ScalarT _ _) isElseBranch = do
       z3env <- liftIO HEncoder.initialZ3Env
       let required = Map.filterWithKey (\k v -> k == "Data.Maybe.fromMaybe" || k == "Data.Maybe.listToMaybe" || k == "Data.Maybe.catMaybes") (allSymbols env)
       let optional = foldr Map.delete (allSymbols env) ("Data.Maybe.fromMaybe" : "Data.Maybe.listToMaybe" : "Data.Maybe.catMaybes" : Map.keys (env ^. arguments))
+      dummyTyp <- liftIO (HEncoder.dummyType z3env)
       let initialSt = HEncoder.EncoderState { 
         HEncoder.z3env = z3env,
         HEncoder.signatures = required `Map.union` Map.take cnt optional,
         HEncoder.datatypes = Map.empty,
+        HEncoder.typeSort = dummyTyp,
         HEncoder.boundTvs = Set.fromList tvs,
         HEncoder.places = [],
+        HEncoder.names = [],
         HEncoder.nameCounter = Map.empty
       }   
       liftIO $ evalStateT (HEncoder.runTest tvs args t) initialSt

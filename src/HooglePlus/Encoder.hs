@@ -6,6 +6,7 @@
 module HooglePlus.Encoder where
 
 import Control.Monad.State
+import Control.Monad.Extra
 import Z3.Monad hiding(Z3Env, newEnv)
 import qualified Z3.Base as Z3
 import Data.Map (Map)
@@ -32,13 +33,14 @@ data Z3Env = Z3Env {
 -- they would not be modified during the synthesis
 
 data EncoderState = EncoderState {
-    z3env      :: Z3Env             , -- solver environment
-    signatures :: Map Id RSchema    , -- TODO: we may move to GHC structure here
-    datatypes  :: Map (Id, Int) Int , -- index of dt in constructor list
-    boundTvs   :: Set Id            , -- bounded type variables
-    typeSort   :: Sort              , -- self defined sort with all types
-    places     :: [AST]             , -- list of place mappings
-    nameCounter :: Map Id Int         -- variable name counter
+    z3env      :: Z3Env                , -- ^ solver environment
+    signatures :: Map Id RSchema       , -- ^ TODO: we may move to GHC structure here
+    datatypes  :: Map Int (Set Id)     , -- ^ index of dt in constructor list, index by arity first
+    boundTvs   :: Set Id               , -- ^ bounded type variables
+    typeSort   :: Sort                 , -- ^ self defined sort with all types
+    places     :: [AST]                , -- ^ list of place mappings
+    names      :: [Sort]               , -- ^ list of sorted refined by arity
+    nameCounter :: Map Id Int            -- ^ variable name counter
 }
 
 type Encoder = StateT EncoderState IO
@@ -73,24 +75,38 @@ fillDts = do
     let dts = Set.unions $ map (allDatatypes . toMonotype)
                          $ Map.elems (signatures st)
     let tvs = Set.map (\t -> (t, 0)) (boundTvs st)
-    let tyNames = map (\(t,c)-> (map toLower t, c)) $ Set.toList (dts `Set.union` tvs)
-    let dtIdx = foldr (uncurry Map.insert) Map.empty $ zip tyNames [0,1..]
-    put $ st { datatypes = dtIdx }
+    let tyNames = Set.toList (dts `Set.union` tvs)
+    let dtIdx = foldr addDatatype Map.empty tyNames
+    nameList <- mapM createNameSort (Map.toList dtIdx)
+    nameListStr <- mapM sortToString nameList
+    liftIO $ print nameListStr
+    liftIO $ print dtIdx
+    put $ st { datatypes = dtIdx, names = nameList }
   where
+    addDatatype (name, arity) = Map.insertWith Set.union arity (Set.singleton name)
+
+    createNameSort (arity, nameSet) = do
+        name <- mkStringSymbol ("Name" ++ show arity)
+        cnstrNames <- mapM mkStringSymbol (Set.toList nameSet)
+        cnstrs <- mapM (\x -> mkConstructor x x []) cnstrNames
+        mkDatatype name cnstrs
+
     allDatatypes (FunctionT _ tArg tRet) = allDatatypes tArg `Set.union` allDatatypes tRet
     allDatatypes (ScalarT (DatatypeT id tArgs _) _) = (id, length tArgs) `Set.insert` foldr (Set.union . allDatatypes) Set.empty tArgs
-    allDatatypes (ScalarT IntT _) = error "This type does not exist"
-    allDatatypes (ScalarT BoolT _) = error "This type does not exist"
+    allDatatypes (ScalarT IntT _) = error "Type Int should be a datatype"
+    allDatatypes (ScalarT BoolT _) = error "Type Bool should be a datatype"
     allDatatypes (ScalarT (TypeVarT _ id) _) = Set.empty
+
+dummyType :: Z3Env -> IO Sort
+dummyType env = Z3.mkBoolSort (envContext env)
 
 -- | createType: create functions for each datatype as constructors in z3
 -- strategy from Nadia, enumeration
 createType :: Encoder ()
 createType = do
     name <- mkStringSymbol "Type"
-    dts <- sortOn snd . Map.toList . datatypes <$> get
-    liftIO $ print dts
-    tyConstructors <- mapM (uncurry addType) dts
+    dts <- datatypes <$> get
+    tyConstructors <- concatMapM addTypes (Map.toList dts)
     typ <- mkDatatype name tyConstructors
     st <- get
     put $ st { typeSort = typ }
@@ -99,12 +115,37 @@ createType = do
         sym <- mkStringSymbol (name ++ show i)
         return (sym, Nothing, 0)
 
-    addType (name, kind) idx = do
+    addTypes (kind, nameSet) = mapM (addType kind) (Set.toList nameSet)
+
+    addType kind name = do
         tname <- mkStringSymbol name
         -- assume all the types are unbounded variables
         params <- mapM (mkParam name) [1..kind]
         mkConstructor tname tname params
-        
+
+-- | Another way to encode the type constructors by arity
+-- strategy from Ranjit, classify by arity
+createAType :: Encoder ()
+createAType = do
+    name <- mkStringSymbol "Type"
+    nameList <- names <$> get
+    tyConstructors <- mapM createConstructor [0..(length nameList - 1)]
+    typ <- mkDatatype name tyConstructors
+    st <- get
+    put $ st { typeSort = typ }
+  where
+    mkParam i = do
+        sym <- mkStringSymbol ('t' : show i)
+        return (sym, Nothing, 0)
+
+    createConstructor arity = do
+        tname <- mkStringSymbol ('C' : show arity)
+        params <- mapM mkParam [1..arity]
+        cname <- mkStringSymbol ("name" ++ show arity)
+        nameList <- names <$> get
+        let csort = nameList !! arity
+        mkConstructor tname tname ((cname, Just csort, 1):params) -- TODO: what is the sort ref here?
+
 createPlaces :: Int -> Encoder ()
 createPlaces l = do
     int <- mkIntSort
@@ -141,13 +182,38 @@ mkArg tvMap (ScalarT (DatatypeT id args _) _) = do
     typ <- typeSort <$> get
     constructors <- getDatatypeSortConstructors typ
     dts <- datatypes <$> get
-    let id' = map toLower id
-    idx <- case Map.lookup (id', length args) dts of
+    let ids = concatMap Set.toList (Map.elems dts)
+    idx <- case elemIndex id ids of
              Just i  -> return i
-             Nothing -> error $ "mkArg: cannot find such datatype " ++ show (id', length args)
+             Nothing -> error $ "mkArg: cannot find such datatype " ++ show (id, length args)
     -- create type application
     mkApp (constructors !! idx) args'
 mkArg tvMap t = error $ "mkArg: unsupported argument type " ++ show t
+
+mkIdFunc :: Id -> Int -> Encoder AST
+mkIdFunc id arity = do
+    nameList <- names <$> get
+    let nameSort = nameList !! arity
+    nameCnstrs <- getDatatypeSortConstructors nameSort
+    dts <- datatypes <$> get
+    let idx = Set.findIndex id (Map.findWithDefault Set.empty arity dts)
+    mkApp (nameCnstrs !! idx) []
+
+mkAArg :: Map Id AST -> SType -> Encoder AST
+mkAArg tvMap (ScalarT (TypeVarT _ id) r) = 
+    case Map.lookup id tvMap of
+        Just v -> return v
+        Nothing -> mkAArg tvMap (ScalarT (DatatypeT id [] []) r)
+mkAArg tvMap (ScalarT (DatatypeT id args _) _) = do
+    -- create z3 arguments
+    args' <- mapM (mkAArg tvMap) args
+    -- get the datatype function from constructors
+    typ <- typeSort <$> get
+    constructors <- getDatatypeSortConstructors typ
+    let arity = length args
+    idFunc <- mkIdFunc id arity
+    mkApp (constructors !! arity) (idFunc : args')
+mkAArg tvMap t = error $ "mkAAarg: unsupported argument type " ++ show t
 
 createFuncs :: Int -> Encoder ()
 createFuncs l = do
@@ -155,7 +221,7 @@ createFuncs l = do
     mapM_ createFunc [(f, l-1) | f <- Map.toList sigs ]
   where
     createFunc ((id, typ), i) = do
-        liftIO $ print typ
+        -- liftIO $ print typ
         -- typ' <- freshType typ
         -- create a boolean variable per transition per time
         f <- mkStringSymbol (id ++ show i)
@@ -188,7 +254,7 @@ createFuncs l = do
         -- there exists some type variables to satisfy the requirements
         canFire <- mkAnd (changeP:hasArgs)
         -- tvSymbols <- mapM mkStringSymbol tvs
-        liftIO $ print tvs
+        -- liftIO $ print tvs
         tvSymbols <- mapM mkIntSymbol [(length tvs - 1),(length tvs -2)..0]
         styp <- typeSort <$> get
         let tvTypes = replicate (length tvs) styp
@@ -208,7 +274,8 @@ createFuncs l = do
 
     hasArgAt tvMap i arg cnt = do
         pls <- places <$> get
-        varg <- mkArg tvMap arg
+        -- varg <- mkArg tvMap arg
+        varg <- mkAArg tvMap arg
         carg <- mkSelect (pls !! i) varg
         consumed <- mkIntNum (-cnt)
         mkGe carg consumed
@@ -220,20 +287,13 @@ createFuncs l = do
           then return pBefore
           else do
             pls <- places <$> get
-            varg <- mkArg tvMap arg
+            -- varg <- mkArg tvMap arg
+            varg <- mkAArg tvMap arg
             tBefore <- mkSelect (pls !! i) varg
             consumed <- mkIntNum cnt
             tAfter <- mkAdd [tBefore, consumed]
             mkStore pBefore varg tAfter
-    {-
-    produceRetToken tvMap i ret pBefore = do
-        pls <- places <$> get
-        vret <- mkArg tvMap ret
-        tBefore <- mkSelect (pls !! i) vret
-        produced <- mkIntNum 1
-        tAfter <- mkAdd [tBefore, produced]
-        mkStore pBefore vret tAfter
-    -}
+
 -- | set initial state for petri net solving
 -- take a list of bounded type variables@tvs, argument types@args
 -- return a new state
@@ -257,7 +317,8 @@ setInitial tvs args = do
     assert initial
   where
     assignArg tm (tArg, cnt) vArr = do
-        vArg <- mkArg tm (shape tArg)
+        -- vArg <- mkArg tm (shape tArg)
+        vArg <- mkAArg tm (shape tArg)
         vCnt <- mkIntNum cnt
         mkStore vArr vArg vCnt
 
@@ -274,7 +335,8 @@ setFinal tvs tRet i = do
     parr <- mkArraySort typ int
     zero <- mkIntNum 0
     emptyArr <- mkConstArray typ zero
-    vRet <- mkArg tm (shape tRet)
+    -- vRet <- mkArg tm (shape tRet)
+    vRet <- mkAArg tm (shape tRet)
     uno <- mkIntNum 1
     assignedArr <- mkStore emptyArr vRet uno
 
@@ -303,10 +365,11 @@ encode tvs args tRet i = do
     -- assts <- solverAssertions
     -- asstStr <- mapM astToString assts
     -- liftIO $ mapM_ putStrLn asstStr
-    solverStr <- solverToString
-    liftIO $ putStrLn solverStr
+    -- solverStr <- solverToString
+    -- liftIO $ putStrLn solverStr
     -- check by the solver
     -- res <- optimizeCheck
+    liftIO $ putStrLn "start checking"
     res <- solverCheck
     case res of 
         Sat -> do
@@ -356,6 +419,7 @@ initialZ3Env = newEnv Nothing stdOpts
 runTest :: [Id] -> [RType] -> RType -> Encoder ()
 runTest tvs args ret = do
     fillDts
-    createType
+    -- createType
+    createAType
     createPlaces 0
     encode tvs args ret 1
