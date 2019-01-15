@@ -23,6 +23,7 @@ import Distribution.PackageDescription.Parsec
 import Distribution.Package
 import Debug.Trace
 import System.Directory
+import System.IO
 
 import Synquid.Type
 import Synquid.Logic hiding (Var)
@@ -287,7 +288,9 @@ readDeclarations pkg version = do
         case version of
             Nothing -> return pkg
             Just v -> ifM (checkVersion pkg v) (return $ pkg ++ "-" ++ v) (return pkg)
-    s   <- readFile $ downloadDir ++ vpkg ++ ".txt"
+    h   <- openFile (downloadDir ++ vpkg ++ ".txt") ReadMode
+    hSetEncoding h utf8
+    s   <- hGetContents h
     let code = concat . rights . (map parseLine) $ splitOn "\n" s
     return $ renameSigs "" code
 

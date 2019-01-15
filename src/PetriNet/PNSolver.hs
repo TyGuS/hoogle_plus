@@ -517,7 +517,7 @@ findPath env dst net st = do
 findProgram :: (MonadIO m) => Environment -> RType -> PetriNet -> EncoderType -> PNSolver m (RProgram, EncoderType)
 findProgram env dst net st = do
     (codeResult, st') <- findPath env dst net st
-    liftIO $ print codeResult
+    -- liftIO $ print codeResult
     checkResult <- mapM parseAndCheck $ Set.toList codeResult
     let codes = catMaybes checkResult
     solutions <- view currentSolutions <$> get

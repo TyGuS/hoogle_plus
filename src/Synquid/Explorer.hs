@@ -226,12 +226,10 @@ generateI env t@(ScalarT _ _) isElseBranch = do
       let tvs = env ^. boundTypeVars
       let args = map toMonotype (Map.elems (env ^. arguments))
       z3env <- liftIO HEncoder.initialZ3Env
-      let required = Map.filterWithKey (\k v -> k == "Data.Maybe.fromMaybe" || k == "Data.Maybe.listToMaybe" || k == "Data.Maybe.catMaybes") (allSymbols env)
-      let optional = foldr Map.delete (allSymbols env) ("Data.Maybe.fromMaybe" : "Data.Maybe.listToMaybe" : "Data.Maybe.catMaybes" : Map.keys (env ^. arguments))
       dummyTyp <- liftIO (HEncoder.dummyType z3env)
       let initialSt = HEncoder.EncoderState { 
         HEncoder.z3env = z3env,
-        HEncoder.signatures = required `Map.union` Map.take cnt optional,
+        HEncoder.signatures = foldr Map.delete (allSymbols env) (Map.keys (env ^. arguments)),
         HEncoder.datatypes = Map.empty,
         HEncoder.typeSort = dummyTyp,
         HEncoder.boundTvs = Set.fromList tvs,

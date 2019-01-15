@@ -365,8 +365,8 @@ encode tvs args tRet i = do
     -- assts <- solverAssertions
     -- asstStr <- mapM astToString assts
     -- liftIO $ mapM_ putStrLn asstStr
-    -- solverStr <- solverToString
-    -- liftIO $ putStrLn solverStr
+    solverStr <- solverToString
+    liftIO $ putStrLn solverStr
     -- check by the solver
     -- res <- optimizeCheck
     liftIO $ putStrLn "start checking"
