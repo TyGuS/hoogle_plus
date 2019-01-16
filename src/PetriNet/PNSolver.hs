@@ -36,8 +36,9 @@ import qualified Data.ByteString.Lazy.Char8 as LB8
 import Debug.Trace
 import Language.Haskell.Exts.Parser (parseExp, ParseResult(..))
 import qualified Data.HashMap.Strict as HashMap
-import Data.Time.Clock
 import qualified Z3.Monad as Z3
+import System.CPUTime
+import Text.Printf
 
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Program
@@ -55,7 +56,16 @@ import HooglePlus.CodeFormer
 import Database.Convert
 import Database.Generate
 
--- makeLenses ''InstantiateState
+data PathSolver = 
+    SATSolver
+  | SMTSolver
+  deriving(Data, Show, Eq)
+
+data RefineStrategy =
+    NoRefine
+  | AbstractRefinement
+  deriving(Data, Show, Eq)
+
 data SolverState = SolverState {
     _nameCounter :: Map Id Int,  -- name map for generating fresh names (type variables, parameters)
     _typeAssignment :: Map Id SType,  -- current type assignment for each type variable
@@ -68,8 +78,9 @@ data SolverState = SolverState {
     _targetType :: Id,
     _sourceTypes :: [Id],
     _paramNames :: [Id],
+    _refineStrategy :: RefineStrategy,
     _logLevel :: Int -- temporary for log level
-}
+} deriving(Eq)
 
 emptySolverState = SolverState {
     _nameCounter = Map.empty,
@@ -83,6 +94,7 @@ emptySolverState = SolverState {
     _targetType = "",
     _sourceTypes = [],
     _paramNames = [],
+    _refineStrategy = NoRefine,
     _logLevel = 0
 }
 
@@ -90,10 +102,6 @@ makeLenses ''SolverState
 
 type PNSolver m = StateT SolverState m
 
-data PathSolver = 
-    SATSolver
-  | SMTSolver
-  deriving(Data, Show, Eq)
 
 abstractParamList :: AbstractSkeleton -> [AbstractSkeleton]
 abstractParamList t@(ADatatypeT _ _) = [t]
@@ -302,9 +310,6 @@ topDownCheck env typ@(FunctionT _ tArg tRet) p@(Program (PFun x body) _) = do
     ifM (view isChecked <$> get)
         (return $ Program (PFun x body') (FunctionT x (addTrue tArg) (typeOf body')))
         (return $ Program (PFun x body') (addTrue typ))
--- topDownCheck env typ p@(Program (PFun x body) AnyT) = do
---     writeLog 3 $ text "Checking type for" <+> pretty p
---     topDownCheck (addVariable x AnyT env) typ body
 
 bottomUpCheck :: (MonadIO m) => Environment -> RProgram -> PNSolver m (Maybe (RProgram, ClassConstraint))
 bottomUpCheck env p@(Program PHole _) = return $ Just (p, [])
@@ -428,9 +433,13 @@ checkType env typ p = do
     ifM (view isChecked <$> get)
         (return $ Just top)
         (do
-            -- writeLog 3 $ text "Top down type checking get" <+> pretty top
-            -- modify $ set isChecked True
-            -- bottomUpCheck env top
+            rs <- view refineStrategy <$> get
+            case rs of
+                NoRefine -> return ()
+                AbstractRefinement -> do
+                    modify $ set isChecked True
+                    bottomUpCheck env top
+                    return ()
             return Nothing)
 
 initNet :: MonadIO m => Environment -> PNSolver m PetriNet
@@ -481,17 +490,24 @@ resetEncoder env dst solver net = do
 
 findPath :: (MonadIO m) => Environment -> RType -> PetriNet -> EncoderType -> PNSolver m (CodePieces, EncoderType)
 findPath env dst net st = do
+    start <- liftIO getCPUTime
     (res, st') <- liftIO $ case st of 
                             Left s -> encoderSolve s
                             Right s -> encoderSolveSMT s
+    end <- liftIO getCPUTime
+    let diff = (fromIntegral (end - start)) / (10^12)
+    liftIO $ printf "Solver check time: %0.3f sec\n" (diff :: Double)
     case res of
         [] -> do
             currSt <- get
-            modify $ set currentLoc ((currSt ^. currentLoc) + 1)
-            st'' <- case st' of 
-                        Left  _ -> resetEncoder env dst SATSolver net
-                        Right _ -> resetEncoder env dst SMTSolver net
-            findPath env dst net st''
+            if currSt ^. currentLoc < 3
+              then do
+                modify $ set currentLoc ((currSt ^. currentLoc) + 1)
+                st'' <- case st' of 
+                            Left  _ -> resetEncoder env dst SATSolver net
+                            Right _ -> resetEncoder env dst SMTSolver net
+                findPath env dst net st''
+              else error "cannot find a path"
         _  -> do
             fm <- view functionMap <$> get
             src <- view sourceTypes <$> get
@@ -502,7 +518,12 @@ findPath env dst net st = do
                          $ map (transitionId . fst) sortedRes
             let sigs = map (findFunction fm) sigNames
             let initialFormer = FormerState 0 HashMap.empty
+            -- liftIO $ putStrLn "running code former"
+            start <- liftIO getCPUTime
             code <- liftIO $ evalStateT (generateProgram sigs src args) initialFormer
+            end <- liftIO getCPUTime
+            let diff = (fromIntegral (end - start)) / (10^12)
+            liftIO $ printf "Code former time: %0.3f sec\n" (diff :: Double)
             return (code, st')
   where
     findFunction fm name = 
@@ -517,16 +538,34 @@ findPath env dst net st = do
 findProgram :: (MonadIO m) => Environment -> RType -> PetriNet -> EncoderType -> PNSolver m (RProgram, EncoderType)
 findProgram env dst net st = do
     (codeResult, st') <- findPath env dst net st
+    oldSemantic <- view abstractionSemantic <$> get
     liftIO $ print codeResult
     checkResult <- mapM parseAndCheck $ Set.toList codeResult
     let codes = catMaybes checkResult
     solutions <- view currentSolutions <$> get
     if null codes
         then do
-            -- net' <- initNet env
-            -- st'' <- resetEncoder env dst net'
-            -- findProgram env dst net' st''
-            findProgram env dst net st'
+            rs <- view refineStrategy <$> get
+            newSemantic <- view abstractionSemantic <$> get
+            case rs of
+                NoRefine -> findProgram env dst net st'
+                AbstractRefinement -> do
+                    if oldSemantic /= newSemantic
+                      then do
+                        start <- liftIO getCPUTime
+                        net' <- initNet env
+                        end <- liftIO getCPUTime
+                        let diff = (fromIntegral (end - start)) / (10^12)
+                        liftIO $ printf "Petri net construction time: %0.3f sec\n" (diff :: Double)
+                        start' <- liftIO getCPUTime
+                        st'' <- case st' of 
+                                    Left  _ -> resetEncoder env dst SATSolver net'
+                                    Right _ -> resetEncoder env dst SMTSolver net'
+                        end' <- liftIO getCPUTime
+                        let diff' = (fromIntegral (end' - start')) / (10^12)
+                        liftIO $ printf "Petri net encoding time: %0.3f sec\n" (diff' :: Double)
+                        findProgram env dst net' st''
+                      else findProgram env dst net st'
         else if head codes `elem` solutions
             then do
                 findProgram env dst net st'

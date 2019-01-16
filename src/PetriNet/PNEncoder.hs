@@ -97,6 +97,9 @@ setFinalState ret = do
 
 solveAndGetModel :: Encoder [(Transition, Int)]
 solveAndGetModel = do
+    {- assts <- optimizeGetAssertions
+    asstStrs <- mapM astToString assts
+    liftIO $ mapM putStrLn asstStrs -}
     res <- optimizeCheck
     l <- loc <$> get
 
