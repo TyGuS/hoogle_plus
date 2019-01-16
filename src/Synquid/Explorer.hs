@@ -104,7 +104,9 @@ data ExplorerParams = ExplorerParams {
   _solutionCnt :: Int,
   _pathSearch :: PathStrategy,
   _useHO :: Bool,
-  _pathSolver :: PathSolver
+  _pathSolver :: PathSolver,
+  _encoderType :: HEncoder.EncoderType,
+  _useRefine :: PNSolver.RefineStrategy
 } 
 
 makeLenses ''ExplorerParams
@@ -179,7 +181,7 @@ data Reconstructor s = Reconstructor (Goal -> Explorer s RProgram) (Environment 
 -- | 'runExplorer' @eParams tParams initTS go@ : execute exploration @go@ with explorer parameters @eParams@, typing parameters @tParams@ in typing state @initTS@
 runExplorer :: (MonadHorn s, MonadIO s) => ExplorerParams -> TypingParams -> Reconstructor s -> TypingState -> Explorer s a -> s (Either ErrorMessage [a])
 runExplorer eParams tParams topLevel initTS go = do
-  (ress, (PersistentState _ _ errs)) <- runStateT (observeManyT (eParams ^. solutionCnt) $ runReaderT (evalStateT go initExplorerState) (eParams, tParams, topLevel)) (PersistentState Map.empty Map.empty [])
+  (ress, (PersistentState _ _ errs)) <- runStateT (observeManyT 1 $ runReaderT (evalStateT go initExplorerState) (eParams, tParams, topLevel)) (PersistentState Map.empty Map.empty [])
   -- (ress, (PersistentState _ _ errs)) <- runStateT (observeManyT 1 $ runReaderT (evalStateT go initExplorerState) (eParams, tParams, topLevel)) (PersistentState Map.empty Map.empty [])
   case ress of
     [] -> return $ Left $ head errs
@@ -198,6 +200,13 @@ generateI env t@(FunctionT x tArg tRes) isElseBranch = do
   return $ ctx pBody
 generateI env t@(ScalarT _ _) isElseBranch = do
   pathEnabled <- asks . view $ _1 . pathSearch
+  cnt <- asks . view $ _1 . solutionCnt
+  let required = Map.map (Map.filterWithKey (\k _ -> k == "Data.Maybe.fromMaybe" || k == "Data.Maybe.listToMaybe" || k == "Data.Maybe.catMaybes" || k == "Pair" || k `Map.member` (env ^. arguments))) (env ^. symbols)
+  let required' = Map.filter (not . Map.null) required
+  let requiredEnv = env { _symbols = required' }
+  let optional = concat . Map.elems $ Map.map (Map.toList . Map.filterWithKey (\k _ -> k /= "Data.Maybe.fromMaybe" && k /= "Data.Maybe.listToMaybe" && k /= "Data.Maybe.catMaybes" && k /= "Pair" && k `Map.notMember` (env ^. arguments))) (env ^. symbols)
+  let filteredEnv = foldr (uncurry addPolyVariable) requiredEnv (take (cnt - 1) optional)
+  liftIO $ print (allSymbols filteredEnv)
   case pathEnabled of
     Dijkstra    -> splitGoal env t
     BiDijkstra  -> splitGoal env t
@@ -210,33 +219,36 @@ generateI env t@(ScalarT _ _) isElseBranch = do
       -- splitGoal env t
     PetriNet    -> do
       useHO <- asks . view $ _1 . useHO
-      let env' = if useHO then env 
-                          else env { _symbols = Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols }
+      let env' = if useHO then filteredEnv 
+                          else filteredEnv { _symbols = Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ filteredEnv ^. symbols }
       let args = (Monotype t):(Map.elems $ env' ^. arguments)
       -- start with all the datatypes defined in the queries
       let initialState = Map.singleton "" $ foldr (Set.union . Set.map Left . allDatatypes . toMonotype) Set.empty args 
       maxLevel <- asks . view $ _1 . explorerLogLevel
       cnt <- asks . view $ _1 . solutionCnt
-      solver <- asks. view $ _1 . pathSolver
-      evalStateT (runPNSolver env' solver cnt)
+      solver <- asks . view $ _1 . pathSolver
+      rs <- asks . view $ _1 . useRefine
+      evalStateT (runPNSolver env' solver 1)
                  $ set PNSolver.abstractionSemantic initialState 
-                 $ PNSolver.emptySolverState {PNSolver._logLevel = maxLevel}
+                 $ PNSolver.emptySolverState {PNSolver._logLevel = maxLevel, PNSolver._refineStrategy = rs}
     PNSMT -> do
       cnt <- asks . view $ _1 . solutionCnt
-      let tvs = env ^. boundTypeVars
-      let args = map toMonotype (Map.elems (env ^. arguments))
+      encoder <- asks. view $ _1 . encoderType
+      let tvs = filteredEnv ^. boundTypeVars
+      let args = map toMonotype (Map.elems (filteredEnv ^. arguments))
       z3env <- liftIO HEncoder.initialZ3Env
       dummyTyp <- liftIO (HEncoder.dummyType z3env)
       let initialSt = HEncoder.EncoderState { 
         HEncoder.z3env = z3env,
-        HEncoder.signatures = foldr Map.delete (allSymbols env) (Map.keys (env ^. arguments)),
+        HEncoder.signatures = foldr Map.delete (allSymbols filteredEnv) (Map.keys (filteredEnv ^. arguments)),
         HEncoder.datatypes = Map.empty,
         HEncoder.typeSort = dummyTyp,
         HEncoder.boundTvs = Set.fromList tvs,
         HEncoder.places = [],
         HEncoder.names = [],
-        HEncoder.nameCounter = Map.empty
-      }   
+        HEncoder.nameCounter = Map.empty,
+        HEncoder.encoderType = encoder
+      } 
       liftIO $ evalStateT (HEncoder.runTest tvs args t) initialSt
       error "test"
     DisablePath -> do

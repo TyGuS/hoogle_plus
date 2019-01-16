@@ -23,6 +23,8 @@ import Synquid.Logic (ftrue)
 import Synquid.Pretty
 import Synquid.Util
 
+data EncoderType = Normal | Arity
+
 data Z3Env = Z3Env {
     envSolver  :: Z3.Solver,
     envContext :: Z3.Context,
@@ -40,7 +42,8 @@ data EncoderState = EncoderState {
     typeSort   :: Sort                 , -- ^ self defined sort with all types
     places     :: [AST]                , -- ^ list of place mappings
     names      :: [Sort]               , -- ^ list of sorted refined by arity
-    nameCounter :: Map Id Int            -- ^ variable name counter
+    nameCounter :: Map Id Int          , -- ^ variable name counter
+    encoderType :: EncoderType           -- ^ use normal SMT encoding or refined arity encoding
 }
 
 type Encoder = StateT EncoderState IO
@@ -215,14 +218,19 @@ mkAArg tvMap (ScalarT (DatatypeT id args _) _) = do
     mkApp (constructors !! arity) (idFunc : args')
 mkAArg tvMap t = error $ "mkAAarg: unsupported argument type " ++ show t
 
+encodeArg :: Map Id AST -> SType -> Encoder AST
+encodeArg tvMap t = do
+    encoder <- encoderType <$> get
+    case encoder of
+        Normal -> mkArg tvMap t
+        Arity  -> mkAArg tvMap t
+
 createFuncs :: Int -> Encoder ()
 createFuncs l = do
     sigs <- signatures <$> get
     mapM_ createFunc [(f, l-1) | f <- Map.toList sigs ]
   where
     createFunc ((id, typ), i) = do
-        -- liftIO $ print typ
-        -- typ' <- freshType typ
         -- create a boolean variable per transition per time
         f <- mkStringSymbol (id ++ show i)
         bool <- mkBoolSort
@@ -231,11 +239,9 @@ createFuncs l = do
         -- create varaibles for each type variable in the current signature
         let tvs = boundVarsOf typ
         bounded <- boundTvs <$> get
-        -- tm <- mkTvMap (tvs ++ Set.toList bounded)
         tm <- mkBoundTm (tvs ++ Set.toList bounded)
 
         uno <- mkIntNum 1
-        -- let args = map (\a -> (head a, length a)) $ group $ allArgTypes (toMonotype typ')
         let args = allArgTypes (toMonotype typ)
         let ret = lastType (toMonotype typ)
         -- each input type has enough tokens to be consumed
@@ -246,23 +252,16 @@ createFuncs l = do
         -- each input type has to consume tokens to fire some transition
         let finalMap = Map.insertWith (+) (shape ret) 1 decedMap
         -- apply the final status
-        -- consumedArgs <- foldrM (uncurry (decArgToken tm i)) (pls !! i) args
-        -- produce the return type after the transition fired
-        -- pAfter <- produceRetToken tm i ret consumedArgs
         pAfter <- foldrM (uncurry (applyArgToken tm i)) (pls !! i) (Map.toList finalMap)
         changeP <- mkEq (pls !! (i+1)) pAfter
         -- there exists some type variables to satisfy the requirements
         canFire <- mkAnd (changeP:hasArgs)
-        -- tvSymbols <- mapM mkStringSymbol tvs
-        -- liftIO $ print tvs
         tvSymbols <- mapM mkIntSymbol [(length tvs - 1),(length tvs -2)..0]
         styp <- typeSort <$> get
         let tvTypes = replicate (length tvs) styp
         fired <- if length tvSymbols > 0 
                    then mkExists [] tvSymbols tvTypes canFire >>= mkImplies fc
                    else mkImplies fc canFire
-        -- optimizeAssert fired
-        -- fired <- mkImplies fc canFire
         assert fired
 
     mkBoundTm tvs = foldrM addBoundTv Map.empty (zip tvs [0,1..])
@@ -274,8 +273,7 @@ createFuncs l = do
 
     hasArgAt tvMap i arg cnt = do
         pls <- places <$> get
-        -- varg <- mkArg tvMap arg
-        varg <- mkAArg tvMap arg
+        varg <- encodeArg tvMap arg
         carg <- mkSelect (pls !! i) varg
         consumed <- mkIntNum (-cnt)
         mkGe carg consumed
@@ -287,8 +285,7 @@ createFuncs l = do
           then return pBefore
           else do
             pls <- places <$> get
-            -- varg <- mkArg tvMap arg
-            varg <- mkAArg tvMap arg
+            varg <- encodeArg tvMap arg
             tBefore <- mkSelect (pls !! i) varg
             consumed <- mkIntNum cnt
             tAfter <- mkAdd [tBefore, consumed]
@@ -300,8 +297,6 @@ createFuncs l = do
 setInitial :: [Id] -> [RType] -> Encoder ()
 setInitial tvs args = do
     typ <- typeSort <$> get
-    -- liftIO $ print tvs
-    -- tm <- mkTvMap tvs
     let tm = Map.empty
     -- prepare z3 variables for query arguments
     let cargs = map (\a -> (head a, length a)) (group args)
@@ -317,8 +312,7 @@ setInitial tvs args = do
     assert initial
   where
     assignArg tm (tArg, cnt) vArr = do
-        -- vArg <- mkArg tm (shape tArg)
-        vArg <- mkAArg tm (shape tArg)
+        vArg <- encodeArg tm (shape tArg)
         vCnt <- mkIntNum cnt
         mkStore vArr vArg vCnt
 
@@ -327,7 +321,6 @@ setInitial tvs args = do
 setFinal :: [Id] -> RType -> Int -> Encoder ()
 setFinal tvs tRet i = do
     typ <- typeSort <$> get
-    -- tm <- mkTvMap tvs
     let tm = Map.empty
 
     -- constraint: only one token in the return type and all the others have none
@@ -335,14 +328,12 @@ setFinal tvs tRet i = do
     parr <- mkArraySort typ int
     zero <- mkIntNum 0
     emptyArr <- mkConstArray typ zero
-    -- vRet <- mkArg tm (shape tRet)
-    vRet <- mkAArg tm (shape tRet)
+    vRet <- encodeArg tm (shape tRet)
     uno <- mkIntNum 1
     assignedArr <- mkStore emptyArr vRet uno
 
     pls <- places <$> get
     final <- mkEq (pls !! i) assignedArr
-    -- optimizeAssert final
     assert final
 
 encode :: [Id] -> [RType] -> RType -> Int -> Encoder ()
@@ -362,30 +353,20 @@ encode tvs args tRet i = do
     -- at least one transition is fired at each time
     mapM_ atExactlyOne [0..(i-1)]
 
-    -- assts <- solverAssertions
-    -- asstStr <- mapM astToString assts
-    -- liftIO $ mapM_ putStrLn asstStr
     solverStr <- solverToString
     liftIO $ putStrLn solverStr
     -- check by the solver
-    -- res <- optimizeCheck
     liftIO $ putStrLn "start checking"
     res <- solverCheck
     case res of 
         Sat -> do
-            -- model <- optimizeGetModel
             model <- solverGetModel
             modelStr <- modelToString model
             liftIO $ putStrLn modelStr
         _ -> do
             liftIO $ putStrLn "Here UNSAT"
             when (i < 3) $ do
-                -- unsatCore <- solverGetUnsatCore
-                -- asstStr <- mapM astToString unsatCore
-                -- liftIO $ mapM_ putStrLn asstStr
-                {- optimizePop 0 -}
                 pop 1
-                -- solverReset
                 encode tvs args tRet (i+1)
   where
     -- fire only one transition at each timestamp
@@ -395,7 +376,6 @@ encode tvs args tRet i = do
         fs <- mapM (\name -> mkStringSymbol (name ++ show t)) (Map.keys sigs)
         fc <- mapM (\sym -> mkConst sym bool) fs
         -- at least one transition is fired at the current timestamp
-        -- mkOr fc >>= optimizeAssert
         mkOr fc >>= assert
         -- at most one transition is fired at the current timestamp
         -- mapM_ (fireAt fc) [0..(length fc - 1)]
@@ -403,7 +383,7 @@ encode tvs args tRet i = do
     fireAt fc i = do
         let selected = fc !! i
         let other = deleteAt i fc
-        mkOr other >>= mkNot >>= mkImplies selected >>= assert -- optimizeAssert
+        mkOr other >>= mkNot >>= mkImplies selected >>= assert
 
 newEnv :: Maybe Logic -> Opts -> IO Z3Env
 newEnv mbLogic opts =
@@ -419,7 +399,9 @@ initialZ3Env = newEnv Nothing stdOpts
 runTest :: [Id] -> [RType] -> RType -> Encoder ()
 runTest tvs args ret = do
     fillDts
-    -- createType
-    createAType
+    et <- encoderType <$> get
+    case et of
+      Normal -> createType
+      Arity  -> createAType
     createPlaces 0
     encode tvs args ret 1
