@@ -247,7 +247,12 @@ generateI env t@(ScalarT _ _) isElseBranch = do
         HEncoder.places = [],
         HEncoder.names = [],
         HEncoder.nameCounter = Map.empty,
-        HEncoder.encoderType = encoder
+        HEncoder.encoderType = encoder,
+        HEncoder.okaySet = [ ScalarT (TypeVarT Map.empty "a") () -- a
+                           , ScalarT (DatatypeT "List" [ScalarT (DatatypeT "Maybe" [ScalarT (TypeVarT Map.empty "a") ()] []) ()] []) () -- List (Maybe a)
+                           , ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ()] []) () -- List a
+                           , ScalarT (DatatypeT "Maybe" [ScalarT (TypeVarT Map.empty "a") ()] []) () -- List a
+                           ]
       } 
       liftIO $ evalStateT (HEncoder.runTest tvs args t) initialSt
       error "test"

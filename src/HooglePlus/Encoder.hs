@@ -43,7 +43,8 @@ data EncoderState = EncoderState {
     places     :: [AST]                , -- ^ list of place mappings
     names      :: [Sort]               , -- ^ list of sorted refined by arity
     nameCounter :: Map Id Int          , -- ^ variable name counter
-    encoderType :: EncoderType           -- ^ use normal SMT encoding or refined arity encoding
+    encoderType :: EncoderType         , -- ^ use normal SMT encoding or refined arity encoding
+    okaySet    :: [SType]
 }
 
 type Encoder = StateT EncoderState IO
@@ -254,8 +255,10 @@ createFuncs l = do
         -- apply the final status
         pAfter <- foldrM (uncurry (applyArgToken tm i)) (pls !! i) (Map.toList finalMap)
         changeP <- mkEq (pls !! (i+1)) pAfter
+        -- both arguments and return type should be in our okay set
+        okayArgs <- mapM (okayArg tm . shape) (ret : args)
         -- there exists some type variables to satisfy the requirements
-        canFire <- mkAnd (changeP:hasArgs)
+        canFire <- mkAnd (changeP:hasArgs ++ okayArgs)
         tvSymbols <- mapM mkIntSymbol [(length tvs - 1),(length tvs -2)..0]
         styp <- typeSort <$> get
         let tvTypes = replicate (length tvs) styp
@@ -277,6 +280,13 @@ createFuncs l = do
         carg <- mkSelect (pls !! i) varg
         consumed <- mkIntNum (-cnt)
         mkGe carg consumed
+
+    okayArg tvMap arg = do
+        varg <- encodeArg tvMap arg
+        styp <- typeSort <$> get
+        typSet <- mkSetSort styp
+        okaySet <- mkStringSymbol "okaySet" >>= flip mkConst typSet
+        mkSetMember varg okaySet
 
     decArgToken arg mBefore = Map.insertWith (+) (shape arg) (-1) mBefore
 
@@ -335,6 +345,42 @@ setFinal tvs tRet i = do
     pls <- places <$> get
     final <- mkEq (pls !! i) assignedArr
     assert final
+
+okayTypes :: Encoder ()
+okayTypes = do
+    typs <- okaySet <$> get
+    vtyps <- mapM (encodeArg Map.empty) typs
+    typ <- typeSort <$> get
+    typSet <- mkSetSort typ
+    empty <- mkEmptySet typ
+    contains <- foldM mkSetAdd empty vtyps
+    okay <- mkStringSymbol "okaySet" >>= flip mkConst typSet
+    mkEq okay contains >>= assert
+
+-- | set constraints on what kind of types can have positive tokens
+okayType :: Int -> Encoder ()
+okayType i = do
+    tSymbol <- mkIntSymbol 0
+    styp <- typeSort <$> get
+    t <- mkBound 0 styp
+    typs <- okaySet <$> get
+    -- if the type is not in our okaySet, it always has zero tokens
+    notContains <- mapM (notInSet t) typs >>= mkAnd
+    noToken <- hasNothing t
+    okayRule <- mkImplies notContains noToken
+    okay <- mkForall [] [tSymbol] [styp] okayRule
+    assert okay
+  where
+    notInSet t typ = do
+        vTyp <- encodeArg Map.empty typ
+        mkEq t vTyp >>= mkNot
+
+    hasNothing t = do
+        zero <- mkIntNum 0
+        pls <- places <$> get
+        tokens <- mkSelect (pls !! i) t
+        mkEq tokens zero
+
 
 encode :: [Id] -> [RType] -> RType -> Int -> Encoder ()
 encode tvs args tRet i = do
@@ -404,4 +450,5 @@ runTest tvs args ret = do
       Normal -> createType
       Arity  -> createAType
     createPlaces 0
+    okayTypes
     encode tvs args ret 1
