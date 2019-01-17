@@ -66,10 +66,10 @@ freshId prefix = do
 freshType :: RSchema -> Encoder RSchema
 freshType sch = freshType' Map.empty sch
   where
-    freshType' subst (ForallT (a, c) sch) = do
+    freshType' subst (ForallT a sch) = do
         a' <- freshId "t"
         sch' <- freshType' (Map.insert a (vart a' ftrue) subst) sch    
-        return (ForallT (a', c) sch')
+        return (ForallT a' sch')
     freshType' subst (Monotype t) = return (Monotype (typeSubstitute subst $ t))
 
 -- | fillDts: extracts all the datatypes from type signatures

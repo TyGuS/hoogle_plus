@@ -291,7 +291,7 @@ instance Show RType where
 prettySchema :: Pretty (TypeSkeleton r) => SchemaSkeleton r -> Doc
 prettySchema sch = case sch of
   Monotype t -> pretty t
-  ForallT (a, cs) sch' -> (if null cs then empty else hlParens (commaSep (map (\c -> text (c ++ " " ++ a)) cs)) <+> operator "=>") <+> hlAngles (text a)  <+> operator "." <+> prettySchema sch'
+  ForallT a sch' -> hlAngles (text a)  <+> operator "." <+> prettySchema sch'
   ForallP sig sch' -> pretty sig <+> operator "." <+> prettySchema sch'
 
 instance Pretty SSchema where
@@ -543,7 +543,6 @@ instance Hashable SuccinctContext where
 instance Pretty AbstractSkeleton where
     pretty (ADatatypeT id args) = text id <+> hsep (map pretty args)
     pretty (AExclusion ids) = text "-" <+> hlBraces (commaSep $ map pretty (Set.toList ids))
-    pretty (AOneOf ids) = text "+" <+> hlBraces (commaSep $ map pretty (Set.toList ids)) 
     pretty (ATypeVarT id) = text id
     pretty (AFunctionT tArg tRet) = pretty tArg <+> operator "->" <+> pretty tRet
 

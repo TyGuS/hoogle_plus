@@ -234,16 +234,17 @@ resolveSignatures _                      = return ()
 {- Types and sorts -}
 
 resolveSchema :: RSchema -> Resolver RSchema
-resolveSchema sch@(ForallT {}) = resolveSchema' sch
+{- resolveSchema sch@(ForallT {}) = resolveSchema' sch
   where 
     resolveSchema' (ForallT t sch') = ForallT t <$> resolveSchema' sch'
     resolveSchema' (Monotype t) = Monotype <$> resolveType t
+-}
 resolveSchema sch = do
   let tvs = Set.toList $ typeVarsOf (toMonotype sch)
   sch' <- withLocalEnv $ do
     environment . boundTypeVars %= (tvs ++)
     resolveSchema' sch  
-  return $ Foldable.foldr (ForallT . flip (,) []) sch' tvs
+  return $ Foldable.foldl (flip ForallT) sch' tvs
   where
     resolveSchema' (ForallP sig@(PredSig predName argSorts resSort) sch) = do
       ifM (elem predName <$> uses (environment . boundPredicates) (map predSigName)) 

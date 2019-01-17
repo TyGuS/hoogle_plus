@@ -112,7 +112,6 @@ abstractParamList (AFunctionT tArg tFun) =
         AExclusion _    -> [tArg]
         ATypeVarT  _    -> [tArg]
         _               -> (tArg) : (abstractParamList tFun)
-abstractParamList t@(AOneOf _) = [t]
 abstractParamList t = error $ "Unexpected type " ++ show t
 
 lastAbstractType :: AbstractSkeleton -> AbstractSkeleton
@@ -139,21 +138,21 @@ freshId prefix = do
     return $ prefix ++ "_" ++ show idx
 
 -- | Replace all bound type variables with fresh free variables
-freshType :: (MonadIO m) => RSchema -> PNSolver m (RType, ClassConstraint)
+freshType :: (MonadIO m) => RSchema -> PNSolver m RType
 freshType sch = freshType' Map.empty [] sch
   where
-    freshType' subst constraints (ForallT (a,constraint) sch) = do
+    freshType' subst constraints (ForallT a sch) = do
         a' <- freshId "A"
-        freshType' (Map.insert a (vart a' ftrue) subst) ((a',constraint):constraints) sch    
-    freshType' subst constraints (Monotype t) = return (typeSubstitute subst $ t, constraints)
+        freshType' (Map.insert a (vart a' ftrue) subst) (a':constraints) sch    
+    freshType' subst constraints (Monotype t) = return (typeSubstitute subst t)
 
 constructType :: Environment -> AbstractionSemantic -> Id -> [AbstractSkeleton]
 constructType env abstraction key 
     | key `Map.notMember` abstraction && currDt == "" = [AExclusion Set.empty]
     | key `Map.notMember` abstraction && isDt = [ADatatypeT currDt $ replicate dtParams (AExclusion Set.empty)]
     | key `Map.notMember` abstraction = [ATypeVarT currDt, AExclusion (Set.singleton currDt)] -- this is bounded type variables
-    | currDt == "" = nubOrd $ AExclusion allIds : anyOneIds ++ concatMap (constructType env abstraction . (++) (key ++ ",")) (Set.toList allIds)
-    | isDt = nubOrd $ map (ADatatypeT currDt) $ listOfN dtParams $ (AExclusion allIds) : anyOneIds ++ concatMap (constructType env abstraction . (++) (key ++ ",")) (Set.toList allIds)
+    | currDt == "" = nubOrd $ (AExclusion allIds) : concatMap (constructType env abstraction . (++) (key ++ ",")) (Set.toList allIds)
+    | isDt = nubOrd $ map (ADatatypeT currDt) $ listOfN dtParams $ (AExclusion allIds) : concatMap (constructType env abstraction . (++) (key ++ ",")) (Set.toList allIds)
     | otherwise = nubOrd $ [ATypeVarT currDt, AExclusion (Set.singleton currDt)] -- this is bounded type variables
   where
     currDt = if null (splitBy ',' key) 
@@ -161,9 +160,7 @@ constructType env abstraction key
                 else if Map.member (last $ splitBy ',' key) (env ^. datatypes) || Char.isLower (head $ last $ splitBy ',' key)
                     then last $ splitBy ',' key
                     else ""
-    nextIdSet = Map.findWithDefault Set.empty key abstraction
-    anyOneIds = Set.toList $ Set.map (AOneOf . fromRight) $ Set.filter isRight nextIdSet
-    allIds = Set.foldr (\i -> Set.union (if isLeft i then Set.singleton (fromLeft i) else fromRight i)) Set.empty nextIdSet
+    allIds = Map.findWithDefault Set.empty key abstraction
     isDt = Char.isUpper $ head currDt
     dtParams = case Map.lookup currDt (env ^. datatypes) of
         Just def -> length (def ^. typeParams)
@@ -189,11 +186,13 @@ instantiate env sigs =
 
 instantiateWith :: (MonadIO m) => Environment -> [AbstractSkeleton] -> Id -> AbstractSkeleton -> PNSolver m [(Id, AbstractSkeleton)]
 instantiateWith env typs id sk = do
+    when (id == "Data.List.last") (liftIO $ print sk)
     let vars = Set.toList $ allAbstractVar sk
     let multiSubsts = map (zip vars) $ multiPermutation (length vars) typs
     let substedSymbols = map (foldr (\(id, t) acc -> abstractSubstitute (env ^. boundTypeVars) id t acc) sk) multiSubsts
     st <- get
     foldrM (\t accMap -> do
+        when (id == "Data.List.last") (liftIO (print t >> print (cutoff (st ^. abstractionSemantic) "" t)))
         newId <- newSymbolName id
         return $ (newId, cutoff (st ^. abstractionSemantic) "" t):accMap) [] substedSymbols
     where
@@ -208,20 +207,18 @@ instantiateWith env typs id sk = do
             return $ prefix ++ "_" ++ show idx
 
 cutoff :: AbstractionSemantic -> Id -> AbstractSkeleton -> AbstractSkeleton
+cutoff semantic key (ATypeVarT id) = AExclusion currIds
+  where
+    currIds = Map.findWithDefault Set.empty key semantic -- type variable here should be bounded ones
 cutoff semantic key (ADatatypeT id tArgs) = 
-    if id `Set.member` possibleIds then ADatatypeT id (map (cutoff semantic (key ++ "," ++ id)) tArgs)
-                               else AExclusion possibleIds
+    if id `Set.member` currIds then ADatatypeT id (map (cutoff semantic (key ++ "," ++ id)) tArgs)
+                               else AExclusion currIds
   where
     currIds        = Map.findWithDefault Set.empty key semantic
-    unionEither id = Set.union (if isLeft id then Set.singleton (fromLeft id) else fromRight id)
-    possibleIds    = Set.foldr unionEither Set.empty currIds
 cutoff semantic key (AFunctionT tArg tRet) = AFunctionT (cutoff semantic key tArg) (cutoff semantic key tRet)
-cutoff semantic key t@(AExclusion _) = AExclusion possibleIds
+cutoff semantic key t@(AExclusion _) = AExclusion currIds
   where
     currIds        = Map.findWithDefault Set.empty key semantic
-    unionEither id = Set.union (if isLeft id then Set.singleton (fromLeft id) else fromRight id)
-    possibleIds    = Set.foldr unionEither Set.empty currIds
-cutoff _ _ t = t
 
 distinguish :: Environment -> AbstractionSemantic -> Map Id SType -> Id -> SType -> SType -> AbstractionSemantic
 distinguish env semantic _ _ AnyT _ = semantic
@@ -229,7 +226,7 @@ distinguish env semantic _ _ _ AnyT = semantic
 distinguish env semantic _ _ ErrorT _ = semantic
 distinguish env semantic _ _ _ ErrorT = semantic
 distinguish env semantic _ key (ScalarT (DatatypeT id _ _) _) (ScalarT (DatatypeT id' _ _) _) | id /= id' = 
-    Map.insertWith Set.union key (Set.fromList [Left id, Left id']) semantic
+    Map.insertWith Set.union key (Set.fromList [id, id']) semantic
 distinguish env semantic tass key (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT id' tArgs' _) _) | id == id' = 
     distinguish' (key ++ "," ++ id) tass tArgs tArgs'
   where
@@ -238,7 +235,7 @@ distinguish env semantic tass key (ScalarT (DatatypeT id tArgs _) _) (ScalarT (D
     -- distinguish' key _ [] ((ScalarT (TypeVarT _ id) _):_) | isBound env id = Map.insertWith Set.union key (Set.singleton $ Left id) semantic
     distinguish' key tass [] ((ScalarT (TypeVarT _ id) _):_) | id `Map.member` tass = distinguish' key tass [] [fromJust $ Map.lookup id tass]
     distinguish' key _ [] ((ScalarT (TypeVarT _ id) _):_) = semantic
-    distinguish' key tass [] (t:_) = Map.insertWith Set.union key (Set.singleton $ Left $ scalarName (stypeSubstitute tass t)) semantic
+    distinguish' key tass [] (t:_) = Map.insertWith Set.union key (Set.singleton $ scalarName (stypeSubstitute tass t)) semantic
     distinguish' key tass args [] = distinguish' key tass [] args
     distinguish' key tass (arg:args) (arg':args') = 
         let semantic' = distinguish env semantic tass key arg arg'
@@ -257,7 +254,7 @@ distinguish env semantic _ key t (ScalarT (TypeVarT _ id) _) | not (isBound env 
 -- has bounded type variable
 distinguish env semantic tass key (ScalarT (TypeVarT {}) _) (ScalarT (TypeVarT {}) _) = semantic
     -- Map.insertWith Set.union key (Set.singleton $ Left $ scalarName (stypeSubstitute tass t)) semantic
-distinguish env semantic tass key (ScalarT (TypeVarT _ _) _) t = Map.insertWith Set.union key (Set.singleton (Left $ scalarName t)) semantic
+distinguish env semantic tass key (ScalarT (TypeVarT _ _) _) t = Map.insertWith Set.union key (Set.singleton (scalarName t)) semantic
 distinguish env semantic tass key t tv@(ScalarT (TypeVarT _ _) _) = distinguish env semantic tass key tv t
     -- Map.insertWith Set.union key (Set.singleton $ Left $ scalarName (stypeSubstitute tass t)) semantic
 distinguish env semantic tass key (FunctionT _ tArg tRes) (FunctionT _ tArg' tRes') = 
@@ -267,25 +264,25 @@ distinguish env semantic tass key t1 t2 =
     let t1' = stypeSubstitute tass t1
         t2' = stypeSubstitute tass t2
     in if t1' == t2' then semantic 
-                     else Map.insertWith Set.union key (Set.fromList [Left $ scalarName t1', Left $ scalarName t2']) semantic
+                     else Map.insertWith Set.union key (Set.fromList [scalarName t1', scalarName t2']) semantic
 
 topDownCheck :: (MonadIO m) => Environment -> SType -> UProgram -> PNSolver m RProgram
 topDownCheck env typ p@(Program (PSymbol sym) _) = do
     -- lookup the symbol type in current scope
     writeLog 3 $ text "Checking type for" <+> pretty p
     -- liftIO $ print (allSymbols env)
-    (t,c) <- case lookupSymbol sym 0 env of
-                Nothing  -> 
-                    case lookupSymbol ("(" ++ sym ++ ")") 0 env of -- symbol name with parenthesis
-                        Nothing  -> do
-                            writeLog 2 $ text "topDownCheck: cannot find symbol" <+> text sym <+> text "in the current environment"
-                            modify $ set isChecked False
-                            return (AnyT, [])
-                        Just sch -> freshType sch
-                Just sch -> freshType sch
+    t <- case lookupSymbol sym 0 env of
+             Nothing  -> 
+                 case lookupSymbol ("(" ++ sym ++ ")") 0 env of -- symbol name with parenthesis
+                     Nothing  -> do
+                         writeLog 2 $ text "topDownCheck: cannot find symbol" <+> text sym <+> text "in the current environment"
+                         modify $ set isChecked False
+                         return AnyT
+                     Just sch -> freshType sch
+             Just sch -> freshType sch
     -- solve the type constraint t == typ
     writeLog 3 $ text "Solving constraint" <+> pretty typ <+> text "==" <+> pretty t
-    solveTypeConstraint env typ (shape t) (Map.fromList c)
+    solveTypeConstraint env typ (shape t)
     ifM (view isChecked <$> get) 
         (return $ Program (PSymbol sym) t) 
         (return $ Program (PSymbol sym) (addTrue typ)) 
@@ -311,39 +308,38 @@ topDownCheck env typ@(FunctionT _ tArg tRet) p@(Program (PFun x body) _) = do
         (return $ Program (PFun x body') (FunctionT x (addTrue tArg) (typeOf body')))
         (return $ Program (PFun x body') (addTrue typ))
 
-bottomUpCheck :: (MonadIO m) => Environment -> RProgram -> PNSolver m (Maybe (RProgram, ClassConstraint))
-bottomUpCheck env p@(Program PHole _) = return $ Just (p, [])
+bottomUpCheck :: (MonadIO m) => Environment -> RProgram -> PNSolver m (Maybe RProgram) 
+bottomUpCheck env p@(Program PHole _) = return $ Just p
 bottomUpCheck env p@(Program (PSymbol sym) typ) = do
     -- lookup the symbol type in current scope
     writeLog 3 $ text "Checking type for" <+> pretty p
-    (t,c) <- case lookupSymbol sym 0 env of
-                Nothing  -> 
-                    case lookupSymbol ("(" ++ sym ++ ")") 0 env of -- symbol name with parenthesis
-                        Nothing  -> do
-                            modify $ set isChecked False
-                            return (AnyT, []) -- error $ "bottomUpCheck: cannot find symbol " ++ sym ++ " in the current environment"
-                        Just sch -> freshType sch
-                Just sch -> freshType sch
-    -- solveTypeConstraint env (shape typ) (shape t)
+    t <- case lookupSymbol sym 0 env of
+             Nothing  -> 
+                 case lookupSymbol ("(" ++ sym ++ ")") 0 env of -- symbol name with parenthesis
+                     Nothing  -> do
+                         modify $ set isChecked False
+                         return AnyT -- error $ "bottomUpCheck: cannot find symbol " ++ sym ++ " in the current environment"
+                     Just sch -> freshType sch
+             Just sch -> freshType sch
     writeLog 3 $ text "Distinguishing" <+> pretty (shape typ) <+> text "and" <+> pretty (shape t)
     tass <- view typeAssignment <$> get
     curr <- view abstractionSemantic <$> get
     modify $ set abstractionSemantic $ distinguish env curr tass "" (shape typ) (shape t)
     ifM (view isChecked <$> get)
-        (return $ Just $ (Program (PSymbol sym) t, c))
+        (return $ Just $ (Program (PSymbol sym) t))
         (return Nothing)
 bottomUpCheck env (Program (PApp pFun pArg) typ) = do
     fun <- bottomUpCheck env pFun
     case fun of
         Nothing -> return Nothing
-        Just (f,fConstraints) -> do
+        Just f -> do
             let FunctionT _ tArg tRet = typeOf f
             arg <- bottomUpCheck env pArg
             case arg of
                 Nothing -> return Nothing
-                Just (a, aConstraints) -> do
+                Just a -> do
                     writeLog 3 $ text "Solving constraint for" <+> pretty a <+> pretty (shape $ typeOf a) <+> text "==" <+> pretty (shape tArg)
-                    solveTypeConstraint env (shape $ typeOf a) (shape tArg) (Map.fromList (fConstraints ++ aConstraints))
+                    solveTypeConstraint env (shape $ typeOf a) (shape tArg) 
                     tass <- view typeAssignment <$> get
                     curr <- view abstractionSemantic <$> get
                     writeLog 3 $ text "Distinguishing" <+> pretty (shape $ typeOf a) <+> text "and" <+> pretty (shape tArg)
@@ -351,79 +347,79 @@ bottomUpCheck env (Program (PApp pFun pArg) typ) = do
                     writeLog 3 $ text "Distinguishing" <+> pretty (shape typ) <+> text "and" <+> pretty (shape tRet)
                     modify $ set abstractionSemantic $ distinguish env argLevel tass "" (shape typ) (shape tRet)
                     ifM (view isChecked <$> get)
-                        (return $ Just $ (Program (PApp f a) tRet, fConstraints ++ aConstraints)) -- Either type to store the conflict types
+                        (return $ Just $ (Program (PApp f a) tRet))
                         (return Nothing)
 bottomUpCheck env p@(Program (PFun x body) (FunctionT _ tArg tRet)) = do
     writeLog 3 $ text "Checking type for" <+> pretty p
     body' <- bottomUpCheck (addVariable x (addTrue tArg) env) body
     case body' of
         Nothing -> return Nothing
-        Just (b,c) -> return $ Just (Program (PFun x b) (FunctionT x tArg (typeOf b)), c)
+        Just b -> return $ Just (Program (PFun x b) (FunctionT x tArg (typeOf b)))
 
-solveTypeConstraint :: (MonadIO m) => Environment -> SType -> SType -> Map Id [Id] -> PNSolver m ()
-solveTypeConstraint _ AnyT _ _ = return ()
-solveTypeConstraint _ _ AnyT _ = return ()
-solveTypeConstraint _ ErrorT _ _ = return ()
-solveTypeConstraint _ _ ErrorT _ = return ()
-solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ id') _) _ | id == id' = return ()
-solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ id') _) constraints | isBound env id && isBound env id' =
+solveTypeConstraint :: (MonadIO m) => Environment -> SType -> SType -> PNSolver m ()
+solveTypeConstraint _ AnyT _ = return ()
+solveTypeConstraint _ _ AnyT = return ()
+solveTypeConstraint _ ErrorT _ = return ()
+solveTypeConstraint _ _ ErrorT = return ()
+solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ id') _) | id == id' = return ()
+solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ id') _) | isBound env id && isBound env id' =
     modify $ set isChecked False
-solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ id') _) constraints | isBound env id = do
+solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ id') _) | isBound env id = do
     st <- get
     if id' `Map.member` (st ^. typeAssignment)
         then do
             let typ = fromJust $ Map.lookup id' $ st ^. typeAssignment
             writeLog 3 $ text "Solving constraint" <+> pretty typ <+> "==" <+> pretty tv
-            solveTypeConstraint env tv typ constraints
-        else unify env id' tv constraints
-solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ id') _) constraints = do
+            solveTypeConstraint env tv typ
+        else unify env id' tv
+solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ id') _) = do
     st <- get 
     if id `Map.member` (st ^. typeAssignment)
         then do
             let typ = fromJust $ Map.lookup id $ st ^. typeAssignment
             writeLog 3 $ text "Solving constraint" <+> pretty typ <+> "==" <+> pretty tv'
-            solveTypeConstraint env typ tv' constraints
+            solveTypeConstraint env typ tv'
         else if id' `Map.member` (st ^. typeAssignment)
             then do
                 let typ = fromJust $ Map.lookup id' $ st ^. typeAssignment
                 writeLog 3 $ text "Solving constraint" <+> pretty tv <+> "==" <+> pretty typ
-                solveTypeConstraint env tv typ constraints
+                solveTypeConstraint env tv typ
             else do
-                unify env id tv' constraints
-solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t _ | isBound env id = modify $ set isChecked False
-solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t constraints = do
+                unify env id tv'
+solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t | isBound env id = modify $ set isChecked False
+solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t = do
     st <- get
     if id `Map.member` (st ^. typeAssignment)
         then do
             let typ = fromJust $ Map.lookup id $ st ^. typeAssignment
             writeLog 3 $ text "Solving constraint" <+> pretty typ <+> "==" <+> pretty t
-            solveTypeConstraint env typ t constraints
+            solveTypeConstraint env typ t
         else do
-            unify env id t constraints
-solveTypeConstraint env t tv@(ScalarT (TypeVarT _ id) _) constraints = solveTypeConstraint env tv t constraints
-solveTypeConstraint env (FunctionT _ tArg tRet) (FunctionT _ tArg' tRet') constraints = do
+            unify env id t
+solveTypeConstraint env t tv@(ScalarT (TypeVarT _ id) _) = solveTypeConstraint env tv t
+solveTypeConstraint env (FunctionT _ tArg tRet) (FunctionT _ tArg' tRet') = do
     writeLog 3 $ text "Solving constraint" <+> pretty tArg <+> "==" <+> pretty tArg'
-    solveTypeConstraint env tArg tArg' constraints
+    solveTypeConstraint env tArg tArg'
     st <- get
     when (st ^. isChecked) (do
         writeLog 3 $ text "Solving constraint" <+> pretty tRet <+> "==" <+> pretty tRet'
-        solveTypeConstraint env tRet tRet' constraints)
-solveTypeConstraint env t1@(ScalarT (DatatypeT id tArgs _) _) t2@(ScalarT (DatatypeT id' tArgs' _) _) _ | id /= id' = do
+        solveTypeConstraint env tRet tRet')
+solveTypeConstraint env t1@(ScalarT (DatatypeT id tArgs _) _) t2@(ScalarT (DatatypeT id' tArgs' _) _) | id /= id' = do
     modify $ set isChecked False
-solveTypeConstraint env t1@(ScalarT (DatatypeT id tArgs _) _) t2@(ScalarT (DatatypeT id' tArgs' _) _) constraints | id == id' = do
+solveTypeConstraint env t1@(ScalarT (DatatypeT id tArgs _) _) t2@(ScalarT (DatatypeT id' tArgs' _) _) | id == id' = do
     solveTypeConstraint' env tArgs tArgs'
   where
     solveTypeConstraint' _ []  [] = return ()
     solveTypeConstraint' env (ty:tys) (ty':tys') = do
         writeLog 3 $ text "Solving constraint" <+> pretty ty <+> "==" <+> pretty ty'
-        solveTypeConstraint env ty ty' constraints
+        solveTypeConstraint env ty ty'
         checked <- view isChecked <$> get
         -- if the checking between ty and ty' succeeds, proceed to others
         when (checked) (solveTypeConstraint' env tys tys')
-solveTypeConstraint env t1 t2 _ = error $ "unknown types " ++ show t1 ++ " or " ++ show t2
+solveTypeConstraint env t1 t2 = error $ "unknown types " ++ show t1 ++ " or " ++ show t2
 
-unify :: (MonadIO m) => Environment -> Id -> SType -> Map Id [Id] -> PNSolver m ()
-unify env v t _ = modify $ over typeAssignment (Map.insert v t)
+unify :: (MonadIO m) => Environment -> Id -> SType -> PNSolver m ()
+unify env v t = modify $ over typeAssignment (Map.insert v t)
 
 checkType :: (MonadIO m) => Environment -> RType -> UProgram -> PNSolver m (Maybe RProgram)
 checkType env typ p = do
@@ -450,20 +446,32 @@ initNet env = do
     -- first abstraction all the symbols with fresh type variables and then instantiate them
     absSymbols <- mapM (uncurry (abstractSymbol binds abstraction)) 
                       $ Map.toList $ allSymbols env
+    start <- liftIO getCPUTime
     sigs <- instantiate env absSymbols
+    end <- liftIO getCPUTime
+    let diff = (fromIntegral (end - start)) / (10^12)
+    liftIO $ printf "signature instantiation time: %0.3f sec\n" (diff :: Double)
+    -- liftIO $ print sigs
     symbols <- mapM (addEncodedFunction) 
                     -- first order arguments are tokens but not transitions in petri net
                     $ Map.toList $ foldr Map.delete sigs $ Map.keys foArgs
     let srcTypes = map ( show 
-                       . abstract binds abstraction 
+                       . cutoff abstraction ""
+                       . toAbstractType -- abstract binds abstraction 
                        . shape 
                        . toMonotype) $ Map.elems foArgs
+    liftIO $ print srcTypes
     modify $ set sourceTypes srcTypes
-    return $ buildPetriNet symbols srcTypes
+    start' <- liftIO getCPUTime
+    let net = buildPetriNet symbols srcTypes
+    end' <- liftIO getCPUTime
+    let diff' = (fromIntegral (end' - start')) / (10^12)
+    liftIO $ printf "petri net construction time: %0.3f sec\n" (diff' :: Double)
+    return net
   where
     abstractSymbol binds abstraction id sch = do
-        (t, _) <- freshType sch
-        let absTy = abstract binds abstraction (shape t)
+        t <- freshType sch
+        let absTy = toAbstractType (shape t) -- abstract binds abstraction (shape t)
         return (id, absTy)
 
     addEncodedFunction (id, f) = do
@@ -475,7 +483,8 @@ resetEncoder :: (MonadIO m) => Environment -> RType -> PathSolver -> PetriNet ->
 resetEncoder env dst solver net = do
     let binds = env ^. boundTypeVars
     abstraction <- view abstractionSemantic <$> get
-    let tgt = show $ abstract binds abstraction $ shape dst
+    let tgt = show (cutoff abstraction "" (toAbstractType (shape dst))) -- abstract binds abstraction $ shape dst
+    liftIO $ print tgt
     modify $ set targetType tgt
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
     modify $ set paramNames $ Map.keys foArgs
@@ -537,6 +546,7 @@ findPath env dst net st = do
 
 findProgram :: (MonadIO m) => Environment -> RType -> PetriNet -> EncoderType -> PNSolver m (RProgram, EncoderType)
 findProgram env dst net st = do
+    liftIO $ putStrLn "calling findProgram"
     (codeResult, st') <- findPath env dst net st
     oldSemantic <- view abstractionSemantic <$> get
     liftIO $ print codeResult
@@ -556,7 +566,7 @@ findProgram env dst net st = do
                         net' <- initNet env
                         end <- liftIO getCPUTime
                         let diff = (fromIntegral (end - start)) / (10^12)
-                        liftIO $ printf "Petri net construction time: %0.3f sec\n" (diff :: Double)
+                        liftIO $ printf "petri net init time: %0.3f sec\n" (diff :: Double)
                         start' <- liftIO getCPUTime
                         st'' <- case st' of 
                                     Left  _ -> resetEncoder env dst SATSolver net'

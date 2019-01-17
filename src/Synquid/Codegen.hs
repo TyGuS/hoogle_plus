@@ -172,7 +172,7 @@ instance AsHaskellType (SchemaSkeleton r) where
   toHsType env (ForallT tArg typ) = toHsType env typ
   toHsType env (ForallP pArg typ) = toHsType env typ
   toHsType env (Monotype skel) = toHsType env skel
-  toHsQualType env (ForallT (tArg,_) typ) =
+  toHsQualType env (ForallT tArg typ) =
     qualifyByDefault tArg $ toHsQualType env typ
   toHsQualType env typ = {- HsQualType [] $ -} toHsType env typ
 

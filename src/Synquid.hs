@@ -473,9 +473,9 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
           Pos _ (SynthesisGoal id uprog) -> 
             let Pos _ (FuncDecl _ sch) = funcDecl 
             in do
-              let tvs = Set.toList $ typeVarsOf (toMonotype sch)
-              let spec = foldr (ForallT . flip (,) []) sch tvs
-              return $ Goal id emptyEnv spec uprog 3 $ initialPos "goal"
+              -- let tvs = Set.toList $ typeVarsOf (toMonotype sch)
+              -- let spec = foldr ForallT sch tvs
+              return $ Goal id emptyEnv sch uprog 3 $ initialPos "goal"
           _ -> error "parse a signature for a none goal declaration"
 
     parseFromFiles [] = return []

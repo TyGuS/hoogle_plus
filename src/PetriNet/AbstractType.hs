@@ -21,50 +21,29 @@ import Data.List
 data AbstractSkeleton = 
       ADatatypeT Id [AbstractSkeleton] -- explicit datatypes
     | AExclusion (Set Id) -- not included datatypes
-    | AOneOf (Set Id) -- one of these datatypes
     | ATypeVarT Id -- type variable is only temporarily before building the PetriNet
     | AFunctionT AbstractSkeleton AbstractSkeleton
     deriving (Eq, Ord, Show, Generic)
 
-type AbstractionSemantic = Map Id (Set (Either Id (Set Id)))
--- type AbstractSemantic = Map Id (Set Id)
+type AbstractionSemantic = Map Id (Set Id)
 
 isAFunctionT (AFunctionT {}) = True
 isAFunctionT _ = False
 
 withinSemantic :: AbstractionSemantic -> Id -> Id -> (Bool, Set Id)
-withinSemantic semantic key id = (id `Set.member` possibleIds, possibleIds)
+withinSemantic semantic key id = (id `Set.member` currIds, currIds)
   where
     currIds        = Map.findWithDefault Set.empty key semantic
-    unionEither id = Set.union (if isLeft id then Set.singleton (fromLeft id) else fromRight id)
-    possibleIds    = Set.foldr unionEither Set.empty currIds
 
-abstract :: [Id] -> AbstractionSemantic -> SType -> AbstractSkeleton
-abstract bound semantic ty = abstract' bound semantic "" ty
-
-abstract' :: [Id] -> AbstractionSemantic -> Id -> SType -> AbstractSkeleton
-abstract' bound semantic key (ScalarT (DatatypeT id tArgs _) _) | key `Map.member` semantic = 
-    if inSeman then ADatatypeT id (map (abstract' bound semantic (key ++ "," ++ id)) tArgs)
-               else AExclusion allIds
-  where
-    (inSeman, allIds) = withinSemantic semantic key id
-abstract' bound semantic key (ScalarT (DatatypeT id tArgs _) _) = AExclusion Set.empty
-abstract' bound semantic key (ScalarT BoolT _) = abstract' bound semantic key (ScalarT (DatatypeT "Bool" [] []) ())
-abstract' bound semantic key (ScalarT IntT _) = abstract' bound semantic key (ScalarT (DatatypeT "Int"  [] []) ())
-abstract' bound semantic key (ScalarT (TypeVarT _ id) _) | id `elem` bound || key /= "" = 
-    if inSeman then ATypeVarT id 
-               else AExclusion allIds
-  where
-    (inSeman, allIds) = withinSemantic semantic key id
-abstract' bound semantic key (ScalarT (TypeVarT _ id) _) | key == "" = ATypeVarT id
--- abstract' bound semantic key (ScalarT (TypeVarT _ id) _) = ATypeVarT id
-abstract' bound semantic key (FunctionT x tArg tRet) = AFunctionT (abstract' bound semantic key tArg) (abstract' bound semantic key tRet)
+toAbstractType :: SType -> AbstractSkeleton
+toAbstractType (ScalarT (TypeVarT _ id) _) = ATypeVarT id
+toAbstractType (ScalarT (DatatypeT id tArgs _) _) = ADatatypeT id (map toAbstractType tArgs)
+toAbstractType (FunctionT x tArg tRet) = AFunctionT (toAbstractType tArg) (toAbstractType tRet)
 
 outerName :: AbstractSkeleton -> Either (Set Id) (Set Id)
 outerName (ADatatypeT id _) = Left (Set.singleton id)
 outerName (ATypeVarT id) = Right Set.empty
 outerName (AExclusion names) = Right names
-outerName (AOneOf names) = Left names
 
 allAbstractBase :: [Id] -> AbstractSkeleton -> [AbstractSkeleton]
 allAbstractBase bound t@(ADatatypeT _ _)     = if hasAbstractVar t then [] else [t]
@@ -89,4 +68,3 @@ abstractSubstitute bound id bt t@(ADatatypeT name ts) = ADatatypeT name (map (ab
 abstractSubstitute bound id bt t@(AExclusion _)       = t
 abstractSubstitute bound id bt t@(ATypeVarT var)      = if id == var && id `notElem` bound then bt else t
 abstractSubstitute bound id bt (AFunctionT tArg tRet) = AFunctionT (abstractSubstitute bound id bt tArg) (abstractSubstitute bound id bt tRet)
-abstractSubstitute bound id bt t@(AOneOf _)           = t

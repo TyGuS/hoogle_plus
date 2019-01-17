@@ -135,8 +135,9 @@ toSynquidSchema (TyForall _ _ (Just ctx) typ) = do -- if this type has some cont
         [] -> return Nothing
         _  -> do
             let typ' = head typs
-            classQuals <- resolveContext ctx
-            return $ Just $ foldr ForallT (Monotype typ') classQuals
+            return (Just (Monotype typ'))
+            -- classQuals <- resolveContext ctx
+            -- return $ Just $ foldr ForallT (Monotype typ') classQuals
 toSynquidSchema typ = do
     typs <- toSynquidSkeleton typ
     case typs of

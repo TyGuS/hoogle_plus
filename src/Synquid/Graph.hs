@@ -36,7 +36,7 @@ type NameCount = Map Id Int
 instantiate :: (Monad s) => RSchema -> StateT NameCount s RType
 instantiate sch = instantiate' Map.empty sch
   where
-    instantiate' subst (ForallT (a,_) sch) = do
+    instantiate' subst (ForallT a sch) = do
       a' <- freshId "A"
       instantiate' (Map.insert a (vart a' (BoolLit True)) subst) sch       
     instantiate' subst (Monotype t) = return $ typeSubstitute subst $ t
