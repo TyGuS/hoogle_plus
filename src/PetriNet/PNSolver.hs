@@ -52,6 +52,7 @@ import PetriNet.PNBuilder
 import PetriNet.PNEncoder
 import PetriNet.Encoder
 import PetriNet.PNEncoderSMT
+import PetriNet.GHCChecker
 import HooglePlus.CodeFormer
 import Database.Convert
 import Database.Generate
@@ -576,15 +577,19 @@ findProgram env dst net st = do
                         liftIO $ printf "Petri net encoding time: %0.3f sec\n" (diff' :: Double)
                         findProgram env dst net' st''
                       else findProgram env dst net st'
-        else if head codes `elem` solutions
-            then do
-                findProgram env dst net st'
-            else do
-                liftIO $ putStrLn "*******************SOLUTION*********************"
-                liftIO $ print $ head codes
-                liftIO $ putStrLn "************************************************"
-                modify $ over currentSolutions ((:) (head codes))
-                return $ (head codes, st')
+        else do
+            let solutionProgram = head codes
+            doesHaskellTypeCheck <- liftIO $ haskellTypeChecks env dst solutionProgram 
+            if (not doesHaskellTypeCheck) || (head codes `elem` solutions)
+                then do
+                    when (not doesHaskellTypeCheck) (modify $ over currentSolutions ((:) (head codes)))
+                    findProgram env dst net st'
+                else do
+                    liftIO $ putStrLn "*******************SOLUTION*********************"
+                    liftIO $ print $ head codes
+                    liftIO $ putStrLn "************************************************"
+                    modify $ over currentSolutions ((:) (head codes))
+                    return $ (head codes, st')
   where
     parseAndCheck code = do
         let prog = case parseExp code of

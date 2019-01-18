@@ -416,7 +416,8 @@ precomputeGraph pkgs mdls depth useHO = do
       B.writeFile "data/env.db" $ encode $ env {
           _symbols = if useHO then env ^. symbols 
                               else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols
-      }
+        , _included_modules = Set.fromList mdls
+        }
   where
     skipLParen [] = []
     skipLParen ('(':name) = name

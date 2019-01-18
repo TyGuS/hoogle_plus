@@ -38,6 +38,7 @@ executable synquid
                  PetriNet.PNEncoder
                  PetriNet.Encoder
                  PetriNet.PNEncoderSMT
+                 PetriNet.GHCChecker
                  HooglePlus.CodeFormer
                  HooglePlus.Encoder
                  Synquid.Codegen
@@ -109,6 +110,7 @@ executable synquid
                     , regex-compat
                     , vector
                     , MissingH
+                    , hint
 
   ghc-options:   -O2
   includes:            z3.h

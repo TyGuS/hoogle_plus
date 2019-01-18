@@ -234,6 +234,8 @@ prettyBase :: Pretty r => (TypeSkeleton r -> Doc) -> BaseType r -> Doc
 prettyBase prettyType base = case base of 
   IntT -> text "Int"
   BoolT -> text "Bool"
+  DatatypeT "List" tArgs pArgs -> hlBrackets $ hsep (map (hlParens . prettyType) tArgs) <+> hsep (map (hlAngles . pretty) pArgs)
+  DatatypeT "Pair" (larg:rarg:[]) pArgs -> hlParens $ prettyType larg <+> operator "," <+> prettyType rarg <+> hsep (map (hlAngles . pretty) pArgs)
   TypeVarT s name -> if Map.null s then text name else hMapDoc pretty pretty s <> text name
   DatatypeT name tArgs pArgs -> text name <+> hsep (map prettyType tArgs) <+> hsep (map (hlAngles . pretty) pArgs)
 
@@ -313,6 +315,9 @@ prettyCase cas = hang tab $ text (constructor cas) <+> hsep (map text $ argNames
 
 prettyProgram :: (Pretty t) => Program t -> Doc
 prettyProgram (Program p typ) = case p of
+    PSymbol "Nil" -> text "[]"
+    PSymbol "Cons" -> text "(:)"
+    PSymbol "Pair" -> text "(,)"
     PSymbol s -> case asInteger s of 
                   Nothing -> if s == valueVarName then special s else text s
                   Just n -> intLiteral n

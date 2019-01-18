@@ -249,7 +249,8 @@ data Environment = Environment {
   _globalPredicates :: Map Id [Sort],      -- ^ Signatures (resSort:argSorts) of module-level logic functions (measures, predicates) 
   _measures :: Map Id MeasureDef,          -- ^ Measure definitions
   _typeSynonyms :: Map Id ([Id], RType),   -- ^ Type synonym definitions
-  _unresolvedConstants :: Map Id RSchema   -- ^ Unresolved types of components (used for reporting specifications with macros)
+  _unresolvedConstants :: Map Id RSchema,  -- ^ Unresolved types of components (used for reporting specifications with macros)
+  _included_modules :: Set String          -- ^ The set of modules any solution would need to import
 } deriving(Generic)
 
 makeLenses ''Environment
@@ -283,7 +284,8 @@ emptyEnv = Environment {
   _datatypes = Map.empty,
   _measures = Map.empty,
   _typeSynonyms = Map.empty,
-  _unresolvedConstants = Map.empty
+  _unresolvedConstants = Map.empty,
+  _included_modules = Set.empty
 }
 
 -- | 'symbolsOfArity' @n env@: all symbols of arity @n@ in @env@
