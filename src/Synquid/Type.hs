@@ -28,8 +28,7 @@ data TypeSkeleton r =
   ScalarT (BaseType r) r |
   FunctionT Id (TypeSkeleton r) (TypeSkeleton r) |
   LetT Id (TypeSkeleton r) (TypeSkeleton r) |
-  AnyT |
-  ErrorT
+  AnyT
   deriving (Eq, Ord, Generic)
 
 contextual x tDef (FunctionT y tArg tRes) = FunctionT y (contextual x tDef tArg) (contextual x tDef tRes)
@@ -248,7 +247,6 @@ shape (ScalarT (TypeVarT _ a) _) = ScalarT (TypeVarT Map.empty a) ()
 shape (FunctionT x tArg tFun) = FunctionT x (shape tArg) (shape tFun)
 shape (LetT _ _ t) = shape t
 shape AnyT = AnyT
-shape ErrorT = ErrorT
 
 -- | Conjoin refinement to a type
 addRefinement (ScalarT base fml) fml' = if isVarRefinemnt fml'

@@ -252,7 +252,6 @@ prettySType :: SType -> Doc
 prettySType (ScalarT base _) = pretty base
 prettySType (FunctionT _ t1 t2) = hlParens (pretty t1 <+> operator "->" <+> pretty t2)
 prettySType AnyT = text "_"
-prettySType ErrorT = text "Error"
 
 instance Pretty SType where
   pretty = prettySType
@@ -277,7 +276,6 @@ prettyTypeAt n t = condHlParens (n' <= n) (
     ScalarT base (BoolLit True) -> pretty base
     ScalarT base fml -> hlBraces (pretty base <> operator "|" <> pretty fml)
     AnyT -> text "_"
-    ErrorT -> text "Error"
     FunctionT x t1 t2 -> text x <> operator ":" <> prettyTypeAt n' t1 <+> operator "->" <+> prettyTypeAt 0 t2
     LetT x t1 t2 -> text "LET" <+> text x <> operator ":" <> prettyTypeAt n' t1 <+> operator "IN" <+> prettyTypeAt 0 t2
   )
@@ -551,5 +549,6 @@ instance Pretty AbstractSkeleton where
     pretty (ATypeVarT id) = text id
     pretty (AFunctionT tArg tRet) = pretty tArg <+> operator "->" <+> pretty tRet
 
--- instance Show AbstractSkeleton where
---     show = show . plain . pretty
+instance Hashable AbstractSkeleton where
+  hash typ = hash (show typ)
+  hashWithSalt s typ = s + hash typ

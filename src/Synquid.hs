@@ -72,7 +72,7 @@ main = do
                lfp bfs
                out_file out_module outFormat resolve
                print_spec print_stats log_ 
-               graph succinct sol_num path_search higher_order path_solver encoder refine) -> do
+               graph succinct sol_num path_search higher_order encoder refine) -> do
                   let explorerParams = defaultExplorerParams {
                     _eGuessDepth = appMax,
                     _scrutineeDepth = scrutineeMax,
@@ -93,7 +93,6 @@ main = do
                     _solutionCnt = sol_num,
                     _pathSearch = path_search,
                     _useHO = higher_order,
-                    _pathSolver = path_solver,
                     _encoderType = encoder,
                     _useRefine = refine
                     }
@@ -190,7 +189,6 @@ data CommandLineArgs
         sol_num :: Int,
         path_search :: PathStrategy,
         higher_order :: Bool,
-        path_solver :: PNS.PathSolver,
         encoder :: HEncoder.EncoderType,
         use_refine :: PNS.RefineStrategy
       }
@@ -249,7 +247,6 @@ synt = Synthesis {
   sol_num             = 1               &= help ("Number of solutions need to find (default: 5)") &= name "cnt",
   path_search         = DisablePath     &= help ("Use path search algorithm to ensure the usage of provided parameters (default: DisablePath)") &= name "path",
   higher_order        = False           &= help ("Include higher order functions (default: False)"),
-  path_solver         = PNS.SATSolver   &= help ("Choose SAT or SMT solver for PetriNet encoding (default: SATSolver)"),
   encoder             = HEncoder.Normal &= help ("Choose normal or refined arity encoder (default: Normal)"),
   use_refine          = PNS.NoRefine    &= help ("Use abstract refinement or not (default: NoRefine)")
   } &= auto &= help "Synthesize goals specified in the input file"
@@ -309,7 +306,6 @@ defaultExplorerParams = ExplorerParams {
   _solutionCnt = 1,
   _pathSearch = DisablePath,
   _useHO = False,
-  _pathSolver = PNS.SATSolver,
   _encoderType = HEncoder.Normal,
   _useRefine = PNS.NoRefine
 }

@@ -9,8 +9,6 @@ import Z3.Monad hiding(Z3Env, newEnv)
 import PetriNet.PNBuilder
 import Synquid.Util
 
-type EncoderType = Either EncodeState EncodeSMTState
-
 data VarType = VarPlace | VarTransition | VarFlow
     deriving(Eq, Ord, Show)
 
@@ -33,21 +31,10 @@ data EncodeState = EncodeState {
   petriNet :: PetriNet,
   loc :: Int,
   nbVariable :: Int,
-  place2variable :: HashMap (Place, Int, Int) Variable,
+  place2variable :: HashMap (Place, Int) Variable,
   transition2variable :: HashMap (Transition, Int) Variable,
   id2variable :: HashMap Int Variable,
   mustFirers :: [Id]
-}
-
-data EncodeSMTState = EncodeSMTState {
-  z3envSMT :: Z3Env,
-  petriNetSMT :: PetriNet,
-  locSMT :: Int,
-  nbVariableSMT :: Int,
-  place2variableSMT :: HashMap (Place, Int) Variable,
-  transition2variableSMT :: HashMap (Transition, Int) Variable,
-  id2variableSMT :: HashMap Int Variable,
-  mustFirersSMT :: [Id]
 }
 
 newEnv :: Maybe Logic -> Opts -> IO Z3Env

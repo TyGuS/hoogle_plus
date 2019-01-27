@@ -40,8 +40,6 @@ withParen c = "(" ++ c ++ ")"
 applyFunction :: FunctionCode -> CodeFormer CodePieces
 applyFunction func = do
     args <- generateArgs [""] (funParams func)
-    -- liftIO $ print "from generateArgs"
-    -- liftIO $ print args
     let res = Set.fromList $ map (\a -> withParen $ fname ++ a) args
     -- update typedTerms
     st <- get
@@ -55,8 +53,6 @@ applyFunction func = do
     generateArgs codeSoFar [] = return codeSoFar
     generateArgs codeSoFar (tArg:tArgs) = do
         args <- generateArg tArg
-        -- liftIO $ print ("from generateArg " ++ tArg)
-        -- liftIO $ print args
         let partialApplication = [f ++ " " ++ a | f <- codeSoFar, a <- args]
         case partialApplication of
             []          -> return []
@@ -85,8 +81,6 @@ applyFunction func = do
 -- i.e. they may only use symbols appearing before them
 generateProgram :: [FunctionCode] -> [Id] -> [Id] -> CodeFormer CodePieces
 generateProgram signatures inputs argNames = do
-    -- liftIO $ print signatures
-    -- liftIO $ print argNames
     -- prepare scalar variables
     st <- get
     put $ st { varCounter = 0 }
@@ -97,11 +91,6 @@ generateProgram signatures inputs argNames = do
     put $ st { varCounter = 0 }
     mapM_ applyFunction $ init signatures
     codePieces <- applyFunction $ last signatures
-    -- liftIO $ print codePieces
-    -- liftIO $ print $ includeSymbol (Set.findMin codePieces) "P.f"
-    -- liftIO $ print $ includeSymbol (Set.findMin codePieces) "P.g"
-    -- liftIO $ print $ includeSymbol (Set.findMin codePieces) "arg0"
-    -- liftIO $ print $ includeSymbol (Set.findMin codePieces) "arg1"
     return $ Set.filter includeAllSymbols codePieces
   where
     addTypedArg input argName = do

@@ -35,9 +35,8 @@ executable synquid
                  PetriNet.PolyDispatcher
                  PetriNet.AbstractType
                  PetriNet.PNBuilder
-                 PetriNet.PNEncoder
                  PetriNet.Encoder
-                 PetriNet.PNEncoderSMT
+                 PetriNet.PNEncoder
                  PetriNet.GHCChecker
                  HooglePlus.CodeFormer
                  HooglePlus.Encoder
