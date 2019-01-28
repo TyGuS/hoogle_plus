@@ -449,12 +449,18 @@ initNet env = do
     symbols <- mapM (addEncodedFunction)
                     -- first order arguments are tokens but not transitions in petri net
                     $ Map.toList $ foldr Map.delete sigs $ Map.keys foArgs
-    let srcTypes = map ( show
-                       . abstract binds abstraction
-                       . shape
-                       . toMonotype) $ Map.elems foArgs
+    let toSrcTypes = ( show
+                     . abstract binds abstraction
+                     . shape
+                     . toMonotype)
+    let srcTypes = map toSrcTypes $ Map.elems foArgs
     modify $ set sourceTypes srcTypes
-    let net = buildPetriNet symbols srcTypes
+    let envDts = nubOrd $ concatMap (allBaseTypes
+                     . toMonotype) (Map.elems (allSymbols env))
+    let envTypes = map (show . abstract binds abstraction . shape) envDts
+    let startingTypes = nubOrd $ srcTypes ++ envTypes
+    let net = buildPetriNet symbols startingTypes
+    liftIO $ putStrLn $ "\nTypes in graph: " ++ (show startingTypes)
     endTime <- liftIO $ getCurrentTime
     let diff = diffUTCTime endTime startTime
     liftIO $ putStrLn $ "INSTRUMENTED: time spent creating graph: " ++ (show diff)
