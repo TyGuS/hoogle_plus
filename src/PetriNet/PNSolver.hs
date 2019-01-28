@@ -439,6 +439,7 @@ initNet :: MonadIO m => Environment -> PNSolver m PetriNet
 initNet env = do
     startTime <- liftIO $ getCurrentTime
     let binds = env ^. boundTypeVars
+    liftIO $ putStrLn ("Bound variables in environment: " ++ (show binds))
     abstraction <- view abstractionSemantic <$> get
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
     -- first abstraction all the symbols with fresh type variables and then instantiate them

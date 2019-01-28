@@ -211,8 +211,11 @@ generateI env t@(ScalarT _ _) isElseBranch = do
       let env' = if useHO then env 
                           else env { _symbols = Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols }
       let args = (Monotype t):(Map.elems $ env' ^. arguments)
+      let otherSymbols = (Map.elems $ allSymbols env')
+      let tmp = Debug.Trace.trace ("symbols: " ++ show otherSymbols) otherSymbols
       -- start with all the datatypes defined in the queries
-      let initialState = Map.singleton "" $ foldr (Set.union . Set.map Left . allDatatypes . toMonotype) Set.empty args 
+      let is = Map.singleton "" $ foldr (Set.union . Set.map Left . allDatatypes . toMonotype) Set.empty (args ++ tmp)
+      let initialState = Debug.Trace.trace ("Initial State: " ++ show is) is
       maxLevel <- asks . view $ _1 . explorerLogLevel
       cnt <- asks . view $ _1 . solutionCnt
       solver <- asks. view $ _1 . pathSolver
