@@ -1,0 +1,151 @@
+@package base
+@version 4.12.0.0
+
+-- base
+module Data.Word
+data Word
+data {-# CTYPE "HsWord8" #-} Word8
+
+-- base
+module Data.Int
+data {-# CTYPE "HsInt64" #-} Int64
+
+-- base
+module Data.String
+type String = [Char]
+
+-- base
+module Data.Maybe
+data Maybe a
+Nothing :: Maybe a
+Just :: a -> Maybe a
+isJust :: Maybe a -> Bool
+isNothing :: Maybe a -> Bool
+fromJust :: Maybe a -> a
+fromMaybe :: a -> Maybe a -> a
+listToMaybe :: [a] -> Maybe a
+maybeToList :: Maybe a -> [a]
+catMaybes :: [Maybe a] -> [a]
+-- HOF: maybe :: b -> (a -> b) -> Maybe a -> b
+-- HOF: mapMaybe :: (a -> Maybe b) -> [a] -> [b]
+
+-- bytestring
+module Data.ByteString.Builder
+data Builder
+intDec :: Int -> Builder
+int64BE :: Int64 -> Builder
+
+-- bytestring
+module Data.ByteString.Lazy
+empty :: ByteString
+toLazyByteString :: Builder -> ByteString
+reverse :: ByteString -> ByteString
+intersperse :: Word8 -> ByteString -> ByteString
+intercalate :: ByteString -> [ByteString] -> ByteString
+maximum :: ByteString -> Word8
+minimum :: ByteString -> Word8
+elem :: Word8 -> ByteString -> Bool
+notElem :: Word8 -> ByteString -> Bool
+
+-- containers
+module Data.Map.Strict
+data Map k a
+empty :: Map k a
+singleton :: k -> a -> Map k a
+null :: Map k a -> Bool
+size :: Map k a -> Int
+elems :: Map k a -> [a]
+keys :: Map k a -> [k]
+toList :: Map k a -> [(k, a)]
+take :: Int -> Map k a -> Map k a
+drop :: Int -> Map k a -> Map k a
+
+-- base
+module Data.List
+(++) :: [a] -> [a] -> [a]
+infixr 5 ++
+head :: [a] -> a
+last :: [a] -> a
+tail :: [a] -> [a]
+init :: [a] -> [a]
+uncons :: [a] -> Maybe (a, [a])
+take :: Int -> [a] -> [a]
+drop :: Int -> [a] -> [a]
+splitAt :: Int -> [a] -> ([a], [a])
+inits :: [a] -> [[a]]
+tails :: [a] -> [[a]]
+zip :: [a] -> [b] -> [(a, b)]
+lines :: String -> [String]
+words :: String -> [String]
+unlines :: [String] -> String
+unwords :: [String] -> String
+
+-- base
+module Data.Tuple
+fst :: (a, b) -> a
+snd :: (a, b) -> b
+swap :: (a, b) -> (b, a)
+
+-- base
+module GHC.List
+concat :: [[a]] -> [a]
+head :: [a] -> a
+last :: [a] -> a
+tail :: [a] -> [a]
+init :: [a] -> [a]
+uncons :: [a] -> Maybe (a, [a])
+null :: [a] -> Bool
+length :: [a] -> Int
+
+-- base
+module GHC.Char
+chr :: Int -> Char
+eqChar :: Char -> Char -> Bool
+neChar :: Char -> Char -> Bool
+
+-- bytestring
+module Data.ByteString
+data ByteString
+empty :: ByteString
+singleton :: Word8 -> ByteString
+pack :: [Word8] -> ByteString
+unpack :: ByteString -> [Word8]
+append :: ByteString -> ByteString -> ByteString
+head :: ByteString -> Word8
+uncons :: ByteString -> Maybe (Word8, ByteString)
+unsnoc :: ByteString -> Maybe (ByteString, Word8)
+last :: ByteString -> Word8
+tail :: ByteString -> ByteString
+reverse :: ByteString -> ByteString
+intersperse :: Word8 -> ByteString -> ByteString
+intercalate :: ByteString -> [ByteString] -> ByteString
+transpose :: [ByteString] -> [ByteString]
+stripPrefix :: ByteString -> ByteString -> Maybe ByteString
+stripSuffix :: ByteString -> ByteString -> Maybe ByteString
+split :: Word8 -> ByteString -> [ByteString]
+isPrefixOf :: ByteString -> ByteString -> Bool
+isSuffixOf :: ByteString -> ByteString -> Bool
+isInfixOf :: ByteString -> ByteString -> Bool
+breakSubstring :: ByteString -> ByteString -> (ByteString, ByteString)
+findSubstring :: ByteString -> ByteString -> Maybe Int
+findSubstrings :: ByteString -> ByteString -> [Int]
+elem :: Word8 -> ByteString -> Bool
+
+-- containers
+module Data.Set
+data Set a
+empty :: Set a
+singleton :: a -> Set a
+powerSet :: Set a -> Set (Set a)
+insert :: Ord a => a -> Set a -> Set a
+delete :: Ord a => a -> Set a -> Set a
+member :: Ord a => a -> Set a -> Bool
+notMember :: Ord a => a -> Set a -> Bool
+null :: Set a -> Bool
+size :: Set a -> Int
+isSubsetOf :: Ord a => Set a -> Set a -> Bool
+isProperSubsetOf :: Ord a => Set a -> Set a -> Bool
+disjoint :: Ord a => Set a -> Set a -> Bool
+union :: Ord a => Set a -> Set a -> Set a
+intersection :: Ord a => Set a -> Set a -> Set a
+cartesianProduct :: Set a -> Set b -> Set (a, b)
