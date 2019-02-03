@@ -446,6 +446,7 @@ initNet env = do
     absSymbols <- mapM (uncurry (abstractSymbol binds abstraction))
                       $ Map.toList $ allSymbols env
     sigs <- instantiate env absSymbols
+    liftIO $ putStrLn $ "\nINSTRUMENTED: transitions: " ++ show (length (Map.keys sigs)) ++ "\n"
     symbols <- mapM (addEncodedFunction)
                     -- first order arguments are tokens but not transitions in petri net
                     $ Map.toList $ foldr Map.delete sigs $ Map.keys foArgs
@@ -460,7 +461,7 @@ initNet env = do
     let envTypes = map (show . abstract binds abstraction . shape) envDts
     let startingTypes = nubOrd $ srcTypes ++ envTypes
     let net = buildPetriNet symbols startingTypes
-    liftIO $ putStrLn $ "\nTypes in graph: " ++ (show startingTypes)
+    liftIO $ putStrLn $ "\nINSTRUMENTED: Types in graph: " ++ (show $ length startingTypes)
     endTime <- liftIO $ getCurrentTime
     let diff = diffUTCTime endTime startTime
     liftIO $ putStrLn $ "INSTRUMENTED: time spent creating graph: " ++ (show diff)
