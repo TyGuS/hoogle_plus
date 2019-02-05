@@ -33,12 +33,12 @@ module Data.ByteString.Builder
 data Builder
 intDec :: Int -> Builder
 int64BE :: Int64 -> Builder
+toLazyByteString :: Builder -> ByteString
 
 -- base
 module Data.ByteString.Lazy
 data ByteString
 empty :: ByteString
-toLazyByteString :: Builder -> ByteString
 reverse :: ByteString -> ByteString
 intersperse :: Word8 -> ByteString -> ByteString
 intercalate :: ByteString -> [ByteString] -> ByteString

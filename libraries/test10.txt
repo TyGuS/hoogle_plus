@@ -31,11 +31,11 @@ catMaybes :: [Maybe a] -> [a]
 -- bytestring
 module Data.ByteString.Builder
 data Builder
+toLazyByteString :: Builder -> ByteString
 
 -- bytestring
 module Data.ByteString.Lazy
 data ByteString
-toLazyByteString :: Builder -> ByteString
 int64BE :: Int64 -> Builder
 
 -- base

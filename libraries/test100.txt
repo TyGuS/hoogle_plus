@@ -44,6 +44,7 @@ int64BE :: Int64 -> Builder
 byteStringHex :: ByteString -> Builder
 string8 :: String -> Builder
 charUtf8 :: Char -> Builder
+toLazyByteString :: Builder -> ByteString
 
 -- bytestring
 module Data.ByteString.Lazy
@@ -80,7 +81,6 @@ stripPrefix :: ByteString -> ByteString -> Maybe ByteString
 stripSuffix :: ByteString -> ByteString -> Maybe ByteString
 toChunks :: ByteString -> [ByteString]
 toChunks :: ByteString -> [ByteString]
-toLazyByteString :: Builder -> ByteString
 transpose :: [ByteString] -> [ByteString]
 uncons :: ByteString -> Maybe (Word8, ByteString)
 unpack :: ByteString -> [Word8]
