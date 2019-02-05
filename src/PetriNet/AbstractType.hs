@@ -37,9 +37,10 @@ isAFunctionT _ = False
 -- | if t1 is the subtype of t2
 isSubtypeOf :: AbstractSkeleton -> AbstractSkeleton -> Bool
 isSubtypeOf (ATypeVarT id1) (ATypeVarT id2) = id1 == id2
-isSubtypeOf (AExclusion s1) (AExclusion s2) = s2 `Set.isSubsetOf` s1 -- t1 excludes more types than t2
+isSubtypeOf (AExclusion s1) (AExclusion s2) = True -- s2 `Set.isSubsetOf` s1 -- t1 excludes more types than t2
 isSubtypeOf (ADatatypeT id1 tys1) (ADatatypeT id2 tys2) = id1 == id2 && foldr ((&&) . uncurry isSubtypeOf) True (zip tys1 tys2)
 isSubtypeOf (ADatatypeT id tys) (AExclusion s) = id `Set.notMember` s
+isSubtypeOf (ATypeVarT _) (AExclusion _) = True
 isSubtypeOf _ _ = False
 
 -- | get the closest abstraction to the given type
@@ -67,6 +68,14 @@ valueType :: AbstractionTree -> AbstractSkeleton
 valueType (ALeaf t) = t
 valueType (ANode t _ _) = t
 
+-- | get all the subtypes of some given abstract type
+subtypesOf :: AbstractionTree -> AbstractSkeleton -> [AbstractSkeleton]
+subtypesOf (ALeaf t) typ | isSubtypeOf t typ || isSubtypeOf typ t = [t]
+subtypesOf (ALeaf t) typ | otherwise = []
+subtypesOf (ANode t lt rt) typ | not (isSubtypeOf typ t) = []
+subtypesOf (ANode t lt rt) typ | t == typ = leafTypes lt ++ leafTypes rt
+subtypesOf (ANode t lt rt) typ | otherwise = subtypesOf lt typ ++ subtypesOf rt typ
+
 -- | exclude one type from its parent abstraction level
 typeDifference :: AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
 typeDifference (AExclusion s) (ADatatypeT id args) = AExclusion (Set.insert id s)
@@ -76,6 +85,7 @@ typeDifference (ADatatypeT id1 args1) (ADatatypeT id2 args2) | id1 == id2 =
     firstDifference [] [] = error "two types are identical to each other"
     firstDifference (arg:args) (arg':args') | arg == arg' = arg:(firstDifference args args')
     firstDifference (arg:args) (arg':_) = (typeDifference arg arg'):args
+typeDifference (AExclusion s) (ATypeVarT id) = ATypeVarT id
 typeDifference t1 t2 = error (printf "cannot compute difference between %s and %s" (show t1) (show t2))
 
 decompose :: AbstractSkeleton -> [AbstractSkeleton]
@@ -122,8 +132,8 @@ type AbstractSubstitution = Map Id (Set AbstractSkeleton)
 unfoldSubst :: AbstractSubstitution -> [ Map Id AbstractSkeleton ]
 unfoldSubst subst = map Map.fromList (combinations (Map.toList subst))
   where
-    combinations [] = error "This base case should not be hitted"
-    combinations [(id, set)] = [ map ((,) id) (Set.toList set) ]
+    combinations [] = [] 
+    combinations [(id, set)] = map (\t -> [(id, t)]) (Set.toList set) 
     combinations ((id, set):substs) = [ (id, x):xs | x <- Set.toList set
                                                    , xs <- combinations substs ]
 
@@ -133,21 +143,27 @@ applySubst bound subst typ = map (applySubst' . Map.toList) allSubsts
     allSubsts = unfoldSubst subst
     applySubst' = foldr (uncurry (abstractSubstitute bound)) typ
 
-unifier :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Maybe AbstractSubstitution
-unifier bound (ATypeVarT id1) (ATypeVarT id2) | id1 == id2 = Just Map.empty
-unifier bound (ATypeVarT id1) (ATypeVarT id2) | id1 `elem` bound && id2 `elem` bound = Nothing
-unifier bound t1@(ATypeVarT id1) (ATypeVarT id2) | id1 `elem` bound = Just (Map.singleton id2 (Set.singleton t1))
+unifier :: AbstractionTree -> [Id] -> AbstractSkeleton -> AbstractSkeleton -> Maybe AbstractSubstitution
+unifier tree bound (ATypeVarT id1) (ATypeVarT id2) | id1 == id2 = Just Map.empty
+unifier tree bound (ATypeVarT id1) (ATypeVarT id2) | id1 `elem` bound && id2 `elem` bound = Nothing
+unifier tree bound (ATypeVarT id1) t@(ATypeVarT id2) | id2 `elem` bound = Just (Map.singleton id1 (Set.singleton t))
+unifier tree bound t@(ATypeVarT id1) (ATypeVarT id2) | id1 `elem` bound = Just (Map.singleton id2 (Set.singleton t))
 -- TODO we should get all the types having the similar shape of t2 but more refined than t2
-unifier bound (ATypeVarT id1) t2 = Just (Map.singleton id1 (Set.singleton t2))
+unifier tree bound t (ATypeVarT id) = Just (Map.singleton id (Set.fromList (subtypesOf tree t)))
+unifier tree bound (ATypeVarT id) t = Just (Map.singleton id (Set.fromList (subtypesOf tree t)))
 -- TODO we should intersect all the substitutions get from inner types
-unifier bound (ADatatypeT dt1 tys1) (ADatatypeT dt2 tys2) | dt1 == dt2 =
+unifier tree bound (ADatatypeT dt1 tys1) (ADatatypeT dt2 tys2) | dt1 == dt2 =
     if null maps 
        then Just Map.empty 
        else if null emptyMaps
-               then foldr intersectMap (head maps) (tail maps)
+               then Just (Map.unionsWith Set.intersection (map fromJust maps))
                else Nothing
   where
-    intersectMap m1 m2 = Just (Map.intersectionWith Set.intersection (fromJust m1) (fromJust m2))
-    maps = map (uncurry (unifier bound)) (zip tys1 tys2)
+    maps = map (uncurry (unifier tree bound)) (zip tys1 tys2)
     emptyMaps = filter isNothing maps
-unifier bound _ _ = Nothing
+unifier tree bound (ADatatypeT dt tys) (AExclusion s) | dt `Set.notMember` s =
+    Just (Map.unionsWith Set.intersection (map fromJust maps))
+  where
+    maps = map (unifier tree bound (AExclusion Set.empty)) tys
+unifier tree bound t1@(AExclusion {}) t2@(ADatatypeT {}) = unifier tree bound t2 t1
+unifier bound _ _ _ = Nothing

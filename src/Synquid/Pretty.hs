@@ -271,12 +271,12 @@ typePower (ScalarT (DatatypeT _ tArgs pArgs) r)
 typePower _ = 3
 
 prettyTypeAt :: Int -> RType -> Doc
-prettyTypeAt n t = condHlParens (n' <= n) (
+prettyTypeAt n t = hlParens ( -- condHlParens (n' <= n) (
   case t of
     ScalarT base (BoolLit True) -> pretty base
     ScalarT base fml -> hlBraces (pretty base <> operator "|" <> pretty fml)
     AnyT -> text "_"
-    FunctionT x t1 t2 -> text x <> operator ":" <> prettyTypeAt n' t1 <+> operator "->" <+> prettyTypeAt 0 t2
+    FunctionT x t1 t2 -> prettyTypeAt n' t1 <+> operator "->" <+> prettyTypeAt 0 t2
     LetT x t1 t2 -> text "LET" <+> text x <> operator ":" <> prettyTypeAt n' t1 <+> operator "IN" <+> prettyTypeAt 0 t2
   )
   where

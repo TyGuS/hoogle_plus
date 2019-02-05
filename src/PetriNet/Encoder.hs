@@ -31,10 +31,12 @@ data EncodeState = EncodeState {
   petriNet :: PetriNet,
   loc :: Int,
   nbVariable :: Int,
-  place2variable :: HashMap (Place, Int) Variable,
-  transition2variable :: HashMap (Transition, Int) Variable,
+  place2variable :: HashMap (Id, Int) Variable,
+  transition2variable :: HashMap (Id, Int) Variable,
   id2variable :: HashMap Int Variable,
-  mustFirers :: [Id]
+  mustFirers :: [Id],
+  transitionChildren :: HashMap Id [Id],
+  transitionParents :: HashMap Id [Id]
 }
 
 newEnv :: Maybe Logic -> Opts -> IO Z3Env

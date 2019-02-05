@@ -200,11 +200,12 @@ generateI env t@(FunctionT x tArg tRes) isElseBranch = do
 generateI env t@(ScalarT _ _) isElseBranch = do
   pathEnabled <- asks . view $ _1 . pathSearch
   cnt <- asks . view $ _1 . solutionCnt
-  let required = Map.map (Map.filterWithKey (\k _ -> k == "Data.Maybe.fromMaybe" || k == "Data.Maybe.listToMaybe" || k == "Data.Maybe.catMaybes" || k == "Pair" || k `Map.member` (env ^. arguments))) (env ^. symbols)
+  {- let required = Map.map (Map.filterWithKey (\k _ -> k == "Data.Maybe.fromMaybe" || k == "Data.Maybe.listToMaybe" || k == "Data.Maybe.catMaybes" || k == "Pair" || k `Map.member` (env ^. arguments))) (env ^. symbols)
   let required' = Map.filter (not . Map.null) required
   let requiredEnv = env { _symbols = required' }
   let optional = concat . Map.elems $ Map.map (Map.toList . Map.filterWithKey (\k _ -> k /= "Data.Maybe.fromMaybe" && k /= "Data.Maybe.listToMaybe" && k /= "Data.Maybe.catMaybes" && k /= "Pair" && k `Map.notMember` (env ^. arguments))) (env ^. symbols)
-  let filteredEnv = foldr (uncurry addPolyVariable) requiredEnv (take (cnt - 1) optional)
+  -}
+  let filteredEnv = env -- foldr (uncurry addPolyVariable) requiredEnv (take (cnt - 1) optional)
   case pathEnabled of
     Dijkstra    -> splitGoal env t
     BiDijkstra  -> splitGoal env t
@@ -224,7 +225,7 @@ generateI env t@(ScalarT _ _) isElseBranch = do
       maxLevel <- asks . view $ _1 . explorerLogLevel
       cnt <- asks . view $ _1 . solutionCnt
       rs <- asks . view $ _1 . useRefine
-      evalStateT (runPNSolver env' 1)
+      evalStateT (PNSolver.runPNSolver env' 1 t)
                  $ PNSolver.emptySolverState {PNSolver._logLevel = maxLevel, PNSolver._refineStrategy = rs}
     PNSMT -> do
       cnt <- asks . view $ _1 . solutionCnt
@@ -256,11 +257,6 @@ generateI env t@(ScalarT _ _) isElseBranch = do
       d <- asks . view $ _1 . matchDepth
       maPossible <- runInSolver $ hasPotentialScrutinees env -- Are there any potential scrutinees in scope?
       if maEnabled && d > 0 && maPossible then generateMaybeMatchIf env t isElseBranch else generateMaybeIf env t isElseBranch           
-  where
-    runPNSolver env' cnt = do
-      net <- PNSolver.initNet env'
-      st <- PNSolver.resetEncoder env' t net
-      PNSolver.findFirstN env' t net st cnt
 
 -- | Generate a possibly conditional term type @t@, depending on whether a condition is abduced
 generateMaybeIf :: (MonadHorn s, MonadIO s) => Environment -> RType -> Bool -> Explorer s RProgram

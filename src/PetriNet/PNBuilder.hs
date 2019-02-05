@@ -1,12 +1,15 @@
 {-# LANGUAGE DeriveGeneric #-}
 
 module PetriNet.PNBuilder(
-  Place(..),
-  Transition(..),
-  Flow(..),
-  PetriNet(..),
-  FunctionCode(..),
-  buildPetriNet  
+    Place(..)
+  , Transition(..)
+  , Flow(..)
+  , PetriNet(..)
+  , FunctionCode(..)
+  , buildPetriNet
+  , addFunction
+  , setMaxToken
+  , removeTransition
 )
 where
 
@@ -114,6 +117,19 @@ addTransition id pn = pn {
   }
   where
     transitions = pnTransitions pn
+
+-- | remove a transition from the petri net
+removeTransition :: Id -> PetriNet -> PetriNet
+removeTransition id pn = pn {
+    pnTransitions = HashMap.filterWithKey (\k _ -> k /= id) (pnTransitions pn),
+    pnPlaces = HashMap.map clearSets (pnPlaces pn),
+    pnFlows = HashMap.filter ((/=) id . flowTransition) (pnFlows pn)
+  }
+  where
+    clearSets p = p {
+        placePreset = Set.delete id (placePreset p),
+        placePostset = Set.delete id (placePostset p)
+    }
 
 -- | create a flow id by the from to id
 mkFlowId :: PetriNet -> Id -> Id -> Id

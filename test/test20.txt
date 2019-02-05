@@ -1,0 +1,54 @@
+@package base
+@version 4.12.0.0
+
+-- base
+module Data.Word
+data Word
+data {-# CTYPE "HsWord8" #-} Word8
+
+-- base
+module Data.Int
+data {-# CTYPE "HsInt64" #-} Int64
+
+-- base
+module Data.String
+type String = [Char]
+
+-- base
+module Data.Tuple
+fst :: (a, b) -> a
+snd :: (a, b) -> b
+
+-- base
+module Data.Maybe
+data Maybe a
+Nothing :: Maybe a
+Just :: a -> Maybe a
+isJust :: Maybe a -> Bool
+isNothing :: Maybe a -> Bool
+fromJust :: Maybe a -> a
+fromMaybe :: a -> Maybe a -> a
+listToMaybe :: [a] -> Maybe a
+maybeToList :: Maybe a -> [a]
+catMaybes :: [Maybe a] -> [a]
+-- HOF: maybe :: b -> (a -> b) -> Maybe a -> b
+-- HOF: mapMaybe :: (a -> Maybe b) -> [a] -> [b]
+
+-- base
+module Data.ByteString.Builder
+data Builder
+intDec :: Int -> Builder
+int64BE :: Int64 -> Builder
+
+-- base
+module Data.ByteString.Lazy
+data ByteString
+empty :: ByteString
+toLazyByteString :: Builder -> ByteString
+reverse :: ByteString -> ByteString
+intersperse :: Word8 -> ByteString -> ByteString
+intercalate :: ByteString -> [ByteString] -> ByteString
+maximum :: ByteString -> Word8
+minimum :: ByteString -> Word8
+elem :: Word8 -> ByteString -> Bool
+notElem :: Word8 -> ByteString -> Bool
