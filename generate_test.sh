@@ -6,15 +6,14 @@ fi
 
 stack exec -- synquid generate \
       -p base \
+      -m "Prelude" \
       -m "Data.Word" \
       -m "Data.Int" \
       -m "Data.Maybe" \
       -m "Data.ByteString.Builder" \
       -m "Data.ByteString.Lazy" \
-      -m "Data.Map.Strict" \
       -m "Data.List" \
       -m "Data.Tuple" \
       -m "GHC.List" \
       -m "GHC.Char" \
-      -m "Data.ByteString" \
-      -m "Data.Set"
+      -m "Text.Show"

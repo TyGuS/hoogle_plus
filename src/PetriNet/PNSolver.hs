@@ -439,14 +439,14 @@ initNet :: MonadIO m => Environment -> PNSolver m PetriNet
 initNet env = do
     startTime <- liftIO $ getCurrentTime
     let binds = env ^. boundTypeVars
-    liftIO $ putStrLn ("Bound variables in environment: " ++ (show binds))
+    -- liftIO $ putStrLn ("Bound variables in environment: " ++ (show binds))
     abstraction <- view abstractionSemantic <$> get
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
     -- first abstraction all the symbols with fresh type variables and then instantiate them
     absSymbols <- mapM (uncurry (abstractSymbol binds abstraction))
                       $ Map.toList $ allSymbols env
     sigs <- instantiate env absSymbols
-    liftIO $ putStrLn $ "\nINSTRUMENTED: transitions: " ++ show (length (Map.keys sigs)) ++ "\n"
+    liftIO $ putStrLn $ "INSTRUMENTED: transitions: " ++ show (length (Map.keys sigs))
     symbols <- mapM (addEncodedFunction)
                     -- first order arguments are tokens but not transitions in petri net
                     $ Map.toList $ foldr Map.delete sigs $ Map.keys foArgs
@@ -549,17 +549,12 @@ findProgram env dst net st = do
                 findProgram env dst net st'
             else do
                 doesHaskellTypeCheck <- liftIO $ haskellTypeChecks env dst solutionProgram
-                if not doesHaskellTypeCheck
-                    then do
-                        liftIO $ putStrLn "INSTRUMENTED: GHC Type checker failed"
-                        modify $ over currentSolutions ((:) solutionProgram)
-                        findProgram env dst net st'
-                    else do
-                        liftIO $ putStrLn "*******************SOLUTION*********************"
-                        liftIO $ print $ solutionProgram
-                        liftIO $ putStrLn "************************************************"
-                        modify $ over currentSolutions ((:) solutionProgram)
-                        return $ (solutionProgram, st')
+                liftIO $ putStrLn $ "GHC Says: " ++ (show doesHaskellTypeCheck)
+                liftIO $ putStrLn "*******************SOLUTION*********************"
+                liftIO $ print $ solutionProgram
+                liftIO $ putStrLn "************************************************"
+                modify $ over currentSolutions ((:) solutionProgram)
+                return $ (solutionProgram, st')
   where
     parseAndCheck code = do
         let prog = case parseExp code of
