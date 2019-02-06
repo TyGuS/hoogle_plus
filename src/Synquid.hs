@@ -240,7 +240,7 @@ synt = Synthesis {
   sol_num             = 1               &= help ("Number of solutions need to find (default: 5)") &= name "cnt",
   path_search         = DisablePath     &= help ("Use path search algorithm to ensure the usage of provided parameters (default: DisablePath)") &= name "path",
   higher_order        = False           &= help ("Include higher order functions (default: False)"),
-  path_solver         = PNS.SATSolver   &= help ("Choose SAT or SMT solver for PetriNet encoding (default: SATSolver)")
+  path_solver         = PNS.SMTSolver   &= help ("Choose SAT or SMT solver for PetriNet encoding (default: SATSolver)")
   } &= auto &= help "Synthesize goals specified in the input file"
     where
       defaultFormat = outputFormat defaultSynquidParams

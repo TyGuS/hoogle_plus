@@ -17,6 +17,7 @@ import qualified Data.Set as Set
 import Z3.Monad hiding(Z3Env, newEnv)
 import qualified Z3.Base as Z3
 import Control.Monad.State
+import Data.Time.Clock
 
 import PetriNet.PNBuilder
 import PetriNet.Encoder
@@ -61,7 +62,7 @@ setInitialState inputs = do
                                   Just v -> v
                                   Nothing -> error $ "cannot find variable " ++ show (p,0)
         mkIntNum v >>= mkEq tVar >>= optimizeAssert
-    emptyOther p = do 
+    emptyOther p = do
         placeMap <- place2variableSMT <$> get
         let v = if placeId p == "void" then 1 else 0
         tVar <- mkZ3IntVar $ case HashMap.lookup (p,0) placeMap of
@@ -139,7 +140,11 @@ encoderInitSMT net locSMT hoArgs inputs ret = do
 
 encoderSolveSMT :: EncodeSMTState -> IO ([(Transition, Int)], EncoderType)
 encoderSolveSMT st = do
+    startTime <- getCurrentTime
     (a, s) <- runStateT solveAndGetModel st
+    endTime <- liftIO $ getCurrentTime
+    let diff = diffUTCTime endTime startTime
+    putStrLn $ "INSTRUMENTED: Z3 time: " ++ (show diff)
     return (a, Right s)
 
 addPlaceVar ::  Place -> EncoderSMT ()
@@ -150,8 +155,8 @@ addPlaceVar p = do
     addPlaceVarAt t = do
         st <- get
         let placeVar = Variable (nbVariableSMT st) (placeId p) t 0 VarPlace
-        put $ st { place2variableSMT = HashMap.insert (p, t) 
-                                                    placeVar 
+        put $ st { place2variableSMT = HashMap.insert (p, t)
+                                                    placeVar
                                                    (place2variableSMT st)
                  , nbVariableSMT = 1 + (nbVariableSMT st)
                  }
@@ -167,8 +172,8 @@ addTransitionVar tr = do
         put $ st { transition2variableSMT = HashMap.insert (tr, t)
                                                          transitionVar
                                                         (transition2variableSMT st)
-                 , id2variableSMT = HashMap.insert (nbVariableSMT st) 
-                                                 transitionVar 
+                 , id2variableSMT = HashMap.insert (nbVariableSMT st)
+                                                 transitionVar
                                                 (id2variableSMT st)
                  , nbVariableSMT = 1 + (nbVariableSMT st)
                  }
@@ -237,7 +242,7 @@ sequentialTransitions = do
         mkAnd ((transitions !! i):allOtherTrans)
         -- mkImplies (transitions !! i) allOtherTrans >>= optimizeAssert
 
--- | if this place has no connected transition fired, 
+-- | if this place has no connected transition fired,
 -- it has the same # of tokens
 noTransitionTokens ::  EncoderSMT ()
 noTransitionTokens = do
@@ -250,7 +255,7 @@ noTransitionTokens = do
 
     noFirePlace t p = do
         trans <- pnTransitions . petriNetSMT <$> get
-        let transitions = map (\i -> findVariable i trans) 
+        let transitions = map (\i -> findVariable i trans)
                         $ Set.toList $ placePreset p `Set.union` placePostset p
         transMap <- transition2variableSMT <$> get
         let trVars = map (\tr -> findVariable (tr, t) transMap) transitions
@@ -283,9 +288,9 @@ preconditionsTransitions = do
         mkGe pVar w >>= mkImplies trVar >>= optimizeAssert
 
     -- whether the src and dst places in the current tr is the same or "void"
-    hasComplementary places p postFlow preFlow =   
-        placeId p == "void" || 
-       ((findVariable (flowPlace preFlow) places) == p && 
+    hasComplementary places p postFlow preFlow =
+        placeId p == "void" ||
+       ((findVariable (flowPlace preFlow) places) == p &&
         flowWeight preFlow == flowWeight postFlow)
 
     -- if the dest place has reached its maximum token, we cannot fire the tr
@@ -314,12 +319,12 @@ postconditionsTransitions ::  EncoderSMT ()
 postconditionsTransitions = do
     l <- locSMT <$> get
     trans <- HashMap.elems . pnTransitions . petriNetSMT <$> get
-    -- liftIO $ print $ "all transitions:" ++ show trans 
+    -- liftIO $ print $ "all transitions:" ++ show trans
     mapM_ (uncurry placesToChange) $ [(t, tr) | t <- [0..(l-1)], tr <- trans]
   where
-    addChangedPlace places pre f changeList = 
+    addChangedPlace places pre f changeList =
         let pid = flowPlace f
-            p = findVariable pid places 
+            p = findVariable pid places
             w = if pre then -(flowWeight f) else flowWeight f
         in HashMap.insertWith (+) p w changeList
 
@@ -358,4 +363,3 @@ mustFireTransitions = do
         l <- locSMT <$> get
         trVars <- mapM (\t -> mkZ3BoolVar $ findVariable (tr, t) transMap) [0..(l-1)]
         mkOr trVars >>= optimizeAssert
-   

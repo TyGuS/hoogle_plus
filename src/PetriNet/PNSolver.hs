@@ -479,6 +479,7 @@ initNet env = do
 
 resetEncoder :: (MonadIO m) => Environment -> RType -> PathSolver -> PetriNet -> PNSolver m EncoderType
 resetEncoder env dst solver net = do
+    startTime <- liftIO $ getCurrentTime
     let binds = env ^. boundTypeVars
     abstraction <- view abstractionSemantic <$> get
     let tgt = show $ abstract binds abstraction $ shape dst
@@ -490,9 +491,13 @@ resetEncoder env dst solver net = do
     writeLog 2 $ text "return type is" <+> pretty tgt
     loc <- view currentLoc <$> get
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    liftIO $ case solver of
+    solver <- liftIO $ case solver of
                 SATSolver -> encoderInit net loc hoArgs srcTypes tgt
                 SMTSolver -> encoderInitSMT net loc hoArgs srcTypes tgt
+    endTime <- liftIO $ getCurrentTime
+    let diff = diffUTCTime endTime startTime
+    liftIO $ putStrLn $ "INSTRUMENTED: encoding time: " ++ (show diff)
+    return solver
 
 findPath :: (MonadIO m) => Environment -> RType -> PetriNet -> EncoderType -> PNSolver m (CodePieces, EncoderType)
 findPath env dst net st = do
