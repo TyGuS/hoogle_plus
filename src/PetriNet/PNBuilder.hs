@@ -8,6 +8,7 @@ module PetriNet.PNBuilder(
   , FunctionCode(..)
   , buildPetriNet
   , addFunction
+  , addArgClone
   , setMaxToken
   , removeTransition
 )
@@ -76,9 +77,11 @@ data PetriNet = PetriNet {
 } deriving(Eq, Ord, Show)
 
 buildPetriNet :: [FunctionCode] -> [Id] -> PetriNet
-buildPetriNet fs inputs = setMaxToken inputs $ foldr addFunction emptyPN fs
+buildPetriNet fs inputs = setMaxToken inputs addArgs
   where
     emptyPN = PetriNet HashMap.empty HashMap.empty HashMap.empty
+    addFuncs = foldr addFunction emptyPN fs
+    addArgs = foldr addArgClone addFuncs inputs
 
 -- | create a new place in petri net
 mkPlace :: Id -> Place
@@ -231,6 +234,14 @@ addFunction (FunctionCode name hoParams params ret) pn = pn'
                            $ addFlow special exit 1  -- special node to exit
                            $ addTransition exit pn
     pn' = foldr addHoParam pn $ zip [1,2..] hoParams
+
+addArgClone tArg pn = pn'
+  where
+    placedPn = addPlace tArg pn
+    transitionedPn = addTransition (tArg ++ "|clone") placedPn
+    retedPn = addFlow (tArg ++ "|clone") tArg 2 transitionedPn
+    flowedPn = addFlow tArg (tArg ++ "|clone") 1 retedPn
+    pn' = flowedPn
 
 setMaxToken :: [Id] -> PetriNet -> PetriNet
 setMaxToken inputs pn = pn {

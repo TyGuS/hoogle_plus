@@ -731,23 +731,24 @@ initNet env = do
     let binds = env ^. boundTypeVars
     abstraction <- view abstractionTree <$> get
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
-    -- first abstraction all the symbols with fresh type variables and then instantiate them
-    absSymbols <- mapM (uncurry abstractSymbol) (Map.toList (allSymbols env))
-    -- first order arguments are tokens but not transitions in petri net
-    let usefulSymbols = filter (flip notElem (Map.keys foArgs) . fst) absSymbols
-    sigs <- withTime "construction time" $ instantiate env usefulSymbols
-    modify $ set detailedSigs (Map.keysSet sigs)
-    writeLog 3 $ text "instantiated sigs" <+> pretty (Map.toList sigs)
-    symbols <- mapM addEncodedFunction (Map.toList sigs)
-    let srcTypes = map ( show
-                       . head 
+    let srcTypes = map ( head 
                        . cutoff abstraction
                        . toAbstractType
                        . shape 
                        . toMonotype) $ Map.elems foArgs
-    modify $ set sourceTypes srcTypes
-    withTime "construction time" (modify $ set solverNet (buildPetriNet symbols srcTypes))
+    modify $ set sourceTypes (map show srcTypes)
+    -- first abstraction all the symbols with fresh type variables and then instantiate them
+    absSymbols <- mapM (uncurry abstractSymbol) (Map.toList (allSymbols env))
+    -- first order arguments are tokens but not transitions in petri net
+    let usefulSymbols = filter (flip notElem (Map.keys foArgs) . fst) absSymbols
+    sigs <- instantiate env usefulSymbols
+    modify $ set detailedSigs (Map.keysSet sigs)
+    writeLog 3 $ text "instantiated sigs" <+> pretty (Map.toList sigs)
+    symbols <- mapM addEncodedFunction (Map.toList sigs)
+    modify $ set solverNet (buildPetriNet symbols (map show srcTypes))
   where
+    cloneArg targ = Map.insert (show targ ++ "|clone") (AFunctionT targ targ)
+
     abstractSymbol id sch = do
         t <- freshType sch
         let absTy = toAbstractType (shape t) -- abstract binds abstraction (shape t)
@@ -803,19 +804,19 @@ findPath env dst st = do
     case res of
         [] -> do
             currSt <- get
-            when (currSt ^. currentLoc >= 5) (error "cannot find a path")
+            when (currSt ^. currentLoc >= 6) (error "cannot find a path")
             modify $ set currentLoc ((currSt ^. currentLoc) + 1)
             -- initNet env
             st'' <- withTime "encoding time" (resetEncoder env dst)
             findPath env dst st''
-        _  -> do
+        _  -> withTime "code former time" $ do
             fm <- view functionMap <$> get
             src <- view sourceTypes <$> get
             args <- view paramNames <$> get
             let sortedRes = sortOn snd res
             let transNames = map fst sortedRes
             writeLog 2 $ text "found path" <+> pretty transNames
-            let usefulTrans = filter skipEntry transNames
+            let usefulTrans = filter (\n -> skipEntry n || skipClone n) transNames
             let sigNames = map removeSuffix usefulTrans
             dsigs <- view detailedSigs <$> get
             let sigNames' = filter (flip Set.member dsigs) sigNames
@@ -845,6 +846,7 @@ findPath env dst st = do
     generateCode initialFormer src args sigs = 
         liftIO (evalStateT (generateProgram sigs src args) initialFormer)
     skipEntry = not . isInfixOf "|entry"
+    skipClone = not . isInfixOf "|clone"
     removeSuffix = removeLast '|'
 
 fixNet :: MonadIO m => Environment -> SplitInfo -> PNSolver m ()
@@ -865,8 +867,14 @@ fixNet env (SplitInfo _ _ splitedGps) = do
                        . toAbstractType
                        . shape 
                        . toMonotype) $ Map.elems foArgs
+    oldSource <- view sourceTypes <$> get
     modify $ set sourceTypes srcTypes
-    modify $ set solverNet (setMaxToken srcTypes functionedNet)
+    if oldSource == srcTypes
+       then modify $ set solverNet (setMaxToken srcTypes functionedNet)
+       else do
+           let justTypes = map (\(t1, t2)-> if t1 == t2 then Nothing else Just t2) (zip oldSource srcTypes)
+           let diffTypes = map fromJust (filter isJust justTypes)
+           modify $ set solverNet (setMaxToken srcTypes (foldr addArgClone functionedNet diffTypes))
 
 fixEncoder :: MonadIO m => Environment -> RType -> EncodeState -> SplitInfo -> PNSolver m EncodeState
 fixEncoder env dst st info = do
