@@ -2,6 +2,7 @@ import os
 import subprocess
 import re
 import json
+import time
 
 queries = {
     "int_to_bytestring": "Int64 -> ByteString",
@@ -43,9 +44,10 @@ EXEC_BASE = 'stack exec -- synquid synthesis --path="PetriNet" '
 
 
 def process_output(outlines):
+    lines = outlines.decode("utf-8").split("\n")
     run_characteristics = {}
-    for l in outlines:
-        line = l.decode().strip()
+    for l in lines:
+        line = l.strip()
         for key, regexp in REGEX_MAP.items():
             res = re.findall(regexp, line)
             if len(res) > 0:
@@ -62,8 +64,15 @@ def run_query(query, gen, num):
     print(query, gen, num)
     complete_query = EXEC_BASE + '"' + query + '"'
     print(complete_query)
-    proc = subprocess.Popen([complete_query], shell=True, stdout=subprocess.PIPE)
-    return process_output(proc.stdout.readlines())
+    try:
+        start_time = time.perf_counter()
+        output = subprocess.check_output(complete_query, shell=True, timeout=300)
+        end_time = time.perf_counter()
+        data = process_output(output)
+        data['time'] = end_time - start_time
+        return data
+    except subprocess.TimeoutExpired:
+        return {"error": "timeout"}
 
 
 def write_results(query, results):
