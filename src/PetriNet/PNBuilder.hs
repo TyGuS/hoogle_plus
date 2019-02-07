@@ -6,7 +6,8 @@ module PetriNet.PNBuilder(
   Flow(..),
   PetriNet(..),
   FunctionCode(..),
-  buildPetriNet  
+  buildPetriNet,
+  addArgClone
 )
 where
 
@@ -73,9 +74,21 @@ data PetriNet = PetriNet {
 } deriving(Eq, Ord, Show)
 
 buildPetriNet :: [FunctionCode] -> [Id] -> PetriNet
-buildPetriNet fs inputs = setMaxToken inputs $ foldr addFunction emptyPN fs
+buildPetriNet fs inputs = setMaxToken inputs addArgs
   where
     emptyPN = PetriNet HashMap.empty HashMap.empty HashMap.empty
+    addFuncs = foldr addFunction emptyPN fs
+    addArgs = foldr addArgClone addFuncs inputs
+
+
+addArgClone tArg pn = pn'
+  where
+    placedPn = addPlace tArg pn
+    transitionedPn = addTransition (tArg ++ "|clone") placedPn
+    retedPn = addFlow (tArg ++ "|clone") tArg 2 transitionedPn
+    flowedPn = addFlow tArg (tArg ++ "|clone") 1 retedPn
+    pn' = flowedPn
+
 
 -- | create a new place in petri net
 mkPlace :: Id -> Place
@@ -89,7 +102,7 @@ getPlaceId = placeId
 -- if it already exists, do nothing
 -- if it is a new place, create and add it
 addPlace :: Id -> PetriNet -> PetriNet
-addPlace id pn = pn { 
+addPlace id pn = pn {
   pnPlaces = if id `elem` (map getPlaceId $ HashMap.elems places)
                then places
                else HashMap.insert id (mkPlace id) places
@@ -142,22 +155,22 @@ addFlow from to w pn = PetriNet places transitions flows
   where
     flowId = mkFlowId pn from to
 
-    currFlow = if flowId `HashMap.member` (pnFlows pn) 
-                 then let f = fromJust (HashMap.lookup flowId (pnFlows pn)) 
-                       in f { flowWeight = w + flowWeight f } 
+    currFlow = if flowId `HashMap.member` (pnFlows pn)
+                 then let f = fromJust (HashMap.lookup flowId (pnFlows pn))
+                       in f { flowWeight = w + flowWeight f }
                  else  mkFlow pn from to w
 
     updatePlacePost tid p = p { placePostset = Set.insert tid (placePostset p) }
     updatePlacePre  tid p = p { placePreset  = Set.insert tid (placePreset  p) }
-    updateTransitionPost tr = tr { 
-        transitionPostset = Set.insert flowId (transitionPostset tr) 
+    updateTransitionPost tr = tr {
+        transitionPostset = Set.insert flowId (transitionPostset tr)
       }
-    updateTransitionPre  tr = tr { 
-        transitionPreset  = Set.insert flowId (transitionPreset  tr) 
+    updateTransitionPre  tr = tr {
+        transitionPreset  = Set.insert flowId (transitionPreset  tr)
       }
 
     -- update the places so that it has correct preset and postset
-    (placeId, place, transId, transition) = 
+    (placeId, place, transId, transition) =
       if from `HashMap.member` (pnPlaces pn) -- if the added flow goes out of a place, update its postset
         then ( from
              , updatePlacePost to (case (HashMap.lookup from (pnPlaces pn)) of
@@ -202,7 +215,7 @@ addFunction (FunctionCode name hoParams params ret) pn = pn'
     addSpecial (i, _) pn = addPlace (name ++ "|special" ++ (show i)) pn
     connectParamToTr entry p pn = addFlow p entry 1 pn
     connectTrToParam entry p pn = addFlow entry p 1 pn
-    addEntry (i, hop) pn = 
+    addEntry (i, hop) pn =
         let entry = name ++ "|entry" ++ (show i)
             special = name ++ "|special" ++ (show i)
             input = foldr (connectParamToTr entry) (addTransition entry pn) paramToAdd -- consume all the other first order arguments
@@ -210,7 +223,7 @@ addFunction (FunctionCode name hoParams params ret) pn = pn'
         in output
     addExit (i, hop) pn = let exit = name ++ "|exit" ++ (show i)
                               special = name ++ "|special" ++ (show i)
-                          in addFlow exit ret 1 -- exit to the return type of the function 
+                          in addFlow exit ret 1 -- exit to the return type of the function
                            $ addFlow (funReturn hop) exit 1  -- return type of ho argument to exit
                            $ addFlow special exit 1  -- special node to exit
                            $ addTransition exit pn
@@ -218,8 +231,8 @@ addFunction (FunctionCode name hoParams params ret) pn = pn'
 
 setMaxToken :: [Id] -> PetriNet -> PetriNet
 setMaxToken inputs pn = pn {
-        pnPlaces = HashMap.foldrWithKey (\pid mt -> 
-            HashMap.insert pid (setMaxToken (pnPlaces pn) pid mt)) 
+        pnPlaces = HashMap.foldrWithKey (\pid mt ->
+            HashMap.insert pid (setMaxToken (pnPlaces pn) pid mt))
             HashMap.empty inputedCnt
     }
   where
@@ -231,19 +244,19 @@ setMaxToken inputs pn = pn {
 
     updateMt p mt = p { placeMaxToken = max (placeMaxToken p) mt }
 
-    setMaxToken places pid mt = 
+    setMaxToken places pid mt =
         updateMt (case HashMap.lookup pid places of
                       Just p -> p
                       Nothing -> error $ "cannot find place " ++ pid) mt
 
-    checkTransition tr cntMap = 
+    checkTransition tr cntMap =
         let flows    = pnFlows pn
             preFlows = map (\f -> case HashMap.lookup f flows of
                                       Just ff -> ff
                                       Nothing -> error $ "cannot find flow " ++ f)
                            $ Set.toList $ transitionPreset tr
         in foldr updateByFlow cntMap preFlows
-    updateByFlow f cntMap = 
+    updateByFlow f cntMap =
         let places = pnPlaces pn
             src    = case HashMap.lookup (flowPlace f) places of
                         Just p -> p

@@ -239,7 +239,7 @@ synt = Synthesis {
   succinct            = False           &= help ("Use graph to direct the term exploration (default: False)") &= name "succ",
   sol_num             = 1               &= help ("Number of solutions need to find (default: 5)") &= name "cnt",
   path_search         = DisablePath     &= help ("Use path search algorithm to ensure the usage of provided parameters (default: DisablePath)") &= name "path",
-  higher_order        = False           &= help ("Include higher order functions (default: False)"),
+  higher_order        = True           &= help ("Include higher order functions (default: False)"),
   path_solver         = PNS.SMTSolver   &= help ("Choose SAT or SMT solver for PetriNet encoding (default: SATSolver)")
   } &= auto &= help "Synthesize goals specified in the input file"
     where
@@ -265,7 +265,7 @@ generate = Generate {
   pkg_name             = []         , --     &= args &= help ("Package names to be generated"),
   module_name          = []         , --     &= args &= help ("Module names to be generated in the given packages"),
   type_depth           = 2          , --     &= help ("Depth of the types to be instantiated for polymorphic type constructors"),
-  higher_order         = False       --     &= help ("Include higher order functions (default: False)")
+  higher_order         = True       --     &= help ("Include higher order functions (default: False)")
 } -- &= help "Generate the type conversion database for synthesis"
 
 mode = cmdArgsMode $ modes [synt, lifty, generate] &=

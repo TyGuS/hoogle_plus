@@ -41,3 +41,8 @@ int64BE :: Int64 -> Builder
 -- base
 module GHC.List
 and :: [Bool] -> Bool
+
+module Data.Tuple
+fst :: (a, b) -> a
+snd :: (a, b) -> b
+swap :: (a, b) -> (b, a)

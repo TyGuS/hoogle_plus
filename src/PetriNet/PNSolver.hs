@@ -167,8 +167,10 @@ constructType env abstraction key
     listOfN n xs = [x:y | x <- xs, y <- listOfN (n-1) xs]
 
 instantiate :: (MonadIO m) => Environment -> [(Id, AbstractSkeleton)] -> PNSolver m (Map Id AbstractSkeleton)
-instantiate env sigs =
-    Map.fromList <$> instantiate' sigs (filter (not . hasAbstractVar . snd) sigs)
+instantiate env sigs = do
+    let ourfilter  =(filter (not . hasAbstractVar . snd) sigs)
+    res <- Map.fromList <$> instantiate' sigs (filter (not . hasAbstractVar . snd) sigs)
+    return res
   where
     removeSuffix id ty = (removeLast '_' id, ty)
 
@@ -443,6 +445,7 @@ initNet env = do
     abstraction <- view abstractionSemantic <$> get
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
     -- first abstraction all the symbols with fresh type variables and then instantiate them
+    liftIO $ putStrLn $ "allSymbols: " ++ show (allSymbols env)
     absSymbols <- mapM (uncurry (abstractSymbol binds abstraction))
                       $ Map.toList $ allSymbols env
     sigs <- instantiate env absSymbols
@@ -461,7 +464,7 @@ initNet env = do
     let envTypes = map (show . abstract binds abstraction . shape) envDts
     let startingTypes = nubOrd $ srcTypes ++ envTypes
     let net = buildPetriNet symbols startingTypes
-    liftIO $ putStrLn $ "\nINSTRUMENTED: Types in graph: " ++ (show $ length startingTypes)
+    liftIO $ putStrLn $ "\nINSTRUMENTED: Types in graph: " ++ (show $ startingTypes)
     endTime <- liftIO $ getCurrentTime
     let diff = diffUTCTime endTime startTime
     liftIO $ putStrLn $ "INSTRUMENTED: time spent creating graph: " ++ (show diff)
@@ -518,7 +521,7 @@ findPath env dst net st = do
             args <- view paramNames <$> get
             let sortedRes = sortOn snd res
             let sigNames = map removeSuffix
-                         $ filter skipEntry
+                         $ filter (\x -> skipEntry x && skipClone x)
                          $ map (transitionId . fst) sortedRes
             let sigs = map (findFunction fm) sigNames
             let initialFormer = FormerState 0 HashMap.empty
@@ -532,6 +535,7 @@ findPath env dst net st = do
             Nothing -> error $ "cannot find function " ++ name'
 
     skipEntry = not . isInfixOf "|entry"
+    skipClone = not . isInfixOf "|clone"
     removeSuffix = removeLast '|'
 
 findProgram :: (MonadIO m) => Environment -> RType -> PetriNet -> EncoderType -> PNSolver m (RProgram, EncoderType)
