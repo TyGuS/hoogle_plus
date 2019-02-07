@@ -197,8 +197,9 @@ encoderRefine net info inputs ret = do
     let typIds = map show (newPlace info)
     let splitedPlace = fromJust (HashMap.lookup splitedTyp (pnPlaces net))
     let newPlaces = map (\nt -> fromJust (HashMap.lookup nt (pnPlaces net))) typIds
+    let inputClones = map (\n -> n ++ "|clone") inputs
     let transIds = concat (snd (unzip (splitedGroup info)))
-    let newTrans = map (\tr -> fromJust (HashMap.lookup tr (pnTransitions net))) transIds
+    let newTrans = map (\tr -> fromJust (HashMap.lookup tr (pnTransitions net))) (inputClones ++ transIds)
     let lookupTrans tr = fromJust (HashMap.lookup tr (pnTransitions net))
     let splitTrans = map (\(tr, trs) -> (lookupTrans tr, map lookupTrans trs)) (splitedGroup info)
 
@@ -350,6 +351,9 @@ sequentialTransitions = do
         let tid = varName (transitions !! i)
         let excludeList = HashMap.lookupDefault [] tid trPar
                        ++ HashMap.lookupDefault [] tid trChd
+                       ++ if "|clone" `isSuffixOf` tid 
+                             then map varName $ filter (isSuffixOf "|clone" . varName) transitions 
+                             else []
         let otherTrans = deleteAt i transitions
         let excludedTrans = filter (\tr -> not (elem (varName tr) excludeList)) otherTrans
         allOtherTrans <- mapM (mkZ3BoolVar >=> mkNot) excludedTrans
@@ -413,9 +417,9 @@ preconditionsTransitions t tr = fireFor t tr
         let preFlows = map (\f -> findVariable f flows)
                            (Set.toList $ transitionPreset tr)
         mapM_ (getSatisfiedPlaces t trVar) preFlows
-        let postFlows = map (\f -> findVariable f flows)
-                            (Set.toList $ transitionPostset tr)
-        mapM_ (hasReachedMax t tr trVar preFlows) postFlows
+        -- let postFlows = map (\f -> findVariable f flows)
+        --                    (Set.toList $ transitionPostset tr)
+        -- mapM_ (hasReachedMax t tr trVar preFlows) postFlows
 
 postconditionsTransitions :: Int -> Transition -> Encoder ()
 postconditionsTransitions t tr = placesToChange t tr

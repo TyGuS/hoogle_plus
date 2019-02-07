@@ -72,6 +72,8 @@ data TimeStatistics = TimeStatistics {
   constructionTime :: Double,
   solverTime :: Double,
   codeFormerTime :: Double,
+  refineTime :: Double,
+  typeCheckerTime :: Double,
   otherTime :: Double,
   iterations :: Int,
   numOfTransitions :: Map Int Int,
@@ -97,6 +99,7 @@ data SolverState = SolverState {
     _type2transition :: Map AbstractSkeleton [Id], -- mapping from abstract type to group ids
     _solverNet :: PetriNet,
     _solverStats :: TimeStatistics,
+    _useGroup :: Bool,
     _logLevel :: Int -- temporary for log level
 } deriving(Eq)
 
@@ -118,7 +121,8 @@ emptySolverState = SolverState {
     _groupMap = Map.empty,
     _type2transition = Map.empty,
     _solverNet = PetriNet HashMap.empty HashMap.empty HashMap.empty,
-    _solverStats = TimeStatistics (0::Double) (0::Double) (0::Double) (0::Double) (0::Double) 0 Map.empty Map.empty,
+    _solverStats = TimeStatistics (0::Double) (0::Double) (0::Double) (0::Double) (0::Double) (0::Double) (0::Double) 0 Map.empty Map.empty,
+    _useGroup = False,
     _logLevel = 0
 }
 
@@ -246,7 +250,7 @@ splitTransition env tid info = do
     let typ = transitionSig sigs
     -- step 1: unify the type with refined abstract type and get new signatures
     unifyRes <- unifyNewType typ newTyps
-    let unifiedTyps = nubOrdOn snd unifyRes -- nubOrdOn snd (concatMap fromJust (filter isJust unifyRes))
+    let unifiedTyps = nubOrdOn snd unifyRes 
     -- step 2: add new transitions into the environment
     mapM_ (\(id, ty) -> modify $ over currentSigs (Map.insert id ty)) unifiedTyps
     mapM_ (\(id, ty) -> modify $ over functionMap (HashMap.insert id (encodeFunction id ty))) unifiedTyps
@@ -288,15 +292,6 @@ splitTransition env tid info = do
             args = genTypes pattern newTyps tArg
             rets = genTypes pattern newTyps tRet
     genTypes pattern newTyps t = if t == pattern then newTyps else []
-
-    {-
-    genConstraints pattern newp ((t1, t2):ts) = 
-        if t1 == pattern
-           then ((newp, t2):ts):(map ((:) (t1, t2)) ts')
-           else map ((:) (t1, t2)) ts'
-        where
-            ts' = genConstraints pattern newp ts
-    -}
 
     checkUnification tree bound tass t1 t2 | t1 == t2 = Just tass
     checkUnification tree bound tass (ATypeVarT id) (ATypeVarT id') | id `elem` bound && id' `elem` bound = Nothing
@@ -341,22 +336,15 @@ splitTransition env tid info = do
         abstraction <- view abstractionTree <$> get
         -- get all the constraints
         let typs = genTypes (oldPlace info) newTyps typ
-        let constraints = map (\t -> typeConstraints t polyTyp) typs -- genConstraints (oldPlace info) newTyp (typeConstraints typ polyTyp)
+        let constraints = map (\t -> typeConstraints t polyTyp) typs
         writeLog 3 $ text "trying to solve constraints" <+> pretty constraints
         let unifiers = map (getUnifier abstraction (env ^. boundTypeVars) (Just Map.empty)) constraints
         writeLog 3 $ text "unify result is" <+> pretty (show unifiers)
         let checkSuccess = filter isJust unifiers
         if not (null checkSuccess)
            then do
-               -- let unpackedUnifiers = map fromJust checkSuccess
-               -- let subst = Map.unionsWith Set.union unpackedUnifiers
-               -- writeLog 3 $ text "unioned subst" <+> pretty (show subst)
-               -- semantic <- view abstractionTree <$> get
-               -- let ts = applySubst (env ^. boundTypeVars) subst polyTyp
                let ts = snd (unzip (filter (isJust . fst) (zip unifiers typs)))
                writeLog 3 $ text "get signatures" <+> pretty ts
-               -- let ts' = nubOrd (concatMap (cutoff semantic) ts)
-               -- writeLog 3 $ text "get cutoffed signatures" <+> pretty ts'
                ids <- mapM (\_ -> freshId id') ts
                return (zip ids ts)
            else return []
@@ -413,13 +401,6 @@ splitGroup env gid info = do
                ids <- mapM (\_ -> freshId id') ts'
                return (Just (zip ids ts'))
            else firstUnified typ newTyp ids
-               {-
-    -- assume substitution has the format of Map Id (Set AbstractSkeleton)
-    checkConsistent [] = error "No corresponding types in the current list"
-    checkConsistent (unif:unifiers) = foldr checkIntersection unif unifiers
-
-    checkIntersection = Map.intersectionWith Set.intersection
--}
 
 cutoff :: AbstractionTree -> AbstractSkeleton -> [AbstractSkeleton]
 cutoff semantic (ATypeVarT id) = [rightmostType semantic]
@@ -489,38 +470,40 @@ distinguish env t1 t2 = do
     writeLog 3 $ text "trying to distinguish" <+> pretty t1' <+> text "==>" <+> pretty ats1 <+> text "and" <+> pretty t2' <+> text "==>" <+> pretty ats2
     -- only try to get split information when the two types have 
     -- different abstract representations in the current abstraction level
-    if null (ats1 `intersect` ats2) || not (Set.null tv1) || not (Set.null tv2)
+    if null (ats1 `intersect` ats2)
        then return Nothing
-       else case distinguish' env t1' t2' of
+       else case distinguish' (head ats1) (toAbstractType t1') (toAbstractType t2') of
               Nothing -> return Nothing
               Just t -> return (Just (head ats1, t))
 
-distinguish' :: Environment -> SType -> SType -> Maybe AbstractSkeleton
-distinguish' env AnyT _ = Nothing
-distinguish' env _ AnyT = Nothing
-distinguish' env (ScalarT (DatatypeT id args _) _) (ScalarT (DatatypeT id' _ _) _) | id /= id' = Just (ADatatypeT id emptyArgs)
+distinguish' :: AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton -> Maybe AbstractSkeleton
+distinguish' _ t1 t2 | t1 == t2 = Nothing
+distinguish' _ (AExclusion s1) (AExclusion s2) = Nothing
+distinguish' _ (ATypeVarT id1) (ATypeVarT id2) = Nothing
+distinguish' _ t1@(ADatatypeT id1 tArgs1) t2@(ADatatypeT id2 tArgs2) | id1 /= id2 =
+    Just (ADatatypeT id1 (map fillAny tArgs1))
+distinguish' (AExclusion {}) t1@(ADatatypeT id1 tArgs1) t2@(ADatatypeT id2 tArgs2) | id1 == id2 =
+    Just (ADatatypeT id1 (map fillAny tArgs1))
+distinguish' (ADatatypeT pid pArgs) t1@(ADatatypeT id1 tArgs1) t2@(ADatatypeT id2 tArgs2) | id1 == id2 =
+    case firstDifference pArgs tArgs1 tArgs2 of
+      [] -> Nothing
+      diffs -> Just (ADatatypeT id1 diffs)
   where
-    emptyArgs = map fillAny args
-distinguish' env (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT id' tArgs' _) _) | id == id' = 
-    case disArgs tArgs tArgs' of
-      []    -> Nothing
-      diffs -> Just (ADatatypeT id diffs)
-  where
-    -- the two datatypes should have the same length of argument list
-    disArgs [] [] = []
-    disArgs (arg:args) (arg':args') = 
-        case distinguish' env arg arg' of
-          Nothing -> case disArgs args args' of
-                        []    -> []
-                        diffs -> (toAbstractType arg):diffs
-          Just diff -> diff:(map fillAny args)
--- TODO: need change to support higher order functions
-distinguish' env (ScalarT (TypeVarT _ id) _) (ScalarT (TypeVarT _ id') _) | id == id' = Nothing
--- has bounded type variable
-distinguish' env (ScalarT (TypeVarT {}) _) (ScalarT (TypeVarT {}) _) = Nothing
-distinguish' env (ScalarT (TypeVarT _ _) _) (ScalarT (DatatypeT id args _) _) = Just (ADatatypeT id (map fillAny args))
-distinguish' env t tv@(ScalarT (TypeVarT _ _) _) = distinguish' env tv t
-distinguish' env t1 t2 = error (printf "unhandled case for distinguish %s and %s" (show t1) (show t2))
+    firstDifference _ [] [] = []
+    firstDifference (parg:pargs) (arg:args) (arg':args') = 
+        case distinguish' parg arg arg' of
+            Nothing -> case firstDifference pargs args args' of
+                         [] -> []
+                         diffs -> parg:diffs
+            Just t  -> t:(map fillAny args)
+distinguish' _ (AExclusion s) (ADatatypeT id args) | id `Set.notMember` s = Just (ADatatypeT id (map fillAny args))
+distinguish' _ (AExclusion s) (ADatatypeT id _) = Nothing
+distinguish' p t1@(ADatatypeT id args) t2@(AExclusion s) = distinguish' p t2 t1
+distinguish' _ (ATypeVarT id1) (ADatatypeT id2 args) = Just (ADatatypeT id2 (map fillAny args))
+distinguish' p t1@(ADatatypeT {}) t2@(ATypeVarT {}) = distinguish' p t2 t1
+distinguish' _ (AExclusion {}) (ATypeVarT {}) = Nothing
+distinguish' _ (ATypeVarT {}) (AExclusion {}) = Nothing
+distinguish' _ t1 t2 = error (printf "unhandled case for distinguish %s and %s" (show t1) (show t2))
 
 findSymbol :: MonadIO m => Environment -> Id -> PNSolver m RType
 findSymbol env sym = 
@@ -710,19 +693,21 @@ withTime desc f = do
     res <- f
     end <- liftIO getCPUTime
     let diff = (fromIntegral (end - start)) / (10^12)
-    let time = printf "%s time: %0.3f sec\n" desc (diff :: Double)
+    let time = printf "%s: %0.3f sec\n" desc (diff :: Double)
     modify $ over solverStats (\s -> 
         case desc of
           "construction time" -> s { constructionTime = (constructionTime s) + (diff :: Double) }
           "encoding time" -> s { encodingTime = (encodingTime s) + (diff :: Double) }
           "code former time" -> s { codeFormerTime = (codeFormerTime s) + (diff :: Double) }
           "solver time" -> s { solverTime = (solverTime s) + (diff :: Double) }
+          "refinement time" -> s { refineTime = (refineTime s) + (diff :: Double) }
+          "type checking time" -> s { typeCheckerTime = (typeCheckerTime s) + (diff :: Double) }
           _ -> s { otherTime = (otherTime s) + (diff :: Double) })
     writeLog 1 $ text time
     return res
 
 initNet :: MonadIO m => Environment -> PNSolver m ()
-initNet env = do
+initNet env = withTime "construction time" $ do
     -- reset the solver state
     modify $ set functionMap HashMap.empty
     modify $ set currentSigs Map.empty
@@ -747,8 +732,6 @@ initNet env = do
     symbols <- mapM addEncodedFunction (Map.toList sigs)
     modify $ set solverNet (buildPetriNet symbols (map show srcTypes))
   where
-    cloneArg targ = Map.insert (show targ ++ "|clone") (AFunctionT targ targ)
-
     abstractSymbol id sch = do
         t <- freshType sch
         let absTy = toAbstractType (shape t) -- abstract binds abstraction (shape t)
@@ -816,7 +799,7 @@ findPath env dst st = do
             let sortedRes = sortOn snd res
             let transNames = map fst sortedRes
             writeLog 2 $ text "found path" <+> pretty transNames
-            let usefulTrans = filter (\n -> skipEntry n || skipClone n) transNames
+            let usefulTrans = filter (\n -> skipEntry n && skipClone n) transNames
             let sigNames = map removeSuffix usefulTrans
             dsigs <- view detailedSigs <$> get
             let sigNames' = filter (flip Set.member dsigs) sigNames
@@ -824,9 +807,7 @@ findPath env dst st = do
             writeLog 2 $ text "found filtered sigs" <+> text (show sigs)
             -- let sigs = combinations (map (findFunctions fm groups) sigNames)
             let initialFormer = FormerState 0 HashMap.empty
-            code <- withTime "code former time" (generateCode initialFormer src args sigs)
-                   -- $ mapM (generateCode initialFormer src args) sigs
-            -- return (Set.unions code, st')
+            code <- generateCode initialFormer src args sigs
             return (code, st')
   where
     findFunctions fm groups name = 
@@ -898,7 +879,7 @@ findProgram env dst st = do
     (codeResult, st') <- findPath env dst st
     oldSemantic <- view abstractionTree <$> get
     writeLog 2 $ pretty (Set.toList codeResult)
-    checkResult <- mapM parseAndCheck $ Set.toList codeResult
+    checkResult <- withTime "type checking time" (mapM parseAndCheck $ Set.toList codeResult)
     let codes = lefts checkResult
     let errors = rights checkResult
     if null codes && null errors
@@ -924,7 +905,7 @@ findProgram env dst st = do
         case rs of
             NoRefine -> findProgram env dst st
             AbstractRefinement -> do
-                splitInfo <- refineSemantic env errorProg errorTop
+                splitInfo <- withTime "refinement time" (refineSemantic env errorProg errorTop)
                 -- add new places and transitions into the petri net
                 -- there is no need for us to add flows, it does not help if we only split one node 
                 -- but this is different for places with self loop [TODO]
@@ -951,7 +932,7 @@ findProgram env dst st = do
 
     checkSolution st codes = do
         solutions <- view currentSolutions <$> get
-        checkedSols <- filterM (liftIO . haskellTypeChecks env dst) codes
+        checkedSols <- withTime "type checking time" (filterM (liftIO . haskellTypeChecks env dst) codes)
         if (null checkedSols) || (solutions `union` checkedSols == solutions)
            then do
                findProgram env dst st
@@ -974,6 +955,8 @@ findProgram env dst st = do
         liftIO $ putStrLn ("Petri net encoding time: " ++ (show (encodingTime stats)))
         liftIO $ putStrLn ("Z3 solving time: " ++ (show (solverTime stats)))
         liftIO $ putStrLn ("Hoogle plus code former time: " ++ (show (codeFormerTime stats)))
+        liftIO $ putStrLn ("Hoogle plus refinement time: " ++ (show (refineTime stats)))
+        liftIO $ putStrLn ("Hoogle plus type checking time: " ++ (show (typeCheckerTime stats)))
         liftIO $ putStrLn ("Total iterations of refinements: " ++ (show (iterations stats)))
         liftIO $ putStrLn ("# of places: " ++ (show (Map.toList (numOfPlaces stats))))
         liftIO $ putStrLn ("# of transitions: " ++ (show (Map.toList (numOfTransitions stats))))

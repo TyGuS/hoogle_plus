@@ -15,11 +15,6 @@ module Data.String
 type String = [Char]
 
 -- base
-module Data.Tuple
-fst :: (a, b) -> a
-snd :: (a, b) -> b
-
--- base
 module Data.Maybe
 data Maybe a
 Nothing :: Maybe a
@@ -27,19 +22,27 @@ Just :: a -> Maybe a
 -- HOF: maybe :: b -> (a -> b) -> Maybe a -> b
 isJust :: Maybe a -> Bool
 isNothing :: Maybe a -> Bool
-fromJust :: Maybe a -> a
 fromMaybe :: a -> Maybe a -> a
 listToMaybe :: [a] -> Maybe a
 maybeToList :: Maybe a -> [a]
 catMaybes :: [Maybe a] -> [a]
 -- HOF: mapMaybe :: (a -> Maybe b) -> [a] -> [b]
 
--- base
+-- bytestring
 module Data.ByteString.Builder
 data Builder
 toLazyByteString :: Builder -> ByteString
 int64BE :: Int64 -> Builder
 
--- base
+-- bytestring
 module Data.ByteString.Lazy
 data ByteString
+
+-- base
+module GHC.List
+and :: [Bool] -> Bool
+
+-- base
+module Data.Tuple
+fst :: (a, b) -> a
+snd :: (a, b) -> b

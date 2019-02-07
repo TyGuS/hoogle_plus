@@ -20,7 +20,6 @@ Nothing :: Maybe a
 Just :: a -> Maybe a
 isJust :: Maybe a -> Bool
 isNothing :: Maybe a -> Bool
-fromJust :: Maybe a -> a
 fromMaybe :: a -> Maybe a -> a
 listToMaybe :: [a] -> Maybe a
 maybeToList :: Maybe a -> [a]
@@ -33,12 +32,13 @@ module Data.ByteString.Builder
 data Builder
 intDec :: Int -> Builder
 int64BE :: Int64 -> Builder
+byteStringHex :: ByteString -> Builder
+toLazyByteString :: Builder -> ByteString
 
 -- bytestring
 module Data.ByteString.Lazy
 data ByteString
 empty :: ByteString
-toLazyByteString :: Builder -> ByteString
 reverse :: ByteString -> ByteString
 intersperse :: Word8 -> ByteString -> ByteString
 intercalate :: ByteString -> [ByteString] -> ByteString
@@ -46,39 +46,34 @@ maximum :: ByteString -> Word8
 minimum :: ByteString -> Word8
 elem :: Word8 -> ByteString -> Bool
 notElem :: Word8 -> ByteString -> Bool
+concat :: [ByteString] -> ByteString
 
--- containers
-module Data.Map.Strict
-data Map k a
-empty :: Map k a
-singleton :: k -> a -> Map k a
-null :: Map k a -> Bool
-size :: Map k a -> Int
-elems :: Map k a -> [a]
-keys :: Map k a -> [k]
-toList :: Map k a -> [(k, a)]
-take :: Int -> Map k a -> Map k a
-drop :: Int -> Map k a -> Map k a
 
 -- base
 module Data.List
 (++) :: [a] -> [a] -> [a]
 infixr 5 ++
-head :: [a] -> a
-last :: [a] -> a
-tail :: [a] -> [a]
-init :: [a] -> [a]
-uncons :: [a] -> Maybe (a, [a])
-take :: Int -> [a] -> [a]
+cycle :: [a] -> [a]
 drop :: Int -> [a] -> [a]
-splitAt :: Int -> [a] -> ([a], [a])
+head :: [a] -> a
+init :: [a] -> [a]
 inits :: [a] -> [[a]]
-tails :: [a] -> [[a]]
-zip :: [a] -> [b] -> [(a, b)]
+last :: [a] -> a
 lines :: String -> [String]
-words :: String -> [String]
+permutations :: [a] -> [[a]]
+splitAt :: Int -> [a] -> ([a], [a])
+subsequences :: [a] -> [[a]]
+tail :: [a] -> [a]
+tails :: [a] -> [[a]]
+take :: Int -> [a] -> [a]
+transpose :: [[a]] -> [[a]]
+uncons :: [a] -> Maybe (a, [a])
 unlines :: [String] -> String
 unwords :: [String] -> String
+unzip :: [(a, b)] -> ([a], [b])
+unzip3 :: [(a, b, c)] -> ([a], [b], [c])
+words :: String -> [String]
+zip :: [a] -> [b] -> [(a, b)]
 
 -- base
 module Data.Tuple
@@ -87,3 +82,6 @@ snd :: (a, b) -> b
 swap :: (a, b) -> (b, a)
 
 
+-- base
+module GHC.List
+and :: [Bool] -> Bool
