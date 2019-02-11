@@ -9,7 +9,7 @@ import Z3.Monad hiding(Z3Env, newEnv)
 import PetriNet.PNBuilder
 import Synquid.Util
 
-data VarType = VarPlace | VarTransition | VarFlow
+data VarType = VarPlace | VarTransition | VarFlow | VarTimestamp
     deriving(Eq, Ord, Show)
 
 data Variable = Variable {
@@ -30,10 +30,13 @@ data EncodeState = EncodeState {
   z3env :: Z3Env,
   petriNet :: PetriNet,
   loc :: Int,
-  nbVariable :: Int,
-  place2variable :: HashMap (Id, Int) Variable,
-  transition2variable :: HashMap (Id, Int) Variable,
-  id2variable :: HashMap Int Variable,
+  abstractionLv :: Int,
+  transitionNb :: Int,
+  lv2range :: HashMap Int (Int, Int),
+  place2variable :: HashMap (Id, Int) Variable, -- place name and timestamp
+  time2variable :: HashMap (Int, Int) Variable, -- timestamp and abstraction level
+  transition2id :: HashMap Int (HashMap Id Int), -- transition name and abstraction level
+  id2transition :: HashMap Int (Id, Int),
   mustFirers :: [Id],
   transitionChildren :: HashMap Id [Id],
   transitionParents :: HashMap Id [Id]

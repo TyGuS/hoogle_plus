@@ -270,8 +270,8 @@ lifty = Lifty {
       defaultFormat = outputFormat defaultSynquidParams
 
 generate = Generate {
-  pkg_name             = []              &= args &= help ("Package names to be generated"),
-  module_name          = []              &= args &= help ("Module names to be generated in the given packages"),
+  pkg_name             = []              &= help ("Package names to be generated"),
+  module_name          = []              &= help ("Module names to be generated in the given packages"),
   type_depth           = 2               &= help ("Depth of the types to be instantiated for polymorphic type constructors"),
   higher_order         = False           &= help ("Include higher order functions (default: False)")
 } &= help "Generate the type conversion database for synthesis"

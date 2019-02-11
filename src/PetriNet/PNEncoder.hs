@@ -96,26 +96,22 @@ solveAndGetModel :: Encoder [(Id, Int)]
 solveAndGetModel = do
     res <- check
     l <- loc <$> get
-        {- when (l==2) (do
-        str <- solverToString
-        liftIO (putStrLn str)
-        transMap <- transition2variable <$> get
-        liftIO (print transMap)
-        placeMap <- place2variable <$> get
-        liftIO (print placeMap)
-                )
-       -}
+        {- when (l == 4) (do
+        solverStr <- solverToString
+        liftIO $ putStrLn solverStr
+        transMap <- transition2id <$> get
+        liftIO $ print transMap
+                  ) -}
     case res of
         Sat -> do
             model <- solverGetModel
-            transMap <- transition2variable <$> get
-            selected <- filterM (checkLit model) $ HashMap.toList transMap
-            let selectedTr = fst $ unzip selected
-            blockTr <- mapM (\t -> mkZ3BoolVar $ findVariable t transMap) selectedTr
+            selected <- mapM (checkLit model) [0..(l-1)]
+            blockTrs <- mapM (uncurry blockTr) (zip [0..(l-1)] selected)
             -- placeMap <- place2variable <$> get
             -- blockP <- mapM (checkIntLit model) $ HashMap.toList placeMap
-            mkAnd blockTr >>= mkNot >>= assert
-            return selectedTr
+            mkAnd blockTrs >>= mkNot >>= assert
+            selectedNames <- getTrNames selected
+            return (zip selectedNames [0,1..])
         Unsat -> do
             liftIO $ print "unsat"
             return []
@@ -123,12 +119,27 @@ solveAndGetModel = do
             liftIO $ print "undef"
             return []
   where
-    checkLit model (k, v) = do
-        trVar <- mkZ3BoolVar v
-        bMay <- evalBool model trVar
+    getTrNames selected = do
+        lv <- abstractionLv <$> get
+        transMap <- id2transition <$> get
+        let transNames = map (\id -> findVariable (fromIntegral id) transMap) selected
+        let selectedTrs = map fst (filter ((==) lv . snd) transNames)
+        return selectedTrs
+
+    checkLit model t = do
+        lv <- abstractionLv <$> get
+        tsMap <- time2variable <$> get
+        tsVar <- mkZ3IntVar (findVariable (t, lv) tsMap)
+        bMay <- evalInt model tsVar
         case bMay of
             Just b -> return b
-            Nothing -> error $ "cannot eval the variable" ++ show k
+            Nothing -> error $ "cannot eval the variable" ++ show (t, lv)
+
+    blockTr t tr = do
+        lv <- abstractionLv <$> get
+        tsMap <- time2variable <$> get
+        tsVar <- mkZ3IntVar (findVariable (t, lv) tsMap)
+        mkIntNum tr >>= mkEq tsVar
 
     checkIntLit model (k, v) = do
         pVar <- mkZ3IntVar v
@@ -140,7 +151,7 @@ solveAndGetModel = do
 encoderInit :: PetriNet -> Int -> [Id] -> [Id] -> Id -> IO EncodeState
 encoderInit net loc hoArgs inputs ret = do
     z3Env <- initialZ3Env
-    let initialState = EncodeState z3Env net loc 1 HashMap.empty HashMap.empty HashMap.empty hoArgs HashMap.empty HashMap.empty
+    let initialState = EncodeState z3Env net loc 0 0 HashMap.empty HashMap.empty HashMap.empty HashMap.empty HashMap.empty hoArgs HashMap.empty HashMap.empty
     execStateT (createEncoder inputs ret) initialState
 
 encoderSolve :: EncodeState -> IO ([(Id, Int)], EncodeState)
@@ -188,34 +199,41 @@ withTime desc f = do
 encoderRefine :: PetriNet -> SplitInfo -> [Id] -> Id -> Encoder ()
 encoderRefine net info inputs ret = do
     -- update the transition hierarchy information
-    updateParallelInfo info
+    -- updateParallelInfo info
     -- put the new petri net into the state
-    -- oldNet <- petriNet <$> get
     st <- get
-    put $ st { petriNet = net }
+    put $ st { petriNet = net 
+             , abstractionLv = (abstractionLv st + 1)
+             }
     let splitedTyp = show (oldPlace info)
     let typIds = map show (newPlace info)
     let splitedPlace = fromJust (HashMap.lookup splitedTyp (pnPlaces net))
     let newPlaces = map (\nt -> fromJust (HashMap.lookup nt (pnPlaces net))) typIds
     let inputClones = map (\n -> n ++ "|clone") inputs
     let transIds = concat (snd (unzip (splitedGroup info)))
+    let allTransIds = fst (unzip (splitedGroup info)) ++ transIds
+    -- some of the transitions are splitted
     let newTrans = map (\tr -> fromJust (HashMap.lookup tr (pnTransitions net))) (inputClones ++ transIds)
+    -- other transition have no change but need to be copied to the next level
+    let noSplit k _ = not (elem k allTransIds || "|clone" `isSuffixOf` k)
+    let oldTransIds = HashMap.keys (HashMap.filterWithKey noSplit (findVariable (abstractionLv st) (transition2id st)))
+    let oldTrans = map (\tr -> findVariable tr (pnTransitions net)) oldTransIds
     let lookupTrans tr = fromJust (HashMap.lookup tr (pnTransitions net))
     let splitTrans = map (\(tr, trs) -> (lookupTrans tr, map lookupTrans trs)) (splitedGroup info)
 
     l <- loc <$> get
     let allTrans = [(t, tr) | t <- [0..(l-1)], tr <- newTrans ]
 
-    -- add new place and transition variables
+    -- add new place, transition and timestamp variables
     mapM_ addPlaceVar newPlaces
-    mapM_ addTransitionVar newTrans
+    addTransitionVar (newTrans ++ oldTrans)
+    mapM_ addTimestampVar [0..(l-1)]
 
     -- refine the sequential constraints
     -- but enable transitions between abstraction levels fired simultaneously
     -- let transitions = HashMap.elems (pnTransitions net)
     -- mapM_ (fireAt transitions) [0..(l-1)]
     withTime "sequentialTransitions" sequentialTransitions
-
 
     -- refine the precondition constraints
     withTime "preconditions" $ mapM_ (uncurry preconditionsTransitions) allTrans
@@ -225,7 +243,8 @@ encoderRefine net info inputs ret = do
 
     -- refine the no transition constraints
     withTime "placeMerge" $ mapM_ (placeMerge splitedPlace newPlaces) [0..l]
-    withTime "transMerge" $ mapM_ (uncurry transMerge) [(tr, t) | tr <- splitTrans, t <- [0..(l-1)]]
+    withTime "transMerge" $ mapM_ (uncurry transMerge) [ (tr, t) | tr <- splitTrans, t <- [0..(l-1)] ]
+    withTime "transKeep" $ mapM_ (uncurry transClone) [ (tr, t) | tr <- oldTrans, t <- [0..(l-1)] ]
     withTime "noTransitionTokens" $ mapM_ (uncurry noTransitionTokens) [(t, p) | p <- newPlaces, t <- [0..(l-1)]]
 
     -- refine the must firers
@@ -246,12 +265,30 @@ encoderRefine net info inputs ret = do
         mkAdd npZ3Vars >>= mkEq pZ3Var >>= assert
 
     transMerge (tr, ntrs) t = do
-        transMap <- transition2variable <$> get
-        let ntrVars = map (\ntr -> findVariable (transitionId ntr, t) transMap) ntrs
-        ntrZ3Vars <- mapM mkZ3BoolVar ntrVars
-        let trVar = findVariable (transitionId tr, t) transMap
-        trZ3Var <- mkZ3BoolVar trVar
-        mkOr ntrZ3Vars >>= mkEq trZ3Var >>= assert
+        transMap <- transition2id <$> get
+        tsMap <- time2variable <$> get
+        lv <- abstractionLv <$> get
+        let ntrIds = map (\ntr -> findVariable (transitionId ntr) (findVariable lv transMap)) ntrs
+        let trId = findVariable (transitionId tr) (findVariable (lv - 1) transMap)
+        let tsVar = findVariable (t, lv) tsMap
+        let lastTsVar = findVariable (t, lv - 1) tsMap
+        tsZ3Var <- mkZ3IntVar tsVar
+        lastTsZ3Var <- mkZ3IntVar lastTsVar
+        selectTr <- mkIntNum trId >>= mkEq lastTsZ3Var 
+        selectNtrs <- mapM mkIntNum ntrIds >>= mapM (mkEq tsZ3Var)
+        mkOr selectNtrs >>= mkIff selectTr >>= assert
+
+    transClone tr t = do
+        transMap <- transition2id <$> get
+        tsMap <- time2variable <$> get
+        lv <- abstractionLv <$> get
+        trVar <- mkIntNum (findVariable (transitionId tr) (findVariable lv transMap))
+        lastTrVar <- mkIntNum (findVariable (transitionId tr) (findVariable (lv - 1) transMap))
+        tsVar <- mkZ3IntVar (findVariable (t, lv) tsMap)
+        lastTsVar <- mkZ3IntVar (findVariable (t, lv - 1) tsMap)
+        selectLastTr <- mkEq lastTsVar lastTrVar
+        selectTr <- mkEq tsVar trVar
+        mkIff selectLastTr selectTr >>= assert
 
 addPlaceVar ::  Place -> Encoder ()
 addPlaceVar p = do
@@ -260,38 +297,54 @@ addPlaceVar p = do
   where
     addPlaceVarAt t = do
         st <- get
-        let placeVar = Variable (nbVariable st) (placeId p) t 0 VarPlace
+        let placeVar = Variable 0 (placeId p ++ "_" ++ show t) t 0 VarPlace
         put $ st { place2variable = HashMap.insert (placeId p, t) 
                                                     placeVar 
                                                    (place2variable st)
-                 , nbVariable = 1 + (nbVariable st)
                  }
 
-addTransitionVar ::  Transition -> Encoder ()
-addTransitionVar tr = do
-    l <- loc <$> get
-    mapM_ addTransitionVarAt [0..(l-1)]
+-- | add transition mapping from (tr, lv) to integer id
+addTransitionVar :: [Transition] -> Encoder ()
+addTransitionVar trs = do
+    lv <- abstractionLv <$> get
+    start <- transitionNb <$> get -- inclusive start
+    mapM_ addTransitionVarFor trs
+    end <- transitionNb <$> get -- exclusive end
+    st <- get
+    put $ st { lv2range = HashMap.insert lv (start, end) (lv2range st) }
   where
-    addTransitionVarAt t = do
+    addTransitionVarFor tr = do
+        lv <- abstractionLv <$> get
         st <- get
-        let transitionVar = Variable (nbVariable st) (transitionId tr) t 0 VarTransition
-        put $ st { transition2variable = HashMap.insert (transitionId tr, t)
-                                                         transitionVar
-                                                        (transition2variable st)
-                 , id2variable = HashMap.insert (nbVariable st) 
-                                                 transitionVar 
-                                                (id2variable st)
-                 , nbVariable = 1 + (nbVariable st)
+        let tid = transitionNb st
+        -- liftIO $ putStrLn $ show tid ++ ": " ++ show (transitionId tr)
+        put $ st { transitionNb = 1 + transitionNb st
+                 , transition2id = HashMap.insertWith HashMap.union lv (HashMap.singleton (transitionId tr) tid) (transition2id st)
+                 , id2transition = HashMap.insert tid (transitionId tr, lv) (id2transition st)
                  }
+
+addTimestampVar :: Int -> Encoder ()
+addTimestampVar t = do
+    absLv <- abstractionLv <$> get
+    mapM_ addTimestampVarAt [0..absLv]
+  where
+    addTimestampVarAt l = do
+        st <- get
+        let tsVar = Variable (-1) ("ts_" ++ show t ++ "_" ++ show l) t l VarTimestamp
+        put $ st { time2variable = HashMap.insert (t, l) tsVar (time2variable st) }
 
 -- | map each place and transition to a variable in z3
 createVariables ::  Encoder ()
 createVariables = do
     pn <- petriNet <$> get
+    l <- loc <$> get
+    -- lv <- abstractionLv <$> get
     -- add place variables
-    mapM_ addPlaceVar $ pnPlaces pn
-    -- add transition variables
-    mapM_ addTransitionVar $ pnTransitions pn
+    mapM_ addPlaceVar (pnPlaces pn)
+    -- add transition mapping
+    addTransitionVar (HashMap.elems (pnTransitions pn))
+    -- add timestamp variables
+    mapM_ addTimestampVar [0..(l-1)]
 
 createConstraints ::  Encoder ()
 createConstraints = do
@@ -302,8 +355,10 @@ createConstraints = do
     let allTrans = [(t, tr) | t <- [0..(l-1)], tr <- trans]
     let allPlaces = [(t, p) | t <- [0..(l-1)], p <- places]
 
+    -- we assume we only have the first abstraction level each time when we call this method
     sequentialTransitions
-
+    -- we do not have parallel transitions in the first time encoding
+    
     mapM_ (uncurry preconditionsTransitions) allTrans
 
     mapM_ (uncurry postconditionsTransitions) allTrans
@@ -311,7 +366,6 @@ createConstraints = do
     mapM_ (uncurry noTransitionTokens) allPlaces
 
     mustFireTransitions
-
 
 mkZ3BoolVar ::  Variable -> Encoder AST
 mkZ3BoolVar var = do
@@ -322,7 +376,7 @@ mkZ3BoolVar var = do
 
 mkZ3IntVar :: Variable -> Encoder AST
 mkZ3IntVar var = do
-    varSymbol <- mkIntSymbol (varId var)
+    varSymbol <- mkStringSymbol (varName var)
     intS <- mkIntSort
     const <- mkConst varSymbol intS
     return const
@@ -332,33 +386,25 @@ findVariable k m = case HashMap.lookup k m of
                         Just v -> v
                         Nothing -> error $ "cannot find variable for " ++ show k
 
--- | at each timestamp, only one transition can be fired
+-- | at each timestamp, only one transition can be fired, we restrict the
+-- fired transition id range here
 sequentialTransitions :: Encoder ()
 sequentialTransitions = do
-    transitions <- HashMap.elems . pnTransitions . petriNet <$> get
     l <- loc <$> get
-    mapM_ (fireAt transitions) [0..(l-1)]
+    lv <- abstractionLv <$> get
+    lvRange <- lv2range <$> get
+    let rng = findVariable lv lvRange
+    mapM_ (fireAt rng) [0..(l-1)]
   where
-    fireAt transitions t = do
-        transMap <- transition2variable <$> get
-        let transVar = map (\tr -> findVariable (transitionId tr, t) transMap) transitions
-        allPossible <- mapM (fireIth transVar) [0..(length transitions - 1)]
-        mkOr allPossible >>= assert
-
-    fireIth transitions i = do
-        trPar <- transitionParents <$> get
-        trChd <- transitionChildren <$> get
-        let tid = varName (transitions !! i)
-        let excludeList = HashMap.lookupDefault [] tid trPar
-                       ++ HashMap.lookupDefault [] tid trChd
-                       ++ if "|clone" `isSuffixOf` tid 
-                             then map varName $ filter (isSuffixOf "|clone" . varName) transitions 
-                             else []
-        let otherTrans = deleteAt i transitions
-        let excludedTrans = filter (\tr -> not (elem (varName tr) excludeList)) otherTrans
-        allOtherTrans <- mapM (mkZ3BoolVar >=> mkNot) excludedTrans
-        firedTr <- mkZ3BoolVar (transitions !! i)
-        mkAnd (firedTr : allOtherTrans)
+    fireAt rng t = do
+        tsMap <- time2variable <$> get
+        lv <- abstractionLv <$> get
+        let tsVar = findVariable (t, lv) tsMap
+        tsZ3Var <- mkZ3IntVar tsVar
+        start <- mkIntNum (fst rng)
+        mkGe tsZ3Var start >>= assert
+        end <- mkIntNum (snd rng)
+        mkLt tsZ3Var end >>= assert
 
 -- | if this place has no connected transition fired, 
 -- it has the same # of tokens
@@ -366,24 +412,31 @@ noTransitionTokens :: Int -> Place -> Encoder ()
 noTransitionTokens t p = noFirePlace t p
   where
     noFirePlace t p = do
-        trans <- pnTransitions . petriNet <$> get
-        let transitions = map (\i -> findVariable i trans) 
+        lv <- abstractionLv <$> get
+        trans <- findVariable lv . transition2id <$> get
+        let transitions = map (\i -> findVariable i trans)
                         $ Set.toList $ placePreset p `Set.union` placePostset p
-        transMap <- transition2variable <$> get
-        let trVars = map (\tr -> findVariable (transitionId tr, t) transMap) transitions
-        trZ3Vars <- mapM mkZ3BoolVar trVars
+        noFireLvs <- noFireAt transitions p t
+        noFire <- mkOr noFireLvs >>= mkNot
         placeMap <- place2variable <$> get
         curr <- mkZ3IntVar $ findVariable (placeId p, t) placeMap
         next <- mkZ3IntVar $ findVariable (placeId p, t + 1) placeMap
-        unfiredTrans <- mapM mkNot trZ3Vars >>= mkAnd
-        mkEq curr next >>= mkImplies unfiredTrans >>= assert
+        mkEq curr next >>= mkImplies noFire >>= assert
+
+    noFireAt transitions p t = do
+        idVars <- mapM mkIntNum transitions
+        tsMap <- time2variable <$> get
+        lv <- abstractionLv <$> get
+        let tsVar = findVariable (t, lv) tsMap
+        tsZ3Var <- mkZ3IntVar tsVar
+        mapM (mkEq tsZ3Var) idVars
 
 -- | calculate the preconditions for each transition to be fired
 preconditionsTransitions :: Int -> Transition -> Encoder ()
-preconditionsTransitions t tr = fireFor t tr
+preconditionsTransitions t tr = fireFor
   where
     -- get enough resources for current places to fire the tr
-    getSatisfiedPlaces t trVar f = do
+    getSatisfiedPlaces trVar f = do
         places <- pnPlaces . petriNet <$> get
         let p = case HashMap.lookup (flowPlace f) places of
                     Just pp -> pp
@@ -410,19 +463,21 @@ preconditionsTransitions t tr = fireFor t tr
             then return ()
             else mkEq maxTokenVar w1 >>= mkNot >>= mkImplies trVar >>= assert
 
-    fireFor t tr = do
+    fireFor = do
         flows <- pnFlows . petriNet <$> get
-        transMap <- transition2variable <$> get
-        trVar <- mkZ3BoolVar $ findVariable (transitionId tr, t) transMap
+        transMap <- transition2id <$> get
+        tsMap <- time2variable <$> get
+        lv <- abstractionLv <$> get
+        let trId = findVariable (transitionId tr) (findVariable lv transMap)
+        let tsVar = findVariable (t, lv) tsMap
         let preFlows = map (\f -> findVariable f flows)
                            (Set.toList $ transitionPreset tr)
-        mapM_ (getSatisfiedPlaces t trVar) preFlows
-        -- let postFlows = map (\f -> findVariable f flows)
-        --                    (Set.toList $ transitionPostset tr)
-        -- mapM_ (hasReachedMax t tr trVar preFlows) postFlows
+        tsZ3Var <- mkZ3IntVar tsVar
+        trVar <- mkIntNum trId >>= mkEq tsZ3Var
+        mapM_ (getSatisfiedPlaces trVar) preFlows
 
 postconditionsTransitions :: Int -> Transition -> Encoder ()
-postconditionsTransitions t tr = placesToChange t tr
+postconditionsTransitions t tr = placesToChange
   where
     addChangedPlace places pre f changeList = 
         let pid = flowPlace f
@@ -438,7 +493,7 @@ postconditionsTransitions t tr = placesToChange t tr
         diffw <- mkIntNum d
         mkAdd [before, diffw] >>= mkEq after >>= mkImplies trVar >>= assert
 
-    placesToChange t tr = do
+    placesToChange = do
         flows <- pnFlows . petriNet <$> get
         places <- pnPlaces . petriNet <$> get
         let preFlows = map (\f -> findVariable f flows)
@@ -447,22 +502,29 @@ postconditionsTransitions t tr = placesToChange t tr
         let postFlows = map (\f -> findVariable f flows)
                             (Set.toList $ transitionPostset tr)
         let toChange = foldr (addChangedPlace places False) preChange postFlows
-        transMap <- transition2variable <$> get
-        trVar <- mkZ3BoolVar $ findVariable (transitionId tr, t) transMap
-        -- liftIO $ print $ "prepare to fire " ++ show (tr, t)
+        transMap <- transition2id <$> get
+        tsMap <- time2variable <$> get
+        lv <- abstractionLv <$> get
+        let trId = findVariable (transitionId tr) (findVariable lv transMap)
+        let tsVar = findVariable (t, lv) tsMap
+        tsZ3Var <- mkZ3IntVar tsVar
+        trVar <- mkIntNum trId >>= mkEq tsZ3Var
         mapM_ (uncurry (mkChange t trVar)) (HashMap.toList toChange)
 
 mustFireTransitions ::  Encoder ()
 mustFireTransitions = do
     must <- mustFirers <$> get
-    transitions <- HashMap.elems . pnTransitions . petriNet <$> get
-    let mustTrans = filter (nameInMust must . transitionId) transitions
+    lv <- abstractionLv <$> get
+    transitions <- findVariable lv . transition2id <$> get
+    let mustTrans = HashMap.filterWithKey (\k _ -> nameInMust must k) transitions
     mapM_ fireTransition mustTrans
   where
     nameInMust must name = foldr ((||) . flip isInfixOf name) False must
-    fireTransition tr = do
-        transMap <- transition2variable <$> get
+    fireTransition tid = do
         l <- loc <$> get
-        trVars <- mapM (\t -> mkZ3BoolVar $ findVariable (transitionId tr, t) transMap) [0..(l-1)]
+        lv <- abstractionLv <$> get
+        tsMap <- time2variable <$> get
+        trId <- mkIntNum tid
+        tsVars <- mapM (\t -> mkZ3IntVar (findVariable (t, lv) tsMap)) [0..(l-1)]
+        trVars <- mapM (mkEq trId) tsVars
         mkOr trVars >>= assert
-   

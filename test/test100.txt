@@ -28,7 +28,7 @@ Nothing :: Maybe a
 Just :: a -> Maybe a
 isJust :: Maybe a -> Bool
 isNothing :: Maybe a -> Bool
-fromJust :: Maybe a -> a
+-- fromJust :: Maybe a -> a
 fromMaybe :: a -> Maybe a -> a
 listToMaybe :: [a] -> Maybe a
 maybeToList :: Maybe a -> [a]

@@ -257,15 +257,12 @@ splitTransition env tid info = do
     mapM_ (uncurry typeMap) unifiedTyps
     -- step 3: pack the information into SplitInfo for incremental encoding
     let newIds = fst (unzip unifiedTyps)
-    when (not (null newIds)) $ do
-        -- step 4: update the detailed signature ids
-        modify $ over detailedSigs (Set.union (Set.fromList newIds) . Set.delete tid)
-        -- step 5: remove splited transition from the type2transition mapping
-        modify $ over type2transition (Map.map (delete tid))
+    -- step 4: remove splited transition from the type2transition mapping
+    modify $ over type2transition (Map.map (delete tid))
     -- return the new split information with splited transitions
-    if null newIds
-       then return info
-       else return (info { splitedGroup = (tid, newIds):(splitedGroup info) })
+    -- step 5: update the detailed signature ids
+    modify $ over detailedSigs (Set.union (Set.fromList newIds) . Set.delete tid)
+    return (info { splitedGroup = (tid, newIds):(splitedGroup info) })
   where
     typeMap id ty = do
         let tys = decompose ty

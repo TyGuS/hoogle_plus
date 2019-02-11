@@ -111,7 +111,7 @@ executable synquid
                     , MissingH
                     , hint
 
-  ghc-options:   -O2
+  ghc-options:   -O2 -rtsopts
   includes:            z3.h
   
   if os(darwin) || os(windows)

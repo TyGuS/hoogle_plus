@@ -1,9 +1,9 @@
 #!/bin/bash
 
-query_list=("Int64 -> ByteString" "List (Maybe Bool) -> Bool" "a -> List (Maybe a) -> a")
+query_list=("Int64 -> ByteString" "List (Maybe Bool) -> Bool" "a -> List (Maybe a) -> a" "(a -> b) -> Pair a a -> Pair b b")
 
 
-for i in 100
+for i in 10 20 50 100
 do
     testPath="./test/test$i.txt"
     echo $testPath
@@ -22,7 +22,7 @@ do
     fi
     for q in "${query_list[@]}"    
     do
-        for t in {1..5}
+        for t in 1
         do
             time stack exec -- synquid synthesis "$q" --path=PetriNet --use-refine=AbstractRefinement
         done
