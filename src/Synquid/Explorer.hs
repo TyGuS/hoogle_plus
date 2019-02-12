@@ -219,8 +219,12 @@ generateI env t@(ScalarT _ _) isElseBranch = do
       maxLevel <- asks . view $ _1 . explorerLogLevel
       cnt <- asks . view $ _1 . solutionCnt
       rs <- asks . view $ _1 . useRefine
-      evalStateT (PNSolver.runPNSolver env' cnt t)
-                 $ PNSolver.emptySolverState {PNSolver._logLevel = maxLevel, PNSolver._refineStrategy = rs}
+      let is = PNSolver.emptySolverState {
+                 PNSolver._logLevel = maxLevel
+               , PNSolver._refineStrategy = rs
+               , PNSolver._abstractionTree = PNSolver.firstLvAbs (Map.elems (allSymbols env))
+               }
+      evalStateT (PNSolver.runPNSolver env' cnt t) is
     PNSMT -> do
       cnt <- asks . view $ _1 . solutionCnt
       encoder <- asks. view $ _1 . encoderType

@@ -98,6 +98,13 @@ toAbstractType (ScalarT (DatatypeT id tArgs _) _) = ADatatypeT id (map toAbstrac
 toAbstractType (FunctionT x tArg tRet) = AFunctionT (toAbstractType tArg) (toAbstractType tRet)
 toAbstractType AnyT = AExclusion Set.empty
 
+allAbstractDts :: SType -> Set AbstractSkeleton
+allAbstractDts (FunctionT _ tArg tRet) = allAbstractDts tArg `Set.union` allAbstractDts tRet
+allAbstractDts (ScalarT (DatatypeT id tArgs _) _) = (ADatatypeT id (map (\_ -> AExclusion Set.empty) tArgs)) `Set.insert` foldr (Set.union . allAbstractDts) Set.empty tArgs
+allAbstractDts (ScalarT IntT _) = Set.empty
+allAbstractDts (ScalarT BoolT _) = Set.empty
+allAbstractDts (ScalarT (TypeVarT _ id) _) = Set.empty
+
 outerName :: AbstractSkeleton -> Either (Set Id) (Set Id)
 outerName (ADatatypeT id _) = Left (Set.singleton id)
 outerName (ATypeVarT id) = Right Set.empty
