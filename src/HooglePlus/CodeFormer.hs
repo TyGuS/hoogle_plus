@@ -112,8 +112,9 @@ generateProgram signatures inputs argNames = do
         let fold_fn f (b, c) = if b then includeSymbol c f else (b, c)
             base             = (True, code)
             funcNames        = map (removeLast '_' . funName) signatures
-            (res, _)         = foldr fold_fn base (argNames ++ funcNames)
-        in res
+            (res, c)         = foldr fold_fn base (argNames ++ funcNames)
+            eachOnce         = foldr (\n acc -> isInfixOf n c || acc) False funcNames
+        in res && (not eachOnce)
 
     includeSymbol code fname | fname `isInfixOf` code = 
         (True, Text.unpack $ replaceOne (Text.pack fname) Text.empty (Text.pack code))

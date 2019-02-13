@@ -65,6 +65,7 @@ data PathSolver =
 data RefineStrategy =
     NoRefine
   | AbstractRefinement
+  | Combination
   deriving(Data, Show, Eq)
 
 data TimeStatistics = TimeStatistics {
@@ -492,7 +493,7 @@ distinguish' (ADatatypeT pid pArgs) t1@(ADatatypeT id1 tArgs1) t2@(ADatatypeT id
             Nothing -> case firstDifference pargs args args' of
                          [] -> []
                          diffs -> parg:diffs
-            Just t  -> t:(map fillAny args)
+            Just t  -> t:pargs
 distinguish' _ (AExclusion s) (ADatatypeT id args) | id `Set.notMember` s = Just (ADatatypeT id (map fillAny args))
 distinguish' _ (AExclusion s) (ADatatypeT id _) = Nothing
 distinguish' p t1@(ADatatypeT id args) t2@(AExclusion s) = distinguish' p t2 t1
@@ -767,6 +768,11 @@ resetEncoder env dst = do
 
     -- reset the petri net
     net <- view solverNet <$> get
+    modify $ over solverStats (\s -> s {
+        iterations = iterations s + 1,
+        numOfTransitions = Map.insert (iterations s + 1) (HashMap.size (pnTransitions net)) (numOfTransitions s),
+        numOfPlaces = Map.insert (iterations s + 1) (HashMap.size (pnPlaces net)) (numOfPlaces s)
+    })
     -- filter the net with only the detailed signatures
     dsigs <- view detailedSigs <$> get
     sigs <- view currentSigs <$> get
@@ -901,11 +907,14 @@ findProgram env dst st = do
         rs <- view refineStrategy <$> get
         case rs of
             NoRefine -> findProgram env dst st
+            Combination -> do
+                splitInfo <- withTime "refinement time" (refineSemantic env errorProg errorTop)
+                -- add new places and transitions into the petri net
+                newSemantic <- view abstractionTree <$> get
+                refine st oldSemantic newSemantic splitInfo
             AbstractRefinement -> do
                 splitInfo <- withTime "refinement time" (refineSemantic env errorProg errorTop)
                 -- add new places and transitions into the petri net
-                -- there is no need for us to add flows, it does not help if we only split one node 
-                -- but this is different for places with self loop [TODO]
                 newSemantic <- view abstractionTree <$> get
                 refine st oldSemantic newSemantic splitInfo
 
@@ -929,7 +938,8 @@ findProgram env dst st = do
 
     checkSolution st codes = do
         solutions <- view currentSolutions <$> get
-        checkedSols <- withTime "type checking time" (filterM (liftIO . haskellTypeChecks env dst) codes)
+        let checkedSols = codes
+        -- checkedSols <- withTime "type checking time" (filterM (liftIO . haskellTypeChecks env dst) codes)
         if (null checkedSols) || (solutions `union` checkedSols == solutions)
            then do
                findProgram env dst st
