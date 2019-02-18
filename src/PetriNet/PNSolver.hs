@@ -908,15 +908,21 @@ findProgram env dst st = do
         rs <- view refineStrategy <$> get
         case rs of
             NoRefine -> findProgram env dst st
-            Combination -> doRefinement oldSemantic errs
-            AbstractRefinement -> doRefinement oldSemantic errs
-            QueryRefinement -> doRefinement oldSemantic errs
-
-    doRefinement oldSemantic [errorProg, errorTop] = do
-      splitInfo <- withTime "refinement time" (refineSemantic env errorProg errorTop)
-      -- add new places and transitions into the petri net
-      newSemantic <- view abstractionTree <$> get
-      refine st oldSemantic newSemantic splitInfo
+            Combination -> do
+              splitInfo <- withTime "refinement time" (refineSemantic env errorProg errorTop)
+              -- add new places and transitions into the petri net
+              newSemantic <- view abstractionTree <$> get
+              refine st oldSemantic newSemantic splitInfo
+            AbstractRefinement -> do
+              splitInfo <- withTime "refinement time" (refineSemantic env errorProg errorTop)
+              -- add new places and transitions into the petri net
+              newSemantic <- view abstractionTree <$> get
+              refine st oldSemantic newSemantic splitInfo
+            QueryRefinement -> do
+              splitInfo <- withTime "refinement time" (refineSemantic env errorProg errorTop)
+              -- add new places and transitions into the petri net
+              newSemantic <- view abstractionTree <$> get
+              refine st oldSemantic newSemantic splitInfo
 
     refine st oldSemantic newSemantic info | oldSemantic == newSemantic =
         findProgram env dst st
