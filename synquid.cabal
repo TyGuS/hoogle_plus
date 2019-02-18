@@ -38,6 +38,7 @@ executable synquid
                  PetriNet.Encoder
                  PetriNet.PNEncoder
                  PetriNet.GHCChecker
+                 PetriNet.Abstraction
                  HooglePlus.CodeFormer
                  HooglePlus.Encoder
                  Synquid.Codegen
@@ -113,7 +114,7 @@ executable synquid
 
   ghc-options:   -O2 -rtsopts
   includes:            z3.h
-  
+
   if os(darwin) || os(windows)
       extra-libraries:     z3
   else
