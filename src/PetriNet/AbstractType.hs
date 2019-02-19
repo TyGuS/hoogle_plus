@@ -33,6 +33,16 @@ data AbstractionTree =
 
 isAFunctionT (AFunctionT {}) = True
 isAFunctionT _ = False
+notEx (AExclusion _) = False
+notEx _ = True
+isAHigherOrder (AFunctionT tArg tRet) = isAFunctionT tArg || isAHigherOrder tRet
+isAHigherOrder _ = False
+
+abstractionSize :: AbstractSkeleton -> Int
+abstractionSize (AExclusion _) = 1
+abstractionSize (ADatatypeT id args) = 1 + maximum (map abstractionSize args)
+abstractionSize (ATypeVarT _) = 1
+abstractionSize (AFunctionT tArg tRet) = abstractionSize tArg + abstractionSize tRet + 1
 
 -- | if t1 is the subtype of t2
 isSubtypeOf :: AbstractSkeleton -> AbstractSkeleton -> Bool
@@ -40,7 +50,7 @@ isSubtypeOf (ATypeVarT id1) (ATypeVarT id2) = id1 == id2
 isSubtypeOf (AExclusion s1) (AExclusion s2) = True -- s2 `Set.isSubsetOf` s1 -- t1 excludes more types than t2
 isSubtypeOf (ADatatypeT id1 tys1) (ADatatypeT id2 tys2) = id1 == id2 && foldr ((&&) . uncurry isSubtypeOf) True (zip tys1 tys2)
 isSubtypeOf (ADatatypeT id tys) (AExclusion s) = id `Set.notMember` s
-isSubtypeOf (ATypeVarT _) (AExclusion _) = True
+isSubtypeOf (ATypeVarT id) (AExclusion s) = id `Set.notMember` s
 isSubtypeOf _ _ = False
 
 -- | get the closest abstraction to the given type
@@ -79,13 +89,13 @@ subtypesOf (ANode t lt rt) typ | otherwise = subtypesOf lt typ ++ subtypesOf rt 
 -- | exclude one type from its parent abstraction level
 typeDifference :: AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
 typeDifference (AExclusion s) (ADatatypeT id args) = AExclusion (Set.insert id s)
+typeDifference (AExclusion s) (ATypeVarT id) = AExclusion (Set.insert id s)
 typeDifference (ADatatypeT id1 args1) (ADatatypeT id2 args2) | id1 == id2 =
     ADatatypeT id1 (firstDifference args1 args2)
   where
     firstDifference [] [] = error "two types are identical to each other"
     firstDifference (arg:args) (arg':args') | arg == arg' = arg:(firstDifference args args')
     firstDifference (arg:args) (arg':_) = (typeDifference arg arg'):args
-typeDifference (AExclusion s) (ATypeVarT id) = ATypeVarT id
 typeDifference t1 t2 = error (printf "cannot compute difference between %s and %s" (show t1) (show t2))
 
 decompose :: AbstractSkeleton -> [AbstractSkeleton]
@@ -98,12 +108,16 @@ toAbstractType (ScalarT (DatatypeT id tArgs _) _) = ADatatypeT id (map toAbstrac
 toAbstractType (FunctionT x tArg tRet) = AFunctionT (toAbstractType tArg) (toAbstractType tRet)
 toAbstractType AnyT = AExclusion Set.empty
 
-allAbstractDts :: SType -> Set AbstractSkeleton
-allAbstractDts (FunctionT _ tArg tRet) = allAbstractDts tArg `Set.union` allAbstractDts tRet
-allAbstractDts (ScalarT (DatatypeT id tArgs _) _) = (ADatatypeT id (map (\_ -> AExclusion Set.empty) tArgs)) `Set.insert` foldr (Set.union . allAbstractDts) Set.empty tArgs
-allAbstractDts (ScalarT IntT _) = Set.empty
-allAbstractDts (ScalarT BoolT _) = Set.empty
-allAbstractDts (ScalarT (TypeVarT _ id) _) = Set.empty
+allAbstractDts :: [Id] -> SType -> Set AbstractSkeleton
+allAbstractDts tvs (FunctionT _ tArg tRet) = allAbstractDts tvs tArg `Set.union` allAbstractDts tvs tRet
+allAbstractDts tvs (ScalarT (DatatypeT id tArgs _) _) = outerDt `Set.insert` argDts
+  where
+    outerDt = ADatatypeT id (map (\_ -> AExclusion Set.empty) tArgs)
+    argDts = foldr (Set.union . allAbstractDts tvs) Set.empty tArgs
+allAbstractDts _ (ScalarT IntT _) = Set.empty
+allAbstractDts _ (ScalarT BoolT _) = Set.empty
+allAbstractDts tvs (ScalarT (TypeVarT _ id) _) | id `elem` tvs = Set.singleton (ATypeVarT id)
+allAbstractDts tvs (ScalarT (TypeVarT _ id) _) | otherwise = Set.empty
 
 outerName :: AbstractSkeleton -> Either (Set Id) (Set Id)
 outerName (ADatatypeT id _) = Left (Set.singleton id)

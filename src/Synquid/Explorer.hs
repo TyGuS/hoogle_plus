@@ -224,10 +224,10 @@ generateI env t@(ScalarT _ _) isElseBranch = do
                  PNSolver._logLevel = maxLevel
                , PNSolver._refineStrategy = rs
                , PNSolver._abstractionTree = case rs of
-                   PNSolver.NoRefine -> Abstraction.firstLvAbs (Map.elems (allSymbols env))
+                   PNSolver.NoRefine -> Abstraction.firstLvAbs env' (Map.elems (allSymbols env))
                    PNSolver.AbstractRefinement -> PNSolver.emptySolverState ^. PNSolver.abstractionTree
-                   PNSolver.Combination -> Abstraction.firstLvAbs (Map.elems (allSymbols env))
-                   PNSolver.QueryRefinement -> Abstraction.firstLvAbs (args)
+                   PNSolver.Combination -> Abstraction.firstLvAbs env' (Map.elems (allSymbols env))
+                   PNSolver.QueryRefinement -> Abstraction.firstLvAbs env' (args)
                }
       evalStateT (PNSolver.runPNSolver env' cnt t) is
     PNSMT -> do

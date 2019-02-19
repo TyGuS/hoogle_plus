@@ -148,14 +148,14 @@ lastAbstractType (AFunctionT tArg tFun) = lastAbstractType tFun
 lastAbstractType t                      = t
 
 encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
-encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params (show $ lastAbstractType t)
+encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [show $ lastAbstractType t]
   where
     base = (0, [])
-    hoFun x (i, a) = (i+1, (encodeFunction ("f" ++ show i) x) : a)
-    paramFun x (i, a) = if isAFunctionT x then (i+1, ("f" ++ show i):a) else (i, (show x):a)
+    hoFun x (i, a) = (i+1, (encodeFunction ("f" ++ show i ++ "_" ++ id) x) : a)
+    paramFun x (i, a) = if isAFunctionT x then (i+1, ("f" ++ show i ++ "_" ++ id):a) else (i, (show x):a)
     (_, hoParams) = foldr hoFun base $ filter isAFunctionT (abstractParamList t)
     (_, params) = foldr paramFun base (abstractParamList t)
-encodeFunction id t                        = FunctionCode id [] [] (show t)
+encodeFunction id t                        = FunctionCode id [] [] [show t]
 
 freshId :: (MonadIO m) => Id -> PNSolver m Id
 freshId prefix = do
@@ -179,12 +179,17 @@ instantiate env sigs = do
     Map.fromList <$> instantiate' sigs (nonPolyAbstracts semantic)
   where
     nonPolySigs = filter (not . hasAbstractVar . snd) sigs
-    nonPolyAbstracts semantic = map (\(id, t) -> (id, head (cutoff semantic t))) nonPolySigs
+    nonPolyAbstracts semantic = map (\(id, t) -> (id, head (cutoff env semantic t))) nonPolySigs
     removeSuffix id ty = (removeLast '_' id, ty)
 
     instantiate' sigs sigsAcc = do
         st <- get
-        let typs = leafTypes (st ^. abstractionTree)
+        -- to test first level abstraction, please disable the complement type here
+        let typs = case st ^. refineStrategy of
+                     AbstractRefinement -> leafTypes (st ^. abstractionTree)
+                     NoRefine -> filter notEx (leafTypes (st ^. abstractionTree))
+                     Combination -> filter notEx (leafTypes (st ^. abstractionTree))
+                     QueryRefinement -> filter notEx (leafTypes (st ^. abstractionTree))
         writeLog 3 $ text "Current abstract types:" <+> pretty typs
         sigs' <- foldM (\acc -> (<$>) ((++) acc) . uncurry (instantiateWith env typs)) [] sigs
         return $ nubOrdOn (uncurry removeSuffix) (sigsAcc ++ sigs')
@@ -195,7 +200,7 @@ instantiateWith env typs id sk = do
     let multiSubsts = map (zip vars) $ multiPermutation (length vars) typs
     let substedSymbols = map (foldr (\(id, t) acc -> abstractSubstitute (env ^. boundTypeVars) id t acc) sk) multiSubsts
     st <- get
-    let refinedSymbols = nubOrd (concatMap (cutoff (st ^. abstractionTree)) substedSymbols)
+    let refinedSymbols = nubOrd (concatMap (cutoff env (st ^. abstractionTree)) substedSymbols)
     foldrM (\t accMap -> do
         newId <- newSymbolName id
         return $ (newId, t):accMap) [] refinedSymbols
@@ -206,42 +211,6 @@ instantiateWith env typs id sk = do
             let idx = Map.findWithDefault 0 prefix indices
             modify (over nameCounter $ Map.insert prefix (idx+1))
             return $ prefix ++ "_" ++ show idx
-
--- | group all the signatures in @sigs@ by their abstract signature
--- i.e. functions with the same signature becomes one transition in petri net
-groupSigs :: (MonadIO m) => Map Id AbstractSkeleton -> PNSolver m ()
-groupSigs sigMap = do
-    let sigs = Map.toList sigMap
-    mapM_ createGroup (groupBy (\(_,t1) (_,t2) -> t1 == t2) (sortOn snd sigs))
-    gm <- view groupMap <$> get
-    writeLog 3 $ text "current groups" <+> pretty (Map.toList gm)
-
-createGroup :: MonadIO m => [(Id, AbstractSkeleton)] -> PNSolver m Id
-createGroup sigList = do
-    let key = snd (head sigList)
-    let value = map fst sigList
-
-    -- create a new group name and add the signatures into them
-    gm <- view groupMap <$> get
-    let groupIdx = Map.size gm
-    let name = "group" ++ show groupIdx
-
-    -- store the group information for code former
-    modify $ over groupMap $ Map.insert name value
-
-    -- insert the group name and its type into current sigsMap
-    modify $ over currentSigs $ Map.insert name key
-
-    -- store the used abstract types and their groups into mapping
-    let addGroup k gid = Map.insertWith (++) k [gid]
-    let includedTyps = decompose key
-    mapM_ (\t -> modify $ over type2transition (addGroup t name)) includedTyps
-
-    -- add signatures into encoded function map
-    let efs = zip value (map (uncurry encodeFunction) sigList)
-    modify $ over functionMap (HashMap.union (HashMap.fromList efs))
-
-    return name
 
 splitTransition :: MonadIO m => Environment -> Id -> SplitInfo -> PNSolver m SplitInfo
 splitTransition env tid info = do
@@ -258,13 +227,22 @@ splitTransition env tid info = do
     mapM_ (\(id, ty) -> modify $ over functionMap (HashMap.insert id (encodeFunction id ty))) unifiedTyps
     mapM_ (uncurry typeMap) unifiedTyps
     -- step 3: pack the information into SplitInfo for incremental encoding
+    -- for higher-order function, new transition ids are function names plus entry or exit
     let newIds = fst (unzip unifiedTyps)
+    let hoCnt = length (hoParams (encodeFunction tid typ))
+    let newEntries = map (\i -> (tid ++ "|entry" ++ show i, map (\id -> id ++ "|entry" ++ show i) newIds)) [1..hoCnt]
+    let newExits = map (\i -> (tid ++ "|exit" ++ show i, map (\id -> id ++ "|exit" ++ show i) newIds)) [1..hoCnt]
     -- step 4: remove splited transition from the type2transition mapping
     modify $ over type2transition (Map.map (delete tid))
     -- return the new split information with splited transitions
     -- step 5: update the detailed signature ids
     modify $ over detailedSigs (Set.union (Set.fromList newIds) . Set.delete tid)
-    return (info { splitedGroup = (tid, newIds):(splitedGroup info) })
+    -- I am not sure whether there is any side effect here
+    if null newIds
+       then return info
+       else if isAHigherOrder typ
+               then return (info { splitedGroup = newEntries ++ newExits ++ (splitedGroup info) })
+               else return (info { splitedGroup = (tid, newIds):(splitedGroup info) })
   where
     typeMap id ty = do
         let tys = decompose ty
@@ -303,10 +281,11 @@ splitTransition env tid info = do
         where
             assigned = fromJust (Map.lookup id tass)
             commonAssigned = Set.fromList (subtypesOf tree t) `Set.intersection` assigned
-    checkUnification tree bound tass (ATypeVarT id) t = Just (Map.insert id (Set.fromList (subtypesOf tree t)) tass)
     checkUnification tree bound tass (ADatatypeT {}) (ATypeVarT id) | id `elem` bound = Nothing
-    checkUnification tree bound tass (AExclusion {}) (ATypeVarT id) | id `elem` bound = Just tass
-    checkUnification tree bound tass t (ATypeVarT id) = checkUnification tree bound tass (ATypeVarT id) t
+    checkUnification tree bound tass (AExclusion s) (ATypeVarT id) | id `elem` bound && id `Set.member` s = Nothing
+    checkUnification tree bound tass (AExclusion s) (ATypeVarT id) | id `elem` bound && id `Set.notMember` s = Just tass
+    checkUnification tree bound tass t (ATypeVarT id) | not (id `elem` bound) = checkUnification tree bound tass (ATypeVarT id) t
+    checkUnification tree bound tass (ATypeVarT id) t = Just (Map.insert id (Set.fromList (subtypesOf tree t)) tass)
     checkUnification tree bound tass (ADatatypeT id tArgs) (ADatatypeT id' tArgs') | id /= id' = Nothing
     checkUnification tree bound tass (ADatatypeT id tArgs) (ADatatypeT id' tArgs') | id == id' = checkArgs tass tArgs tArgs'
         where
@@ -348,70 +327,23 @@ splitTransition env tid info = do
                return (zip ids ts)
            else return []
 
-splitGroup :: MonadIO m => Environment -> Id -> SplitInfo -> PNSolver m SplitInfo
-splitGroup env gid info = do
-    gm <- view groupMap <$> get
-    sigs <- view currentSigs <$> get
-    let typ = groupSig sigs
-    let ids = groupedIds gm
-    let splitedTyp = oldPlace info
-    let newTyps = newPlace info
-    -- step 1: unify the type with refined abstract type and get new signature
-    unifyRes <- mapM (\nt -> firstUnified typ nt ids) newTyps
-    let unifiedTyps = concatMap fromJust (filter isJust unifyRes)
-    -- step 2: classify the signatures into new groups
-    let newGroups = groupBy (\t1 t2 -> snd t1 == snd t2) (sortOn snd unifiedTyps)
-    -- step 3: pack the information into SplitInfo for incremental encoding
-    newIds <- mapM createGroup newGroups
-    return (info { splitedGroup = (gid, newIds) : (splitedGroup info) })
-  where
-    groupedIds gm = case Map.lookup gid gm of
-                        Just ids -> ids
-                        Nothing  -> error $ printf "cannot find group %s in group map" gid
-
-    groupSig sigs = case Map.lookup gid sigs of
-                        Just sig -> sig
-                        Nothing -> error $ printf "cannot find group %s in sig map" gid
-
-    matchTyps target (AFunctionT tArg tRet) (AFunctionT tArg' tRet') =
-        matchTyps target tArg tArg' ++ matchTyps target tRet tRet'
-    matchTyps target absTyp polyTyp
-        | target == absTyp = [polyTyp]
-        | otherwise = []
-
-    firstUnified typ newTyp [] = return Nothing
-    firstUnified typ newTyp (id:ids) = do
-        let id' = removeLast '_' id
-        polyTyp <- toAbstractType . shape <$> findSymbol env id'
-        let typs = matchTyps (oldPlace info) typ polyTyp
-        writeLog 3 $ text "trying to unify between" <+> pretty typs <+> text "and" <+> pretty newTyp
-        -- pass the current abstract hierarchy into the unifier
-        abstraction <- view abstractionTree <$> get
-        let unifiers = map (unifier abstraction (env ^. boundTypeVars) newTyp) typs
-        writeLog 3 $ text "unify result is" <+> pretty (show unifiers)
-        let checkSuccess = filter isJust unifiers
-        if not (null checkSuccess)
-           then do
-               let unpackedUnifiers = map fromJust checkSuccess
-               let subst = Map.unionsWith Set.union unpackedUnifiers
-               semantic <- view abstractionTree <$> get
-               let ts = applySubst (env ^. boundTypeVars) subst polyTyp
-               let ts' = nubOrd (concatMap (cutoff semantic) ts)
-               ids <- mapM (\_ -> freshId id') ts'
-               return (Just (zip ids ts'))
-           else firstUnified typ newTyp ids
-
-cutoff :: AbstractionTree -> AbstractSkeleton -> [AbstractSkeleton]
-cutoff semantic (ATypeVarT id) = [rightmostType semantic]
-cutoff (ALeaf t) (ADatatypeT id tArgs) = [t]
-cutoff (ANode _ lt rt) typ@(ADatatypeT {}) | isSubtypeOf typ (valueType lt) = cutoff lt typ
-cutoff (ANode _ lt rt) typ@(ADatatypeT {}) | isSubtypeOf typ (valueType rt) = cutoff rt typ
-cutoff (ANode t lt rt) typ@(ADatatypeT {}) | t == typ = [typ] -- there exists some temporarily imprecise types
-cutoff semantic (AFunctionT tArg tRet) =
+cutoff :: Environment -> AbstractionTree -> AbstractSkeleton -> [AbstractSkeleton]
+cutoff env semantic (ATypeVarT id) | not (isBound env id) = [rightmostType semantic]
+cutoff env semantic typ@(ATypeVarT id) | isBound env id =
+    case semantic of
+      ALeaf t -> [t]
+      ANode t lt rt | t == typ -> [typ]
+      ANode t lt rt | isSubtypeOf typ (valueType lt) -> cutoff env lt typ
+      ANode t lt rt | isSubtypeOf typ (valueType rt) -> cutoff env rt typ
+cutoff _ (ALeaf t) (ADatatypeT id tArgs) = [t]
+cutoff env (ANode _ lt rt) typ@(ADatatypeT {}) | isSubtypeOf typ (valueType lt) = cutoff env lt typ
+cutoff env (ANode _ lt rt) typ@(ADatatypeT {}) | isSubtypeOf typ (valueType rt) = cutoff env rt typ
+cutoff _ (ANode t lt rt) typ@(ADatatypeT {}) | t == typ = [typ] -- there exists some temporarily imprecise types
+cutoff env semantic (AFunctionT tArg tRet) =
     [ AFunctionT a r | a <- args, r <- rets, isJust (isConsistent (AFunctionT tArg tRet) (AFunctionT a r)) ]
   where
-    args = cutoff semantic tArg
-    rets = cutoff semantic tRet
+    args = cutoff env semantic tArg
+    rets = cutoff env semantic tRet
 
     isMapConsistent m1 m2 = foldr (\(k,v) -> (&&) (Map.findWithDefault v k m2 == v)) True (Map.toList m1)
     isConsistent t t'@(ATypeVarT {}) = Just (Map.singleton t t')
@@ -423,30 +355,61 @@ cutoff semantic (AFunctionT tArg tRet) =
         in if isJust argMap && isJust retMap && isMapConsistent (fromJust argMap) (fromJust retMap)
               then Just (Map.union (fromJust argMap) (fromJust retMap))
               else Nothing
-cutoff semantic t@(AExclusion _) = [rightmostType semantic]
-cutoff semantic t = leafTypes (closestTree semantic t)
+cutoff _ semantic t@(AExclusion _) = [rightmostType semantic]
+cutoff _ semantic t = leafTypes (closestTree semantic t)
 
-updateSemantic :: AbstractionTree -> AbstractSkeleton -> AbstractionTree
-updateSemantic semantic (ATypeVarT id) = semantic
-updateSemantic semantic@(ALeaf t) typ@(ADatatypeT {}) | typ == t = semantic
-updateSemantic semantic@(ALeaf t@(ADatatypeT {})) typ@(ADatatypeT {}) =
-    ANode t (ALeaf typ) (ALeaf (typeDifference t typ))
-updateSemantic semantic@(ALeaf t) typ@(ADatatypeT id tArgs) | t /= typ =
-    updateSemantic semantic' typ
+updateSemantic :: Environment -> AbstractionTree -> AbstractSkeleton -> AbstractionTree
+updateSemantic env semantic typ@(ATypeVarT id) | isBound env id =
+  case semantic of
+    ALeaf t -> ANode t (ALeaf typ) (ALeaf (typeDifference t typ))
+    ANode t lt rt
+        | t == typ -> semantic
+        | isSubtypeOf typ t && isSubtypeOf typ (valueType lt) -> ANode t (updateSemantic env lt typ) rt
+        | isSubtypeOf typ t -> ANode t lt (updateSemantic env rt typ)
+        | otherwise -> error (printf "%s is not a subtype of %s, not a subtype of %s, not a subtype of %s, we should not reach here" (show typ) (show t) (show (valueType lt)) (show (valueType rt)))
+updateSemantic _ semantic (ATypeVarT id) | otherwise = semantic
+updateSemantic _ semantic@(ALeaf t) typ@(ADatatypeT {}) | typ == t = semantic
+updateSemantic env semantic@(ALeaf t@(ADatatypeT id tArgs)) typ@(ADatatypeT id' tArgs') =
+  case (tArgs, tArgs') of
+    ([], []) -> semantic
+    _ -> firstDiff semantic [] tArgs tArgs'
+  where
+    wrapTree preArgs postArgs (ALeaf t) = ALeaf (ADatatypeT id (preArgs ++ [t] ++ postArgs))
+    wrapTree preArgs postArgs (ANode t lt rt) =
+        ANode (ADatatypeT id (preArgs ++ [t] ++ postArgs))
+              (wrapTree preArgs postArgs lt)
+              (wrapTree preArgs postArgs rt)
+
+    rootType (ALeaf t) = t
+    rootType (ANode t _ _) = t
+
+    replaceTree (ALeaf t) tree | rootType tree == t = tree
+    replaceTree (ANode t lt rt) tree | rootType tree == t = error "should not replace a non-leaf type"
+    replaceTree (ANode t lt rt) tree | isSubtypeOf (rootType tree) (valueType lt) = ANode t (replaceTree lt tree) rt
+    replaceTree (ANode t lt rt) tree | isSubtypeOf (rootType tree) (valueType rt) = ANode t lt (replaceTree rt tree)
+
+    firstDiff s _ [] [] = s
+    firstDiff s pre (arg:args) (arg':args')
+      | arg == arg' = firstDiff s (pre ++ [arg]) args args'
+      | otherwise   = let tmp = updateSemantic env (ALeaf arg) arg'
+                          s' = replaceTree s (wrapTree pre args tmp)
+                      in firstDiff s' (pre ++ [arg']) args args'
+updateSemantic env semantic@(ALeaf t) typ@(ADatatypeT id tArgs) | t /= typ =
+    updateSemantic env semantic' typ
   where
     emptyArgs = map fillAny tArgs
     typ' = ADatatypeT id emptyArgs
     semantic' = ANode t (ALeaf typ') (ALeaf (typeDifference t typ'))
-updateSemantic semantic@(ANode t lt rt) typ@(ADatatypeT id tArgs)
+updateSemantic env semantic@(ANode t lt rt) typ@(ADatatypeT id tArgs)
   | t == typ = semantic
-  | isSubtypeOf typ t && isSubtypeOf typ (valueType lt) = ANode t (updateSemantic lt typ) rt
-  | isSubtypeOf typ t = ANode t lt (updateSemantic rt typ)
+  | isSubtypeOf typ t && isSubtypeOf typ (valueType lt) = ANode t (updateSemantic env lt typ) rt
+  | isSubtypeOf typ t = ANode t lt (updateSemantic env rt typ)
   | otherwise = error (printf "%s is not a subtype of %s, not a subtype of %s, not a subtype of %s, we should not reach here" (show typ) (show t) (show (valueType lt)) (show (valueType rt)))
-updateSemantic semantic (AFunctionT tArg tRet) = semantic''
+updateSemantic env semantic (AFunctionT tArg tRet) = semantic''
   where
-    semantic' = updateSemantic semantic tArg
-    semantic'' = updateSemantic semantic' tRet
-updateSemantic semantic (AExclusion _) = semantic
+    semantic' = updateSemantic env semantic tArg
+    semantic'' = updateSemantic env semantic' tRet
+updateSemantic _ semantic (AExclusion _) = semantic
 
 -- distinguish one type from a given general one
 type SplitMsg = (AbstractSkeleton, AbstractSkeleton)
@@ -457,52 +420,75 @@ distinguish env (FunctionT _ tArg tRes) (FunctionT _ tArg' tRes') = do
     case diff of
       Nothing  -> distinguish env tRes tRes'
       res -> return res
+distinguish env AnyT _ = return Nothing
+distinguish env _ AnyT = return Nothing
 distinguish env t1 t2 = do
     tass <- view typeAssignment <$> get
     semantic <- view abstractionTree <$> get
-    let t1' = stypeSubstitute tass t1
-    let t2' = stypeSubstitute tass t2
-    let tv1 = typeVarsOf t1' `Set.difference` Set.fromList (env ^. boundTypeVars)
-    let tv2 = typeVarsOf t2' `Set.difference` Set.fromList (env ^. boundTypeVars)
-    let ats1 = cutoff semantic (toAbstractType t1')
-    let ats2 = cutoff semantic (toAbstractType t2')
+    let t1' = var2any (stypeSubstitute tass t1)
+    let t2' = var2any (stypeSubstitute tass t2)
+    let ats1 = cutoff env semantic (toAbstractType t1')
+    let ats2 = cutoff env semantic (toAbstractType t2')
     writeLog 3 $ text "trying to distinguish" <+> pretty t1' <+> text "==>" <+> pretty ats1 <+> text "and" <+> pretty t2' <+> text "==>" <+> pretty ats2
     -- only try to get split information when the two types have
-    -- different abstract representations in the current abstraction level
-    if null (ats1 `intersect` ats2)
+    -- same abstract representations in the current abstraction level
+    let diff = ats1 `intersect` ats2
+    let pTyp = head diff
+    let aTyp1 = toAbstractType t1'
+    let aTyp2 = toAbstractType t2'
+    if null diff || t1' == t2'
        then return Nothing
-       else case distinguish' (head ats1) (toAbstractType t1') (toAbstractType t2') of
+       else case distinguish' (env ^. boundTypeVars) (head ats1) (toAbstractType t1') (toAbstractType t2') of
               Nothing -> return Nothing
               Just t -> return (Just (head ats1, t))
+  where
+    var2any t@(ScalarT (TypeVarT _ id) _) | isBound env id = t
+    var2any t@(ScalarT (TypeVarT _ id) _) | otherwise = AnyT
+    var2any (ScalarT (DatatypeT id args l) r) = ScalarT (DatatypeT id (map var2any args) l) r
+    var2any (FunctionT x tArg tRet) = FunctionT x (var2any tArg) (var2any tRet)
 
-distinguish' :: AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton -> Maybe AbstractSkeleton
-distinguish' _ t1 t2 | t1 == t2 = Nothing
-distinguish' _ (AExclusion s1) (AExclusion s2) = Nothing
-distinguish' _ (ATypeVarT id1) (ATypeVarT id2) = Nothing
-distinguish' _ t1@(ADatatypeT id1 tArgs1) t2@(ADatatypeT id2 tArgs2) | id1 /= id2 =
+distinguishFrom :: AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
+distinguishFrom (AExclusion s) t@(ATypeVarT id) | id `Set.notMember` s = t
+distinguishFrom (AExclusion s) t@(ADatatypeT id _) | id `Set.notMember` s = t
+distinguishFrom (ADatatypeT id tArgs) (ADatatypeT id' tArgs') | id == id' =
+    ADatatypeT id (firstDiff tArgs tArgs')
+  where
+    firstDiff [] [] = []
+    firstDiff (arg:args) (arg':args')
+        | arg == arg' = arg:(firstDiff args args')
+        | otherwise = (distinguishFrom arg arg'):args
+distinguishFrom t1 t2 = error ("Cannot distinguish " ++ show t2 ++ " from " ++ show t1)
+
+distinguish' :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton -> Maybe AbstractSkeleton
+distinguish' _ _ t1 t2 | t1 == t2 = Nothing
+distinguish' _ _ t1@(ADatatypeT id1 tArgs1) t2@(ADatatypeT id2 tArgs2) | id1 /= id2 =
     Just (ADatatypeT id1 (map fillAny tArgs1))
-distinguish' (AExclusion {}) t1@(ADatatypeT id1 tArgs1) t2@(ADatatypeT id2 tArgs2) | id1 == id2 =
+distinguish' _ (AExclusion {}) t1@(ADatatypeT id1 tArgs1) t2@(ADatatypeT id2 tArgs2) | id1 == id2 =
     Just (ADatatypeT id1 (map fillAny tArgs1))
-distinguish' (ADatatypeT pid pArgs) t1@(ADatatypeT id1 tArgs1) t2@(ADatatypeT id2 tArgs2) | id1 == id2 =
+distinguish' tvs (ADatatypeT pid pArgs) t1@(ADatatypeT id1 tArgs1) t2@(ADatatypeT id2 tArgs2) | id1 == id2 =
     case firstDifference pArgs tArgs1 tArgs2 of
       [] -> Nothing
       diffs -> Just (ADatatypeT id1 diffs)
   where
     firstDifference _ [] [] = []
     firstDifference (parg:pargs) (arg:args) (arg':args') =
-        case distinguish' parg arg arg' of
+        case distinguish' tvs parg arg arg' of
             Nothing -> case firstDifference pargs args args' of
                          [] -> []
                          diffs -> parg:diffs
             Just t  -> t:pargs
-distinguish' _ (AExclusion s) (ADatatypeT id args) | id `Set.notMember` s = Just (ADatatypeT id (map fillAny args))
-distinguish' _ (AExclusion s) (ADatatypeT id _) = Nothing
-distinguish' p t1@(ADatatypeT id args) t2@(AExclusion s) = distinguish' p t2 t1
-distinguish' _ (ATypeVarT id1) (ADatatypeT id2 args) = Just (ADatatypeT id2 (map fillAny args))
-distinguish' p t1@(ADatatypeT {}) t2@(ATypeVarT {}) = distinguish' p t2 t1
-distinguish' _ (AExclusion {}) (ATypeVarT {}) = Nothing
-distinguish' _ (ATypeVarT {}) (AExclusion {}) = Nothing
-distinguish' _ t1 t2 = error (printf "unhandled case for distinguish %s and %s" (show t1) (show t2))
+distinguish' _ _ (AExclusion s) (ADatatypeT id args) | id `Set.notMember` s = Just (ADatatypeT id (map fillAny args))
+distinguish' _ _ (AExclusion s) (ADatatypeT id _) = Nothing
+distinguish' tvs p t1@(ADatatypeT id args) t2@(AExclusion s) = distinguish' tvs p t2 t1
+distinguish' _ _ (ATypeVarT id1) (ADatatypeT id2 args) = Just (ADatatypeT id2 (map fillAny args))
+distinguish' tvs p t1@(ADatatypeT {}) t2@(ATypeVarT {}) = distinguish' tvs p t2 t1
+distinguish' tvs _ (AExclusion s) (ATypeVarT id) | id `elem` tvs && id `Set.notMember` s = Just (ATypeVarT id)
+distinguish' _ _ (AExclusion {}) (ATypeVarT id) = Nothing
+distinguish' tvs p t1@(ATypeVarT {}) t2@(AExclusion {}) = distinguish' tvs p t2 t1
+distinguish' tvs _ (ATypeVarT id) (ATypeVarT _) | id `elem` tvs = Just (ATypeVarT id)
+distinguish' tvs _ (ATypeVarT _) (ATypeVarT id) | id `elem` tvs = Just (ATypeVarT id)
+distinguish' tvs _ (ATypeVarT _) (ATypeVarT _) = Nothing
+distinguish' _ _ t1 t2 = error (printf "unhandled case for distinguish %s and %s" (show t1) (show t2))
 
 findSymbol :: MonadIO m => Environment -> Id -> PNSolver m RType
 findSymbol env sym =
@@ -567,6 +553,13 @@ bottomUpCheck env p@(Program (PFun x body) (FunctionT _ tArg tRet)) = do
     writeLog 3 $ text "Bottom up checking type for" <+> pretty p
     body' <- bottomUpCheck (addVariable x (addTrue tArg) env) body
     return (Program (PFun x body') (FunctionT x tArg (typeOf body')))
+bottomUpCheck env p@(Program (PFun x body) _) = do
+    writeLog 3 $ text "Bottom up checking type for" <+> pretty p
+    id <- freshId "A"
+    let tArg = addTrue (ScalarT (TypeVarT Map.empty id) ())
+    body' <- bottomUpCheck (addVariable x tArg env) body
+    return (Program (PFun x body') (FunctionT x tArg (typeOf body')))
+bottomUpCheck _ p = error ("unhandled case for checking " ++ show p ++ "::" ++ show (typeOf p))
 
 solveTypeConstraint :: (MonadIO m) => Environment -> SType -> SType -> PNSolver m ()
 solveTypeConstraint _ AnyT _ = return ()
@@ -669,16 +662,16 @@ refineSemantic env prog top = do
     checkRes <- compProg env top btm
     case checkRes of
         Nothing -> do
-            writeLog 3 $ text "two programs do not give us new split message"
+            writeLog 2 $ text "two programs do not give us new split message"
             return (SplitInfo (AExclusion Set.empty) [] [])
         Just (t, ts) -> do
             semantic <- view abstractionTree <$> get
-            let t':_ = cutoff semantic t
-            let semantic' = updateSemantic semantic ts
-            writeLog 3 $ text $ printf "before update semantic, %s is splited into %s" (show t') (show ts)
-            writeLog 3 $ text $ printf "new semantics is %s" (show semantic')
+            let t':_ = cutoff env semantic t
+            let semantic' = updateSemantic env semantic ts
+            writeLog 2 $ text $ printf "before update semantic, %s is splited into %s" (show t') (show ts)
+            writeLog 2 $ text $ printf "new semantics is %s" (show semantic')
             modify $ set abstractionTree semantic'
-            let ts' = head (cutoff semantic' ts)
+            let ts' = head (cutoff env semantic' ts)
             writeLog 3 $ text $ printf "%s is splited into %s" (show t') (show ts')
             t2tr <- view type2transition <$> get
             let tids = Map.findWithDefault [] t' t2tr
@@ -716,7 +709,7 @@ initNet env = withTime "construction time" $ do
     abstraction <- view abstractionTree <$> get
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
     let srcTypes = map ( head
-                       . cutoff abstraction
+                       . cutoff env abstraction
                        . toAbstractType
                        . shape
                        . toMonotype) $ Map.elems foArgs
@@ -729,7 +722,14 @@ initNet env = withTime "construction time" $ do
     modify $ set detailedSigs (Map.keysSet sigs)
     writeLog 3 $ text "instantiated sigs" <+> pretty (Map.toList sigs)
     symbols <- mapM addEncodedFunction (Map.toList sigs)
-    modify $ set solverNet (buildPetriNet symbols (map show srcTypes))
+    -- remove higher order functions before pass into the pn builder
+    let (foSymbols, hoSymbols) = partition (null . hoParams) symbols
+    -- decompose higher order functions into entry and exit transitions
+    let decompSymbols = concatMap decomposeHoSym hoSymbols
+    -- add input argument clone transitions
+    let argClones = map (cloneArg . show) srcTypes
+    let symbols' = foSymbols ++ decompSymbols ++ argClones
+    modify $ set solverNet (buildPetriNet symbols' (map show srcTypes))
   where
     abstractSymbol id sch = do
         t <- freshType sch
@@ -747,17 +747,52 @@ initNet env = withTime "construction time" $ do
 
         return ef
 
+cloneArg :: Id -> FunctionCode
+cloneArg id = FunctionCode (id ++ "|clone") [] [id] [id, id]
+
+decomposeHoSym :: FunctionCode -> [FunctionCode]
+decomposeHoSym (FunctionCode _ [] _ _) = []
+decomposeHoSym (FunctionCode name hoParams params ret) =
+    let foParam = filter (not . isPrefixOf "f") params
+        nestedHoSym = concatMap decomposeHoSym hoParams
+        unfoldHoSym = concatMap (uncurry (decomposeHoParam name foParam ret)) (zip hoParams [1,2..])
+    in nestedHoSym ++ unfoldHoSym
+
+decomposeHoParam name foParams outRets (FunctionCode _ _ params ret) i =
+      (createEntry i name foParams params)
+    : (createExit i name ret outRets)
+    : (map (createDiscard i name) params)
+  where
+    createEntry i name params rets =
+        let entry = name ++ "|entry" ++ (show i)
+            special = name ++ "|special" ++ (show i)
+         in FunctionCode entry [] params (special:rets)
+
+    createExit i name params rets =
+        let exit = name ++ "|exit" ++ (show i)
+            special = name ++ "|special" ++ (show i)
+        in FunctionCode exit [] (special:params) rets
+
+    -- strategy for discarding higher order arguments parameters
+    -- the main purpose of the design here is to give this operation a high cost
+    -- the cost can be measured by giving the transition a large weight
+    -- or the operation can be interpreted into more than one transition
+    createDiscard i name param =
+        let discard = name ++ "|discard" ++ (show i) ++ "_" ++ (show param)
+            special = name ++ "|special" ++ (show i)
+        in FunctionCode discard [] [param, special] ["void", special]
+
 resetEncoder :: (MonadIO m) => Environment -> RType -> PNSolver m EncodeState
 resetEncoder env dst = do
     -- reset source and destination types
     let binds = env ^. boundTypeVars
     abstraction <- view abstractionTree <$> get
-    let tgt = show (head (cutoff abstraction (toAbstractType (shape dst))))
+    let tgt = show (head (cutoff env abstraction (toAbstractType (shape dst))))
     modify $ set targetType tgt
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
     let srcTypes = map ( show
                        . head
-                       . cutoff abstraction
+                       . cutoff env abstraction
                        . toAbstractType
                        . shape
                        . toMonotype) $ Map.elems foArgs
@@ -779,7 +814,7 @@ resetEncoder env dst = do
     sigs <- view currentSigs <$> get
     let removedIds = Map.keysSet sigs `Set.difference` dsigs
     writeLog 3 $ text "removing transitions" <+> (text (show removedIds))
-    let net' = setMaxToken srcTypes (Set.foldr removeTransition net removedIds)
+    let net' = Set.foldr removeTransition net removedIds
     modify $ set solverNet net'
     loc <- view currentLoc <$> get
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
@@ -803,7 +838,9 @@ findPath env dst st = do
             let sortedRes = sortOn snd res
             let transNames = map fst sortedRes
             writeLog 2 $ text "found path" <+> pretty transNames
-            let usefulTrans = filter (\n -> skipEntry n && skipClone n) transNames
+            let usefulTrans = filter (\n -> skipEntry n
+                                         && skipClone n
+                                         && skipDiscard n) transNames
             let sigNames = map removeSuffix usefulTrans
             dsigs <- view detailedSigs <$> get
             let sigNames' = filter (flip Set.member dsigs) sigNames
@@ -832,40 +869,51 @@ findPath env dst st = do
         liftIO (evalStateT (generateProgram sigs src args) initialFormer)
     skipEntry = not . isInfixOf "|entry"
     skipClone = not . isInfixOf "|clone"
+    skipDiscard = not . isInfixOf "|discard"
     removeSuffix = removeLast '|'
 
 fixNet :: MonadIO m => Environment -> SplitInfo -> PNSolver m ()
 fixNet env (SplitInfo _ _ splitedGps) = do
-    let newGroups = concat (snd (unzip splitedGps))
-    sigs <- view currentSigs <$> get
-    net <- view solverNet <$> get
-    let sigs' = Map.filterWithKey (\k _ -> k `elem` newGroups) sigs
-    writeLog 3 $ text "sigs to be added include" <+> text (show sigs')
-    let encodedFuncs = map (uncurry encodeFunction) (Map.toList sigs')
-    let functionedNet = foldr addFunction net encodedFuncs
     -- reset the src types with the new abstraction semantic
     abstraction <- view abstractionTree <$> get
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
     let srcTypes = map ( show
                        . head
-                       . cutoff abstraction
+                       . cutoff env abstraction
                        . toAbstractType
                        . shape
                        . toMonotype) $ Map.elems foArgs
     oldSource <- view sourceTypes <$> get
     modify $ set sourceTypes srcTypes
+    -- add new function into the petri net
+    let newGroups = map (removeLast '|') (concat (snd (unzip splitedGps)))
+    sigs <- view currentSigs <$> get
+    net <- view solverNet <$> get
+    let sigs' = Map.filterWithKey (\k _ -> k `elem` newGroups) sigs
+    writeLog 3 $ text "sigs to be added include" <+> text (show sigs')
+    let encodedFuncs = map (uncurry encodeFunction) (Map.toList sigs')
+    -- remove higher order functions before pass into the pn builder
+    let (foSymbols, hoSymbols) = partition (null . hoParams) encodedFuncs
+    writeLog 3 $ text "get higher order symbols" <+> text (show hoSymbols)
+    -- decompose higher order functions into entry and exit transitions
+    let decompSymbols = concatMap decomposeHoSym hoSymbols
+    writeLog 3 $ text "decompose higher order symbols into" <+> text (show decompSymbols)
+    let symbols = foSymbols ++ decompSymbols
+    let functionedNet = foldr addFunction net symbols
     if oldSource == srcTypes
-       then modify $ set solverNet (setMaxToken srcTypes functionedNet)
+       then modify $ set solverNet functionedNet
        else do
            let justTypes = map (\(t1, t2)-> if t1 == t2 then Nothing else Just t2) (zip oldSource srcTypes)
            let diffTypes = map fromJust (filter isJust justTypes)
-           modify $ set solverNet (setMaxToken srcTypes (foldr addArgClone functionedNet diffTypes))
+            -- add input argument clone transitions
+           let argClones = map cloneArg diffTypes
+           modify $ set solverNet (foldr addFunction functionedNet argClones)
 
 fixEncoder :: MonadIO m => Environment -> RType -> EncodeState -> SplitInfo -> PNSolver m EncodeState
 fixEncoder env dst st info = do
     let binds = env ^. boundTypeVars
     abstraction <- view abstractionTree <$> get
-    let tgt = show (head (cutoff abstraction (toAbstractType (shape dst))))
+    let tgt = show (head (cutoff env abstraction (toAbstractType (shape dst))))
     -- modify $ set targetType tgt
     srcTypes <- view sourceTypes <$> get
     writeLog 2 $ text "fixed parameter types are" <+> pretty srcTypes
@@ -989,12 +1037,12 @@ runPNSolver env cnt t = do
     st <- withTime "encoding time" (resetEncoder env t)
     findFirstN env t st cnt
 
-firstLvAbs :: [RSchema] -> AbstractionTree
-firstLvAbs schs =
-    Set.foldl' updateSemantic (ALeaf (AExclusion Set.empty)) dts
+firstLvAbs :: Environment -> [RSchema] -> AbstractionTree
+firstLvAbs env schs =
+    Set.foldl' (updateSemantic env) (ALeaf (AExclusion Set.empty)) dts
   where
     typs = map (shape . toMonotype) schs
-    dts = Set.unions (map allAbstractDts typs)
+    dts = Set.unions (map (allAbstractDts (env ^. boundTypeVars)) typs)
 
 -------------------------------------------------------------------------------
 -- | helper functions

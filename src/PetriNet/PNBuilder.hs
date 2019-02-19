@@ -8,8 +8,6 @@ module PetriNet.PNBuilder(
   , FunctionCode(..)
   , buildPetriNet
   , addFunction
-  , addArgClone
-  , setMaxToken
   , removeTransition
 )
 where
@@ -35,7 +33,7 @@ data FunctionCode = FunctionCode {
   funName   :: String,  -- function name
   hoParams  :: [FunctionCode],
   funParams :: [Param], -- function parameter types and their count
-  funReturn :: String   -- function return type
+  funReturn :: [String]   -- function return type
 } deriving(Eq, Ord, Show, Generic)
 
 instance ToJSON FunctionCode where
@@ -77,11 +75,11 @@ data PetriNet = PetriNet {
 } deriving(Eq, Ord, Show)
 
 buildPetriNet :: [FunctionCode] -> [Id] -> PetriNet
-buildPetriNet fs inputs = setMaxToken inputs addArgs
+buildPetriNet fs inputs = addFuncs -- setMaxToken inputs addArgs
   where
     emptyPN = PetriNet HashMap.empty HashMap.empty HashMap.empty
     addFuncs = foldr addFunction emptyPN fs
-    addArgs = foldr addArgClone addFuncs inputs
+    -- addArgs = foldr addArgClone addFuncs inputs
 
 -- | create a new place in petri net
 mkPlace :: Id -> Place
@@ -204,14 +202,14 @@ addFlow from to w pn = PetriNet places transitions flows
 addFunction :: FunctionCode -> PetriNet -> PetriNet
 addFunction (FunctionCode name [] params ret) pn = pn'
   where
-    placedPn = foldr addPlace pn ("void" : ret : params)
+    placedPn = foldr addPlace pn ("void" : (ret ++ params))
     transitionedPn = addTransition name placedPn
     assignedParams = map (\p -> (p , name, 1))
                          $ if null params then ["void"] else params
-    retedPn = addFlow name ret 1 transitionedPn
+    retedPn = foldr (\r p -> addFlow name r 1 p) transitionedPn ret
     flowedPn = foldr (uncurry3 addFlow) retedPn assignedParams
     pn' = flowedPn
-
+        {-
 addFunction (FunctionCode name hoParams params ret) pn = pn'
   where
     paramToAdd = filter (not . isPrefixOf "f") params
@@ -279,3 +277,4 @@ setMaxToken inputs pn = pn {
         in HashMap.insertWith max (flowPlace f) w cntMap
     tredCnt = foldr checkTransition counts transitions
     inputedCnt = foldr (uncurry (HashMap.insertWith max)) tredCnt inputCounts
+-}

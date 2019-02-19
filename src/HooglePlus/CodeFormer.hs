@@ -44,7 +44,7 @@ applyFunction func = do
     -- update typedTerms
     st <- get
     let tterms = typedTerms st
-    let newTerms = HashMap.insertWith Set.union (funReturn func) res tterms
+    let newTerms = HashMap.insertWith Set.union (head (funReturn func)) res tterms
     put $ st { typedTerms = newTerms }
     return res
   where
@@ -68,7 +68,7 @@ applyFunction func = do
         let hoHeader = "\\" ++ concat (intersperse " " vars) ++ "-> "
         -- find argument body
         tterms <- typedTerms <$> get
-        let bodies = Set.toList $ HashMap.lookupDefault Set.empty (funReturn curr) tterms
+        let bodies = Set.toList $ HashMap.lookupDefault Set.empty (head (funReturn curr)) tterms
         case bodies of
             [] -> return []
             _  -> return $ map (withParen . (++) hoHeader) bodies
