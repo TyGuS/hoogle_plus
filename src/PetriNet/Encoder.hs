@@ -32,6 +32,7 @@ data EncodeState = EncodeState {
   loc :: Int,
   abstractionLv :: Int,
   transitionNb :: Int,
+  variableNb :: Int,
   lv2range :: HashMap Int (Int, Int),
   place2variable :: HashMap (Id, Int) Variable, -- place name and timestamp
   time2variable :: HashMap (Int, Int) Variable, -- timestamp and abstraction level

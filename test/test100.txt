@@ -34,7 +34,7 @@ listToMaybe :: [a] -> Maybe a
 maybeToList :: Maybe a -> [a]
 catMaybes :: [Maybe a] -> [a]
 -- HOF: maybe :: b -> (a -> b) -> Maybe a -> b
--- HOF: mapMaybe :: (a -> Maybe b) -> [a] -> [b]
+mapMaybe :: (a -> Maybe b) -> [a] -> [b]
 
 -- bytestring
 module Data.ByteString.Builder
@@ -94,10 +94,10 @@ module Data.List
 infixr 5 ++
 cycle :: [a] -> [a]
 drop :: Int -> [a] -> [a]
-head :: [a] -> a
+-- head :: [a] -> a
 init :: [a] -> [a]
 inits :: [a] -> [[a]]
-last :: [a] -> a
+-- last :: [a] -> a
 lines :: String -> [String]
 permutations :: [a] -> [[a]]
 splitAt :: Int -> [a] -> ([a], [a])

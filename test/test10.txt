@@ -26,7 +26,7 @@ fromMaybe :: a -> Maybe a -> a
 listToMaybe :: [a] -> Maybe a
 maybeToList :: Maybe a -> [a]
 catMaybes :: [Maybe a] -> [a]
--- HOF: mapMaybe :: (a -> Maybe b) -> [a] -> [b]
+mapMaybe :: (a -> Maybe b) -> [a] -> [b]
 
 -- bytestring
 module Data.ByteString.Builder
@@ -46,3 +46,14 @@ and :: [Bool] -> Bool
 module Data.Tuple
 fst :: (a, b) -> a
 snd :: (a, b) -> b
+
+-- base
+module Data.Set
+data Set a
+member :: a -> Set a -> Bool
+
+-- base
+module Data.Map
+data Map k v
+fromSet :: (k -> a) -> Set k -> Map k a
+partitionWithKey :: (k -> a -> Bool) -> Map k a -> (Map k a, Map k a)
