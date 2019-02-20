@@ -11,12 +11,15 @@ import Data.Map (Map)
 import Data.Char
 import Data.Function (on)
 import Data.Ord (comparing)
+import qualified Data.Text.Lazy
 
 import Control.Applicative
 import Control.Monad
 import Control.Lens hiding (both)
 
 import Debug.Trace
+import Text.Pretty.Simple
+import Debug.Pretty.Simple
 import Text.Regex (mkRegex, subRegex)
 
 -- | Identifiers
@@ -31,7 +34,7 @@ splitBy delimiterChar inputString = foldr f [""] inputString
   where f :: Char -> [String] -> [String]
         f currentChar allStrings@(partialString:handledStrings)
           -- start a new partial string at the head of the list of all strings
-          | currentChar == delimiterChar = "":allStrings          
+          | currentChar == delimiterChar = "":allStrings
           -- add the current char to the partial string
           | otherwise = (currentChar:partialString):handledStrings
 
@@ -74,8 +77,8 @@ bothM f (x1, x2) = do
   y1 <- f x1
   y2 <- f x2
   return (y1, y2)
-  
-setCompare :: Ord a => Set a -> Set a -> Ordering  
+
+setCompare :: Ord a => Set a -> Set a -> Ordering
 setCompare x y = case compare (Set.size x) (Set.size y) of
                   EQ -> compare x y
                   res -> res
@@ -111,7 +114,7 @@ boundedSubsets n s
   | Set.null s = Set.singleton Set.empty
   | otherwise = let (x, xs) = Set.deleteFindMin s in
       Set.map (Set.insert x) (boundedSubsets (n - 1) xs) `Set.union` boundedSubsets n xs -- x is in or x is out
-      
+
 -- | Partition a set-valued map into sub-maps where value non-disjoint value sets are grouped together
 toDisjointGroups :: (Ord k, Ord v) => Map k (Set v) -> [(Set k, Set v)]
 toDisjointGroups m = toDisjointGroups' m []
@@ -123,15 +126,15 @@ toDisjointGroups m = toDisjointGroups' m []
                       let (keys', vals') = close (Set.singleton key) vals m' in
                       let m'' = removeDomain keys' m' in
                       toDisjointGroups' m'' ((keys', vals'):acc)
-         
+
     close :: (Ord k, Ord v) => Set k -> Set v -> Map k (Set v) -> (Set k, Set v)
-    close keys vals m = 
+    close keys vals m =
       let (mDisj, mNonDisj) = Map.partition (disjoint vals) m in
       if Map.null mNonDisj
         then (keys, vals)
         else close (keys `Set.union` Map.keysSet mNonDisj) (vals `Set.union` (Set.unions $ Map.elems mNonDisj)) mDisj
-    
-      
+
+
 -- | Monadic equivalent of 'partition'
 partitionM :: Monad m => (a -> m Bool) -> [a] -> m ([a], [a])
 partitionM f [] = return ([], [])
@@ -139,23 +142,23 @@ partitionM f (x:xs) = do
   res <- f x
   (ys, zs) <- partitionM f xs
   return (if res then (x:ys, zs) else (ys, x:zs))
-  
+
 -- | Monadic version of 'any'
 anyM :: (Functor m, Monad m) => (a -> m Bool) -> [a] -> m Bool
 anyM pred xs = isJust <$> findM pred xs
-  
+
 -- | Monadic version of 'all'
 allM :: (Functor m, Monad m) => (a -> m Bool) -> [a] -> m Bool
 allM pred xs = isNothing <$> findM (\x -> not <$> pred x) xs
-  
--- | Monadic version of 'find' (finds the first element in a list for which a computation evaluates to True) 
+
+-- | Monadic version of 'find' (finds the first element in a list for which a computation evaluates to True)
 findM :: (Functor m, Monad m) => (a -> m Bool) -> [a] -> m (Maybe a)
 findM _ [] = return Nothing
 findM pred (x : xs) = do
   res <- pred x
-  if res then return (Just x) else findM pred xs  
-  
--- | Monadic version of 'find' (finds the first element in a list for which a computation evaluates to True) 
+  if res then return (Just x) else findM pred xs
+
+-- | Monadic version of 'find' (finds the first element in a list for which a computation evaluates to True)
 findJustM :: (Functor m, Monad m) => (a -> m (Maybe b)) -> [a] -> m (Maybe b)
 findJustM _ [] = return Nothing
 findJustM f (x : xs) = do
@@ -163,10 +166,10 @@ findJustM f (x : xs) = do
   case resMb of
     Nothing -> findJustM f xs
     Just res -> return $ Just res
-    
--- | Monadic version of if-then-else  
+
+-- | Monadic version of if-then-else
 ifM :: Monad m => m Bool -> m a -> m a -> m a
-ifM cond t e = cond >>= (\res -> if res then t else e)  
+ifM cond t e = cond >>= (\res -> if res then t else e)
 
 -- | Monadic equivalent of 'Set.partition'
 setPartitionM :: (Ord a, Monad m) => (a -> m Bool) -> Set a -> m (Set a, Set a)
@@ -183,11 +186,11 @@ asInteger s = if all isDigit s then Just $ read s else Nothing
 -- | 'debugOutLevel' : Level above which debug output is ignored
 debugOutLevel = 1
 
--- | 'debug' @level msg@ : output @msg@ at level @level@ 
+-- | 'debug' @level msg@ : output @msg@ at level @level@
 debug level msg = if level <= debugOutLevel then traceShow msg else id
 
 -- This should cover the colour codes:
-ansiRegex = mkRegex "\\[[0-9]+m" 
+ansiRegex = mkRegex "\\[[0-9]+m"
 
 -- Filtering involves stripping out the ^[ preceding the codes
 filterAnsi :: String -> String
@@ -207,3 +210,10 @@ removeLast c1 = snd . remLast
 groupTuples :: (Eq a, Ord a) => [(a, [b])] -> [(a, [b])]
 groupTuples = map (\l -> (fst . head $ l, concatMap snd l)) . groupBy ((==) `on` fst)
           . sortBy (comparing fst)
+
+
+showme :: (Show a) => String -> a -> a
+showme label thing = let
+  newlabel = Data.Text.Lazy.pack (label ++ ": \n")
+  in
+  pTraceShow (newlabel `Data.Text.Lazy.append` (pShow thing)) thing

@@ -111,6 +111,7 @@ executable synquid
                     , vector
                     , MissingH
                     , hint
+                    , pretty-simple
 
   ghc-options:   -O2 -rtsopts
   includes:            z3.h
