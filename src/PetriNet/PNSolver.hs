@@ -884,7 +884,7 @@ fixNet env (SplitInfo _ _ splitedGps) = do
     oldSource <- view sourceTypes <$> get
     modify $ set sourceTypes srcTypes
     -- add new function into the petri net
-    let newGroups = map (removeLast '|') (concat (snd (unzip splitedGps)))
+    let newGroups = map (Text.unpack . Text.replace "|entry" "" . Text.pack) (concat (snd (unzip splitedGps)))
     sigs <- view currentSigs <$> get
     net <- view solverNet <$> get
     let sigs' = Map.filterWithKey (\k _ -> k `elem` newGroups) sigs
