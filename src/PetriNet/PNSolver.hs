@@ -77,6 +77,7 @@ data TimeStatistics = TimeStatistics {
   refineTime :: Double,
   typeCheckerTime :: Double,
   otherTime :: Double,
+  totalTime :: Double,
   iterations :: Int,
   numOfTransitions :: Map Int Int,
   numOfPlaces :: Map Int Int
@@ -123,7 +124,7 @@ emptySolverState = SolverState {
     _groupMap = Map.empty,
     _type2transition = Map.empty,
     _solverNet = PetriNet HashMap.empty HashMap.empty HashMap.empty,
-    _solverStats = TimeStatistics (0::Double) (0::Double) (0::Double) (0::Double) (0::Double) (0::Double) (0::Double) 0 Map.empty Map.empty,
+    _solverStats = TimeStatistics (0::Double) (0::Double) (0::Double) (0) (0::Double) (0::Double) (0::Double) (0::Double) 0 Map.empty Map.empty,
     _useGroup = False,
     _logLevel = 0
 }
@@ -694,9 +695,21 @@ withTime desc f = do
           "solver time" -> s { solverTime = (solverTime s) + (diff :: Double) }
           "refinement time" -> s { refineTime = (refineTime s) + (diff :: Double) }
           "type checking time" -> s { typeCheckerTime = (typeCheckerTime s) + (diff :: Double) }
+          "total search time" -> s {totalTime = (diff :: Double) }
           _ -> s { otherTime = (otherTime s) + (diff :: Double) })
     writeLog 1 $ text time
     return res
+
+resetTiming :: Monad m => PNSolver m ()
+resetTiming = do
+  modify $ over solverStats (\s ->
+    s { encodingTime=0,
+        codeFormerTime=0,
+        solverTime=0,
+        refineTime=0,
+        typeCheckerTime=0,
+        totalTime=0
+      })
 
 initNet :: MonadIO m => Environment -> PNSolver m ()
 initNet env = withTime "construction time" $ do
@@ -927,18 +940,18 @@ fixEncoder env dst st info = do
 
 findProgram :: MonadIO m => Environment -> RType -> EncodeState -> PNSolver m (RProgram, EncodeState)
 findProgram env dst st = do
-    writeLog 2 $ text "calling findProgram"
-    (codeResult, st') <- findPath env dst st
-    oldSemantic <- view abstractionTree <$> get
-    writeLog 2 $ pretty (Set.toList codeResult)
-    checkResult <- withTime "type checking time" (mapM parseAndCheck $ Set.toList codeResult)
-    let codes = lefts checkResult
-    let errors = rights checkResult
-    if null codes && null errors
-       then findProgram env dst st'
-       else if null codes
-               then findNextSolution st' oldSemantic (head errors)
-               else checkSolution st' codes
+      writeLog 2 $ text "calling findProgram"
+      (codeResult, st') <- findPath env dst st
+      oldSemantic <- view abstractionTree <$> get
+      writeLog 2 $ pretty (Set.toList codeResult)
+      checkResult <- withTime "type checking time" (mapM parseAndCheck $ Set.toList codeResult)
+      let codes = lefts checkResult
+      let errors = rights checkResult
+      if null codes && null errors
+          then findProgram env dst st'
+          else if null codes
+                  then findNextSolution st' oldSemantic (head errors)
+                  else checkSolution st' codes
   where
     parseAndCheck code = do
         let prog = case parseExp code of
@@ -999,41 +1012,48 @@ findProgram env dst st = do
                findProgram env dst st
            else do
                let solution = head checkedSols
-               printSolution solution
-               printStats
+               -- printSolution solution
+               -- printStats
                modify $ over currentSolutions ((:) solution)
                return $ (solution, st)
 
-    printSolution solution = do
-        liftIO $ putStrLn "*******************SOLUTION*********************"
-        liftIO $ print solution
-        liftIO $ putStrLn "************************************************"
+printSolution solution = do
+    liftIO $ putStrLn "*******************SOLUTION*********************"
+    liftIO $ putStrLn $ "SOLUTION: " ++ (mkOneLine $ show solution)
+    liftIO $ putStrLn "************************************************"
 
-    printStats = do
-        stats <- view solverStats <$> get
-        liftIO $ putStrLn "*******************STATISTICS*******************"
-        liftIO $ putStrLn ("Petri net construction time: " ++ (show (constructionTime stats)))
-        liftIO $ putStrLn ("Petri net encoding time: " ++ (show (encodingTime stats)))
-        liftIO $ putStrLn ("Z3 solving time: " ++ (show (solverTime stats)))
-        liftIO $ putStrLn ("Hoogle plus code former time: " ++ (show (codeFormerTime stats)))
-        liftIO $ putStrLn ("Hoogle plus refinement time: " ++ (show (refineTime stats)))
-        liftIO $ putStrLn ("Hoogle plus type checking time: " ++ (show (typeCheckerTime stats)))
-        liftIO $ putStrLn ("Total iterations of refinements: " ++ (show (iterations stats)))
-        liftIO $ putStrLn ("# of places: " ++ (show (Map.toList (numOfPlaces stats))))
-        liftIO $ putStrLn ("# of transitions: " ++ (show (Map.toList (numOfTransitions stats))))
-        liftIO $ putStrLn "************************************************"
+printStats :: MonadIO m => PNSolver m ()
+printStats = do
+    stats <- view solverStats <$> get
+    liftIO $ putStrLn "*******************STATISTICS*******************"
+    liftIO $ putStrLn ("Search time for solution: " ++ (showFullPrecision (totalTime stats)))
+    liftIO $ putStrLn ("Petri net construction time: " ++ (showFullPrecision (constructionTime stats)))
+    liftIO $ putStrLn ("Petri net encoding time: " ++ (showFullPrecision (encodingTime stats)))
+    liftIO $ putStrLn ("Z3 solving time: " ++ (showFullPrecision (solverTime stats)))
+    liftIO $ putStrLn ("Hoogle plus code former time: " ++ (showFullPrecision (codeFormerTime stats)))
+    liftIO $ putStrLn ("Hoogle plus refinement time: " ++ (showFullPrecision (refineTime stats)))
+    liftIO $ putStrLn ("Hoogle plus type checking time: " ++ (showFullPrecision (typeCheckerTime stats)))
+    liftIO $ putStrLn ("Total iterations of refinements: " ++ (show (iterations stats)))
+    liftIO $ putStrLn ("# of places: " ++ (show (Map.toList (numOfPlaces stats))))
+    liftIO $ putStrLn ("# of transitions: " ++ (show (Map.toList (numOfTransitions stats))))
+    liftIO $ putStrLn "************************************************"
 
 findFirstN :: (MonadIO m) => Environment -> RType -> EncodeState -> Int -> PNSolver m RProgram
 findFirstN env dst st cnt | cnt == 1  = do
-    (res, _) <- findProgram env dst st
+    (res, _) <- withTime "total search time" $ findProgram env dst st
+    printSolution res
+    printStats
     return res
 findFirstN env dst st cnt | otherwise = do
-    (_, st') <- findProgram env dst st
+    (res, st') <- withTime "total search time" $ findProgram env dst st
+    printSolution res
+    printStats
+    resetTiming
     findFirstN env dst st' (cnt-1)
 
 runPNSolver :: MonadIO m => Environment -> Int -> RType -> PNSolver m RProgram
 runPNSolver env cnt t = do
-    withTime "construction time" (initNet env)
+    initNet env
     st <- withTime "encoding time" (resetEncoder env t)
     findFirstN env t st cnt
 

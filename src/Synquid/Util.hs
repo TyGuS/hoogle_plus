@@ -16,6 +16,7 @@ import qualified Data.Text.Lazy
 import Control.Applicative
 import Control.Monad
 import Control.Lens hiding (both)
+import Numeric
 
 import Debug.Trace
 import Text.Pretty.Simple
@@ -211,9 +212,16 @@ groupTuples :: (Eq a, Ord a) => [(a, [b])] -> [(a, [b])]
 groupTuples = map (\l -> (fst . head $ l, concatMap snd l)) . groupBy ((==) `on` fst)
           . sortBy (comparing fst)
 
-
 showme :: (Show a) => String -> a -> a
 showme label thing = let
   newlabel = Data.Text.Lazy.pack (label ++ ": \n")
   in
   pTraceShow (newlabel `Data.Text.Lazy.append` (pShow thing)) thing
+
+showFullPrecision :: Double -> String
+showFullPrecision x = showFFloat Nothing x ""
+
+mkOneLine :: String -> String
+mkOneLine = unwords . (map trim) . lines
+  where
+   trim = dropWhileEnd isSpace . dropWhile isSpace
