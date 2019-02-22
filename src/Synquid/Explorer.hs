@@ -227,7 +227,7 @@ generateI env t@(ScalarT _ _) isElseBranch = do
                    PNSolver.NoRefine -> Abstraction.firstLvAbs env' (Map.elems (allSymbols env))
                    PNSolver.AbstractRefinement -> PNSolver.emptySolverState ^. PNSolver.abstractionTree
                    PNSolver.Combination -> Abstraction.firstLvAbs env' (Map.elems (allSymbols env))
-                   PNSolver.QueryRefinement -> Abstraction.firstLvAbs env' (args)
+                   PNSolver.QueryRefinement -> Abstraction.specificAbstractionFromTypes env' (args)
                }
       evalStateT (PNSolver.runPNSolver env' cnt t) is
     PNSMT -> do

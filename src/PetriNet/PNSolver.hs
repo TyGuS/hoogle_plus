@@ -362,7 +362,9 @@ cutoff _ semantic t = leafTypes (closestTree semantic t)
 updateSemantic :: Environment -> AbstractionTree -> AbstractSkeleton -> AbstractionTree
 updateSemantic env semantic typ@(ATypeVarT id) | isBound env id =
   case semantic of
-    ALeaf t -> ANode t (ALeaf typ) (ALeaf (typeDifference t typ))
+    ALeaf t
+        | t == typ -> semantic
+        | otherwise -> ANode t (ALeaf typ) (ALeaf (typeDifference t typ))
     ANode t lt rt
         | t == typ -> semantic
         | isSubtypeOf typ t && isSubtypeOf typ (valueType lt) -> ANode t (updateSemantic env lt typ) rt
@@ -1025,6 +1027,7 @@ printSolution solution = do
 printStats :: MonadIO m => PNSolver m ()
 printStats = do
     stats <- view solverStats <$> get
+    depth <- view currentLoc <$> get
     liftIO $ putStrLn "*******************STATISTICS*******************"
     liftIO $ putStrLn ("Search time for solution: " ++ (showFullPrecision (totalTime stats)))
     liftIO $ putStrLn ("Petri net construction time: " ++ (showFullPrecision (constructionTime stats)))
@@ -1036,7 +1039,8 @@ printStats = do
     liftIO $ putStrLn ("Total iterations of refinements: " ++ (show (iterations stats)))
     liftIO $ putStrLn ("Number of places: " ++ (show $ map snd (Map.toAscList (numOfPlaces stats))))
     liftIO $ putStrLn ("Number of transitions: " ++ (show $ map snd (Map.toAscList (numOfTransitions stats))))
-    liftIO $ putStrLn "************************************************"
+    liftIO $ putStrLn ("Solution Depth: " ++ show depth)
+    liftIO $ putStrLn "********************END STATISTICS****************************"
 
 findFirstN :: (MonadIO m) => Environment -> RType -> EncodeState -> Int -> PNSolver m RProgram
 findFirstN env dst st cnt | cnt == 1  = do
