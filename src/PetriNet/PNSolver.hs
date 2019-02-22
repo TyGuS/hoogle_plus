@@ -1034,8 +1034,8 @@ printStats = do
     liftIO $ putStrLn ("Hoogle plus refinement time: " ++ (showFullPrecision (refineTime stats)))
     liftIO $ putStrLn ("Hoogle plus type checking time: " ++ (showFullPrecision (typeCheckerTime stats)))
     liftIO $ putStrLn ("Total iterations of refinements: " ++ (show (iterations stats)))
-    liftIO $ putStrLn ("# of places: " ++ (show (Map.toList (numOfPlaces stats))))
-    liftIO $ putStrLn ("# of transitions: " ++ (show (Map.toList (numOfTransitions stats))))
+    liftIO $ putStrLn ("Number of places: " ++ (show $ map snd (Map.toAscList (numOfPlaces stats))))
+    liftIO $ putStrLn ("Number of transitions: " ++ (show $ map snd (Map.toAscList (numOfTransitions stats))))
     liftIO $ putStrLn "************************************************"
 
 findFirstN :: (MonadIO m) => Environment -> RType -> EncodeState -> Int -> PNSolver m RProgram
