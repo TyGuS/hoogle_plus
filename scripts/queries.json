@@ -1,0 +1,5 @@
+[
+  {"name": "int_to_bytestring", "query": "Int64 -> ByteString"},
+  {"name": "firstMaybe", "query": "a -> List (Maybe a) -> a"},
+  {"name": "conjunctMaybe", "query": "List (Maybe Bool) -> Bool"}
+]
