@@ -14,11 +14,11 @@ TMP_BASE = "/tmp/base.txt"
 CLEAR_SCRIPT = "rm " + TMP_BASE
 
 gen_scripts = {
-    10: "./scripts/generate_test.sh test10.txt",
-    20: "./scripts/generate_test.sh test20.txt",
-    50: "./scripts/generate_test.sh test50.txt",
-    100: "./scripts/generate_test.sh test100.txt",
-    # 189: CLEAR_SCRIPT + " && ./generate_189.sh",
+    10: "./scripts/10.sh",
+    20: "./scripts/20.sh",
+    50: "./scripts/50.sh",
+    100: "./scripts/100.sh",
+    189: "./scripts/189.sh",
 }
 
 DECIMAL_REGEX = "(\d+.?\d*)"
@@ -60,7 +60,7 @@ EXEC_BASE = 'stack exec -- synquid synthesis --path="PetriNet" '
 
 # DEFAULT_MODES = ["queryrefinement", "norefine", "abstractrefinement", "combination"]
 DEFAULT_MODES = ["abstractrefinement"]
-DEFAULT_COMPONENT_SETS = [10, 20, 50, 100]
+DEFAULT_COMPONENT_SETS = [10]
 DEFAULT_TIMEOUT = 60
 DEFAULT_SOLUTIONS_PER_QUERY = 1
 
@@ -69,10 +69,12 @@ def process_output(outlines):
     lines = outlines.decode("utf-8").split("\n")
     run_characteristics = []
     new_characteristics, rest = process_solution(lines)
-    run_characteristics.append(new_characteristics)
+    if not new_characteristics == {}:
+        run_characteristics.append(new_characteristics)
     while rest is not None:
         new_characteristics, rest = process_solution(rest)
-        run_characteristics.append(new_characteristics)
+        if not new_characteristics == {}:
+            run_characteristics.append(new_characteristics)
     return run_characteristics
 
 

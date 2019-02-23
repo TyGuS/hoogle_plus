@@ -1,9 +1,9 @@
 #!/bin/bash
-
+cd "$(dirname "$0")"
+cd ..  # go to the root of the project
 if [[ ! -z $1 ]]; then
     cp libraries/$1 $TMPDIR/base.txt
 fi
-
 
 stack exec -- synquid generate \
       -p base \
