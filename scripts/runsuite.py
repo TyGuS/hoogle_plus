@@ -18,7 +18,7 @@ gen_scripts = {
     20: "./scripts/20.sh",
     50: "./scripts/50.sh",
     100: "./scripts/100.sh",
-    189: "./scripts/189.sh",
+    153: "./scripts/153.sh",
 }
 
 DECIMAL_REGEX = "(\d+.?\d*)"
@@ -58,9 +58,8 @@ OUTPUT_DIR = "output/script/"
 
 EXEC_BASE = 'stack exec -- synquid synthesis --path="PetriNet" '
 
-# DEFAULT_MODES = ["queryrefinement", "norefine", "abstractrefinement", "combination"]
-DEFAULT_MODES = ["abstractrefinement"]
-DEFAULT_COMPONENT_SETS = [10]
+DEFAULT_MODES = ["queryrefinement", "norefine", "abstractrefinement", "combination"]
+DEFAULT_COMPONENT_SETS = gen_scripts.keys()
 DEFAULT_TIMEOUT = 60
 DEFAULT_SOLUTIONS_PER_QUERY = 1
 
@@ -184,7 +183,7 @@ def main():
     results = run_queries(args)
 
     for name, result in results.items():
-        write_results(name, results)
+        write_results(name, result)
 
 if __name__ == '__main__':
     main()
