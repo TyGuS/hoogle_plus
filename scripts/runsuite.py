@@ -121,10 +121,13 @@ def run_query(args, query, mode, component_set):
         output = subprocess.check_output(shell_cmd, shell=True)
         data = process_output(output)
         return data
-    except CalledProcessError as ex:
-        if ex.returncode == 124:
-            return {"error": "timeout"}
-        return {"error": str(ex)}
+    except Exception as ex:
+        try:
+            if ex.returncode == 124:
+                return {"error": "timeout"}
+            return {"error": str(ex)}
+        except AttributeError:
+            return {"error": str(ex)}
 
 
 def get_queries(args):
