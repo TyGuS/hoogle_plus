@@ -11,10 +11,6 @@ import argparse
 
 QUERY_FILE = "scripts/queries.json"
 
-TMP_BASE = "/tmp/base.txt"
-
-CLEAR_SCRIPT = "rm " + TMP_BASE
-
 gen_scripts = {
     10: "./scripts/10.sh",
     20: "./scripts/20.sh",
