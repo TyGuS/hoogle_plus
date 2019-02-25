@@ -1,7 +1,9 @@
 #!/usr/bin/python3
 
 import os
+import signal
 import subprocess
+from subprocess import Popen, PIPE, TimeoutExpired
 import re
 import json
 import time
@@ -19,6 +21,7 @@ gen_scripts = {
     50: "./scripts/50.sh",
     100: "./scripts/100.sh",
     153: "./scripts/153.sh",
+    449: "./scripts/449.sh",
 }
 
 DECIMAL_REGEX = "(\d+.?\d*)"
@@ -56,11 +59,12 @@ NUMERIC_REGEXES = ['z3', 'encoding', 'creation', 'components',
 
 OUTPUT_DIR = "output/script/"
 
-EXEC_BASE = 'stack exec -- synquid synthesis --path="PetriNet" '
+# EXEC_BASE = 'stack exec -- synquid synthesis --path="PetriNet" '
+EXEC_BASE = './scripts/runquery.sh'
 
 DEFAULT_MODES = ["queryrefinement", "norefine", "abstractrefinement", "combination"]
-DEFAULT_COMPONENT_SETS = gen_scripts.keys()
-DEFAULT_TIMEOUT = 60
+DEFAULT_COMPONENT_SETS = [50, 100, 153, 449]
+DEFAULT_TIMEOUT = 300
 DEFAULT_SOLUTIONS_PER_QUERY = 1
 
 
@@ -109,25 +113,29 @@ def run_query(args, query, mode, component_set):
     solutions = args.solutions
     timeout = args.timeout
     generate_env(component_set)
-    complete_query = f"{EXEC_BASE} --use-refine={mode} --sol-num={solutions} '{query}'"
+    query_cmd = f"{EXEC_BASE} {mode} {solutions} '{query}'"
+    shell_cmd = f"timeout {timeout} {query_cmd}"
     try:
-        print(complete_query)
-        output = subprocess.check_output(complete_query, shell=True, timeout=timeout)
+        print(shell_cmd)
+        output = subprocess.check_output(shell_cmd, shell=True)
         data = process_output(output)
         return data
-    except subprocess.TimeoutExpired:
-        return {"error": "timeout"}
+    except CalledProcessError as ex:
+        if ex.returncode == 124:
+            return {"error": "timeout"}
+        return {"error": str(ex)}
 
 
 def get_queries(args):
     queries = []
     qf = args.query_file
-    with open(qf, 'r') as file:
-        queries = json.load(file)
+    if not qf == "":
+        with open(qf, 'r') as file:
+            queries = json.load(file)
     if args.add_query is not None:
         for i, user_query in enumerate(args.add_query):
             queries.append({
-                "name": "user_query_" + i,
+                "name": "user_query_" + str(i),
                 "query": user_query
             })
     return queries
@@ -179,11 +187,12 @@ def main():
                         default=DEFAULT_SOLUTIONS_PER_QUERY,
                         help="Number of solutions per query for which to search")
     args = parser.parse_args()
+    # print(run_cmd(["./scripts/runquery.sh", "foo", "bar", "baz"], 1))
     print(args)
     results = run_queries(args)
 
-    for name, result in results.items():
-        write_results(name, result)
+    # for name, result in results.items():
+    #     write_results(name, result)
 
 if __name__ == '__main__':
     main()
