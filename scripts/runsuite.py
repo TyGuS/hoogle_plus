@@ -195,8 +195,8 @@ def main():
     print(args)
     results = run_queries(args)
 
-    # for name, result in results.items():
-    #     write_results(name, result)
+    for name, result in results.items():
+        write_results(name, result)
 
 if __name__ == '__main__':
     main()
