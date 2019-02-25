@@ -115,8 +115,9 @@ def run_query(args, query, mode, component_set):
     generate_env(component_set)
     query_cmd = f"{EXEC_BASE} {mode} {solutions} '{query}'"
     shell_cmd = f"timeout {timeout} {query_cmd}"
+    info = f"query: {query}; component set: {component_set}; mode: {mode}"
     try:
-        print(shell_cmd)
+        print(info)
         output = subprocess.check_output(shell_cmd, shell=True)
         data = process_output(output)
         return data

@@ -38,5 +38,5 @@
     {"name": "GOOD28", "query": "b -> (a -> b) -> List (a) -> b"},
     {"name": "GOOD29", "query": "Maybe a -> a -> Maybe a"},
     {"name": "GOOD30", "query": "(a -> b -> c -> d) -> a -> c -> b -> d"},
-    {"name": "GOOD31", "query": "a -> a -> Maybe a"},
+    {"name": "GOOD31", "query": "a -> a -> Maybe a"}
 ]
