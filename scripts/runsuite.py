@@ -55,11 +55,10 @@ NUMERIC_REGEXES = ['z3', 'encoding', 'creation', 'components',
 
 OUTPUT_DIR = "output/script/"
 
-# EXEC_BASE = 'stack exec -- synquid synthesis --path="PetriNet" '
 EXEC_BASE = './scripts/runquery.sh'
 
 DEFAULT_MODES = ["queryrefinement", "norefine", "abstractrefinement", "combination"]
-DEFAULT_COMPONENT_SETS = [50, 100, 153, 449]
+DEFAULT_COMPONENT_SETS = [153]
 DEFAULT_TIMEOUT = 300
 DEFAULT_SOLUTIONS_PER_QUERY = 1
 
