@@ -146,7 +146,7 @@ def run_queries(args):
     for query_obj in queries:
         name = query_obj["name"]
         query = query_obj["query"]
-        results[name] = {}
+        results[name] = {"query": query}
         for component in args.component_set:
             results[name][component] = {}
             for mode in args.modes:
