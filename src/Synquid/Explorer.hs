@@ -220,8 +220,10 @@ generateI env t@(ScalarT _ _) isElseBranch = do
       maxLevel <- asks . view $ _1 . explorerLogLevel
       cnt <- asks . view $ _1 . solutionCnt
       rs <- asks . view $ _1 . useRefine
+      maxDepth <- asks . view $ _1 . eGuessDepth
       let is = PNSolver.emptySolverState {
                  PNSolver._logLevel = maxLevel
+               , PNSolver._maxApplicationDepth = maxDepth
                , PNSolver._refineStrategy = rs
                , PNSolver._abstractionTree = case rs of
                    PNSolver.NoRefine -> Abstraction.firstLvAbs env' (Map.elems (allSymbols env))

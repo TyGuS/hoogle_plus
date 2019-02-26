@@ -67,7 +67,7 @@ releaseDate = fromGregorian 2016 8 11
 main = do
   res <- cmdArgsRun $ mode
   case res of
-    (Synthesis file libs onlyGoals
+    (Synthesis file libs onlyGoals envPath
                appMax scrutineeMax matchMax auxMax fix genPreds explicitMatch unfoldLocals partial incremental consistency memoize symmetry
                lfp bfs
                out_file out_module outFormat resolve
@@ -106,7 +106,8 @@ main = do
                     outputFormat = outFormat,
                     resolveOnly = resolve,
                     showSpec = print_spec,
-                    showStats = print_stats
+                    showStats = print_stats,
+                    envPath = envPath
                   }
                   let codegenParams = defaultCodegenParams {
                     filename = out_file,
@@ -134,8 +135,8 @@ main = do
                     module_ = out_module
                   }
                   runOnFile synquidParams explorerParams solverParams codegenParams file libs
-    (Generate pkgs mdls d ho) -> do
-                  precomputeGraph pkgs mdls d ho
+    (Generate pkgs mdls d ho envPath) -> do
+                  precomputeGraph pkgs mdls d ho envPath
 {- Command line arguments -}
 
 deriving instance Typeable FixpointStrategy
@@ -158,6 +159,7 @@ data CommandLineArgs
         file :: String,
         libs :: [String],
         only :: Maybe String,
+        env_file_path_in :: String,
         -- | Explorer params
         app_max :: Int,
         scrutinee_max :: Int,
@@ -212,7 +214,8 @@ data CommandLineArgs
         pkg_name :: [String],
         module_name :: [String],
         type_depth :: Int,
-        higher_order :: Bool
+        higher_order :: Bool,
+        env_file_path_out :: String
       }
   deriving (Data, Typeable, Show, Eq)
 
@@ -220,7 +223,8 @@ synt = Synthesis {
   file                = ""              &= typFile &= argPos 0,
   libs                = []              &= args &= typ "FILES",
   only                = Nothing         &= typ "GOAL,..." &= help ("Only synthesize the specified functions"),
-  app_max             = 3               &= help ("Maximum depth of an application term (default: 3)") &= groupname "Explorer parameters",
+  env_file_path_in    = defaultEnvPath  &= help ("Environment file path (default:" ++ (show defaultEnvPath) ++ ")"),
+  app_max             = 6               &= help ("Maximum depth of an application term (default: 6)") &= groupname "Explorer parameters",
   scrutinee_max       = 1               &= help ("Maximum depth of a match scrutinee (default: 1)"),
   match_max           = 0               &= help ("Maximum depth of matches (default: 2)"),
   aux_max             = 1               &= help ("Maximum depth of auxiliary functions (default: 1)") &= name "x",
@@ -245,7 +249,7 @@ synt = Synthesis {
   graph               = False           &= help ("Build graph for exploration (default: False)") &= name "graph",
   succinct            = False           &= help ("Use graph to direct the term exploration (default: False)") &= name "succ",
   sol_num             = 1               &= help ("Number of solutions need to find (default: 1)") &= name "cnt",
-  path_search         = DisablePath     &= help ("Use path search algorithm to ensure the usage of provided parameters (default: DisablePath)") &= name "path",
+  path_search         = PetriNet     &= help ("Use path search algorithm to ensure the usage of provided parameters (default: DisablePath)") &= name "path",
   higher_order        = False           &= help ("Include higher order functions (default: False)"),
   encoder             = HEncoder.Normal &= help ("Choose normal or refined arity encoder (default: Normal)"),
   use_refine          = PNS.NoRefine    &= help ("Use abstract refinement or not (default: NoRefine)")
@@ -273,7 +277,8 @@ generate = Generate {
   pkg_name             = []              &= help ("Package names to be generated"),
   module_name          = []              &= help ("Module names to be generated in the given packages"),
   type_depth           = 2               &= help ("Depth of the types to be instantiated for polymorphic type constructors"),
-  higher_order         = False           &= help ("Include higher order functions (default: False)")
+  higher_order         = False           &= help ("Include higher order functions (default: False)"),
+  env_file_path_out    = defaultEnvPath  &= help ("Environment file path (default:" ++ (show defaultEnvPath) ++ ")")
 } &= help "Generate the type conversion database for synthesis"
 
 mode = cmdArgsMode $ modes [synt, lifty, generate] &=
@@ -342,7 +347,8 @@ data SynquidParams = SynquidParams {
   repairPolicies :: Bool,
   verifyOnly :: Bool,
   showSpec :: Bool,                            -- ^ Print specification for every synthesis goal
-  showStats :: Bool                            -- ^ Print specification and solution size
+  showStats :: Bool,                            -- ^ Print specification and solution size
+  envPath :: String -- ^ Path to the environment file
 }
 
 defaultSynquidParams = SynquidParams {
@@ -352,7 +358,8 @@ defaultSynquidParams = SynquidParams {
   repairPolicies = False,
   verifyOnly = False,
   showSpec = True,
-  showStats = False
+  showStats = False,
+  envPath = defaultEnvPath
 }
 
 -- | Parameters for code extraction and Haskell output
@@ -388,8 +395,8 @@ codegen params results = case params of
 collectLibDecls libs declsByFile =
   Map.filterWithKey (\k _ -> k `elem` libs) $ Map.fromList declsByFile
 
-precomputeGraph :: [PkgName] -> [String] -> Int -> Bool -> IO ()
-precomputeGraph pkgs mdls depth useHO = do
+precomputeGraph :: [PkgName] -> [String] -> Int -> Bool -> String -> IO ()
+precomputeGraph pkgs mdls depth useHO envPath = do
   -- print pkgs
   pkgDecls <- mapM (\pkgName -> do
     downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
@@ -409,7 +416,7 @@ precomputeGraph pkgs mdls depth useHO = do
       -- let allEdges = Set.toList . Set.unions . concat . map HashMap.elems $ HashMap.elems (envAll ^. succinctGraph)
       -- edgeWeights <- getGraphWeights $ map getEdgeId allEdges
       -- let graph' = fillEdgeWeight allEdges edgeWeights $ envAll ^. succinctGraph
-      B.writeFile "data/env.db" $ encode $ env {
+      B.writeFile envPath $ encode $ env {
           _symbols = if useHO then env ^. symbols
                               else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols
         , _included_modules = Set.fromList mdls
@@ -450,9 +457,10 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
   return ()
   where
     feedEnv goal = do
-      doesExist <- doesFileExist "data/env.db"
+      let envPathIn = envPath synquidParams
+      doesExist <- doesFileExist envPathIn
       when (not doesExist) (error "Please run `stack exec -- synquid generate -p [PACKAGES]` to generate database first")
-      envRes <- decode <$> B.readFile "data/env.db"
+      envRes <- decode <$> B.readFile envPathIn
       case envRes of
         Left err -> error err
         Right env -> do

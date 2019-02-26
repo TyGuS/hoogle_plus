@@ -103,7 +103,8 @@ data SolverState = SolverState {
     _solverNet :: PetriNet,
     _solverStats :: TimeStatistics,
     _useGroup :: Bool,
-    _logLevel :: Int -- temporary for log level
+    _logLevel :: Int, -- temporary for log level
+    _maxApplicationDepth :: Int
 } deriving(Eq)
 
 emptySolverState = SolverState {
@@ -126,7 +127,8 @@ emptySolverState = SolverState {
     _solverNet = PetriNet HashMap.empty HashMap.empty HashMap.empty,
     _solverStats = TimeStatistics (0::Double) (0::Double) (0::Double) (0) (0::Double) (0::Double) (0::Double) (0::Double) 0 Map.empty Map.empty,
     _useGroup = False,
-    _logLevel = 0
+    _logLevel = 0,
+    _maxApplicationDepth = 6
 }
 
 makeLenses ''SolverState
@@ -841,7 +843,8 @@ findPath env dst st = do
     case res of
         [] -> do
             currSt <- get
-            when (currSt ^. currentLoc >= 6) (error "cannot find a path")
+            maxDepth <- view maxApplicationDepth <$> get
+            when (currSt ^. currentLoc >= maxDepth) (error "cannot find a path")
             modify $ set currentLoc ((currSt ^. currentLoc) + 1)
             -- initNet env
             st'' <- withTime "encoding time" (resetEncoder env dst)
