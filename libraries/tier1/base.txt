@@ -62,6 +62,7 @@ Just :: a -> Maybe a
 maybe :: b -> (a -> b) -> Maybe a -> b
 isJust :: Maybe a -> Bool
 isNothing :: Maybe a -> Bool
+fromJust :: Maybe a -> a
 fromMaybe :: a -> Maybe a -> a
 listToMaybe :: [a] -> Maybe a
 maybeToList :: Maybe a -> [a]
@@ -76,10 +77,6 @@ concat :: [[a]] -> [a]
 uncons :: [a] -> Maybe (a, [a])
 null :: [a] -> Bool
 length :: [a] -> Int
-foldl :: forall a b. (b -> a -> b) -> b -> [a] -> b
-foldl' :: forall a b. (b -> a -> b) -> b -> [a] -> b
-foldl1 :: (a -> a -> a) -> [a] -> a
-foldl1' :: (a -> a -> a) -> [a] -> a
 scanl :: (b -> a -> b) -> b -> [a] -> [b]
 scanl1 :: (a -> a -> a) -> [a] -> [a]
 scanl' :: (b -> a -> b) -> b -> [a] -> [b]
@@ -89,9 +86,12 @@ scanr :: (a -> b -> b) -> b -> [a] -> [b]
 scanr1 :: (a -> a -> a) -> [a] -> [a]
 iterate :: (a -> a) -> a -> [a]
 iterate' :: (a -> a) -> a -> [a]
+repeat :: a -> [a]
 replicate :: Int -> a -> [a]
 take :: Int -> [a] -> [a]
 drop :: Int -> [a] -> [a]
+sum :: Num a => [a] -> a
+product :: Num a => [a] -> a
 splitAt :: Int -> [a] -> ([a], [a])
 takeWhile :: (a -> Bool) -> [a] -> [a]
 dropWhile :: (a -> Bool) -> [a] -> [a]
@@ -1071,18 +1071,15 @@ intercalate :: [a] -> [[a]] -> [a]
 transpose :: [[a]] -> [[a]]
 subsequences :: [a] -> [[a]]
 permutations :: [a] -> [[a]]
-foldl :: forall a b. (b -> a -> b) -> b -> [a] -> b
-foldl' :: forall a b. (b -> a -> b) -> b -> [a] -> b
-foldl1 :: (a -> a -> a) -> [a] -> a
-foldl1' :: (a -> a -> a) -> [a] -> a
 foldr :: (a -> b -> b) -> b -> [a] -> b
-foldr1 :: (a -> a -> a) -> [a] -> a
 concat :: [[a]] -> [a]
 concatMap :: (a -> [b]) -> [a] -> [b]
 and :: [Bool] -> Bool
 or :: [Bool] -> Bool
 any :: (a -> Bool) -> [a] -> Bool
 all :: (a -> Bool) -> [a] -> Bool
+sum :: Num a => [a] -> a
+product :: Num a => [a] -> a
 scanl :: (b -> a -> b) -> b -> [a] -> [b]
 scanl' :: (b -> a -> b) -> b -> [a] -> [b]
 scanl1 :: (a -> a -> a) -> [a] -> [a]
@@ -1092,6 +1089,7 @@ mapAccumL :: (acc -> x -> (acc, y)) -> acc -> [x] -> (acc, [y])
 mapAccumR :: (acc -> x -> (acc, y)) -> acc -> [x] -> (acc, [y])
 iterate :: (a -> a) -> a -> [a]
 iterate' :: (a -> a) -> a -> [a]
+repeat :: a -> [a]
 replicate :: Int -> a -> [a]
 unfoldr :: (b -> Maybe (a, b)) -> b -> [a]
 take :: Int -> [a] -> [a]
@@ -1162,6 +1160,9 @@ sortBy :: (a -> a -> Ordering) -> [a] -> [a]
 insertBy :: (a -> a -> Ordering) -> a -> [a] -> [a]
 maximumBy :: (a -> a -> Ordering) -> [a] -> a
 minimumBy :: (a -> a -> Ordering) -> [a] -> a
+genericLength :: Num i => [a] -> i
+genericTake :: Integral i => i -> [a] -> [a]
+genericDrop :: Integral i => i -> [a] -> [a]
 genericSplitAt :: Integral i => i -> [a] -> ([a], [a])
 genericIndex :: Integral i => [a] -> i -> a
 genericReplicate :: Integral i => i -> a -> [a]
@@ -1664,10 +1665,6 @@ fold :: (Foldable t, Monoid m) => t m -> m
 foldMap :: (Foldable t, Monoid m) => (a -> m) -> t a -> m
 foldr :: Foldable t => (a -> b -> b) -> b -> t a -> b
 foldr' :: Foldable t => (a -> b -> b) -> b -> t a -> b
-foldl :: Foldable t => (b -> a -> b) -> b -> t a -> b
-foldl' :: Foldable t => (b -> a -> b) -> b -> t a -> b
-foldr1 :: Foldable t => (a -> a -> a) -> t a -> a
-foldl1 :: Foldable t => (a -> a -> a) -> t a -> a
 toList :: Foldable t => t a -> [a]
 null :: Foldable t => t a -> Bool
 length :: Foldable t => t a -> Int
@@ -1691,8 +1688,6 @@ and :: Foldable t => t Bool -> Bool
 or :: Foldable t => t Bool -> Bool
 any :: Foldable t => (a -> Bool) -> t a -> Bool
 all :: Foldable t => (a -> Bool) -> t a -> Bool
-maximumBy :: Foldable t => (a -> a -> Ordering) -> t a -> a
-minimumBy :: Foldable t => (a -> a -> Ordering) -> t a -> a
 notElem :: (Foldable t, Eq a) => a -> t a -> Bool
 infix 4 `notElem`
 find :: Foldable t => (a -> Bool) -> t a -> Maybe a
@@ -3530,8 +3525,8 @@ mapAccumL :: Traversable t => (a -> b -> (a, c)) -> a -> t b -> (a, t c)
 mapAccumR :: Traversable t => (a -> b -> (a, c)) -> a -> t b -> (a, t c)
 iterate :: (a -> a) -> a -> [a]
 iterate' :: (a -> a) -> a -> [a]
+repeat :: a -> [a]
 replicate :: Int -> a -> [a]
-cycle :: [a] -> [a]
 unfoldr :: (b -> Maybe (a, b)) -> b -> [a]
 take :: Int -> [a] -> [a]
 drop :: Int -> [a] -> [a]
@@ -3602,6 +3597,9 @@ sortBy :: (a -> a -> Ordering) -> [a] -> [a]
 insertBy :: (a -> a -> Ordering) -> a -> [a] -> [a]
 maximumBy :: Foldable t => (a -> a -> Ordering) -> t a -> a
 minimumBy :: Foldable t => (a -> a -> Ordering) -> t a -> a
+genericLength :: Num i => [a] -> i
+genericTake :: Integral i => i -> [a] -> [a]
+genericDrop :: Integral i => i -> [a] -> [a]
 genericSplitAt :: Integral i => i -> [a] -> ([a], [a])
 genericIndex :: Integral i => [a] -> i -> a
 genericReplicate :: Integral i => i -> a -> [a]
@@ -3872,12 +3870,9 @@ infixr 1 =<<
 class Foldable t
 foldMap :: (Foldable t, Monoid m) => (a -> m) -> t a -> m
 foldr :: Foldable t => (a -> b -> b) -> b -> t a -> b
-foldl :: Foldable t => (b -> a -> b) -> b -> t a -> b
-foldr1 :: Foldable t => (a -> a -> a) -> t a -> a
-foldl1 :: Foldable t => (a -> a -> a) -> t a -> a
 elem :: (Foldable t, Eq a) => a -> t a -> Bool
-maximum :: forall a. (Foldable t, Ord a) => t a -> a
-minimum :: forall a. (Foldable t, Ord a) => t a -> a
+sum :: (Foldable t, Num a) => t a -> a
+product :: (Foldable t, Num a) => t a -> a
 infix 4 `elem`
 class (Functor t, Foldable t) => Traversable t
 traverse :: (Traversable t, Applicative f) => (a -> f b) -> t a -> f (t b)
@@ -3917,8 +3912,8 @@ scanl1 :: (a -> a -> a) -> [a] -> [a]
 scanr :: (a -> b -> b) -> b -> [a] -> [b]
 scanr1 :: (a -> a -> a) -> [a] -> [a]
 iterate :: (a -> a) -> a -> [a]
+repeat :: a -> [a]
 replicate :: Int -> a -> [a]
-cycle :: [a] -> [a]
 take :: Int -> [a] -> [a]
 drop :: Int -> [a] -> [a]
 splitAt :: Int -> [a] -> ([a], [a])
@@ -4537,6 +4532,7 @@ reverse :: NonEmpty a -> NonEmpty a
 inits :: Foldable f => f a -> NonEmpty [a]
 tails :: Foldable f => f a -> NonEmpty [a]
 iterate :: (a -> a) -> a -> NonEmpty a
+repeat :: a -> NonEmpty a
 cycle :: NonEmpty a -> NonEmpty a
 unfold :: (a -> (b, Maybe a)) -> a -> NonEmpty b
 insert :: (Foldable f, Ord a) => a -> f a -> NonEmpty a

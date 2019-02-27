@@ -10,24 +10,6 @@ empty :: ShortByteString
 null :: ShortByteString -> Bool
 length :: ShortByteString -> Int
 index :: ShortByteString -> Int -> Word8
-module Data.ByteString.Unsafe
-unsafeHead :: ByteString -> Word8
-unsafeTail :: ByteString -> ByteString
-unsafeInit :: ByteString -> ByteString
-unsafeLast :: ByteString -> Word8
-unsafeIndex :: ByteString -> Int -> Word8
-unsafeTake :: Int -> ByteString -> ByteString
-unsafeDrop :: Int -> ByteString -> ByteString
-unsafeUseAsCString :: ByteString -> (CString -> IO a) -> IO a
-unsafeUseAsCStringLen :: ByteString -> (CStringLen -> IO a) -> IO a
-unsafePackCString :: CString -> IO ByteString
-unsafePackCStringLen :: CStringLen -> IO ByteString
-unsafePackMallocCString :: CString -> IO ByteString
-unsafePackMallocCStringLen :: CStringLen -> IO ByteString
-unsafePackAddress :: Addr# -> IO ByteString
-unsafePackAddressLen :: Int -> Addr# -> IO ByteString
-unsafePackCStringFinalizer :: Ptr Word8 -> Int -> IO () -> IO ByteString
-unsafeFinalize :: ByteString -> IO ()
 module Data.ByteString
 data ByteString
 empty :: ByteString
@@ -41,6 +23,7 @@ infixl 5 `snoc`
 append :: ByteString -> ByteString -> ByteString
 uncons :: ByteString -> Maybe (Word8, ByteString)
 unsnoc :: ByteString -> Maybe (ByteString, Word8)
+last :: ByteString -> Word8
 null :: ByteString -> Bool
 length :: ByteString -> Int
 map :: (Word8 -> Word8) -> ByteString -> ByteString
@@ -49,12 +32,11 @@ intersperse :: Word8 -> ByteString -> ByteString
 intercalate :: ByteString -> [ByteString] -> ByteString
 transpose :: [ByteString] -> [ByteString]
 foldr :: (Word8 -> a -> a) -> a -> ByteString -> a
+foldr' :: (Word8 -> a -> a) -> a -> ByteString -> a
 concat :: [ByteString] -> ByteString
 concatMap :: (Word8 -> ByteString) -> ByteString -> ByteString
 any :: (Word8 -> Bool) -> ByteString -> Bool
 all :: (Word8 -> Bool) -> ByteString -> Bool
-maximum :: ByteString -> Word8
-minimum :: ByteString -> Word8
 scanl :: (Word8 -> Word8 -> Word8) -> Word8 -> ByteString -> ByteString
 scanl1 :: (Word8 -> Word8 -> Word8) -> ByteString -> ByteString
 scanr :: (Word8 -> Word8 -> Word8) -> Word8 -> ByteString -> ByteString
@@ -135,6 +117,7 @@ toStrict :: ByteString -> ByteString
 fromChunks :: [ByteString] -> ByteString
 toChunks :: ByteString -> [ByteString]
 foldrChunks :: (ByteString -> a -> a) -> a -> ByteString -> a
+foldlChunks :: (a -> ByteString -> a) -> a -> ByteString -> a
 cons :: Word8 -> ByteString -> ByteString
 infixr 5 `cons`
 cons' :: Word8 -> ByteString -> ByteString
@@ -156,8 +139,6 @@ concat :: [ByteString] -> ByteString
 concatMap :: (Word8 -> ByteString) -> ByteString -> ByteString
 any :: (Word8 -> Bool) -> ByteString -> Bool
 all :: (Word8 -> Bool) -> ByteString -> Bool
-maximum :: ByteString -> Word8
-minimum :: ByteString -> Word8
 scanl :: (Word8 -> Word8 -> Word8) -> Word8 -> ByteString -> ByteString
 mapAccumL :: (acc -> Word8 -> (acc, Word8)) -> acc -> ByteString -> (acc, ByteString)
 mapAccumR :: (acc -> Word8 -> (acc, Word8)) -> acc -> ByteString -> (acc, ByteString)
@@ -228,7 +209,6 @@ infixl 5 `snoc`
 append :: ByteString -> ByteString -> ByteString
 uncons :: ByteString -> Maybe (Char, ByteString)
 unsnoc :: ByteString -> Maybe (ByteString, Char)
-init :: ByteString -> ByteString
 null :: ByteString -> Bool
 length :: ByteString -> Int64
 map :: (Char -> Char) -> ByteString -> ByteString
@@ -241,8 +221,6 @@ concat :: [ByteString] -> ByteString
 concatMap :: (Char -> ByteString) -> ByteString -> ByteString
 any :: (Char -> Bool) -> ByteString -> Bool
 all :: (Char -> Bool) -> ByteString -> Bool
-maximum :: ByteString -> Char
-minimum :: ByteString -> Char
 scanl :: (Char -> Char -> Char) -> Char -> ByteString -> ByteString
 mapAccumL :: (acc -> Char -> (acc, Char)) -> acc -> ByteString -> (acc, ByteString)
 mapAccumR :: (acc -> Char -> (acc, Char)) -> acc -> ByteString -> (acc, ByteString)
@@ -319,12 +297,11 @@ intersperse :: Char -> ByteString -> ByteString
 intercalate :: ByteString -> [ByteString] -> ByteString
 transpose :: [ByteString] -> [ByteString]
 foldr :: (Char -> a -> a) -> a -> ByteString -> a
+foldr' :: (Char -> a -> a) -> a -> ByteString -> a
 concat :: [ByteString] -> ByteString
 concatMap :: (Char -> ByteString) -> ByteString -> ByteString
 any :: (Char -> Bool) -> ByteString -> Bool
 all :: (Char -> Bool) -> ByteString -> Bool
-maximum :: ByteString -> Char
-minimum :: ByteString -> Char
 scanl :: (Char -> Char -> Char) -> Char -> ByteString -> ByteString
 scanl1 :: (Char -> Char -> Char) -> ByteString -> ByteString
 scanr :: (Char -> Char -> Char) -> Char -> ByteString -> ByteString
