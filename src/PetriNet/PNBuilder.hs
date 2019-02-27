@@ -9,6 +9,7 @@ module PetriNet.PNBuilder(
   , buildPetriNet
   , addFunction
   , removeTransition
+  , addArgClone
 )
 where
 
@@ -75,8 +76,9 @@ data PetriNet = PetriNet {
 } deriving(Eq, Ord, Show)
 
 buildPetriNet :: [FunctionCode] -> [Id] -> PetriNet
-buildPetriNet fs inputs = addFuncs -- setMaxToken inputs addArgs
+buildPetriNet fs inputs = foldr addArgClone addFuncs (filter notNeg (HashMap.keys (pnPlaces addFuncs)))
   where
+    notNeg n = (head n) /= '-'
     emptyPN = PetriNet HashMap.empty HashMap.empty HashMap.empty
     addFuncs = foldr addFunction emptyPN fs
     -- addArgs = foldr addArgClone addFuncs inputs
@@ -222,7 +224,7 @@ addFunction (FunctionCode name hoParams params ret) pn = pn'
     transitionedPn = addTransition name placedPn
     retedPn = foldr (\r p -> addFlow name r 1 p) transitionedPn ret
     flowedPn = foldr (\t p -> addFlow t name 1 p) retedPn places
-    pn' = flowedPn -- foldr addArgClone flowedPn (concatMap funParams hoParams)
+    pn' = flowedPn -- flowedPn (concatMap funParams hoParams)
 
 addArgClone tArg pn = pn'
   where

@@ -232,19 +232,21 @@ encoderRefine net info inputs ret = do
     -- the first one is those splitted from the old type
     let newPlaces = HashMap.elems newTyps
     -- let inputClones = map (\n -> n ++ "|clone") inputs
+    let typeClones = map (\n -> n ++ "|clone") (filter ((/=) '-' . head) (HashMap.keys newTyps))
     let transIds = concat (snd (unzip (splitedGroup info)))
-    let allTransIds = fst (unzip (splitedGroup info)) ++ transIds
+    let allTransIds = fst (unzip (splitedGroup info)) ++ transIds ++ typeClones
     -- some of the transitions are splitted
     let existingTrans = findVariable (abstractionLv st) (transition2id st)
-    let newTrans = HashMap.elems (HashMap.filterWithKey (\k _ -> not (HashMap.member k existingTrans)) (pnTransitions net))
-    -- map (\tr -> findVariable tr (pnTransitions net)) (inputClones ++ transIds)
+    -- let newTrans = HashMap.elems (HashMap.filterWithKey (\k _ -> not (HashMap.member k existingTrans)) (pnTransitions net))
+    -- let newTrans = map (\tr -> findVariable tr (pnTransitions net)) (inputClones ++ transIds)
+    let newTrans = map (\tr -> findVariable tr (pnTransitions net)) (typeClones ++ transIds)
     -- other transition have no change but need to be copied to the next level
-    let noSplit k _ = not (elem k allTransIds || "|clone" `isSuffixOf` k)
+    let noSplit k _ = not (elem k allTransIds)
     -- let discards = HashMap.elems (HashMap.filterWithKey (\k _ -> "|discard" `isInfixOf` k && (removeLast '|' k ++ "|entry1") `elem` transIds) (pnTransitions net))
     let oldTransIds = HashMap.keys (HashMap.filterWithKey noSplit existingTrans)
     let oldTrans = map (\tr -> findVariable tr (pnTransitions net)) oldTransIds
     let lookupTrans tr = findVariable tr (pnTransitions net)
-    let splitTrans = map (\(tr, trs) -> (lookupTrans tr, map lookupTrans trs)) (splitedGroup info)
+    let splitTrans = map (\(tr, trs) -> (lookupTrans tr, map lookupTrans trs)) ((splitedTyp ++ "|clone", typeClones):(splitedGroup info))
 
     l <- loc <$> get
     -- liftIO $ print ("add " ++ show (length newTrans) ++ " new transitions and " ++ show (length discards) ++ " discard transitions")

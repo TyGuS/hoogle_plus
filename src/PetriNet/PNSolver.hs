@@ -734,9 +734,7 @@ initNet env = withTime "construction time" $ do
     modify $ set detailedSigs (Map.keysSet sigs)
     writeLog 3 $ text "instantiated sigs" <+> pretty (Map.toList sigs)
     symbols <- mapM addEncodedFunction (Map.toList sigs)
-    -- add input argument clone transitions
-    let argClones = map (cloneArg . show) (nubOrd srcTypes)
-    let symbols' = (concat symbols) ++ argClones
+    let symbols' = concat symbols
     modify $ set solverNet (buildPetriNet symbols' (map show srcTypes))
   where
     abstractSymbol id sch = do
@@ -899,7 +897,7 @@ findPath env dst st = do
                           else x:(substPair xs)
 
 fixNet :: MonadIO m => Environment -> SplitInfo -> PNSolver m ()
-fixNet env (SplitInfo _ _ splitedGps) = do
+fixNet env (SplitInfo _ nts splitedGps) = do
     -- reset the src types with the new abstraction semantic
     abstraction <- view abstractionTree <$> get
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
@@ -912,15 +910,16 @@ fixNet env (SplitInfo _ _ splitedGps) = do
     oldSource <- view sourceTypes <$> get
     modify $ set sourceTypes srcTypes
     -- add new function into the petri net
-    let newGroups = map (Text.unpack . Text.replace "|entry" "" . Text.pack) (concat (snd (unzip splitedGps)))
+    let newGroups = concat (snd (unzip splitedGps))
     sigs <- view currentSigs <$> get
     net <- view solverNet <$> get
     let sigs' = Map.filterWithKey (\k _ -> k `elem` newGroups) sigs
     writeLog 3 $ text "sigs to be added include" <+> text (show sigs')
     fm <- view functionMap <$> get
     let encodedFuncs = map (\name -> fromJust (HashMap.lookup name fm)) newGroups
-    let functionedNet = foldr addFunction net encodedFuncs
-    if oldSource == srcTypes
+    let functionedNet = foldr addArgClone (foldr addFunction net encodedFuncs) (map show nts)
+    modify $ set solverNet functionedNet
+        {- if oldSource == srcTypes
        then modify $ set solverNet functionedNet
        else do
            let justTypes = map (\(t1, t2)-> if t1 == t2 then Nothing else Just t2) (zip oldSource srcTypes)
@@ -928,7 +927,7 @@ fixNet env (SplitInfo _ _ splitedGps) = do
             -- add input argument clone transitions
            let argClones = map cloneArg (nubOrd diffTypes)
            modify $ set solverNet (foldr addFunction functionedNet argClones)
-
+        -}
 fixEncoder :: MonadIO m => Environment -> RType -> EncodeState -> SplitInfo -> PNSolver m EncodeState
 fixEncoder env dst st info = do
     let binds = env ^. boundTypeVars
