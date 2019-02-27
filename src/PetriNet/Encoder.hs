@@ -28,6 +28,7 @@ data Z3Env = Z3Env {
 
 data EncodeState = EncodeState {
   z3env :: Z3Env,
+  block :: Z3.AST,
   petriNet :: PetriNet,
   loc :: Int,
   abstractionLv :: Int,
@@ -40,7 +41,8 @@ data EncodeState = EncodeState {
   id2transition :: HashMap Int (Id, Int),
   mustFirers :: [Id],
   transitionChildren :: HashMap Id [Id],
-  transitionParents :: HashMap Id [Id]
+  transitionParents :: HashMap Id [Id],
+  prevChecked :: Bool
 }
 
 newEnv :: Maybe Logic -> Opts -> IO Z3Env

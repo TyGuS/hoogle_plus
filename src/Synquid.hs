@@ -23,7 +23,6 @@ import Database.Generate
 import Database.Download
 import Database.Util
 import Database.GraphWeightsProvider
-import PetriNet.PolyDispatcher
 import qualified PetriNet.PNSolver as PNS
 import qualified HooglePlus.Encoder as HEncoder
 
@@ -408,7 +407,7 @@ precomputeGraph pkgs mdls depth useHO envPath = do
     additionalDts <- declDependencies pkgName fileDecls dependsDecls >>= mapM (flip evalStateT 0 . toSynquidDecl)
     return $ additionalDts ++ parsedDecls
     ) pkgs
-  let decls = reorderDecls $ nub $ defaultDts ++ concat pkgDecls
+  let decls = reorderDecls $ nub $ defaultFuncs ++ defaultDts ++ concat pkgDecls
   case resolveDecls decls of
     Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
     Right (env, _, _, _) -> do
@@ -425,6 +424,10 @@ precomputeGraph pkgs mdls depth useHO envPath = do
     skipLParen [] = []
     skipLParen ('(':name) = name
     skipLParen name = name
+    -- defaultDts = [defaultList]
+    defaultFuncs = [ Pos (initialPos "fst") $ FuncDecl "fst" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) (ScalarT (TypeVarT Map.empty "a") ftrue)))
+                   , Pos (initialPos "snd") $ FuncDecl "snd" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) (ScalarT (TypeVarT Map.empty "b") ftrue)))
+                   ]
     defaultDts = [defaultList, defaultPair, defaultUnit, defaultInt, defaultBool]
     defaultInt = Pos (initialPos "Int") $ DataDecl "Int" [] [] []
     defaultBool = Pos (initialPos "Bool") $ DataDecl "Bool" [] [] []

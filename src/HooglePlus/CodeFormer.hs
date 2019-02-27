@@ -17,12 +17,15 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.List
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Data.Maybe
 
 type Code = String
 type CodePieces = Set Code
 data FormerState = FormerState {
     varCounter :: Int,
-    typedTerms :: HashMap String CodePieces
+    typedTerms :: HashMap String CodePieces,
+    createdVars :: [Code],
+    allSignatures :: [FunctionCode]
 }
 
 type CodeFormer = StateT FormerState IO
@@ -64,14 +67,23 @@ applyFunction func = do
                         []  -> error $ "cannot find higher order param " ++ tArg
                         h:_ -> h
         -- generate higher order argument header
-        vars <- mapM (\_ -> newVar) (funParams curr)
-        let hoHeader = "\\" ++ concat (intersperse " " vars) ++ "-> "
+        vars <- mapM (\_ -> do
+                                v <- newVar
+                                st <- get
+                                put $ st { createdVars = v : (createdVars st) 
+                                         }
+                                return v) (funParams curr)
+        let hoHeader = "\\" ++ concat (intersperse " " vars) ++ " -> "
         -- find argument body
         tterms <- typedTerms <$> get
-        let bodies = Set.toList $ HashMap.lookupDefault Set.empty (head (funReturn curr)) tterms
-        case bodies of
+        oldSt <- get
+        let sigsAvail = take (fromJust (elemIndex func (allSignatures oldSt))) (allSignatures oldSt)
+        bodies <- generateProgram sigsAvail (funParams curr) vars (head (funReturn curr)) False -- Set.toList $ HashMap.lookupDefault Set.empty (head (funReturn curr)) tterms
+        liftIO $ print bodies
+        put oldSt
+        case Set.toList bodies of
             [] -> return []
-            _  -> return $ map (withParen . (++) hoHeader) bodies
+            _  -> return $ map (withParen . (++) hoHeader) (Set.toList bodies)
     generateArg tArg | otherwise = do
         tterms <- typedTerms <$> get
         return $ Set.toList $ HashMap.lookupDefault Set.empty tArg tterms
@@ -79,19 +91,24 @@ applyFunction func = do
 -- | generate the program from the signatures appeared in selected transitions
 -- these signatures are sorted by their timestamps, 
 -- i.e. they may only use symbols appearing before them
-generateProgram :: [FunctionCode] -> [Id] -> [Id] -> CodeFormer CodePieces
-generateProgram signatures inputs argNames = do
+generateProgram :: [FunctionCode] -> [Id] -> [Id] -> Id -> Bool -> CodeFormer CodePieces
+generateProgram signatures inputs argNames ret isFinal = do
     -- prepare scalar variables
     st <- get
-    put $ st { varCounter = 0 }
+    put $ st { varCounter = 0 
+             , allSignatures = signatures
+             }
     mapM_ (uncurry addTypedArg) $ zip inputs argNames
-    mapM_ addHOParams signatures
+    -- mapM_ addHOParams signatures
     -- reset varCounter before filling sketch
     st <- get
     put $ st { varCounter = 0 }
-    mapM_ applyFunction $ init signatures
-    codePieces <- applyFunction $ last signatures
-    return $ Set.filter includeAllSymbols codePieces
+    mapM_ applyFunction signatures
+    codePieces <- HashMap.lookupDefault Set.empty ret . typedTerms <$> get
+    liftIO $ print ("looking for type " ++ show ret ++ " and get code pieces " ++ show codePieces)
+    -- vars <- createdVars <$> get
+    let vars = []
+    return $ Set.filter (includeAllSymbols vars) codePieces
   where
     addTypedArg input argName = do
         st <- get
@@ -108,13 +125,13 @@ generateProgram signatures inputs argNames = do
         argName <- newVar
         addTypedArg fparam argName
 
-    includeAllSymbols code = 
+    includeAllSymbols vars code = 
         let fold_fn f (b, c) = if b then includeSymbol c f else (b, c)
             base             = (True, code)
             funcNames        = map (removeLast '_' . funName) signatures
-            (res, c)         = foldr fold_fn base (argNames ++ funcNames)
-            eachOnce         = foldr (\n acc -> isInfixOf n c || acc) False funcNames
-        in res && (not eachOnce)
+            (res, c)         = foldr fold_fn base (argNames ++ if isFinal then funcNames else []) -- vars exists after slash and the function body, at least twice
+            -- eachOnce         = foldr (\n acc -> isInfixOf n c || acc) False (if isFinal then funcNames else []) -- each function should be used only once according to our design of petri net
+        in res -- && (not eachOnce)
 
     includeSymbol code fname | fname `isInfixOf` code = 
         (True, Text.unpack $ replaceOne (Text.pack fname) Text.empty (Text.pack code))

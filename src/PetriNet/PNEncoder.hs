@@ -52,23 +52,23 @@ createEncoder inputs ret = do
 -- the tokens in the other places should be zero
 setInitialState :: [Id] -> HashMap Id Place -> Encoder ()
 setInitialState inputs places = do
-    let nonInputs = HashMap.filterWithKey (\k _ -> notElem k inputs) places
-    mapM_ emptyOther $ HashMap.elems nonInputs
-    -- assign tokens to each input types
-    mapM_ (uncurry assignToken) inputCounts
+    let nonInputs = HashMap.keys (HashMap.filterWithKey (\k _ -> notElem k inputs && not (head k == '-')) places)
+    let inputCounts = map (\t -> (head t, length t)) $ group $ sort inputs
+    let typeCounts = inputCounts ++ (map (\t -> (t, 0)) nonInputs)
+    -- assign tokens to each types
+    mapM_ (uncurry assignToken) typeCounts
   where
-    inputCounts = map (\t -> (head t, length t)) $ group $ sort inputs
     assignToken t v = do
         places <- pnPlaces . petriNet <$> get
         placeMap <- place2variable <$> get
         let p = findVariable t places
         tVar <- mkZ3IntVar $ findVariable (placeId p, 0) placeMap
-        mkIntNum v >>= mkEq tVar >>= assert
-    emptyOther p = do
-        placeMap <- place2variable <$> get
-        let v = if placeId p == "void" then 1 else 0
-        tVar <- mkZ3IntVar $ findVariable (placeId p, 0) placeMap
-        mkIntNum v >>= mkEq tVar >>= assert
+        if HashMap.member ('-' : placeId p) places
+           then do
+                negVar <- mkZ3IntVar $ findVariable ('-' : placeId p, 0) placeMap
+                initial <- mkIntNum v
+                mkAdd [negVar, initial] >>= mkEq tVar >>= assert
+           else mkIntNum v >>= mkEq tVar >>= assert
 
 -- | set the final solver state, we allow only one token in the return type
 -- and maybe several tokens in the "void" place
@@ -96,23 +96,35 @@ setFinalState ret places = do
 
 solveAndGetModel :: Encoder [(Id, Int)]
 solveAndGetModel = do
+    prev <- prevChecked <$> get
+    when (prev) (do
+        toBlock <- block <$> get
+        assert toBlock)
     -- res <- optimizeCheck
     res <- check
     l <- loc <$> get
-        {- when (l == 4) (do
+        {- when (l == 3) (do
         solverStr <- solverToString
         liftIO $ putStrLn solverStr
         transMap <- transition2id <$> get
         liftIO $ print transMap
+        placeMap <- place2variable <$> get
+        liftIO $ print placeMap
+        transMap' <- id2transition <$> get
+        liftIO $ print transMap'
                   ) -}
     case res of
         Sat -> do
             model <- solverGetModel
+            modelStr <- modelToString model
+            liftIO $ print modelStr
             selected <- mapM (checkLit model) [0..(l-1)]
             blockTrs <- mapM (uncurry blockTr) (zip [0..(l-1)] selected)
             -- placeMap <- place2variable <$> get
             -- blockP <- mapM (checkIntLit model) $ HashMap.toList placeMap
-            mkAnd blockTrs >>= mkNot >>= assert
+            blockAss <- mkAnd blockTrs >>= mkNot
+            st <- get
+            put $ st { block = blockAss }
             selectedNames <- getTrNames selected
             return (zip selectedNames [0,1..])
         Unsat -> do
@@ -154,7 +166,8 @@ solveAndGetModel = do
 encoderInit :: PetriNet -> Int -> [Id] -> [Id] -> Id -> IO EncodeState
 encoderInit net loc hoArgs inputs ret = do
     z3Env <- initialZ3Env
-    let initialState = EncodeState z3Env net loc 0 0 1 HashMap.empty HashMap.empty HashMap.empty HashMap.empty HashMap.empty hoArgs HashMap.empty HashMap.empty
+    false <- Z3.mkFalse (envContext z3Env)
+    let initialState = EncodeState z3Env false net loc 0 0 1 HashMap.empty HashMap.empty HashMap.empty HashMap.empty HashMap.empty hoArgs HashMap.empty HashMap.empty False
     execStateT (createEncoder inputs ret) initialState
 
 encoderSolve :: EncodeState -> IO ([(Id, Int)], EncodeState)
@@ -198,6 +211,8 @@ withTime desc f = do
     -- let time = printf "%s time: %0.3f sec\n" desc (diff :: Double)
     -- liftIO $ putStrLn time
     return res
+    
+    -- f
 
 encoderRefine :: PetriNet -> SplitInfo -> [Id] -> Id -> Encoder ()
 encoderRefine net info inputs ret = do
@@ -210,40 +225,40 @@ encoderRefine net info inputs ret = do
              , abstractionLv = (abstractionLv st + 1)
              }
     let splitedTyp = show (oldPlace info)
-    let typIds = map show (newPlace info)
+    let newTyps = HashMap.filterWithKey (\k _ -> not (HashMap.member k (pnPlaces oldNet))) (pnPlaces net)
     let splitedPlace = findVariable splitedTyp (pnPlaces net)
+    let splitedNegPl = findVariable ('-':splitedTyp) (pnPlaces net)
     -- there are two kinds of new places
     -- the first one is those splitted from the old type
-    let newPlaces = map (\nt -> findVariable nt (pnPlaces net)) typIds
-    let inputClones = map (\n -> n ++ "|clone") inputs
+    let newPlaces = HashMap.elems newTyps
+    -- let inputClones = map (\n -> n ++ "|clone") inputs
+    let typeClones = map (\n -> n ++ "|clone") (filter ((/=) '-' . head) (HashMap.keys newTyps))
     let transIds = concat (snd (unzip (splitedGroup info)))
-    -- the second one is introduced by higher order functions, those special places
-    -- we need to pair them together for add up of the tokens
-    -- use Text as a helper type to replace substrings
-    let entryNames = filter (isInfixOf "|entry" . fst) (splitedGroup info)
-    let changeName = unpack . replace "entry" "special" . pack
-    let specialPlaces = map (\(t, ts) -> ( findVariable (changeName t) (pnPlaces net)
-                                         , map (flip findVariable (pnPlaces net) . changeName) ts)) entryNames
-    let newSpecialPlaces = concat (snd (unzip specialPlaces))
-    let allTransIds = fst (unzip (splitedGroup info)) ++ transIds
+    let allTransIds = fst (unzip (splitedGroup info)) ++ transIds ++ typeClones
     -- some of the transitions are splitted
-    let newTrans = map (\tr -> findVariable tr (pnTransitions net)) (inputClones ++ transIds)
+    let existingTrans = findVariable (abstractionLv st) (transition2id st)
+    -- let newTrans = HashMap.elems (HashMap.filterWithKey (\k _ -> not (HashMap.member k existingTrans)) (pnTransitions net))
+    -- let newTrans = map (\tr -> findVariable tr (pnTransitions net)) (inputClones ++ transIds)
+    let newTrans = map (\tr -> findVariable tr (pnTransitions net)) (typeClones ++ transIds)
     -- other transition have no change but need to be copied to the next level
-    let noSplit k _ = not (elem k allTransIds || "|clone" `isSuffixOf` k)
-    let discards = HashMap.elems (HashMap.filterWithKey (\k _ -> "|discard" `isInfixOf` k && (removeLast '|' k ++ "|entry1") `elem` transIds) (pnTransitions net))
-    let oldTransIds = HashMap.keys (HashMap.filterWithKey noSplit (findVariable (abstractionLv st) (transition2id st)))
+    let noSplit k _ = not (elem k allTransIds)
+    -- let discards = HashMap.elems (HashMap.filterWithKey (\k _ -> "|discard" `isInfixOf` k && (removeLast '|' k ++ "|entry1") `elem` transIds) (pnTransitions net))
+    let oldTransIds = HashMap.keys (HashMap.filterWithKey noSplit existingTrans)
     let oldTrans = map (\tr -> findVariable tr (pnTransitions net)) oldTransIds
     let lookupTrans tr = findVariable tr (pnTransitions net)
-    let splitTrans = map (\(tr, trs) -> (lookupTrans tr, map lookupTrans trs)) (splitedGroup info)
+    let splitTrans = map (\(tr, trs) -> (lookupTrans tr, map lookupTrans trs)) ((splitedTyp ++ "|clone", typeClones):(splitedGroup info))
 
     l <- loc <$> get
     -- liftIO $ print ("add " ++ show (length newTrans) ++ " new transitions and " ++ show (length discards) ++ " discard transitions")
-    let allTrans = [(t, tr) | t <- [0..(l-1)], tr <- (newTrans ++ discards) ]
+    -- let allTrans = [(t, tr) | t <- [0..(l-1)], tr <- (newTrans ++ discards) ]
+    let allTrans = [(t, tr) | t <- [0..(l-1)], tr <- newTrans ]
 
     -- add new place, transition and timestamp variables
     let oldPlaces = HashMap.elems (pnPlaces oldNet)
-    mapM_ addPlaceVar (filter (flip notElem oldPlaces) (newPlaces ++ newSpecialPlaces))
-    addTransitionVar (newTrans ++ oldTrans ++ discards)
+    -- mapM_ addPlaceVar (filter (flip notElem oldPlaces) (newPlaces ++ newSpecialPlaces))
+    mapM_ addPlaceVar (filter (flip notElem oldPlaces) newPlaces)
+    -- addTransitionVar (newTrans ++ oldTrans ++ discards)
+    addTransitionVar (newTrans ++ oldTrans)
     mapM_ addTimestampVar [0..(l-1)]
 
     -- refine the sequential constraints
@@ -256,22 +271,23 @@ encoderRefine net info inputs ret = do
     withTime "preconditions" $ mapM_ (uncurry preconditionsTransitions) allTrans
 
     -- refine the postcondition constraints
-    withTime "postconditions" $ mapM_ (\(t, tr) -> (postconditionsTransitions t tr)) allTrans
+    withTime "postconditions" $ mapM_ (uncurry postconditionsTransitions) allTrans
 
     -- refine the no transition constraints
-    let toMerge = (splitedPlace, newPlaces):specialPlaces
+    let (negPlaces, posPlaces) = partition ((==) '-' . head . placeId) newPlaces
+    let toMerge = (splitedPlace, posPlaces) : if null negPlaces then [] else [(splitedNegPl, negPlaces)]
     withTime "placeMerge" $ mapM_ (\t -> mapM_ (uncurry (placeMerge t)) toMerge) [0..l]
     withTime "transMerge" $ mapM_ (uncurry transMerge) [ (tr, t) | tr <- splitTrans, t <- [0..(l-1)] ]
     withTime "transKeep" $ mapM_ (uncurry transClone) [ (tr, t) | tr <- oldTrans, t <- [0..(l-1)] ]
-    withTime "noTransitionTokens" $ mapM_ (uncurry noTransitionTokens) [(t, p) | p <- (newPlaces ++ newSpecialPlaces), t <- [0..(l-1)]]
+    -- withTime "noTransitionTokens" $ mapM_ (uncurry noTransitionTokens) [(t, p) | p <- (newPlaces ++ newSpecialPlaces), t <- [0..(l-1)]]
+    withTime "noTransitionTokens" $ mapM_ (uncurry noTransitionTokens) [(t, p) | p <- newPlaces, t <- [0..(l-1)]]
 
     -- refine the must firers
     withTime "mustFireTransitions" mustFireTransitions
 
     -- set new initial and final state
-    let newPmap = HashMap.filterWithKey (\k _ -> k `elem` typIds || "|special" `isInfixOf` k) (pnPlaces net)
-    setInitialState inputs newPmap
-    setFinalState ret newPmap
+    setInitialState inputs newTyps
+    setFinalState ret newTyps
   where
 
     placeMerge t p nps = do
