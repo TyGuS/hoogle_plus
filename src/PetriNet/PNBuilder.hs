@@ -209,29 +209,20 @@ addFunction (FunctionCode name [] params ret) pn = pn'
     retedPn = foldr (\r p -> addFlow name r 1 p) transitionedPn ret
     flowedPn = foldr (uncurry3 addFlow) retedPn assignedParams
     pn' = flowedPn
-        {-
+
 addFunction (FunctionCode name hoParams params ret) pn = pn'
   where
+    -- negative types go into the higher order functions
     paramToAdd = filter (not . isPrefixOf "f") params
-
     -- assume there is no nested higher order parameters
-    addHoParam elmt pn = addExit elmt (addEntry elmt (addSpecial elmt pn))
-    addSpecial (i, _) pn = addPlace (name ++ "|special" ++ (show i)) pn
-    connectParamToTr entry p pn = addFlow p entry 1 pn
-    connectTrToParam entry p pn = addFlow entry p 1 pn
-    addEntry (i, hop) pn = 
-        let entry = name ++ "|entry" ++ (show i)
-            special = name ++ "|special" ++ (show i)
-            input = foldr (connectParamToTr entry) (addTransition entry pn) paramToAdd -- consume all the other first order arguments
-            output = foldr (connectTrToParam entry) input (special:(funParams hop)) -- produce all the parameters for ho argument
-        in output
-    addExit (i, hop) pn = let exit = name ++ "|exit" ++ (show i)
-                              special = name ++ "|special" ++ (show i)
-                          in addFlow exit ret 1 -- exit to the return type of the function 
-                           $ addFlow (funReturn hop) exit 1  -- return type of ho argument to exit
-                           $ addFlow special exit 1  -- special node to exit
-                           $ addTransition exit pn
-    pn' = foldr addHoParam pn $ zip [1,2..] hoParams
+    hoRets = concatMap funReturn hoParams
+    negParams = map ((:) '-') (concatMap funParams hoParams)
+    places = paramToAdd ++ hoRets ++ negParams
+    placedPn = foldr addPlace pn (places ++ ret)
+    transitionedPn = addTransition name placedPn
+    retedPn = foldr (\r p -> addFlow name r 1 p) transitionedPn ret
+    flowedPn = foldr (\t p -> addFlow t name 1 p) retedPn places
+    pn' = foldr addArgClone flowedPn (concatMap funParams hoParams)
 
 addArgClone tArg pn = pn'
   where
@@ -240,7 +231,7 @@ addArgClone tArg pn = pn'
     retedPn = addFlow (tArg ++ "|clone") tArg 2 transitionedPn
     flowedPn = addFlow tArg (tArg ++ "|clone") 1 retedPn
     pn' = flowedPn
-
+        {-
 setMaxToken :: [Id] -> PetriNet -> PetriNet
 setMaxToken inputs pn = pn {
         pnPlaces = HashMap.foldrWithKey (\pid mt -> 

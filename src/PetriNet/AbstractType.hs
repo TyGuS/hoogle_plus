@@ -47,17 +47,32 @@ abstractionSize (AFunctionT tArg tRet) = abstractionSize tArg + abstractionSize 
 -- | if t1 is the subtype of t2
 isSubtypeOf :: AbstractSkeleton -> AbstractSkeleton -> Bool
 isSubtypeOf (ATypeVarT id1) (ATypeVarT id2) = id1 == id2
-isSubtypeOf (AExclusion s1) (AExclusion s2) = True -- s2 `Set.isSubsetOf` s1 -- t1 excludes more types than t2
+isSubtypeOf (AExclusion s1) (AExclusion s2) = s2 `Set.isSubsetOf` s1
 isSubtypeOf (ADatatypeT id1 tys1) (ADatatypeT id2 tys2) = id1 == id2 && foldr ((&&) . uncurry isSubtypeOf) True (zip tys1 tys2)
 isSubtypeOf (ADatatypeT id tys) (AExclusion s) = id `Set.notMember` s
 isSubtypeOf (ATypeVarT id) (AExclusion s) = id `Set.notMember` s
 isSubtypeOf _ _ = False
 
+abstractIntersection :: AbstractSkeleton -> AbstractSkeleton -> Maybe AbstractSkeleton
+abstractIntersection (ATypeVarT id1) (ATypeVarT id2) | id1 == id2 = Just (ATypeVarT id1)
+abstractIntersection (AExclusion s1) (AExclusion s2) = Just (AExclusion (s1 `Set.union` s2))
+abstractIntersection (ADatatypeT id1 tys1) (ADatatypeT id2 tys2) | id1 == id2 =
+    if hasIntersection then Just (ADatatypeT id1 tys'') else Nothing
+  where
+    hasIntersection = foldr ((&&) . isJust) True tys'
+    tys'' = map fromJust tys'
+    tys' = map (uncurry abstractIntersection) (zip tys1 tys2)
+abstractIntersection (ADatatypeT id tys) (AExclusion s) | id `Set.notMember` s = Just (ADatatypeT id tys)
+abstractIntersection (AExclusion s) (ADatatypeT id tys) | id `Set.notMember` s = Just (ADatatypeT id tys)
+abstractIntersection (ATypeVarT id) (AExclusion s) | id `Set.notMember` s = Just (ATypeVarT id)
+abstractIntersection (AExclusion s) (ATypeVarT id) | id `Set.notMember` s = Just (ATypeVarT id)
+abstractIntersection _ _ = Nothing
+
 -- | get the closest abstraction to the given type
 closestTree :: AbstractionTree -> AbstractSkeleton -> AbstractionTree
 closestTree (ANode t lt rt) at | isSubtypeOf at (valueType lt) = closestTree lt at
 closestTree (ANode t lt rt) at | isSubtypeOf at (valueType rt) = closestTree rt at
-closestTree tree@(ANode t _ _) at | isSubtypeOf at t = tree
+closestTree tree@(ANode t _ _) at | isSubtypeOf at t || isSubtypeOf t at = tree
 closestTree tree@(ALeaf t) at | isSubtypeOf at t = tree
 closestTree tree at = error (printf "cannot find the closest tree for %s in %s" (show at) (show tree))
 
@@ -80,11 +95,13 @@ valueType (ANode t _ _) = t
 
 -- | get all the subtypes of some given abstract type
 subtypesOf :: AbstractionTree -> AbstractSkeleton -> [AbstractSkeleton]
+subtypesOf tree t@(AExclusion {}) = filter (flip isSubtypeOf t) (leafTypes tree)
 subtypesOf (ALeaf t) typ | isSubtypeOf t typ || isSubtypeOf typ t = [t]
 subtypesOf (ALeaf t) typ | otherwise = []
-subtypesOf (ANode t lt rt) typ | not (isSubtypeOf typ t) = []
 subtypesOf (ANode t lt rt) typ | t == typ = leafTypes lt ++ leafTypes rt
-subtypesOf (ANode t lt rt) typ | otherwise = subtypesOf lt typ ++ subtypesOf rt typ
+subtypesOf (ANode t lt rt) typ | isSubtypeOf typ (valueType lt) = subtypesOf lt typ
+subtypesOf (ANode t lt rt) typ | isSubtypeOf typ (valueType rt) = subtypesOf rt typ
+subtypesOf (ANode t lt rt) typ | otherwise = []
 
 -- | exclude one type from its parent abstraction level
 typeDifference :: AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
