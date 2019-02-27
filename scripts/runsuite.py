@@ -12,12 +12,14 @@ import argparse
 QUERY_FILE = "scripts/queries.json"
 
 gen_scripts = {
-    10: "./scripts/10.sh",
-    20: "./scripts/20.sh",
-    50: "./scripts/50.sh",
-    100: "./scripts/100.sh",
-    153: "./scripts/153.sh",
-    449: "./scripts/449.sh",
+    "10": "./scripts/10.sh",
+    "20": "./scripts/20.sh",
+    "50": "./scripts/50.sh",
+    "100": "./scripts/100.sh",
+    "153": "./scripts/153.sh",
+    "153-tier1": "./scripts/153-tier1.sh",
+    "153-tier1-no-tuple": "./scripts/153-tier1-no-tuple.sh",
+    "449": "./scripts/449.sh",
 }
 
 DECIMAL_REGEX = "(\d+.?\d*)"
@@ -58,7 +60,7 @@ OUTPUT_DIR = "output/script/"
 EXEC_BASE = './scripts/runquery.sh'
 
 DEFAULT_MODES = ["queryrefinement", "norefine", "abstractrefinement", "combination"]
-DEFAULT_COMPONENT_SETS = [153]
+DEFAULT_COMPONENT_SETS = ["153-tier1-no-tuple"]
 DEFAULT_TIMEOUT = 300
 DEFAULT_SOLUTIONS_PER_QUERY = 1
 
@@ -168,7 +170,7 @@ def main():
                         choices=DEFAULT_MODES,
                         default=DEFAULT_MODES,
                         help="choose which modes to run. All enabled by default")
-    parser.add_argument("--component-set", nargs="+", type=int,
+    parser.add_argument("--component-set", nargs="+", type=str,
                         choices=DEFAULT_COMPONENT_SETS,
                         default=DEFAULT_COMPONENT_SETS,
                         help="choose the component sets to run on. All enabled by default")
