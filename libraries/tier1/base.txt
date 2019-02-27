@@ -62,7 +62,6 @@ Just :: a -> Maybe a
 maybe :: b -> (a -> b) -> Maybe a -> b
 isJust :: Maybe a -> Bool
 isNothing :: Maybe a -> Bool
-fromJust :: Maybe a -> a
 fromMaybe :: a -> Maybe a -> a
 listToMaybe :: [a] -> Maybe a
 maybeToList :: Maybe a -> [a]
@@ -1164,7 +1163,6 @@ genericLength :: Num i => [a] -> i
 genericTake :: Integral i => i -> [a] -> [a]
 genericDrop :: Integral i => i -> [a] -> [a]
 genericSplitAt :: Integral i => i -> [a] -> ([a], [a])
-genericIndex :: Integral i => [a] -> i -> a
 genericReplicate :: Integral i => i -> a -> [a]
 module Text.Show
 type ShowS = String -> String
