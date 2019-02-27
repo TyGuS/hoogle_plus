@@ -222,7 +222,7 @@ addFunction (FunctionCode name hoParams params ret) pn = pn'
     transitionedPn = addTransition name placedPn
     retedPn = foldr (\r p -> addFlow name r 1 p) transitionedPn ret
     flowedPn = foldr (\t p -> addFlow t name 1 p) retedPn places
-    pn' = foldr addArgClone flowedPn (concatMap funParams hoParams)
+    pn' = flowedPn -- foldr addArgClone flowedPn (concatMap funParams hoParams)
 
 addArgClone tArg pn = pn'
   where
