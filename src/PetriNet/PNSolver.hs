@@ -1089,12 +1089,6 @@ runPNSolver env cnt t = do
     st <- withTime "encoding time" (resetEncoder env t)
     findFirstN env t st cnt
 
-firstLvAbs :: Environment -> [RSchema] -> AbstractionTree
-firstLvAbs env schs =
-    Set.foldl' (updateSemantic env) (ALeaf (AExclusion Set.empty)) dts
-  where
-    typs = map (shape . toMonotype) schs
-    dts = Set.unions (map (allAbstractDts (env ^. boundTypeVars)) typs)
 
 -------------------------------------------------------------------------------
 -- | helper functions

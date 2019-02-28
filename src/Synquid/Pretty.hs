@@ -317,7 +317,7 @@ prettyProgram (Program p typ) = case p of
     PSymbol "Cons" -> text "(:)"
     PSymbol "Pair" -> text "(,)"
     PSymbol s -> case asInteger s of
-                  Nothing -> if s == valueVarName then special s else text s
+                  Nothing -> if s == valueVarName then special s else parens $ text s
                   Just n -> intLiteral n
     PApp f x -> let
       optParens p = case p of
