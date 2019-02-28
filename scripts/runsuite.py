@@ -158,7 +158,7 @@ def run_queries(args, query_obj):
     for component in args.component_set:
         results[name][component] = {}
         for mode in args.modes:
-            if len(args.modes) > 1:
+            if len(args.component_set) > 1:
                 generate_env(component)
             results[name][component][mode] = run_query(args, query, mode, component)
     yield {"name": name, "result": results[name]}
@@ -210,10 +210,15 @@ def main():
     # print(run_cmd(["./scripts/runquery.sh", "foo", "bar", "baz"], 1))
     print(args)
 
-    queries = get_queries(args)
-    run_suite = functools.partial(run_suite_for_query, args)
-    with Pool() as p:
-        p.map(run_suite, queries)
+    if len(args.component_set) == 1:
+        queries = get_queries(args)
+        run_suite = functools.partial(run_suite_for_query, args)
+        with Pool() as p:
+            p.map(run_suite, queries)
+    else:
+        queries = get_queries(args)
+        for query_obj in queries:
+            run_suite_for_query(args, query_obj)
 
 
 if __name__ == '__main__':
