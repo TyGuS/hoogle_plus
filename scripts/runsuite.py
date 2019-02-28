@@ -174,7 +174,7 @@ def write_results(query, results):
 def run_suite_for_query(args, query_obj):
     for result_dict in run_queries(args, query_obj):
         name = result_dict["name"]
-        result = result_dict["results"]
+        result = result_dict["result"]
         print(result_dict)
         write_results(name, result)
 
