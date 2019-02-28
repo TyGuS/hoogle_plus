@@ -117,7 +117,7 @@ solveAndGetModel = do
         Sat -> do
             model <- solverGetModel
             modelStr <- modelToString model
-            liftIO $ print modelStr
+            -- liftIO $ print modelStr
             selected <- mapM (checkLit model) [0..(l-1)]
             blockTrs <- mapM (uncurry blockTr) (zip [0..(l-1)] selected)
             -- placeMap <- place2variable <$> get
@@ -211,7 +211,7 @@ withTime desc f = do
     -- let time = printf "%s time: %0.3f sec\n" desc (diff :: Double)
     -- liftIO $ putStrLn time
     return res
-    
+
     -- f
 
 encoderRefine :: PetriNet -> SplitInfo -> [Id] -> Id -> Encoder ()
