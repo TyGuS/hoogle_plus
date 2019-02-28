@@ -1038,7 +1038,10 @@ findProgram env dst st = do
         checkedSols <- withTime "type checking time" (filterM (liftIO . haskellTypeChecks env dst) codes)
         if (null checkedSols) || (solutions `union` checkedSols == solutions)
            then do
-               findProgram env dst st
+               -- Don't try this program again
+               modify $ over currentSolutions ((++) codes)
+               let st' = st { prevChecked = True }
+               findProgram env dst st'
            else do
                let solution = head checkedSols
                -- printSolution solution
