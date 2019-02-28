@@ -5,7 +5,6 @@ cp libraries/tier1/{ghc-prim,base,bytestring,deepseq}.txt $TMPDIR
 stack exec -- synquid generate \
       -p base \
       -m "Data.Int" \
-    -m "Data.Bool" \
     -m "Data.Maybe" \
     -m "Data.Either" \
     -m "GHC.List" \
