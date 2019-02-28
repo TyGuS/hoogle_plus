@@ -1,4 +1,4 @@
-#/usr/bin/env python3
+#!/usr/bin/env python3
 
 import os
 import json
@@ -69,7 +69,7 @@ class LatexFormer(object):
             }
             return self.to_line(idx, name, **data)
         except Exception as ex:
-            import ipdb; ipdb.set_trace()
+            print(ex)
             return self.to_line(idx, name)
 
     def to_line(self, id, name, **data_fields):
