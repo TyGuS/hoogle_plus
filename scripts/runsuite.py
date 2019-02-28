@@ -2,12 +2,14 @@
 
 import os
 import signal
+from multiprocessing import Pool
 import subprocess
 from subprocess import Popen, PIPE, TimeoutExpired
 import re
 import json
 import time
 import argparse
+import functools
 
 QUERY_FILE = "scripts/queries.json"
 
@@ -20,6 +22,7 @@ gen_scripts = {
     "153-tier1": "./scripts/153-tier1.sh",
     "153-tier1-no-tuple": "./scripts/153-tier1-no-tuple.sh",
     "449": "./scripts/449.sh",
+    "icfp": "./scripts/icfp.sh",
 }
 
 DECIMAL_REGEX = "(\d+.?\d*)"
@@ -60,7 +63,7 @@ OUTPUT_DIR = "output/script/"
 EXEC_BASE = './scripts/runquery.sh'
 
 DEFAULT_MODES = ["queryrefinement", "norefine", "abstractrefinement", "combination"]
-DEFAULT_COMPONENT_SETS = ["153-tier1-no-tuple"]
+DEFAULT_COMPONENT_SETS = ["icfp"]
 DEFAULT_TIMEOUT = 300
 DEFAULT_SOLUTIONS_PER_QUERY = 1
 
@@ -109,7 +112,6 @@ def generate_env(component_set):
 def run_query(args, query, mode, component_set):
     solutions = args.solutions
     timeout = args.timeout
-    generate_env(component_set)
     query_cmd = f"{EXEC_BASE} {mode} {solutions} '{query}'"
     shell_cmd = f"timeout {timeout} {query_cmd}"
     info = f"query: {query}; component set: {component_set}; mode: {mode}"
@@ -118,10 +120,16 @@ def run_query(args, query, mode, component_set):
         output = subprocess.check_output(shell_cmd, shell=True)
         data = process_output(output)
         return data
+    except subprocess.CalledProcessError as e:
+        print("Called process error")
+        print(e.output)
+        return {"error": "timeout"}
     except Exception as ex:
         try:
             if ex.returncode == 124:
+                # print(proc.communicate())
                 return {"error": "timeout"}
+            # print(proc.communicate())
             return {"error": str(ex)}
         except AttributeError:
             return {"error": str(ex)}
@@ -142,18 +150,18 @@ def get_queries(args):
     return queries
 
 
-def run_queries(args):
+def run_queries(args, query_obj):
     results = {}
-    queries = get_queries(args)
-    for query_obj in queries:
-        name = query_obj["name"]
-        query = query_obj["query"]
-        results[name] = {"query": query}
-        for component in args.component_set:
-            results[name][component] = {}
-            for mode in args.modes:
-                results[name][component][mode] = run_query(args, query, mode, component)
-    return results
+    name = query_obj["name"]
+    query = query_obj["query"]
+    results[name] = {"query": query}
+    for component in args.component_set:
+        results[name][component] = {}
+        for mode in args.modes:
+            if len(args.modes) > 1:
+                generate_env(component)
+            results[name][component][mode] = run_query(args, query, mode, component)
+    yield {"name": name, "result": results[name]}
 
 def write_results(query, results):
     if not os.path.exists(OUTPUT_DIR):
@@ -163,6 +171,17 @@ def write_results(query, results):
     with open(file_path, 'w') as file:
         file.write(result_str)
 
+def run_suite_for_query(args, query_obj):
+    for result_dict in run_queries(args, query_obj):
+        name = result_dict["name"]
+        result = result_dict["results"]
+        print(result_dict)
+        write_results(name, result)
+
+def mk_run_suite_for_query(args):
+    def newfunc(query_obj):
+        return run_suite_for_query(args, query_obj)
+    return newfunc
 
 def main():
     parser = argparse.ArgumentParser()
@@ -190,10 +209,12 @@ def main():
     args = parser.parse_args()
     # print(run_cmd(["./scripts/runquery.sh", "foo", "bar", "baz"], 1))
     print(args)
-    results = run_queries(args)
 
-    for name, result in results.items():
-        write_results(name, result)
+    queries = get_queries(args)
+    run_suite = functools.partial(run_suite_for_query, args)
+    with Pool() as p:
+        p.map(run_suite, queries)
+
 
 if __name__ == '__main__':
     main()

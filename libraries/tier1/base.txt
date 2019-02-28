@@ -73,37 +73,27 @@ map :: (a -> b) -> [a] -> [b]
 infixr 5 ++
 filter :: (a -> Bool) -> [a] -> [a]
 concat :: [[a]] -> [a]
-uncons :: [a] -> Maybe (a, [a])
 null :: [a] -> Bool
 length :: [a] -> Int
 scanl :: (b -> a -> b) -> b -> [a] -> [b]
 scanl1 :: (a -> a -> a) -> [a] -> [a]
-scanl' :: (b -> a -> b) -> b -> [a] -> [b]
 foldr :: (a -> b -> b) -> b -> [a] -> b
-foldr1 :: (a -> a -> a) -> [a] -> a
 scanr :: (a -> b -> b) -> b -> [a] -> [b]
 scanr1 :: (a -> a -> a) -> [a] -> [a]
 iterate :: (a -> a) -> a -> [a]
-iterate' :: (a -> a) -> a -> [a]
 repeat :: a -> [a]
 replicate :: Int -> a -> [a]
 take :: Int -> [a] -> [a]
 drop :: Int -> [a] -> [a]
-sum :: Num a => [a] -> a
-product :: Num a => [a] -> a
 splitAt :: Int -> [a] -> ([a], [a])
 takeWhile :: (a -> Bool) -> [a] -> [a]
 dropWhile :: (a -> Bool) -> [a] -> [a]
 span :: (a -> Bool) -> [a] -> ([a], [a])
 break :: (a -> Bool) -> [a] -> ([a], [a])
 reverse :: [a] -> [a]
-and :: [Bool] -> Bool
-or :: [Bool] -> Bool
-any :: (a -> Bool) -> [a] -> Bool
 all :: (a -> Bool) -> [a] -> Bool
 elem :: Eq a => a -> [a] -> Bool
 infix 4 `elem`
-notElem :: Eq a => a -> [a] -> Bool
 infix 4 `notElem`
 lookup :: Eq a => a -> [(a, b)] -> Maybe b
 concatMap :: (a -> [b]) -> [a] -> [b]
@@ -113,7 +103,6 @@ zipWith :: (a -> b -> c) -> [a] -> [b] -> [c]
 zipWith3 :: (a -> b -> c -> d) -> [a] -> [b] -> [c] -> [d]
 unzip :: [(a, b)] -> ([a], [b])
 unzip3 :: [(a, b, c)] -> ([a], [b], [c])
-errorEmptyList :: String -> a
 module GHC.Char
 chr :: Int -> Char
 eqChar :: Char -> Char -> Bool
@@ -1159,7 +1148,6 @@ sortBy :: (a -> a -> Ordering) -> [a] -> [a]
 insertBy :: (a -> a -> Ordering) -> a -> [a] -> [a]
 maximumBy :: (a -> a -> Ordering) -> [a] -> a
 minimumBy :: (a -> a -> Ordering) -> [a] -> a
-genericLength :: Num i => [a] -> i
 genericTake :: Integral i => i -> [a] -> [a]
 genericDrop :: Integral i => i -> [a] -> [a]
 genericSplitAt :: Integral i => i -> [a] -> ([a], [a])
@@ -3550,8 +3538,6 @@ lookup :: Eq a => a -> [(a, b)] -> Maybe b
 find :: Foldable t => (a -> Bool) -> t a -> Maybe a
 filter :: (a -> Bool) -> [a] -> [a]
 partition :: (a -> Bool) -> [a] -> ([a], [a])
-elemIndex :: Eq a => a -> [a] -> Maybe Int
-elemIndices :: Eq a => a -> [a] -> [Int]
 findIndex :: (a -> Bool) -> [a] -> Maybe Int
 findIndices :: (a -> Bool) -> [a] -> [Int]
 zip :: [a] -> [b] -> [(a, b)]
@@ -3595,11 +3581,9 @@ sortBy :: (a -> a -> Ordering) -> [a] -> [a]
 insertBy :: (a -> a -> Ordering) -> a -> [a] -> [a]
 maximumBy :: Foldable t => (a -> a -> Ordering) -> t a -> a
 minimumBy :: Foldable t => (a -> a -> Ordering) -> t a -> a
-genericLength :: Num i => [a] -> i
 genericTake :: Integral i => i -> [a] -> [a]
 genericDrop :: Integral i => i -> [a] -> [a]
 genericSplitAt :: Integral i => i -> [a] -> ([a], [a])
-genericIndex :: Integral i => [a] -> i -> a
 genericReplicate :: Integral i => i -> a -> [a]
 module Debug.Trace
 trace :: String -> a -> a

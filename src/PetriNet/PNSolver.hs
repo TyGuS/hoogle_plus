@@ -192,7 +192,7 @@ instantiate env sigs = do
                      AbstractRefinement -> leafTypes (st ^. abstractionTree)
                      NoRefine -> filter notEx (leafTypes (st ^. abstractionTree))
                      Combination -> filter notEx (leafTypes (st ^. abstractionTree))
-                     QueryRefinement -> filter notEx (leafTypes (st ^. abstractionTree))
+                     QueryRefinement -> (leafTypes (st ^. abstractionTree))
         writeLog 3 $ text "Current abstract types:" <+> pretty typs
         sigs' <- foldM (\acc -> (<$>) ((++) acc) . uncurry (instantiateWith env typs)) [] sigs
         return $ nubOrdOn (uncurry removeSuffix) (sigsAcc ++ sigs')
@@ -282,7 +282,7 @@ splitTransition env tid info = do
     checkUnification tree bound tass (ATypeVarT id) (ATypeVarT id') | id `elem` bound && id' `elem` bound = Nothing
     checkUnification tree bound tass (ATypeVarT id) (ATypeVarT id') | not (id `elem` bound) && not (id' `elem` bound) = Nothing
     checkUnification tree bound tass (ATypeVarT id) t | id `elem` bound = checkUnification tree bound tass t (ATypeVarT id)
-    checkUnification tree bound tass (ATypeVarT id) t | id `Map.member` tass = 
+    checkUnification tree bound tass (ATypeVarT id) t | id `Map.member` tass =
             if isJust commonAssigned
                then Just (Map.insert id (fromJust commonAssigned) tass)
                else Nothing
@@ -347,7 +347,7 @@ cutoff _ (ALeaf t) (ADatatypeT id tArgs) = [t]
 cutoff env (ANode _ lt rt) typ@(ADatatypeT {}) | isSubtypeOf typ (valueType lt) = cutoff env lt typ
 cutoff env (ANode _ lt rt) typ@(ADatatypeT {}) | isSubtypeOf typ (valueType rt) = cutoff env rt typ
 cutoff env semantic@(ANode t lt rt) typ@(ADatatypeT {}) | isSubtypeOf t typ = leafTypes semantic
-cutoff env semantic (AFunctionT tArg tRet) = 
+cutoff env semantic (AFunctionT tArg tRet) =
     [ AFunctionT a r | a <- args, r <- rets, isJust (isConsistent (AFunctionT tArg tRet) (AFunctionT a r)) ]
   where
     args = cutoff env semantic tArg
@@ -369,7 +369,7 @@ cutoff _ semantic t = filter (isJust . abstractIntersection t) (leafTypes (close
 updateSemantic :: Environment -> AbstractionTree -> AbstractSkeleton -> AbstractionTree
 updateSemantic env semantic typ@(ATypeVarT id) | isBound env id =
   case semantic of
-    ALeaf t 
+    ALeaf t
         | t == typ -> semantic
         | otherwise -> ANode t (ALeaf typ) (ALeaf (typeDifference t typ))
     ANode t lt rt
@@ -487,7 +487,7 @@ distinguish' tvs (ADatatypeT pid pArgs) t1@(ADatatypeT id1 tArgs1) t2@(ADatatype
             Nothing -> case firstDifference pargs args args' of
                          [] -> []
                          diffs -> parg:diffs
-            Just t  -> if t /= parg then t:pargs 
+            Just t  -> if t /= parg then t:pargs
                                     else case firstDifference pargs args args' of
                                            [] -> []
                                            diffs -> parg : diffs
@@ -777,7 +777,7 @@ initNet env = withTime "construction time" $ do
         let addTransition k tid = Map.insertWith union k [tid]
         let includedTyps = decompose f
         mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
-        
+
         return [ef]
 
 cloneArg :: Id -> FunctionCode
@@ -908,7 +908,7 @@ findPath env dst st = do
     removeSuffix = removeLast '|'
 
     substPair [] = []
-    substPair (x:xs) = if "Pair_match" `isPrefixOf` (funName x) 
+    substPair (x:xs) = if "Pair_match" `isPrefixOf` (funName x)
                           then   ( x { funName = "fst", funReturn = [(funReturn x) !! 0] } )
                                : ( x { funName = "snd", funReturn = [(funReturn x) !! 1] } )
                                : (substPair xs)
