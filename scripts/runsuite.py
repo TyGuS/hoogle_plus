@@ -10,6 +10,7 @@ import json
 import time
 import argparse
 import functools
+import math
 
 QUERY_FILE = "scripts/queries.json"
 
@@ -55,8 +56,8 @@ REGEX_MAP = {
     'length': SOLUTION_LENGTH,
 }
 
-NUMERIC_REGEXES = ['z3', 'encoding', 'creation', 'components',
-                   'time', 'typeChecking', 'refinements', 'length']
+INT_REGEXES = ['length', 'components', 'refinements']
+FLOAT_REGEXES = ['z3', 'encoding', 'creation', 'time', 'typeChecking']
 
 OUTPUT_DIR = "output/script/"
 
@@ -67,6 +68,10 @@ DEFAULT_COMPONENT_SETS = ["icfp"]
 DEFAULT_TIMEOUT = 300
 DEFAULT_SOLUTIONS_PER_QUERY = 1
 
+
+def truncate(number, digits) -> float:
+    stepper = pow(10.0, digits)
+    return math.trunc(stepper * number) / stepper
 
 def process_output(outlines):
     lines = outlines.decode("utf-8").split("\n")
@@ -95,8 +100,10 @@ def process_solution(outlines):
             res = re.findall(regexp, line)
             if len(res) < 1:
                 continue
-            if key in NUMERIC_REGEXES:
-                run_characteristics[key] = float(res[0])
+            if key in FLOAT_REGEXES:
+                run_characteristics[key] = truncate(float(res[0]), 2)
+            if key in INT_REGEXES:
+                run_characteristics[key] = int(res[0])
             if key == 'solution':
                 run_characteristics[key] = res[0]
             if key in ['transitions', 'types']:

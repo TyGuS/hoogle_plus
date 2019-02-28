@@ -74,7 +74,7 @@ class LatexFormer(object):
 
     def to_line(self, id, name, **data_fields):
         safe_name = name.replace("_", "-")
-        fields = [str(data_fields[f]) for f in DATA_FIELD_ORDERING]
+        fields = [str(data_fields.get(f, "-")) for f in DATA_FIELD_ORDERING]
         return f"{id} & {safe_name} & " + " & ".join(fields) + " \\\\"
 
     def table_header(self):
