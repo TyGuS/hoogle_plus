@@ -123,7 +123,10 @@ def run_query(args, query, mode, component_set):
     except subprocess.CalledProcessError as e:
         print("Called process error")
         print(e.output)
-        return {"error": "timeout"}
+        data = process_output(e.output)
+        if data == {}:
+            return {"error": "timeout"}
+        return data
     except Exception as ex:
         try:
             if ex.returncode == 124:
