@@ -156,10 +156,10 @@ def run_queries(args, query_obj):
     query = query_obj["query"]
     results[name] = {"query": query}
     for component in args.component_set:
+        if len(args.component_set) > 1:
+            generate_env(component)
         results[name][component] = {}
         for mode in args.modes:
-            if len(args.component_set) > 1:
-                generate_env(component)
             results[name][component][mode] = run_query(args, query, mode, component)
     yield {"name": name, "result": results[name]}
 
@@ -211,6 +211,7 @@ def main():
     print(args)
 
     if len(args.component_set) == 1:
+        generate_env(args.component_set[0])
         queries = get_queries(args)
         run_suite = functools.partial(run_suite_for_query, args)
         with Pool() as p:
