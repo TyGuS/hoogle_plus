@@ -1,9 +1,9 @@
 [
     {"name": "intToByteString", "query": "Int64 -> ByteString"},
-    {"name": "fromFirstMaybes", "query": "a -> List (Maybe a) -> a"},
+    {"name": "firstJust", "query": "a -> List (Maybe a) -> a"},
     {"name": "conjunctionMaybes", "query": "List (Maybe Bool) -> Bool"},
     {"name": "both", "query": "Pair a a -> (a -> b) -> Pair b b"},
-    {"name": "firstJust", "query": "(a -> Maybe b) -> List a -> Maybe b"},
+    {"name": "mbMap", "query": "(a -> Maybe b) -> List a -> Maybe b"},
     {"name": "guaranteedRight", "query": "Either a b -> (a -> b) -> b"},
     {"name": "HOOGLE0", "query": "(a -> b -> c) -> (a -> b) -> a -> c"},
     {"name": "HOOGLE1", "query": "a -> List String -> String"},

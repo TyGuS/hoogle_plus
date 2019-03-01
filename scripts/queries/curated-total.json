@@ -1,0 +1,6 @@
+[
+    {"name": "intToByteString", "query": "Int64 -> ByteString"},
+    {"name": "firstJust", "query": "a -> List (Maybe a) -> a"},
+    {"name": "conjunctionMaybes", "query": "List (Maybe Bool) -> Bool"},
+    {"name": "both", "query": "Pair a a -> (a -> b) -> Pair b b"}
+]
