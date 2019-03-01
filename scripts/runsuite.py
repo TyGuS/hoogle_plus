@@ -24,6 +24,7 @@ gen_scripts = {
     "153-tier1-no-tuple": "./scripts/153-tier1-no-tuple.sh",
     "449": "./scripts/449.sh",
     "icfp": "./scripts/icfp.sh",
+    "icfp-tier2": "./scripts/icfp-tier2.sh",
 }
 
 DECIMAL_REGEX = "(\d+.?\d*)"
