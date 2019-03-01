@@ -128,7 +128,11 @@ def run_query(args, query, mode, component_set):
     info = f"query: {query}; component set: {component_set}; mode: {mode}"
     try:
         print(info)
+        shell_cmd = "gtimeout 10 python -u ./scripts/infiniteloop.py"
+
+        p = subprocess.Popen(shell_cmd, bufsize=1, stdout=subprocess.PIPE, shell=True)
         output = subprocess.check_output(shell_cmd, shell=True)
+
         data = process_output(output)
         return data
     except subprocess.CalledProcessError as e:
