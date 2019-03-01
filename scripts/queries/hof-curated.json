@@ -1,0 +1,4 @@
+[
+    {"name": "firstJust", "query": "(a -> Maybe b) -> List a -> Maybe b"},
+    {"name": "guaranteedRight", "query": "Either a b -> (a -> b) -> b"}
+]

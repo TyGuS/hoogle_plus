@@ -12,7 +12,7 @@ import argparse
 import functools
 import math
 
-QUERY_FILE = "scripts/queries.json"
+QUERY_FILE = "scripts/queries/queries.json"
 
 gen_scripts = {
     "10": "./scripts/10.sh",
