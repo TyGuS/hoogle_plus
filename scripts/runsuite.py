@@ -102,7 +102,7 @@ def process_solution(outlines):
             if len(res) < 1:
                 continue
             if key in FLOAT_REGEXES:
-                run_characteristics[key] = truncate(float(res[0]), 2)
+                run_characteristics[key] = truncate(float(res[0]), 1)
             if key in INT_REGEXES:
                 run_characteristics[key] = int(res[0])
             if key == 'solution':
@@ -120,7 +120,10 @@ def generate_env(component_set):
 def run_query(args, query, mode, component_set):
     solutions = args.solutions
     timeout = args.timeout
-    query_cmd = f"{EXEC_BASE} {mode} {solutions} '{query}'"
+    hof = ""
+    if args.hof:
+        hof = "-h"
+    query_cmd = f"{EXEC_BASE} {mode} {solutions} {hof} '{query}'"
     shell_cmd = f"timeout {timeout} {query_cmd}"
     info = f"query: {query}; component set: {component_set}; mode: {mode}"
     try:
@@ -201,7 +204,7 @@ def main():
                         default=DEFAULT_MODES,
                         help="choose which modes to run. All enabled by default")
     parser.add_argument("--component-set", nargs="+", type=str,
-                        choices=DEFAULT_COMPONENT_SETS,
+                        choices=gen_scripts.keys(),
                         default=DEFAULT_COMPONENT_SETS,
                         help="choose the component sets to run on. All enabled by default")
     parser.add_argument("--query-file", type=str,
@@ -217,6 +220,8 @@ def main():
     parser.add_argument("--solutions", type=int,
                         default=DEFAULT_SOLUTIONS_PER_QUERY,
                         help="Number of solutions per query for which to search")
+    parser.add_argument("--hof", action="store_true",
+                        help="Enable HOF search")
     args = parser.parse_args()
     # print(run_cmd(["./scripts/runquery.sh", "foo", "bar", "baz"], 1))
     print(args)

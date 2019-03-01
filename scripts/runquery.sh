@@ -2,6 +2,7 @@
 
 MODE=$1
 SOLUTIONS=$2
-QUERY=$3
+USE_HOF=$3
+QUERY=$4
 
-stack exec -- synquid synthesis --path="PetriNet" --use-refine=$MODE --sol-num=$SOLUTIONS "$QUERY"
+stack exec -- synquid synthesis --path="PetriNet" "$USE_HOF" --use-refine=$MODE --sol-num=$SOLUTIONS "$QUERY"

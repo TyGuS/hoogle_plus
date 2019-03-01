@@ -936,8 +936,6 @@ lefts :: [Either a b] -> [a]
 rights :: [Either a b] -> [b]
 isLeft :: Either a b -> Bool
 isRight :: Either a b -> Bool
-fromLeft :: a -> Either a b -> a
-fromRight :: b -> Either a b -> b
 partitionEithers :: [Either a b] -> ([a], [b])
 instance (GHC.Show.Show a, GHC.Show.Show b) => GHC.Show.Show (Data.Either.Either a b)
 instance (GHC.Read.Read a, GHC.Read.Read b) => GHC.Read.Read (Data.Either.Either a b)

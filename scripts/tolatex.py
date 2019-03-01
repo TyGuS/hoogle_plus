@@ -55,7 +55,7 @@ class LatexFormer(object):
         str_lines = []
         idx = 1
         for dkey in data:
-            str_lines.append(self.to_tool_table_line(dkey, data[dkey], idx))
+            str_lines.append(self.to_tool_table_line(data[dkey], idx))
             idx += 1
         return self.lines_to_table(str_lines)
 
@@ -76,12 +76,12 @@ class LatexFormer(object):
         end = " \\end{tabular}"
         return start + content + end
 
-    def to_tool_table_line(self, name, data, idx):
+    def to_tool_table_line(self, data, idx):
         query = data["query"]
         dataset = data[self.args.component_set]
         method = "queryrefinement"
         if type(dataset[method]) != list:
-            return self.to_line(idx, name)
+            return self.to_line(idx, query)
         try:
             solutions = dataset[method]
             total = sum([soln["time"] for soln in solutions])
@@ -94,10 +94,10 @@ class LatexFormer(object):
                 "types": solutions[-1]["types"][-1],
                 "encoding": solutions[0]["encoding"],
             }
-            return self.to_line(idx, name, **data)
+            return self.to_line(idx, query, **data)
         except Exception as ex:
             print(ex)
-            return self.to_line(idx, name)
+            return self.to_line(idx, query)
 
     def to_line(self, id, name, **data_fields):
         safe_name = name.replace("_", "-")
