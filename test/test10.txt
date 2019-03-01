@@ -19,7 +19,7 @@ module Data.Maybe
 data Maybe a
 Nothing :: Maybe a
 Just :: a -> Maybe a
--- HOF: maybe :: b -> (a -> b) -> Maybe a -> b
+maybe :: b -> (a -> b) -> Maybe a -> b
 isJust :: Maybe a -> Bool
 isNothing :: Maybe a -> Bool
 fromMaybe :: a -> Maybe a -> a
@@ -41,11 +41,10 @@ data ByteString
 -- base
 module GHC.List
 and :: [Bool] -> Bool
-
--- base
-module Data.Tuple
-fst :: (a, b) -> a
-snd :: (a, b) -> b
+filter :: (a -> Bool) -> [a] -> [a]
+length :: [a] -> Int
+head :: [a] -> a
+map :: (a -> b) -> [a] -> [b]
 
 -- base
 module Data.Set
@@ -56,4 +55,17 @@ member :: a -> Set a -> Bool
 module Data.Map
 data Map k v
 fromSet :: (k -> a) -> Set k -> Map k a
-partitionWithKey :: (k -> a -> Bool) -> Map k a -> (Map k a, Map k a)
+partition :: (a -> Bool) -> Map k a -> (Map k a, Map k a)
+
+module Prelude
+(==) :: (Eq a) => a -> a -> Bool
+bool :: a -> a -> Bool -> a 
+
+module Data.Either
+data Either a b
+Left :: a -> Either a b
+Right :: b -> Either a b
+isLeft :: Either a b -> Bool
+isRight :: Either a b -> Bool
+rights :: [Either a b] -> [b]
+lefts :: [Either a b] -> [a]
