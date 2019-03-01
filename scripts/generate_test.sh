@@ -5,7 +5,7 @@ if [[ ! -z $1 ]]; then
     cp libraries/$1 $TMPDIR/base.txt
 fi
 
-stack exec -- synquid generate \
+stack exec -- synquid generate -h \
       -p base \
       -m "Prelude" \
       -m "Data.Word" \

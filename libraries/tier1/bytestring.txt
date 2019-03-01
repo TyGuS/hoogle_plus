@@ -117,7 +117,6 @@ toStrict :: ByteString -> ByteString
 fromChunks :: [ByteString] -> ByteString
 toChunks :: ByteString -> [ByteString]
 foldrChunks :: (ByteString -> a -> a) -> a -> ByteString -> a
-foldlChunks :: (a -> ByteString -> a) -> a -> ByteString -> a
 cons :: Word8 -> ByteString -> ByteString
 infixr 5 `cons`
 cons' :: Word8 -> ByteString -> ByteString
@@ -134,25 +133,16 @@ reverse :: ByteString -> ByteString
 intersperse :: Word8 -> ByteString -> ByteString
 intercalate :: ByteString -> [ByteString] -> ByteString
 transpose :: [ByteString] -> [ByteString]
-foldr :: (Word8 -> a -> a) -> a -> ByteString -> a
 concat :: [ByteString] -> ByteString
 concatMap :: (Word8 -> ByteString) -> ByteString -> ByteString
 any :: (Word8 -> Bool) -> ByteString -> Bool
 all :: (Word8 -> Bool) -> ByteString -> Bool
-scanl :: (Word8 -> Word8 -> Word8) -> Word8 -> ByteString -> ByteString
-mapAccumL :: (acc -> Word8 -> (acc, Word8)) -> acc -> ByteString -> (acc, ByteString)
-mapAccumR :: (acc -> Word8 -> (acc, Word8)) -> acc -> ByteString -> (acc, ByteString)
 repeat :: Word8 -> ByteString
 replicate :: Int64 -> Word8 -> ByteString
 iterate :: (Word8 -> Word8) -> Word8 -> ByteString
-unfoldr :: (a -> Maybe (Word8, a)) -> a -> ByteString
 take :: Int64 -> ByteString -> ByteString
 drop :: Int64 -> ByteString -> ByteString
 splitAt :: Int64 -> ByteString -> (ByteString, ByteString)
-takeWhile :: (Word8 -> Bool) -> ByteString -> ByteString
-dropWhile :: (Word8 -> Bool) -> ByteString -> ByteString
-span :: (Word8 -> Bool) -> ByteString -> (ByteString, ByteString)
-break :: (Word8 -> Bool) -> ByteString -> (ByteString, ByteString)
 group :: ByteString -> [ByteString]
 groupBy :: (Word8 -> Word8 -> Bool) -> ByteString -> [ByteString]
 stripPrefix :: ByteString -> ByteString -> Maybe ByteString
@@ -177,19 +167,6 @@ zip :: ByteString -> ByteString -> [(Word8, Word8)]
 zipWith :: (Word8 -> Word8 -> a) -> ByteString -> ByteString -> [a]
 unzip :: [(Word8, Word8)] -> (ByteString, ByteString)
 copy :: ByteString -> ByteString
-getContents :: IO ByteString
-putStr :: ByteString -> IO ()
-putStrLn :: ByteString -> IO ()
-interact :: (ByteString -> ByteString) -> IO ()
-readFile :: FilePath -> IO ByteString
-writeFile :: FilePath -> ByteString -> IO ()
-appendFile :: FilePath -> ByteString -> IO ()
-hGetContents :: Handle -> IO ByteString
-hGet :: Handle -> Int -> IO ByteString
-hGetNonBlocking :: Handle -> Int -> IO ByteString
-hPut :: Handle -> ByteString -> IO ()
-hPutNonBlocking :: Handle -> ByteString -> IO ByteString
-hPutStr :: Handle -> ByteString -> IO ()
 module Data.ByteString.Lazy.Char8
 data ByteString
 empty :: ByteString

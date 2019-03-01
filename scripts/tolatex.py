@@ -5,11 +5,20 @@ import json
 import argparse
 
 
-DATA_FIELD_ORDERING = ["time", "encoding", "length", "refinements", "transitions", "types", ]
+DATA_FIELD_ORDERING = ["time", "encoding", "total", "length", "refinements", "transitions", "types" ]
 
 DEFAULT_DATA_DIR = "output/script/"
 DEFAULT_OUTPUT_DIR = "output/latex/"
 DEFAULT_COMPONENT_SET = "icfp"
+
+curated_queries = [
+    "fromFirstMaybes",
+    "intToByteString",
+    "both",
+    "conjunctionMaybes",
+    "firstJust",
+    "guaranteedRight",
+]
 
 
 class LatexFormer(object):
@@ -25,8 +34,24 @@ class LatexFormer(object):
         if not os.path.exists(self.args.data_dir):
             exit("missing input directory: " + self.args.data_dir)
 
+
+    def group_by_curated(data_from_files):
+        curated = []
+        rest = []
+        for dkey in data_from_files:
+            datum_from_file = {
+                "name": dkey,
+                "result": data_from_files[dkey]
+            }
+            if dkey in curated_queries:
+                curated.append(datum_from_file)
+            else:
+                rest.appen(datum_from_file)
+        return (curated, rest)
+
     def data_to_latex(self):
         data = self.read_json_files()
+        (curated, rest) = self.group_by_curated(data)
         str_lines = []
         idx = 1
         for dkey in data:
@@ -47,7 +72,7 @@ class LatexFormer(object):
     def lines_to_table(self, lines):
         table = [self.table_header()] + lines
         content = "\n\\hline \n".join(table) + "\n\\hline"
-        start = " \\begin{tabular}{|c|c|c|c|c|c|c|c|}"
+        start = " \\begin{tabular}{|c|c|c|c|c|c|c|c|c|}"
         end = " \\end{tabular}"
         return start + content + end
 
@@ -59,7 +84,9 @@ class LatexFormer(object):
             return self.to_line(idx, name)
         try:
             solutions = dataset[method]
+            total = sum([soln["time"] for soln in solutions])
             data = {
+                "total": total,
                 "time": solutions[0]["time"],
                 "length": solutions[0]["length"],
                 "refinements": solutions[-1]["refinements"],
@@ -78,7 +105,7 @@ class LatexFormer(object):
         return f"{id} & {safe_name} & " + " & ".join(fields) + " \\\\"
 
     def table_header(self):
-        return "\hline\nid & query name & $t_{solution}$ & $t_{encoding}$ & $d_{solution}$ & $r_{num}$ & $tr_{final}$ & $types_{final}$ \\\\"
+        return "\hline\nid & query name & $t_{solution}$ & $t_{encoding}$ & $t_{total}$ & $d_{solution}$ & $r_{num}$ & $tr_{final}$ & $types_{final}$ \\\\"
 
     def write_latex(self, lx_rows):
         filename = "eval_table.tex"
