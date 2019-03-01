@@ -5,20 +5,36 @@ import json
 import argparse
 
 
-DATA_FIELD_ORDERING = ["time", "encoding", "total", "length", "refinements", "transitions", "types" ]
+DATA_FIELD_ORDERING = ["time", "encoding", "total", "length", "refinements", "transitions", "types",
+                       "norefine_time", "norefine_trans",
+                       "ar_time", "ar_trans",
+                       "comb_time", "comb_trans"]
+
+COLUMN_NAMES = ["N", "Query", "$t_{1}$", "$t_{enc}$", "$t_{t}$", "$l_{p}$", "$r_{f}$", "$tr_{f}$", "$\\tau_{f}$",
+                "$t_{nr1}$", "$tr_{nrf}$",
+                "$t_{iar1}$", "$tr_{iarf}$",
+                "$t_{all1}$", "$tr_{allf}$"]
 
 DEFAULT_DATA_DIR = "output/script/"
 DEFAULT_OUTPUT_DIR = "output/latex/"
 DEFAULT_COMPONENT_SET = "icfp"
 
 curated_queries = [
-    "fromFirstMaybes",
+    "firstJust",
     "intToByteString",
     "both",
     "conjunctionMaybes",
-    "firstJust",
+    "mbMap",
     "guaranteedRight",
 ]
+
+def safeget(dct, default, *keys):
+    for key in keys:
+        try:
+            dct = dct[key]
+        except (KeyError, IndexError):
+            return default
+    return dct
 
 
 class LatexFormer(object):
@@ -35,7 +51,7 @@ class LatexFormer(object):
             exit("missing input directory: " + self.args.data_dir)
 
 
-    def group_by_curated(data_from_files):
+    def group_by_curated(self, data_from_files):
         curated = []
         rest = []
         for dkey in data_from_files:
@@ -46,7 +62,7 @@ class LatexFormer(object):
             if dkey in curated_queries:
                 curated.append(datum_from_file)
             else:
-                rest.appen(datum_from_file)
+                rest.append(datum_from_file)
         return (curated, rest)
 
     def data_to_latex(self):
@@ -54,8 +70,12 @@ class LatexFormer(object):
         (curated, rest) = self.group_by_curated(data)
         str_lines = []
         idx = 1
-        for dkey in data:
-            str_lines.append(self.to_tool_table_line(data[dkey], idx))
+        for d in curated:
+            str_lines.append(self.to_tool_table_line(d["result"], idx))
+            idx += 1
+        str_lines.append("")
+        for d in rest:
+            str_lines.append(self.to_tool_table_line(d["result"], idx))
             idx += 1
         return self.lines_to_table(str_lines)
 
@@ -72,8 +92,10 @@ class LatexFormer(object):
     def lines_to_table(self, lines):
         table = [self.table_header()] + lines
         content = "\n\\hline \n".join(table) + "\n\\hline"
-        start = " \\begin{tabular}{|c|c|c|c|c|c|c|c|c|}"
-        end = " \\end{tabular}"
+        other_mode_columns = "|r|r|r|r|r|r|"
+        columns = "|c|c|r|r|r|r|r|r|r|" + other_mode_columns
+        start = " \\resizebox{\\textwidth}{!}{ \\begin{tabular}{%s}" % (columns)
+        end = " \\end{tabular}}"
         return start + content + end
 
     def to_tool_table_line(self, data, idx):
@@ -84,6 +106,9 @@ class LatexFormer(object):
             return self.to_line(idx, query)
         try:
             solutions = dataset[method]
+            norefine = dataset["norefine"]
+            abstract_refinement = dataset["abstractrefinement"]
+            combination = dataset["combination"]
             total = sum([soln["time"] for soln in solutions])
             data = {
                 "total": total,
@@ -93,6 +118,13 @@ class LatexFormer(object):
                 "transitions": solutions[-1]["transitions"][-1],
                 "types": solutions[-1]["types"][-1],
                 "encoding": solutions[0]["encoding"],
+
+                "norefine_time": safeget(norefine, "-", 0, "time"),
+                "norefine_trans": safeget(norefine, "-", -1, "transitions", -1),
+                "ar_time": safeget(abstract_refinement, "-", 0, "time"),
+                "ar_trans": safeget(abstract_refinement, "-", -1, "transitions", -1),
+                "comb_time": safeget(combination, "-", 0, "time"),
+                "comb_trans": safeget(combination, "-", -1, "transitions", -1),
             }
             return self.to_line(idx, query, **data)
         except Exception as ex:
@@ -100,12 +132,12 @@ class LatexFormer(object):
             return self.to_line(idx, query)
 
     def to_line(self, id, name, **data_fields):
-        safe_name = name.replace("_", "-")
+        safe_name = name.replace("->", "$\\rightarrow$")
         fields = [str(data_fields.get(f, "-")) for f in DATA_FIELD_ORDERING]
         return f"{id} & {safe_name} & " + " & ".join(fields) + " \\\\"
 
     def table_header(self):
-        return "\hline\nid & query name & $t_{solution}$ & $t_{encoding}$ & $t_{total}$ & $d_{solution}$ & $r_{num}$ & $tr_{final}$ & $types_{final}$ \\\\"
+        return "\hline\n" + " & ".join(COLUMN_NAMES) + "\\\\"
 
     def write_latex(self, lx_rows):
         filename = "eval_table.tex"
