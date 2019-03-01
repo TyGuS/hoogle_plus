@@ -84,6 +84,8 @@ splitAt :: Int -> [a] -> ([a], [a])
 takeWhile :: (a -> Bool) -> [a] -> [a]
 dropWhile :: (a -> Bool) -> [a] -> [a]
 reverse :: [a] -> [a]
+and :: [Bool] -> Bool
+or :: [Bool] -> Bool
 all :: (a -> Bool) -> [a] -> Bool
 elem :: Eq a => a -> [a] -> Bool
 infix 4 `elem`
