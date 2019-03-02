@@ -529,11 +529,16 @@ strengthenRoot env dfault expected real = do
 strengthenArgs :: MonadIO m => Environment -> RProgram -> AbstractSkeleton -> PNSolver m (Maybe AbstractSkeleton)
 strengthenArgs env (Program (PSymbol sym) typ) at = do
     semantic <- view abstractionTree <$> get
-    let at' = head (cutoff env semantic (toAbstractType (shape (lastType typ))))
+    sigs <- view currentSigs <$> get
+    let at' = case Map.lookup sym sigs of
+                     Nothing -> head (cutoff env semantic (toAbstractType (shape typ))) -- error $ "cannot find symbol " ++ sym ++ " in currentSigs"
+                     Just t -> lastAbstract t
+    -- let at' = head (cutoff env semantic (toAbstractType (shape (lastType typ))))
     when (isJust (abstractIntersection at' at))
          (do
-             writeLog 3 $ text "add pair of split types" <+> text (show (at', at))
-             modify $ over splitTypes ((:) (at', at)))
+             let at'' = if isSubtypeOf at at' then at else fromJust (abstractIntersection at' at)
+             writeLog 3 $ text "add pair of split types" <+> text (show (at', at''))
+             modify $ over splitTypes ((:) (at', at'')))
     -- unify the return type with the abstract type and get the type assignment
     t <- findSymbol env (removeLast '_' sym)
     let maybeTass = checkUnification semantic (env ^. boundTypeVars) Map.empty (at) (toAbstractType (shape (lastType t)))
@@ -574,6 +579,7 @@ strengthenArgs env (Program (PFun x body) t) (AFunctionT atArg atRet) = do
     case maybeRet of
       Nothing -> return Nothing
       Just atRet' -> return (Just (AFunctionT atArg atRet'))
+strengthenArgs _ prog t = return Nothing -- error $ "unhandled pattern for " ++ show prog ++ " with abstract type " ++ show t
 
 -- bottom up check a program on the concrete type system
 -- at the same time, keep track of the abstract type for each node
