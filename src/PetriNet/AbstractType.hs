@@ -38,6 +38,9 @@ notEx _ = True
 isAHigherOrder (AFunctionT tArg tRet) = isAFunctionT tArg || isAHigherOrder tRet
 isAHigherOrder _ = False
 
+lastAbstract (AFunctionT _ tRet) = lastAbstract tRet
+lastAbstract t = t
+
 abstractionSize :: AbstractSkeleton -> Int
 abstractionSize (AExclusion _) = 1
 abstractionSize (ADatatypeT id args) = 1 + maximum (map abstractionSize args)
@@ -142,7 +145,7 @@ outerName (ATypeVarT id) = Right Set.empty
 outerName (AExclusion names) = Right names
 
 allAbstractBase :: [Id] -> AbstractSkeleton -> [AbstractSkeleton]
-allAbstractBase bound t@(ADatatypeT _ _)     = if hasAbstractVar t then [] else [t]
+allAbstractBase bound t@(ADatatypeT _ _)     = if hasAbstractVar bound t then [] else [t]
 allAbstractBase bound (AFunctionT tArg tRet) = allAbstractBase bound tArg ++ allAbstractBase bound tRet
 allAbstractBase bound t@(ATypeVarT id)       = if id `elem` bound then [t] else []
 allAbstractBase bound t@(AExclusion ts)      = if Set.null ts then [] else [t]
@@ -153,11 +156,11 @@ allAbstractVar (ADatatypeT _ tys)     = foldr (Set.union . allAbstractVar) Set.e
 allAbstractVar (AFunctionT tArg tRet) = allAbstractVar tArg `Set.union` allAbstractVar tRet
 allAbstractVar (AExclusion _)         = Set.empty
 
-hasAbstractVar :: AbstractSkeleton -> Bool
-hasAbstractVar (ATypeVarT id)         = True
-hasAbstractVar (ADatatypeT _ tys)     = foldr ((||) . hasAbstractVar) False tys
-hasAbstractVar (AExclusion _)         = False
-hasAbstractVar (AFunctionT tArg tRet) = hasAbstractVar tArg || hasAbstractVar tRet
+hasAbstractVar :: [Id] -> AbstractSkeleton -> Bool
+hasAbstractVar tvs (ATypeVarT id)         = not (elem id tvs)
+hasAbstractVar tvs (ADatatypeT _ tys)     = foldr ((||) . hasAbstractVar tvs) False tys
+hasAbstractVar tvs (AExclusion _)         = False
+hasAbstractVar tvs (AFunctionT tArg tRet) = hasAbstractVar tvs tArg || hasAbstractVar tvs tRet
 
 abstractSubstitute :: [Id] -> Id -> AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
 abstractSubstitute bound id bt t@(ADatatypeT name ts) = ADatatypeT name (map (abstractSubstitute bound id bt) ts)
@@ -205,3 +208,47 @@ unifier tree bound (ADatatypeT dt tys) (AExclusion s) | dt `Set.notMember` s =
     maps = map (unifier tree bound (AExclusion Set.empty)) tys
 unifier tree bound t1@(AExclusion {}) t2@(ADatatypeT {}) = unifier tree bound t2 t1
 unifier bound _ _ _ = Nothing
+
+checkUnification :: AbstractionTree -> [Id] -> Map Id AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton -> Maybe (Map Id AbstractSkeleton)
+checkUnification tree bound tass t1 t2 | t1 == t2 = Just tass
+checkUnification tree bound tass (ATypeVarT id) (ATypeVarT id') | id `elem` bound && id' `elem` bound = Nothing
+checkUnification tree bound tass (ATypeVarT id) (ATypeVarT id') | not (id `elem` bound) && not (id' `elem` bound) = Nothing
+checkUnification tree bound tass (ATypeVarT id) t | id `elem` bound = checkUnification tree bound tass t (ATypeVarT id)
+checkUnification tree bound tass (ATypeVarT id) t | id `Map.member` tass = 
+    if isJust commonAssigned
+       then Just (Map.insert id (fromJust commonAssigned) tass)
+       else Nothing
+  where
+    assigned = fromJust (Map.lookup id tass)
+    commonAssigned = abstractIntersection t assigned
+checkUnification tree bound tass (ADatatypeT {}) (ATypeVarT id) | id `elem` bound = Nothing
+checkUnification tree bound tass (AExclusion s) (ATypeVarT id) | id `elem` bound && id `Set.member` s = Nothing
+checkUnification tree bound tass (AExclusion s) (ATypeVarT id) | id `elem` bound && id `Set.notMember` s = Just tass
+checkUnification tree bound tass t (ATypeVarT id) | not (id `elem` bound) = checkUnification tree bound tass (ATypeVarT id) t
+checkUnification tree bound tass (ATypeVarT id) t = Just (Map.insert id t tass)
+checkUnification tree bound tass (ADatatypeT id tArgs) (ADatatypeT id' tArgs') | id /= id' = Nothing
+checkUnification tree bound tass (ADatatypeT id tArgs) (ADatatypeT id' tArgs') | id == id' = checkArgs tass tArgs tArgs'
+  where
+    checkArgs m [] [] = Just m
+    checkArgs m (arg:args) (arg':args') = 
+        case checkUnification tree bound m arg arg' of
+            Nothing -> Nothing
+            Just m'  -> checkArgs m' args args'
+checkUnification _ bound tass (ADatatypeT id tArgs) (AExclusion s) | id `Set.member` s = Nothing
+checkUnification _ bound tass (AExclusion s) (ADatatypeT id tArgs) | id `Set.member` s = Nothing
+checkUnification _ bound tass (ADatatypeT {}) (AExclusion {}) = Just tass
+checkUnification _ bound tass (AExclusion {}) (ADatatypeT {}) = Just tass
+checkUnification _ bound tass _ _ = Nothing
+
+typeConstraints :: AbstractSkeleton -> AbstractSkeleton -> [(AbstractSkeleton, AbstractSkeleton)]
+typeConstraints (AFunctionT tArg tRet) (AFunctionT tArg' tRet') =
+    typeConstraints tArg tArg' ++ typeConstraints tRet tRet'
+typeConstraints t1 t2 = [(t1, t2)]
+
+getUnifier :: AbstractionTree -> [Id] -> Maybe (Map Id AbstractSkeleton) -> [(AbstractSkeleton, AbstractSkeleton)] -> Maybe (Map Id AbstractSkeleton)
+getUnifier _ _ Nothing _ = Nothing
+getUnifier tree bound tass [] = tass
+getUnifier tree bound (Just tass) ((t1, t2):cs) = 
+    case checkUnification tree bound tass t1 t2 of
+        Nothing -> Nothing
+        Just m  -> getUnifier tree bound (Just m) cs

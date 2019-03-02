@@ -51,7 +51,7 @@ applyFunction func = do
     put $ st { typedTerms = newTerms }
     return res
   where
-    fname = removeLast '_' $ funName func
+    fname = funName func
 
     generateArgs codeSoFar [] = return codeSoFar
     generateArgs codeSoFar (tArg:tArgs) = do
@@ -105,8 +105,6 @@ generateProgram signatures inputs argNames ret isFinal = do
     put $ st { varCounter = 0 }
     mapM_ applyFunction signatures
     codePieces <- HashMap.lookupDefault Set.empty ret . typedTerms <$> get
-    liftIO $ print ("looking for type " ++ show ret ++ " and get code pieces " ++ show codePieces)
-    -- vars <- createdVars <$> get
     let vars = []
     return $ Set.filter (includeAllSymbols vars) codePieces
   where
@@ -128,7 +126,7 @@ generateProgram signatures inputs argNames ret isFinal = do
     includeAllSymbols vars code = 
         let fold_fn f (b, c) = if b then includeSymbol c f else (b, c)
             base             = (True, code)
-            funcNames        = map (removeLast '_' . funName) signatures
+            funcNames        = map funName signatures
             (res, c)         = foldr fold_fn base (argNames ++ if isFinal then funcNames else []) -- vars exists after slash and the function body, at least twice
             -- eachOnce         = foldr (\n acc -> isInfixOf n c || acc) False (if isFinal then funcNames else []) -- each function should be used only once according to our design of petri net
         in res -- && (not eachOnce)

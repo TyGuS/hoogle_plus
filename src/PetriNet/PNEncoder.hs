@@ -174,8 +174,7 @@ encoderSolve :: EncodeState -> IO ([(Id, Int)], EncodeState)
 encoderSolve st = runStateT solveAndGetModel st
 
 data SplitInfo = SplitInfo {
-    oldPlace :: AbstractSkeleton,
-    newPlace :: [AbstractSkeleton],
+    splitedPlaces :: [(AbstractSkeleton, [AbstractSkeleton])],
     splitedGroup :: [(Id, [Id])]
 } deriving (Eq, Ord, Show)
 
@@ -224,47 +223,36 @@ encoderRefine net info inputs ret = do
     put $ st { petriNet = net 
              , abstractionLv = (abstractionLv st + 1)
              }
-    let splitedTyp = show (oldPlace info)
+    
+    {- operation on places -}
     let newTyps = HashMap.filterWithKey (\k _ -> not (HashMap.member k (pnPlaces oldNet))) (pnPlaces net)
-    let splitedPlace = findVariable splitedTyp (pnPlaces net)
-    let splitedNegPl = findVariable ('-':splitedTyp) (pnPlaces net)
-    -- there are two kinds of new places
-    -- the first one is those splitted from the old type
     let newPlaces = HashMap.elems newTyps
-    -- let inputClones = map (\n -> n ++ "|clone") inputs
-    let typeClones = map (\n -> n ++ "|clone") (filter ((/=) '-' . head) (HashMap.keys newTyps))
+    let typeClones = map (\(p, ps) -> (show p ++ "|clone", map (\n -> show n ++ "|clone") ps)) (splitedPlaces info)
+
+    {- operation on transitions -}
     let transIds = concat (snd (unzip (splitedGroup info)))
-    let allTransIds = fst (unzip (splitedGroup info)) ++ transIds ++ typeClones
+    let allTransIds = fst (unzip (splitedGroup info)) ++ transIds ++ (fst (unzip typeClones)) ++ (concat (snd (unzip typeClones)))
     -- some of the transitions are splitted
     let existingTrans = findVariable (abstractionLv st) (transition2id st)
-    -- let newTrans = HashMap.elems (HashMap.filterWithKey (\k _ -> not (HashMap.member k existingTrans)) (pnTransitions net))
-    -- let newTrans = map (\tr -> findVariable tr (pnTransitions net)) (inputClones ++ transIds)
-    let newTrans = map (\tr -> findVariable tr (pnTransitions net)) (typeClones ++ transIds)
+    let newTrans = map (\tr -> findVariable tr (pnTransitions net)) (concat (snd (unzip typeClones)) ++ transIds)
     -- other transition have no change but need to be copied to the next level
     let noSplit k _ = not (elem k allTransIds)
-    -- let discards = HashMap.elems (HashMap.filterWithKey (\k _ -> "|discard" `isInfixOf` k && (removeLast '|' k ++ "|entry1") `elem` transIds) (pnTransitions net))
     let oldTransIds = HashMap.keys (HashMap.filterWithKey noSplit existingTrans)
     let oldTrans = map (\tr -> findVariable tr (pnTransitions net)) oldTransIds
     let lookupTrans tr = findVariable tr (pnTransitions net)
-    let splitTrans = map (\(tr, trs) -> (lookupTrans tr, map lookupTrans trs)) ((splitedTyp ++ "|clone", typeClones):(splitedGroup info))
+    let splitTrans = map (\(tr, trs) -> (lookupTrans tr, map lookupTrans trs)) (typeClones ++ (splitedGroup info))
 
     l <- loc <$> get
-    -- liftIO $ print ("add " ++ show (length newTrans) ++ " new transitions and " ++ show (length discards) ++ " discard transitions")
-    -- let allTrans = [(t, tr) | t <- [0..(l-1)], tr <- (newTrans ++ discards) ]
     let allTrans = [(t, tr) | t <- [0..(l-1)], tr <- newTrans ]
 
     -- add new place, transition and timestamp variables
     let oldPlaces = HashMap.elems (pnPlaces oldNet)
-    -- mapM_ addPlaceVar (filter (flip notElem oldPlaces) (newPlaces ++ newSpecialPlaces))
-    mapM_ addPlaceVar (filter (flip notElem oldPlaces) newPlaces)
-    -- addTransitionVar (newTrans ++ oldTrans ++ discards)
+    mapM_ addPlaceVar newPlaces
     addTransitionVar (newTrans ++ oldTrans)
     mapM_ addTimestampVar [0..(l-1)]
 
     -- refine the sequential constraints
     -- but enable transitions between abstraction levels fired simultaneously
-    -- let transitions = HashMap.elems (pnTransitions net)
-    -- mapM_ (fireAt transitions) [0..(l-1)]
     withTime "sequentialTransitions" sequentialTransitions
 
     -- refine the precondition constraints
@@ -274,12 +262,15 @@ encoderRefine net info inputs ret = do
     withTime "postconditions" $ mapM_ (uncurry postconditionsTransitions) allTrans
 
     -- refine the no transition constraints
-    let (negPlaces, posPlaces) = partition ((==) '-' . head . placeId) newPlaces
-    let toMerge = (splitedPlace, posPlaces) : if null negPlaces then [] else [(splitedNegPl, negPlaces)]
+    let posMerge = map (\(p, ps) -> (findVariable (show p) (pnPlaces net), map (flip findVariable (pnPlaces net) . show) ps)) (splitedPlaces info)
+    -- for support of hof, we need to merge some negative places if exists
+    let negPlaceIds = map (drop 1 . placeId) (filter ((==) '-' . head . placeId) newPlaces)
+    let negMergeIds = filter (not . null . snd) (map (\(p, ps) -> (placeId p, map placeId (filter (flip elem negPlaceIds . placeId) ps))) posMerge)
+    let negMerge = map (\(pid, pids) -> (findVariable pid (pnPlaces net), map (flip findVariable (pnPlaces net)) pids)) negMergeIds
+    let toMerge = posMerge ++ negMerge
     withTime "placeMerge" $ mapM_ (\t -> mapM_ (uncurry (placeMerge t)) toMerge) [0..l]
     withTime "transMerge" $ mapM_ (uncurry transMerge) [ (tr, t) | tr <- splitTrans, t <- [0..(l-1)] ]
     withTime "transKeep" $ mapM_ (uncurry transClone) [ (tr, t) | tr <- oldTrans, t <- [0..(l-1)] ]
-    -- withTime "noTransitionTokens" $ mapM_ (uncurry noTransitionTokens) [(t, p) | p <- (newPlaces ++ newSpecialPlaces), t <- [0..(l-1)]]
     withTime "noTransitionTokens" $ mapM_ (uncurry noTransitionTokens) [(t, p) | p <- newPlaces, t <- [0..(l-1)]]
 
     -- refine the must firers
