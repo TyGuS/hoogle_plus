@@ -1,0 +1,175 @@
+@package base
+@version 4.12.0.0
+
+module Prelude
+class Eq a
+(==) :: Eq a => a -> a -> Bool
+(/=) :: Eq a => a -> a -> Bool
+infix 4 ==
+infix 4 /=
+
+-- base
+module Data.Word
+data Word
+data {-# CTYPE "HsWord8" #-} Word8
+
+-- base
+module Data.Int
+data {-# CTYPE "HsInt64" #-} Int64
+
+-- base
+module Data.String
+type String = [Char]
+
+-- base
+module Data.Maybe
+data Maybe a
+Nothing :: Maybe a
+Just :: a -> Maybe a
+isJust :: Maybe a -> Bool
+isNothing :: Maybe a -> Bool
+fromJust :: Maybe a -> a
+fromMaybe :: a -> Maybe a -> a
+listToMaybe :: [a] -> Maybe a
+maybeToList :: Maybe a -> [a]
+catMaybes :: [Maybe a] -> [a]
+-- HOF: maybe :: b -> (a -> b) -> Maybe a -> b
+-- HOF: mapMaybe :: (a -> Maybe b) -> [a] -> [b]
+
+-- bytestring
+module Data.ByteString.Builder
+data Builder
+intDec :: Int -> Builder
+int64BE :: Int64 -> Builder
+byteStringHex :: ByteString -> Builder
+string8 :: String -> Builder
+charUtf8 :: Char -> Builder
+toLazyByteString :: Builder -> ByteString
+
+-- bytestring
+module Data.ByteString.Lazy
+append :: ByteString -> ByteString -> ByteString
+concat :: [ByteString] -> ByteString
+cons :: Word8 -> ByteString -> ByteString
+copy :: ByteString -> ByteString
+count :: Word8 -> ByteString -> Int64
+data ByteString
+elem :: Word8 -> ByteString -> Bool
+elemIndex :: Word8 -> ByteString -> Maybe Int64
+elemIndexEnd :: Word8 -> ByteString -> Maybe Int64
+elemIndices :: Word8 -> ByteString -> [Int64]
+empty :: ByteString
+fromChunks :: [ByteString] -> ByteString
+group :: ByteString -> [ByteString]
+head :: ByteString -> Word8
+index :: ByteString -> Int64 -> Word8
+infixl 5 `snoc`
+infixr 5 `cons`
+intercalate :: ByteString -> [ByteString] -> ByteString
+intersperse :: Word8 -> ByteString -> ByteString
+length :: ByteString -> Int64
+maximum :: ByteString -> Word8
+minimum :: ByteString -> Word8
+notElem :: Word8 -> ByteString -> Bool
+pack :: [Word8] -> ByteString
+reverse :: ByteString -> ByteString
+singleton :: Word8 -> ByteString
+split :: Word8 -> ByteString -> [ByteString]
+splitAt :: Int -> ByteString -> (ByteString, ByteString)
+snoc :: ByteString -> Word8 -> ByteString
+stripPrefix :: ByteString -> ByteString -> Maybe ByteString
+stripSuffix :: ByteString -> ByteString -> Maybe ByteString
+toChunks :: ByteString -> [ByteString]
+toChunks :: ByteString -> [ByteString]
+transpose :: [ByteString] -> [ByteString]
+uncons :: ByteString -> Maybe (Word8, ByteString)
+unpack :: ByteString -> [Word8]
+unsnoc :: ByteString -> Maybe (ByteString, Word8)
+unzip :: [(Word8, Word8)] -> (ByteString, ByteString)
+
+
+-- base
+module Data.List
+(++) :: [a] -> [a] -> [a]
+infixr 5 ++
+cycle :: [a] -> [a]
+drop :: Int -> [a] -> [a]
+head :: [a] -> a
+init :: [a] -> [a]
+inits :: [a] -> [[a]]
+last :: [a] -> a
+lines :: String -> [String]
+permutations :: [a] -> [[a]]
+splitAt :: Int -> [a] -> ([a], [a])
+subsequences :: [a] -> [[a]]
+tail :: [a] -> [a]
+tails :: [a] -> [[a]]
+take :: Int -> [a] -> [a]
+transpose :: [[a]] -> [[a]]
+uncons :: [a] -> Maybe (a, [a])
+unlines :: [String] -> String
+unwords :: [String] -> String
+unzip :: [(a, b)] -> ([a], [b])
+unzip3 :: [(a, b, c)] -> ([a], [b], [c])
+words :: String -> [String]
+zip :: [a] -> [b] -> [(a, b)]
+isSubsequenceOf :: Eq a => [a] -> [a] -> Bool
+lookup :: Eq a => a -> [(a, b)] -> Maybe b
+delete :: Eq a => a -> [a] -> [a]
+nub :: Eq a => [a] -> [a]
+union :: Eq a => [a] -> [a] -> [a]
+intersect :: Eq a => [a] -> [a] -> [a]
+
+
+-- base
+module Data.Tuple
+fst :: (a, b) -> a
+snd :: (a, b) -> b
+swap :: (a, b) -> (b, a)
+
+-- base
+module GHC.List
+null :: [a] -> Bool
+length :: [a] -> Int
+repeat :: a -> [a]
+replicate :: Int -> a -> [a]
+and :: [Bool] -> Bool
+or :: [Bool] -> Bool
+uncons :: [a] -> Maybe (a, [a])
+unzip3 :: [(a, b, c)] -> ([a], [b], [c])
+zip3 :: [a] -> [b] -> [c] -> [(a, b, c)]
+stripPrefix :: Eq a => [a] -> [a] -> Maybe [a]
+group :: Eq a => [a] -> [[a]]
+
+-- base
+module GHC.Char
+chr :: Int -> Char
+eqChar :: Char -> Char -> Bool
+neChar :: Char -> Char -> Bool
+
+module Data.Char
+data Char
+isControl :: Char -> Bool
+isSpace :: Char -> Bool
+isLower :: Char -> Bool
+isUpper :: Char -> Bool
+isAlpha :: Char -> Bool
+isAlphaNum :: Char -> Bool
+isPrint :: Char -> Bool
+isDigit :: Char -> Bool
+isOctDigit :: Char -> Bool
+isHexDigit :: Char -> Bool
+isLetter :: Char -> Bool
+isMark :: Char -> Bool
+isNumber :: Char -> Bool
+isPunctuation :: Char -> Bool
+isSymbol :: Char -> Bool
+isSeparator :: Char -> Bool
+isAscii :: Char -> Bool
+isLatin1 :: Char -> Bool
+isAsciiUpper :: Char -> Bool
+isAsciiLower :: Char -> Bool
+
+module Text.Show
+class Show a
+show :: Show a => a -> String

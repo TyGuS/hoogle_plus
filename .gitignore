@@ -24,4 +24,9 @@ cabal.project.local~
 *.graph
 *.png
 data/
-*node_modules/*
+.gradle/
+build/distributions/
+.idea/
+tags
+.python-version
+.DS_Store

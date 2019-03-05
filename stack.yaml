@@ -3,13 +3,4 @@ flags:
     synquid: true
 packages:
   - '.'
-resolver: lts-6.21
-extra-deps:
-  - z3-4.3.1
-  - pqueue-1.4.1.1
-  - sort-1.0.0.0
-  # - extra-1.6.9
-# extra-include-dirs:
-#  - <z3-home>/src/api
-# extra-lib-dirs:
-#  - <z3-home>/build  
+resolver: lts-12.4

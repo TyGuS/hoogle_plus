@@ -1,7 +1,16 @@
 {-# LANGUAGE TupleSections, FlexibleContexts, TemplateHaskell #-}
 
 -- | Functions for processing the AST created by the Parser (eg filling in unknown types, verifying that refinement formulas evaluate to a boolean, etc.)
-module Synquid.Resolver (resolveDecls, resolveRefinement, resolveRefinedType, addAllVariables, ResolverState (..), instantiateSorts) where
+module Synquid.Resolver (
+    resolveDecls
+  , resolveRefinement
+  , resolveRefinedType
+  , addAllVariables
+  , substituteTypeSynonym
+  , ResolverState (..)
+  , instantiateSorts
+  , initResolverState
+  , resolveSchema) where
 
 import Synquid.Logic
 import Synquid.Type
@@ -176,6 +185,7 @@ resolveSignatures :: BareDeclaration -> Resolver ()
 resolveSignatures (FuncDecl name _)  = do
   sch <- uses environment ((Map.! name) . allSymbols)
   sch' <- resolveSchema sch
+  environment %= removeVariable name
   environment %= addPolyConstant name sch'
 resolveSignatures (DataDecl dtName tParams pParams ctors) = mapM_ resolveConstructorSignature ctors
   where
@@ -224,6 +234,11 @@ resolveSignatures _                      = return ()
 {- Types and sorts -}
 
 resolveSchema :: RSchema -> Resolver RSchema
+{- resolveSchema sch@(ForallT {}) = resolveSchema' sch
+  where 
+    resolveSchema' (ForallT t sch') = ForallT t <$> resolveSchema' sch'
+    resolveSchema' (Monotype t) = Monotype <$> resolveType t
+-}
 resolveSchema sch = do
   let tvs = Set.toList $ typeVarsOf (toMonotype sch)
   sch' <- withLocalEnv $ do
@@ -252,7 +267,7 @@ resolveType (ScalarT (DatatypeT name tArgs pArgs) fml) = do
   ds <- use $ environment . datatypes
   case Map.lookup name ds of
     Nothing -> do
-      t' <- substituteTypeSynonym name tArgs >>= resolveType      
+      t' <- substituteTypeSynonym name tArgs >>= resolveType
       fml' <- resolveTypeRefinement (toSort $ baseTypeOf t') fml
       return $ addRefinement t' fml'
     Just (DatatypeDef tParams pParams _ _ _) -> do

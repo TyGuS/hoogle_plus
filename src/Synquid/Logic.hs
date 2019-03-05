@@ -92,7 +92,7 @@ data PredSig = PredSig {
   predSigName :: Id,
   predSigArgSorts :: [Sort],
   predSigResSort :: Sort
-} deriving (Eq, Ord)  
+} deriving (Eq, Ord, Generic)  
 
 {- Formulas of the refinement logic -}
 

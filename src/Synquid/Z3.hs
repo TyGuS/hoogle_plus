@@ -44,7 +44,8 @@ data Z3Data = Z3Data {
 
 data Z3Env = Z3Env {
   envSolver  :: Z3.Solver,
-  envContext :: Z3.Context
+  envContext :: Z3.Context,
+  envOptimize :: Z3.Optimize
 }
 
 makeLenses ''Z3Data
@@ -164,6 +165,7 @@ toZ3Sort s = do
 instance MonadZ3 Z3State where
   getSolver = gets (envSolver . _mainEnv)
   getContext = gets (envContext . _mainEnv)
+  getOptimize = gets (envOptimize . _mainEnv)
 
 -- | Create a new Z3 environment.
 newEnv :: Maybe Logic -> Opts -> IO Z3Env
@@ -171,8 +173,9 @@ newEnv mbLogic opts =
   Z3.withConfig $ \cfg -> do
     setOpts cfg opts
     ctx <- Z3.mkContext cfg
+    opt <- Z3.mkOptimize ctx
     solver <- maybe (Z3.mkSolver ctx) (Z3.mkSolverForLogic ctx) mbLogic
-    return $ Z3Env solver ctx
+    return $ Z3Env solver ctx opt
 
 -- | Use auxiliary solver to execute a Z3 computation
 withAuxSolver :: Z3State a -> Z3State a

@@ -9,6 +9,7 @@ import Synquid.Error
 import Synquid.Tokens
 import Synquid.Util
 import Synquid.Succinct
+import PetriNet.AbstractType
 
 import Data.Maybe
 import Data.Either
@@ -31,7 +32,7 @@ data Case t = Case {
   constructor :: Id,      -- ^ Constructor name
   argNames :: [Id],       -- ^ Bindings for constructor arguments
   expr :: Program t       -- ^ Result of the match in this case
-} deriving (Eq, Ord, Functor)
+} deriving (Eq, Ord, Functor, Generic)
     
 -- | Program skeletons parametrized by information stored symbols, conditionals, and by node types
 data BareProgram t =
@@ -44,13 +45,13 @@ data BareProgram t =
   PLet Id (Program t) (Program t) |           -- ^ Let binding
   PHole |                                     -- ^ Hole (program to fill in)
   PErr                                        -- ^ Error
-  deriving (Eq, Ord, Functor)
+  deriving (Eq, Ord, Functor, Generic)
   
 -- | Programs annotated with types  
 data Program t = Program {
   content :: BareProgram t,
   typeOf :: t
-} deriving (Functor)
+} deriving (Functor, Generic)
 
 instance Eq (Program t) where
   (==) (Program l _) (Program r _) = l == r
@@ -62,6 +63,8 @@ instance Ord (Program t) where
 type UProgram = Program RType
 -- | Refinement-typed programs
 type RProgram = Program RType
+-- | Simple-typed programs
+type TProgram = Program SType
 -- | Succinct typed programs
 -- data SuccinctProgram = SuccinctProgram {
 --   prog :: BareProgram,
@@ -163,13 +166,13 @@ data DatatypeDef = DatatypeDef {
   _predVariances :: [Bool],         -- ^ For each predicate parameter, whether it is contravariant
   _constructors :: [Id],            -- ^ Constructor names
   _wfMetric :: Maybe Id             -- ^ Name of the measure that serves as well founded termination metric
-} deriving (Eq, Ord)
+} deriving (Eq, Ord, Generic)
 
 makeLenses ''DatatypeDef
 
 -- | One case in a measure definition: constructor name, arguments, and body  
 data MeasureCase = MeasureCase Id [Id] Formula
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Generic)
 
 -- | User-defined measure function representation
 data MeasureDef = MeasureDef {
@@ -177,7 +180,7 @@ data MeasureDef = MeasureDef {
   _outSort :: Sort,
   _definitions :: [MeasureCase],
   _postcondition :: Formula
-} deriving (Eq, Ord)
+} deriving (Eq, Ord, Generic)
 
 makeLenses ''MeasureDef
 
@@ -191,25 +194,48 @@ makeLenses ''SuccinctContext
 data SuccinctEdge = SuccinctEdge {
   _symbolId :: Id,
   _params :: Int,
-  _weight :: HashMap SuccinctContext Double
-} deriving (Eq, Generic)
-
-instance Ord (SuccinctEdge) where
-  (<=) (SuccinctEdge id1 params1 _) (SuccinctEdge id2 params2 _) = id1 <= id2 || ((id1 == id2) && params1 <= params2)
+  _weight :: Double
+} deriving (Eq, Ord, Show, Generic)
 
 makeLenses ''SuccinctEdge
 
+succinctEdgeComp e1 e2 = compare (e1 ^. weight, e1 ^. params, e1 ^. symbolId) (e2 ^. weight, e2 ^. params, e2 ^. symbolId)
+
 getEdgeId (SuccinctEdge id _ _) = id
+getEdgeWeight (SuccinctEdge _ _ w) = w
+
+data Metadata = Metadata {
+  _distFromGoal :: Int,
+  _mWeight :: Double
+} deriving(Eq, Show, Generic)
+
+makeLenses ''Metadata
+
+mtComp :: Metadata -> Metadata -> Bool
+mtComp mt1 mt2 = 
+  if mt1 ^. distFromGoal < mt2 ^. distFromGoal
+    then True
+    else if mt1 ^. distFromGoal == mt2 ^. distFromGoal
+      then if mt1 ^. mWeight > mt2 ^. mWeight
+        then True
+        else False
+      else False
+
+instance Ord Metadata where
+  (<=) mt1 mt2 = mt1 ^. distFromGoal <= mt2 ^. distFromGoal && mt1 ^. mWeight <= mt2 ^. mWeight
 
 -- | Typing environment
 data Environment = Environment {
   -- | Variable part:
   _symbols :: Map Int (Map Id RSchema),    -- ^ Variables and constants (with their refinement types), indexed by arity
   _arguments :: Map Id RSchema,            -- ^ Function arguments, required in all the solutions
+  _typeClasses :: Map Id (Set Id),         -- ^ Type class instances 
+  -- _abstractSymbols :: Map Id AbstractSkeleton,
   _succinctSymbols :: HashMap Id SuccinctType,    -- ^ Symbols with succinct types
   _succinctGraph :: HashMap SuccinctType (HashMap SuccinctType (Set SuccinctEdge)), -- ^ Graph built upon succinct types
   _graphFromGoal :: HashMap SuccinctType (HashMap SuccinctType (Set SuccinctEdge)),
-  _succinctGraphRev :: HashMap SuccinctType (Set SuccinctType), -- ^ Graph for reachability check
+  _graphMetadata :: HashMap SuccinctType Metadata,
+  _succinctGraphRev :: HashMap SuccinctType (HashMap SuccinctType (Set SuccinctEdge)), -- ^ Graph for reachability check
   _boundTypeVars :: [Id],                  -- ^ Bound type variables
   _boundPredicates :: [PredSig],           -- ^ Argument sorts of bound abstract refinements
   _assumptions :: Set Formula,             -- ^ Unknown assumptions
@@ -223,8 +249,9 @@ data Environment = Environment {
   _globalPredicates :: Map Id [Sort],      -- ^ Signatures (resSort:argSorts) of module-level logic functions (measures, predicates) 
   _measures :: Map Id MeasureDef,          -- ^ Measure definitions
   _typeSynonyms :: Map Id ([Id], RType),   -- ^ Type synonym definitions
-  _unresolvedConstants :: Map Id RSchema   -- ^ Unresolved types of components (used for reporting specifications with macros)
-}
+  _unresolvedConstants :: Map Id RSchema,  -- ^ Unresolved types of components (used for reporting specifications with macros)
+  _included_modules :: Set String          -- ^ The set of modules any solution would need to import
+} deriving(Generic)
 
 makeLenses ''Environment
 
@@ -238,9 +265,12 @@ instance Ord Environment where
 emptyEnv = Environment {
   _symbols = Map.empty,
   _arguments = Map.empty,
+  _typeClasses = Map.empty,
+  -- _abstractSymbols = Map.empty,
   _succinctSymbols = HashMap.empty,
   _succinctGraph = HashMap.empty,
   _graphFromGoal = HashMap.empty,
+  _graphMetadata = HashMap.empty,
   _succinctGraphRev = HashMap.empty,
   _boundTypeVars = [],
   _boundPredicates = [],
@@ -254,7 +284,8 @@ emptyEnv = Environment {
   _datatypes = Map.empty,
   _measures = Map.empty,
   _typeSynonyms = Map.empty,
-  _unresolvedConstants = Map.empty
+  _unresolvedConstants = Map.empty,
+  _included_modules = Set.empty
 }
 
 -- | 'symbolsOfArity' @n env@: all symbols of arity @n@ in @env@
@@ -502,7 +533,8 @@ data Goal = Goal {
 } deriving (Eq, Ord)
 
 unresolvedType env ident = (env ^. unresolvedConstants) Map.! ident
-unresolvedSpec goal = unresolvedType (gEnvironment goal) (gName goal)
+-- unresolvedSpec goal = unresolvedType (gEnvironment goal) (gName goal)
+unresolvedSpec goal = gSpec goal
 
 -- | analysis of program components for exploration convenience
 depth (Program p (_,t,_)) = case p of

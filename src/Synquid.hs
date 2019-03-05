@@ -8,7 +8,7 @@ import Synquid.Program
 import Synquid.Error
 import Synquid.Pretty
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
-import Synquid.Resolver (resolveDecls)
+import Synquid.Resolver (resolveDecls, ResolverState (..), initResolverState, resolveSchema)
 import Synquid.SolverMonad
 import Synquid.HornSolver
 import Synquid.TypeConstraintSolver
@@ -17,13 +17,14 @@ import Synquid.Synthesizer
 import Synquid.HtmlOutput
 import Synquid.Codegen
 import Synquid.Stats
-import Synquid.Graph
+import Synquid.Graph hiding (Node(..))
 import Database.Convert
-import Database.Graph
 import Database.Generate
 import Database.Download
 import Database.Util
 import Database.GraphWeightsProvider
+import qualified PetriNet.PNSolver as PNS
+import qualified HooglePlus.Encoder as HEncoder
 
 import Control.Monad
 import Control.Lens ((^.))
@@ -32,17 +33,20 @@ import System.Console.CmdArgs
 import System.Console.ANSI
 import System.FilePath
 import Text.Parsec.Pos
-import Control.Monad.State (runState, evalStateT)
+import Control.Monad.State (runState, evalStateT, execStateT, evalState)
+import Control.Monad.Except (runExcept)
 import Data.Char
 import Data.List
 import Data.Foldable
 import Data.Serialize
 import Data.Time.Calendar
+import qualified Data.HashMap.Strict as HashMap
+import Data.HashMap.Strict (HashMap)
 import Language.Haskell.Exts (Decl(TypeSig))
 import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Data.Maybe (mapMaybe)
+import Data.Maybe (mapMaybe, fromJust)
 import Distribution.PackDeps
 import Text.Parsec hiding (State)
 import Text.Parsec.Indent
@@ -62,12 +66,12 @@ releaseDate = fromGregorian 2016 8 11
 main = do
   res <- cmdArgsRun $ mode
   case res of
-    (Synthesis file libs onlyGoals
+    (Synthesis file libs onlyGoals envPath
                appMax scrutineeMax matchMax auxMax fix genPreds explicitMatch unfoldLocals partial incremental consistency memoize symmetry
                lfp bfs
                out_file out_module outFormat resolve
-               print_spec print_stats log_ 
-               graph succinct sol_num) -> do
+               print_spec print_stats log_
+               graph succinct sol_num path_search higher_order encoder refine) -> do
                   let explorerParams = defaultExplorerParams {
                     _eGuessDepth = appMax,
                     _scrutineeDepth = scrutineeMax,
@@ -85,7 +89,11 @@ main = do
                     _explorerLogLevel = log_,
                     _buildGraph = graph,
                     _useSuccinct = succinct,
-                    _solutionCnt = sol_num
+                    _solutionCnt = sol_num,
+                    _pathSearch = path_search,
+                    _useHO = higher_order,
+                    _encoderType = encoder,
+                    _useRefine = refine
                     }
                   let solverParams = defaultHornSolverParams {
                     isLeastFixpoint = lfp,
@@ -97,7 +105,8 @@ main = do
                     outputFormat = outFormat,
                     resolveOnly = resolve,
                     showSpec = print_spec,
-                    showStats = print_stats
+                    showStats = print_stats,
+                    envPath = envPath
                   }
                   let codegenParams = defaultCodegenParams {
                     filename = out_file,
@@ -125,14 +134,19 @@ main = do
                     module_ = out_module
                   }
                   runOnFile synquidParams explorerParams solverParams codegenParams file libs
-    (Generate pkgs) -> do
-                  precomputeGraph pkgs
+    (Generate pkgs mdls d ho envPath) -> do
+                  precomputeGraph pkgs mdls d ho envPath
 {- Command line arguments -}
 
 deriving instance Typeable FixpointStrategy
 deriving instance Data FixpointStrategy
 deriving instance Eq FixpointStrategy
 deriving instance Show FixpointStrategy
+
+deriving instance Typeable HEncoder.EncoderType
+deriving instance Data HEncoder.EncoderType
+deriving instance Eq HEncoder.EncoderType
+deriving instance Show HEncoder.EncoderType
 
 {-# ANN module "HLint: ignore Use camelCase" #-}
 {-# ANN module "HLint: ignore Redundant bracket" #-}
@@ -144,6 +158,7 @@ data CommandLineArgs
         file :: String,
         libs :: [String],
         only :: Maybe String,
+        env_file_path_in :: String,
         -- | Explorer params
         app_max :: Int,
         scrutinee_max :: Int,
@@ -172,7 +187,11 @@ data CommandLineArgs
         -- | Graph params
         graph :: Bool,
         succinct :: Bool,
-        sol_num :: Int
+        sol_num :: Int,
+        path_search :: PathStrategy,
+        higher_order :: Bool,
+        encoder :: HEncoder.EncoderType,
+        use_refine :: PNS.RefineStrategy
       }
       | Lifty {
         -- | Input
@@ -191,7 +210,11 @@ data CommandLineArgs
       }
       | Generate {
         -- | Input
-        pkgName :: [String]
+        pkg_name :: [String],
+        module_name :: [String],
+        type_depth :: Int,
+        higher_order :: Bool,
+        env_file_path_out :: String
       }
   deriving (Data, Typeable, Show, Eq)
 
@@ -199,7 +222,8 @@ synt = Synthesis {
   file                = ""              &= typFile &= argPos 0,
   libs                = []              &= args &= typ "FILES",
   only                = Nothing         &= typ "GOAL,..." &= help ("Only synthesize the specified functions"),
-  app_max             = 3               &= help ("Maximum depth of an application term (default: 3)") &= groupname "Explorer parameters",
+  env_file_path_in    = defaultEnvPath  &= help ("Environment file path (default:" ++ (show defaultEnvPath) ++ ")"),
+  app_max             = 6               &= help ("Maximum depth of an application term (default: 6)") &= groupname "Explorer parameters",
   scrutinee_max       = 1               &= help ("Maximum depth of a match scrutinee (default: 1)"),
   match_max           = 0               &= help ("Maximum depth of matches (default: 2)"),
   aux_max             = 1               &= help ("Maximum depth of auxiliary functions (default: 1)") &= name "x",
@@ -221,9 +245,13 @@ synt = Synthesis {
   print_spec          = True            &= help ("Show specification of each synthesis goal (default: True)"),
   print_stats         = False           &= help ("Show specification and solution size (default: False)"),
   log_                = 0               &= help ("Logger verboseness level (default: 0)") &= name "l",
-  graph               = False           &= help ("Build graph for exploration") &= name "graph",
-  succinct            = False           &= help ("Use graph to direct the term exploration") &= name "succ",
-  sol_num             = 5               &= help ("Number of solutions need to find (default: 5)") &= name "cnt"
+  graph               = False           &= help ("Build graph for exploration (default: False)") &= name "graph",
+  succinct            = False           &= help ("Use graph to direct the term exploration (default: False)") &= name "succ",
+  sol_num             = 1               &= help ("Number of solutions need to find (default: 1)") &= name "cnt",
+  path_search         = PetriNet     &= help ("Use path search algorithm to ensure the usage of provided parameters (default: DisablePath)") &= name "path",
+  higher_order        = False           &= help ("Include higher order functions (default: False)"),
+  encoder             = HEncoder.Normal &= help ("Choose normal or refined arity encoder (default: Normal)"),
+  use_refine          = PNS.NoRefine    &= help ("Use abstract refinement or not (default: NoRefine)")
   } &= auto &= help "Synthesize goals specified in the input file"
     where
       defaultFormat = outputFormat defaultSynquidParams
@@ -245,8 +273,12 @@ lifty = Lifty {
       defaultFormat = outputFormat defaultSynquidParams
 
 generate = Generate {
-  pkgName             = []              &= args
-} &= help "Generate the type transfer graph for synthesis"
+  pkg_name             = []              &= help ("Package names to be generated"),
+  module_name          = []              &= help ("Module names to be generated in the given packages"),
+  type_depth           = 2               &= help ("Depth of the types to be instantiated for polymorphic type constructors"),
+  higher_order         = False           &= help ("Include higher order functions (default: False)"),
+  env_file_path_out    = defaultEnvPath  &= help ("Environment file path (default:" ++ (show defaultEnvPath) ++ ")")
+} &= help "Generate the type conversion database for synthesis"
 
 mode = cmdArgsMode $ modes [synt, lifty, generate] &=
   help "Synquid program synthesizer" &=
@@ -275,7 +307,11 @@ defaultExplorerParams = ExplorerParams {
   _explorerLogLevel = 0,
   _buildGraph = False,
   _useSuccinct = False,
-  _solutionCnt = 5
+  _solutionCnt = 1,
+  _pathSearch = DisablePath,
+  _useHO = False,
+  _encoderType = HEncoder.Normal,
+  _useRefine = PNS.NoRefine
 }
 
 -- | Parameters for constraint solving
@@ -310,7 +346,8 @@ data SynquidParams = SynquidParams {
   repairPolicies :: Bool,
   verifyOnly :: Bool,
   showSpec :: Bool,                            -- ^ Print specification for every synthesis goal
-  showStats :: Bool                            -- ^ Print specification and solution size
+  showStats :: Bool,                            -- ^ Print specification and solution size
+  envPath :: String -- ^ Path to the environment file
 }
 
 defaultSynquidParams = SynquidParams {
@@ -320,7 +357,8 @@ defaultSynquidParams = SynquidParams {
   repairPolicies = False,
   verifyOnly = False,
   showSpec = True,
-  showStats = False
+  showStats = False,
+  envPath = defaultEnvPath
 }
 
 -- | Parameters for code extraction and Haskell output
@@ -356,26 +394,43 @@ codegen params results = case params of
 collectLibDecls libs declsByFile =
   Map.filterWithKey (\k _ -> k `elem` libs) $ Map.fromList declsByFile
 
-precomputeGraph :: [PkgName] -> IO ()
-precomputeGraph pkgs = mapM_ (\pkgName -> do
-  downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
-  -- baseDecls <- addPrelude <$> readDeclarations "base" Nothing
-  let baseDecls = []
-  fileDecls <- readDeclarations pkgName Nothing
-  let parsedDecls = fst $ unzip $ map (\decl -> runState (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)
-  dependsPkg <- packageDependencies pkgName
-  dependsDecls <- mapM (flip readDeclarations Nothing) $ nub dependsPkg
-  additionalDts <- declDependencies (baseDecls ++ fileDecls) (concat dependsDecls) >>= mapM (flip evalStateT 0 . toSynquidDecl)
-  let decls = reorderDecls $ nub $ defaultDts ++ additionalDts ++ parsedDecls
+precomputeGraph :: [PkgName] -> [String] -> Int -> Bool -> String -> IO ()
+precomputeGraph pkgs mdls depth useHO envPath = do
+  -- print pkgs
+  pkgDecls <- mapM (\pkgName -> do
+    downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
+    declMap <- readDeclarations pkgName Nothing
+    let fileDecls = concatMap (\mdl -> Map.findWithDefault [] mdl declMap) mdls
+    parsedDecls <- mapM (\decl -> evalStateT (toSynquidDecl decl) 0) fileDecls
+    dependsPkg <- packageDependencies pkgName True
+    dependsDecls <- concatMap (concat . Map.elems) <$> (mapM (flip readDeclarations Nothing) $ nub dependsPkg)
+    additionalDts <- declDependencies pkgName fileDecls dependsDecls >>= mapM (flip evalStateT 0 . toSynquidDecl)
+    return $ additionalDts ++ parsedDecls
+    ) pkgs
+  let decls = reorderDecls $ nub $ defaultFuncs ++ defaultDts ++ concat pkgDecls
   case resolveDecls decls of
     Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
-    Right (env, goals, cquals, tquals) -> do
-      envAll <- evalStateT (foldrM (\(f, t) -> addGraphSymbol f t) env $ Map.toList $ allSymbols env) Map.empty
-      B.writeFile "data/graph.db" $ encode $ envAll ^. succinctGraph
-      B.writeFile "data/graphRev.db" $ encode $ envAll ^. succinctGraphRev
-  ) pkgs
+    Right (env, _, _, _) -> do
+      -- envAll <- evalStateT (foldrM (uncurry addGraphSymbol) env $ Map.toList $ allSymbols env) Map.empty
+      -- let allEdges = Set.toList . Set.unions . concat . map HashMap.elems $ HashMap.elems (envAll ^. succinctGraph)
+      -- edgeWeights <- getGraphWeights $ map getEdgeId allEdges
+      -- let graph' = fillEdgeWeight allEdges edgeWeights $ envAll ^. succinctGraph
+      B.writeFile envPath $ encode $ env {
+          _symbols = if useHO then env ^. symbols
+                              else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols
+        , _included_modules = Set.fromList mdls
+        }
   where
-    defaultDts = [defaultList, defaultPair, defaultUnit]
+    skipLParen [] = []
+    skipLParen ('(':name) = name
+    skipLParen name = name
+    -- defaultDts = [defaultList]
+    defaultFuncs = [ Pos (initialPos "fst") $ FuncDecl "fst" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) (ScalarT (TypeVarT Map.empty "a") ftrue)))
+                   , Pos (initialPos "snd") $ FuncDecl "snd" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) (ScalarT (TypeVarT Map.empty "b") ftrue)))
+                   ]
+    defaultDts = [defaultList, defaultPair, defaultUnit, defaultInt, defaultBool]
+    defaultInt = Pos (initialPos "Int") $ DataDecl "Int" [] [] []
+    defaultBool = Pos (initialPos "Bool") $ DataDecl "Bool" [] [] []
     defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
         ConstructorSig "Nil"  $ ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue
       , ConstructorSig "Cons" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "xs" (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue) (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue))
@@ -385,77 +440,53 @@ precomputeGraph pkgs = mapM_ (\pkgName -> do
       ]
     defaultUnit = Pos (initialPos "Unit") $ DataDecl "Unit" [] [] []
     pdoc = printDoc Plain
+    fillEdgeWeight edges ws graph = HashMap.foldrWithKey (
+      \from m res -> HashMap.insert from (HashMap.foldrWithKey (
+        \to set res' -> HashMap.insert to (Set.map (\e -> e {
+          _weight = case elemIndex e edges of
+                      Just idx -> ws !! idx
+                      Nothing -> 0
+            }) set) res'
+        ) HashMap.empty m) res
+      ) HashMap.empty graph
 
 
 -- | Parse and resolve file, then synthesize the specified goals
 runOnFile :: SynquidParams -> ExplorerParams -> HornSolverParams -> CodegenParams
                            -> String -> [String] -> IO ()
 runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
-  -- declsByFile <- parseFromFiles (libs ++ [file])
-  -- let decls = concat $ map snd declsByFile
-  -- print decls
-  targetDecl <- parseSignature file
-  let pkgName = "bytestring"
-  downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
-  -- baseDecls <- filter (flip notElem ruleOut . getDeclName) <$> addPrelude <$> readDeclarations "base" Nothing
-  let baseDecls = []
-  fileDecls <- readDeclarations pkgName Nothing
-  dts <- packageDtNames pkgName
-  let parsedDecls = fst $ unzip $ map (\decl -> runState (toSynquidDecl decl) 0) (baseDecls ++ fileDecls)
-  ddts <- definedDts pkgName
-  dependsPkg <- liftM2 (++) (packageDependencies pkgName) (packageDependencies "base")
-  dependsDecls <- mapM (flip readDeclarations Nothing) $ nub dependsPkg
-  additionalDts <- declDependencies (baseDecls ++ fileDecls) (concat dependsDecls) >>= mapM (flip evalStateT 0 . toSynquidDecl)
-  -- additionalDts <- evalStateT (packageDependencies pkgName) 0
-  let decls = reorderDecls $ nub $ defaultDts ++ additionalDts ++ parsedDecls ++ targetDecl
-  -- print decls
-  let declsByFile = [(pkgName, decls)]
-  case resolveDecls decls of
-    Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
-    Right (_, goals, cquals, tquals) -> when (not $ resolveOnly synquidParams) $ do
-      multiResults <- mapM (\goal -> feedGraph goal >>= synthesizeGoal cquals tquals) (requested goals)
-      let results = concatMap (\((goal, ps), stats) -> map (\p -> ((goal, p), stats)) ps) multiResults
-      when (not (null results) && showStats synquidParams) $ printStats results declsByFile
-      -- Generate output if requested
-      let libsWithDecls = collectLibDecls libs declsByFile
-      codegen (fillinCodegenParams file libsWithDecls codegenParams) (map fst results)
+  goal <- parseGoal file
+  feedEnv goal >>= synthesizeGoal [] [] -- (requested goals)
+  return ()
   where
-    ruleOut = ["zip3", "zip4", "zip5", "zip6", "zip7"
-             , "zipWith3", "zipWith4", "zipWith5", "zipWith6", "zipWith7"
-             , "unzip3", "unzip4", "unzip5", "unzip6", "unzip7"]
-    defaultDts = [defaultList, defaultPair, defaultUnit]
-    defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
-        ConstructorSig "Nil"  $ ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue
-      , ConstructorSig "Cons" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "xs" (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue) (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue))
-      ]
-    defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [] [
-        ConstructorSig "Pair" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "y" (ScalarT (TypeVarT Map.empty "b") ftrue) (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue))
-      ]
-    defaultURec = Pos (initialPos "URec") $ DataDecl "URec" ["a"] [] []
-    defaultUnit = Pos (initialPos "Unit") $ DataDecl "Unit" [] [] []
-    withEmptyDt id = (id, emptyDtDef)
-    feedGraph goal = do
-      doesExist <- liftM2 (&&) (doesFileExist "data/graph.db") (doesFileExist "data/graphRev.db")
+    feedEnv goal = do
+      let envPathIn = envPath synquidParams
+      doesExist <- doesFileExist envPathIn
       when (not doesExist) (error "Please run `stack exec -- synquid generate -p [PACKAGES]` to generate database first")
-      graphRes <- decode <$> B.readFile "data/graph.db"
-      case graphRes of
+      envRes <- decode <$> B.readFile envPathIn
+      case envRes of
         Left err -> error err
-        Right graph -> do
-          revRes <- decode <$> B.readFile "data/graphRev.db"
-          case revRes of
-            Left err -> error err
-            Right graphRev -> return $ goal {
-              gEnvironment = (gEnvironment goal) {
-                _succinctGraph = graph,
-                _succinctGraphRev = graphRev
-                }}
-    parseSignature sig = do
+        Right env -> do
+          putStrLn $ "INSTRUMENTED: Components: " ++ show (sum (map length (map Map.elems (Map.elems (_symbols env)))))
+          let spec = runExcept $ evalStateT (resolveSchema (gSpec goal)) (initResolverState { _environment = env })
+          case spec of
+            Right sp -> return $ goal { gEnvironment = env, gSpec = sp }
+            Left parseErr -> (pdoc $ pretty parseErr) >> pdoc empty >> exitFailure
+    parseGoal sig = do
       let transformedSig = "goal :: " ++ sig ++ "\ngoal = ??"
-      parseResult <- return $ runIndent "" $ runParserT parseProgram () "" transformedSig
+      parseResult <- return $ flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" transformedSig
       case parseResult of
         Left parseErr -> (pdoc $ pretty $ toErrorMessage parseErr) >> pdoc empty >> exitFailure
         -- Right ast -> print $ vsep $ map pretty ast
-        Right decls -> return decls
+        Right (funcDecl:decl:_) -> case decl of
+          Pos _ (SynthesisGoal id uprog) ->
+            let Pos _ (FuncDecl _ sch) = funcDecl
+            in do
+              -- let tvs = Set.toList $ typeVarsOf (toMonotype sch)
+              -- let spec = foldr ForallT sch tvs
+              return $ Goal id emptyEnv sch uprog 3 $ initialPos "goal"
+          _ -> error "parse a signature for a none goal declaration"
+
     parseFromFiles [] = return []
     parseFromFiles (file:rest) = do
       parseResult <- parseFromFile parseProgram file
@@ -471,10 +502,6 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
     pdoc = printDoc (outputFormat synquidParams)
     synthesizeGoal cquals tquals goal = do
       when (showSpec synquidParams) $ pdoc (prettySpec goal)
-      -- print empty
-      -- print $ vMapDoc pretty pretty (allSymbols $ gEnvironment goal)
-      -- print $ pretty (gSpec goal)
-      -- print $ vMapDoc pretty pretty (_measures $ gEnvironment goal)
       (mProg, stats) <- synthesize explorerParams solverParams goal cquals tquals
       case mProg of
         Left typeErr -> pdoc (pretty typeErr) >> pdoc empty >> exitFailure

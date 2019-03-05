@@ -577,7 +577,8 @@ fresh env (ScalarT baseT _) = do
   baseT' <- freshBase baseT
   -- Replace refinement with fresh predicate unknown:
   k <- freshId "U"
-  return $ ScalarT baseT' (Unknown Map.empty k)
+  -- return $ ScalarT baseT' (Unknown Map.empty k)
+  return $ ScalarT baseT' ftrue
   where
     freshBase (DatatypeT name tArgs _) = do
       -- Replace type arguments with fresh types:

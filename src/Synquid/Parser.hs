@@ -19,6 +19,7 @@ import Control.Applicative hiding ((<|>), many)
 
 import Text.Parsec hiding (State)
 import qualified Text.Parsec.Token as Token
+import Text.Parsec.Pos
 import Text.Parsec.Expr
 import Text.Parsec.Indent
 import Text.Parsec.Error
@@ -28,7 +29,7 @@ import Debug.Trace
 
 {- Interface -}
 
-type Parser a = IndentParser String () a
+type Parser a = IndentParserT String () (State SourcePos) a
 
 parseProgram :: Parser [Declaration]
 parseProgram = whiteSpace *> option [] (block parseDeclaration) <* eof
@@ -36,7 +37,7 @@ parseProgram = whiteSpace *> option [] (block parseDeclaration) <* eof
 parseFromFile :: Parser a -> String -> IO (Either ParseError a)
 parseFromFile aParser fname = do
   input <- readFile fname
-  return $ runIndent fname $ runParserT aParser () fname input
+  return $ flip evalState (initialPos fname) $ runIndentParserT aParser () fname input
   
 toErrorMessage :: ParseError -> ErrorMessage  
 toErrorMessage err = ErrorMessage ParseError (errorPos err) 
@@ -53,7 +54,7 @@ opStart = nub (map head opNames)
 opLetter :: [Char]
 opLetter = nub (concatMap tail opNames)
 
-synquidDef :: Token.GenLanguageDef String st (State SourcePos)
+synquidDef :: Token.GenLanguageDef String st (IndentT (State SourcePos))
 synquidDef = Token.LanguageDef 
   commentStart
   commentEnd
@@ -67,7 +68,7 @@ synquidDef = Token.LanguageDef
   opNames
   True
   
-lexer :: Token.GenTokenParser String st (State SourcePos)
+lexer :: Token.GenTokenParser String st (IndentT (State SourcePos))
 lexer = Token.makeTokenParser synquidDef    
       
 identifier = Token.identifier lexer
@@ -226,8 +227,8 @@ parseUnrefTypeNoArgs = do
   return $ ScalarT baseType ftrue  
   where
     parseBaseType = choice [
-      BoolT <$ reserved "Bool",
-      IntT <$ reserved "Int",
+      -- (DatatypeT "Bool" [] []) <$ reserved "Bool",
+      -- (DatatypeT "Int"  [] []) <$ reserved "Int",
       (\name -> DatatypeT name [][]) <$> parseTypeName,
       TypeVarT Map.empty <$> parseIdentifier]
   
@@ -256,14 +257,14 @@ parseSort = withPos (parseSortWithArgs <|> parseSortAtom <?> "sort")
   where
     parseSortAtom = choice [
       parens parseSort,
-      BoolS <$ reserved "Bool",
-      IntS <$ reserved "Int",
+      -- BoolS <$ reserved "Bool",
+      -- IntS <$ reserved "Int",
       VarS <$> parseIdentifier,
       flip DataS [] <$> parseTypeName
       ]
       
     parseSortWithArgs = choice [
-      SetS <$> (reserved "Set" >> sameOrIndented >> parseSortAtom),
+      -- SetS <$> (reserved "Set" >> sameOrIndented >> parseSortAtom),
       do
         typeName <- parseTypeName        
         typeParams <- many (sameOrIndented >> parseSortAtom)

@@ -1,0 +1,575 @@
+@package bytestring
+@version 0.10.8.2
+module Data.ByteString.Short
+data ShortByteString
+toShort :: ByteString -> ShortByteString
+fromShort :: ShortByteString -> ByteString
+pack :: [Word8] -> ShortByteString
+unpack :: ShortByteString -> [Word8]
+empty :: ShortByteString
+null :: ShortByteString -> Bool
+length :: ShortByteString -> Int
+index :: ShortByteString -> Int -> Word8
+module Data.ByteString.Unsafe
+unsafeHead :: ByteString -> Word8
+unsafeTail :: ByteString -> ByteString
+unsafeInit :: ByteString -> ByteString
+unsafeLast :: ByteString -> Word8
+unsafeIndex :: ByteString -> Int -> Word8
+unsafeTake :: Int -> ByteString -> ByteString
+unsafeDrop :: Int -> ByteString -> ByteString
+unsafeUseAsCString :: ByteString -> (CString -> IO a) -> IO a
+unsafeUseAsCStringLen :: ByteString -> (CStringLen -> IO a) -> IO a
+unsafePackCString :: CString -> IO ByteString
+unsafePackCStringLen :: CStringLen -> IO ByteString
+unsafePackMallocCString :: CString -> IO ByteString
+unsafePackMallocCStringLen :: CStringLen -> IO ByteString
+unsafePackAddress :: Addr# -> IO ByteString
+unsafePackAddressLen :: Int -> Addr# -> IO ByteString
+unsafePackCStringFinalizer :: Ptr Word8 -> Int -> IO () -> IO ByteString
+unsafeFinalize :: ByteString -> IO ()
+module Data.ByteString
+data ByteString
+empty :: ByteString
+singleton :: Word8 -> ByteString
+pack :: [Word8] -> ByteString
+unpack :: ByteString -> [Word8]
+cons :: Word8 -> ByteString -> ByteString
+infixr 5 `cons`
+snoc :: ByteString -> Word8 -> ByteString
+infixl 5 `snoc`
+append :: ByteString -> ByteString -> ByteString
+uncons :: ByteString -> Maybe (Word8, ByteString)
+unsnoc :: ByteString -> Maybe (ByteString, Word8)
+null :: ByteString -> Bool
+length :: ByteString -> Int
+map :: (Word8 -> Word8) -> ByteString -> ByteString
+reverse :: ByteString -> ByteString
+intersperse :: Word8 -> ByteString -> ByteString
+intercalate :: ByteString -> [ByteString] -> ByteString
+transpose :: [ByteString] -> [ByteString]
+foldr :: (Word8 -> a -> a) -> a -> ByteString -> a
+concat :: [ByteString] -> ByteString
+concatMap :: (Word8 -> ByteString) -> ByteString -> ByteString
+any :: (Word8 -> Bool) -> ByteString -> Bool
+all :: (Word8 -> Bool) -> ByteString -> Bool
+maximum :: ByteString -> Word8
+minimum :: ByteString -> Word8
+scanl :: (Word8 -> Word8 -> Word8) -> Word8 -> ByteString -> ByteString
+scanl1 :: (Word8 -> Word8 -> Word8) -> ByteString -> ByteString
+scanr :: (Word8 -> Word8 -> Word8) -> Word8 -> ByteString -> ByteString
+scanr1 :: (Word8 -> Word8 -> Word8) -> ByteString -> ByteString
+mapAccumL :: (acc -> Word8 -> (acc, Word8)) -> acc -> ByteString -> (acc, ByteString)
+mapAccumR :: (acc -> Word8 -> (acc, Word8)) -> acc -> ByteString -> (acc, ByteString)
+replicate :: Int -> Word8 -> ByteString
+unfoldr :: (a -> Maybe (Word8, a)) -> a -> ByteString
+unfoldrN :: Int -> (a -> Maybe (Word8, a)) -> a -> (ByteString, Maybe a)
+take :: Int -> ByteString -> ByteString
+drop :: Int -> ByteString -> ByteString
+splitAt :: Int -> ByteString -> (ByteString, ByteString)
+takeWhile :: (Word8 -> Bool) -> ByteString -> ByteString
+dropWhile :: (Word8 -> Bool) -> ByteString -> ByteString
+span :: (Word8 -> Bool) -> ByteString -> (ByteString, ByteString)
+spanEnd :: (Word8 -> Bool) -> ByteString -> (ByteString, ByteString)
+break :: (Word8 -> Bool) -> ByteString -> (ByteString, ByteString)
+breakEnd :: (Word8 -> Bool) -> ByteString -> (ByteString, ByteString)
+group :: ByteString -> [ByteString]
+groupBy :: (Word8 -> Word8 -> Bool) -> ByteString -> [ByteString]
+stripPrefix :: ByteString -> ByteString -> Maybe ByteString
+stripSuffix :: ByteString -> ByteString -> Maybe ByteString
+split :: Word8 -> ByteString -> [ByteString]
+splitWith :: (Word8 -> Bool) -> ByteString -> [ByteString]
+isPrefixOf :: ByteString -> ByteString -> Bool
+isSuffixOf :: ByteString -> ByteString -> Bool
+isInfixOf :: ByteString -> ByteString -> Bool
+breakSubstring :: ByteString -> ByteString -> (ByteString, ByteString)
+findSubstring :: ByteString -> ByteString -> Maybe Int
+findSubstrings :: ByteString -> ByteString -> [Int]
+elem :: Word8 -> ByteString -> Bool
+notElem :: Word8 -> ByteString -> Bool
+find :: (Word8 -> Bool) -> ByteString -> Maybe Word8
+filter :: (Word8 -> Bool) -> ByteString -> ByteString
+partition :: (Word8 -> Bool) -> ByteString -> (ByteString, ByteString)
+index :: ByteString -> Int -> Word8
+elemIndex :: Word8 -> ByteString -> Maybe Int
+elemIndices :: Word8 -> ByteString -> [Int]
+elemIndexEnd :: Word8 -> ByteString -> Maybe Int
+findIndex :: (Word8 -> Bool) -> ByteString -> Maybe Int
+findIndices :: (Word8 -> Bool) -> ByteString -> [Int]
+count :: Word8 -> ByteString -> Int
+zip :: ByteString -> ByteString -> [(Word8, Word8)]
+zipWith :: (Word8 -> Word8 -> a) -> ByteString -> ByteString -> [a]
+unzip :: [(Word8, Word8)] -> (ByteString, ByteString)
+sort :: ByteString -> ByteString
+copy :: ByteString -> ByteString
+packCString :: CString -> IO ByteString
+packCStringLen :: CStringLen -> IO ByteString
+useAsCString :: ByteString -> (CString -> IO a) -> IO a
+useAsCStringLen :: ByteString -> (CStringLen -> IO a) -> IO a
+getLine :: IO ByteString
+getContents :: IO ByteString
+putStr :: ByteString -> IO ()
+putStrLn :: ByteString -> IO ()
+interact :: (ByteString -> ByteString) -> IO ()
+readFile :: FilePath -> IO ByteString
+writeFile :: FilePath -> ByteString -> IO ()
+appendFile :: FilePath -> ByteString -> IO ()
+hGetLine :: Handle -> IO ByteString
+hGetContents :: Handle -> IO ByteString
+hGet :: Handle -> Int -> IO ByteString
+hGetSome :: Handle -> Int -> IO ByteString
+hGetNonBlocking :: Handle -> Int -> IO ByteString
+hPut :: Handle -> ByteString -> IO ()
+hPutNonBlocking :: Handle -> ByteString -> IO ByteString
+hPutStr :: Handle -> ByteString -> IO ()
+hPutStrLn :: Handle -> ByteString -> IO ()
+breakByte :: Word8 -> ByteString -> (ByteString, ByteString)
+module Data.ByteString.Lazy
+data ByteString
+empty :: ByteString
+singleton :: Word8 -> ByteString
+pack :: [Word8] -> ByteString
+unpack :: ByteString -> [Word8]
+fromStrict :: ByteString -> ByteString
+toStrict :: ByteString -> ByteString
+fromChunks :: [ByteString] -> ByteString
+toChunks :: ByteString -> [ByteString]
+foldrChunks :: (ByteString -> a -> a) -> a -> ByteString -> a
+cons :: Word8 -> ByteString -> ByteString
+infixr 5 `cons`
+cons' :: Word8 -> ByteString -> ByteString
+infixr 5 `cons'`
+snoc :: ByteString -> Word8 -> ByteString
+infixl 5 `snoc`
+append :: ByteString -> ByteString -> ByteString
+uncons :: ByteString -> Maybe (Word8, ByteString)
+unsnoc :: ByteString -> Maybe (ByteString, Word8)
+null :: ByteString -> Bool
+length :: ByteString -> Int64
+map :: (Word8 -> Word8) -> ByteString -> ByteString
+reverse :: ByteString -> ByteString
+intersperse :: Word8 -> ByteString -> ByteString
+intercalate :: ByteString -> [ByteString] -> ByteString
+transpose :: [ByteString] -> [ByteString]
+foldr :: (Word8 -> a -> a) -> a -> ByteString -> a
+concat :: [ByteString] -> ByteString
+concatMap :: (Word8 -> ByteString) -> ByteString -> ByteString
+any :: (Word8 -> Bool) -> ByteString -> Bool
+all :: (Word8 -> Bool) -> ByteString -> Bool
+maximum :: ByteString -> Word8
+minimum :: ByteString -> Word8
+scanl :: (Word8 -> Word8 -> Word8) -> Word8 -> ByteString -> ByteString
+mapAccumL :: (acc -> Word8 -> (acc, Word8)) -> acc -> ByteString -> (acc, ByteString)
+mapAccumR :: (acc -> Word8 -> (acc, Word8)) -> acc -> ByteString -> (acc, ByteString)
+repeat :: Word8 -> ByteString
+replicate :: Int64 -> Word8 -> ByteString
+iterate :: (Word8 -> Word8) -> Word8 -> ByteString
+unfoldr :: (a -> Maybe (Word8, a)) -> a -> ByteString
+take :: Int64 -> ByteString -> ByteString
+drop :: Int64 -> ByteString -> ByteString
+splitAt :: Int64 -> ByteString -> (ByteString, ByteString)
+takeWhile :: (Word8 -> Bool) -> ByteString -> ByteString
+dropWhile :: (Word8 -> Bool) -> ByteString -> ByteString
+span :: (Word8 -> Bool) -> ByteString -> (ByteString, ByteString)
+break :: (Word8 -> Bool) -> ByteString -> (ByteString, ByteString)
+group :: ByteString -> [ByteString]
+groupBy :: (Word8 -> Word8 -> Bool) -> ByteString -> [ByteString]
+stripPrefix :: ByteString -> ByteString -> Maybe ByteString
+stripSuffix :: ByteString -> ByteString -> Maybe ByteString
+split :: Word8 -> ByteString -> [ByteString]
+splitWith :: (Word8 -> Bool) -> ByteString -> [ByteString]
+isPrefixOf :: ByteString -> ByteString -> Bool
+isSuffixOf :: ByteString -> ByteString -> Bool
+elem :: Word8 -> ByteString -> Bool
+notElem :: Word8 -> ByteString -> Bool
+find :: (Word8 -> Bool) -> ByteString -> Maybe Word8
+filter :: (Word8 -> Bool) -> ByteString -> ByteString
+partition :: (Word8 -> Bool) -> ByteString -> (ByteString, ByteString)
+index :: ByteString -> Int64 -> Word8
+elemIndex :: Word8 -> ByteString -> Maybe Int64
+elemIndexEnd :: Word8 -> ByteString -> Maybe Int64
+elemIndices :: Word8 -> ByteString -> [Int64]
+findIndex :: (Word8 -> Bool) -> ByteString -> Maybe Int64
+findIndices :: (Word8 -> Bool) -> ByteString -> [Int64]
+count :: Word8 -> ByteString -> Int64
+zip :: ByteString -> ByteString -> [(Word8, Word8)]
+zipWith :: (Word8 -> Word8 -> a) -> ByteString -> ByteString -> [a]
+unzip :: [(Word8, Word8)] -> (ByteString, ByteString)
+copy :: ByteString -> ByteString
+getContents :: IO ByteString
+putStr :: ByteString -> IO ()
+putStrLn :: ByteString -> IO ()
+interact :: (ByteString -> ByteString) -> IO ()
+readFile :: FilePath -> IO ByteString
+writeFile :: FilePath -> ByteString -> IO ()
+appendFile :: FilePath -> ByteString -> IO ()
+hGetContents :: Handle -> IO ByteString
+hGet :: Handle -> Int -> IO ByteString
+hGetNonBlocking :: Handle -> Int -> IO ByteString
+hPut :: Handle -> ByteString -> IO ()
+hPutNonBlocking :: Handle -> ByteString -> IO ByteString
+hPutStr :: Handle -> ByteString -> IO ()
+module Data.ByteString.Lazy.Char8
+data ByteString
+empty :: ByteString
+singleton :: Char -> ByteString
+pack :: [Char] -> ByteString
+unpack :: ByteString -> [Char]
+fromChunks :: [ByteString] -> ByteString
+toChunks :: ByteString -> [ByteString]
+fromStrict :: ByteString -> ByteString
+toStrict :: ByteString -> ByteString
+cons :: Char -> ByteString -> ByteString
+infixr 5 `cons`
+cons' :: Char -> ByteString -> ByteString
+infixr 5 `cons'`
+snoc :: ByteString -> Char -> ByteString
+infixl 5 `snoc`
+append :: ByteString -> ByteString -> ByteString
+uncons :: ByteString -> Maybe (Char, ByteString)
+unsnoc :: ByteString -> Maybe (ByteString, Char)
+init :: ByteString -> ByteString
+null :: ByteString -> Bool
+length :: ByteString -> Int64
+map :: (Char -> Char) -> ByteString -> ByteString
+reverse :: ByteString -> ByteString
+intersperse :: Char -> ByteString -> ByteString
+intercalate :: ByteString -> [ByteString] -> ByteString
+transpose :: [ByteString] -> [ByteString]
+foldr :: (Char -> a -> a) -> a -> ByteString -> a
+concat :: [ByteString] -> ByteString
+concatMap :: (Char -> ByteString) -> ByteString -> ByteString
+any :: (Char -> Bool) -> ByteString -> Bool
+all :: (Char -> Bool) -> ByteString -> Bool
+maximum :: ByteString -> Char
+minimum :: ByteString -> Char
+scanl :: (Char -> Char -> Char) -> Char -> ByteString -> ByteString
+mapAccumL :: (acc -> Char -> (acc, Char)) -> acc -> ByteString -> (acc, ByteString)
+mapAccumR :: (acc -> Char -> (acc, Char)) -> acc -> ByteString -> (acc, ByteString)
+repeat :: Char -> ByteString
+replicate :: Int64 -> Char -> ByteString
+iterate :: (Char -> Char) -> Char -> ByteString
+unfoldr :: (a -> Maybe (Char, a)) -> a -> ByteString
+take :: Int64 -> ByteString -> ByteString
+drop :: Int64 -> ByteString -> ByteString
+splitAt :: Int64 -> ByteString -> (ByteString, ByteString)
+takeWhile :: (Char -> Bool) -> ByteString -> ByteString
+dropWhile :: (Char -> Bool) -> ByteString -> ByteString
+span :: (Char -> Bool) -> ByteString -> (ByteString, ByteString)
+break :: (Char -> Bool) -> ByteString -> (ByteString, ByteString)
+group :: ByteString -> [ByteString]
+groupBy :: (Char -> Char -> Bool) -> ByteString -> [ByteString]
+stripPrefix :: ByteString -> ByteString -> Maybe ByteString
+stripSuffix :: ByteString -> ByteString -> Maybe ByteString
+split :: Char -> ByteString -> [ByteString]
+splitWith :: (Char -> Bool) -> ByteString -> [ByteString]
+lines :: ByteString -> [ByteString]
+words :: ByteString -> [ByteString]
+unlines :: [ByteString] -> ByteString
+unwords :: [ByteString] -> ByteString
+isPrefixOf :: ByteString -> ByteString -> Bool
+isSuffixOf :: ByteString -> ByteString -> Bool
+elem :: Char -> ByteString -> Bool
+notElem :: Char -> ByteString -> Bool
+find :: (Char -> Bool) -> ByteString -> Maybe Char
+filter :: (Char -> Bool) -> ByteString -> ByteString
+index :: ByteString -> Int64 -> Char
+elemIndex :: Char -> ByteString -> Maybe Int64
+elemIndices :: Char -> ByteString -> [Int64]
+findIndex :: (Char -> Bool) -> ByteString -> Maybe Int64
+findIndices :: (Char -> Bool) -> ByteString -> [Int64]
+count :: Char -> ByteString -> Int64
+zip :: ByteString -> ByteString -> [(Char, Char)]
+zipWith :: (Char -> Char -> a) -> ByteString -> ByteString -> [a]
+copy :: ByteString -> ByteString
+readInt :: ByteString -> Maybe (Int, ByteString)
+readInteger :: ByteString -> Maybe (Integer, ByteString)
+getContents :: IO ByteString
+putStr :: ByteString -> IO ()
+putStrLn :: ByteString -> IO ()
+interact :: (ByteString -> ByteString) -> IO ()
+readFile :: FilePath -> IO ByteString
+writeFile :: FilePath -> ByteString -> IO ()
+appendFile :: FilePath -> ByteString -> IO ()
+hGetContents :: Handle -> IO ByteString
+hGet :: Handle -> Int -> IO ByteString
+hGetNonBlocking :: Handle -> Int -> IO ByteString
+hPut :: Handle -> ByteString -> IO ()
+hPutNonBlocking :: Handle -> ByteString -> IO ByteString
+hPutStr :: Handle -> ByteString -> IO ()
+hPutStrLn :: Handle -> ByteString -> IO ()
+module Data.ByteString.Char8
+data ByteString
+empty :: ByteString
+singleton :: Char -> ByteString
+pack :: String -> ByteString
+unpack :: ByteString -> [Char]
+cons :: Char -> ByteString -> ByteString
+infixr 5 `cons`
+snoc :: ByteString -> Char -> ByteString
+infixl 5 `snoc`
+append :: ByteString -> ByteString -> ByteString
+uncons :: ByteString -> Maybe (Char, ByteString)
+unsnoc :: ByteString -> Maybe (ByteString, Char)
+null :: ByteString -> Bool
+length :: ByteString -> Int
+map :: (Char -> Char) -> ByteString -> ByteString
+reverse :: ByteString -> ByteString
+intersperse :: Char -> ByteString -> ByteString
+intercalate :: ByteString -> [ByteString] -> ByteString
+transpose :: [ByteString] -> [ByteString]
+foldr :: (Char -> a -> a) -> a -> ByteString -> a
+concat :: [ByteString] -> ByteString
+concatMap :: (Char -> ByteString) -> ByteString -> ByteString
+any :: (Char -> Bool) -> ByteString -> Bool
+all :: (Char -> Bool) -> ByteString -> Bool
+maximum :: ByteString -> Char
+minimum :: ByteString -> Char
+scanl :: (Char -> Char -> Char) -> Char -> ByteString -> ByteString
+scanl1 :: (Char -> Char -> Char) -> ByteString -> ByteString
+scanr :: (Char -> Char -> Char) -> Char -> ByteString -> ByteString
+scanr1 :: (Char -> Char -> Char) -> ByteString -> ByteString
+mapAccumL :: (acc -> Char -> (acc, Char)) -> acc -> ByteString -> (acc, ByteString)
+mapAccumR :: (acc -> Char -> (acc, Char)) -> acc -> ByteString -> (acc, ByteString)
+replicate :: Int -> Char -> ByteString
+unfoldr :: (a -> Maybe (Char, a)) -> a -> ByteString
+unfoldrN :: Int -> (a -> Maybe (Char, a)) -> a -> (ByteString, Maybe a)
+take :: Int -> ByteString -> ByteString
+drop :: Int -> ByteString -> ByteString
+splitAt :: Int -> ByteString -> (ByteString, ByteString)
+takeWhile :: (Char -> Bool) -> ByteString -> ByteString
+dropWhile :: (Char -> Bool) -> ByteString -> ByteString
+span :: (Char -> Bool) -> ByteString -> (ByteString, ByteString)
+spanEnd :: (Char -> Bool) -> ByteString -> (ByteString, ByteString)
+break :: (Char -> Bool) -> ByteString -> (ByteString, ByteString)
+breakEnd :: (Char -> Bool) -> ByteString -> (ByteString, ByteString)
+group :: ByteString -> [ByteString]
+groupBy :: (Char -> Char -> Bool) -> ByteString -> [ByteString]
+stripPrefix :: ByteString -> ByteString -> Maybe ByteString
+stripSuffix :: ByteString -> ByteString -> Maybe ByteString
+split :: Char -> ByteString -> [ByteString]
+splitWith :: (Char -> Bool) -> ByteString -> [ByteString]
+lines :: ByteString -> [ByteString]
+words :: ByteString -> [ByteString]
+unlines :: [ByteString] -> ByteString
+unwords :: [ByteString] -> ByteString
+isPrefixOf :: ByteString -> ByteString -> Bool
+isSuffixOf :: ByteString -> ByteString -> Bool
+isInfixOf :: ByteString -> ByteString -> Bool
+breakSubstring :: ByteString -> ByteString -> (ByteString, ByteString)
+findSubstring :: ByteString -> ByteString -> Maybe Int
+findSubstrings :: ByteString -> ByteString -> [Int]
+elem :: Char -> ByteString -> Bool
+notElem :: Char -> ByteString -> Bool
+find :: (Char -> Bool) -> ByteString -> Maybe Char
+filter :: (Char -> Bool) -> ByteString -> ByteString
+index :: ByteString -> Int -> Char
+elemIndex :: Char -> ByteString -> Maybe Int
+elemIndices :: Char -> ByteString -> [Int]
+elemIndexEnd :: Char -> ByteString -> Maybe Int
+findIndex :: (Char -> Bool) -> ByteString -> Maybe Int
+findIndices :: (Char -> Bool) -> ByteString -> [Int]
+count :: Char -> ByteString -> Int
+zip :: ByteString -> ByteString -> [(Char, Char)]
+zipWith :: (Char -> Char -> a) -> ByteString -> ByteString -> [a]
+unzip :: [(Char, Char)] -> (ByteString, ByteString)
+sort :: ByteString -> ByteString
+readInt :: ByteString -> Maybe (Int, ByteString)
+readInteger :: ByteString -> Maybe (Integer, ByteString)
+copy :: ByteString -> ByteString
+packCString :: CString -> IO ByteString
+packCStringLen :: CStringLen -> IO ByteString
+useAsCString :: ByteString -> (CString -> IO a) -> IO a
+useAsCStringLen :: ByteString -> (CStringLen -> IO a) -> IO a
+getLine :: IO ByteString
+getContents :: IO ByteString
+putStr :: ByteString -> IO ()
+putStrLn :: ByteString -> IO ()
+interact :: (ByteString -> ByteString) -> IO ()
+readFile :: FilePath -> IO ByteString
+writeFile :: FilePath -> ByteString -> IO ()
+appendFile :: FilePath -> ByteString -> IO ()
+hGetLine :: Handle -> IO ByteString
+hGetContents :: Handle -> IO ByteString
+hGet :: Handle -> Int -> IO ByteString
+hGetSome :: Handle -> Int -> IO ByteString
+hGetNonBlocking :: Handle -> Int -> IO ByteString
+hPut :: Handle -> ByteString -> IO ()
+hPutNonBlocking :: Handle -> ByteString -> IO ByteString
+hPutStr :: Handle -> ByteString -> IO ()
+hPutStrLn :: Handle -> ByteString -> IO ()
+module Data.ByteString.Builder.Prim
+data BoundedPrim a
+emptyB :: BoundedPrim a
+(>*<) :: Monoidal f => f a -> f b -> f (a, b)
+infixr 5 >*<
+(>$<) :: Contravariant f => (b -> a) -> f a -> f b
+infixl 4 >$<
+eitherB :: BoundedPrim a -> BoundedPrim b -> BoundedPrim (Either a b)
+condB :: (a -> Bool) -> BoundedPrim a -> BoundedPrim a -> BoundedPrim a
+primBounded :: BoundedPrim a -> (a -> Builder)
+primMapListBounded :: BoundedPrim a -> [a] -> Builder
+primUnfoldrBounded :: BoundedPrim b -> (a -> Maybe (b, a)) -> a -> Builder
+primMapByteStringBounded :: BoundedPrim Word8 -> ByteString -> Builder
+primMapLazyByteStringBounded :: BoundedPrim Word8 -> ByteString -> Builder
+data FixedPrim a
+emptyF :: FixedPrim a
+liftFixedToBounded :: FixedPrim a -> BoundedPrim a
+primFixed :: FixedPrim a -> (a -> Builder)
+primMapListFixed :: FixedPrim a -> ([a] -> Builder)
+primUnfoldrFixed :: FixedPrim b -> (a -> Maybe (b, a)) -> a -> Builder
+primMapByteStringFixed :: FixedPrim Word8 -> (ByteString -> Builder)
+primMapLazyByteStringFixed :: FixedPrim Word8 -> (ByteString -> Builder)
+int8 :: FixedPrim Int8
+word8 :: FixedPrim Word8
+int16BE :: FixedPrim Int16
+int32BE :: FixedPrim Int32
+int64BE :: FixedPrim Int64
+word16BE :: FixedPrim Word16
+word32BE :: FixedPrim Word32
+word64BE :: FixedPrim Word64
+floatBE :: FixedPrim Float
+doubleBE :: FixedPrim Double
+int16LE :: FixedPrim Int16
+int32LE :: FixedPrim Int32
+int64LE :: FixedPrim Int64
+word16LE :: FixedPrim Word16
+word32LE :: FixedPrim Word32
+word64LE :: FixedPrim Word64
+floatLE :: FixedPrim Float
+doubleLE :: FixedPrim Double
+intHost :: FixedPrim Int
+int16Host :: FixedPrim Int16
+int32Host :: FixedPrim Int32
+int64Host :: FixedPrim Int64
+wordHost :: FixedPrim Word
+word16Host :: FixedPrim Word16
+word32Host :: FixedPrim Word32
+word64Host :: FixedPrim Word64
+floatHost :: FixedPrim Float
+doubleHost :: FixedPrim Double
+char7 :: FixedPrim Char
+int8Dec :: BoundedPrim Int8
+int16Dec :: BoundedPrim Int16
+int32Dec :: BoundedPrim Int32
+int64Dec :: BoundedPrim Int64
+intDec :: BoundedPrim Int
+word8Dec :: BoundedPrim Word8
+word16Dec :: BoundedPrim Word16
+word32Dec :: BoundedPrim Word32
+word64Dec :: BoundedPrim Word64
+wordDec :: BoundedPrim Word
+word8Hex :: BoundedPrim Word8
+word16Hex :: BoundedPrim Word16
+word32Hex :: BoundedPrim Word32
+word64Hex :: BoundedPrim Word64
+wordHex :: BoundedPrim Word
+int8HexFixed :: FixedPrim Int8
+int16HexFixed :: FixedPrim Int16
+int32HexFixed :: FixedPrim Int32
+int64HexFixed :: FixedPrim Int64
+word8HexFixed :: FixedPrim Word8
+word16HexFixed :: FixedPrim Word16
+word32HexFixed :: FixedPrim Word32
+word64HexFixed :: FixedPrim Word64
+floatHexFixed :: FixedPrim Float
+doubleHexFixed :: FixedPrim Double
+char8 :: FixedPrim Char
+charUtf8 :: BoundedPrim Char
+module Data.ByteString.Builder.Extra
+toLazyByteStringWith :: AllocationStrategy -> ByteString -> Builder -> ByteString
+data AllocationStrategy
+safeStrategy :: Int -> Int -> AllocationStrategy
+untrimmedStrategy :: Int -> Int -> AllocationStrategy
+smallChunkSize :: Int
+defaultChunkSize :: Int
+byteStringCopy :: ByteString -> Builder
+byteStringInsert :: ByteString -> Builder
+byteStringThreshold :: Int -> ByteString -> Builder
+lazyByteStringCopy :: ByteString -> Builder
+lazyByteStringInsert :: ByteString -> Builder
+lazyByteStringThreshold :: Int -> ByteString -> Builder
+flush :: Builder
+type BufferWriter = Ptr Word8 -> Int -> IO (Int, Next)
+data Next
+Done :: Next
+More :: !Int -> BufferWriter -> Next
+Chunk :: !ByteString -> BufferWriter -> Next
+runBuilder :: Builder -> BufferWriter
+intHost :: Int -> Builder
+int16Host :: Int16 -> Builder
+int32Host :: Int32 -> Builder
+int64Host :: Int64 -> Builder
+wordHost :: Word -> Builder
+word16Host :: Word16 -> Builder
+word32Host :: Word32 -> Builder
+word64Host :: Word64 -> Builder
+floatHost :: Float -> Builder
+doubleHost :: Double -> Builder
+module Data.ByteString.Lazy.Builder.Extras
+module Data.ByteString.Builder
+data Builder
+toLazyByteString :: Builder -> ByteString
+hPutBuilder :: Handle -> Builder -> IO ()
+byteString :: ByteString -> Builder
+lazyByteString :: ByteString -> Builder
+shortByteString :: ShortByteString -> Builder
+int8 :: Int8 -> Builder
+word8 :: Word8 -> Builder
+int16BE :: Int16 -> Builder
+int32BE :: Int32 -> Builder
+int64BE :: Int64 -> Builder
+word16BE :: Word16 -> Builder
+word32BE :: Word32 -> Builder
+word64BE :: Word64 -> Builder
+floatBE :: Float -> Builder
+doubleBE :: Double -> Builder
+int16LE :: Int16 -> Builder
+int32LE :: Int32 -> Builder
+int64LE :: Int64 -> Builder
+word16LE :: Word16 -> Builder
+word32LE :: Word32 -> Builder
+word64LE :: Word64 -> Builder
+floatLE :: Float -> Builder
+doubleLE :: Double -> Builder
+char7 :: Char -> Builder
+string7 :: String -> Builder
+char8 :: Char -> Builder
+string8 :: String -> Builder
+charUtf8 :: Char -> Builder
+stringUtf8 :: String -> Builder
+int8Dec :: Int8 -> Builder
+int16Dec :: Int16 -> Builder
+int32Dec :: Int32 -> Builder
+int64Dec :: Int64 -> Builder
+intDec :: Int -> Builder
+integerDec :: Integer -> Builder
+word8Dec :: Word8 -> Builder
+word16Dec :: Word16 -> Builder
+word32Dec :: Word32 -> Builder
+word64Dec :: Word64 -> Builder
+wordDec :: Word -> Builder
+floatDec :: Float -> Builder
+doubleDec :: Double -> Builder
+word8Hex :: Word8 -> Builder
+word16Hex :: Word16 -> Builder
+word32Hex :: Word32 -> Builder
+word64Hex :: Word64 -> Builder
+wordHex :: Word -> Builder
+int8HexFixed :: Int8 -> Builder
+int16HexFixed :: Int16 -> Builder
+int32HexFixed :: Int32 -> Builder
+int64HexFixed :: Int64 -> Builder
+word8HexFixed :: Word8 -> Builder
+word16HexFixed :: Word16 -> Builder
+word32HexFixed :: Word32 -> Builder
+word64HexFixed :: Word64 -> Builder
+floatHexFixed :: Float -> Builder
+doubleHexFixed :: Double -> Builder
+byteStringHex :: ByteString -> Builder
+lazyByteStringHex :: ByteString -> Builder
+instance Data.String.IsString Data.ByteString.Builder.Internal.Builder
+module Data.ByteString.Lazy.Builder.ASCII
+byteStringHexFixed :: ByteString -> Builder
+lazyByteStringHexFixed :: ByteString -> Builder
+module Data.ByteString.Lazy.Builder

@@ -2,6 +2,7 @@
 
 module Database.GraphWeightsProvider
 ( getGraphWeights
+, getGraphWeight
 ) where
 
 import Data.Aeson
@@ -16,10 +17,10 @@ import qualified Data.ByteString.Lazy as B
 
 
 getJSON :: IO B.ByteString
-getJSON = B.readFile "./src/Database/bytestring_intermediate_counts_after_1000.json"
+getJSON = B.readFile "./src/Database/bytestring_after_1000_negativeLogProbs.json"
 
-getGraphWeights :: [String] -> IO [Double]
-getGraphWeights list = do
+getGraphWeight :: String -> IO Double
+getGraphWeight name = do
     -- Get JSON data and decode it
     decodeResult <- (eitherDecode <$> getJSON) :: IO (Either String Value)
     -- If d is Left, the JSON was malformed.
@@ -29,11 +30,14 @@ getGraphWeights list = do
     case decodeResult of
         Left err -> error err
         Right value -> case value of
-          Object contents -> return $ map (toFloat . flip HashMap.lookup contents . Text.pack) list
+          Object contents -> return $ toFloat $ flip HashMap.lookup contents $ Text.pack name
           _ -> error "failure!"
   where
     toFloat v = case v of
         Just (Number num) -> read (show num) :: Double
         Just (String str) -> read (Text.unpack str) :: Double
-        Nothing -> 0 :: Double
+        Nothing -> 0.01 :: Double -- TODO: the default value here should be changed
         _ -> error $ "Cannot decode as string text when trying" ++ show v
+
+getGraphWeights :: [String] -> IO [Double]
+getGraphWeights list = mapM getGraphWeight list
