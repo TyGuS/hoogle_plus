@@ -2,7 +2,7 @@
 
 cp libraries/{ghc-prim,base,bytestring,deepseq}.txt $TMPDIR
 
-stack exec -- synquid generate -h\
+stack exec -- synquid generate -h \
       -p base \
       -m "Data.Int" \
     -m "Data.Maybe" \
