@@ -6,6 +6,7 @@ type Version = String
 type PkgName = String
 
 downloadDir = "/tmp/"
+defaultEnvPath = "data/env.db"
 
 (>.<) :: Ord a => [a] -> [a] -> [a]
 xs >.< ys = let ys' = Set.fromList ys in filter (flip Set.member ys') xs

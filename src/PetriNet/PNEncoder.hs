@@ -189,7 +189,7 @@ updateParallelInfo info = do
     put $ st { transitionParents = trPar'
              , transitionChildren = trChd' }
   where
-    updateChildren splitedTrans splitToTrans transMap = 
+    updateChildren splitedTrans splitToTrans transMap =
         let includeSplited = HashMap.filter (elem splitedTrans) transMap
             fold_fun k _ = HashMap.insertWith (++) k splitToTrans
             transMap' = HashMap.foldrWithKey fold_fun transMap includeSplited
@@ -206,9 +206,9 @@ withTime desc f = do
     start <- liftIO getCPUTime
     res <- f
     end <- liftIO getCPUTime
-    let diff = (fromIntegral (end - start)) / (10^12)
-    let time = printf "%s time: %0.3f sec\n" desc (diff :: Double)
-    liftIO $ putStrLn time
+    -- let diff = (fromIntegral (end - start)) / (10^12)
+    -- let time = printf "%s time: %0.3f sec\n" desc (diff :: Double)
+    -- liftIO $ putStrLn time
     return res
     
     -- f
@@ -220,7 +220,7 @@ encoderRefine net info inputs ret = do
     -- put the new petri net into the state
     st <- get
     let oldNet = petriNet st
-    put $ st { petriNet = net 
+    put $ st { petriNet = net
              , abstractionLv = (abstractionLv st + 1)
              }
     
@@ -280,7 +280,7 @@ encoderRefine net info inputs ret = do
     setInitialState inputs newTyps
     setFinalState ret newTyps
   where
-    
+
     placeMerge t p nps = do
         placeMap <- place2variable <$> get
         let npVars = map (\np -> findVariable (placeId np, t) placeMap) nps
@@ -299,7 +299,7 @@ encoderRefine net info inputs ret = do
         let lastTsVar = findVariable (t, lv - 1) tsMap
         tsZ3Var <- mkZ3IntVar tsVar
         lastTsZ3Var <- mkZ3IntVar lastTsVar
-        selectTr <- mkIntNum trId >>= mkEq lastTsZ3Var 
+        selectTr <- mkIntNum trId >>= mkEq lastTsZ3Var
         selectNtrs <- mapM mkIntNum ntrIds >>= mapM (mkEq tsZ3Var)
         mkOr selectNtrs >>= mkIff selectTr >>= assert
 
@@ -323,9 +323,9 @@ addPlaceVar p = do
     addPlaceVarAt t = do
         st <- get
         let placeVar = Variable (variableNb st) (placeId p ++ "_" ++ show t) t 0 VarPlace
-        when (not (HashMap.member (placeId p, t) (place2variable st))) 
-             (put $ st { place2variable = HashMap.insert (placeId p, t) 
-                                                    placeVar 
+        when (not (HashMap.member (placeId p, t) (place2variable st)))
+             (put $ st { place2variable = HashMap.insert (placeId p, t)
+                                                    placeVar
                                                    (place2variable st)
                        , variableNb = (variableNb st) + 1
                        })
@@ -345,7 +345,7 @@ addTransitionVar trs = do
         st <- get
         let tid = transitionNb st
         -- liftIO $ putStrLn $ show tid ++ ": " ++ show (transitionId tr)
-        when (not (HashMap.member (transitionId tr) (HashMap.lookupDefault HashMap.empty lv (transition2id st)))) 
+        when (not (HashMap.member (transitionId tr) (HashMap.lookupDefault HashMap.empty lv (transition2id st))))
              (put $ st { transitionNb = 1 + transitionNb st
                        , transition2id = HashMap.insertWith HashMap.union lv (HashMap.singleton (transitionId tr) tid) (transition2id st)
                        , id2transition = HashMap.insert tid (transitionId tr, lv) (id2transition st)
@@ -360,7 +360,7 @@ addTimestampVar t = do
         st <- get
         let tsVar = Variable (variableNb st) ("ts_" ++ show t ++ "_" ++ show l) t l VarTimestamp
         when (not (HashMap.member (t, l) (time2variable st)))
-             (put $ st { time2variable = HashMap.insert (t, l) tsVar (time2variable st) 
+             (put $ st { time2variable = HashMap.insert (t, l) tsVar (time2variable st)
                        , variableNb = (variableNb st) + 1
                        })
 
@@ -389,7 +389,7 @@ createConstraints = do
     -- we assume we only have the first abstraction level each time when we call this method
     sequentialTransitions
     -- we do not have parallel transitions in the first time encoding
-    
+
     mapM_ (uncurry preconditionsTransitions) allTrans
 
     mapM_ (uncurry postconditionsTransitions) allTrans
@@ -439,7 +439,7 @@ sequentialTransitions = do
         end <- mkIntNum (snd rng)
         mkLt tsZ3Var end >>= assert
 
--- | if this place has no connected transition fired, 
+-- | if this place has no connected transition fired,
 -- it has the same # of tokens
 noTransitionTokens :: Int -> Place -> Encoder ()
 noTransitionTokens t p = noFirePlace t p
@@ -478,9 +478,9 @@ preconditionsTransitions t tr = fireFor
         mkGe pVar w >>= mkImplies trVar >>= assert
 
     -- whether the src and dst places in the current tr is the same or "void"
-    hasComplementary places p postFlow preFlow =   
-        placeId p == "void" || 
-       ((findVariable (flowPlace preFlow) places) == p && 
+    hasComplementary places p postFlow preFlow =
+        placeId p == "void" ||
+       ((findVariable (flowPlace preFlow) places) == p &&
         flowWeight preFlow >= flowWeight postFlow)
 
     -- if the dest place has reached its maximum token, we cannot fire the tr
@@ -518,9 +518,9 @@ postconditionsTransitions t tr = do
     trVar <- mkIntNum trId >>= mkEq tsZ3Var
     placesToChange trVar
   where
-    addChangedPlace places pre changeList f = 
+    addChangedPlace places pre changeList f =
         let pid = flowPlace f
-            p = findVariable pid places 
+            p = findVariable pid places
             w = if pre then -(flowWeight f) else flowWeight f
         in HashMap.insertWith (+) p w changeList
 
@@ -584,7 +584,7 @@ weightedTransitions = do
                    "Data.Maybe.catMaybes" `isPrefixOf` tname ||
                    "Data.Tuple.fst" `isPrefixOf` tname ||
                    "Data.Tuple.snd" `isPrefixOf` tname ||
-                   "arg0" `isPrefixOf` tname || 
+                   "arg0" `isPrefixOf` tname ||
                    "arg1" `isPrefixOf` tname
                    then 1
                    else 1000

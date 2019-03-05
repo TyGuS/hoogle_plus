@@ -1,0 +1,192 @@
+@package deepseq
+@version 1.4.4.0
+module Control.DeepSeq
+class NFData a
+rnf :: NFData a => a -> ()
+rnf :: (NFData a, Generic a, GNFData Zero (Rep a)) => a -> ()
+deepseq :: NFData a => a -> b -> b
+force :: (NFData a) => a -> a
+($!!) :: (NFData a) => (a -> b) -> a -> b
+infixr 0 $!!
+(<$!!>) :: (Monad m, NFData b) => (a -> b) -> m a -> m b
+infixl 4 <$!!>
+rwhnf :: a -> ()
+class NFData1 f
+liftRnf :: NFData1 f => (a -> ()) -> f a -> ()
+liftRnf :: (NFData1 f, Generic1 f, GNFData One (Rep1 f)) => (a -> ()) -> f a -> ()
+rnf1 :: (NFData1 f, NFData a) => f a -> ()
+class NFData2 p
+liftRnf2 :: NFData2 p => (a -> ()) -> (b -> ()) -> p a b -> ()
+rnf2 :: (NFData2 p, NFData a, NFData b) => p a b -> ()
+instance Control.DeepSeq.NFData2 (Data.Type.Equality.:~:)
+instance Control.DeepSeq.NFData2 (Data.Type.Equality.:~~:)
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData1 (Data.Either.Either a)
+instance Control.DeepSeq.NFData2 Data.Either.Either
+instance Control.DeepSeq.NFData2 Data.Functor.Const.Const
+instance Control.DeepSeq.NFData2 GHC.Arr.Array
+instance Control.DeepSeq.NFData2 GHC.STRef.STRef
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData1 (Data.Semigroup.Arg a)
+instance Control.DeepSeq.NFData2 Data.Semigroup.Arg
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData1 ((,) a)
+instance Control.DeepSeq.NFData2 (,)
+instance (Control.DeepSeq.NFData a1, Control.DeepSeq.NFData a2) => Control.DeepSeq.NFData1 ((,,) a1 a2)
+instance Control.DeepSeq.NFData a1 => Control.DeepSeq.NFData2 ((,,) a1)
+instance (Control.DeepSeq.NFData a1, Control.DeepSeq.NFData a2, Control.DeepSeq.NFData a3) => Control.DeepSeq.NFData1 ((,,,) a1 a2 a3)
+instance (Control.DeepSeq.NFData a1, Control.DeepSeq.NFData a2) => Control.DeepSeq.NFData2 ((,,,) a1 a2)
+instance (Control.DeepSeq.NFData a1, Control.DeepSeq.NFData a2, Control.DeepSeq.NFData a3, Control.DeepSeq.NFData a4) => Control.DeepSeq.NFData1 ((,,,,) a1 a2 a3 a4)
+instance (Control.DeepSeq.NFData a1, Control.DeepSeq.NFData a2, Control.DeepSeq.NFData a3) => Control.DeepSeq.NFData2 ((,,,,) a1 a2 a3)
+instance (Control.DeepSeq.NFData a1, Control.DeepSeq.NFData a2, Control.DeepSeq.NFData a3, Control.DeepSeq.NFData a4, Control.DeepSeq.NFData a5) => Control.DeepSeq.NFData1 ((,,,,,) a1 a2 a3 a4 a5)
+instance (Control.DeepSeq.NFData a1, Control.DeepSeq.NFData a2, Control.DeepSeq.NFData a3, Control.DeepSeq.NFData a4) => Control.DeepSeq.NFData2 ((,,,,,) a1 a2 a3 a4)
+instance (Control.DeepSeq.NFData a1, Control.DeepSeq.NFData a2, Control.DeepSeq.NFData a3, Control.DeepSeq.NFData a4, Control.DeepSeq.NFData a5, Control.DeepSeq.NFData a6) => Control.DeepSeq.NFData1 ((,,,,,,) a1 a2 a3 a4 a5 a6)
+instance (Control.DeepSeq.NFData a1, Control.DeepSeq.NFData a2, Control.DeepSeq.NFData a3, Control.DeepSeq.NFData a4, Control.DeepSeq.NFData a5) => Control.DeepSeq.NFData2 ((,,,,,,) a1 a2 a3 a4 a5)
+instance (Control.DeepSeq.NFData a1, Control.DeepSeq.NFData a2, Control.DeepSeq.NFData a3, Control.DeepSeq.NFData a4, Control.DeepSeq.NFData a5, Control.DeepSeq.NFData a6, Control.DeepSeq.NFData a7) => Control.DeepSeq.NFData1 ((,,,,,,,) a1 a2 a3 a4 a5 a6 a7)
+instance (Control.DeepSeq.NFData a1, Control.DeepSeq.NFData a2, Control.DeepSeq.NFData a3, Control.DeepSeq.NFData a4, Control.DeepSeq.NFData a5, Control.DeepSeq.NFData a6) => Control.DeepSeq.NFData2 ((,,,,,,,) a1 a2 a3 a4 a5 a6)
+instance (Control.DeepSeq.NFData a1, Control.DeepSeq.NFData a2, Control.DeepSeq.NFData a3, Control.DeepSeq.NFData a4, Control.DeepSeq.NFData a5, Control.DeepSeq.NFData a6, Control.DeepSeq.NFData a7, Control.DeepSeq.NFData a8) => Control.DeepSeq.NFData1 ((,,,,,,,,) a1 a2 a3 a4 a5 a6 a7 a8)
+instance (Control.DeepSeq.NFData a1, Control.DeepSeq.NFData a2, Control.DeepSeq.NFData a3, Control.DeepSeq.NFData a4, Control.DeepSeq.NFData a5, Control.DeepSeq.NFData a6, Control.DeepSeq.NFData a7) => Control.DeepSeq.NFData2 ((,,,,,,,,) a1 a2 a3 a4 a5 a6 a7)
+instance Control.DeepSeq.NFData1 f => Control.DeepSeq.GNFData Control.DeepSeq.One (GHC.Generics.Rec1 f)
+instance (Control.DeepSeq.NFData1 f, Control.DeepSeq.GNFData Control.DeepSeq.One g) => Control.DeepSeq.GNFData Control.DeepSeq.One (f GHC.Generics.:.: g)
+instance Control.DeepSeq.NFData1 Data.Proxy.Proxy
+instance Control.DeepSeq.NFData1 ((Data.Type.Equality.:~:) a)
+instance forall k1 (a :: k1). Control.DeepSeq.NFData1 ((Data.Type.Equality.:~~:) a)
+instance Control.DeepSeq.NFData1 Data.Functor.Identity.Identity
+instance Control.DeepSeq.NFData1 Data.Fixed.Fixed
+instance Control.DeepSeq.NFData1 GHC.Real.Ratio
+instance (Control.DeepSeq.NFData1 f, Control.DeepSeq.NFData1 g) => Control.DeepSeq.NFData1 (Data.Functor.Compose.Compose f g)
+instance (Control.DeepSeq.NFData1 f, Control.DeepSeq.NFData1 g, Control.DeepSeq.NFData a) => Control.DeepSeq.NFData (Data.Functor.Compose.Compose f g a)
+instance (Control.DeepSeq.NFData1 f, Control.DeepSeq.NFData1 g) => Control.DeepSeq.NFData1 (Data.Functor.Sum.Sum f g)
+instance (Control.DeepSeq.NFData1 f, Control.DeepSeq.NFData1 g, Control.DeepSeq.NFData a) => Control.DeepSeq.NFData (Data.Functor.Sum.Sum f g a)
+instance (Control.DeepSeq.NFData1 f, Control.DeepSeq.NFData1 g) => Control.DeepSeq.NFData1 (Data.Functor.Product.Product f g)
+instance (Control.DeepSeq.NFData1 f, Control.DeepSeq.NFData1 g, Control.DeepSeq.NFData a) => Control.DeepSeq.NFData (Data.Functor.Product.Product f g a)
+instance Control.DeepSeq.NFData1 GHC.Base.Maybe
+instance Control.DeepSeq.NFData1 []
+instance Control.DeepSeq.NFData1 Control.Applicative.ZipList
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData1 (Data.Functor.Const.Const a)
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData1 (GHC.Arr.Array a)
+instance Control.DeepSeq.NFData1 Data.Ord.Down
+instance Control.DeepSeq.NFData1 Data.Semigroup.Internal.Dual
+instance Control.DeepSeq.NFData1 Data.Monoid.First
+instance Control.DeepSeq.NFData1 Data.Monoid.Last
+instance Control.DeepSeq.NFData1 Data.Semigroup.Internal.Sum
+instance Control.DeepSeq.NFData1 Data.Semigroup.Internal.Product
+instance Control.DeepSeq.NFData1 System.Mem.StableName.StableName
+instance Control.DeepSeq.NFData1 GHC.IORef.IORef
+instance Control.DeepSeq.NFData1 (GHC.STRef.STRef s)
+instance Control.DeepSeq.NFData1 GHC.MVar.MVar
+instance Control.DeepSeq.NFData1 GHC.Ptr.Ptr
+instance Control.DeepSeq.NFData1 GHC.Ptr.FunPtr
+instance Control.DeepSeq.NFData1 GHC.Base.NonEmpty
+instance Control.DeepSeq.NFData1 Data.Semigroup.Min
+instance Control.DeepSeq.NFData1 Data.Semigroup.Max
+instance Control.DeepSeq.NFData1 Data.Semigroup.First
+instance Control.DeepSeq.NFData1 Data.Semigroup.Last
+instance Control.DeepSeq.NFData1 Data.Semigroup.WrappedMonoid
+instance Control.DeepSeq.NFData1 Data.Semigroup.Option
+instance Control.DeepSeq.NFData a => Control.DeepSeq.GNFData arity (GHC.Generics.K1 i a)
+instance Control.DeepSeq.NFData GHC.Types.Int
+instance Control.DeepSeq.NFData GHC.Types.Word
+instance Control.DeepSeq.NFData GHC.Integer.Type.Integer
+instance Control.DeepSeq.NFData GHC.Types.Float
+instance Control.DeepSeq.NFData GHC.Types.Double
+instance Control.DeepSeq.NFData GHC.Types.Char
+instance Control.DeepSeq.NFData GHC.Types.Bool
+instance Control.DeepSeq.NFData GHC.Types.Ordering
+instance Control.DeepSeq.NFData ()
+instance Control.DeepSeq.NFData GHC.Int.Int8
+instance Control.DeepSeq.NFData GHC.Int.Int16
+instance Control.DeepSeq.NFData GHC.Int.Int32
+instance Control.DeepSeq.NFData GHC.Int.Int64
+instance Control.DeepSeq.NFData GHC.Word.Word8
+instance Control.DeepSeq.NFData GHC.Word.Word16
+instance Control.DeepSeq.NFData GHC.Word.Word32
+instance Control.DeepSeq.NFData GHC.Word.Word64
+instance Control.DeepSeq.NFData GHC.IO.MaskingState
+instance forall k (a :: k). Control.DeepSeq.NFData (Data.Proxy.Proxy a)
+instance forall k (a :: k) (b :: k). Control.DeepSeq.NFData (a Data.Type.Equality.:~: b)
+instance forall k2 k1 (a :: k1) (b :: k2). Control.DeepSeq.NFData (a Data.Type.Equality.:~~: b)
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData (Data.Functor.Identity.Identity a)
+instance Control.DeepSeq.NFData Data.Void.Void
+instance Control.DeepSeq.NFData GHC.Natural.Natural
+instance Control.DeepSeq.NFData (Data.Fixed.Fixed a)
+instance Control.DeepSeq.NFData (a -> b)
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData (GHC.Real.Ratio a)
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData (Data.Complex.Complex a)
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData (GHC.Base.Maybe a)
+instance (Control.DeepSeq.NFData a, Control.DeepSeq.NFData b) => Control.DeepSeq.NFData (Data.Either.Either a b)
+instance Control.DeepSeq.NFData Data.Version.Version
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData [a]
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData (Control.Applicative.ZipList a)
+instance forall k a (b :: k). Control.DeepSeq.NFData a => Control.DeepSeq.NFData (Data.Functor.Const.Const a b)
+instance (Control.DeepSeq.NFData a, Control.DeepSeq.NFData b) => Control.DeepSeq.NFData (GHC.Arr.Array a b)
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData (Data.Ord.Down a)
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData (Data.Semigroup.Internal.Dual a)
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData (Data.Monoid.First a)
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData (Data.Monoid.Last a)
+instance Control.DeepSeq.NFData Data.Semigroup.Internal.Any
+instance Control.DeepSeq.NFData Data.Semigroup.Internal.All
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData (Data.Semigroup.Internal.Sum a)
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData (Data.Semigroup.Internal.Product a)
+instance Control.DeepSeq.NFData (System.Mem.StableName.StableName a)
+instance Control.DeepSeq.NFData GHC.Conc.Sync.ThreadId
+instance Control.DeepSeq.NFData Data.Unique.Unique
+instance Control.DeepSeq.NFData Data.Typeable.TypeRep
+instance Control.DeepSeq.NFData GHC.Types.TyCon
+instance Control.DeepSeq.NFData (GHC.IORef.IORef a)
+instance Control.DeepSeq.NFData (GHC.STRef.STRef s a)
+instance Control.DeepSeq.NFData (GHC.MVar.MVar a)
+instance Control.DeepSeq.NFData GHC.Fingerprint.Type.Fingerprint
+instance Control.DeepSeq.NFData (GHC.Ptr.Ptr a)
+instance Control.DeepSeq.NFData (GHC.Ptr.FunPtr a)
+instance Control.DeepSeq.NFData Foreign.C.Types.CChar
+instance Control.DeepSeq.NFData Foreign.C.Types.CSChar
+instance Control.DeepSeq.NFData Foreign.C.Types.CUChar
+instance Control.DeepSeq.NFData Foreign.C.Types.CShort
+instance Control.DeepSeq.NFData Foreign.C.Types.CUShort
+instance Control.DeepSeq.NFData Foreign.C.Types.CInt
+instance Control.DeepSeq.NFData Foreign.C.Types.CUInt
+instance Control.DeepSeq.NFData Foreign.C.Types.CLong
+instance Control.DeepSeq.NFData Foreign.C.Types.CULong
+instance Control.DeepSeq.NFData Foreign.C.Types.CPtrdiff
+instance Control.DeepSeq.NFData Foreign.C.Types.CSize
+instance Control.DeepSeq.NFData Foreign.C.Types.CWchar
+instance Control.DeepSeq.NFData Foreign.C.Types.CSigAtomic
+instance Control.DeepSeq.NFData Foreign.C.Types.CLLong
+instance Control.DeepSeq.NFData Foreign.C.Types.CULLong
+instance Control.DeepSeq.NFData Foreign.C.Types.CIntPtr
+instance Control.DeepSeq.NFData Foreign.C.Types.CUIntPtr
+instance Control.DeepSeq.NFData Foreign.C.Types.CIntMax
+instance Control.DeepSeq.NFData Foreign.C.Types.CUIntMax
+instance Control.DeepSeq.NFData Foreign.C.Types.CClock
+instance Control.DeepSeq.NFData Foreign.C.Types.CTime
+instance Control.DeepSeq.NFData Foreign.C.Types.CUSeconds
+instance Control.DeepSeq.NFData Foreign.C.Types.CSUSeconds
+instance Control.DeepSeq.NFData Foreign.C.Types.CFloat
+instance Control.DeepSeq.NFData Foreign.C.Types.CDouble
+instance Control.DeepSeq.NFData Foreign.C.Types.CFile
+instance Control.DeepSeq.NFData Foreign.C.Types.CFpos
+instance Control.DeepSeq.NFData Foreign.C.Types.CJmpBuf
+instance Control.DeepSeq.NFData Foreign.C.Types.CBool
+instance Control.DeepSeq.NFData GHC.IO.Exception.ExitCode
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData (GHC.Base.NonEmpty a)
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData (Data.Semigroup.Min a)
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData (Data.Semigroup.Max a)
+instance (Control.DeepSeq.NFData a, Control.DeepSeq.NFData b) => Control.DeepSeq.NFData (Data.Semigroup.Arg a b)
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData (Data.Semigroup.First a)
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData (Data.Semigroup.Last a)
+instance Control.DeepSeq.NFData m => Control.DeepSeq.NFData (Data.Semigroup.WrappedMonoid m)
+instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData (Data.Semigroup.Option a)
+instance Control.DeepSeq.NFData GHC.Stack.Types.SrcLoc
+instance Control.DeepSeq.NFData GHC.Stack.Types.CallStack
+instance (Control.DeepSeq.NFData a, Control.DeepSeq.NFData b) => Control.DeepSeq.NFData (a, b)
+instance (Control.DeepSeq.NFData a1, Control.DeepSeq.NFData a2, Control.DeepSeq.NFData a3) => Control.DeepSeq.NFData (a1, a2, a3)
+instance (Control.DeepSeq.NFData a1, Control.DeepSeq.NFData a2, Control.DeepSeq.NFData a3, Control.DeepSeq.NFData a4) => Control.DeepSeq.NFData (a1, a2, a3, a4)
+instance (Control.DeepSeq.NFData a1, Control.DeepSeq.NFData a2, Control.DeepSeq.NFData a3, Control.DeepSeq.NFData a4, Control.DeepSeq.NFData a5) => Control.DeepSeq.NFData (a1, a2, a3, a4, a5)
+instance (Control.DeepSeq.NFData a1, Control.DeepSeq.NFData a2, Control.DeepSeq.NFData a3, Control.DeepSeq.NFData a4, Control.DeepSeq.NFData a5, Control.DeepSeq.NFData a6) => Control.DeepSeq.NFData (a1, a2, a3, a4, a5, a6)
+instance (Control.DeepSeq.NFData a1, Control.DeepSeq.NFData a2, Control.DeepSeq.NFData a3, Control.DeepSeq.NFData a4, Control.DeepSeq.NFData a5, Control.DeepSeq.NFData a6, Control.DeepSeq.NFData a7) => Control.DeepSeq.NFData (a1, a2, a3, a4, a5, a6, a7)
+instance (Control.DeepSeq.NFData a1, Control.DeepSeq.NFData a2, Control.DeepSeq.NFData a3, Control.DeepSeq.NFData a4, Control.DeepSeq.NFData a5, Control.DeepSeq.NFData a6, Control.DeepSeq.NFData a7, Control.DeepSeq.NFData a8) => Control.DeepSeq.NFData (a1, a2, a3, a4, a5, a6, a7, a8)
+instance (Control.DeepSeq.NFData a1, Control.DeepSeq.NFData a2, Control.DeepSeq.NFData a3, Control.DeepSeq.NFData a4, Control.DeepSeq.NFData a5, Control.DeepSeq.NFData a6, Control.DeepSeq.NFData a7, Control.DeepSeq.NFData a8, Control.DeepSeq.NFData a9) => Control.DeepSeq.NFData (a1, a2, a3, a4, a5, a6, a7, a8, a9)
+instance Control.DeepSeq.GNFData arity GHC.Generics.V1
+instance Control.DeepSeq.GNFData arity GHC.Generics.U1
+instance Control.DeepSeq.GNFData arity a => Control.DeepSeq.GNFData arity (GHC.Generics.M1 i c a)
+instance (Control.DeepSeq.GNFData arity a, Control.DeepSeq.GNFData arity b) => Control.DeepSeq.GNFData arity (a GHC.Generics.:*: b)
+instance (Control.DeepSeq.GNFData arity a, Control.DeepSeq.GNFData arity b) => Control.DeepSeq.GNFData arity (a GHC.Generics.:+: b)
+instance Control.DeepSeq.GNFData Control.DeepSeq.One GHC.Generics.Par1

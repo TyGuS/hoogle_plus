@@ -57,7 +57,7 @@ import HooglePlus.CodeFormer
 import Database.Convert
 import Database.Generate
 
-data PathSolver = 
+data PathSolver =
     SATSolver
   | SMTSolver
   deriving(Data, Show, Eq)
@@ -66,6 +66,7 @@ data RefineStrategy =
     NoRefine
   | AbstractRefinement
   | Combination
+  | QueryRefinement
   deriving(Data, Show, Eq)
 
 data TimeStatistics = TimeStatistics {
@@ -76,6 +77,7 @@ data TimeStatistics = TimeStatistics {
   refineTime :: Double,
   typeCheckerTime :: Double,
   otherTime :: Double,
+  totalTime :: Double,
   iterations :: Int,
   numOfTransitions :: Map Int Int,
   numOfPlaces :: Map Int Int
@@ -103,7 +105,8 @@ data SolverState = SolverState {
     _useGroup :: Bool,
     _splitTypes :: [(AbstractSkeleton, AbstractSkeleton)],
     _nameMapping :: Map Id Id, -- mapping from fake names to real names
-    _logLevel :: Int -- temporary for log level
+    _logLevel :: Int, -- temporary for log level
+    _maxApplicationDepth :: Int
 } deriving(Eq)
 
 emptySolverState = SolverState {
@@ -124,11 +127,12 @@ emptySolverState = SolverState {
     _groupMap = Map.empty,
     _type2transition = Map.empty,
     _solverNet = PetriNet HashMap.empty HashMap.empty HashMap.empty,
-    _solverStats = TimeStatistics (0::Double) (0::Double) (0::Double) (0::Double) (0::Double) (0::Double) (0::Double) 0 Map.empty Map.empty,
+    _solverStats = TimeStatistics (0::Double) (0::Double) (0::Double) (0) (0::Double) (0::Double) (0::Double) (0::Double) 0 Map.empty Map.empty,
     _useGroup = False,
     _splitTypes = [],
     _nameMapping = Map.empty,
-    _logLevel = 0
+    _logLevel = 0,
+    _maxApplicationDepth = 6
 }
 
 makeLenses ''SolverState
@@ -138,7 +142,7 @@ type PNSolver m = StateT SolverState m
 abstractParamList :: AbstractSkeleton -> [AbstractSkeleton]
 abstractParamList t@(ADatatypeT _ _) = [t]
 abstractParamList t@(AExclusion _)   = [t]
-abstractParamList (AFunctionT tArg tFun) = 
+abstractParamList (AFunctionT tArg tFun) =
     case tFun of
         ADatatypeT _ _  -> [tArg]
         AExclusion _    -> [tArg]
@@ -173,7 +177,7 @@ freshType sch = freshType' Map.empty [] sch
   where
     freshType' subst constraints (ForallT a sch) = do
         a' <- freshId "A"
-        freshType' (Map.insert a (vart a' ftrue) subst) (a':constraints) sch    
+        freshType' (Map.insert a (vart a' ftrue) subst) (a':constraints) sch
     freshType' subst constraints (Monotype t) = return (typeSubstitute subst t)
 
 instantiate :: (MonadIO m) => Environment -> [(Id, AbstractSkeleton)] -> PNSolver m (Map Id AbstractSkeleton)
@@ -187,7 +191,7 @@ instantiate env sigs = do
         modify $ over nameMapping (Map.insert name id)
         return (name, head (cutoff env semantic t))) nonPolySigs
     removeSuffix id ty = (removeLast '_' id, ty)
-    
+
     instantiate' sigs sigsAcc = do
         st <- get
         -- to test first level abstraction, please disable the complement type here
@@ -195,7 +199,8 @@ instantiate env sigs = do
                      AbstractRefinement -> leafTypes (st ^. abstractionTree)
                      NoRefine -> filter notEx (leafTypes (st ^. abstractionTree))
                      Combination -> filter notEx (leafTypes (st ^. abstractionTree))
-        writeLog 3 $ text "Current abstract types:" <+> pretty typs 
+                     QueryRefinement -> filter notEx (leafTypes (st ^. abstractionTree))
+        writeLog 3 $ text "Current abstract types:" <+> pretty typs
         sigs' <- foldM (\acc -> (<$>) ((++) acc) . uncurry (instantiateWith env typs)) [] sigs
         return $ nubOrdOn (uncurry removeSuffix) (sigsAcc ++ sigs')
 
@@ -321,7 +326,7 @@ cutoff env semantic (AFunctionT tArg tRet) =
     isConsistent t t'@(ATypeVarT {}) = Just (Map.singleton t t')
     isConsistent t t'@(ADatatypeT {}) = Just (Map.singleton t t')
     isConsistent t t'@(AExclusion {}) = Just (Map.singleton t t')
-    isConsistent (AFunctionT tArg tRet) (AFunctionT arg ret) = 
+    isConsistent (AFunctionT tArg tRet) (AFunctionT arg ret) =
         let argMap = isConsistent tArg arg
             retMap = isConsistent tRet ret
         in if isJust argMap && isJust retMap && isMapConsistent (fromJust argMap) (fromJust retMap)
@@ -333,7 +338,7 @@ cutoff _ semantic t = filter (isJust . abstractIntersection t) (leafTypes (close
 updateSemantic :: Environment -> AbstractionTree -> AbstractSkeleton -> AbstractionTree
 updateSemantic env semantic typ@(ATypeVarT id) | isBound env id =
   case semantic of
-    ALeaf t 
+    ALeaf t
         | t == typ -> semantic
         | otherwise -> ANode t (ALeaf typ) (ALeaf (typeDifference t typ))
     ANode t lt rt
@@ -349,9 +354,9 @@ updateSemantic env semantic@(ALeaf t@(ADatatypeT id tArgs)) typ@(ADatatypeT id' 
     _ -> firstDiff semantic [] tArgs tArgs'
   where
     wrapTree preArgs postArgs (ALeaf t) = ALeaf (ADatatypeT id (preArgs ++ [t] ++ postArgs))
-    wrapTree preArgs postArgs (ANode t lt rt) = 
-        ANode (ADatatypeT id (preArgs ++ [t] ++ postArgs)) 
-              (wrapTree preArgs postArgs lt) 
+    wrapTree preArgs postArgs (ANode t lt rt) =
+        ANode (ADatatypeT id (preArgs ++ [t] ++ postArgs))
+              (wrapTree preArgs postArgs lt)
               (wrapTree preArgs postArgs rt)
 
     rootType (ALeaf t) = t
@@ -369,7 +374,7 @@ updateSemantic env semantic@(ALeaf t@(ADatatypeT id tArgs)) typ@(ADatatypeT id' 
       | otherwise   = let tmp = updateSemantic env (ALeaf arg) arg'
                           s' = replaceTree s (wrapTree pre args tmp)
                       in firstDiff s' (pre ++ [arg']) args args'
-updateSemantic env semantic@(ALeaf t) typ@(ADatatypeT id tArgs) | t /= typ = 
+updateSemantic env semantic@(ALeaf t) typ@(ADatatypeT id tArgs) | t /= typ =
     updateSemantic env semantic' typ
   where
     emptyArgs = map fillAny tArgs
@@ -424,7 +429,7 @@ distinguish env t1 t2 = do
     let ats1 = cutoff env semantic (toAbstractType t1')
     let ats2 = cutoff env semantic (toAbstractType t2')
     writeLog 3 $ text "trying to distinguish" <+> pretty t1' <+> text "==>" <+> pretty ats1 <+> text "and" <+> pretty t2' <+> text "==>" <+> pretty ats2
-    -- only try to get split information when the two types have 
+    -- only try to get split information when the two types have
     -- same abstract representations in the current abstraction level
     let diff = ats1 `intersect` ats2
     let pTyp = head diff
@@ -439,11 +444,11 @@ distinguish env t1 t2 = do
 distinguishFrom :: AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
 distinguishFrom (AExclusion s) t@(ATypeVarT id) | id `Set.notMember` s = t
 distinguishFrom (AExclusion s) t@(ADatatypeT id _) | id `Set.notMember` s = t
-distinguishFrom (ADatatypeT id tArgs) (ADatatypeT id' tArgs') | id == id' = 
+distinguishFrom (ADatatypeT id tArgs) (ADatatypeT id' tArgs') | id == id' =
     ADatatypeT id (firstDiff tArgs tArgs')
   where
     firstDiff [] [] = []
-    firstDiff (arg:args) (arg':args') 
+    firstDiff (arg:args) (arg':args')
         | arg == arg' = arg:(firstDiff args args')
         | otherwise = (distinguishFrom arg arg'):args
 distinguishFrom t1 t2 = error ("Cannot distinguish " ++ show t2 ++ " from " ++ show t1)
@@ -460,7 +465,7 @@ distinguish' tvs (ADatatypeT pid pArgs) t1@(ADatatypeT id1 tArgs1) t2@(ADatatype
       diffs -> Just (ADatatypeT id1 diffs)
   where
     firstDifference _ [] [] = []
-    firstDifference (parg:pargs) (arg:args) (arg':args') = 
+    firstDifference (parg:pargs) (arg:args) (arg':args') =
         case distinguish' tvs parg arg arg' of
             Nothing -> case firstDifference pargs args args' of
                          [] -> []
@@ -630,7 +635,7 @@ solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ 
             solveTypeConstraint env tv typ
         else unify env id' tv
 solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ id') _) = do
-    st <- get 
+    st <- get
     if id `Map.member` (st ^. typeAssignment)
         then do
             let typ = fromJust $ Map.lookup id $ st ^. typeAssignment
@@ -701,10 +706,6 @@ refineSemantic env prog at = do
     combineInfo [] = SplitInfo [] []
     combineInfo (x:xs) = let SplitInfo ts trs = combineInfo xs 
                              SplitInfo [(t, ts')] trs' = x
-                                 {- in case lookup t ts of
-                               Nothing -> SplitInfo ((t, ts'):ts) (trs ++ trs')
-                               Just ts'' -> SplitInfo ((t, ts'' ++ ts'):(delete (t, ts'') ts)) (trs ++ trs')
--}
                           in SplitInfo ((t, ts'):ts) (trs ++ trs')
     replaceTrans tr trs [] = (False, [])
     replaceTrans tr trs ((x,xs):remains) = if tr `elem` xs then (True, (x, trs ++ delete tr xs):remains)
@@ -753,7 +754,7 @@ withTime desc f = do
     end <- liftIO getCPUTime
     let diff = (fromIntegral (end - start)) / (10^12)
     let time = printf "%s: %0.3f sec\n" desc (diff :: Double)
-    modify $ over solverStats (\s -> 
+    modify $ over solverStats (\s ->
         case desc of
           "construction time" -> s { constructionTime = (constructionTime s) + (diff :: Double) }
           "encoding time" -> s { encodingTime = (encodingTime s) + (diff :: Double) }
@@ -761,9 +762,21 @@ withTime desc f = do
           "solver time" -> s { solverTime = (solverTime s) + (diff :: Double) }
           "refinement time" -> s { refineTime = (refineTime s) + (diff :: Double) }
           "type checking time" -> s { typeCheckerTime = (typeCheckerTime s) + (diff :: Double) }
+          "total search time" -> s {totalTime = (diff :: Double) }
           _ -> s { otherTime = (otherTime s) + (diff :: Double) })
     writeLog 1 $ text time
     return res
+
+resetTiming :: Monad m => PNSolver m ()
+resetTiming = do
+  modify $ over solverStats (\s ->
+    s { encodingTime=0,
+        codeFormerTime=0,
+        solverTime=0,
+        refineTime=0,
+        typeCheckerTime=0,
+        totalTime=0
+      })
 
 initNet :: MonadIO m => Environment -> PNSolver m ()
 initNet env = withTime "construction time" $ do
@@ -775,10 +788,10 @@ initNet env = withTime "construction time" $ do
     let binds = env ^. boundTypeVars
     abstraction <- view abstractionTree <$> get
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
-    let srcTypes = map ( head 
+    let srcTypes = map ( head
                        . cutoff env abstraction
                        . toAbstractType
-                       . shape 
+                       . shape
                        . toMonotype) $ Map.elems foArgs
     modify $ set sourceTypes srcTypes
     -- first abstraction all the symbols with fresh type variables and then instantiate them
@@ -819,7 +832,6 @@ initNet env = withTime "construction time" $ do
         let addTransition k tid = Map.insertWith union k [tid]
         let includedTyps = decompose f
         mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
-        
         return [ef]
 
 resetEncoder :: (MonadIO m) => Environment -> RType -> PNSolver m EncodeState
@@ -833,7 +845,7 @@ resetEncoder env dst = do
     let srcTypes = map ( head 
                        . cutoff env abstraction
                        . toAbstractType
-                       . shape 
+                       . shape
                        . toMonotype) $ Map.elems foArgs
     modify $ set sourceTypes srcTypes
     modify $ set paramNames $ Map.keys foArgs
@@ -860,7 +872,8 @@ findPath env dst st = do
     case res of
         [] -> do
             currSt <- get
-            when (currSt ^. currentLoc >= 6) (error "cannot find a path")
+            maxDepth <- view maxApplicationDepth <$> get
+            when (currSt ^. currentLoc >= maxDepth) (error "cannot find a path")
             modify $ set currentLoc ((currSt ^. currentLoc) + 1)
             -- initNet env
             st'' <- withTime "encoding time" (resetEncoder env dst)
@@ -872,7 +885,7 @@ findPath env dst st = do
             let sortedRes = sortOn snd res
             let transNames = map fst sortedRes
             writeLog 2 $ text "found path" <+> pretty transNames
-            let usefulTrans = filter (\n -> skipEntry n 
+            let usefulTrans = filter (\n -> skipEntry n
                                          && skipClone n
                                          && skipDiscard n) transNames
             let sigNames = map removeSuffix usefulTrans
@@ -885,7 +898,7 @@ findPath env dst st = do
             code <- generateCode initialFormer (map show src) args sigs
             return (code, st')
   where
-    findFunctions fm groups name = 
+    findFunctions fm groups name =
         case Map.lookup name groups of
             Just g -> findFunction fm (head g) -- map (findFunction fm) (head g)
             Nothing -> error $ "cannot find function group " ++ name
@@ -899,9 +912,11 @@ findPath env dst st = do
     combinations [x]   = [x]
     combinations (h:t) = [ hh:tt | hh <- h, tt <- combinations t ]
 
+
     generateCode initialFormer src args sigs = do
         tgt <- view targetType <$> get
         liftIO (evalStateT (generateProgram sigs src args (show tgt) True) initialFormer)
+
     skipEntry = not . isInfixOf "|entry"
     skipClone = not . isInfixOf "|clone"
     skipDiscard = not . isInfixOf "|discard"
@@ -922,7 +937,7 @@ fixNet env (SplitInfo splitedTys splitedGps) = do
     let srcTypes = map ( head 
                        . cutoff env abstraction
                        . toAbstractType
-                       . shape 
+                       . shape
                        . toMonotype) $ Map.elems foArgs
     oldSource <- view sourceTypes <$> get
     modify $ set sourceTypes srcTypes
@@ -1013,6 +1028,11 @@ findProgram env dst st = do
                 -- add new places and transitions into the petri net
                 newSemantic <- view abstractionTree <$> get
                 refine st oldSemantic newSemantic splitInfo
+            QueryRefinement -> do
+                splitInfo <- withTime "refinement time" (refineSemantic env prog at)
+                -- add new places and transitions into the petri net
+                newSemantic <- view abstractionTree <$> get
+                refine st oldSemantic newSemantic splitInfo
 
     refine st oldSemantic newSemantic info | oldSemantic == newSemantic = do
         let st' = st { prevChecked = True }
@@ -1039,50 +1059,60 @@ findProgram env dst st = do
         -- checkedSols <- withTime "type checking time" (filterM (liftIO . haskellTypeChecks env dst) codes)
         mapping <- view nameMapping <$> get
         let code' = recoverNames mapping code
-        if code' `elem` solutions
+        checkedSols <- withTime "type checking time" (filterM (liftIO . haskellTypeChecks env dst) [code'])
+        if (code' `elem` solutions) || (null checkedSols)
            then do
                findProgram env dst st'
            else do
-               printSolution code'
-               printStats
+               -- printSolution solution
+               -- printStats
                modify $ over currentSolutions ((:) code')
                return $ (code', st')
 
-    printSolution solution = do
-        liftIO $ putStrLn "*******************SOLUTION*********************"
-        liftIO $ print solution
-        liftIO $ putStrLn "************************************************"
+printSolution solution = do
+    liftIO $ putStrLn "*******************SOLUTION*********************"
+    liftIO $ putStrLn $ "SOLUTION: " ++ (mkOneLine $ show solution)
+    liftIO $ putStrLn "************************************************"
 
-    printStats = do
-        stats <- view solverStats <$> get
-        liftIO $ putStrLn "*******************STATISTICS*******************"
-        liftIO $ putStrLn ("Petri net construction time: " ++ (show (constructionTime stats)))
-        liftIO $ putStrLn ("Petri net encoding time: " ++ (show (encodingTime stats)))
-        liftIO $ putStrLn ("Z3 solving time: " ++ (show (solverTime stats)))
-        liftIO $ putStrLn ("Hoogle plus code former time: " ++ (show (codeFormerTime stats)))
-        liftIO $ putStrLn ("Hoogle plus refinement time: " ++ (show (refineTime stats)))
-        liftIO $ putStrLn ("Hoogle plus type checking time: " ++ (show (typeCheckerTime stats)))
-        liftIO $ putStrLn ("Total iterations of refinements: " ++ (show (iterations stats)))
-        liftIO $ putStrLn ("# of places: " ++ (show (Map.toList (numOfPlaces stats))))
-        liftIO $ putStrLn ("# of transitions: " ++ (show (Map.toList (numOfTransitions stats))))
-        liftIO $ putStrLn "************************************************"
+printStats :: MonadIO m => PNSolver m ()
+printStats = do
+    stats <- view solverStats <$> get
+    depth <- view currentLoc <$> get
+    liftIO $ putStrLn "*******************STATISTICS*******************"
+    liftIO $ putStrLn ("Search time for solution: " ++ (showFullPrecision (totalTime stats)))
+    liftIO $ putStrLn ("Petri net construction time: " ++ (showFullPrecision (constructionTime stats)))
+    liftIO $ putStrLn ("Petri net encoding time: " ++ (showFullPrecision (encodingTime stats)))
+    liftIO $ putStrLn ("Z3 solving time: " ++ (showFullPrecision (solverTime stats)))
+    liftIO $ putStrLn ("Hoogle plus code former time: " ++ (showFullPrecision (codeFormerTime stats)))
+    liftIO $ putStrLn ("Hoogle plus refinement time: " ++ (showFullPrecision (refineTime stats)))
+    liftIO $ putStrLn ("Hoogle plus type checking time: " ++ (showFullPrecision (typeCheckerTime stats)))
+    liftIO $ putStrLn ("Total iterations of refinements: " ++ (show (iterations stats)))
+    liftIO $ putStrLn ("Number of places: " ++ (show $ map snd (Map.toAscList (numOfPlaces stats))))
+    liftIO $ putStrLn ("Number of transitions: " ++ (show $ map snd (Map.toAscList (numOfTransitions stats))))
+    liftIO $ putStrLn ("Solution Depth: " ++ show depth)
+    liftIO $ putStrLn "********************END STATISTICS****************************"
 
 findFirstN :: (MonadIO m) => Environment -> RType -> EncodeState -> Int -> PNSolver m RProgram
 findFirstN env dst st cnt | cnt == 1  = do
-    (res, _) <- findProgram env dst st
+    (res, _) <- withTime "total search time" $ findProgram env dst st
+    printSolution res
+    printStats
     return res
 findFirstN env dst st cnt | otherwise = do
-    (_, st') <- findProgram env dst st
+    (res, st') <- withTime "total search time" $ findProgram env dst st
+    printSolution res
+    printStats
+    resetTiming
     findFirstN env dst st' (cnt-1)
 
 runPNSolver :: MonadIO m => Environment -> Int -> RType -> PNSolver m RProgram
 runPNSolver env cnt t = do
-    withTime "construction time" (initNet env)
+    initNet env
     st <- withTime "encoding time" (resetEncoder env t)
     findFirstN env t st cnt
 
 firstLvAbs :: Environment -> [RSchema] -> AbstractionTree
-firstLvAbs env schs = 
+firstLvAbs env schs =
     Set.foldl' (updateSemantic env) (ALeaf (AExclusion Set.empty)) dts
   where
     typs = map (shape . toMonotype) schs
@@ -1091,8 +1121,8 @@ firstLvAbs env schs =
 recoverNames :: Map Id Id -> RProgram -> RProgram
 recoverNames mapping (Program (PSymbol sym) t) =
     case Map.lookup sym mapping of
-      Nothing -> Program (PSymbol sym) t
-      Just name -> Program (PSymbol name) t
+      Nothing -> Program (PSymbol (removeLast '_' sym)) t
+      Just name -> Program (PSymbol (removeLast '_' name)) t
 recoverNames mapping (Program (PApp pFun pArg) t) = Program (PApp pFun' pArg') t
   where
     pFun' = recoverNames mapping pFun
