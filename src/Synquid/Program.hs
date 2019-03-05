@@ -9,7 +9,7 @@ import Synquid.Error
 import Synquid.Tokens
 import Synquid.Util
 import Synquid.Succinct
-import PetriNet.AbstractType
+import Abstract.Types
 
 import Data.Maybe
 import Data.Either

@@ -9,7 +9,7 @@ import Synquid.Program
 import Synquid.Succinct
 import Synquid.Pretty
 import Database.Util
-import PetriNet.AbstractType
+import Abstract.Types
 
 import qualified Data.Set as Set
 import Data.Set (Set)

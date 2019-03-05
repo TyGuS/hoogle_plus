@@ -1,4 +1,4 @@
-module PetriNet.GHCChecker (haskellTypeChecks) where
+module HooglePlus.GHCChecker (haskellTypeChecks) where
 
 import Language.Haskell.Interpreter
 

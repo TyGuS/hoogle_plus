@@ -26,7 +26,7 @@ import Data.Text (pack, unpack, replace)
 
 import PetriNet.PNBuilder
 import PetriNet.Encoder
-import PetriNet.AbstractType
+import Abstract.Types
 import Synquid.Util
 
 type Encoder = StateT EncodeState IO

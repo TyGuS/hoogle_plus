@@ -32,14 +32,18 @@ executable synquid
                  Database.GraphWeightsProvider
                  Database.Util
                  PetriNet.PNSolver
-                 PetriNet.AbstractType
                  PetriNet.PNBuilder
                  PetriNet.Encoder
                  PetriNet.PNEncoder
-                 PetriNet.GHCChecker
-                 PetriNet.Abstraction
+                 PetriNet.Types
                  HooglePlus.CodeFormer
                  HooglePlus.Encoder
+                 HooglePlus.GHCChecker
+                 HooglePlus.Types
+                 HooglePlus.Utils
+                 Abstract.Types
+                 Abstract.Cover
+                 Abstract.Unification
                  Synquid.Codegen
                  Synquid.Error
                  Synquid.Explorer

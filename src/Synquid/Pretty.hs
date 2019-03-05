@@ -60,7 +60,7 @@ import Synquid.Program
 import Synquid.Tokens
 import Synquid.Util
 import Synquid.Succinct
-import PetriNet.AbstractType
+import Abstract.Types
 
 import Text.PrettyPrint.ANSI.Leijen hiding ((<+>), (<$>), hsep, vsep)
 import qualified Text.PrettyPrint.ANSI.Leijen as L
