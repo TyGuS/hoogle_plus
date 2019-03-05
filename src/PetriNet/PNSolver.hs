@@ -210,14 +210,7 @@ instantiateWith env typs id sk = do
         newId <- if "Pair" `isPrefixOf` id then freshId (id++"_") else freshId "f"
         modify $ over nameMapping (Map.insert newId id)
         return $ (newId, t):accMap) [] refinedSymbols
-            {- where
 
-        newSymbolName prefix = do
-            indices <- view nameCounter <$> get
-            let idx = Map.findWithDefault 0 prefix indices
-            modify (over nameCounter $ Map.insert prefix (idx+1))
-            return $ prefix ++ show idx
--}
 splitTransition :: MonadIO m => Environment -> Id -> SplitInfo -> PNSolver m SplitInfo
 splitTransition env tid info = do
     writeLog 3 $ pretty tid
@@ -545,14 +538,6 @@ strengthenArgs env (Program (PSymbol sym) typ) at = do
     case maybeTass of
       Nothing -> return Nothing -- we find a type conflict
       Just tass -> do
-          {- sigs <- view currentSigs <$> get
-          let absTyp = case Map.lookup sym sigs of
-                           Nothing -> head (cutoff env semantic (toAbstractType (shape typ))) -- error $ "cannot find symbol " ++ sym ++ " in currentSigs"
-                           Just t -> lastAbstract t
-          let maybeAt = abstractIntersection at absTyp
-          if isNothing maybeAt
-             then return Nothing
-             else do -}
                 let vars = typeVarsOf t
                 let tass' = foldr (\v m -> if Map.member v m then m else Map.insert v (AExclusion Set.empty) m) tass vars
                 let t' = foldr (uncurry (abstractSubstitute (env ^. boundTypeVars))) (toAbstractType (shape t)) (Map.toList tass')
@@ -708,16 +693,19 @@ refineSemantic env prog at = do
     -- get the split pairs
     splits <- view splitTypes <$> get
     -- the only problem is to deal with split one type more than once, let's assume it would not happen first
-    splitInfos <- filterM (uncurry hasNewSplit) (nubOrd splits) >>= mapM (uncurry transSplit)
+    splitInfos <- filterM (uncurry hasNewSplit) (nubOrdOn fst splits) >>= mapM (uncurry transSplit)
     let SplitInfo pls trs = combineInfo splitInfos
     return (SplitInfo pls (flattenInfo trs))
   where
     -- if any of the transitions is splitted again, merge the results
     combineInfo [] = SplitInfo [] []
     combineInfo (x:xs) = let SplitInfo ts trs = combineInfo xs 
-                             SplitInfo ts' trs' = x
-                          in SplitInfo (ts ++ ts') (trs ++ trs') -- the order of transitions is important for flatten operation!!
-
+                             SplitInfo [(t, ts')] trs' = x
+                                 {- in case lookup t ts of
+                               Nothing -> SplitInfo ((t, ts'):ts) (trs ++ trs')
+                               Just ts'' -> SplitInfo ((t, ts'' ++ ts'):(delete (t, ts'') ts)) (trs ++ trs')
+-}
+                          in SplitInfo ((t, ts'):ts) (trs ++ trs')
     replaceTrans tr trs [] = (False, [])
     replaceTrans tr trs ((x,xs):remains) = if tr `elem` xs then (True, (x, trs ++ delete tr xs):remains)
                                                            else let (res, remains') = replaceTrans tr trs remains
@@ -745,8 +733,17 @@ refineSemantic env prog at = do
         t2tr <- view type2transition <$> get
         let tids = Map.findWithDefault [] t1 t2tr
         let nts = (leafTypes semantic') \\ (leafTypes semantic)
-        let splitNode = SplitInfo [(t1, nts)] []
-        foldrM (splitTransition env) splitNode tids
+        if null tids
+           then do
+               -- find one of the leaf node to split at
+               let t1' = head (filter (isSubtypeOf t2) (leafTypes semantic))
+               let splitNode = SplitInfo [(t1', nts)] []
+               let tids' = Map.findWithDefault [] t1' t2tr
+               SplitInfo _ trs <- foldrM (splitTransition env) splitNode tids'
+               return (SplitInfo [(t1, nts)] trs)
+           else do
+               let splitNode = SplitInfo [(t1, nts)] []
+               foldrM (splitTransition env) splitNode tids
 
 -- | wrap some action with time measuring and print out the execution time
 withTime :: MonadIO m => String -> PNSolver m a -> PNSolver m a

@@ -65,6 +65,7 @@ module Data.Either
 data Either a b
 Left :: a -> Either a b
 Right :: b -> Either a b
+-- either :: (a -> c) -> (b -> c) -> Either a b -> c
 isLeft :: Either a b -> Bool
 isRight :: Either a b -> Bool
 rights :: [Either a b] -> [b]
