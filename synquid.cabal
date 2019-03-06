@@ -31,8 +31,8 @@ executable synquid
                  Database.Generate
                  Database.GraphWeightsProvider
                  Database.Util
+                 Types.Abstract
                  PetriNet.PNSolver
-                 PetriNet.AbstractType
                  PetriNet.PNBuilder
                  PetriNet.Encoder
                  PetriNet.PNEncoder
@@ -54,7 +54,6 @@ executable synquid
                  Synquid.Resolver
                  Synquid.SolverMonad
                  Synquid.Stats
-                 Synquid.Succinct
                  Synquid.Synthesizer
                  Synquid.Tokens
                  Synquid.Type

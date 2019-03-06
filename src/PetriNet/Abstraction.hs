@@ -1,6 +1,6 @@
 module PetriNet.Abstraction where
 
-import PetriNet.AbstractType
+import Types.Abstract
 import Synquid.Type
 import Synquid.Program
 import PetriNet.PNSolver

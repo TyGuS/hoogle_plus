@@ -26,7 +26,7 @@ import Data.Text (pack, unpack, replace)
 
 import PetriNet.PNBuilder
 import PetriNet.Encoder
-import PetriNet.AbstractType
+import Types.Abstract
 import Synquid.Util
 
 type Encoder = StateT EncodeState IO
@@ -210,7 +210,7 @@ withTime desc f = do
     -- let time = printf "%s time: %0.3f sec\n" desc (diff :: Double)
     -- liftIO $ putStrLn time
     return res
-    
+
     -- f
 
 encoderRefine :: PetriNet -> SplitInfo -> [Id] -> Id -> Encoder ()
@@ -223,7 +223,7 @@ encoderRefine net info inputs ret = do
     put $ st { petriNet = net
              , abstractionLv = (abstractionLv st + 1)
              }
-    
+
     {- operation on places -}
     let newTyps = HashMap.filterWithKey (\k _ -> not (HashMap.member k (pnPlaces oldNet))) (pnPlaces net)
     let newPlaces = HashMap.elems newTyps

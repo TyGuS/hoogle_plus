@@ -47,7 +47,7 @@ import Synquid.Logic
 import Synquid.Util
 import Synquid.Error
 import Synquid.Pretty
-import PetriNet.AbstractType
+import Types.Abstract
 import PetriNet.PNBuilder
 import PetriNet.PNEncoder
 import PetriNet.Encoder
@@ -184,7 +184,7 @@ instantiate :: (MonadIO m) => Environment -> [(Id, AbstractSkeleton)] -> PNSolve
 instantiate env sigs = do
     semantic <- view abstractionTree <$> get
     Map.fromList <$> (nonPolyAbstracts semantic >>= instantiate' sigs)
-  where 
+  where
     nonPolySigs = filter (not . hasAbstractVar (env ^. boundTypeVars). snd) sigs
     nonPolyAbstracts semantic = mapM (\(id, t) -> do
         name <- if Map.member id (env ^. arguments) then freshId (id++"_") else freshId "f"
@@ -271,7 +271,7 @@ splitTransition env tid info = do
         | target == absTyp = [polyTyp]
         | otherwise = []
 
-    genTypes pattern newTyps (AFunctionT tArg tRet) = 
+    genTypes pattern newTyps (AFunctionT tArg tRet) =
             [ AFunctionT arg ret | arg <- if null args then [tArg] else args
                                  , ret <- if null rets then [tRet] else rets ]
         where
@@ -316,7 +316,7 @@ cutoff _ (ALeaf t) (ADatatypeT id tArgs) = [t]
 cutoff env (ANode _ lt rt) typ@(ADatatypeT {}) | isSubtypeOf typ (valueType lt) = cutoff env lt typ
 cutoff env (ANode _ lt rt) typ@(ADatatypeT {}) | isSubtypeOf typ (valueType rt) = cutoff env rt typ
 cutoff env semantic@(ANode t lt rt) typ@(ADatatypeT {}) | isSubtypeOf t typ = leafTypes semantic
-cutoff env semantic (AFunctionT tArg tRet) = 
+cutoff env semantic (AFunctionT tArg tRet) =
     [ AFunctionT a r | a <- args, r <- rets, isJust (isConsistent (AFunctionT tArg tRet) (AFunctionT a r)) ]
   where
     args = cutoff env semantic tArg
@@ -395,7 +395,7 @@ updateSemantic env semantic@(ALeaf (AExclusion s)) (AExclusion s') =
     buildDt dt = case Map.lookup dt (env ^. datatypes) of
                    Nothing -> error $ "cannot find datatype " ++ dt
                    Just dtDef -> ADatatypeT dt (map fillAny (dtDef ^. typeParams))
-    (vars, dts) = partition (Char.isLower . head) (Set.toList (Set.difference s' s))  
+    (vars, dts) = partition (Char.isLower . head) (Set.toList (Set.difference s' s))
     absVars = map ATypeVarT vars
     absDts = map buildDt dts
 updateSemantic env semantic (AExclusion s) =
@@ -405,7 +405,7 @@ updateSemantic env semantic (AExclusion s) =
     buildDt dt = case Map.lookup dt (env ^. datatypes) of
                    Nothing -> error $ "cannot find datatype " ++ dt
                    Just dtDef -> ADatatypeT dt (map fillAny (dtDef ^. typeParams))
-    (vars, dts) = partition (Char.isLower . head) (Set.toList s)  
+    (vars, dts) = partition (Char.isLower . head) (Set.toList s)
     absVars = map ATypeVarT vars
     absDts = map buildDt dts
 
@@ -470,7 +470,7 @@ distinguish' tvs (ADatatypeT pid pArgs) t1@(ADatatypeT id1 tArgs1) t2@(ADatatype
             Nothing -> case firstDifference pargs args args' of
                          [] -> []
                          diffs -> parg:diffs
-            Just t  -> if t /= parg then t:pargs 
+            Just t  -> if t /= parg then t:pargs
                                     else case firstDifference pargs args args' of
                                            [] -> []
                                            diffs -> parg : diffs
@@ -704,7 +704,7 @@ refineSemantic env prog at = do
   where
     -- if any of the transitions is splitted again, merge the results
     combineInfo [] = SplitInfo [] []
-    combineInfo (x:xs) = let SplitInfo ts trs = combineInfo xs 
+    combineInfo (x:xs) = let SplitInfo ts trs = combineInfo xs
                              SplitInfo [(t, ts')] trs' = x
                           in SplitInfo ((t, ts'):ts) (trs ++ trs')
     replaceTrans tr trs [] = (False, [])
@@ -842,7 +842,7 @@ resetEncoder env dst = do
     let tgt = (head (cutoff env abstraction (toAbstractType (shape dst))))
     modify $ set targetType tgt
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
-    let srcTypes = map ( head 
+    let srcTypes = map ( head
                        . cutoff env abstraction
                        . toAbstractType
                        . shape
@@ -923,7 +923,7 @@ findPath env dst st = do
     removeSuffix = removeLast '|'
 
     substPair [] = []
-    substPair (x:xs) = if "Pair_match" `isPrefixOf` (funName x) 
+    substPair (x:xs) = if "Pair_match" `isPrefixOf` (funName x)
                           then   ( x { funName = replaceId "Pair_match" "fst" (funName x), funReturn = [(funReturn x) !! 0] } )
                                : ( x { funName = replaceId "Pair_match" "snd" (funName x), funReturn = [(funReturn x) !! 1] } )
                                : (substPair xs)
@@ -934,7 +934,7 @@ fixNet env (SplitInfo splitedTys splitedGps) = do
     -- reset the src types with the new abstraction semantic
     abstraction <- view abstractionTree <$> get
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
-    let srcTypes = map ( head 
+    let srcTypes = map ( head
                        . cutoff env abstraction
                        . toAbstractType
                        . shape
