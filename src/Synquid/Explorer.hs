@@ -200,7 +200,6 @@ instance Pretty MemoKey where
 type Memo = Map MemoKey [(RProgram, ExplorerState)]
 
 data PartialKey = PartialKey {
-    pKeyContext :: RProgram
 } deriving (Eq, Ord)
 
 type PartialMemo = Map PartialKey (Map RProgram (Int, Environment))
@@ -555,38 +554,6 @@ getKSolution env = do
     goalTy = lastSuccinctType $ findSuccinctSymbol "__goal__"
     findSuccinctSymbol sym = outOfSuccinctAll $ HashMap.lookupDefault SuccinctAny sym $ env ^. succinctSymbols
 
-
--- Dijkstra's algorithm
-data DijkstraState = DijkstraState {
-  dijkstraDist :: HashMap SuccinctType Double,
-  dijkstraPrev :: HashMap SuccinctType SuccinctType,
-  dijkstraEdge :: HashMap SuccinctType Id
-}
-
--- | tarjan return structure
-data TarjanState = TarjanState {
-  -- temporary state during the algorithm running
-  index :: Int,
-  indices :: Map SuccinctType Int,
-  lowlink :: Map SuccinctType Int,
-  stack :: [SuccinctType],
-  -- result
-  components :: [[SuccinctType]]
-}
-
-data RTQItem = RTQItem {
-  rtqProgram :: RProgram, -- the program we are at
-  rtqPosition :: SuccinctType -- the node where we reach this program
-}
-
--- | eppstein k-best algorithm
-data HeapItem = HeapItem ((Double, Id), MinHeap HeapItem)
-data EppsteinPath = EppsteinPath {
-  eppPrefPath :: Int,  -- index of the pref path in the path list
-  eppHeap :: EppsteinHeap  -- the heap node
-}
-type EppsteinHeap = MinHeap HeapItem
-type EppsteinQueue = MinPQueue Double EppsteinPath
 
 generateEWithGraph :: (MonadHorn s, MonadIO s) => Environment -> ProgramQueue -> RType -> Bool -> Bool -> Explorer s (ProgramQueue, RProgram)
 generateEWithGraph env pq typ isThenBranch isElseBranch = do
