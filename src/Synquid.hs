@@ -113,27 +113,6 @@ main = do
                     module_ = out_module
                   }
                   runOnFile synquidParams explorerParams solverParams codegenParams file libs
-    (Lifty file libs onlyGoals out_file out_module outFormat resolve verify print_spec print_stats log_) -> do
-                  let explorerParams = defaultExplorerParams {
-                    _explorerLogLevel = log_
-                    }
-                  let solverParams = defaultHornSolverParams {
-                    solverLogLevel = log_
-                    }
-                  let synquidParams = defaultSynquidParams {
-                    goalFilter = liftM (splitOn ",") onlyGoals,
-                    outputFormat = outFormat,
-                    resolveOnly = resolve,
-                    repairPolicies = True,
-                    verifyOnly = verify,
-                    showSpec = print_spec,
-                    showStats = print_stats
-                  }
-                  let codegenParams = defaultCodegenParams {
-                    filename = out_file,
-                    module_ = out_module
-                  }
-                  runOnFile synquidParams explorerParams solverParams codegenParams file libs
     (Generate pkgs mdls d ho envPath) -> do
                   precomputeGraph pkgs mdls d ho envPath
 {- Command line arguments -}
@@ -193,21 +172,6 @@ data CommandLineArgs
         encoder :: HEncoder.EncoderType,
         use_refine :: PNS.RefineStrategy
       }
-      | Lifty {
-        -- | Input
-        file :: String,
-        libs :: [String],
-        only :: Maybe String,
-        -- | Output
-        out_file :: Maybe String,
-        out_module :: Maybe String,
-        output :: OutputFormat,
-        resolve :: Bool,
-        verify :: Bool,
-        print_spec :: Bool,
-        print_stats :: Bool,
-        log_ :: Int
-      }
       | Generate {
         -- | Input
         pkg_name :: [String],
@@ -256,22 +220,6 @@ synt = Synthesis {
     where
       defaultFormat = outputFormat defaultSynquidParams
 
-lifty = Lifty {
-  file                = ""              &= typFile &= argPos 0,
-  libs                = []              &= args &= typ "FILES",
-  only                = Nothing         &= typ "GOAL,..." &= help ("Only synthesize the specified functions"),
-  resolve             = False           &= help ("Resolve only; no type checking or synthesis (default: False)"),
-  verify              = False           &= help ("Verification only mode (default: False)") &= name "v",
-  out_file            = Nothing         &= help ("Generate Haskell output file (default: none)") &= typFile &= name "o" &= opt "" &= groupname "Output",
-  out_module          = Nothing         &= help ("Name of Haskell module to generate (default: from file name)") &= typ "Name",
-  output              = defaultFormat   &= help ("Output format: Plain, Ansi or Html (default: " ++ show defaultFormat ++ ")") &= typ "FORMAT",
-  print_spec          = True            &= help ("Show specification of each synthesis goal (default: True)"),
-  print_stats         = False           &= help ("Show specification and solution size (default: False)"),
-  log_                = 0               &= help ("Logger verboseness level (default: 0)") &= name "l"
-  } &= help "Fix information leaks in the input file"
-    where
-      defaultFormat = outputFormat defaultSynquidParams
-
 generate = Generate {
   pkg_name             = []              &= help ("Package names to be generated"),
   module_name          = []              &= help ("Module names to be generated in the given packages"),
@@ -280,7 +228,7 @@ generate = Generate {
   env_file_path_out    = defaultEnvPath  &= help ("Environment file path (default:" ++ (show defaultEnvPath) ++ ")")
 } &= help "Generate the type conversion database for synthesis"
 
-mode = cmdArgsMode $ modes [synt, lifty, generate] &=
+mode = cmdArgsMode $ modes [synt, generate] &=
   help "Synquid program synthesizer" &=
   program programName &=
   summary (programName ++ " v" ++ versionName ++ ", " ++ showGregorian releaseDate)
