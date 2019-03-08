@@ -72,10 +72,7 @@ data PickSymbolStrategy = PickDepthFirst | PickInterleave
 
 -- | Choices for the type of path search
 data PathStrategy =
-    DisablePath
-  | MaxSAT -- ^ Use SMT solver to find a path
-  | Dijkstra -- ^ Use dijkstra algorithm
-  | BiDijkstra -- ^ Use bidirectional dijkstra algorithm
+  MaxSAT -- ^ Use SMT solver to find a path
   | PetriNet -- ^ Use PetriNet and SyPet
   | PNSMT -- ^ Use PetriNet and SMT solver
   deriving (Eq, Show, Data)
@@ -202,9 +199,6 @@ generateI env t@(ScalarT _ _) isElseBranch = do
   pathEnabled <- asks . view $ _1 . pathSearch
   cnt <- asks . view $ _1 . solutionCnt
   case pathEnabled of
-    Dijkstra    -> splitGoal env t
-    BiDijkstra  -> splitGoal env t
-      -- liftIO $ writeFile "test.log" $ showGraphViz True env
     MaxSAT      -> do
       start <- liftIO $ getCurrentTime
       getKSolution env
@@ -257,11 +251,6 @@ generateI env t@(ScalarT _ _) isElseBranch = do
       }
       liftIO $ evalStateT (HEncoder.runTest tvs args t) initialSt
       error "test"
-    DisablePath -> do
-      maEnabled <- asks . view $ _1 . abduceScrutinees -- Is match abduction enabled?
-      d <- asks . view $ _1 . matchDepth
-      maPossible <- runInSolver $ hasPotentialScrutinees env -- Are there any potential scrutinees in scope?
-      if maEnabled && d > 0 && maPossible then generateMaybeMatchIf env t isElseBranch else generateMaybeIf env t isElseBranch
 
 -- | Generate a possibly conditional term type @t@, depending on whether a condition is abduced
 generateMaybeIf :: (MonadHorn s, MonadIO s) => Environment -> RType -> Bool -> Explorer s RProgram

@@ -212,10 +212,10 @@ synt = Synthesis {
   graph               = False           &= help ("Build graph for exploration (default: False)") &= name "graph",
   succinct            = False           &= help ("Use graph to direct the term exploration (default: False)") &= name "succ",
   sol_num             = 1               &= help ("Number of solutions need to find (default: 1)") &= name "cnt",
-  path_search         = PetriNet     &= help ("Use path search algorithm to ensure the usage of provided parameters (default: DisablePath)") &= name "path",
+  path_search         = PetriNet     &= help ("Use path search algorithm to ensure the usage of provided parameters (default: PetriNet)") &= name "path",
   higher_order        = False           &= help ("Include higher order functions (default: False)"),
   encoder             = HEncoder.Normal &= help ("Choose normal or refined arity encoder (default: Normal)"),
-  use_refine          = PNS.NoRefine    &= help ("Use abstract refinement or not (default: NoRefine)")
+  use_refine          = PNS.QueryRefinement    &= help ("Use abstract refinement or not (default: QueryRefinement)")
   } &= auto &= help "Synthesize goals specified in the input file"
     where
       defaultFormat = outputFormat defaultSynquidParams
@@ -256,10 +256,10 @@ defaultExplorerParams = ExplorerParams {
   _buildGraph = False,
   _useSuccinct = False,
   _solutionCnt = 1,
-  _pathSearch = DisablePath,
+  _pathSearch = PetriNet,
   _useHO = False,
   _encoderType = HEncoder.Normal,
-  _useRefine = PNS.NoRefine
+  _useRefine = PNS.QueryRefinement
 }
 
 -- | Parameters for constraint solving
