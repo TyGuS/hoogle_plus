@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable, StandaloneDeriving #-}
 
-module Main where
+module Main (main) where
 
 import Synquid.Logic
 import Synquid.Type
@@ -322,26 +322,6 @@ defaultCodegenParams = CodegenParams {
   imports = Map.empty
 }
 
-fillinCodegenParams fn libs p = (fillinCodegenNames fn p) { imports = Map.mapKeys idfy libs }
-
--- | figures out output filename from module name or vise versa
-fillinCodegenNames f p@(CodegenParams (Just "") _ _) = fillinCodegenNames f $ p { filename = Just (f -<.> ".hs") }
-fillinCodegenNames _ p@(CodegenParams (Just "-") Nothing _) =                 p { module_ = Just "Synthed" }
-fillinCodegenNames _ p@(CodegenParams (Just filename) Nothing _) =            p { module_ = Just $ idfy filename }
-fillinCodegenNames _ p@(CodegenParams Nothing (Just module_) _) =             p { filename = Just (module_ <.> ".hs") }
-fillinCodegenNames _ p = p
-
--- | E.g., "out/User-Module.hs" ---> "UserModule"
-idfy = filter isAlphaNum . dropExtension . takeFileName
-
-codegen params results = case params of
-  CodegenParams {filename = Just filePath, module_ = Just moduleName, imports = imports} ->
-      extractModule filePath moduleName results imports
-  _ -> return ()
-
-collectLibDecls libs declsByFile =
-  Map.filterWithKey (\k _ -> k `elem` libs) $ Map.fromList declsByFile
-
 precomputeGraph :: [PkgName] -> [String] -> Int -> Bool -> String -> IO ()
 precomputeGraph pkgs mdls depth useHO envPath = do
   -- print pkgs
@@ -369,9 +349,6 @@ precomputeGraph pkgs mdls depth useHO envPath = do
         , _included_modules = Set.fromList mdls
         }
   where
-    skipLParen [] = []
-    skipLParen ('(':name) = name
-    skipLParen name = name
     -- defaultDts = [defaultList]
     defaultFuncs = [ Pos (initialPos "fst") $ FuncDecl "fst" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) (ScalarT (TypeVarT Map.empty "a") ftrue)))
                    , Pos (initialPos "snd") $ FuncDecl "snd" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) (ScalarT (TypeVarT Map.empty "b") ftrue)))
@@ -388,15 +365,6 @@ precomputeGraph pkgs mdls depth useHO envPath = do
       ]
     defaultUnit = Pos (initialPos "Unit") $ DataDecl "Unit" [] [] []
     pdoc = printDoc Plain
-    fillEdgeWeight edges ws graph = HashMap.foldrWithKey (
-      \from m res -> HashMap.insert from (HashMap.foldrWithKey (
-        \to set res' -> HashMap.insert to (Set.map (\e -> e {
-          _weight = case elemIndex e edges of
-                      Just idx -> ws !! idx
-                      Nothing -> 0
-            }) set) res'
-        ) HashMap.empty m) res
-      ) HashMap.empty graph
 
 
 -- | Parse and resolve file, then synthesize the specified goals
@@ -435,18 +403,6 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
               return $ Goal id emptyEnv sch uprog 3 $ initialPos "goal"
           _ -> error "parse a signature for a none goal declaration"
 
-    parseFromFiles [] = return []
-    parseFromFiles (file:rest) = do
-      parseResult <- parseFromFile parseProgram file
-      case parseResult of
-        Left parseErr -> (pdoc $ pretty $ toErrorMessage parseErr) >> pdoc empty >> exitFailure
-        -- Right ast -> print $ vsep $ map pretty ast
-        Right decls -> let decls' = if null rest then decls else filter (not . isSynthesisGoal) decls in -- Remove implementations from libraries
-          ((file, decls') :) <$> parseFromFiles rest
-    requested goals = case goalFilter synquidParams of
-      Just filt -> filter (\goal -> gName goal `elem` filt) goals
-      _ -> goals
-
     pdoc = printDoc (outputFormat synquidParams)
     synthesizeGoal cquals tquals goal = do
       when (showSpec synquidParams) $ pdoc (prettySpec goal)
@@ -457,35 +413,3 @@ runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
           mapM_ (\prog -> pdoc (prettySolution goal prog)) progs
           pdoc empty
           return ((goal, progs), stats)
-    printStats results declsByFile = do
-      let env = gEnvironment (fst $ fst $ head results)
-      let measureCount = Map.size $ _measures $ env
-      let namesOfConstants decls = mapMaybe (\decl ->
-           case decl of
-             Pos { node = FuncDecl name _ } -> Just name
-             _ -> Nothing
-           ) decls
-      let totalSizeOf = sum . map (typeNodeCount . toMonotype .unresolvedType env)
-      let policySize = Map.fromList $ map (\(file, decls) -> (file, totalSizeOf $ namesOfConstants decls)) declsByFile
-      let getStatsFor ((goal, prog), stats) =
-             StatsRow
-             (gName goal)
-             (typeNodeCount $ toMonotype $ unresolvedSpec goal)
-             (programNodeCount $ gImpl goal)   -- size of implementation template (before synthesis/repair)
-             (programNodeCount prog)           -- size of generated solution
-             (stats ! TypeCheck) (stats ! Repair) (stats ! Recheck) (sum $ Map.elems stats)  -- time measurements
-      let perResult = map getStatsFor results
-      let specSize = sum $ map (typeNodeCount . toMonotype . unresolvedSpec . fst . fst) results
-      let solutionSize = sum $ map (programNodeCount . snd . fst) results
-      pdoc $ vsep $ [
-                parens (text "Goals:" <+> pretty (length results)),
-                parens (text "Measures:" <+> pretty measureCount)] ++
-              if repairPolicies synquidParams
-                then [
-                  parens (text "Policy size:" <+> (text $ show policySize)),
-                  statsTable perResult]
-                else [
-                  parens (text "Spec size:" <+> pretty specSize),
-                  parens (text "Solution size:" <+> pretty solutionSize)
-                ] ++
-              [empty]
