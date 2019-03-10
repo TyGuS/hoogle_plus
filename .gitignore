@@ -30,3 +30,4 @@ build/distributions/
 tags
 .python-version
 .DS_Store
+HooglePlus.cabal
