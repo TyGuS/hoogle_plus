@@ -1,23 +1,21 @@
-name:                 synquid
-version:              0.4
-synopsis:             Program Synthesis from Refinement Types
-description:          Synquid is a simple functional programming language with refinement types.
-                      In Synquid the programmer must provide the type signature for each top-level function,
-                      but can leave parts (or all) of the implementation out for the system to fill in.
+name:                 hoogleplus
+version:              0.1
+synopsis:             Type Guided Abstraction Refinement Program Synthesis
+description:          HooglePlus is a component based program synthesizer that uses type abstraction-refinement.
 -- license:
 -- license-file:         LICENSE
-author:               Nadia Polikarpova
-maintainer:           nadia.polikarpova@gmail.com
+author:               Zheng Guo
+maintainer:           zhg069@ucsd.edu
 category:             Language
 build-type:           Simple
 extra-source-files:   README.md
 cabal-version:        >=1.18
 
-flag synquid
-  Description: Build the synquid executable
+flag hoogleplus
+  Description: Build the hoogleplus executable
   Default:     True
 
-executable synquid
+executable hoogleplus
   main-is:            Synquid.hs
 
   other-extensions:   TemplateHaskell
@@ -122,5 +120,5 @@ executable synquid
 
   hs-source-dirs:     src
   default-language:   Haskell2010
-  If !flag(synquid)
+  If !flag(hoogleplus)
     buildable: False

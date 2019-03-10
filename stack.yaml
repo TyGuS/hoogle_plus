@@ -1,6 +1,6 @@
 flags:
-  synquid:
-    synquid: true
+  hoogleplus:
+    hoogleplus: true
 packages:
   - '.'
 resolver: lts-12.4
