@@ -58,9 +58,9 @@ import Text.PrettyPrint.ANSI.Leijen (fill, column)
 
 import Data.List.Split
 
-programName = "synquid"
-versionName = "0.4"
-releaseDate = fromGregorian 2016 8 11
+programName = "hoogleplus"
+versionName = "0.1"
+releaseDate = fromGregorian 2019 3 10
 
 -- | Type-check and synthesize a program, according to command-line arguments
 main = do
@@ -229,7 +229,7 @@ generate = Generate {
 } &= help "Generate the type conversion database for synthesis"
 
 mode = cmdArgsMode $ modes [synt, generate] &=
-  help "Synquid program synthesizer" &=
+  help (programName ++ " program synthesizer") &=
   program programName &=
   summary (programName ++ " v" ++ versionName ++ ", " ++ showGregorian releaseDate)
 

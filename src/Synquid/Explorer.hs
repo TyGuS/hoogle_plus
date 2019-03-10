@@ -8,6 +8,7 @@ module Synquid.Explorer (
   FixpointStrategy(..),
   PathStrategy(..),
   Reconstructor(..),
+  Requirements,
   addConstraint,
   addSuccinctEdge,
   appType,

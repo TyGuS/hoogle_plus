@@ -37,10 +37,11 @@ import Database.Download
 printDeclaration :: Entry -> IO ()
 printDeclaration decl = case decl of
     EDecl (TypeSig _ names ty) -> do
-        let typ = evalState (toSynquidSchema ty) 0
-        putStrLn $ (nameStr (names !! 0)) ++ " :: " ++ (show typ)
-        let styp = toSuccinctType $ evalState (toSynquidRType ty) 0
-        putStrLn $ "===> " ++ (show styp)
+        let typ = undefined -- evalState (toSynquidSchema ty) 0
+        -- putStrLn $ (nameStr (names !! 0)) ++ " :: " ++ (show typ)
+        let styp = undefined -- toSuccinctType $ evalState (toSynquidRType ty) 0
+        -- putStrLn $ "===> " ++ (show styp)
+        return ()
     EDecl decl -> print decl
     EPackage pkg -> putStrLn pkg
     EModule mdl -> putStrLn mdl
@@ -48,12 +49,13 @@ printDeclaration decl = case decl of
 printDeclarations :: PkgName -> Maybe Version -> IO ()
 printDeclarations pkg version = do
     decls <- readDeclarations pkg version
-    mapM_ printDeclaration decls
+    mapM_ printDeclaration (concatMap undefined decls)
 
 typeSignatureOf :: Entry -> Maybe (Id, RSchema)
 typeSignatureOf decl = case decl of
     EDecl (TypeSig _ names ty) -> do
-        let typ = toSynquidRSchema $ evalState (toSynquidSchema ty) 0
+        let typ = undefined
+        -- let typ = toSynquidRSchema $ evalState  (toSynquidSchema ty) 0
         Just (nameStr (names !! 0), typ)
     _ -> Nothing
 
@@ -62,4 +64,3 @@ emptyDtDef = DatatypeDef [] [] [] [] Nothing
 
 packageTypes :: PkgName -> Set RType
 packageTypes = undefined
-

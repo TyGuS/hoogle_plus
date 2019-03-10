@@ -31,6 +31,10 @@ import Debug.Trace
 
 -- | 'localize' @eParams tParams goal@ : reconstruct intermediate type annotations in @goal@
 -- and return the resulting program in ANF together with a list of type-violating bindings
+localize = undefined
+repair = undefined
+isDefaultValue = undefined
+{-
 localize :: MonadHorn s => Bool -> ExplorerParams -> TypingParams -> Goal -> s (Either ErrorMessage (RProgram, Requirements))
 localize isRecheck eParams tParams goal = do
     initTS <- initTypingState $ gEnvironment goal
@@ -38,8 +42,8 @@ localize isRecheck eParams tParams goal = do
   where
     go = do
       aImpl <- aNormalForm "T" (gImpl goal)
-      writeLog 2 (pretty aImpl)      
-      
+      writeLog 2 (pretty aImpl)
+
       p <- localizeTopLevel goal { gImpl = aImpl }
       labels <- runInSolver getViolatingLabels
       reqs <- uses requiredTypes (restrictDomain labels) >>= (mapM (liftM nub . mapM (runInSolver . finalizeType)))
@@ -47,18 +51,18 @@ localize isRecheck eParams tParams goal = do
       if isRecheck
         then if Map.null reqs
               then return (deANF finalP, Map.empty)
-              else throwErrorWithDescription $ 
+              else throwErrorWithDescription $
                     hang 2 (text "Re-verification of inserted checks failed with violations:" $+$ vMapDoc text pretty reqs $+$
                       text "Probable causes: missing type qualifiers or policy incorrectly depends on another sensitive value"
                     ) $+$ text "when checking" $+$ pretty p
         else if Map.null reqs
               then return (deANF finalP, Map.empty)
-              else return (finalP, reqs)        
-      
+              else return (finalP, reqs)
+
 repair :: MonadHorn s => ExplorerParams -> TypingParams -> Goal -> Requirements -> s (Either ErrorMessage RProgram)
 repair eParams tParams goal violations = do
     initTS <- initTypingState $ gEnvironment goal
-    runExplorer (eParams {  _sourcePos = gSourcePos goal, 
+    runExplorer (eParams {  _sourcePos = gSourcePos goal,
                             _eGuessDepth = 3,
                             _scrutineeDepth = 0,
                             _matchDepth = 0,
@@ -71,11 +75,11 @@ repair eParams tParams goal violations = do
       writeLog 2 $ (nest 2 (text "Violated requirements:" $+$ vMapDoc text pretty violations)) $+$ text "when checking" $+$ pretty (gImpl goal)
       requiredTypes .= violations
       replaceViolations (addBoundVars (gSpec goal) $ gEnvironment goal) (gImpl goal)
-      
+
     addBoundVars (ForallT (a,_) sch) env = addTypeVar a $ addBoundVars sch env
     addBoundVars (ForallP sig sch) env = addBoundPredicate sig $ addBoundVars sch env
     addBoundVars (Monotype _) env = env
-      
+
 {- Standard Tagged library -}
 
 defaultPrefix = "default"
@@ -90,14 +94,14 @@ worldType = DatatypeT "World" [] []
 isTagged (ScalarT (DatatypeT dtName _ _) _) | dtName == "Tagged" = True
 isTagged t = False
 
-stripTags t@(ScalarT (DatatypeT dtName [dtArg] _) _) 
-  | isTagged t   = dtArg    
+stripTags t@(ScalarT (DatatypeT dtName [dtArg] _) _)
+  | isTagged t   = dtArg
 stripTags (FunctionT x tArg tRes) = FunctionT x tArg (stripTags tRes)
 stripTags t = t
 
-      
+
 {- Localization -}
-    
+
 localizeTopLevel :: MonadHorn s => Goal -> Explorer s RProgram
 localizeTopLevel (Goal funName env (ForallT (a,_) sch) impl depth pos) = localizeTopLevel (Goal funName (addTypeVar a env) sch impl depth pos)
 localizeTopLevel (Goal funName env (ForallP sig sch) impl depth pos) = localizeTopLevel (Goal funName (addBoundPredicate sig env) sch impl depth pos)
@@ -107,10 +111,10 @@ localizeTopLevel (Goal funName env (Monotype typ@(FunctionT _ _ _)) impl depth _
   polymorphic <- asks . view $ _1 . polyRecursion
   predPolymorphic <- asks . view $ _1 . predPolyRecursion
   let tvs = env ^. boundTypeVars
-  let pvs = env ^. boundPredicates      
-  let predGeneralized sch = if predPolymorphic then foldr ForallP sch pvs else sch -- Version of @t'@ generalized in bound predicate variables of the enclosing function          
+  let pvs = env ^. boundPredicates
+  let predGeneralized sch = if predPolymorphic then foldr ForallP sch pvs else sch -- Version of @t'@ generalized in bound predicate variables of the enclosing function
   let typeGeneralized sch = if polymorphic then foldr (ForallT . flip (,) []) sch tvs else sch -- Version of @t'@ generalized in bound type variables of the enclosing function
-  
+
   let env' = foldr (\(f, t) -> addPolyVariable f (typeGeneralized . predGeneralized . Monotype $ t) . (shapeConstraints %~ Map.insert f (shape typ'))) env recCalls
   let ctx = \p -> if null recCalls then p else Program (PFix (map fst recCalls) p) typ'
   p <- inContext ctx  $ localizeI env' typ' impl
@@ -160,7 +164,7 @@ localizeTopLevel (Goal funName env (Monotype typ@(FunctionT _ _ _)) impl depth _
                                                               valInt |>=| IntLit 0  |&|  valInt |<=| intVar argName)
     terminationRefinement argName (ScalarT dt@(DatatypeT name _ _) fml) = case env ^. datatypes . to (Map.! name) . wfMetric of
       Nothing -> Nothing
-      Just mName -> let 
+      Just mName -> let
                       metric x = Pred IntS mName [x]
                       argSort = toSort dt
                     in Just ( metric (Var argSort valueVarName) |>=| IntLit 0  |&| metric (Var argSort valueVarName) |<| metric (Var argSort argName),
@@ -181,7 +185,7 @@ localizeI' env t (PLet x iDef@(Program (PFun _ _) _) iBody) = do -- lambda-let: 
   pBody <- inContext (\p -> Program (PLet x uHole p) t) $ localizeI env t iBody
   (_, pDef) <- uses lambdaLets (Map.! x)
   return $ Program (PLet x pDef pBody) t
-localizeI' env t@(FunctionT _ tArg tRes) impl = case impl of 
+localizeI' env t@(FunctionT _ tArg tRes) impl = case impl of
   PFix _ impl -> localizeI env t impl
   PFun y impl -> do
     let ctx = \p -> Program (PFun y p) t
@@ -193,29 +197,29 @@ localizeI' env t@(FunctionT _ tArg tRes) impl = case impl of
 localizeI' env t@(ScalarT _ _) impl = case impl of
   PFun _ _ -> throwErrorWithDescription $ text "Cannot assign non-function type" </> squotes (pretty t) </>
                            text "to lambda term" </> squotes (pretty $ untyped impl)
-                           
+
   PLet x iDef iBody -> do -- E-term let (since lambda-let was considered before)
     pDef <- inContext (\p -> Program (PLet x p (Program PHole t)) t) $ localizeETopLevel env AnyT iDef
     pBody <- inContext (\p -> Program (PLet x pDef p) t) $ localizeI (addLetBound x (typeOf pDef) env) t iBody
     return $ Program (PLet x pDef pBody) t
-    
+
   PIf iCond iThen iElse -> do
     pCond <- inContext (\p -> Program (PIf p (Program PHole t) (Program PHole t)) t) $ localizeETopLevel env (ScalarT BoolT ftrue) iCond
     let ScalarT BoolT cond = typeOf pCond
     pThen <- inContext (\p -> Program (PIf pCond p (Program PHole t)) t) $ localizeI (addAssumption (substitute (Map.singleton valueVarName ftrue) cond) env) t iThen
     pElse <- inContext (\p -> Program (PIf pCond pThen p) t) $ localizeI (addAssumption (substitute (Map.singleton valueVarName ffalse) cond) env) t iElse
     return $ Program (PIf pCond pThen pElse) t
-    
+
   PMatch iScr iCases -> do
     (consNames, consTypes) <- unzip <$> checkCases Nothing iCases
     let scrT = refineTop env $ shape $ lastType $ head consTypes
-    
-    pScrutinee <- inContext (\p -> Program (PMatch p []) t) $ localizeETopLevel env scrT iScr            
-    pCases <- zipWithM (localizeCase env pScrutinee t) iCases consTypes    
+
+    pScrutinee <- inContext (\p -> Program (PMatch p []) t) $ localizeETopLevel env scrT iScr
+    pCases <- zipWithM (localizeCase env pScrutinee t) iCases consTypes
     return $ Program (PMatch pScrutinee pCases) t
-      
+
   _ -> localizeETopLevel env t (untyped impl)
-  
+
   where
     -- Check that all constructors are known and belong to the same datatype
     checkCases mName (Case consName args _ : cs) = case Map.lookup consName (allSymbols env) of
@@ -225,33 +229,33 @@ localizeI' env t@(ScalarT _ _) impl = case impl of
                         case lastType consT of
                           (ScalarT (DatatypeT dtName _ _) _) -> do
                             case mName of
-                              Nothing -> return ()                            
+                              Nothing -> return ()
                               Just name -> if dtName == name
                                              then return ()
-                                             else throwErrorWithDescription $ text "Expected constructor of datatype" </> squotes (text name) </> 
-                                                               text "and got constructor" </> squotes (text consName) </> 
+                                             else throwErrorWithDescription $ text "Expected constructor of datatype" </> squotes (text name) </>
+                                                               text "and got constructor" </> squotes (text consName) </>
                                                                text "of datatype" </> squotes (text dtName)
-                            if arity (toMonotype consSch) /= length args 
+                            if arity (toMonotype consSch) /= length args
                               then throwErrorWithDescription $ text "Constructor" </> squotes (text consName)
                                             </> text "expected" </> pretty (arity (toMonotype consSch)) </> text "binder(s) and got" <+> pretty (length args)
                               else ((consName, consT) :) <$> checkCases (Just dtName) cs
                           _ -> throwErrorWithDescription $ text "Not in scope: data constructor" </> squotes (text consName)
     checkCases _ [] = return []
-  
-localizeCase env pScrutinee@(Program (PSymbol x) scrT) t (Case consName args iBody) consT = cut $ do  
+
+localizeCase env pScrutinee@(Program (PSymbol x) scrT) t (Case consName args iBody) consT = cut $ do
   runInSolver $ matchConsType (lastType consT) (typeOf pScrutinee)
   consT' <- runInSolver $ currentAssignment consT
   (syms, ass) <- caseSymbols env (Var (toSort $ baseTypeOf scrT) x) args consT'
   let caseEnv = foldr (uncurry addVariable) (addAssumption ass env) syms
-  pCaseExpr <- inContext (\p -> Program (PMatch pScrutinee [Case consName args p]) t) $ 
+  pCaseExpr <- inContext (\p -> Program (PMatch pScrutinee [Case consName args p]) t) $
                localizeI caseEnv t iBody
-  return $ Case consName args pCaseExpr  
+  return $ Case consName args pCaseExpr
 
 -- | 'localizeE' @env t impl@ :: reconstruct unknown types and terms in a judgment @env@ |- @impl@ :: @t@ where @impl@ is an elimination term
--- (bottom-up phase of bidirectional reconstruction)    
+-- (bottom-up phase of bidirectional reconstruction)
 localizeETopLevel :: MonadHorn s => Environment -> RType -> UProgram -> Explorer s RProgram
 localizeETopLevel env t impl = do
-  (Program pTerm pTyp) <- localizeE env t impl  
+  (Program pTerm pTyp) <- localizeE env t impl
   pTyp' <- runInSolver $ currentAssignment pTyp
   return $ Program pTerm pTyp'
 
@@ -286,8 +290,8 @@ localizeE' env typ (PApp iFun iArg) = do
       PSymbol f -> do
         lets <- use lambdaLets
         case Map.lookup f lets of
-          Nothing -> -- This is a function from the environment, with a known type: check symbol against tArg                      
-            localizeETopLevel env tArg iArg 
+          Nothing -> -- This is a function from the environment, with a known type: check symbol against tArg
+            localizeETopLevel env tArg iArg
           Just (env', def) -> do -- This is a locally defined function: check it against tArg as a fixpoint
             lambdaLets %= Map.delete f -- Remove from lambda-lets in case of recursive call
             writeLog 2 $ text "Checking lambda-let argument" <+> pretty iArg <+> text "::" <+> pretty tArg <+> text "in" $+$ pretty (ctx (untyped PHole))
@@ -298,20 +302,20 @@ localizeE' env typ (PApp iFun iArg) = do
             let tArg' = renameAsImpl (isBound env) iArg tArg
             writeLog 2 $ text "Checking lambda argument" <+> pretty iArg <+> text "::" <+> pretty tArg' <+> text "in" $+$ pretty (ctx (untyped PHole))
             inContext ctx $ localizeI env tArg' iArg
-      
+
 localizeE' env typ impl = do
   throwErrorWithDescription $ text "Expected application term of type" </> squotes (pretty typ) </>
                                           text "and got" </> squotes (pretty $ untyped impl)
-                                          
+
 checkSymbol :: MonadHorn s => Environment -> RType -> RProgram -> Explorer s ()
 checkSymbol env typ p@(Program (PSymbol name) pTyp) = do
   ctx <- asks . view $ _1 . context
   writeLog 2 $ text "Checking" <+> pretty p <+> text "::" <+> pretty typ <+> text "in" $+$ pretty (ctx (untyped PHole))
-  
+
   requiredTypes %= Map.insertWith (++) name [typ]
   addConstraint $ Subtype env pTyp typ False name
   runInSolver simplifyAllConstraints
-  
+
 {- Repair -}
 
 replaceViolations :: MonadHorn s => Environment -> RProgram -> Explorer s RProgram
@@ -330,7 +334,7 @@ replaceViolations env (Program (PMatch scr cases) t) = do
     replaceInCase (Case consName args body) = do
       let scrT = typeOf scr
       let consSch = allSymbols env Map.! consName
-      consT <- instantiate env consSch True []    
+      consT <- instantiate env consSch True []
       runInSolver $ matchConsType (lastType consT) scrT
       consT' <- runInSolver $ currentAssignment consT
       (syms, ass) <- caseSymbols env (Var (toSort $ baseTypeOf scrT) (symbolName scr)) args consT'
@@ -348,7 +352,7 @@ replaceViolations env p@(Program (PLet x def body) t) = do
                           return ([], def')
             Just ts -> if length ts == 1
                           then generateRepair env (head ts) def
-                          else throwErrorWithDescription $ hang 2 $ 
+                          else throwErrorWithDescription $ hang 2 $
                                 text "Binder" <+> squotes (text x) <+> text "violates multiple requirements:" $+$ vsep (map pretty ts) $+$
                                 text "Probable causes: binder flows into multiple sinks or is itself a sink with a self-denying policy" $+$
                                 text "when checking" $+$ pretty p
@@ -374,18 +378,18 @@ generateRepair env typ p = do
       disjuncts <- map conjunction <$> allCurrentValuations cUnknown
       condANFs <- mapM generateDisjunct disjuncts
       let allDefs = concatMap fst condANFs
-      let allConds = map snd condANFs            
+      let allConds = map snd condANFs
       mkCheck allDefs allConds p pElse)
     (do
       writeLog 0 $ hang 2 (
-        text "WARNING: cannot abduce a condition for violation" $+$ pretty p </> text "::" </> pretty typ $+$ 
+        text "WARNING: cannot abduce a condition for violation" $+$ pretty p </> text "::" </> pretty typ $+$
         text "Probable cause: missing condition qualifiers")
       return ([], pElse))
   where
     targetPolicy = case typ of
       ScalarT (DatatypeT _ _ [fml]) _ -> fml
       _ -> error $ unwords ["generateRepair: ill-formed target type", show typ]
-  
+
     -- | Public version of @p@
     defaultValue = do
       let f = head $ symbolList p
@@ -402,7 +406,7 @@ generateRepair env typ p = do
       let allConjuncts = Set.toList $ conjunctsOf fml'
       conjuncts <- mapM (genPureConjunct strippedEnv) allConjuncts
       writeLog 3 $ text "Generated pure disjunct for condition" <+> pretty fml' <+> pretty conjuncts
-      lifted <- mapM (liftCondition env strippedEnv) conjuncts    
+      lifted <- mapM (liftCondition env strippedEnv) conjuncts
       let defs = concatMap fst lifted
       let conjuncts' = map snd lifted
       let liftAndSymb = untyped (PSymbol "andM")
@@ -411,22 +415,22 @@ generateRepair env typ p = do
       return (defs, pCond)
       (defs', xCond) <- anfE "TT" pCond False
       return (defs ++ defs', xCond)
-              
-    genPureConjunct strippedEnv c = let targetType = ScalarT BoolT $ valBool |<=>| c in 
-      ifte 
+
+    genPureConjunct strippedEnv c = let targetType = ScalarT BoolT $ valBool |<=>| c in
+      ifte
         (local (over (_2 . condQualsGen) (const (\_ _ -> emptyQSpace))) $ cut (generateE strippedEnv targetType))
         (\pCond -> aNormalForm "TT" pCond)
-        (throwErrorWithDescription $ hang 2 $ 
+        (throwErrorWithDescription $ hang 2 $
           text "Cannot synthesize term of type" <+> pretty targetType $+$
           text "when repairing violation" $+$ pretty p </> text "::" </> pretty typ $+$
           text "Probable cause: missing components to implement check")
-      
+
     updateSymbol :: Formula -> Map Id RSchema -> Id -> RSchema -> Map Id RSchema
     updateSymbol _ m name _ | -- This is a default value: remove
       isDefaultValue name   = m
-    updateSymbol targetRefinement m name (Monotype t) = 
-      let 
-        t' = stripTags t 
+    updateSymbol targetRefinement m name (Monotype t) =
+      let
+        t' = stripTags t
         symbolPreds = predsOfType t'
         targetPreds = predsOf targetRefinement
       in if t /= t' && isConstant name env && disjoint symbolPreds targetPreds
@@ -436,15 +440,15 @@ generateRepair env typ p = do
             then m
             else Map.insert name (Monotype t') m
     updateSymbol _ m name sch =
-      let 
+      let
         t = toMonotype sch
         retT = lastType t
       in if isTagged retT || (baseTypeOf retT == worldType) || (hasHOArg t)
           then m -- This is a function from base tagged library: remove
-          else Map.insert name sch m    
-    
+          else Map.insert name sch m
+
     hasHOArg t = any (\t -> arity t > 0) (allArgTypes t)
-    
+
     removeContent (Pred s name args) = if name == "content"
                                           then let [Var (DataS _ [varS]) v] = args
                                                in Var varS v
@@ -453,12 +457,12 @@ generateRepair env typ p = do
     removeContent (Unary op e) = Unary op (removeContent e)
     removeContent (Binary op e1 e2) = Binary op (removeContent e1) (removeContent e2)
     removeContent (Ite c t e) = Ite (removeContent c) (removeContent t) (removeContent e)
-    removeContent fml = fml    
-        
-    -- | 'liftCondition' @env strippedEnv p@: turn a pure E-term @p@ into a tagged one, 
+    removeContent fml = fml
+
+    -- | 'liftCondition' @env strippedEnv p@: turn a pure E-term @p@ into a tagged one,
     -- by binding all lets that have different types in @env@ and @strippedEnv@
-    liftCondition env strippedEnv p@(Program (PLet x def body) typ) = do      
-      let args = tail $ symbolList def      
+    liftCondition env strippedEnv p@(Program (PLet x def body) typ) = do
+      let args = tail $ symbolList def
       p' <- liftArgs args
       liftCondition' p'
       where
@@ -472,15 +476,15 @@ generateRepair env typ p = do
                         Just t -> t
           let strippedType = case lookupSymbol f arity strippedEnv of
                             Nothing -> error $ unwords ["liftCondition: cannot find", f, "in stripped environment"]
-                            Just t -> t      
+                            Just t -> t
           if realType == strippedType
             then return ((x, def):defs', body') -- This definition hasn't been stripped: leave as is
             else do -- This definition has been stripped: turn into a bind
               y <- freshVar env "x"
               let body'' = programSubstituteSymbol x (untyped (PSymbol y)) (foldDefs defs' body' AnyT)
               return ([(x, def)], mkBind x y body'')
-              
-        liftArgs (arg:args) = 
+
+        liftArgs (arg:args) =
           if allSymbols env Map.! arg == allSymbols strippedEnv Map.! arg
             then liftArgs args
             else do
@@ -489,29 +493,29 @@ generateRepair env typ p = do
               let body' = programSubstituteSymbol arg (untyped (PSymbol y)) p'
               return $ Program (PLet y (untyped (PSymbol arg)) body') (typeOf body')
         liftArgs [] = return p
-      
+
     liftCondition env strippedEnv pCond = do
       tmp <- freshId "TT"
       return ([(tmp, mkReturn pCond)], untyped $ PSymbol tmp)
-    
-    mkBind argName x body = 
-      let 
+
+    mkBind argName x body =
+      let
         app = untyped (PApp (untyped (PSymbol "bind")) (untyped (PSymbol argName)))
         fun = untyped (PFun x body)
       in untyped (PApp app fun)
-      
+
     mkReturn p = untyped (PApp (untyped (PSymbol "return")) p)
-    
+
     mkCheck defs conds pThen pElse = do
       cTmps <- replicateM (length conds) (freshId "TT")
       pTmp <- freshId "TT"
       let allDefs = defs ++ zip cTmps conds ++ [(pTmp, pThen)]
       let app1 cTmp = untyped (PApp (untyped (PSymbol "ifM")) (untyped (PSymbol cTmp)))
-      let app2 cTmp = untyped (PApp (app1 cTmp) (untyped (PSymbol pTmp)))      
+      let app2 cTmp = untyped (PApp (app1 cTmp) (untyped (PSymbol pTmp)))
       return (allDefs, foldr (\cTmp els -> untyped $ PApp (app2 cTmp) els) pElse cTmps)
 
-{- Misc -}  
-                                            
+{- Misc -}
+
 -- | 'aNormalForm' @p@: program equivalent to @p@ where arguments and top-level e-terms do not contain applications
 aNormalForm :: MonadHorn s => Id -> RProgram -> Explorer s RProgram
 aNormalForm prefix (Program (PFun x body) t) = do
@@ -538,9 +542,9 @@ aNormalForm _ (Program PHole t) = error "aNormalForm: got a hole"
 aNormalForm prefix eTerm@(Program _ t) = do
   (defs, a) <- anfE prefix eTerm True
   return $ foldDefs defs a t
-  
+
 foldDefs defs body t = foldr (\(name, def) p -> Program (PLet name def p) t) body defs
-  
+
 -- | 'anfE' @p varRequired@: convert E-term @p@ to a list of bindings and either a variable (if @varRequired@) or a flat application (if not @varRequired@)
 anfE :: MonadHorn s => Id -> RProgram -> Bool -> Explorer s ([(Id, RProgram)], RProgram)
 anfE prefix p@(Program (PSymbol x) t) _ = return ([], p)
@@ -554,32 +558,32 @@ anfE prefix (Program (PApp pFun pArg) t) varRequired = do
     else return (defsFun ++ defsArg, (Program (PApp xFun xArg) t))
 anfE prefix p@(Program (PFun _ _) t) _ = do -- A case for abstraction, which can appear in applications and let-bindings
   p' <- aNormalForm prefix p
-  return ([], p')    
+  return ([], p')
 anfE _ p _ = error $ unwords ["anfE: not an E-term or abstraction", show p]
 
 deANF :: RProgram -> RProgram
 deANF p = deANF' Map.empty Map.empty p
 
 deANF' :: Map Id RProgram -> Map RProgram Id -> RProgram -> RProgram
-deANF' tmpDefs userDefs (Program (PFun x body) t) = 
+deANF' tmpDefs userDefs (Program (PFun x body) t) =
   let body' = deANF' tmpDefs userDefs body
   in Program (PFun x body') t
-deANF' tmpDefs userDefs (Program (PIf cond thn els) t) = 
+deANF' tmpDefs userDefs (Program (PIf cond thn els) t) =
   let
     cond' = deANF' tmpDefs userDefs cond
     thn' = deANF' tmpDefs userDefs thn
     els' = deANF' tmpDefs userDefs els
   in Program (PIf cond' thn' els') t
-deANF' tmpDefs userDefs (Program (PMatch scr cases) t) = 
+deANF' tmpDefs userDefs (Program (PMatch scr cases) t) =
   let
     scr' = deANF' tmpDefs userDefs scr
     cases' = map (\(Case ctor binders e) -> Case ctor binders (deANF' tmpDefs userDefs e)) cases
   in Program (PMatch scr' cases') t
-deANF' tmpDefs userDefs (Program (PFix xs body) t) = 
+deANF' tmpDefs userDefs (Program (PFix xs body) t) =
   let body' = deANF' tmpDefs userDefs body
   in Program (PFix xs body') t
-deANF' tmpDefs userDefs (Program (PLet x def body) t) =   
-  let def' = deANF' tmpDefs userDefs def 
+deANF' tmpDefs userDefs (Program (PLet x def body) t) =
+  let def' = deANF' tmpDefs userDefs def
   in if isIdentifier x
     then let body' = deANF' tmpDefs (Map.insert (eraseTypes def') x userDefs) body
          in Program (PLet x def' body') t
@@ -592,7 +596,7 @@ deANF' tmpDefs userDefs (Program (PApp pFun pArg) t) =
   let
     pFun' = deANF' tmpDefs userDefs pFun
     pArg' = deANF' tmpDefs userDefs pArg
-  in (Program (PApp pFun' pArg') t)    
+  in (Program (PApp pFun' pArg') t)
 deANF' tmpDefs userDefs p@(Program (PSymbol name) t) =
   case Map.lookup name tmpDefs of
     Nothing -> p
@@ -611,4 +615,5 @@ allCurrentValuations u = do
   (typingState . qualifierMap) .= Map.empty
   return $ map (val. head) candGroups
   where
-    val c = valuation (solution c) u    
+    val c = valuation (solution c) u
+-}

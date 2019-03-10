@@ -1,6 +1,3 @@
-flags:
-  hoogleplus:
-    hoogleplus: true
 packages:
   - '.'
 resolver: lts-12.4

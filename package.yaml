@@ -1,0 +1,80 @@
+name: HooglePlus
+version: 0.1.0.0
+github: "davidmrdavid/hoogle_plus"
+license: BSD3
+author: "Zheng Guo"
+maintainer: "zhg069@ucsd.edu"
+
+extra-source-files:
+- README.md
+
+description: Please see the README
+
+dependencies:
+- base
+- Cabal
+- MissingH
+- aeson
+- ansi-terminal
+- ansi-wl-pprint
+- bimap
+- bytestring
+- cereal
+- cmdargs
+- conduit
+- conduit-extra
+- containers
+- directory
+- extra
+- filepath
+- hashable
+- haskell-src-exts
+- heap
+- hint
+- html
+- http-conduit
+- http-types
+- indents
+- lens
+- logict
+- mtl
+- packdeps
+- parsec
+- pqueue
+- pretty-simple
+- process
+- regex-compat
+- resourcet
+- safe
+- sort
+- split
+- split
+- text
+- time
+- transformers
+- transformers-compat
+- unordered-containers
+- vector
+
+library:
+  source-dirs: src
+  other-extensions:
+  - TemplateHaskell
+  - Rank2Types
+  - FlexibleInstances
+  - TypeSynonymInstances
+  - FlexibleContexts
+  includes: z3.h
+  extra-libraries: z3
+  default-language: Haskell2010
+
+executables:
+  HPlus:
+    main: HooglePlus.hs
+    source-dirs: app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -O2
+    dependencies:
+    - HooglePlus
