@@ -78,3 +78,9 @@ executables:
     - -O2
     dependencies:
     - HooglePlus
+
+benchmarks:
+  benchmark:
+    main: Benchmark.hs
+    source-dirs: benchmark
+    dependencies: HooglePlus
