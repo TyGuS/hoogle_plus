@@ -1,3 +1,4 @@
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE TemplateHaskell, DeriveFunctor, DeriveGeneric #-}
 
 -- | Executable programs
@@ -8,7 +9,6 @@ import Synquid.Type
 import Synquid.Error
 import Synquid.Tokens
 import Synquid.Util
-import Synquid.Succinct
 import PetriNet.AbstractType
 
 import Data.Serialize (Serialize)
@@ -78,7 +78,7 @@ type TProgram = Program SType
 
 -- makeLenses ''SuccinctProgram
 
-type SProgram = Program (SuccinctType, RType, RType)
+type SProgram = Program (RType, RType)
 
 untyped c = Program c AnyT
 uHole = untyped PHole
@@ -188,9 +188,12 @@ data MeasureDef = MeasureDef {
 makeLenses ''MeasureDef
 
 {- Evaluation environment -}
-data SuccinctContext = SuccinctContext {
-  _srcType :: SuccinctType
-} deriving (Eq, Generic)
+data SuccinctContext = forall a.SuccinctContext {
+  _srcType :: a
+}
+
+instance Eq SuccinctContext
+instance Generic SuccinctContext
 
 makeLenses ''SuccinctContext
 
@@ -234,11 +237,6 @@ data Environment = Environment {
   _arguments :: Map Id RSchema,            -- ^ Function arguments, required in all the solutions
   _typeClasses :: Map Id (Set Id),         -- ^ Type class instances
   -- _abstractSymbols :: Map Id AbstractSkeleton,
-  _succinctSymbols :: HashMap Id SuccinctType,    -- ^ Symbols with succinct types
-  _succinctGraph :: HashMap SuccinctType (HashMap SuccinctType (Set SuccinctEdge)), -- ^ Graph built upon succinct types
-  _graphFromGoal :: HashMap SuccinctType (HashMap SuccinctType (Set SuccinctEdge)),
-  _graphMetadata :: HashMap SuccinctType Metadata,
-  _succinctGraphRev :: HashMap SuccinctType (HashMap SuccinctType (Set SuccinctEdge)), -- ^ Graph for reachability check
   _boundTypeVars :: [Id],                  -- ^ Bound type variables
   _boundPredicates :: [PredSig],           -- ^ Argument sorts of bound abstract refinements
   _assumptions :: Set Formula,             -- ^ Unknown assumptions
@@ -268,12 +266,10 @@ instance (Eq k, Hashable k, Serialize k, Serialize v) => Serialize (HashMap k v)
   put hm = S.put (HashMap.toList hm)
   get = HashMap.fromList <$> S.getListOf S.get
 
-instance Serialize SuccinctType
 instance Serialize Formula
 instance Serialize Sort
 instance Serialize UnOp
 instance Serialize BinOp
-instance Serialize SuccinctContext
 instance Serialize SuccinctEdge
 instance Serialize Environment
 instance Serialize PredSig
@@ -289,14 +285,6 @@ instance Serialize r => Serialize (BaseType r)
 instance Serialize r => Serialize (SchemaSkeleton r)
 instance Serialize AbstractSkeleton
 
-instance Hashable SuccinctType where
-  hash sty = hash ((undefined::a -> String) sty)
-  hashWithSalt s sty = s + hash sty
-
-instance Hashable SuccinctContext where
-  hash sctx = hash (sctx ^. srcType)
-  hashWithSalt s sctx = s + hash sctx
-
 
 -- | Empty environment
 emptyEnv = Environment {
@@ -304,11 +292,6 @@ emptyEnv = Environment {
   _arguments = Map.empty,
   _typeClasses = Map.empty,
   -- _abstractSymbols = Map.empty,
-  _succinctSymbols = HashMap.empty,
-  _succinctGraph = HashMap.empty,
-  _graphFromGoal = HashMap.empty,
-  _graphMetadata = HashMap.empty,
-  _succinctGraphRev = HashMap.empty,
   _boundTypeVars = [],
   _boundPredicates = [],
   _assumptions = Set.empty,
