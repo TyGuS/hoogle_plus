@@ -18,6 +18,7 @@ import Synquid.HtmlOutput
 import Synquid.Codegen
 import Synquid.Stats
 import Synquid.Graph hiding (Node(..))
+import Database.Environment (writeEnv, generateEnv)
 import Database.Convert
 import Database.Generate
 import Database.Download
@@ -324,48 +325,8 @@ defaultCodegenParams = CodegenParams {
 
 precomputeGraph :: [PkgName] -> [String] -> Int -> Bool -> String -> IO ()
 precomputeGraph pkgs mdls depth useHO envPath = do
-  -- print pkgs
-  pkgDecls <- mapM (\pkgName -> do
-    downloadFile pkgName Nothing >> downloadCabal pkgName Nothing
-    declMap <- readDeclarations pkgName Nothing
-    let fileDecls = concatMap (\mdl -> Map.findWithDefault [] mdl declMap) mdls
-    parsedDecls <- mapM (\decl -> evalStateT (toSynquidDecl decl) 0) fileDecls
-    dependsPkg <- packageDependencies pkgName True
-    dependsDecls <- concatMap (concat . Map.elems) <$> (mapM (flip readDeclarations Nothing) $ nub dependsPkg)
-    additionalDts <- declDependencies pkgName fileDecls dependsDecls >>= mapM (flip evalStateT 0 . toSynquidDecl)
-    return $ additionalDts ++ parsedDecls
-    ) pkgs
-  let decls = reorderDecls $ nub $ defaultFuncs ++ defaultDts ++ concat pkgDecls
-  case resolveDecls decls of
-    Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
-    Right (env, _, _, _) -> do
-      -- envAll <- evalStateT (foldrM (uncurry addGraphSymbol) env $ Map.toList $ allSymbols env) Map.empty
-      -- let allEdges = Set.toList . Set.unions . concat . map HashMap.elems $ HashMap.elems (envAll ^. succinctGraph)
-      -- edgeWeights <- getGraphWeights $ map getEdgeId allEdges
-      -- let graph' = fillEdgeWeight allEdges edgeWeights $ envAll ^. succinctGraph
-      B.writeFile envPath $ encode $ env {
-          _symbols = if useHO then env ^. symbols
-                              else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols
-        , _included_modules = Set.fromList mdls
-        }
-  where
-    -- defaultDts = [defaultList]
-    defaultFuncs = [ Pos (initialPos "fst") $ FuncDecl "fst" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) (ScalarT (TypeVarT Map.empty "a") ftrue)))
-                   , Pos (initialPos "snd") $ FuncDecl "snd" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) (ScalarT (TypeVarT Map.empty "b") ftrue)))
-                   ]
-    defaultDts = [defaultList, defaultPair, defaultUnit, defaultInt, defaultBool]
-    defaultInt = Pos (initialPos "Int") $ DataDecl "Int" [] [] []
-    defaultBool = Pos (initialPos "Bool") $ DataDecl "Bool" [] [] []
-    defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
-        ConstructorSig "Nil"  $ ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue
-      , ConstructorSig "Cons" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "xs" (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue) (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue))
-      ]
-    defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [] [
-        ConstructorSig "Pair" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "y" (ScalarT (TypeVarT Map.empty "b") ftrue) (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue))
-      ]
-    defaultUnit = Pos (initialPos "Unit") $ DataDecl "Unit" [] [] []
-    pdoc = printDoc Plain
-
+  env <- generateEnv pkgs mdls depth useHO
+  writeEnv env envPath
 
 -- | Parse and resolve file, then synthesize the specified goals
 runOnFile :: SynquidParams -> ExplorerParams -> HornSolverParams -> CodegenParams

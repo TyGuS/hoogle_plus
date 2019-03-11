@@ -535,14 +535,6 @@ instance Pretty SuccinctType where
 instance Show SuccinctType where
     show = show . plain . pretty
 
-instance Hashable SuccinctType where
-  hash sty = hash (show sty)
-  hashWithSalt s sty = s + hash sty
-
-instance Hashable SuccinctContext where
-  hash sctx = hash (sctx ^. srcType)
-  hashWithSalt s sctx = s + hash sctx
-
 instance Pretty AbstractSkeleton where
     pretty (ADatatypeT id args) = text id <+> hsep (map pretty args)
     pretty (AExclusion ids) = text "-" <+> hlBraces (commaSep $ map pretty (Set.toList ids))

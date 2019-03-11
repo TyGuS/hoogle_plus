@@ -38,7 +38,7 @@ instantiate sch = instantiate' Map.empty sch
   where
     instantiate' subst (ForallT a sch) = do
       a' <- freshId "A"
-      instantiate' (Map.insert a (vart a' (BoolLit True)) subst) sch       
+      instantiate' (Map.insert a (vart a' (BoolLit True)) subst) sch
     instantiate' subst (Monotype t) = return $ typeSubstitute subst $ t
     freshId pre = do
       nameCnt <- get
@@ -66,13 +66,13 @@ addEdgeForSymbol name succinctTy env = let
     allConcreteNodes env = Set.filter isSuccinctConcrete $ allSuccinctNodes env
     polySymbols env = HashMap.filter isSuccinctAll (env ^. succinctSymbols)
     newArrivedNodes oldEnv newEnv = allConcreteNodes newEnv `Set.difference` allConcreteNodes oldEnv
-    iteration oldEnv newEnv = 
+    iteration oldEnv newEnv =
       if Set.null $ newArrivedNodes oldEnv newEnv
         then newEnv
         else iteration newEnv $ HashMap.foldrWithKey (addPolyEdge $ newArrivedNodes oldEnv newEnv) newEnv $ polySymbols newEnv
 
 addPolyEdge :: Set SuccinctType -> Id -> SuccinctType -> Environment -> Environment
-addPolyEdge targets name (SuccinctAll idSet ty) env 
+addPolyEdge targets name (SuccinctAll idSet ty) env
   | isAllBound env idSet = addEdge name ty env -- if all the type vars are bound in the env, treat it as none-all type
   | otherwise = Set.foldr (\sty accEnv ->
     let (unified, substitutions) = unifySuccinct (lastSuccinctType ty) sty (accEnv ^. boundTypeVars)
@@ -86,28 +86,28 @@ isAllBound env idSet = Set.foldr ((&&) . isBound env) True idSet
 
 -- | helper function: replace all the unbound type variables in @t@ as SuccinctAny
 generalizeFV :: Environment -> SuccinctType -> SuccinctType
-generalizeFV env t = 
+generalizeFV env t =
   let tyVars = extractSuccinctTyVars t `Set.difference` Set.fromList (env ^. boundTypeVars)
-  in if Set.size tyVars > 0 
-    then succinctTypeSubstitute (Set.foldr (\tv -> Map.insert tv SuccinctAny) Map.empty tyVars) t 
+  in if Set.size tyVars > 0
+    then succinctTypeSubstitute (Set.foldr (\tv -> Map.insert tv SuccinctAny) Map.empty tyVars) t
     else t
 
 addEdge :: Id -> SuccinctType -> Environment -> Environment
-addEdge name (SuccinctFunction paramCnt argSet retTy) env = 
+addEdge name (SuccinctFunction paramCnt argSet retTy) env =
   let argTy = if paramCnt == 1 then Set.findMin argSet else SuccinctComposite argSet
       addedRevEnv = (succinctGraphRev %~ HashMap.insertWith mergeMapOfSet argTy (HashMap.singleton retTy (Set.singleton $ SuccinctEdge name paramCnt 0.01))) env
       addedRetEnv = (succinctGraph %~ HashMap.insertWith mergeMapOfSet retTy (HashMap.singleton argTy (Set.singleton $ SuccinctEdge name paramCnt 0.01))) addedRevEnv
   in if paramCnt == 1
     then addedRetEnv
-    else Set.foldr (\elem acc -> 
+    else Set.foldr (\elem acc ->
       let revEnv = (succinctGraphRev %~ HashMap.insertWith mergeMapOfSet elem (HashMap.singleton argTy (Set.singleton $ SuccinctEdge ("||"++(show argTy)++"||"++(show elem)++"||") 0 0.01))) acc
       in (succinctGraph %~ HashMap.insertWith mergeMapOfSet argTy (HashMap.singleton elem (Set.singleton $ SuccinctEdge ("||"++(show argTy)++"||"++(show elem)++"||") 0 0.01))) revEnv
       ) addedRetEnv argSet
-addEdge name typ@(SuccinctAll idSet ty) env = 
+addEdge name typ@(SuccinctAll idSet ty) env =
   (if isAllBound env (extractSuccinctTyVars (lastSuccinctType ty))
     then addEdge name (generalizeFV env ty)
     else id) $ addPolyEdge (Set.filter isSuccinctConcrete (allSuccinctNodes env)) name typ env
-addEdge name typ env = 
+addEdge name typ env =
   let inhabitedEnvRev = (succinctGraphRev %~ HashMap.insertWith mergeMapOfSet (SuccinctInhabited typ) (HashMap.singleton typ (Set.singleton $ SuccinctEdge name 0 0.01))) env
       inhabitedEnv = (succinctGraph %~ HashMap.insertWith mergeMapOfSet typ (HashMap.singleton (SuccinctInhabited typ) (Set.singleton $ SuccinctEdge name 0 0.01))) inhabitedEnvRev
   in inhabitedEnv
@@ -125,7 +125,7 @@ isReachable env typ = isReachableHelper (env ^. succinctGraph) Set.empty typ
       _ -> HashMap.foldrWithKey (\i _ acc -> acc || isReachableHelper g (Set.insert typ' visited) i) False (if Set.member typ' visited then HashMap.empty else HashMap.lookupDefault HashMap.empty typ' g)
 
 getReachableNodes :: SuccinctGraph -> [SuccinctType] -> Set SuccinctType
-getReachableNodes graph starters = 
+getReachableNodes graph starters =
   getReachableNodesHelper graph Set.empty [] starters
   where
     isCompositeReachable reachableSet typ = case typ of
@@ -135,11 +135,11 @@ getReachableNodes graph starters =
       [] -> visited
       curr:xs -> if Set.member curr visited
         then getReachableNodesWithoutComposite g visited xs
-        else let newVisited = Set.insert curr visited 
+        else let newVisited = Set.insert curr visited
           in getReachableNodesWithoutComposite g newVisited (xs ++ (filter (isCompositeReachable newVisited) (HashMap.keys $ HashMap.lookupDefault HashMap.empty curr g)))
     getReachableNodesHelper g visited waitingList toVisit = case toVisit of
       [] -> visited `Set.union` (getReachableNodesWithoutComposite g visited (filter (isCompositeReachable visited) waitingList))
-      curr:xs -> if Set.member curr visited 
+      curr:xs -> if Set.member curr visited
         then getReachableNodesHelper g visited waitingList xs
         else case curr of
           SuccinctComposite _ -> getReachableNodesHelper g visited (waitingList++[curr]) xs
@@ -165,7 +165,7 @@ rmUnreachableComposite env reachableSet = Set.foldr (\t acc -> if isCompositeRea
       SuccinctComposite _ -> True
       _ -> False
     compositeNodes = Set.filter isCompositeNode reachableSet
-    isCompositeReachable t = let SuccinctComposite tySet = t in 
+    isCompositeReachable t = let SuccinctComposite tySet = t in
       Set.foldr (\b acc -> acc && (Set.member b reachableSet)) True tySet
 
 findDstNodesInGraph :: Environment -> SuccinctType -> HashMap SuccinctType (Set SuccinctEdge)
@@ -200,39 +200,13 @@ shortestPathFromTo env src dst = shortestPathHelper (env ^. graphFromGoal) Set.e
       curr:vs | typ curr == dst -> path curr
               | Set.member (typ curr) visited -> shortestPathHelper g visited vs
               | otherwise -> shortestPathHelper g (Set.insert (typ curr) visited) (vs ++ nodesWithPath curr g)
-    nodesWithPath node graph = map (uncurry (makeNode $ path node)) 
-                               $ HashMap.toList 
-                               $ HashMap.filter (\s -> Set.size s /= 1 || Set.notMember "__goal__" (Set.map getEdgeId s)) 
+    nodesWithPath node graph = map (uncurry (makeNode $ path node))
+                               $ HashMap.toList
+                               $ HashMap.filter (\s -> Set.size s /= 1 || Set.notMember "__goal__" (Set.map getEdgeId s))
                                $ HashMap.lookupDefault HashMap.empty (typ node) graph
-    makeNode currPath t id = Node t (currPath 
-                                 ++ (let s = Set.filter ((/=) "__goal__" . getEdgeId) id 
+    makeNode currPath t id = Node t (currPath
+                                 ++ (let s = Set.filter ((/=) "__goal__" . getEdgeId) id
                                      in if Set.null s then [] else [s]))
-
-
-instance (Eq k, Hashable k, Serialize k, Serialize v) => Serialize (HashMap k v) where
-  put hm = S.put (HashMap.toList hm)
-  get = HashMap.fromList <$> S.getListOf S.get
-
-instance Serialize SuccinctType
-instance Serialize Formula
-instance Serialize Sort
-instance Serialize UnOp
-instance Serialize BinOp
-instance Serialize SuccinctContext
-instance Serialize SuccinctEdge
-instance Serialize Environment
-instance Serialize PredSig
-instance Serialize DatatypeDef
-instance Serialize MeasureCase
-instance Serialize MeasureDef
-instance Serialize Metadata
-instance Serialize t => Serialize (Case t)
-instance Serialize t => Serialize (BareProgram t)
-instance Serialize t => Serialize (Program t)
-instance Serialize r => Serialize (TypeSkeleton r)
-instance Serialize r => Serialize (BaseType r)
-instance Serialize r => Serialize (SchemaSkeleton r)
-instance Serialize AbstractSkeleton
 
 edges isPruned env = HashMap.foldrWithKey (\k v acc -> (map (\(k',v') -> (k,v',k')) (HashMap.toList v)) ++ acc) [] (if isPruned then env ^. graphFromGoal else env ^. succinctGraph)
 
@@ -241,7 +215,7 @@ nodes isPruned env = Set.fromList $ (HashMap.keys (if isPruned then env ^. graph
 showGraphViz isPruned env =
   "digraph name{\n" ++
   "layout=dot;\n" ++
-  "splines=true;\n" ++ 
+  "splines=true;\n" ++
   "margin=\"0.5,0.5\";\n" ++
   "fontsize=16;\n" ++
   "dpi=250;\n"++
