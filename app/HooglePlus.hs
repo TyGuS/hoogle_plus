@@ -23,6 +23,7 @@ import Database.Generate
 import Database.Download
 import Database.Util
 import Database.GraphWeightsProvider
+import HooglePlus.Synthesize
 import qualified PetriNet.PNSolver as PNS
 import qualified HooglePlus.Encoder as HEncoder
 
@@ -112,7 +113,7 @@ main = do
                     filename = out_file,
                     module_ = out_module
                   }
-                  runOnFile synquidParams explorerParams solverParams codegenParams file libs
+                  runOnFile synquidParams explorerParams solverParams codegenParams file
     (Generate pkgs mdls d ho envPath) -> do
                   precomputeGraph pkgs mdls d ho envPath
 {- Command line arguments -}
@@ -329,16 +330,18 @@ precomputeGraph pkgs mdls depth useHO envPath = do
 
 -- | Parse and resolve file, then synthesize the specified goals
 runOnFile :: SynquidParams -> ExplorerParams -> HornSolverParams -> CodegenParams
-                           -> String -> [String] -> IO ()
-runOnFile synquidParams explorerParams solverParams codegenParams file libs = do
+                           -> String -> IO ()
+runOnFile synquidParams explorerParams solverParams codegenParams file = do
   goal <- parseGoal file
-  feedEnv goal >>= synthesizeGoal [] [] -- (requested goals)
+  goal' <- feedEnv goal
+  newsynthesize explorerParams solverParams goal'
+  -- feedEnv goal >>= synthesizeGoal [] [] -- (requested goals)
   return ()
   where
     feedEnv goal = do
       let envPathIn = envPath synquidParams
       doesExist <- doesFileExist envPathIn
-      when (not doesExist) (error "Please run `stack exec -- synquid generate -p [PACKAGES]` to generate database first")
+      when (not doesExist) (error ("Please run `stack exec -- " ++ programName ++ " generate -p [PACKAGES]` to generate database first"))
       envRes <- decode <$> B.readFile envPathIn
       case envRes of
         Left err -> error err
