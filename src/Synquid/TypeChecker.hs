@@ -27,7 +27,8 @@ import Control.Lens
 -- | 'reconstruct' @eParams tParams goal@ : reconstruct missing types and terms in the body of @goal@ so that it represents a valid type judgment;
 -- return a type error if that is impossible
 reconstruct :: (MonadHorn s, MonadIO s) => ExplorerParams -> TypingParams -> Goal -> s (Either ErrorMessage [RProgram])
-reconstruct eParams tParams goal = do
+reconstruct eParams tParams goal = error "reconstruct"
+  {-do
     initTS <- initTypingState $ gEnvironment goal
     runExplorer (eParams { _sourcePos = gSourcePos goal }) tParams (Reconstructor reconstructTopLevel reconstructETopLevel) initTS go
   where
@@ -35,8 +36,11 @@ reconstruct eParams tParams goal = do
       pMain <- reconstructTopLevel goal { gDepth = _auxDepth eParams }     -- Reconstruct the program
       p <- flip insertAuxSolutions pMain <$> use solvedAuxGoals            -- Insert solutions for auxiliary goals stored in @solvedAuxGoals@
       runInSolver $ finalizeProgram p                                      -- Substitute all type/predicates variables and unknowns
+-}
 
 reconstructTopLevel :: (MonadHorn s, MonadIO s) => Goal -> Explorer s RProgram
+reconstructTopLevel = error "reconstructTopLevel"
+{-
 reconstructTopLevel (Goal funName env (ForallT a sch) impl depth pos) = reconstructTopLevel (Goal funName (addTypeVar a env) sch impl depth pos)
 reconstructTopLevel (Goal funName env (ForallP sig sch) impl depth pos) = reconstructTopLevel (Goal funName (addBoundPredicate sig env) sch impl depth pos)
 reconstructTopLevel (Goal funName env (Monotype typ@(FunctionT _ _ _)) impl depth _) = local (set (_1 . auxDepth) depth) $ reconstructFix
@@ -303,3 +307,4 @@ insertAuxSolutions pAuxs (Program body t) = flip Program t $
     _ -> body
   where
     ins = insertAuxSolutions pAuxs
+-}
