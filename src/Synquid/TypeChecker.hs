@@ -24,6 +24,8 @@ import Control.Monad.Reader
 import Control.Applicative hiding (empty)
 import Control.Lens
 
+import Debug.Trace
+
 -- | 'reconstruct' @eParams tParams goal@ : reconstruct missing types and terms in the body of @goal@ so that it represents a valid type judgment;
 -- return a type error if that is impossible
 reconstruct :: (MonadHorn s, MonadIO s) => ExplorerParams -> TypingParams -> Goal -> s (Either ErrorMessage [RProgram])
@@ -33,28 +35,33 @@ reconstruct eParams tParams goal = do
   where
     go = do
       pMain <- reconstructTopLevel goal { gDepth = _auxDepth eParams }     -- Reconstruct the program
-      p <- flip insertAuxSolutions pMain <$> use solvedAuxGoals            -- Insert solutions for auxiliary goals stored in @solvedAuxGoals@
-      runInSolver $ finalizeProgram p                                      -- Substitute all type/predicates variables and unknowns
+      -- p <- const pMain <$> use solvedAuxGoals
+      runInSolver $ return pMain
+      -- p <- flip insertAuxSolutions pMain <$> use solvedAuxGoals            -- Insert solutions for auxiliary goals stored in @solvedAuxGoals@
+      -- runInSolver $ finalizeProgram p                                      -- Substitute all type/predicates variables and unknowns
 
 reconstructTopLevel :: (MonadHorn s, MonadIO s) => Goal -> Explorer s RProgram
-reconstructTopLevel (Goal funName env (ForallT a sch) impl depth pos) = reconstructTopLevel (Goal funName (addTypeVar a env) sch impl depth pos)
-reconstructTopLevel (Goal funName env (ForallP sig sch) impl depth pos) = reconstructTopLevel (Goal funName (addBoundPredicate sig env) sch impl depth pos)
+reconstructTopLevel (Goal funName env ty@(ForallT a sch) impl depth pos) = Debug.Trace.trace ("reconstruct forall: " ++ show ty) $ reconstructTopLevel (Goal funName (addTypeVar a env) sch impl depth pos)
+reconstructTopLevel (Goal funName env (ForallP sig sch) impl depth pos) = error "reconstructTopLevel" --reconstructTopLevel (Goal funName (addBoundPredicate sig env) sch impl depth pos)
 reconstructTopLevel (Goal funName env (Monotype typ@(FunctionT _ _ _)) impl depth _) = local (set (_1 . auxDepth) depth) $ reconstructFix
   where
     reconstructFix = do
+      liftIO $ putStrLn (show typ)
+      liftIO $ putStrLn (show impl)
       let typ' = renameAsImpl (isBound env) impl typ
       -- recCalls <- runInSolver (currentAssignment typ') >>= recursiveCalls
       polymorphic <- asks . view $ _1 . polyRecursion
       predPolymorphic <- asks . view $ _1 . predPolyRecursion
       useSucc <- asks . view $ _1 . buildGraph
       -- envAll <- if useSucc then foldM (\e (f, t) -> addSuccinctSymbol f t e) env' (Map.toList (allSymbols env')) else return env'
-      envGoal <- if useSucc then addSuccinctEdge "__goal__" (Monotype (typ)) env else return env
+      envGoal <- return env
       -- let ctx = \p -> if null recCalls then p else Program (PFix (map fst recCalls) p) typ'
       let ctx = id
       p <- inContext ctx  $ reconstructI envGoal typ' impl
       return $ ctx p
 
 reconstructTopLevel (Goal _ env (Monotype t) impl depth _) = do
+  error "reconstructTopLevel"
   useSucc <- asks . view $ _1 . buildGraph
   -- envAll <- if useSucc then foldM (\e (f, t) -> addSuccinctSymbol f t e) env (Map.toList (allSymbols env)) else return env
   envGoal <- if useSucc then addSuccinctEdge "__goal__" (Monotype t) env else return env
@@ -65,8 +72,8 @@ reconstructTopLevel (Goal _ env (Monotype t) impl depth _) = do
 reconstructI :: (MonadHorn s, MonadIO s) => Environment -> RType -> UProgram -> Explorer s RProgram
 reconstructI env t (Program p AnyT) = reconstructI' env t p
 reconstructI env t (Program p t') = do
-  t'' <- checkAnnotation env t t' p
-  reconstructI' env t'' p
+  -- t'' <- checkAnnotation env t t' p
+  reconstructI' env t' p
 
 reconstructI' env t PErr = generateError env
 -- reconstructI' env t PHole = generateError env `mplus` generateI env t False
@@ -259,7 +266,8 @@ reconstructE' env typ impl = do
 -- | 'checkAnnotation' @env t t' p@ : if user annotation @t'@ for program @p@ is a subtype of the goal type @t@,
 -- return resolved @t'@, otherwise fail
 checkAnnotation :: (MonadHorn s, MonadIO s) => Environment -> RType -> RType -> BareProgram RType -> Explorer s RType
-checkAnnotation env t t' p = do
+checkAnnotation env t t' p = error "checkAnnotation"
+  {-do
   tass <- use (typingState . typeAssignment)
   case resolveRefinedType (typeSubstituteEnv tass env) t' of
     Left err -> throwError err
@@ -277,7 +285,7 @@ checkAnnotation env t t' p = do
 
       tass' <- use (typingState . typeAssignment)
       return $ intersection (isBound env) t'' (typeSubstitute tass' t)
-
+-}
 -- | 'etaExpand' @t@ @f@: for a symbol @f@ of a function type @t@, the term @\X0 . ... \XN . f X0 ... XN@ where @f@ is fully applied
 etaExpand t f = do
   args <- replicateM (arity t) (freshId "X")

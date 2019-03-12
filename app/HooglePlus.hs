@@ -333,8 +333,8 @@ runOnFile :: SynquidParams -> ExplorerParams -> HornSolverParams -> CodegenParam
                            -> String -> IO ()
 runOnFile synquidParams explorerParams solverParams codegenParams file = do
   goal <- parseGoal file
-  goal' <- feedEnv goal
-  newsynthesize explorerParams solverParams goal'
+  --goal' <- feedEnv goal
+  feedEnv goal >>= newsynthesize explorerParams solverParams
   -- feedEnv goal >>= synthesizeGoal [] [] -- (requested goals)
   return ()
   where

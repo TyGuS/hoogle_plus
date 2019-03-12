@@ -238,9 +238,9 @@ runExplorer eParams tParams topLevel initTS go = do
 generateI :: (MonadHorn s, MonadIO s) => Environment -> RType -> Bool -> Explorer s RProgram
 generateI env t@(FunctionT x tArg tRes) isElseBranch = do
   let ctx = \p -> Program (PFun x p) t
-  useSucc <- asks . view $ _1 . buildGraph
-  env' <- if useSucc then addSuccinctEdge x (Monotype tArg) env else return env
-  pBody <- inContext ctx $ generateI (unfoldAllVariables $ addVariable x tArg $ addArgument x tArg $ env') tRes False
+  env' <- return env
+  -- pBody <- inContext ctx $ generateI (unfoldAllVariables $ addVariable x tArg $ addArgument x tArg $ env') tRes False
+  pBody <- generateI (unfoldAllVariables $ addVariable x tArg $ addArgument x tArg $ env') tRes False
   return $ ctx pBody
 generateI env t@(ScalarT _ _) isElseBranch = do
   pathEnabled <- asks . view $ _1 . pathSearch
@@ -256,6 +256,7 @@ generateI env t@(ScalarT _ _) isElseBranch = do
       useHO <- asks . view $ _1 . useHO
       let env' = if useHO then env
                           else env { _symbols = Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols }
+      -- let args = (Monotype t):(Map.elems $ env' ^. arguments)
       let args = (Monotype t):(Map.elems $ env' ^. arguments)
       -- start with all the datatypes defined in the components, first level abstraction
       maxLevel <- asks . view $ _1 . explorerLogLevel
