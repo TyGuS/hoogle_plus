@@ -14,7 +14,6 @@ import Synquid.HornSolver
 import Synquid.TypeConstraintSolver
 import Synquid.Explorer
 import Synquid.HtmlOutput
-import Synquid.Codegen
 import Synquid.Stats
 import Database.Environment (writeEnv, generateEnv)
 import Database.Convert
@@ -109,11 +108,7 @@ main = do
                     showStats = print_stats,
                     envPath = envPath
                   }
-                  let codegenParams = defaultCodegenParams {
-                    filename = out_file,
-                    module_ = out_module
-                  }
-                  runOnFile synquidParams explorerParams solverParams codegenParams file
+                  runOnFile synquidParams explorerParams solverParams file
     (Generate pkgs mdls d ho envPath) -> do
                   precomputeGraph pkgs mdls d ho envPath
 {- Command line arguments -}
@@ -310,28 +305,14 @@ defaultSynquidParams = SynquidParams {
   envPath = defaultEnvPath
 }
 
--- | Parameters for code extraction and Haskell output
-data CodegenParams = CodegenParams {
-  filename :: Maybe String,               -- ^ Output filename (of Haskell code)
-  module_ :: Maybe String,                -- ^ Generated module name
-  imports :: Map.Map String [Declaration] -- ^ Modules to depend on
-}
-
-defaultCodegenParams = CodegenParams {
-  filename = Nothing,
-  module_ = Nothing,
-  imports = Map.empty
-}
-
 precomputeGraph :: [PkgName] -> [String] -> Int -> Bool -> String -> IO ()
 precomputeGraph pkgs mdls depth useHO envPath = do
   env <- generateEnv pkgs mdls depth useHO
   writeEnv env envPath
 
 -- | Parse and resolve file, then synthesize the specified goals
-runOnFile :: SynquidParams -> ExplorerParams -> HornSolverParams -> CodegenParams
-                           -> String -> IO ()
-runOnFile synquidParams explorerParams solverParams codegenParams file = do
+runOnFile :: SynquidParams -> ExplorerParams -> HornSolverParams -> String -> IO ()
+runOnFile synquidParams explorerParams solverParams file = do
   goal <- parseGoal file
   goal' <- feedEnv goal
   result <-  newsynthesize explorerParams solverParams goal'
