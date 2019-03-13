@@ -10,7 +10,6 @@ import Synquid.Pretty
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Resolver (resolveDecls, ResolverState (..), initResolverState, resolveSchema)
 import Synquid.SolverMonad
--- import Synquid.TypeConstraintSolver
 import Synquid.Explorer
 import Synquid.HtmlOutput
 import Database.Environment (writeEnv, generateEnv)
@@ -19,7 +18,6 @@ import Database.Generate
 import Database.Download
 import Database.Util
 import Synquid.Util (showme)
-import Database.GraphWeightsProvider
 import HooglePlus.Synthesize
 import qualified PetriNet.PNSolver as PNS
 import qualified HooglePlus.Encoder as HEncoder

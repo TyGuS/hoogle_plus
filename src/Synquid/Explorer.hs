@@ -1,53 +1,16 @@
 {-# LANGUAGE TemplateHaskell, DeriveDataTypeable #-}
 module Synquid.Explorer where
 
-import Synquid.Logic
 import Synquid.Type
 import Synquid.Program
 import Synquid.Error
-import Synquid.SolverMonad
 import Synquid.Util
-import Synquid.Pretty
-import Synquid.Tokens
-import Database.GraphWeightsProvider
-import Database.Util
-import PetriNet.AbstractType
-import PetriNet.PNSolver (PathSolver)
-import qualified PetriNet.Abstraction as Abstraction
 import qualified PetriNet.PNSolver as PNSolver
 import qualified HooglePlus.Encoder as HEncoder
 
-import Data.Maybe
-import Data.List
-import Data.Foldable
-import qualified Data.Set as Set
-import Data.Set (Set)
-import qualified Data.Map as Map
-import Data.Map (Map)
-import qualified Data.HashMap.Strict as HashMap
-import Data.HashMap.Strict (HashMap)
-import Data.Char
-import qualified Data.Foldable as Foldable
-import qualified Data.PQueue.Prio.Max as PQ
-import Data.PQueue.Prio.Max (MaxPQueue)
-import qualified Data.PQueue.Prio.Min as MinPQ
-import Data.PQueue.Prio.Min (MinPQueue)
--- import qualified Data.Sequence as Seq
-import Data.Sequence (Seq)
-import Data.Heap (MinHeap)
-import Data.Data (Data)
-import qualified Data.Heap as Heap
 -- import Control.Monad.List
-import Control.Monad.Logic
-import Control.Monad.State
-import Control.Monad.Reader
-import Control.Applicative hiding (empty)
+import Data.Data
 import Control.Lens hiding (index, indices)
-import Debug.Trace
-import Data.Time.Clock
-import qualified Data.ByteString.Lazy.Char8 as LB8
-import qualified Data.Aeson as Aeson
-import Data.String (fromString)
 
 {- Interface -}
 
