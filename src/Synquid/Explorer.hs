@@ -1,6 +1,3 @@
-{-# LANGUAGE TemplateHaskell, FlexibleContexts, TupleSections, StandaloneDeriving, DeriveDataTypeable #-}
-
--- | Generating synthesis constraints from specifications, qualifiers, and program templates
 module Synquid.Explorer where
 
 import Synquid.Logic
@@ -8,8 +5,6 @@ import Synquid.Type
 import Synquid.Program
 import Synquid.Error
 import Synquid.SolverMonad
-import Synquid.TypeConstraintSolver hiding (freshId, freshVar)
-import qualified Synquid.TypeConstraintSolver as TCSolver (freshId, freshVar)
 import Synquid.Util
 import Synquid.Pretty
 import Synquid.Tokens
@@ -48,8 +43,6 @@ import Control.Monad.Reader
 import Control.Applicative hiding (empty)
 import Control.Lens hiding (index, indices)
 import Debug.Trace
-import Z3.Monad (evalZ3WithEnv, stdOpts, opt, (+?))
-import qualified Z3.Monad as Z3
 import Data.Time.Clock
 import qualified Data.ByteString.Lazy.Char8 as LB8
 import qualified Data.Aeson as Aeson
@@ -93,68 +86,3 @@ data ExplorerParams = ExplorerParams {
 }
 
 makeLenses ''ExplorerParams
-
-type Requirements = Map Id [RType]
-
-data ProgramRank = ProgramRank {
-  holes :: Int,
-  weights :: Double
-} deriving(Ord, Eq, Show)
-
-data ProgramItem = ProgramItem {
-  iProgram :: SProgram,
-  iExpoState :: ExplorerState,
-  iConstraints :: [Constraint]
-} deriving(Ord, Eq)
-
-type ProgramQueue = MaxPQueue ProgramRank ProgramItem
-
--- | State of program exploration
-data ExplorerState = ExplorerState {
-  _typingState :: TypingState,                     -- ^ Type-checking state
-  _auxGoals :: [Goal],                             -- ^ Subterms to be synthesized independently
-  _solvedAuxGoals :: Map Id RProgram,              -- ^ Synthesized auxiliary goals, to be inserted into the main program
-  _lambdaLets :: Map Id (Environment, UProgram),   -- ^ Local bindings to be checked upon use (in type checking mode)
-  _requiredTypes :: Requirements,                  -- ^ All types that a variable is required to comply to (in repair mode)
-  _symbolUseCount :: Map Id Int,                   -- ^ Number of times each symbol has been used in the program so far
-  -- temporary storage of the queue state
-  _termQueueState :: ProgramQueue                  -- ^ Candidate term queue, only used when we use succinct type graph for generateE
-} deriving (Eq, Ord)
-
-makeLenses ''ExplorerState
-
--- | Key in the memoization store
-data MemoKey = MemoKey {
-  keyTypeArity :: Int,
-  keyLastShape :: SType,
-  keyState :: ExplorerState,
-  keyDepth :: Int
-} deriving (Eq, Ord)
-instance Pretty MemoKey where
-  -- pretty (MemoKey arity t d st) = pretty env <+> text "|-" <+> hsep (replicate arity (text "? ->")) <+> pretty t <+> text "AT" <+> pretty d
-  pretty (MemoKey arity t st d) = hsep (replicate arity (text "? ->")) <+> pretty t <+> text "AT" <+> pretty d <+> parens (pretty (st ^. typingState . candidates))
-
--- | Memoization store
-type Memo = Map MemoKey [(RProgram, ExplorerState)]
-
-data PartialKey = PartialKey {
-} deriving (Eq, Ord)
-
-type PartialMemo = Map PartialKey (Map RProgram (Int, Environment))
--- | Persistent state accross explorations
-data PersistentState = PersistentState {
-  _termMemo :: Memo,
-  _partialFailures :: PartialMemo,
-  _typeErrors :: [ErrorMessage]
-}
-
-makeLenses ''PersistentState
-
--- | Computations that explore program space, parametrized by the the horn solver @s@
-type Explorer s = StateT ExplorerState (
-                    ReaderT (ExplorerParams, TypingParams, Reconstructor s) (
-                    LogicT (StateT PersistentState s)))
-
--- | This type encapsulates the 'reconstructTopLevel' function of the type checker,
--- which the explorer calls for auxiliary goals
-data Reconstructor s = Reconstructor (Goal -> Explorer s RProgram) (Environment -> RType -> UProgram -> Explorer s RProgram)

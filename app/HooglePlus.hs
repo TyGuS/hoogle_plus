@@ -10,8 +10,7 @@ import Synquid.Pretty
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Resolver (resolveDecls, ResolverState (..), initResolverState, resolveSchema)
 import Synquid.SolverMonad
-import Synquid.HornSolver
-import Synquid.TypeConstraintSolver
+-- import Synquid.TypeConstraintSolver
 import Synquid.Explorer
 import Synquid.HtmlOutput
 import Synquid.Stats
@@ -94,11 +93,6 @@ main = do
                     _encoderType = encoder,
                     _useRefine = refine
                     }
-                  let solverParams = defaultHornSolverParams {
-                    isLeastFixpoint = lfp,
-                    optimalValuationsStrategy = if bfs then BFSValuations else MarcoValuations,
-                    solverLogLevel = log_
-                    }
                   let synquidParams = defaultSynquidParams {
                     goalFilter = liftM (splitOn ",") onlyGoals,
                     outputFormat = outFormat,
@@ -107,7 +101,7 @@ main = do
                     showStats = print_stats,
                     envPath = envPath
                   }
-                  runOnFile synquidParams explorerParams solverParams file
+                  runOnFile synquidParams explorerParams file
     (Generate pkgs mdls d ho envPath) -> do
                   precomputeGraph pkgs mdls d ho envPath
 {- Command line arguments -}
@@ -249,18 +243,6 @@ defaultExplorerParams = ExplorerParams {
   _useRefine = PNS.QueryRefinement
 }
 
--- | Parameters for constraint solving
-defaultHornSolverParams = HornSolverParams {
-  pruneQuals = True,
-  isLeastFixpoint = False,
-  optimalValuationsStrategy = MarcoValuations,
-  semanticPrune = True,
-  agressivePrune = True,
-  candidatePickStrategy = InitializedWeakCandidate,
-  constraintPickStrategy = SmallSpaceConstraint,
-  solverLogLevel = 0
-}
-
 -- | Output format
 data OutputFormat = Plain -- ^ Plain text
   | Ansi -- ^ Text with ANSI-terminal special characters
@@ -302,11 +284,11 @@ precomputeGraph pkgs mdls depth useHO envPath = do
   writeEnv env envPath
 
 -- | Parse and resolve file, then synthesize the specified goals
-runOnFile :: SynquidParams -> ExplorerParams -> HornSolverParams -> String -> IO ()
-runOnFile synquidParams explorerParams solverParams file = do
+runOnFile :: SynquidParams -> ExplorerParams  -> String -> IO ()
+runOnFile synquidParams explorerParams file = do
   goal <- parseGoal file
   goal' <- feedEnv goal
-  result <-  newsynthesize explorerParams solverParams goal'
+  result <-  newsynthesize explorerParams goal'
   -- feedEnv goal >>= synthesizeGoal [] [] -- (requested goals)
   return ()
   where

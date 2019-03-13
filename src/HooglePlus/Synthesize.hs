@@ -5,12 +5,8 @@ import Synquid.Util
 import Synquid.Logic
 import Synquid.Type
 import Synquid.Program
-import Synquid.SolverMonad
-import Synquid.HornSolver
-import Synquid.Z3
 import Synquid.Pretty
 import Synquid.Resolver
-import Synquid.TypeConstraintSolver
 import Synquid.Explorer
 import Synquid.Stats
 import qualified PetriNet.PNSolver as PNSolver
@@ -41,8 +37,8 @@ updateEnvWithSpecArgs :: RType -> Environment -> (Environment, RType)
 updateEnvWithSpecArgs ty@(ScalarT _ _) env = (env, ty)
 updateEnvWithSpecArgs (FunctionT x tArg tRes) env = updateEnvWithSpecArgs tRes $ unfoldAllVariables $ addVariable x tArg $ addArgument x tArg $ env
 
-newsynthesize :: ExplorerParams -> HornSolverParams -> Goal -> IO RProgram
-newsynthesize explorerParams solverParams goal = do
+newsynthesize :: ExplorerParams  -> Goal -> IO RProgram
+newsynthesize explorerParams goal = do
   let env''' = gEnvironment goal
   let (env'', monospec) = updateEnvWithBoundTyVars (gSpec goal) env'''
   let (env', destinationType) = updateEnvWithSpecArgs monospec env''
