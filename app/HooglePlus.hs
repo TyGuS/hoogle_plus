@@ -67,7 +67,7 @@ main = do
   res <- cmdArgsRun $ mode
   case res of
     (Synthesis file libs onlyGoals envPath
-               appMax scrutineeMax matchMax auxMax fix genPreds explicitMatch unfoldLocals partial incremental consistency memoize symmetry
+               appMax scrutineeMax matchMax auxMax genPreds explicitMatch unfoldLocals partial incremental consistency memoize symmetry
                lfp bfs
                out_file out_module outFormat resolve
                print_spec print_stats log_
@@ -77,7 +77,6 @@ main = do
                     _scrutineeDepth = scrutineeMax,
                     _matchDepth = matchMax,
                     _auxDepth = auxMax,
-                    _fixStrategy = fix,
                     _predPolyRecursion = genPreds,
                     _abduceScrutinees = not explicitMatch,
                     _unfoldLocals = unfoldLocals,
@@ -113,11 +112,6 @@ main = do
                   precomputeGraph pkgs mdls d ho envPath
 {- Command line arguments -}
 
-deriving instance Typeable FixpointStrategy
-deriving instance Data FixpointStrategy
-deriving instance Eq FixpointStrategy
-deriving instance Show FixpointStrategy
-
 deriving instance Typeable HEncoder.EncoderType
 deriving instance Data HEncoder.EncoderType
 deriving instance Eq HEncoder.EncoderType
@@ -139,7 +133,6 @@ data CommandLineArgs
         scrutinee_max :: Int,
         match_max :: Int,
         aux_max :: Int,
-        fix :: FixpointStrategy,
         generalize_preds :: Bool,
         explicit_match :: Bool,
         unfold_locals :: Bool,
@@ -187,7 +180,6 @@ synt = Synthesis {
   scrutinee_max       = 1               &= help ("Maximum depth of a match scrutinee (default: 1)"),
   match_max           = 0               &= help ("Maximum depth of matches (default: 2)"),
   aux_max             = 1               &= help ("Maximum depth of auxiliary functions (default: 1)") &= name "x",
-  fix                 = FirstArgument   &= help (unwords ["What should termination metric for fixpoints be derived from?", show AllArguments, show FirstArgument, show DisableFixpoint, show Nonterminating, "(default:", show FirstArgument, ")"]),
   generalize_preds    = True            &= help ("Make recursion polymorphic in abstract refinements (default: False)"),
   explicit_match      = False           &= help ("Do not abduce match scrutinees (default: False)"),
   unfold_locals       = False           &= help ("Use all variables, as opposed to top-level function arguments only, in match scrutinee abduction (default: False)"),
@@ -235,7 +227,6 @@ defaultExplorerParams = ExplorerParams {
   _scrutineeDepth = 1,
   _matchDepth = 0,
   _auxDepth = 1,
-  _fixStrategy = AllArguments,
   _polyRecursion = True,
   _predPolyRecursion = False,
   _abduceScrutinees = True,
