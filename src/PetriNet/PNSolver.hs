@@ -50,6 +50,7 @@ import System.CPUTime
 import Text.Printf
 
 import Types.Environment
+import Types.Abstract
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Program
 import Synquid.Type

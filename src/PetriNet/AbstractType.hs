@@ -4,6 +4,7 @@
 
 module PetriNet.AbstractType where
 
+import Types.Abstract
 import Synquid.Type
 import Synquid.Util
 
@@ -19,17 +20,6 @@ import Data.Either (isLeft)
 import Data.List
 import Text.Printf
 
-data AbstractSkeleton = 
-      ADatatypeT Id [AbstractSkeleton] -- explicit datatypes
-    | AExclusion (Set Id) -- not included datatypes
-    | ATypeVarT Id -- type variable is only temporarily before building the PetriNet
-    | AFunctionT AbstractSkeleton AbstractSkeleton
-    deriving (Eq, Ord, Show, Generic)
-
-data AbstractionTree = 
-      ALeaf AbstractSkeleton 
-    | ANode AbstractSkeleton AbstractionTree AbstractionTree
-    deriving (Eq, Ord, Show, Generic)
 
 isAFunctionT (AFunctionT {}) = True
 isAFunctionT _ = False
@@ -173,8 +163,8 @@ type AbstractSubstitution = Map Id (Set AbstractSkeleton)
 unfoldSubst :: AbstractSubstitution -> [ Map Id AbstractSkeleton ]
 unfoldSubst subst = map Map.fromList (combinations (Map.toList subst))
   where
-    combinations [] = [] 
-    combinations [(id, set)] = map (\t -> [(id, t)]) (Set.toList set) 
+    combinations [] = []
+    combinations [(id, set)] = map (\t -> [(id, t)]) (Set.toList set)
     combinations ((id, set):substs) = [ (id, x):xs | x <- Set.toList set
                                                    , xs <- combinations substs ]
 
@@ -194,8 +184,8 @@ unifier tree bound t (ATypeVarT id) = Just (Map.singleton id (Set.fromList (subt
 unifier tree bound (ATypeVarT id) t = Just (Map.singleton id (Set.fromList (subtypesOf tree t)))
 -- TODO we should intersect all the substitutions get from inner types
 unifier tree bound (ADatatypeT dt1 tys1) (ADatatypeT dt2 tys2) | dt1 == dt2 =
-    if null maps 
-       then Just Map.empty 
+    if null maps
+       then Just Map.empty
        else if null emptyMaps
                then Just (Map.unionsWith Set.intersection (map fromJust maps))
                else Nothing
@@ -214,7 +204,7 @@ checkUnification tree bound tass t1 t2 | t1 == t2 = Just tass
 checkUnification tree bound tass (ATypeVarT id) (ATypeVarT id') | id `elem` bound && id' `elem` bound = Nothing
 checkUnification tree bound tass (ATypeVarT id) (ATypeVarT id') | not (id `elem` bound) && not (id' `elem` bound) = Nothing
 checkUnification tree bound tass (ATypeVarT id) t | id `elem` bound = checkUnification tree bound tass t (ATypeVarT id)
-checkUnification tree bound tass (ATypeVarT id) t | id `Map.member` tass = 
+checkUnification tree bound tass (ATypeVarT id) t | id `Map.member` tass =
     if isJust commonAssigned
        then Just (Map.insert id (fromJust commonAssigned) tass)
        else Nothing
@@ -230,7 +220,7 @@ checkUnification tree bound tass (ADatatypeT id tArgs) (ADatatypeT id' tArgs') |
 checkUnification tree bound tass (ADatatypeT id tArgs) (ADatatypeT id' tArgs') | id == id' = checkArgs tass tArgs tArgs'
   where
     checkArgs m [] [] = Just m
-    checkArgs m (arg:args) (arg':args') = 
+    checkArgs m (arg:args) (arg':args') =
         case checkUnification tree bound m arg arg' of
             Nothing -> Nothing
             Just m'  -> checkArgs m' args args'
@@ -248,7 +238,7 @@ typeConstraints t1 t2 = [(t1, t2)]
 getUnifier :: AbstractionTree -> [Id] -> Maybe (Map Id AbstractSkeleton) -> [(AbstractSkeleton, AbstractSkeleton)] -> Maybe (Map Id AbstractSkeleton)
 getUnifier _ _ Nothing _ = Nothing
 getUnifier tree bound tass [] = tass
-getUnifier tree bound (Just tass) ((t1, t2):cs) = 
+getUnifier tree bound (Just tass) ((t1, t2):cs) =
     case checkUnification tree bound tass t1 t2 of
         Nothing -> Nothing
         Just m  -> getUnifier tree bound (Just m) cs

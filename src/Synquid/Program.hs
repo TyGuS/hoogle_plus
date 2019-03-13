@@ -9,7 +9,7 @@ import Synquid.Type
 import Synquid.Error
 import Synquid.Tokens
 import Synquid.Util
-import PetriNet.AbstractType
+import Types.Abstract
 import Types.Environment
 
 import Data.Serialize (Serialize)

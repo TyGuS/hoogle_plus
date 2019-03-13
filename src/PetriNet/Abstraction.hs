@@ -1,5 +1,6 @@
 module PetriNet.Abstraction where
 
+import Types.Abstract
 import PetriNet.AbstractType
 import Synquid.Type
 import Types.Environment
