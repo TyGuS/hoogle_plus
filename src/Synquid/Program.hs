@@ -68,15 +68,6 @@ type UProgram = Program RType
 type RProgram = Program RType
 -- | Simple-typed programs
 type TProgram = Program SType
--- | Succinct typed programs
--- data SuccinctProgram = SuccinctProgram {
---   prog :: BareProgram,
---   rtyp :: RType,
---   styp :: SuccinctType,
---   checkAgainst :: RType
--- }
-
--- makeLenses ''SuccinctProgram
 
 type SProgram = Program (RType, RType)
 
@@ -187,29 +178,6 @@ data MeasureDef = MeasureDef {
 
 makeLenses ''MeasureDef
 
-{- Evaluation environment -}
-data SuccinctContext = forall a.SuccinctContext {
-  _srcType :: a
-}
-
-instance Eq SuccinctContext
-instance Generic SuccinctContext
-
-makeLenses ''SuccinctContext
-
-data SuccinctEdge = SuccinctEdge {
-  _symbolId :: Id,
-  _params :: Int,
-  _weight :: Double
-} deriving (Eq, Ord, Show, Generic)
-
-makeLenses ''SuccinctEdge
-
-succinctEdgeComp e1 e2 = compare (e1 ^. weight, e1 ^. params, e1 ^. symbolId) (e2 ^. weight, e2 ^. params, e2 ^. symbolId)
-
-getEdgeId (SuccinctEdge id _ _) = id
-getEdgeWeight (SuccinctEdge _ _ w) = w
-
 data Metadata = Metadata {
   _distFromGoal :: Int,
   _mWeight :: Double
@@ -270,7 +238,6 @@ instance Serialize Formula
 instance Serialize Sort
 instance Serialize UnOp
 instance Serialize BinOp
-instance Serialize SuccinctEdge
 instance Serialize Environment
 instance Serialize PredSig
 instance Serialize DatatypeDef
@@ -396,14 +363,6 @@ removeVariable name env = case Map.lookup name (allSymbols env) of
   Nothing -> env
   Just sch -> over symbols (Map.insertWith (flip Map.difference) (arity $ toMonotype sch) (Map.singleton name sch)) . over constants (Set.delete name) $ env
 
-embedContext :: Environment -> RType -> (Environment, RType)
-embedContext env (LetT x tDef tBody) =
-  let
-    (env', tDef') = embedContext (removeVariable x env) tDef
-    (env'', tBody') = embedContext env' tBody
-  in (addLetBound x tDef' env'', tBody')
--- TODO: function?
-embedContext env t = (env, t)
 
 unfoldAllVariables env = over unfoldedVars (Set.union (Map.keysSet (symbolsOfArity 0 env) Set.\\ (env ^. constants))) env
 
