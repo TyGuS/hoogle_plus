@@ -2,7 +2,7 @@
 
 cp libraries/tier1/{ghc-prim,base,bytestring,deepseq}.txt $TMPDIR
 
-stack exec -- synquid generate \
+stack exec -- hplus generate \
       -p base \
       -m "Data.Int" \
     -m "Data.Bool" \

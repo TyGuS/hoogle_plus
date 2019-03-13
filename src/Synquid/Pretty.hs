@@ -360,13 +360,12 @@ instance Pretty MeasureDef where
 
 prettyBinding (name, typ) = text name <+> operator "::" <+> pretty typ
 
-prettyAssumptions env = commaSep (map pretty (Set.toList $ env ^. assumptions))
 prettyBindings env = commaSep (map pretty (Map.keys $ removeDomain (env ^. constants) (allSymbols env)))
 -- prettyBindings env = hMapDoc pretty pretty (removeDomain (env ^. constants) (allSymbols env))
 -- prettyBindings env = empty
 
 instance Pretty Environment where
-  pretty env = prettyBindings env <+> prettyAssumptions env
+  pretty env = prettyBindings env
 
 prettySortConstraint :: SortConstraint -> Doc
 prettySortConstraint (SameSort sl sr) = pretty sl <+> text "=" <+> pretty sr

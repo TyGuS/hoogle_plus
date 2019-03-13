@@ -206,17 +206,10 @@ data Environment = Environment {
   _typeClasses :: Map Id (Set Id),         -- ^ Type class instances
   -- _abstractSymbols :: Map Id AbstractSkeleton,
   _boundTypeVars :: [Id],                  -- ^ Bound type variables
-  _boundPredicates :: [PredSig],           -- ^ Argument sorts of bound abstract refinements
-  _assumptions :: Set Formula,             -- ^ Unknown assumptions
-  _shapeConstraints :: Map Id SType,       -- ^ For polymorphic recursive calls, the shape their types must have
-  _usedScrutinees :: [RProgram],           -- ^ Program terms that has already been scrutinized
   _unfoldedVars :: Set Id,                 -- ^ In eager match mode, datatype variables that can be scrutinized
-  _letBound :: Set Id,                     -- ^ Subset of symbols that are let-bound
   -- | Constant part:
   _constants :: Set Id,                    -- ^ Subset of symbols that are constants
   _datatypes :: Map Id DatatypeDef,        -- ^ Datatype definitions
-  _globalPredicates :: Map Id [Sort],      -- ^ Signatures (resSort:argSorts) of module-level logic functions (measures, predicates)
-  _measures :: Map Id MeasureDef,          -- ^ Measure definitions
   _typeSynonyms :: Map Id ([Id], RType),   -- ^ Type synonym definitions
   _unresolvedConstants :: Map Id RSchema,  -- ^ Unresolved types of components (used for reporting specifications with macros)
   _included_modules :: Set String          -- ^ The set of modules any solution would need to import
@@ -225,10 +218,10 @@ data Environment = Environment {
 makeLenses ''Environment
 
 instance Eq Environment where
-  (==) e1 e2 = (e1 ^. symbols) == (e2 ^. symbols) && (e1 ^. assumptions) == (e2 ^. assumptions)
+  (==) e1 e2 = (e1 ^. symbols) == (e2 ^. symbols)
 
 instance Ord Environment where
-  (<=) e1 e2 = (e1 ^. symbols) <= (e2 ^. symbols) && (e1 ^. assumptions) <= (e2 ^. assumptions)
+  (<=) e1 e2 = (e1 ^. symbols) <= (e2 ^. symbols)
 
 instance (Eq k, Hashable k, Serialize k, Serialize v) => Serialize (HashMap k v) where
   put hm = S.put (HashMap.toList hm)
@@ -258,18 +251,10 @@ emptyEnv = Environment {
   _symbols = Map.empty,
   _arguments = Map.empty,
   _typeClasses = Map.empty,
-  -- _abstractSymbols = Map.empty,
   _boundTypeVars = [],
-  _boundPredicates = [],
-  _assumptions = Set.empty,
-  _shapeConstraints = Map.empty,
-  _usedScrutinees = [],
   _unfoldedVars = Set.empty,
-  _letBound = Set.empty,
   _constants = Set.empty,
-  _globalPredicates = Map.empty,
   _datatypes = Map.empty,
-  _measures = Map.empty,
   _typeSynonyms = Map.empty,
   _unresolvedConstants = Map.empty,
   _included_modules = Set.empty
@@ -352,9 +337,6 @@ addConstant name t = addPolyConstant name (Monotype t)
 addPolyConstant :: Id -> RSchema -> Environment -> Environment
 addPolyConstant name sch = addPolyVariable name sch . (constants %~ Set.insert name)
 
-addLetBound :: Id -> RType -> Environment -> Environment
-addLetBound name t = addVariable name t . (letBound %~ Set.insert name)
-
 addUnresolvedConstant :: Id -> RSchema -> Environment -> Environment
 addUnresolvedConstant name sch = unresolvedConstants %~ Map.insert name sch
 
@@ -365,15 +347,6 @@ removeVariable name env = case Map.lookup name (allSymbols env) of
 
 
 unfoldAllVariables env = over unfoldedVars (Set.union (Map.keysSet (symbolsOfArity 0 env) Set.\\ (env ^. constants))) env
-
-addMeasure :: Id -> MeasureDef -> Environment -> Environment
-addMeasure measureName m = over measures (Map.insert measureName m)
-
-addBoundPredicate :: PredSig -> Environment -> Environment
-addBoundPredicate sig = over boundPredicates (sig :)
-
-addGlobalPredicate :: Id -> Sort -> [Sort] -> Environment -> Environment
-addGlobalPredicate predName resSort argSorts = over globalPredicates (Map.insert predName (resSort : argSorts))
 
 addTypeSynonym :: Id -> [Id] -> RType -> Environment -> Environment
 addTypeSynonym name tvs t = over typeSynonyms (Map.insert name (tvs, t))
@@ -392,56 +365,6 @@ lookupConstructor ctor env = let m = Map.filter (\dt -> ctor `elem` dt ^. constr
 -- | 'addTypeVar' @a@ : Add bound type variable @a@ to the environment
 addTypeVar :: Id -> Environment -> Environment
 addTypeVar a = over boundTypeVars (a :)
-
--- | 'addAssumption' @f env@ : @env@ with extra assumption @f@
-addAssumption :: Formula -> Environment -> Environment
-addAssumption f = assumptions %~ Set.insert f
-
--- | 'addScrutinee' @p env@ : @env@ with @p@ marked as having been scrutinized already
-addScrutinee :: RProgram -> Environment -> Environment
-addScrutinee p = usedScrutinees %~ (p :)
-
-allPredicates env = Map.fromList (map (\(PredSig pName argSorts resSort) -> (pName, resSort:argSorts)) (env ^. boundPredicates)) `Map.union` (env ^. globalPredicates)
-
--- | 'allMeasuresOf' @dtName env@ : all measure of datatype with name @dtName@ in @env@
-allMeasuresOf dtName env = Map.filter (\(MeasureDef (DataS sName _) _ _ _) -> dtName == sName) $ env ^. measures
-
--- | 'allMeasurePostconditions' @baseT env@ : all nontrivial postconditions of measures of @baseT@ in case it is a datatype
-allMeasurePostconditions includeQuanitifed baseT@(DatatypeT dtName tArgs _) env =
-    let
-      allMeasures = Map.toList $ allMeasuresOf dtName env
-      isAbstract = null $ ((env ^. datatypes) Map.! dtName) ^. constructors
-    in catMaybes $ map extractPost allMeasures ++
-                   if isAbstract then map contentProperties allMeasures else [] ++
-                   if includeQuanitifed then map elemProperties allMeasures else []
-  where
-    extractPost (mName, MeasureDef _ outSort _ fml) =
-      if fml == ftrue
-        then Nothing
-        else Just $ substitute (Map.singleton valueVarName (Pred outSort mName [Var (toSort baseT) valueVarName])) fml
-
-    contentProperties (mName, MeasureDef (DataS _ vars) a _ _) = case elemIndex a vars of
-      Nothing -> Nothing
-      Just i -> let (ScalarT elemT fml) = tArgs !! i -- @mName@ "returns" one of datatype's parameters: transfer the refinement onto the value of the measure
-                in let
-                    elemSort = toSort elemT
-                    measureApp = Pred elemSort mName [Var (toSort baseT) valueVarName]
-                   in Just $ substitute (Map.singleton valueVarName measureApp) fml
-    contentProperties (mName, MeasureDef {}) = Nothing
-
-    elemProperties (mName, MeasureDef (DataS _ vars) (SetS a) _ _) = case elemIndex a vars of
-      Nothing -> Nothing
-      Just i -> let (ScalarT elemT fml) = tArgs !! i -- @mName@ is a set of datatype "elements": add an axiom that every element of the set has that property
-                in if fml == ftrue || fml == ffalse || not (Set.null $ unknownsOf fml)
-                    then Nothing
-                    else  let
-                            elemSort = toSort elemT
-                            scopedVar = Var elemSort "_x"
-                            setVal = Pred (SetS elemSort) mName [Var (toSort baseT) valueVarName]
-                          in Just $ All scopedVar (fin scopedVar setVal |=>| substitute (Map.singleton valueVarName scopedVar) fml)
-    elemProperties (mName, MeasureDef {}) = Nothing
-
-allMeasurePostconditions _ _ _ = []
 
 typeSubstituteEnv :: TypeSubstitution -> Environment -> Environment
 typeSubstituteEnv tass = over symbols (Map.map (Map.map (schemaSubstitute tass)))
