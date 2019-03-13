@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell, DeriveDataTypeable #-}
 module Synquid.Explorer where
 
 import Synquid.Logic

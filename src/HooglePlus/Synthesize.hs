@@ -8,7 +8,6 @@ import Synquid.Program
 import Synquid.Pretty
 import Synquid.Resolver
 import Synquid.Explorer
-import Synquid.Stats
 import qualified PetriNet.PNSolver as PNSolver
 import qualified PetriNet.Abstraction as Abstraction
 

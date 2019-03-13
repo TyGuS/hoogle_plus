@@ -13,7 +13,6 @@ import Synquid.SolverMonad
 -- import Synquid.TypeConstraintSolver
 import Synquid.Explorer
 import Synquid.HtmlOutput
-import Synquid.Stats
 import Database.Environment (writeEnv, generateEnv)
 import Database.Convert
 import Database.Generate
