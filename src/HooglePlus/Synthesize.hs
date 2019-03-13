@@ -12,7 +12,6 @@ import Synquid.Pretty
 import Synquid.Resolver
 import Synquid.TypeConstraintSolver
 import Synquid.Explorer
-import Synquid.TypeChecker
 import Synquid.Stats
 import qualified PetriNet.PNSolver as PNSolver
 import qualified PetriNet.Abstraction as Abstraction

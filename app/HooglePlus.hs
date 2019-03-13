@@ -13,7 +13,6 @@ import Synquid.SolverMonad
 import Synquid.HornSolver
 import Synquid.TypeConstraintSolver
 import Synquid.Explorer
-import Synquid.Synthesizer
 import Synquid.HtmlOutput
 import Synquid.Codegen
 import Synquid.Stats
@@ -22,6 +21,7 @@ import Database.Convert
 import Database.Generate
 import Database.Download
 import Database.Util
+import Synquid.Util (showme)
 import Database.GraphWeightsProvider
 import HooglePlus.Synthesize
 import qualified PetriNet.PNSolver as PNS
@@ -333,8 +333,8 @@ runOnFile :: SynquidParams -> ExplorerParams -> HornSolverParams -> CodegenParam
                            -> String -> IO ()
 runOnFile synquidParams explorerParams solverParams codegenParams file = do
   goal <- parseGoal file
-  --goal' <- feedEnv goal
-  feedEnv goal >>= newsynthesize explorerParams solverParams
+  goal' <- feedEnv goal
+  result <-  newsynthesize explorerParams solverParams goal'
   -- feedEnv goal >>= synthesizeGoal [] [] -- (requested goals)
   return ()
   where
@@ -367,12 +367,3 @@ runOnFile synquidParams explorerParams solverParams codegenParams file = do
           _ -> error "parse a signature for a none goal declaration"
 
     pdoc = printDoc (outputFormat synquidParams)
-    synthesizeGoal cquals tquals goal = do
-      when (showSpec synquidParams) $ pdoc (prettySpec goal)
-      (mProg, stats) <- synthesize explorerParams solverParams goal cquals tquals
-      case mProg of
-        Left typeErr -> pdoc (pretty typeErr) >> pdoc empty >> exitFailure
-        Right progs -> do
-          mapM_ (\prog -> pdoc (prettySolution goal prog)) progs
-          pdoc empty
-          return ((goal, progs), stats)
