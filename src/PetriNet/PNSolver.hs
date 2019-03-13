@@ -49,6 +49,7 @@ import qualified Z3.Monad as Z3
 import System.CPUTime
 import Text.Printf
 
+import Types.Environment
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Program
 import Synquid.Type

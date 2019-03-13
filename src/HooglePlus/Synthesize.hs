@@ -1,13 +1,13 @@
 module HooglePlus.Synthesize(newsynthesize) where
 
-import Synquid.Explorer
+import Types.Experiments
+import Types.Environment
 import Synquid.Util
 import Synquid.Logic
 import Synquid.Type
 import Synquid.Program
 import Synquid.Pretty
 import Synquid.Resolver
-import Synquid.Explorer
 import qualified PetriNet.PNSolver as PNSolver
 import qualified PetriNet.Abstraction as Abstraction
 
@@ -36,20 +36,20 @@ updateEnvWithSpecArgs :: RType -> Environment -> (Environment, RType)
 updateEnvWithSpecArgs ty@(ScalarT _ _) env = (env, ty)
 updateEnvWithSpecArgs (FunctionT x tArg tRes) env = updateEnvWithSpecArgs tRes $ unfoldAllVariables $ addVariable x tArg $ addArgument x tArg $ env
 
-newsynthesize :: ExplorerParams  -> Goal -> IO RProgram
-newsynthesize explorerParams goal = do
+newsynthesize :: SearchParams  -> Goal -> IO RProgram
+newsynthesize searchParams goal = do
   let env''' = gEnvironment goal
   let (env'', monospec) = updateEnvWithBoundTyVars (gSpec goal) env'''
   let (env', destinationType) = updateEnvWithSpecArgs monospec env''
-  let useHO = _useHO explorerParams
+  let useHO = _useHO searchParams
   let env = if useHO then env'
                       else env' { _symbols = Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env' ^. symbols }
   let args = (Monotype destinationType):(Map.elems $ env ^. arguments)
   -- start with all the datatypes defined in the components, first level abstraction
-  let cnt = _solutionCnt explorerParams
-  let maxLevel = _explorerLogLevel explorerParams
-  let rs = _useRefine explorerParams
-  let maxDepth = _eGuessDepth explorerParams
+  let cnt = _solutionCnt searchParams
+  let maxLevel = _explorerLogLevel searchParams
+  let rs = _useRefine searchParams
+  let maxDepth = _eGuessDepth searchParams
   let is = PNSolver.emptySolverState {
              PNSolver._logLevel = maxLevel
            , PNSolver._maxApplicationDepth = maxDepth

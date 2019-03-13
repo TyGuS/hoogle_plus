@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell, DeriveDataTypeable #-}
-module Synquid.Explorer where
+module Types.Experiments where
 
 import Synquid.Type
 import Synquid.Program
@@ -22,9 +22,8 @@ data PathStrategy =
   deriving (Eq, Show, Data)
 
 -- | Parameters of program exploration
-data ExplorerParams = ExplorerParams {
+data SearchParams = SearchParams {
   _eGuessDepth :: Int,                    -- ^ Maximum depth of application trees
-  _context :: RProgram -> RProgram,       -- ^ Context in which subterm is currently being generated (used only for logging and symmetry reduction)
   _sourcePos :: SourcePos,                -- ^ Source position of the current goal
   _explorerLogLevel :: Int,               -- ^ How verbose logging is
   _solutionCnt :: Int,
@@ -34,4 +33,4 @@ data ExplorerParams = ExplorerParams {
   _useRefine :: PNSolver.RefineStrategy
 }
 
-makeLenses ''ExplorerParams
+makeLenses ''SearchParams

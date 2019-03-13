@@ -10,6 +10,7 @@ import Synquid.Error
 import Synquid.Tokens
 import Synquid.Util
 import PetriNet.AbstractType
+import Types.Environment
 
 import Data.Serialize (Serialize)
 import qualified Data.Serialize as S
@@ -153,16 +154,7 @@ renameAsImpl isBound = renameAsImpl' Map.empty
 
 {- Top-level definitions -}
 
--- | User-defined datatype representation
-data DatatypeDef = DatatypeDef {
-  _typeParams :: [Id],              -- ^ Type parameters
-  _predParams :: [PredSig],         -- ^ Signatures of predicate parameters
-  _predVariances :: [Bool],         -- ^ For each predicate parameter, whether it is contravariant
-  _constructors :: [Id],            -- ^ Constructor names
-  _wfMetric :: Maybe Id             -- ^ Name of the measure that serves as well founded termination metric
-} deriving (Eq, Ord, Generic)
 
-makeLenses ''DatatypeDef
 
 -- | One case in a measure definition: constructor name, arguments, and body
 data MeasureCase = MeasureCase Id [Id] Formula
@@ -198,30 +190,6 @@ mtComp mt1 mt2 =
 instance Ord Metadata where
   (<=) mt1 mt2 = mt1 ^. distFromGoal <= mt2 ^. distFromGoal && mt1 ^. mWeight <= mt2 ^. mWeight
 
--- | Typing environment
-data Environment = Environment {
-  -- | Variable part:
-  _symbols :: Map Int (Map Id RSchema),    -- ^ Variables and constants (with their refinement types), indexed by arity
-  _arguments :: Map Id RSchema,            -- ^ Function arguments, required in all the solutions
-  _typeClasses :: Map Id (Set Id),         -- ^ Type class instances
-  -- _abstractSymbols :: Map Id AbstractSkeleton,
-  _boundTypeVars :: [Id],                  -- ^ Bound type variables
-  _unfoldedVars :: Set Id,                 -- ^ In eager match mode, datatype variables that can be scrutinized
-  -- | Constant part:
-  _constants :: Set Id,                    -- ^ Subset of symbols that are constants
-  _datatypes :: Map Id DatatypeDef,        -- ^ Datatype definitions
-  _typeSynonyms :: Map Id ([Id], RType),   -- ^ Type synonym definitions
-  _unresolvedConstants :: Map Id RSchema,  -- ^ Unresolved types of components (used for reporting specifications with macros)
-  _included_modules :: Set String          -- ^ The set of modules any solution would need to import
-} deriving(Generic)
-
-makeLenses ''Environment
-
-instance Eq Environment where
-  (==) e1 e2 = (e1 ^. symbols) == (e2 ^. symbols)
-
-instance Ord Environment where
-  (<=) e1 e2 = (e1 ^. symbols) <= (e2 ^. symbols)
 
 instance (Eq k, Hashable k, Serialize k, Serialize v) => Serialize (HashMap k v) where
   put hm = S.put (HashMap.toList hm)
@@ -246,19 +214,6 @@ instance Serialize r => Serialize (SchemaSkeleton r)
 instance Serialize AbstractSkeleton
 
 
--- | Empty environment
-emptyEnv = Environment {
-  _symbols = Map.empty,
-  _arguments = Map.empty,
-  _typeClasses = Map.empty,
-  _boundTypeVars = [],
-  _unfoldedVars = Set.empty,
-  _constants = Set.empty,
-  _datatypes = Map.empty,
-  _typeSynonyms = Map.empty,
-  _unresolvedConstants = Map.empty,
-  _included_modules = Set.empty
-}
 
 -- | 'symbolsOfArity' @n env@: all symbols of arity @n@ in @env@
 symbolsOfArity n env = Map.findWithDefault Map.empty n (env ^. symbols)
@@ -415,14 +370,6 @@ isSynthesisGoal (Pos _ (SynthesisGoal _ _)) = True
 isSynthesisGoal _ = False
 
 {- Misc -}
-
--- | Typing constraints
-data Constraint = Subtype Environment RType RType Bool Id
-  | WellFormed Environment RType
-  | WellFormedCond Environment Formula
-  | WellFormedMatchCond Environment Formula
-  | WellFormedPredicate Environment [Sort] Id
-  deriving (Eq, Ord)
 
 -- | Synthesis goal
 data Goal = Goal {

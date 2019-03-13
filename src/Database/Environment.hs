@@ -18,15 +18,15 @@ import Synquid.Pretty as Pretty
 import qualified Database.Util as DU
 import qualified Database.Download as DD
 import qualified Database.Convert as DC
-import qualified Synquid.Program as SP
+import Types.Environment (Environment, symbols, _symbols, _included_modules)
 import Synquid.Program (BareDeclaration(..), Declaration(..), ConstructorSig(..))
 import Synquid.Resolver (resolveDecls)
 
 
-writeEnv :: SP.Environment -> String -> IO ()
+writeEnv :: Environment -> String -> IO ()
 writeEnv env path = B.writeFile path (encode env)
 
-generateEnv :: [DU.PkgName] -> [String] -> Int -> Bool -> IO SP.Environment
+generateEnv :: [DU.PkgName] -> [String] -> Int -> Bool -> IO Environment
 generateEnv pkgs mdls depth useHO = do
   -- print pkgs
   pkgDecls <- mapM (\pkgName -> do
@@ -44,9 +44,9 @@ generateEnv pkgs mdls depth useHO = do
     Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
     Right (env, _, _, _) -> do
       return env {
-          SP._symbols = if useHO then env ^. SP.symbols
-                              else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. SP.symbols
-        , SP._included_modules = Set.fromList mdls
+          _symbols = if useHO then env ^. symbols
+                              else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols,
+         _included_modules = Set.fromList mdls
         }
   where
     pdoc = putStrLn . show

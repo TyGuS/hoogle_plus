@@ -60,6 +60,7 @@ import Synquid.Program
 import Synquid.Tokens
 import Synquid.Util
 import PetriNet.AbstractType
+import Types.Environment
 
 import Text.PrettyPrint.ANSI.Leijen hiding ((<+>), (<$>), hsep, vsep)
 import qualified Text.PrettyPrint.ANSI.Leijen as L
@@ -375,20 +376,6 @@ instance Pretty SortConstraint where
   pretty = prettySortConstraint
 
 instance Show SortConstraint where
-  show = show . plain . pretty
-
-prettyConstraint :: Constraint -> Doc
-prettyConstraint (Subtype env t1 t2 False label) = pretty env <+> operator "|-" <+> pretty t1 <+> operator "<:" <+> pretty t2 <+> parens (text label)
-prettyConstraint (Subtype env t1 t2 True label) = pretty env <+> operator "|-" <+> pretty t1 <+> operator "/\\" <+> pretty t2 <+> parens (text label)
-prettyConstraint (WellFormed env t) = prettyBindings env <+> operator "|-" <+> pretty t
-prettyConstraint (WellFormedCond env c) = prettyBindings env <+> operator "|-" <+> pretty c
-prettyConstraint (WellFormedMatchCond env c) = prettyBindings env <+> operator "|- (match)" <+> pretty c
-prettyConstraint (WellFormedPredicate _ sorts p) = operator "|-" <+> pretty p <+> operator "::" <+> hsep (map (\s -> pretty s <+> operator "->") sorts) <+> pretty BoolS
-
-instance Pretty Constraint where
-  pretty = prettyConstraint
-
-instance Show Constraint where
   show = show . plain . pretty
 
 instance Pretty Candidate where

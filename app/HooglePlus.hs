@@ -10,7 +10,8 @@ import Synquid.Pretty
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Resolver (resolveDecls, ResolverState (..), initResolverState, resolveSchema)
 import Synquid.SolverMonad
-import Synquid.Explorer
+import Types.Experiments
+import Types.Environment
 import Synquid.HtmlOutput
 import Database.Environment (writeEnv, generateEnv)
 import Database.Convert
@@ -63,7 +64,7 @@ main = do
   res <- cmdArgsRun $ mode
   case res of
     (Synthesis file libs envPath appMax log_ sol_num path_search higher_order encoder refine) -> do
-                  let explorerParams = defaultExplorerParams {
+                  let searchParams = defaultSearchParams {
                     _eGuessDepth = appMax,
                     _explorerLogLevel = log_,
                     _solutionCnt = sol_num,
@@ -75,7 +76,7 @@ main = do
                   let synquidParams = defaultSynquidParams {
                     envPath = envPath
                   }
-                  runOnFile synquidParams explorerParams file
+                  runOnFile synquidParams searchParams file
     (Generate pkgs mdls d ho envPath) -> do
                   precomputeGraph pkgs mdls d ho envPath
 {- Command line arguments -}
@@ -95,7 +96,7 @@ data CommandLineArgs
         file :: String,
         libs :: [String],
         env_file_path_in :: String,
-        -- | Explorer params
+        -- | Search params
         app_max :: Int,
         -- | Output
         log_ :: Int,
@@ -143,9 +144,8 @@ mode = cmdArgsMode $ modes [synt, generate] &=
   summary (programName ++ " v" ++ versionName ++ ", " ++ showGregorian releaseDate)
 
 -- | Parameters for template exploration
-defaultExplorerParams = ExplorerParams {
+defaultSearchParams = SearchParams {
   _eGuessDepth = 3,
-  _context = id,
   _sourcePos = noPos,
   _explorerLogLevel = 0,
   _solutionCnt = 1,
@@ -182,12 +182,11 @@ precomputeGraph pkgs mdls depth useHO envPath = do
   writeEnv env envPath
 
 -- | Parse and resolve file, then synthesize the specified goals
-runOnFile :: SynquidParams -> ExplorerParams  -> String -> IO ()
-runOnFile synquidParams explorerParams file = do
+runOnFile :: SynquidParams -> SearchParams  -> String -> IO ()
+runOnFile synquidParams searchParams file = do
   goal <- parseGoal file
   goal' <- feedEnv goal
-  result <-  newsynthesize explorerParams goal'
-  -- feedEnv goal >>= synthesizeGoal [] [] -- (requested goals)
+  result <- newsynthesize searchParams goal'
   return ()
   where
     feedEnv goal = do
