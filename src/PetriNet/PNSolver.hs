@@ -804,20 +804,23 @@ printSolution solution = do
     liftIO $ putStrLn "************************************************"
 
 
-findFirstN :: (MonadIO m) => Environment -> RType -> EncodeState -> Int -> PNSolver m RProgram
+findFirstN :: (MonadIO m) => Environment -> RType -> EncodeState -> Int -> PNSolver m [(RProgram, TimeStatistics)]
 findFirstN env dst st cnt | cnt == 1  = do
     (res, _) <- withTime "total search time" $ findProgram env dst st
+    stats <- view solverStats <$> get
     printSolution res
     printStats
-    return res
+    return [(res, stats)]
 findFirstN env dst st cnt | otherwise = do
     (res, st') <- withTime "total search time" $ findProgram env dst st
+    stats <- view solverStats <$> get
     printSolution res
     printStats
     resetTiming
-    findFirstN env dst st' (cnt-1)
+    rest <- (findFirstN env dst st' (cnt-1))
+    return $ (res, stats):rest
 
-runPNSolver :: MonadIO m => Environment -> Int -> RType -> PNSolver m RProgram
+runPNSolver :: MonadIO m => Environment -> Int -> RType -> PNSolver m [(RProgram, TimeStatistics)]
 runPNSolver env cnt t = do
     initNet env
     st <- withTime "encoding time" (resetEncoder env t)

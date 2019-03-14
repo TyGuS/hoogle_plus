@@ -40,7 +40,7 @@ updateEnvWithSpecArgs :: RType -> Environment -> (Environment, RType)
 updateEnvWithSpecArgs ty@(ScalarT _ _) env = (env, ty)
 updateEnvWithSpecArgs (FunctionT x tArg tRes) env = updateEnvWithSpecArgs tRes $ unfoldAllVariables $ addVariable x tArg $ addArgument x tArg $ env
 
-synthesize :: SearchParams  -> Goal -> IO RProgram
+synthesize :: SearchParams  -> Goal -> IO [(RProgram, TimeStatistics)]
 synthesize searchParams goal = do
   let env''' = gEnvironment goal
   let (env'', monospec) = updateEnvWithBoundTyVars (gSpec goal) env'''
@@ -64,6 +64,6 @@ synthesize searchParams goal = do
                Combination -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
                QueryRefinement -> Abstraction.specificAbstractionFromTypes env (args)
            }
-  program <- evalStateT (runPNSolver env cnt destinationType) is
+  programs <- evalStateT (runPNSolver env cnt destinationType) is
   -- will need to attach params
-  return program
+  return programs
