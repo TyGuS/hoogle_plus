@@ -1,6 +1,3 @@
-flags:
-  synquid:
-    synquid: true
 packages:
-  - '.'
+- .
 resolver: lts-12.4

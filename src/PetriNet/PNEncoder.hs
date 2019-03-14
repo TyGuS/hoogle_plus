@@ -4,9 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module PetriNet.PNEncoder(
-      EncodeState(..)
-    , SplitInfo(..)
-    , encoderInit
+     encoderInit
     , encoderSolve
     , encoderRefine
     ) where
@@ -24,12 +22,13 @@ import System.CPUTime
 import Text.Printf
 import Data.Text (pack, unpack, replace)
 
+import Types.Common
+import Types.PetriNet
 import PetriNet.PNBuilder
-import PetriNet.Encoder
-import PetriNet.AbstractType
+import Types.Encoder
+import Types.Abstract
 import Synquid.Util
 
-type Encoder = StateT EncodeState IO
 
 instance MonadZ3 Encoder where
     getSolver = gets (envSolver . z3env)
@@ -117,7 +116,6 @@ solveAndGetModel = do
         Sat -> do
             model <- solverGetModel
             modelStr <- modelToString model
-            liftIO $ print modelStr
             selected <- mapM (checkLit model) [0..(l-1)]
             blockTrs <- mapM (uncurry blockTr) (zip [0..(l-1)] selected)
             -- placeMap <- place2variable <$> get
@@ -173,11 +171,6 @@ encoderInit net loc hoArgs inputs ret = do
 encoderSolve :: EncodeState -> IO ([(Id, Int)], EncodeState)
 encoderSolve st = runStateT solveAndGetModel st
 
-data SplitInfo = SplitInfo {
-    splitedPlaces :: [(AbstractSkeleton, [AbstractSkeleton])],
-    splitedGroup :: [(Id, [Id])]
-} deriving (Eq, Ord, Show)
-
 updateParallelInfo :: SplitInfo -> Encoder ()
 updateParallelInfo info = do
     trChd <- transitionChildren <$> get
@@ -210,7 +203,7 @@ withTime desc f = do
     -- let time = printf "%s time: %0.3f sec\n" desc (diff :: Double)
     -- liftIO $ putStrLn time
     return res
-    
+
     -- f
 
 encoderRefine :: PetriNet -> SplitInfo -> [Id] -> Id -> Encoder ()
@@ -223,7 +216,7 @@ encoderRefine net info inputs ret = do
     put $ st { petriNet = net
              , abstractionLv = (abstractionLv st + 1)
              }
-    
+
     {- operation on places -}
     let newTyps = HashMap.filterWithKey (\k _ -> not (HashMap.member k (pnPlaces oldNet))) (pnPlaces net)
     let newPlaces = HashMap.elems newTyps

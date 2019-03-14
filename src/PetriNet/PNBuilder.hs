@@ -1,18 +1,18 @@
 {-# LANGUAGE DeriveGeneric #-}
 
 module PetriNet.PNBuilder(
-    Place(..)
-  , Transition(..)
-  , Flow(..)
-  , PetriNet(..)
-  , FunctionCode(..)
-  , buildPetriNet
+   buildPetriNet
   , addFunction
   , removeTransition
   , addArgClone
 )
 where
 
+import Types.Common
+import Types.PetriNet
+import Types.Program
+
+import Synquid.Util
 import Data.Maybe
 import Data.List
 import Data.Set (Set)
@@ -25,55 +25,6 @@ import Data.Serialize (Serialize)
 import GHC.Generics
 import Data.Hashable
 
-import Synquid.Util
-
--- for encoding abstractions into JSON string
-type Param = String -- parameter type
-
-data FunctionCode = FunctionCode {
-  funName   :: String,  -- function name
-  hoParams  :: [FunctionCode],
-  funParams :: [Param], -- function parameter types and their count
-  funReturn :: [String]   -- function return type
-} deriving(Eq, Ord, Show, Generic)
-
-instance ToJSON FunctionCode where
-    toEncoding = genericToEncoding defaultOptions
-instance Serialize FunctionCode
-
-data Place = Place {
-  placeId :: Id,
-  placePreset :: Set Id, -- set of transition ids
-  placePostset :: Set Id,
-  placeMaxToken :: Int
-} deriving(Eq, Ord, Show)
-
-instance Hashable Place where
-    hashWithSalt s (Place id pre post token) = hashWithSalt s (id, Set.toList pre, Set.toList post, token)
-
-data Transition = Transition {
-  transitionId :: Id,
-  transitionPreset :: Set Id, -- set of flow ids
-  transitionPostset :: Set Id
-} deriving(Eq, Ord, Show)
-
-instance Hashable Transition where
-    hashWithSalt s (Transition id pre post) = hashWithSalt s (id, Set.toList pre, Set.toList post)
-
-data Flow = Flow {
-  flowId :: Id, -- flow id is the string version of pair (Place:<placeid>,Transition:<transitionid>) or reversed
-  flowFrom :: Id,
-  flowTo :: Id,
-  flowPlace :: Id,
-  flowTransition :: Id,
-  flowWeight :: Int
-} deriving(Eq, Ord, Show)
-
-data PetriNet = PetriNet {
-  pnPlaces :: HashMap Id Place,
-  pnTransitions :: HashMap Id Transition,
-  pnFlows :: HashMap Id Flow
-} deriving(Eq, Ord, Show)
 
 buildPetriNet :: [FunctionCode] -> [Id] -> PetriNet
 buildPetriNet fs inputs = foldr addArgClone addFuncs (filter notNeg (HashMap.keys (pnPlaces addFuncs)))
@@ -95,7 +46,7 @@ getPlaceId = placeId
 -- if it already exists, do nothing
 -- if it is a new place, create and add it
 addPlace :: Id -> PetriNet -> PetriNet
-addPlace id pn = pn { 
+addPlace id pn = pn {
   pnPlaces = if id `elem` (map getPlaceId $ HashMap.elems places)
                then places
                else HashMap.insert id (mkPlace id) places
@@ -161,22 +112,22 @@ addFlow from to w pn = PetriNet places transitions flows
   where
     flowId = mkFlowId pn from to
 
-    currFlow = if flowId `HashMap.member` (pnFlows pn) 
-                 then let f = fromJust (HashMap.lookup flowId (pnFlows pn)) 
-                       in f { flowWeight = w + flowWeight f } 
+    currFlow = if flowId `HashMap.member` (pnFlows pn)
+                 then let f = fromJust (HashMap.lookup flowId (pnFlows pn))
+                       in f { flowWeight = w + flowWeight f }
                  else  mkFlow pn from to w
 
     updatePlacePost tid p = p { placePostset = Set.insert tid (placePostset p) }
     updatePlacePre  tid p = p { placePreset  = Set.insert tid (placePreset  p) }
-    updateTransitionPost tr = tr { 
-        transitionPostset = Set.insert flowId (transitionPostset tr) 
+    updateTransitionPost tr = tr {
+        transitionPostset = Set.insert flowId (transitionPostset tr)
       }
-    updateTransitionPre  tr = tr { 
-        transitionPreset  = Set.insert flowId (transitionPreset  tr) 
+    updateTransitionPre  tr = tr {
+        transitionPreset  = Set.insert flowId (transitionPreset  tr)
       }
 
     -- update the places so that it has correct preset and postset
-    (placeId, place, transId, transition) = 
+    (placeId, place, transId, transition) =
       if from `HashMap.member` (pnPlaces pn) -- if the added flow goes out of a place, update its postset
         then ( from
              , updatePlacePost to (case (HashMap.lookup from (pnPlaces pn)) of
@@ -236,8 +187,8 @@ addArgClone tArg pn = pn'
         {-
 setMaxToken :: [Id] -> PetriNet -> PetriNet
 setMaxToken inputs pn = pn {
-        pnPlaces = HashMap.foldrWithKey (\pid mt -> 
-            HashMap.insert pid (setMaxToken (pnPlaces pn) pid mt)) 
+        pnPlaces = HashMap.foldrWithKey (\pid mt ->
+            HashMap.insert pid (setMaxToken (pnPlaces pn) pid mt))
             HashMap.empty inputedCnt
     }
   where
@@ -249,19 +200,19 @@ setMaxToken inputs pn = pn {
 
     updateMt p mt = p { placeMaxToken = max (placeMaxToken p) mt }
 
-    setMaxToken places pid mt = 
+    setMaxToken places pid mt =
         updateMt (case HashMap.lookup pid places of
                       Just p -> p
                       Nothing -> error $ "cannot find place " ++ pid) mt
 
-    checkTransition tr cntMap = 
+    checkTransition tr cntMap =
         let flows    = pnFlows pn
             preFlows = map (\f -> case HashMap.lookup f flows of
                                       Just ff -> ff
                                       Nothing -> error $ "cannot find flow " ++ f)
                            $ Set.toList $ transitionPreset tr
         in foldr updateByFlow cntMap preFlows
-    updateByFlow f cntMap = 
+    updateByFlow f cntMap =
         let places = pnPlaces pn
             src    = case HashMap.lookup (flowPlace f) places of
                         Just p -> p

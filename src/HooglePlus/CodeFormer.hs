@@ -6,6 +6,8 @@ module HooglePlus.CodeFormer(
     , CodePieces
     ) where
 
+import Types.Common
+import Types.PetriNet
 import PetriNet.PNBuilder
 import Synquid.Util
 
@@ -70,7 +72,7 @@ applyFunction func = do
         vars <- mapM (\_ -> do
                                 v <- newVar
                                 st <- get
-                                put $ st { createdVars = v : (createdVars st) 
+                                put $ st { createdVars = v : (createdVars st)
                                          }
                                 return v) (funParams curr)
         let hoHeader = "\\" ++ concat (intersperse " " vars) ++ " -> "
@@ -89,13 +91,13 @@ applyFunction func = do
         return $ Set.toList $ HashMap.lookupDefault Set.empty tArg tterms
 
 -- | generate the program from the signatures appeared in selected transitions
--- these signatures are sorted by their timestamps, 
+-- these signatures are sorted by their timestamps,
 -- i.e. they may only use symbols appearing before them
 generateProgram :: [FunctionCode] -> [Id] -> [Id] -> Id -> Bool -> CodeFormer CodePieces
 generateProgram signatures inputs argNames ret isFinal = do
     -- prepare scalar variables
     st <- get
-    put $ st { varCounter = 0 
+    put $ st { varCounter = 0
              , allSignatures = signatures
              }
     mapM_ (uncurry addTypedArg) $ zip inputs argNames
@@ -123,7 +125,7 @@ generateProgram signatures inputs argNames ret isFinal = do
         argName <- newVar
         addTypedArg fparam argName
 
-    includeAllSymbols vars code = 
+    includeAllSymbols vars code =
         let fold_fn f (b, c) = if b then includeSymbol c f else (b, c)
             base             = (True, code)
             funcNames        = map funName signatures
@@ -131,13 +133,13 @@ generateProgram signatures inputs argNames ret isFinal = do
             -- eachOnce         = foldr (\n acc -> isInfixOf n c || acc) False (if isFinal then funcNames else []) -- each function should be used only once according to our design of petri net
         in res -- && (not eachOnce)
 
-    includeSymbol code fname | fname `isInfixOf` code = 
+    includeSymbol code fname | fname `isInfixOf` code =
         (True, Text.unpack $ replaceOne (Text.pack fname) Text.empty (Text.pack code))
     includeSymbol _    _     | otherwise              = (False, [])
 
     replaceOne :: Text -> Text -> Text -> Text
     replaceOne pattern substitution text
       | Text.null back = text    -- pattern doesn't occur
-      | otherwise = Text.concat [front, substitution, Text.drop (Text.length pattern) back] 
+      | otherwise = Text.concat [front, substitution, Text.drop (Text.length pattern) back]
         where
           (front, back) = Text.breakOn pattern text

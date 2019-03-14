@@ -6,7 +6,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module PetriNet.PNSolver where
+module PetriNet.PNSolver (runPNSolver) where
 
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
@@ -40,6 +40,15 @@ import qualified Z3.Monad as Z3
 import System.CPUTime
 import Text.Printf
 
+import Types.Common
+import Types.Type
+import Types.Environment
+import Types.Abstract
+import Types.Solver
+import Types.Program
+import Types.PetriNet
+import Types.Experiments
+import Types.Encoder
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Program
 import Synquid.Type
@@ -50,109 +59,14 @@ import Synquid.Pretty
 import PetriNet.AbstractType
 import PetriNet.PNBuilder
 import PetriNet.PNEncoder
-import PetriNet.Encoder
 import PetriNet.PNEncoder
 import PetriNet.GHCChecker
+import HooglePlus.Stats
 import HooglePlus.CodeFormer
+import HooglePlus.Abstraction
+import HooglePlus.Refinement
 import Database.Convert
 import Database.Generate
-
-data PathSolver =
-    SATSolver
-  | SMTSolver
-  deriving(Data, Show, Eq)
-
-data RefineStrategy =
-    NoRefine
-  | AbstractRefinement
-  | Combination
-  | QueryRefinement
-  deriving(Data, Show, Eq)
-
-data TimeStatistics = TimeStatistics {
-  encodingTime :: Double,
-  constructionTime :: Double,
-  solverTime :: Double,
-  codeFormerTime :: Double,
-  refineTime :: Double,
-  typeCheckerTime :: Double,
-  otherTime :: Double,
-  totalTime :: Double,
-  iterations :: Int,
-  numOfTransitions :: Map Int Int,
-  numOfPlaces :: Map Int Int
-} deriving(Eq)
-
-data SolverState = SolverState {
-    _nameCounter :: Map Id Int,  -- name map for generating fresh names (type variables, parameters)
-    _typeAssignment :: Map Id SType,  -- current type assignment for each type variable
-    _typingError :: (SType, SType), -- typing error message, represented by the expected type and actual type
-    _abstractionTree :: AbstractionTree,
-    _isChecked :: Bool, -- is the current state check passed
-    _currentSolutions :: [RProgram], -- type checked solutions
-    _currentLoc :: Int, -- current solution depth
-    _currentSigs :: Map Id AbstractSkeleton, -- current type signature groups
-    _detailedSigs :: Set Id,
-    _functionMap :: HashMap Id FunctionCode,
-    _targetType :: AbstractSkeleton,
-    _sourceTypes :: [AbstractSkeleton],
-    _paramNames :: [Id],
-    _refineStrategy :: RefineStrategy,
-    _groupMap :: Map Id [Id], -- mapping from group id to list of function names
-    _type2transition :: Map AbstractSkeleton [Id], -- mapping from abstract type to group ids
-    _solverNet :: PetriNet,
-    _solverStats :: TimeStatistics,
-    _useGroup :: Bool,
-    _splitTypes :: [(AbstractSkeleton, AbstractSkeleton)],
-    _nameMapping :: Map Id Id, -- mapping from fake names to real names
-    _logLevel :: Int, -- temporary for log level
-    _maxApplicationDepth :: Int
-} deriving(Eq)
-
-emptySolverState = SolverState {
-    _nameCounter = Map.empty,
-    _typeAssignment = Map.empty,
-    _typingError = (AnyT, AnyT),
-    _abstractionTree = ALeaf (AExclusion Set.empty),
-    _isChecked = True,
-    _currentSolutions = [],
-    _currentLoc = 1,
-    _currentSigs = Map.empty,
-    _detailedSigs = Set.empty,
-    _functionMap = HashMap.empty,
-    _targetType = AExclusion Set.empty,
-    _sourceTypes = [],
-    _paramNames = [],
-    _refineStrategy = NoRefine,
-    _groupMap = Map.empty,
-    _type2transition = Map.empty,
-    _solverNet = PetriNet HashMap.empty HashMap.empty HashMap.empty,
-    _solverStats = TimeStatistics (0::Double) (0::Double) (0::Double) (0) (0::Double) (0::Double) (0::Double) (0::Double) 0 Map.empty Map.empty,
-    _useGroup = False,
-    _splitTypes = [],
-    _nameMapping = Map.empty,
-    _logLevel = 0,
-    _maxApplicationDepth = 6
-}
-
-makeLenses ''SolverState
-
-type PNSolver m = StateT SolverState m
-
-abstractParamList :: AbstractSkeleton -> [AbstractSkeleton]
-abstractParamList t@(ADatatypeT _ _) = [t]
-abstractParamList t@(AExclusion _)   = [t]
-abstractParamList (AFunctionT tArg tFun) =
-    case tFun of
-        ADatatypeT _ _  -> [tArg]
-        AExclusion _    -> [tArg]
-        ATypeVarT  _    -> [tArg]
-        _               -> tArg : abstractParamList tFun
-abstractParamList t = error $ "Unexpected type " ++ show t
-
-lastAbstractType :: AbstractSkeleton -> AbstractSkeleton
-lastAbstractType (AFunctionT tArg tFun) = lastAbstractType tFun
-lastAbstractType t                      = t
 
 encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
 encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [show $ lastAbstractType t]
@@ -184,7 +98,7 @@ instantiate :: (MonadIO m) => Environment -> [(Id, AbstractSkeleton)] -> PNSolve
 instantiate env sigs = do
     semantic <- view abstractionTree <$> get
     Map.fromList <$> (nonPolyAbstracts semantic >>= instantiate' sigs)
-  where 
+  where
     nonPolySigs = filter (not . hasAbstractVar (env ^. boundTypeVars). snd) sigs
     nonPolyAbstracts semantic = mapM (\(id, t) -> do
         name <- if Map.member id (env ^. arguments) then freshId (id++"_") else freshId "f"
@@ -304,114 +218,6 @@ splitTransition env tid info = do
                return (zip ids ts)
            else return []
 
-cutoff :: Environment -> AbstractionTree -> AbstractSkeleton -> [AbstractSkeleton]
-cutoff env semantic (ATypeVarT id) | not (isBound env id) = [rightmostType semantic]
-cutoff env semantic typ@(ATypeVarT id) | isBound env id =
-    case semantic of
-      ALeaf t -> [t]
-      ANode t lt rt | t == typ -> [typ]
-      ANode t lt rt | isSubtypeOf typ (valueType lt) -> cutoff env lt typ
-      ANode t lt rt | isSubtypeOf typ (valueType rt) -> cutoff env rt typ
-cutoff _ (ALeaf t) (ADatatypeT id tArgs) = [t]
-cutoff env (ANode _ lt rt) typ@(ADatatypeT {}) | isSubtypeOf typ (valueType lt) = cutoff env lt typ
-cutoff env (ANode _ lt rt) typ@(ADatatypeT {}) | isSubtypeOf typ (valueType rt) = cutoff env rt typ
-cutoff env semantic@(ANode t lt rt) typ@(ADatatypeT {}) | isSubtypeOf t typ = leafTypes semantic
-cutoff env semantic (AFunctionT tArg tRet) = 
-    [ AFunctionT a r | a <- args, r <- rets, isJust (isConsistent (AFunctionT tArg tRet) (AFunctionT a r)) ]
-  where
-    args = cutoff env semantic tArg
-    rets = cutoff env semantic tRet
-
-    isMapConsistent m1 m2 = foldr (\(k,v) -> (&&) (Map.findWithDefault v k m2 == v)) True (Map.toList m1)
-    isConsistent t t'@(ATypeVarT {}) = Just (Map.singleton t t')
-    isConsistent t t'@(ADatatypeT {}) = Just (Map.singleton t t')
-    isConsistent t t'@(AExclusion {}) = Just (Map.singleton t t')
-    isConsistent (AFunctionT tArg tRet) (AFunctionT arg ret) =
-        let argMap = isConsistent tArg arg
-            retMap = isConsistent tRet ret
-        in if isJust argMap && isJust retMap && isMapConsistent (fromJust argMap) (fromJust retMap)
-              then Just (Map.union (fromJust argMap) (fromJust retMap))
-              else Nothing
-cutoff _ semantic t@(AExclusion _) = [rightmostType semantic]
-cutoff _ semantic t = filter (isJust . abstractIntersection t) (leafTypes (closestTree semantic t))
-
-updateSemantic :: Environment -> AbstractionTree -> AbstractSkeleton -> AbstractionTree
-updateSemantic env semantic typ@(ATypeVarT id) | isBound env id =
-  case semantic of
-    ALeaf t
-        | t == typ -> semantic
-        | otherwise -> ANode t (ALeaf typ) (ALeaf (typeDifference t typ))
-    ANode t lt rt
-        | t == typ -> semantic
-        | isSubtypeOf typ t && isSubtypeOf typ (valueType lt) -> ANode t (updateSemantic env lt typ) rt
-        | isSubtypeOf typ t -> ANode t lt (updateSemantic env rt typ)
-        | otherwise -> error (printf "%s is not a subtype of %s, not a subtype of %s, not a subtype of %s, we should not reach here" (show typ) (show t) (show (valueType lt)) (show (valueType rt)))
-updateSemantic _ semantic (ATypeVarT id) = semantic
-updateSemantic _ semantic@(ALeaf t) typ@(ADatatypeT {}) | typ == t = semantic
-updateSemantic env semantic@(ALeaf t@(ADatatypeT id tArgs)) typ@(ADatatypeT id' tArgs') =
-  case (tArgs, tArgs') of
-    ([], []) -> semantic
-    _ -> firstDiff semantic [] tArgs tArgs'
-  where
-    wrapTree preArgs postArgs (ALeaf t) = ALeaf (ADatatypeT id (preArgs ++ [t] ++ postArgs))
-    wrapTree preArgs postArgs (ANode t lt rt) =
-        ANode (ADatatypeT id (preArgs ++ [t] ++ postArgs))
-              (wrapTree preArgs postArgs lt)
-              (wrapTree preArgs postArgs rt)
-
-    rootType (ALeaf t) = t
-    rootType (ANode t _ _) = t
-
-    replaceTree (ALeaf t) tree | rootType tree == t = tree
-    replaceTree (ANode t lt rt) tree | rootType tree == t = error "should not replace a non-leaf type"
-    replaceTree (ANode t lt rt) tree | isSubtypeOf (rootType tree) (valueType lt) = ANode t (replaceTree lt tree) rt
-    replaceTree (ANode t lt rt) tree | isSubtypeOf (rootType tree) (valueType rt) = ANode t lt (replaceTree rt tree)
-    replaceTree t t' = error $ "unhandled case with " ++ show t ++ " and " ++ show t'
-
-    firstDiff s _ [] [] = s
-    firstDiff s pre (arg:args) (arg':args')
-      | arg == arg' = firstDiff s (pre ++ [arg]) args args'
-      | otherwise   = let tmp = updateSemantic env (ALeaf arg) arg'
-                          s' = replaceTree s (wrapTree pre args tmp)
-                      in firstDiff s' (pre ++ [arg']) args args'
-updateSemantic env semantic@(ALeaf t) typ@(ADatatypeT id tArgs) | t /= typ =
-    updateSemantic env semantic' typ
-  where
-    emptyArgs = map fillAny tArgs
-    typ' = ADatatypeT id emptyArgs
-    semantic' = ANode t (ALeaf typ') (ALeaf (typeDifference t typ'))
-updateSemantic env semantic@(ANode t lt rt) typ
-  | t == typ = semantic
-  | isSubtypeOf typ t && isSubtypeOf typ (valueType lt) = ANode t (updateSemantic env lt typ) rt
-  | isSubtypeOf typ t = ANode t lt (updateSemantic env rt typ)
-  | otherwise = error (printf "%s is not a subtype of %s, not a subtype of %s, not a subtype of %s, we should not reach here" (show typ) (show t) (show (valueType lt)) (show (valueType rt)))
-updateSemantic env semantic (AFunctionT tArg tRet) = semantic''
-  where
-    semantic' = updateSemantic env semantic tArg
-    semantic'' = updateSemantic env semantic' tRet
-updateSemantic env semantic@(ALeaf (AExclusion s)) (AExclusion s') =
-    foldl' (updateSemantic env) semantic (absVars ++ absDts)
-  where
-    buildDt dt = case Map.lookup dt (env ^. datatypes) of
-                   Nothing -> error $ "cannot find datatype " ++ dt
-                   Just dtDef -> ADatatypeT dt (map fillAny (dtDef ^. typeParams))
-    (vars, dts) = partition (Char.isLower . head) (Set.toList (Set.difference s' s))  
-    absVars = map ATypeVarT vars
-    absDts = map buildDt dts
-updateSemantic env semantic (AExclusion s) =
-    -- add all the complementary datatypes or type variables into the semantic
-    foldl' (updateSemantic env) semantic (absVars ++ absDts)
-  where
-    buildDt dt = case Map.lookup dt (env ^. datatypes) of
-                   Nothing -> error $ "cannot find datatype " ++ dt
-                   Just dtDef -> ADatatypeT dt (map fillAny (dtDef ^. typeParams))
-    (vars, dts) = partition (Char.isLower . head) (Set.toList s)  
-    absVars = map ATypeVarT vars
-    absDts = map buildDt dts
-
--- distinguish one type from a given general one
-type SplitMsg = (AbstractSkeleton, AbstractSkeleton)
-
 distinguish :: MonadIO m => Environment -> SType -> SType -> PNSolver m (Maybe SplitMsg)
 distinguish env (FunctionT _ tArg tRes) (FunctionT _ tArg' tRes') = do
     diff <- distinguish env tArg tArg'
@@ -441,51 +247,6 @@ distinguish env t1 t2 = do
               Nothing -> return Nothing
               Just t -> return (Just (pTyp, t))
 
-distinguishFrom :: AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
-distinguishFrom (AExclusion s) t@(ATypeVarT id) | id `Set.notMember` s = t
-distinguishFrom (AExclusion s) t@(ADatatypeT id _) | id `Set.notMember` s = t
-distinguishFrom (ADatatypeT id tArgs) (ADatatypeT id' tArgs') | id == id' =
-    ADatatypeT id (firstDiff tArgs tArgs')
-  where
-    firstDiff [] [] = []
-    firstDiff (arg:args) (arg':args')
-        | arg == arg' = arg : firstDiff args args'
-        | otherwise = distinguishFrom arg arg' : args
-distinguishFrom t1 t2 = error ("Cannot distinguish " ++ show t2 ++ " from " ++ show t1)
-
-distinguish' :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton -> Maybe AbstractSkeleton
-distinguish' _ _ t1 t2 | t1 == t2 = Nothing
-distinguish' _ _ t1@(ADatatypeT id1 tArgs1) t2@(ADatatypeT id2 tArgs2) | id1 /= id2 =
-    Just (ADatatypeT id1 (map fillAny tArgs1))
-distinguish' tvs (AExclusion {}) t1@(ADatatypeT id1 tArgs1) t2@(ADatatypeT id2 tArgs2) | id1 == id2 =
-    distinguish' tvs (ADatatypeT id1 (map fillAny tArgs1)) t1 t2
-distinguish' tvs (ADatatypeT pid pArgs) t1@(ADatatypeT id1 tArgs1) t2@(ADatatypeT id2 tArgs2) | id1 == id2 =
-    case firstDifference pArgs tArgs1 tArgs2 of
-      [] -> Nothing
-      diffs -> Just (ADatatypeT id1 diffs)
-  where
-    firstDifference _ [] [] = []
-    firstDifference (parg:pargs) (arg:args) (arg':args') =
-        case distinguish' tvs parg arg arg' of
-            Nothing -> case firstDifference pargs args args' of
-                         [] -> []
-                         diffs -> parg:diffs
-            Just t  -> if t /= parg then t:pargs 
-                                    else case firstDifference pargs args args' of
-                                           [] -> []
-                                           diffs -> parg : diffs
-distinguish' _ _ (AExclusion s) (ADatatypeT id args) | id `Set.notMember` s = Just (ADatatypeT id (map fillAny args))
-distinguish' _ _ (AExclusion s) (ADatatypeT id _) = Nothing
-distinguish' tvs p t1@(ADatatypeT id args) t2@(AExclusion s) = distinguish' tvs p t2 t1
-distinguish' _ _ (ATypeVarT id1) (ADatatypeT id2 args) = Just (ATypeVarT id1) -- Just (ADatatypeT id2 (map fillAny args))
-distinguish' tvs p t1@(ADatatypeT {}) t2@(ATypeVarT {}) = distinguish' tvs p t2 t1
-distinguish' tvs _ (AExclusion s) (ATypeVarT id) | id `elem` tvs && id `Set.notMember` s = Just (ATypeVarT id)
-distinguish' _ _ (AExclusion {}) (ATypeVarT id) = Nothing
-distinguish' tvs p t1@(ATypeVarT {}) t2@(AExclusion {}) = distinguish' tvs p t2 t1
-distinguish' tvs _ (ATypeVarT id) (ATypeVarT _) | id `elem` tvs = Just (ATypeVarT id)
-distinguish' tvs _ (ATypeVarT _) (ATypeVarT id) | id `elem` tvs = Just (ATypeVarT id)
-distinguish' tvs _ (ATypeVarT _) (ATypeVarT _) = Nothing
-distinguish' _ _ t1 t2 = error (printf "unhandled case for distinguish %s and %s" (show t1) (show t2))
 
 findSymbol :: MonadIO m => Environment -> Id -> PNSolver m RType
 findSymbol env sym = do
@@ -702,7 +463,7 @@ refineSemantic env prog at = do
   where
     -- if any of the transitions is splitted again, merge the results
     combineInfo [] = SplitInfo [] []
-    combineInfo (x:xs) = let SplitInfo ts trs = combineInfo xs 
+    combineInfo (x:xs) = let SplitInfo ts trs = combineInfo xs
                              SplitInfo [(t, ts')] trs' = x
                           in SplitInfo ((t, ts'):ts) (trs ++ trs')
     replaceTrans tr trs [] = (False, [])
@@ -743,37 +504,6 @@ refineSemantic env prog at = do
            else do
                let splitNode = SplitInfo [(t1, nts)] []
                foldrM (splitTransition env) splitNode tids
-
--- | wrap some action with time measuring and print out the execution time
-withTime :: MonadIO m => String -> PNSolver m a -> PNSolver m a
-withTime desc f = do
-    start <- liftIO getCPUTime
-    res <- f
-    end <- liftIO getCPUTime
-    let diff = fromIntegral (end - start) / 10^12
-    let time = printf "%s: %0.3f sec\n" desc (diff :: Double)
-    modify $ over solverStats (\s ->
-        case desc of
-          "construction time" -> s { constructionTime = constructionTime s + (diff :: Double) }
-          "encoding time" -> s { encodingTime = encodingTime s + (diff :: Double) }
-          "code former time" -> s { codeFormerTime = codeFormerTime s + (diff :: Double) }
-          "solver time" -> s { solverTime = solverTime s + (diff :: Double) }
-          "refinement time" -> s { refineTime = refineTime s + (diff :: Double) }
-          "type checking time" -> s { typeCheckerTime = typeCheckerTime s + (diff :: Double) }
-          "total search time" -> s {totalTime = diff :: Double }
-          _ -> s { otherTime = otherTime s + (diff :: Double) })
-    writeLog 1 $ text time
-    return res
-
-resetTiming :: Monad m => PNSolver m ()
-resetTiming = modify $ over solverStats (\s ->
-    s { encodingTime=0,
-        codeFormerTime=0,
-        solverTime=0,
-        refineTime=0,
-        typeCheckerTime=0,
-        totalTime=0
-    })
 
 initNet :: MonadIO m => Environment -> PNSolver m ()
 initNet env = withTime "construction time" $ do
@@ -839,7 +569,7 @@ resetEncoder env dst = do
     let tgt = (head (cutoff env abstraction (toAbstractType (shape dst))))
     modify $ set targetType tgt
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
-    let srcTypes = map ( head 
+    let srcTypes = map ( head
                        . cutoff env abstraction
                        . toAbstractType
                        . shape
@@ -929,7 +659,7 @@ fixNet env (SplitInfo splitedTys splitedGps) = do
     -- reset the src types with the new abstraction semantic
     abstraction <- view abstractionTree <$> get
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
-    let srcTypes = map ( head 
+    let srcTypes = map ( head
                        . cutoff env abstraction
                        . toAbstractType
                        . shape
@@ -1069,23 +799,6 @@ printSolution solution = do
     liftIO $ putStrLn $ "SOLUTION: " ++ (mkOneLine $ show solution)
     liftIO $ putStrLn "************************************************"
 
-printStats :: MonadIO m => PNSolver m ()
-printStats = do
-    stats <- view solverStats <$> get
-    depth <- view currentLoc <$> get
-    liftIO $ putStrLn "*******************STATISTICS*******************"
-    liftIO $ putStrLn ("Search time for solution: " ++ (showFullPrecision (totalTime stats)))
-    liftIO $ putStrLn ("Petri net construction time: " ++ (showFullPrecision (constructionTime stats)))
-    liftIO $ putStrLn ("Petri net encoding time: " ++ (showFullPrecision (encodingTime stats)))
-    liftIO $ putStrLn ("Z3 solving time: " ++ (showFullPrecision (solverTime stats)))
-    liftIO $ putStrLn ("Hoogle plus code former time: " ++ (showFullPrecision (codeFormerTime stats)))
-    liftIO $ putStrLn ("Hoogle plus refinement time: " ++ (showFullPrecision (refineTime stats)))
-    liftIO $ putStrLn ("Hoogle plus type checking time: " ++ (showFullPrecision (typeCheckerTime stats)))
-    liftIO $ putStrLn ("Total iterations of refinements: " ++ (show (iterations stats)))
-    liftIO $ putStrLn ("Number of places: " ++ (show $ map snd (Map.toAscList (numOfPlaces stats))))
-    liftIO $ putStrLn ("Number of transitions: " ++ (show $ map snd (Map.toAscList (numOfTransitions stats))))
-    liftIO $ putStrLn ("Solution Depth: " ++ show depth)
-    liftIO $ putStrLn "********************END STATISTICS****************************"
 
 findFirstN :: (MonadIO m) => Environment -> RType -> EncodeState -> Int -> PNSolver m RProgram
 findFirstN env dst st cnt | cnt == 1  = do
@@ -1105,13 +818,6 @@ runPNSolver env cnt t = do
     initNet env
     st <- withTime "encoding time" (resetEncoder env t)
     findFirstN env t st cnt
-
-firstLvAbs :: Environment -> [RSchema] -> AbstractionTree
-firstLvAbs env schs =
-    Set.foldl' (updateSemantic env) (ALeaf (AExclusion Set.empty)) dts
-  where
-    typs = map (shape . toMonotype) schs
-    dts = Set.unions (map (allAbstractDts (env ^. boundTypeVars)) typs)
 
 recoverNames :: Map Id Id -> RProgram -> RProgram
 recoverNames mapping (Program (PSymbol sym) t) =
@@ -1138,7 +844,6 @@ multiPermutation len elmts | len == 0 = []
 multiPermutation len elmts | len == 1 = [[e] | e <- elmts]
 multiPermutation len elmts            = nubOrd $ [ l:r | l <- elmts, r <- multiPermutation (len - 1) elmts]
 
-fillAny arg = AExclusion Set.empty
 
 replaceId a b = Text.unpack . Text.replace a b . Text.pack
 mkPairMatch (FunctionCode name _ params ret) = FunctionCode (replaceId "Pair" "Pair_match" name) [] ret params

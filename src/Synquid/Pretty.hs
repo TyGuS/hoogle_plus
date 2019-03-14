@@ -53,13 +53,18 @@ module Synquid.Pretty (
   programNodeCount
 ) where
 
+import Types.Environment
+import Types.Abstract
+import Types.Common
+import Types.Type
+import Types.Program
+
 import Synquid.Logic
 import Synquid.Type
 import Synquid.Error
 import Synquid.Program
 import Synquid.Tokens
 import Synquid.Util
-import Synquid.Succinct
 import PetriNet.AbstractType
 
 import Text.PrettyPrint.ANSI.Leijen hiding ((<+>), (<$>), hsep, vsep)
@@ -277,7 +282,6 @@ prettyTypeAt n t = hlParens ( -- condHlParens (n' <= n) (
     ScalarT base fml -> hlBraces (pretty base <> operator "|" <> pretty fml)
     AnyT -> text "_"
     FunctionT x t1 t2 -> prettyTypeAt n' t1 <+> operator "->" <+> prettyTypeAt 0 t2
-    LetT x t1 t2 -> text "LET" <+> text x <> operator ":" <> prettyTypeAt n' t1 <+> operator "IN" <+> prettyTypeAt 0 t2
   )
   where
     n' = typePower t
@@ -362,13 +366,12 @@ instance Pretty MeasureDef where
 
 prettyBinding (name, typ) = text name <+> operator "::" <+> pretty typ
 
-prettyAssumptions env = commaSep (map pretty (Set.toList $ env ^. assumptions))
 prettyBindings env = commaSep (map pretty (Map.keys $ removeDomain (env ^. constants) (allSymbols env)))
 -- prettyBindings env = hMapDoc pretty pretty (removeDomain (env ^. constants) (allSymbols env))
 -- prettyBindings env = empty
 
 instance Pretty Environment where
-  pretty env = prettyBindings env <+> prettyAssumptions env
+  pretty env = prettyBindings env
 
 prettySortConstraint :: SortConstraint -> Doc
 prettySortConstraint (SameSort sl sr) = pretty sl <+> text "=" <+> pretty sr
@@ -378,20 +381,6 @@ instance Pretty SortConstraint where
   pretty = prettySortConstraint
 
 instance Show SortConstraint where
-  show = show . plain . pretty
-
-prettyConstraint :: Constraint -> Doc
-prettyConstraint (Subtype env t1 t2 False label) = pretty env <+> operator "|-" <+> pretty t1 <+> operator "<:" <+> pretty t2 <+> parens (text label)
-prettyConstraint (Subtype env t1 t2 True label) = pretty env <+> operator "|-" <+> pretty t1 <+> operator "/\\" <+> pretty t2 <+> parens (text label)
-prettyConstraint (WellFormed env t) = prettyBindings env <+> operator "|-" <+> pretty t
-prettyConstraint (WellFormedCond env c) = prettyBindings env <+> operator "|-" <+> pretty c
-prettyConstraint (WellFormedMatchCond env c) = prettyBindings env <+> operator "|- (match)" <+> pretty c
-prettyConstraint (WellFormedPredicate _ sorts p) = operator "|-" <+> pretty p <+> operator "::" <+> hsep (map (\s -> pretty s <+> operator "->") sorts) <+> pretty BoolS
-
-instance Pretty Constraint where
-  pretty = prettyConstraint
-
-instance Show Constraint where
   show = show . plain . pretty
 
 instance Pretty Candidate where
@@ -521,27 +510,6 @@ lfill w d        = case renderCompact d of
  where
   spaces n | n <= 0    = empty
            | otherwise = text $ replicate n ' '
-
-instance Pretty SuccinctType where
-    pretty (SuccinctScalar t) = prettyBase pretty t
-    pretty (SuccinctFunction paramCnt param retTy) = hlBraces (commaSep $ map pretty (Set.toList param)) <+> hlParens (pretty paramCnt) <+> text "->" <+> pretty retTy
-    pretty (SuccinctDatatype (id,_) names tys cons measures) = hlParens $ text id <+> text "|" <+> hlBraces (commaSep $ map pretty (fst $ unzip $ Set.toList names)) <+> text "|" <+> hlBraces (commaSep $ map pretty (Set.toList tys))
-    pretty (SuccinctAll names ty) = hlBrackets (commaSep $ map pretty (Set.toList names)) <+> text "." <+> pretty ty
-    pretty (SuccinctComposite tys) = hlBraces (commaSep $ map pretty (Set.toList tys))
-    pretty (SuccinctAny) = text "ANY"
-    pretty (SuccinctLet id ty1 ty2) = text "OOPS"
-    pretty (SuccinctInhabited s) = text "INHABITED" <+> pretty s
-
-instance Show SuccinctType where
-    show = show . plain . pretty
-
-instance Hashable SuccinctType where
-  hash sty = hash (show sty)
-  hashWithSalt s sty = s + hash sty
-
-instance Hashable SuccinctContext where
-  hash sctx = hash (sctx ^. srcType)
-  hashWithSalt s sctx = s + hash sctx
 
 instance Pretty AbstractSkeleton where
     pretty (ADatatypeT id args) = text id <+> hsep (map pretty args)

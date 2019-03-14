@@ -6,7 +6,9 @@ import qualified Data.Set as Set hiding (map)
 import Data.Map as Map hiding (map, foldr)
 import Control.Exception
 
-import Synquid.Program
+import Types.Environment
+import Types.Program
+import Types.Type
 import Synquid.Type
 import Synquid.Pretty as Pretty
 
