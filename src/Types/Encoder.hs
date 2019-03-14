@@ -65,8 +65,3 @@ newEnv mbLogic opts =
 initialZ3Env = newEnv Nothing stdOpts
 
 type Encoder = StateT EncodeState IO
-
-data SplitInfo = SplitInfo {
-    splitedPlaces :: [(AbstractSkeleton, [AbstractSkeleton])],
-    splitedGroup :: [(Id, [Id])]
-} deriving (Eq, Ord, Show)

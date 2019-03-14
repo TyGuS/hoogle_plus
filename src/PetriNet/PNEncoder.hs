@@ -116,7 +116,6 @@ solveAndGetModel = do
         Sat -> do
             model <- solverGetModel
             modelStr <- modelToString model
-            liftIO $ print modelStr
             selected <- mapM (checkLit model) [0..(l-1)]
             blockTrs <- mapM (uncurry blockTr) (zip [0..(l-1)] selected)
             -- placeMap <- place2variable <$> get

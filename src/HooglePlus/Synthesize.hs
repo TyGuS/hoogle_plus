@@ -12,8 +12,8 @@ import Synquid.Type
 import Synquid.Program
 import Synquid.Pretty
 import Synquid.Resolver
-import qualified PetriNet.PNSolver as PNSolver
-import qualified PetriNet.Abstraction as Abstraction
+import PetriNet.PNSolver
+import qualified HooglePlus.Abstraction as Abstraction
 
 import Data.Maybe
 import Data.Either
@@ -54,16 +54,16 @@ synthesize searchParams goal = do
   let maxLevel = _explorerLogLevel searchParams
   let rs = _useRefine searchParams
   let maxDepth = _eGuessDepth searchParams
-  let is = PNSolver.emptySolverState {
-             PNSolver._logLevel = maxLevel
-           , PNSolver._maxApplicationDepth = maxDepth
-           , PNSolver._refineStrategy = rs
-           , PNSolver._abstractionTree = case rs of
-               PNSolver.NoRefine -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
-               PNSolver.AbstractRefinement -> PNSolver.emptySolverState ^. PNSolver.abstractionTree
-               PNSolver.Combination -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
-               PNSolver.QueryRefinement -> Abstraction.specificAbstractionFromTypes env (args)
+  let is = emptySolverState {
+             _logLevel = maxLevel
+           , _maxApplicationDepth = maxDepth
+           , _refineStrategy = rs
+           , _abstractionTree = case rs of
+               NoRefine -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
+               AbstractRefinement -> emptySolverState ^. abstractionTree
+               Combination -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
+               QueryRefinement -> Abstraction.specificAbstractionFromTypes env (args)
            }
-  program <- evalStateT (PNSolver.runPNSolver env cnt destinationType) is
+  program <- evalStateT (runPNSolver env cnt destinationType) is
   -- will need to attach params
   return program

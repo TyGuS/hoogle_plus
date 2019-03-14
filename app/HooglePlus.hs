@@ -22,7 +22,6 @@ import Database.Download
 import Database.Util
 import Synquid.Util (showme)
 import HooglePlus.Synthesize
-import qualified PetriNet.PNSolver as PNS
 import Types.Encoder
 
 import Control.Monad
@@ -102,7 +101,7 @@ data CommandLineArgs
         path_search :: PathStrategy,
         higher_order :: Bool,
         encoder :: EncoderType,
-        use_refine :: PNS.RefineStrategy
+        use_refine :: RefineStrategy
       }
       | Generate {
         -- | Input
@@ -124,7 +123,7 @@ synt = Synthesis {
   path_search         = PetriNet     &= help ("Use path search algorithm to ensure the usage of provided parameters (default: PetriNet)") &= name "path",
   higher_order        = False           &= help ("Include higher order functions (default: False)"),
   encoder             = Normal &= help ("Choose normal or refined arity encoder (default: Normal)"),
-  use_refine          = PNS.QueryRefinement    &= help ("Use abstract refinement or not (default: QueryRefinement)")
+  use_refine          = QueryRefinement    &= help ("Use abstract refinement or not (default: QueryRefinement)")
   } &= auto &= help "Synthesize goals specified in the input file"
 
 generate = Generate {
@@ -149,7 +148,7 @@ defaultSearchParams = SearchParams {
   _pathSearch = PetriNet,
   _useHO = False,
   _encoderType = Normal,
-  _useRefine = PNS.QueryRefinement
+  _useRefine = QueryRefinement
 }
 
 -- | Output format

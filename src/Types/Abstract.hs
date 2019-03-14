@@ -20,3 +20,11 @@ data AbstractionTree =
       ALeaf AbstractSkeleton
     | ANode AbstractSkeleton AbstractionTree AbstractionTree
     deriving (Eq, Ord, Show, Generic)
+
+-- distinguish one type from a given general one
+type SplitMsg = (AbstractSkeleton, AbstractSkeleton)
+
+data SplitInfo = SplitInfo {
+    splitedPlaces :: [(AbstractSkeleton, [AbstractSkeleton])],
+    splitedGroup :: [(Id, [Id])]
+} deriving (Eq, Ord, Show)
