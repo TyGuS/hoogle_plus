@@ -4,9 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module PetriNet.PNEncoder(
-      EncodeState(..)
-    , SplitInfo(..)
-    , encoderInit
+     encoderInit
     , encoderSolve
     , encoderRefine
     ) where
@@ -27,11 +25,10 @@ import Data.Text (pack, unpack, replace)
 import Types.Common
 import Types.PetriNet
 import PetriNet.PNBuilder
-import PetriNet.Encoder
+import Types.Encoder
 import Types.Abstract
 import Synquid.Util
 
-type Encoder = StateT EncodeState IO
 
 instance MonadZ3 Encoder where
     getSolver = gets (envSolver . z3env)
@@ -174,11 +171,6 @@ encoderInit net loc hoArgs inputs ret = do
 
 encoderSolve :: EncodeState -> IO ([(Id, Int)], EncodeState)
 encoderSolve st = runStateT solveAndGetModel st
-
-data SplitInfo = SplitInfo {
-    splitedPlaces :: [(AbstractSkeleton, [AbstractSkeleton])],
-    splitedGroup :: [(Id, [Id])]
-} deriving (Eq, Ord, Show)
 
 updateParallelInfo :: SplitInfo -> Encoder ()
 updateParallelInfo info = do

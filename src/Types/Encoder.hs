@@ -1,15 +1,21 @@
-module PetriNet.Encoder where
+{-# LANGUAGE DeriveDataTypeable#-}
+module Types.Encoder where
 
 import Data.Maybe
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Z3.Base as Z3
 import Z3.Monad hiding(Z3Env, newEnv)
+import Control.Monad.State
+import Data.Data
+import Data.Typeable
 
-import PetriNet.PNBuilder
 import Types.PetriNet
 import Types.Common
-import Synquid.Util
+import Types.Abstract
+
+data EncoderType = Normal | Arity
+    deriving(Eq, Show, Data, Typeable)
 
 data VarType = VarPlace | VarTransition | VarFlow | VarTimestamp
     deriving(Eq, Ord, Show)
@@ -57,3 +63,10 @@ newEnv mbLogic opts =
     return $ Z3Env solver ctx opt
 
 initialZ3Env = newEnv Nothing stdOpts
+
+type Encoder = StateT EncodeState IO
+
+data SplitInfo = SplitInfo {
+    splitedPlaces :: [(AbstractSkeleton, [AbstractSkeleton])],
+    splitedGroup :: [(Id, [Id])]
+} deriving (Eq, Ord, Show)

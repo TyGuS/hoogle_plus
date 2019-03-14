@@ -56,6 +56,7 @@ import Types.Solver
 import Types.Program
 import Types.PetriNet
 import Types.Experiments
+import Types.Encoder
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Program
 import Synquid.Type
@@ -66,7 +67,6 @@ import Synquid.Pretty
 import PetriNet.AbstractType
 import PetriNet.PNBuilder
 import PetriNet.PNEncoder
-import PetriNet.Encoder
 import PetriNet.PNEncoder
 import PetriNet.GHCChecker
 import HooglePlus.CodeFormer

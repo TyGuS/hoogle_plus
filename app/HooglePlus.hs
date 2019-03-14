@@ -23,12 +23,12 @@ import Database.Util
 import Synquid.Util (showme)
 import HooglePlus.Synthesize
 import qualified PetriNet.PNSolver as PNS
-import qualified HooglePlus.Encoder as HEncoder
+import Types.Encoder
 
 import Control.Monad
 import Control.Lens ((^.))
 import System.Exit
-import System.Console.CmdArgs
+import System.Console.CmdArgs hiding (Normal)
 import System.Console.ANSI
 import System.FilePath
 import Text.Parsec.Pos
@@ -83,11 +83,6 @@ main = do
                   precomputeGraph pkgs mdls d ho envPath
 {- Command line arguments -}
 
-deriving instance Typeable HEncoder.EncoderType
-deriving instance Data HEncoder.EncoderType
-deriving instance Eq HEncoder.EncoderType
-deriving instance Show HEncoder.EncoderType
-
 {-# ANN module "HLint: ignore Use camelCase" #-}
 {-# ANN module "HLint: ignore Redundant bracket" #-}
 {-# ANN module "HLint: ignore" #-}
@@ -106,7 +101,7 @@ data CommandLineArgs
         sol_num :: Int,
         path_search :: PathStrategy,
         higher_order :: Bool,
-        encoder :: HEncoder.EncoderType,
+        encoder :: EncoderType,
         use_refine :: PNS.RefineStrategy
       }
       | Generate {
@@ -128,7 +123,7 @@ synt = Synthesis {
   sol_num             = 1               &= help ("Number of solutions need to find (default: 1)") &= name "cnt",
   path_search         = PetriNet     &= help ("Use path search algorithm to ensure the usage of provided parameters (default: PetriNet)") &= name "path",
   higher_order        = False           &= help ("Include higher order functions (default: False)"),
-  encoder             = HEncoder.Normal &= help ("Choose normal or refined arity encoder (default: Normal)"),
+  encoder             = Normal &= help ("Choose normal or refined arity encoder (default: Normal)"),
   use_refine          = PNS.QueryRefinement    &= help ("Use abstract refinement or not (default: QueryRefinement)")
   } &= auto &= help "Synthesize goals specified in the input file"
 
@@ -153,7 +148,7 @@ defaultSearchParams = SearchParams {
   _solutionCnt = 1,
   _pathSearch = PetriNet,
   _useHO = False,
-  _encoderType = HEncoder.Normal,
+  _encoderType = Normal,
   _useRefine = PNS.QueryRefinement
 }
 

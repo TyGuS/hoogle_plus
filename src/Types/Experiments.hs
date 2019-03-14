@@ -2,10 +2,10 @@
 module Types.Experiments where
 
 import Types.Type
+import Types.Encoder
 import Synquid.Program
 import Synquid.Error
 import Types.Common
-import qualified HooglePlus.Encoder as HEncoder
 
 -- import Control.Monad.List
 import Data.Data
@@ -34,9 +34,9 @@ data SearchParams = SearchParams {
   _sourcePos :: SourcePos,                -- ^ Source position of the current goal
   _explorerLogLevel :: Int,               -- ^ How verbose logging is
   _solutionCnt :: Int,
+  _encoderType :: EncoderType,
   _pathSearch :: PathStrategy,
   _useHO :: Bool,
-  _encoderType :: HEncoder.EncoderType,
   _useRefine :: RefineStrategy
 }
 
