@@ -13,13 +13,14 @@ import Text.Parsec.Pos (initialPos)
 
 import Synquid.Error (Pos(Pos))
 import Synquid.Logic (ftrue)
-import Synquid.Type (BaseType(..), TypeSkeleton(..), SchemaSkeleton(..), isHigherOrder, toMonotype)
+import Types.Type (BaseType(..), TypeSkeleton(..), SchemaSkeleton(..))
+import Synquid.Type (isHigherOrder, toMonotype)
 import Synquid.Pretty as Pretty
 import qualified Database.Util as DU
 import qualified Database.Download as DD
 import qualified Database.Convert as DC
 import Types.Environment (Environment, symbols, _symbols, _included_modules)
-import Synquid.Program (BareDeclaration(..), Declaration(..), ConstructorSig(..))
+import Types.Program (BareDeclaration(..), Declaration(..), ConstructorSig(..))
 import Synquid.Resolver (resolveDecls)
 
 

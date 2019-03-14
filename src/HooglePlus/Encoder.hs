@@ -18,6 +18,8 @@ import Data.Foldable
 import Data.Maybe
 import Data.Char
 
+import Types.Common
+import Types.Type
 import Synquid.Type
 import Synquid.Logic (ftrue)
 import Synquid.Pretty
@@ -68,7 +70,7 @@ freshType sch = freshType' Map.empty sch
   where
     freshType' subst (ForallT a sch) = do
         a' <- freshId "t"
-        sch' <- freshType' (Map.insert a (vart a' ftrue) subst) sch    
+        sch' <- freshType' (Map.insert a (vart a' ftrue) subst) sch
         return (ForallT a' sch')
     freshType' subst (Monotype t) = return (Monotype (typeSubstitute subst $ t))
 
@@ -174,7 +176,7 @@ mkTvMap :: [Id] -> Encoder (Map Id AST)
 mkTvMap tvs = foldrM addTvToMap Map.empty tvs
 
 mkArg :: Map Id AST -> SType -> Encoder AST
-mkArg tvMap (ScalarT (TypeVarT _ id) r) = 
+mkArg tvMap (ScalarT (TypeVarT _ id) r) =
     case Map.lookup id tvMap of
         Just v -> return v
         Nothing -> mkArg tvMap (ScalarT (DatatypeT id [] []) r)
@@ -204,7 +206,7 @@ mkIdFunc id arity = do
     mkApp (nameCnstrs !! idx) []
 
 mkAArg :: Map Id AST -> SType -> Encoder AST
-mkAArg tvMap (ScalarT (TypeVarT _ id) r) = 
+mkAArg tvMap (ScalarT (TypeVarT _ id) r) =
     case Map.lookup id tvMap of
         Just v -> return v
         Nothing -> mkAArg tvMap (ScalarT (DatatypeT id [] []) r)
@@ -262,7 +264,7 @@ createFuncs l = do
         tvSymbols <- mapM mkIntSymbol [(length tvs - 1),(length tvs -2)..0]
         styp <- typeSort <$> get
         let tvTypes = replicate (length tvs) styp
-        fired <- if length tvSymbols > 0 
+        fired <- if length tvSymbols > 0
                    then mkExists [] tvSymbols tvTypes canFire >>= mkImplies fc
                    else mkImplies fc canFire
         assert fired
@@ -310,7 +312,7 @@ setInitial tvs args = do
     let tm = Map.empty
     -- prepare z3 variables for query arguments
     let cargs = map (\a -> (head a, length a)) (group args)
-    
+
     int <- mkIntSort
     parr <- mkArraySort typ int
     zero <- mkIntNum 0
@@ -404,7 +406,7 @@ encode tvs args tRet i = do
     -- check by the solver
     liftIO $ putStrLn "start checking"
     res <- solverCheck
-    case res of 
+    case res of
         Sat -> do
             model <- solverGetModel
             modelStr <- modelToString model

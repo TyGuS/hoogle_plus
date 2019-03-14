@@ -1,7 +1,11 @@
-module HooglePlus.Synthesize(newsynthesize) where
+module HooglePlus.Synthesize(synthesize) where
 
+import Types.Common
+import Types.Type
 import Types.Experiments
 import Types.Environment
+import Types.Program
+import Types.Solver
 import Synquid.Util
 import Synquid.Logic
 import Synquid.Type
@@ -36,8 +40,8 @@ updateEnvWithSpecArgs :: RType -> Environment -> (Environment, RType)
 updateEnvWithSpecArgs ty@(ScalarT _ _) env = (env, ty)
 updateEnvWithSpecArgs (FunctionT x tArg tRes) env = updateEnvWithSpecArgs tRes $ unfoldAllVariables $ addVariable x tArg $ addArgument x tArg $ env
 
-newsynthesize :: SearchParams  -> Goal -> IO RProgram
-newsynthesize searchParams goal = do
+synthesize :: SearchParams  -> Goal -> IO RProgram
+synthesize searchParams goal = do
   let env''' = gEnvironment goal
   let (env'', monospec) = updateEnvWithBoundTyVars (gSpec goal) env'''
   let (env', destinationType) = updateEnvWithSpecArgs monospec env''

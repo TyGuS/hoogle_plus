@@ -25,17 +25,18 @@ import Debug.Trace
 import System.Directory
 import System.IO
 
-import Synquid.Type
-import Synquid.Logic hiding (Var)
-import Types.Environment
-import Synquid.Program (BareDeclaration, Declaration, BareProgram(..), UProgram, Program(..))
-import qualified Synquid.Program as SP
-import Synquid.Util
-import Synquid.Error
+import Database.Download
 import Database.Generate
 import Database.Util
-import Database.Download
--- import Synquid.Succinct
+import Synquid.Error
+import Synquid.Logic hiding (Var)
+import Synquid.Type
+import Synquid.Util
+import Types.Common
+import Types.Environment
+import Types.Program (BareDeclaration, Declaration, BareProgram(..), UProgram, Program(..))
+import Types.Type
+import qualified Types.Program as TP
 
 prependName prefix name  = case name of
     Ident l var -> Ident l (prefix ++ "." ++ var)
@@ -217,20 +218,20 @@ addPrelude (decl:decls) = case decl of
     EModule mdl -> if mdl == "GHC.OldList" then takeWhile (not . isModule) decls else addPrelude decls
     _ -> addPrelude decls
 
-processConDecls :: (MonadIO m) => [QualConDecl ()] -> StateT Int m [SP.ConstructorSig]
+processConDecls :: (MonadIO m) => [QualConDecl ()] -> StateT Int m [TP.ConstructorSig]
 processConDecls [] = return []
 processConDecls (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
     case conDecl of
         ConDecl _ name typs -> do
             typ <- toSynquidRType $ head typs
             if hasAny typ then processConDecls decls
-                          else (:) (SP.ConstructorSig (nameStr name) typ) <$> (processConDecls decls)
+                          else (:) (TP.ConstructorSig (nameStr name) typ) <$> (processConDecls decls)
         InfixConDecl _ typl name typr -> do
             typl' <- toSynquidRType typl
             typr' <- toSynquidRType typr
             if hasAny typl' || hasAny typr'
                 then processConDecls decls
-                else (:) (SP.ConstructorSig (nameStr name) (FunctionT "arg0" typl' typr')) <$> (processConDecls decls)
+                else (:) (TP.ConstructorSig (nameStr name) (FunctionT "arg0" typl' typr')) <$> (processConDecls decls)
         RecDecl _ name fields -> error "record declaration is not supported"
 
 datatypeOfCon :: [QualConDecl ()] -> Set Id
@@ -244,25 +245,25 @@ datatypeOfCon (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
 toSynquidDecl :: (MonadIO m) => Entry -> StateT Int m Declaration
 toSynquidDecl (EDecl (TypeDecl _ head typ)) = do
     typ' <- toSynquidRType typ
-    if hasAny typ' then return $ Pos (initialPos "") $ SP.QualifierDecl [] -- a fake conversion
-                   else return $ Pos (initialPos $ declHeadName head) $ SP.TypeDecl (declHeadName head) (declHeadVars head) typ'
+    if hasAny typ' then return $ Pos (initialPos "") $ TP.QualifierDecl [] -- a fake conversion
+                   else return $ Pos (initialPos $ declHeadName head) $ TP.TypeDecl (declHeadName head) (declHeadVars head) typ'
 toSynquidDecl (EDecl (DataFamDecl a b head c)) = toSynquidDecl (EDecl (DataDecl a (DataType a) b head [] []))
 toSynquidDecl (EDecl (DataDecl _ _ _ head conDecls _)) = do
     constructors <- processConDecls conDecls
     let name = declHeadName head
     let vars = declHeadVars head
-    return $ Pos (initialPos name) $ SP.DataDecl name vars [] constructors
+    return $ Pos (initialPos name) $ TP.DataDecl name vars [] constructors
 toSynquidDecl (EDecl (TypeSig _ names typ)) = do
     maybeSch <- toSynquidSchema typ
     case maybeSch of
-        Nothing  -> return $ Pos (initialPos "") $ SP.QualifierDecl [] -- a fake conversion
-        Just sch -> return $ Pos (initialPos (nameStr $ names !! 0)) $ SP.FuncDecl (nameStr $ head names) (toSynquidRSchema sch)
-toSynquidDecl decl = return $ Pos (initialPos "") $ SP.QualifierDecl [] -- [TODO] a fake conversion
+        Nothing  -> return $ Pos (initialPos "") $ TP.QualifierDecl [] -- a fake conversion
+        Just sch -> return $ Pos (initialPos (nameStr $ names !! 0)) $ TP.FuncDecl (nameStr $ head names) (toSynquidRSchema sch)
+toSynquidDecl decl = return $ Pos (initialPos "") $ TP.QualifierDecl [] -- [TODO] a fake conversion
 
 -- synonymMap :: [Declaration] -> Map Id Declaration
 -- synonymMap []           = Map.empty
 -- synonymMap (decl:decls) = case decl of
---     Pos _ (SP.TypeDecl id _ typ) -> Map.insert id decl (synonymMap decls)
+--     Pos _ (TP.TypeDecl id _ typ) -> Map.insert id decl (synonymMap decls)
 --     _ -> synonymMap decls
 
 
@@ -270,11 +271,11 @@ toSynquidDecl decl = return $ Pos (initialPos "") $ SP.QualifierDecl [] -- [TODO
 reorderDecls :: [Declaration] -> [Declaration]
 reorderDecls decls = Sort.sortOn toInt decls
   where
-    toInt (Pos _ (SP.TypeDecl {})) = 0
-    toInt (Pos _ (SP.DataDecl {})) = 0
-    toInt (Pos _ (SP.QualifierDecl {})) = 98
-    toInt (Pos _ (SP.FuncDecl {})) = 99
-    toInt (Pos _ (SP.SynthesisGoal {})) = 100
+    toInt (Pos _ (TP.TypeDecl {})) = 0
+    toInt (Pos _ (TP.DataDecl {})) = 0
+    toInt (Pos _ (TP.QualifierDecl {})) = 98
+    toInt (Pos _ (TP.FuncDecl {})) = 99
+    toInt (Pos _ (TP.SynthesisGoal {})) = 100
 
 renameSigs :: String -> [Entry] -> Map Id [Entry]
 renameSigs _ [] = Map.empty

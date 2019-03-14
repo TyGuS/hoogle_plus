@@ -5,8 +5,8 @@
 module PetriNet.AbstractType where
 
 import Types.Abstract
-import Synquid.Type
-import Synquid.Util
+import Types.Type
+import Types.Common
 
 import Control.Lens
 import GHC.Generics

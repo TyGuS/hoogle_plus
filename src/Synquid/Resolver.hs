@@ -10,13 +10,16 @@ module Synquid.Resolver (
   , initResolverState
   , resolveSchema) where
 
-import Synquid.Logic
-import Synquid.Type
-import Synquid.Program
 import Synquid.Error
+import Synquid.Logic
 import Synquid.Pretty
+import Synquid.Program
+import Synquid.Type
 import Synquid.Util
+import Types.Common
 import Types.Environment
+import Types.Program
+import Types.Type
 import Control.Applicative
 import Control.Monad.Except
 import Control.Monad.State

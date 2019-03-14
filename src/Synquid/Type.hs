@@ -3,6 +3,8 @@
 -- | Refinement Types
 module Synquid.Type where
 
+import Types.Common
+import Types.Type
 import Synquid.Logic
 import Synquid.Tokens
 import Synquid.Util
@@ -18,17 +20,6 @@ import Control.Monad
 import Control.Lens
 import GHC.Generics
 
-{- Type skeletons -}
-
-data BaseType r = BoolT | IntT | DatatypeT Id [TypeSkeleton r] [r] | TypeVarT Substitution Id
-  deriving (Eq, Ord, Generic)
-
--- | Type skeletons (parametrized by refinements)
-data TypeSkeleton r =
-  ScalarT (BaseType r) r |
-  FunctionT Id (TypeSkeleton r) (TypeSkeleton r) |
-  AnyT
-  deriving (Eq, Ord, Generic)
 
 contextual x tDef (FunctionT y tArg tRes) = FunctionT y (contextual x tDef tArg) (contextual x tDef tRes)
 contextual _ _ AnyT = AnyT
@@ -122,11 +113,6 @@ isVarRefinemnt (Binary Eq (Var _ v) (Var _ _)) = v == valueVarName
 isVarRefinemnt _ = False
 
 -- | Polymorphic type skeletons (parametrized by refinements)
-data SchemaSkeleton r =
-  Monotype (TypeSkeleton r) |
-  ForallT Id (SchemaSkeleton r) | -- Type-polymorphic, each type variable may have some class constraints
-  ForallP PredSig (SchemaSkeleton r)    -- Predicate-polymorphic
-  deriving (Eq, Ord, Generic)
 
 toMonotype :: SchemaSkeleton r -> TypeSkeleton r
 toMonotype (Monotype t) = t
@@ -151,9 +137,6 @@ pos = int (valInt |>| IntLit 0)
 vart n = ScalarT (TypeVarT Map.empty n)
 vart_ n = vart n ()
 vartAll n = vart n ftrue
-
--- | Mapping from type variables to types
-type TypeSubstitution = Map Id RType
 
 asSortSubst :: TypeSubstitution -> SortSubstitution
 asSortSubst = Map.map (toSort . baseTypeOf)
@@ -211,18 +194,6 @@ typeVarsOf (FunctionT _ tArg tRes) = typeVarsOf tArg `Set.union` typeVarsOf tRes
 typeVarsOf _ = Set.empty
 
 {- Refinement types -}
-
--- | Unrefined typed
-type SType = TypeSkeleton ()
-
--- | Refined types
-type RType = TypeSkeleton Formula
-
--- | Unrefined schemas
-type SSchema = SchemaSkeleton ()
-
--- | Refined schemas
-type RSchema = SchemaSkeleton Formula
 
 -- | Forget refinements of a type
 shape :: RType -> SType

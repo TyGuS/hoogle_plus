@@ -1,16 +1,16 @@
 {-# LANGUAGE TemplateHaskell, DeriveDataTypeable #-}
 module Types.Experiments where
 
-import Synquid.Type
+import Types.Type
 import Synquid.Program
 import Synquid.Error
-import Synquid.Util
-import qualified PetriNet.PNSolver as PNSolver
+import Types.Common
 import qualified HooglePlus.Encoder as HEncoder
 
 -- import Control.Monad.List
 import Data.Data
 import Control.Lens hiding (index, indices)
+import Data.Map (Map)
 
 {- Interface -}
 
@@ -21,6 +21,13 @@ data PathStrategy =
   | PNSMT -- ^ Use PetriNet and SMT solver
   deriving (Eq, Show, Data)
 
+data RefineStrategy =
+    NoRefine
+  | AbstractRefinement
+  | Combination
+  | QueryRefinement
+  deriving(Data, Show, Eq)
+
 -- | Parameters of program exploration
 data SearchParams = SearchParams {
   _eGuessDepth :: Int,                    -- ^ Maximum depth of application trees
@@ -30,7 +37,21 @@ data SearchParams = SearchParams {
   _pathSearch :: PathStrategy,
   _useHO :: Bool,
   _encoderType :: HEncoder.EncoderType,
-  _useRefine :: PNSolver.RefineStrategy
+  _useRefine :: RefineStrategy
 }
 
 makeLenses ''SearchParams
+
+data TimeStatistics = TimeStatistics {
+  encodingTime :: Double,
+  constructionTime :: Double,
+  solverTime :: Double,
+  codeFormerTime :: Double,
+  refineTime :: Double,
+  typeCheckerTime :: Double,
+  otherTime :: Double,
+  totalTime :: Double,
+  iterations :: Int,
+  numOfTransitions :: Map Int Int,
+  numOfPlaces :: Map Int Int
+} deriving(Eq)

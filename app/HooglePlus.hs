@@ -12,6 +12,8 @@ import Synquid.Resolver (resolveDecls, ResolverState (..), initResolverState, re
 import Synquid.SolverMonad
 import Types.Experiments
 import Types.Environment
+import Types.Program
+import Types.Solver
 import Synquid.HtmlOutput
 import Database.Environment (writeEnv, generateEnv)
 import Database.Convert
@@ -186,7 +188,7 @@ runOnFile :: SynquidParams -> SearchParams  -> String -> IO ()
 runOnFile synquidParams searchParams file = do
   goal <- parseGoal file
   goal' <- feedEnv goal
-  result <- newsynthesize searchParams goal'
+  result <- synthesize searchParams goal'
   return ()
   where
     feedEnv goal = do

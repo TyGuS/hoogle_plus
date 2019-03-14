@@ -7,6 +7,8 @@ import qualified Z3.Base as Z3
 import Z3.Monad hiding(Z3Env, newEnv)
 
 import PetriNet.PNBuilder
+import Types.PetriNet
+import Types.Common
 import Synquid.Util
 
 data VarType = VarPlace | VarTransition | VarFlow | VarTimestamp

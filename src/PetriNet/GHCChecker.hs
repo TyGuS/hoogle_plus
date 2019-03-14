@@ -7,7 +7,8 @@ import Data.Map as Map hiding (map, foldr)
 import Control.Exception
 
 import Types.Environment
-import Synquid.Program
+import Types.Program
+import Types.Type
 import Synquid.Type
 import Synquid.Pretty as Pretty
 

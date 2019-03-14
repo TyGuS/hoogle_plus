@@ -9,7 +9,10 @@ import Synquid.Type
 import Synquid.Error
 import Synquid.Tokens
 import Synquid.Util
+import Types.Common
+import Types.Type
 import Types.Abstract
+import Types.Program
 import Types.Environment
 
 import Data.Serialize (Serialize)
@@ -31,46 +34,6 @@ import Control.Lens
 
 {- Program terms -}
 
--- | One case inside a pattern match expression
-data Case t = Case {
-  constructor :: Id,      -- ^ Constructor name
-  argNames :: [Id],       -- ^ Bindings for constructor arguments
-  expr :: Program t       -- ^ Result of the match in this case
-} deriving (Eq, Ord, Functor, Generic)
-
--- | Program skeletons parametrized by information stored symbols, conditionals, and by node types
-data BareProgram t =
-  PSymbol Id |                                -- ^ Symbol (variable or constant)
-  PApp (Program t) (Program t) |              -- ^ Function application
-  PFun Id (Program t) |                       -- ^ Lambda abstraction
-  PIf (Program t) (Program t) (Program t) |   -- ^ Conditional
-  PMatch (Program t) [Case t] |               -- ^ Pattern match on datatypes
-  PFix [Id] (Program t) |                     -- ^ Fixpoint
-  PLet Id (Program t) (Program t) |           -- ^ Let binding
-  PHole |                                     -- ^ Hole (program to fill in)
-  PErr                                        -- ^ Error
-  deriving (Eq, Ord, Functor, Generic)
-
--- | Programs annotated with types
-data Program t = Program {
-  content :: BareProgram t,
-  typeOf :: t
-} deriving (Functor, Generic)
-
-instance Eq (Program t) where
-  (==) (Program l _) (Program r _) = l == r
-
-instance Ord (Program t) where
-  (<=) (Program l _) (Program r _) = l <= r
-
--- | Untyped programs
-type UProgram = Program RType
--- | Refinement-typed programs
-type RProgram = Program RType
--- | Simple-typed programs
-type TProgram = Program SType
-
-type SProgram = Program (RType, RType)
 
 untyped c = Program c AnyT
 uHole = untyped PHole
@@ -156,26 +119,6 @@ renameAsImpl isBound = renameAsImpl' Map.empty
 
 
 
--- | One case in a measure definition: constructor name, arguments, and body
-data MeasureCase = MeasureCase Id [Id] Formula
-  deriving (Eq, Ord, Generic)
-
--- | User-defined measure function representation
-data MeasureDef = MeasureDef {
-  _inSort :: Sort,
-  _outSort :: Sort,
-  _definitions :: [MeasureCase],
-  _postcondition :: Formula
-} deriving (Eq, Ord, Generic)
-
-makeLenses ''MeasureDef
-
-data Metadata = Metadata {
-  _distFromGoal :: Int,
-  _mWeight :: Double
-} deriving(Eq, Show, Generic)
-
-makeLenses ''Metadata
 
 mtComp :: Metadata -> Metadata -> Bool
 mtComp mt1 mt2 =
@@ -195,23 +138,6 @@ instance (Eq k, Hashable k, Serialize k, Serialize v) => Serialize (HashMap k v)
   put hm = S.put (HashMap.toList hm)
   get = HashMap.fromList <$> S.getListOf S.get
 
-instance Serialize Formula
-instance Serialize Sort
-instance Serialize UnOp
-instance Serialize BinOp
-instance Serialize Environment
-instance Serialize PredSig
-instance Serialize DatatypeDef
-instance Serialize MeasureCase
-instance Serialize MeasureDef
-instance Serialize Metadata
-instance Serialize t => Serialize (Case t)
-instance Serialize t => Serialize (BareProgram t)
-instance Serialize t => Serialize (Program t)
-instance Serialize r => Serialize (TypeSkeleton r)
-instance Serialize r => Serialize (BaseType r)
-instance Serialize r => Serialize (SchemaSkeleton r)
-instance Serialize AbstractSkeleton
 
 
 
@@ -346,40 +272,15 @@ refineBot env (FunctionT x tArg tFun) = FunctionT x (refineTop env tArg) (refine
 
 {- Input language declarations -}
 
--- | Constructor signature: name and type
-data ConstructorSig = ConstructorSig Id RType
-  deriving (Eq)
 
 constructorName (ConstructorSig name _) = name
 
-data BareDeclaration =
-  TypeDecl Id [Id] RType |                                  -- ^ Type name, variables, and definition
-  FuncDecl Id RSchema |                                     -- ^ Function name and signature
-  DataDecl Id [Id] [(PredSig, Bool)] [ConstructorSig] |     -- ^ Datatype name, type parameters, predicate parameters, and constructor definitions
-  MeasureDecl Id Sort Sort Formula [MeasureCase] Bool |     -- ^ Measure name, input sort, output sort, postcondition, definition cases, and whether this is a termination metric
-  PredDecl PredSig |                                        -- ^ Module-level predicate
-  QualifierDecl [Formula] |                                 -- ^ Qualifiers
-  MutualDecl [Id] |                                         -- ^ Mutual recursion group
-  InlineDecl Id [Id] Formula |                              -- ^ Inline predicate
-  SynthesisGoal Id UProgram                                 -- ^ Name and template for the function to reconstruct
-  deriving (Eq)
-
-type Declaration = Pos BareDeclaration
 
 isSynthesisGoal (Pos _ (SynthesisGoal _ _)) = True
 isSynthesisGoal _ = False
 
 {- Misc -}
 
--- | Synthesis goal
-data Goal = Goal {
-  gName :: Id,                  -- ^ Function name
-  gEnvironment :: Environment,  -- ^ Enclosing environment
-  gSpec :: RSchema,             -- ^ Specification
-  gImpl :: UProgram,            -- ^ Implementation template
-  gDepth :: Int,                -- ^ Maximum level of auxiliary goal nesting allowed inside this goal
-  gSourcePos :: SourcePos       -- ^ Source Position
-} deriving (Eq, Ord)
 
 unresolvedType env ident = (env ^. unresolvedConstants) Map.! ident
 -- unresolvedSpec goal = unresolvedType (gEnvironment goal) (gName goal)

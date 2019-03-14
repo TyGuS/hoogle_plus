@@ -2,6 +2,7 @@
 module Synquid.Tokens where
 
 import Synquid.Logic
+import Types.Common
 import Synquid.Util
 import Data.Maybe
 import Data.Map (Map, fromList)
@@ -9,18 +10,18 @@ import Data.Char
 
 -- | Keywords
 keywords :: [String]
-keywords = ["data", "else", "error", "False", "if", "in", "inline", 
+keywords = ["data", "else", "error", "False", "if", "in", "inline",
   "let", "match", "measure", "predicate", "qualifier", "termination",
   "then", "True", "type", "with", "where"
   ]
 
--- | Names of unary operators    
+-- | Names of unary operators
 unOpTokens :: Map UnOp String
 unOpTokens = fromList [ (Neg, "-")
                       , (Not, "!")
                       ]
-                           
--- | Names of binary operators             
+
+-- | Names of binary operators
 binOpTokens :: Map BinOp String
 binOpTokens = fromList [ (Times,     "*")
                        , (Plus,      "+")
@@ -41,10 +42,10 @@ binOpTokens = fromList [ (Times,     "*")
                        , (Member,    "in")
                        , (Subset,    "<=")
                        ]
-                        
--- | Other operators         
+
+-- | Other operators
 otherOps :: [String]
-otherOps = ["::", ":", "->", "|", "=", "??", ",", ".", "\\"] 
+otherOps = ["::", ":", "->", "|", "=", "??", ",", ".", "\\"]
 
 -- | Characters allowed in identifiers (in addition to letters and digits)
 identifierChars = "_'"

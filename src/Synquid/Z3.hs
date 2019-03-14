@@ -3,8 +3,10 @@
 -- | Interface to Z3
 module Synquid.Z3 (Z3State, evalZ3State) where
 
+import Types.Common
 import Types.Environment
 import Synquid.Logic
+import Types.Type
 import Synquid.Type
 import Synquid.Program
 import Synquid.SolverMonad

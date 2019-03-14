@@ -7,7 +7,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
 module PetriNet.PNSolver (
-  PathSolver(..),
   RefineStrategy(..),
   TimeStatistics(..),
   SolverState(..),
@@ -49,8 +48,14 @@ import qualified Z3.Monad as Z3
 import System.CPUTime
 import Text.Printf
 
+import Types.Common
+import Types.Type
 import Types.Environment
 import Types.Abstract
+import Types.Solver
+import Types.Program
+import Types.PetriNet
+import Types.Experiments
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Program
 import Synquid.Type
@@ -68,87 +73,6 @@ import HooglePlus.CodeFormer
 import Database.Convert
 import Database.Generate
 
-data PathSolver =
-    SATSolver
-  | SMTSolver
-  deriving(Data, Show, Eq)
-
-data RefineStrategy =
-    NoRefine
-  | AbstractRefinement
-  | Combination
-  | QueryRefinement
-  deriving(Data, Show, Eq)
-
-data TimeStatistics = TimeStatistics {
-  encodingTime :: Double,
-  constructionTime :: Double,
-  solverTime :: Double,
-  codeFormerTime :: Double,
-  refineTime :: Double,
-  typeCheckerTime :: Double,
-  otherTime :: Double,
-  totalTime :: Double,
-  iterations :: Int,
-  numOfTransitions :: Map Int Int,
-  numOfPlaces :: Map Int Int
-} deriving(Eq)
-
-data SolverState = SolverState {
-    _nameCounter :: Map Id Int,  -- name map for generating fresh names (type variables, parameters)
-    _typeAssignment :: Map Id SType,  -- current type assignment for each type variable
-    _typingError :: (SType, SType), -- typing error message, represented by the expected type and actual type
-    _abstractionTree :: AbstractionTree,
-    _isChecked :: Bool, -- is the current state check passed
-    _currentSolutions :: [RProgram], -- type checked solutions
-    _currentLoc :: Int, -- current solution depth
-    _currentSigs :: Map Id AbstractSkeleton, -- current type signature groups
-    _detailedSigs :: Set Id,
-    _functionMap :: HashMap Id FunctionCode,
-    _targetType :: AbstractSkeleton,
-    _sourceTypes :: [AbstractSkeleton],
-    _paramNames :: [Id],
-    _refineStrategy :: RefineStrategy,
-    _groupMap :: Map Id [Id], -- mapping from group id to list of function names
-    _type2transition :: Map AbstractSkeleton [Id], -- mapping from abstract type to group ids
-    _solverNet :: PetriNet,
-    _solverStats :: TimeStatistics,
-    _useGroup :: Bool,
-    _splitTypes :: [(AbstractSkeleton, AbstractSkeleton)],
-    _nameMapping :: Map Id Id, -- mapping from fake names to real names
-    _logLevel :: Int, -- temporary for log level
-    _maxApplicationDepth :: Int
-} deriving(Eq)
-
-emptySolverState = SolverState {
-    _nameCounter = Map.empty,
-    _typeAssignment = Map.empty,
-    _typingError = (AnyT, AnyT),
-    _abstractionTree = ALeaf (AExclusion Set.empty),
-    _isChecked = True,
-    _currentSolutions = [],
-    _currentLoc = 1,
-    _currentSigs = Map.empty,
-    _detailedSigs = Set.empty,
-    _functionMap = HashMap.empty,
-    _targetType = AExclusion Set.empty,
-    _sourceTypes = [],
-    _paramNames = [],
-    _refineStrategy = NoRefine,
-    _groupMap = Map.empty,
-    _type2transition = Map.empty,
-    _solverNet = PetriNet HashMap.empty HashMap.empty HashMap.empty,
-    _solverStats = TimeStatistics (0::Double) (0::Double) (0::Double) (0) (0::Double) (0::Double) (0::Double) (0::Double) 0 Map.empty Map.empty,
-    _useGroup = False,
-    _splitTypes = [],
-    _nameMapping = Map.empty,
-    _logLevel = 0,
-    _maxApplicationDepth = 6
-}
-
-makeLenses ''SolverState
-
-type PNSolver m = StateT SolverState m
 
 abstractParamList :: AbstractSkeleton -> [AbstractSkeleton]
 abstractParamList t@(ADatatypeT _ _) = [t]

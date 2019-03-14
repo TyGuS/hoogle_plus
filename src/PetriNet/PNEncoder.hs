@@ -24,6 +24,8 @@ import System.CPUTime
 import Text.Printf
 import Data.Text (pack, unpack, replace)
 
+import Types.Common
+import Types.PetriNet
 import PetriNet.PNBuilder
 import PetriNet.Encoder
 import Types.Abstract

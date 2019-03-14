@@ -1,10 +1,11 @@
 {-# LANGUAGE DeriveGeneric  #-}
 module Types.Abstract where
 
-import Synquid.Util
+import Types.Common
 
 import Data.Set (Set)
 import GHC.Generics
+import Data.Serialize
 
 data AbstractSkeleton =
       ADatatypeT Id [AbstractSkeleton] -- explicit datatypes
@@ -12,6 +13,8 @@ data AbstractSkeleton =
     | ATypeVarT Id -- type variable is only temporarily before building the PetriNet
     | AFunctionT AbstractSkeleton AbstractSkeleton
     deriving (Eq, Ord, Show, Generic)
+
+instance Serialize AbstractSkeleton
 
 data AbstractionTree =
       ALeaf AbstractSkeleton

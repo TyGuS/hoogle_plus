@@ -1,8 +1,8 @@
 {-# LANGUAGE TemplateHaskell, DeriveFunctor, DeriveGeneric #-}
 module Types.Environment where
 
-import Synquid.Type
-import Synquid.Util
+import Types.Type
+import Types.Common
 import PetriNet.AbstractType
 
 import GHC.Generics hiding (to)

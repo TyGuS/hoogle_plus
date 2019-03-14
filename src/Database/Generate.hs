@@ -15,7 +15,8 @@ import Data.List.Extra
 import Data.Either
 import GHC.Generics
 import Control.Monad.Extra
-import Synquid.Type (isFunctionType, lastType, toMonotype, shape, arity, SType, RSchema, TypeSkeleton(..))
+import Types.Type (SType, RSchema, TypeSkeleton(..))
+import Synquid.Type (isFunctionType, lastType, toMonotype, shape, arity)
 import qualified Synquid.Program as SP
 import Synquid.Pretty
 

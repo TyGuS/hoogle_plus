@@ -53,6 +53,12 @@ module Synquid.Pretty (
   programNodeCount
 ) where
 
+import Types.Environment
+import Types.Abstract
+import Types.Common
+import Types.Type
+import Types.Program
+
 import Synquid.Logic
 import Synquid.Type
 import Synquid.Error
@@ -60,8 +66,6 @@ import Synquid.Program
 import Synquid.Tokens
 import Synquid.Util
 import PetriNet.AbstractType
-import Types.Environment
-import Types.Abstract
 
 import Text.PrettyPrint.ANSI.Leijen hiding ((<+>), (<$>), hsep, vsep)
 import qualified Text.PrettyPrint.ANSI.Leijen as L
