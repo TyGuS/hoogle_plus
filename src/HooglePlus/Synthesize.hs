@@ -1,4 +1,4 @@
-module HooglePlus.Synthesize(synthesize) where
+module HooglePlus.Synthesize(synthesize, envToGoal) where
 
 import Types.Common
 import Types.Type
@@ -26,6 +26,7 @@ import qualified Data.Map as Map
 import Data.Map (Map)
 import Control.Monad.Reader
 import Control.Monad.Logic
+import Control.Monad.Except
 import Control.Monad
 import Control.Monad.State
 import Control.Lens
@@ -52,10 +53,14 @@ envToGoal env queryStr = do
   case parseResult of
     Left parseErr -> (putDoc $ pretty $ toErrorMessage parseErr) >> putDoc empty >> exitFailure
     Right (funcDecl:decl:_) -> case decl of
-      Pos _ (SynthesisGoal id uprog) ->
+      Pos _ (SynthesisGoal id uprog) -> do
         let Pos _ (FuncDecl _ sch) = funcDecl
-        in do
-          return $ Goal id env sch uprog 3 $ initialPos "goal"
+        let goal = Goal id env sch uprog 3 $ initialPos "goal"
+        let spec = runExcept $ evalStateT (resolveSchema (gSpec goal)) (initResolverState { _environment = env })
+        case spec of
+          Right sp -> return $ goal { gEnvironment = env, gSpec = sp }
+          Left parseErr -> (putDoc $ pretty parseErr) >> putDoc empty >> exitFailure
+
       _ -> error "parse a signature for a none goal declaration"
 
 

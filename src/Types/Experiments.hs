@@ -55,3 +55,16 @@ data TimeStatistics = TimeStatistics {
   numOfTransitions :: Map Int Int,
   numOfPlaces :: Map Int Int
 } deriving(Eq)
+
+
+-- | Parameters for template exploration
+defaultSearchParams = SearchParams {
+  _eGuessDepth = 3,
+  _sourcePos = noPos,
+  _explorerLogLevel = 0,
+  _solutionCnt = 1,
+  _pathSearch = PetriNet,
+  _useHO = False,
+  _encoderType = Normal,
+  _useRefine = QueryRefinement
+}

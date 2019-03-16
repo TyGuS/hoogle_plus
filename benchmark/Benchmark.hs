@@ -10,11 +10,15 @@ import Data.Aeson
 
 main :: IO ()
 main = do
-  env <- newGenerateEnv genOpts
-  let goal = mkGoal env query
-  synthesize searchParams goal
-  return ()
+    env <- newGenerateEnv genOpts
+    goal <- envToGoal env query
+    synthesize searchParams goal
+    return ()
+  where
+    query = "a -> List (Maybe a) -> a"
 
+
+searchParams = defaultSearchParams
 
 genOpts = defaultGenerationOpts {
   modules = [
