@@ -3,6 +3,7 @@ module Types.Environment where
 
 import Types.Type
 import Types.Common
+import Types.Generate
 import PetriNet.AbstractType
 
 import GHC.Generics hiding (to)
@@ -25,11 +26,9 @@ makeLenses ''DatatypeDef
 
 -- | Typing environment
 data Environment = Environment {
-  -- | Variable part:
   _symbols :: Map Int (Map Id RSchema),    -- ^ Variables and constants (with their refinement types), indexed by arity
   _arguments :: Map Id RSchema,            -- ^ Function arguments, required in all the solutions
   _typeClasses :: Map Id (Set Id),         -- ^ Type class instances
-  -- _abstractSymbols :: Map Id AbstractSkeleton,
   _boundTypeVars :: [Id],                  -- ^ Bound type variables
   _unfoldedVars :: Set Id,                 -- ^ In eager match mode, datatype variables that can be scrutinized
   -- | Constant part:

@@ -17,6 +17,7 @@ import Synquid.Program
 import Synquid.Type
 import Synquid.Util
 import Types.Common
+import Types.Generate
 import Types.Environment
 import Types.Program
 import Types.Type
@@ -64,25 +65,15 @@ initResolverState = ResolverState {
 }
 
 -- | Convert a parsed program AST into a list of synthesis goals and qualifier maps
-resolveDecls :: [Declaration] -> Either ErrorMessage (Environment, [Goal], [Formula], [Formula])
-resolveDecls declarations =
-  case runExcept (execStateT go initResolverState) of
-    Left msg -> Left msg
-    Right st ->
-      Right (st ^. environment, map (makeGoal (st ^. environment) (map fst (st ^. goals)) (st ^. mutuals)) (st ^. goals), st ^. condQualifiers, st ^. typeQualifiers)
+resolveDecls :: [Declaration] -> [MdlName] -> Either ErrorMessage Environment
+resolveDecls declarations moduleNames =
+  runExcept (execStateT go initResolverState) >>= (\s -> Right (s ^. environment))
   where
     go = do
       -- Pass 1: collect all declarations and resolve sorts, but do not resolve refinement types yet
       mapM_ (extractPos resolveDeclaration) declarations
       -- Pass 2: resolve refinement types in signatures
       mapM_ (extractPos resolveSignatures) declarations
-    makeGoal env allNames allMutuals (name, (impl, pos)) =
-      let
-        spec = allSymbols env Map.! name
-        myMutuals = Map.findWithDefault [] name allMutuals
-        toRemove = drop (fromJust $ elemIndex name allNames) allNames \\ myMutuals -- All goals after and including @name@, except mutuals
-        env' = foldr removeVariable env toRemove
-      in Goal name env' spec impl 0 pos
     extractPos pass (Pos pos decl) = do
       currentPosition .= pos
       pass decl

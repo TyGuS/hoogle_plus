@@ -17,6 +17,7 @@ import Control.Monad.Extra
 import System.Directory
 import System.IO
 
+import Types.Generate
 import Database.Util
 
 docVersionsUrl = "https://hackage.haskell.org/packages/docs"
@@ -39,11 +40,23 @@ packageNameWithVersion pkg version = case version of
     Nothing -> return pkg
     Just v  -> ifM (checkVersion pkg v) (return $ pkg ++ "-" ++ v) (return pkg)
 
-downloadFile :: PkgName -> Maybe Version -> IO Bool
+
+-- getPkg downloads packages and their dependencies to files.
+getPkg :: String -> IO [FilePath]
+getPkg pkgName = do
+    filePath <- downloadFile pkgName Nothing
+    cabalPath <- downloadCabal pkgName Nothing
+    if isNothing filePath || isNothing cabalPath
+        then error $ "Problem downloading docs for: " ++ pkgName
+        else return $ [fromJust filePath]
+
+
+downloadFile :: PkgName -> Maybe Version -> IO (Maybe FilePath)
 downloadFile pkg version = do
     vpkg <- packageNameWithVersion pkg version
-    doesExist <- doesFileExist $ downloadDir ++ vpkg ++ ".txt"
-    if not doesExist 
+    let filepath = downloadDir ++ vpkg ++ ".txt"
+    doesExist <- doesFileExist $ filepath
+    if not doesExist
         then do
             hPutStrLn stderr $ "Downloading file " ++ vpkg ++ " from Hackage..."
             request <- parseRequest $ docDownloadUrl ++ vpkg ++ "/docs/" ++ pkg ++ ".txt"
@@ -51,14 +64,15 @@ downloadFile pkg version = do
             runResourceT $ do
                 response <- http request manager
                 if responseStatus response /= ok200
-                    then return False -- error "Connection Error"
-                    else runConduit (responseBody response .| sinkFile (downloadDir ++ vpkg ++ ".txt")) >> return True
-        else return True
+                    then return Nothing -- error "Connection Error"
+                    else runConduit (responseBody response .| sinkFile filepath) >> return (Just filepath)
+        else return (Just filepath)
 
-downloadCabal :: PkgName -> Maybe Version -> IO Bool
+downloadCabal :: PkgName -> Maybe Version -> IO (Maybe FilePath)
 downloadCabal pkg version = do
     vpkg <- packageNameWithVersion pkg version
-    doesExist <- doesFileExist $ downloadDir ++ pkg ++ ".cabal"
+    let filepath = downloadDir ++ pkg ++ ".cabal"
+    doesExist <- doesFileExist $ filepath
     if not doesExist
         then do
             hPutStrLn stderr $ "Downloading cabal information of " ++ vpkg ++ " from Hackage..."
@@ -67,6 +81,6 @@ downloadCabal pkg version = do
             runResourceT $ do
                 response <- http request manager
                 if responseStatus response /= ok200
-                    then return False -- error "Connection Error"
-                    else runConduit (responseBody response .| sinkFile (downloadDir ++ pkg ++ ".cabal")) >> return True
-        else return True
+                    then return Nothing -- error "Connection Error"
+                    else runConduit (responseBody response .| sinkFile (downloadDir ++ pkg ++ ".cabal")) >> return (Just filepath)
+        else return (Just filepath)

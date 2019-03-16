@@ -7,10 +7,12 @@ import Types.Environment
 import Types.Program
 import Types.Solver
 import Synquid.Util
+import Synquid.Error
 import Synquid.Logic
 import Synquid.Type
 import Synquid.Program
 import Synquid.Pretty
+import Synquid.Parser
 import Synquid.Resolver
 import PetriNet.PNSolver
 import qualified HooglePlus.Abstraction as Abstraction
@@ -28,6 +30,9 @@ import Control.Monad
 import Control.Monad.State
 import Control.Lens
 import Control.Applicative ((<$>))
+import Text.Parsec.Pos
+import Text.Parsec.Indent
+import System.Exit
 
 import Data.Time.Clock
 import Data.Time.Format
@@ -39,6 +44,20 @@ updateEnvWithBoundTyVars (ForallT x ty) env = updateEnvWithBoundTyVars ty (addTy
 updateEnvWithSpecArgs :: RType -> Environment -> (Environment, RType)
 updateEnvWithSpecArgs ty@(ScalarT _ _) env = (env, ty)
 updateEnvWithSpecArgs (FunctionT x tArg tRes) env = updateEnvWithSpecArgs tRes $ unfoldAllVariables $ addVariable x tArg $ addArgument x tArg $ env
+
+envToGoal :: Environment -> String -> IO Goal
+envToGoal env queryStr = do
+  let transformedSig = "goal :: " ++ queryStr ++ "\ngoal = ??"
+  let parseResult = flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" transformedSig
+  case parseResult of
+    Left parseErr -> (putDoc $ pretty $ toErrorMessage parseErr) >> putDoc empty >> exitFailure
+    Right (funcDecl:decl:_) -> case decl of
+      Pos _ (SynthesisGoal id uprog) ->
+        let Pos _ (FuncDecl _ sch) = funcDecl
+        in do
+          return $ Goal id env sch uprog 3 $ initialPos "goal"
+      _ -> error "parse a signature for a none goal declaration"
+
 
 synthesize :: SearchParams  -> Goal -> IO [(RProgram, TimeStatistics)]
 synthesize searchParams goal = do

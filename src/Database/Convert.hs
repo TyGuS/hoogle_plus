@@ -33,6 +33,7 @@ import Synquid.Logic hiding (Var)
 import Synquid.Type
 import Synquid.Util
 import Types.Common
+import Types.Generate
 import Types.Environment
 import Types.Program (BareDeclaration, Declaration, BareProgram(..), UProgram, Program(..))
 import Types.Type
@@ -260,11 +261,6 @@ toSynquidDecl (EDecl (TypeSig _ names typ)) = do
         Just sch -> return $ Pos (initialPos (nameStr $ names !! 0)) $ TP.FuncDecl (nameStr $ head names) (toSynquidRSchema sch)
 toSynquidDecl decl = return $ Pos (initialPos "") $ TP.QualifierDecl [] -- [TODO] a fake conversion
 
--- synonymMap :: [Declaration] -> Map Id Declaration
--- synonymMap []           = Map.empty
--- synonymMap (decl:decls) = case decl of
---     Pos _ (TP.TypeDecl id _ typ) -> Map.insert id decl (synonymMap decls)
---     _ -> synonymMap decls
 
 
 
@@ -297,7 +293,12 @@ readDeclarations pkg version = do
     let code = concat . rights . (map parseLine) $ splitOn "\n" s
     return $ renameSigs "" code
 
-type DependsOn = Map PkgName [Id]
+readDeclarationsFromFile :: FilePath -> IO (Map MdlName [Entry])
+readDeclarationsFromFile fp = do
+    fileLines <- lines <$> readFile fp
+    let code = concat $ rights $ map parseLine fileLines
+    return $ renameSigs "" code
+
 
 packageDependencies :: PkgName -> Bool -> IO [PkgName]
 packageDependencies pkg toDownload = do
@@ -309,7 +310,10 @@ packageDependencies pkg toDownload = do
             -- download necessary files to resolve package dependencies
             foldrM (\fname existDps ->
                 ifM (if toDownload
-                        then downloadFile fname Nothing >> downloadCabal fname Nothing
+                        then do
+                          gotFile <- isJust <$> (downloadFile fname Nothing)
+                          gotCabal <- isJust <$> (downloadCabal fname Nothing)
+                          return (gotFile && gotCabal)
                         else doesFileExist $ downloadDir ++ fname ++ ".txt")
                     (return $ fname:existDps)
                     (return existDps)) [] dps

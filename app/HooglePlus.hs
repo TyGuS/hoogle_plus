@@ -10,12 +10,13 @@ import Synquid.Pretty
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Resolver (resolveDecls, ResolverState (..), initResolverState, resolveSchema)
 import Synquid.SolverMonad
+import Types.Generate
 import Types.Experiments
 import Types.Environment
 import Types.Program
 import Types.Solver
 import Synquid.HtmlOutput
-import Database.Environment (writeEnv, generateEnv)
+import Database.Environment (writeEnv, generateEnv, newGenerateEnv)
 import Database.Convert
 import Database.Generate
 import Database.Download
@@ -64,22 +65,34 @@ releaseDate = fromGregorian 2019 3 10
 main = do
   res <- cmdArgsRun $ mode
   case res of
-    (Synthesis file libs envPath appMax log_ sol_num path_search higher_order encoder refine) -> do
-                  let searchParams = defaultSearchParams {
-                    _eGuessDepth = appMax,
-                    _explorerLogLevel = log_,
-                    _solutionCnt = sol_num,
-                    _pathSearch = path_search,
-                    _useHO = higher_order,
-                    _encoderType = encoder,
-                    _useRefine = refine
-                    }
-                  let synquidParams = defaultSynquidParams {
-                    envPath = envPath
-                  }
-                  runOnFile synquidParams searchParams file
-    (Generate pkgs mdls d ho envPath) -> do
-                  precomputeGraph pkgs mdls d ho envPath
+    Synthesis file libs envPath appMax log_ sol_num path_search higher_order encoder refine -> do
+      let searchParams = defaultSearchParams {
+        _eGuessDepth = appMax,
+        _explorerLogLevel = log_,
+        _solutionCnt = sol_num,
+        _pathSearch = path_search,
+        _useHO = higher_order,
+        _encoderType = encoder,
+        _useRefine = refine
+        }
+      let synquidParams = defaultSynquidParams {
+        Main.envPath = envPath
+      }
+      runOnFile synquidParams searchParams file
+    Generate pkgs mdls d ho pathToEnv -> do
+      let fetchOpts = defaultHackageOpts {
+        packages = pkgs
+      }
+      let generationOpts = defaultGenerationOpts {
+        modules = mdls,
+        instantiationDepth = d,
+        enableHOF = ho,
+        pkgFetchOpts = fetchOpts,
+        Types.Generate.envPath = pathToEnv
+      }
+      -- precomputeGraph' generationOpts
+      -- precomputeGraph pkgs mdls d ho pathToEnv
+
 {- Command line arguments -}
 
 {-# ANN module "HLint: ignore Use camelCase" #-}
@@ -169,13 +182,17 @@ data SynquidParams = SynquidParams {
 }
 
 defaultSynquidParams = SynquidParams {
-    envPath = defaultEnvPath
+    Main.envPath = defaultEnvPath
 }
 
+precomputeGraph' :: GenerationOpts -> IO ()
+precomputeGraph' opts = newGenerateEnv opts >>= writeEnv (Types.Generate.envPath opts)
+
 precomputeGraph :: [PkgName] -> [String] -> Int -> Bool -> String -> IO ()
-precomputeGraph pkgs mdls depth useHO envPath = do
-  env <- generateEnv pkgs mdls depth useHO
-  writeEnv env envPath
+precomputeGraph pkgs mdls depth useHO pathToEnv =
+  generateEnv pkgs mdls depth useHO >>= writeEnv pathToEnv
+
+
 
 -- | Parse and resolve file, then synthesize the specified goals
 runOnFile :: SynquidParams -> SearchParams  -> String -> IO ()
@@ -186,7 +203,7 @@ runOnFile synquidParams searchParams file = do
   return ()
   where
     feedEnv goal = do
-      let envPathIn = envPath synquidParams
+      let envPathIn = Main.envPath synquidParams
       doesExist <- doesFileExist envPathIn
       when (not doesExist) (error ("Please run `stack exec -- " ++ programName ++ " generate -p [PACKAGES]` to generate database first"))
       envRes <- decode <$> B.readFile envPathIn
@@ -213,4 +230,4 @@ runOnFile synquidParams searchParams file = do
               return $ Goal id emptyEnv sch uprog 3 $ initialPos "goal"
           _ -> error "parse a signature for a none goal declaration"
 
-    pdoc = printDoc Plain
+pdoc = printDoc Plain

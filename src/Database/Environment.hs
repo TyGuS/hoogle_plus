@@ -1,10 +1,12 @@
-module Database.Environment(writeEnv, generateEnv) where
+{-# LANGUAGE ScopedTypeVariables #-}
+module Database.Environment(writeEnv, generateEnv, newGenerateEnv) where
 
 import Data.Either
 import Data.Serialize (encode)
 import Data.List.Extra
 import Control.Lens ((^.))
 import qualified Data.ByteString as B
+import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad.State (evalStateT)
@@ -16,18 +18,19 @@ import Synquid.Logic (ftrue)
 import Types.Type (BaseType(..), TypeSkeleton(..), SchemaSkeleton(..))
 import Synquid.Type (isHigherOrder, toMonotype)
 import Synquid.Pretty as Pretty
-import qualified Database.Util as DU
+import  Database.Util
 import qualified Database.Download as DD
 import qualified Database.Convert as DC
 import Types.Environment (Environment, symbols, _symbols, _included_modules)
 import Types.Program (BareDeclaration(..), Declaration(..), ConstructorSig(..))
+import Types.Generate
 import Synquid.Resolver (resolveDecls)
 
 
-writeEnv :: Environment -> String -> IO ()
-writeEnv env path = B.writeFile path (encode env)
+writeEnv :: FilePath -> Environment -> IO ()
+writeEnv path env = B.writeFile path (encode env)
 
-generateEnv :: [DU.PkgName] -> [String] -> Int -> Bool -> IO Environment
+generateEnv :: [PkgName] -> [String] -> Int -> Bool -> IO Environment
 generateEnv pkgs mdls depth useHO = do
   -- print pkgs
   pkgDecls <- mapM (\pkgName -> do
@@ -41,9 +44,9 @@ generateEnv pkgs mdls depth useHO = do
     return $ additionalDts ++ parsedDecls
     ) pkgs
   let decls = DC.reorderDecls $ nub $ defaultFuncs ++ defaultDts ++ concat pkgDecls
-  case resolveDecls decls of
+  case resolveDecls decls [] of
     Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
-    Right (env, _, _, _) -> do
+    Right env -> do
       return env {
           _symbols = if useHO then env ^. symbols
                               else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols,
@@ -53,24 +56,33 @@ generateEnv pkgs mdls depth useHO = do
     pdoc = putStrLn . show
 
 
--- Default Library
-defaultFuncs = [ Pos (initialPos "fst") $ FuncDecl "fst" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) (ScalarT (TypeVarT Map.empty "a") ftrue)))
-                , Pos (initialPos "snd") $ FuncDecl "snd" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) (ScalarT (TypeVarT Map.empty "b") ftrue)))
-                ]
+newGenerateEnv :: GenerationOpts -> IO Environment
+newGenerateEnv genOpts = do
+    let pkgOpts = pkgFetchOpts genOpts
+    let mdls = modules genOpts
+    let mbModuleNames = if length mdls > 0 then Just mdls else Nothing
+    pkgFiles <- getFiles pkgOpts
+    entriesByMdl <- filesToEntries pkgFiles mbModuleNames
+    let moduleNames = Map.keys entriesByMdl
+    let allCompleteEntries = concat (Map.elems entriesByMdl)
+    let allEntries = nubOrd allCompleteEntries
+    hooglePlusDecls <- mapM (\entry -> evalStateT (DC.toSynquidDecl entry) 0) allEntries
+    case resolveDecls hooglePlusDecls moduleNames of
+       Left errMessage -> error $ show errMessage
+       Right env -> return env
 
-defaultDts = [defaultList, defaultPair, defaultUnit, defaultInt, defaultBool]
+-- filesToEntries reads each file into map of module -> declartions
+-- Filters for modules we care about. If none, use them all.
+filesToEntries :: [FilePath] -> Maybe [MdlName] -> IO (Map MdlName [Entry])
+filesToEntries fps mbMdls = do
+    declsByModuleByFile <- mapM DC.readDeclarationsFromFile fps
+    let declsByModule = Map.unionsWith (++) declsByModuleByFile
+    let shouldKeepModule m _ = case mbMdls of
+          Nothing -> True
+          Just mdls -> m `elem` mdls
+    return (Map.filterWithKey shouldKeepModule declsByModule)
 
-defaultInt = Pos (initialPos "Int") $ DataDecl "Int" [] [] []
 
-defaultBool = Pos (initialPos "Bool") $ DataDecl "Bool" [] [] []
-
-defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
-    ConstructorSig "Nil"  $ ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue
-  , ConstructorSig "Cons" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "xs" (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue) (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue))
-  ]
-
-defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [] [
-    ConstructorSig "Pair" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "y" (ScalarT (TypeVarT Map.empty "b") ftrue) (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue))
-  ]
-
-defaultUnit = Pos (initialPos "Unit") $ DataDecl "Unit" [] [] []
+getFiles :: PackageFetchOpts -> IO [FilePath]
+getFiles Hackage{packages=p} = mapM DD.getPkg p >>= (return . concat)
+getFiles Local{files=f} = return f
