@@ -25,9 +25,12 @@ genOpts = defaultGenerationOpts {
       "Data.Maybe",
       "Data.ByteString.Lazy"
       ],
-  pkgFetchOpts = Local {
-      files = ["libraries/tier1/base.txt", "libraries/tier1/bytestring.txt"]
+  pkgFetchOpts = Hackage {
+      packages = ["base"]
       }
+  -- pkgFetchOpts = Local {
+  --     files = ["libraries/tier1/base.txt", "libraries/tier1/bytestring.txt"]
+  --     }
   }
 
 {-

@@ -94,7 +94,7 @@ instance Serialize r => Serialize (SchemaSkeleton r)
 
 -- | Constructor signature: name and type
 data ConstructorSig = ConstructorSig Id RType
-  deriving (Eq)
+  deriving (Eq, Ord)
 
 data BareDeclaration =
   TypeDecl Id [Id] RType |                                  -- ^ Type name, variables, and definition
@@ -106,7 +106,7 @@ data BareDeclaration =
   MutualDecl [Id] |                                         -- ^ Mutual recursion group
   InlineDecl Id [Id] Formula |                              -- ^ Inline predicate
   SynthesisGoal Id UProgram                                 -- ^ Name and template for the function to reconstruct
-  deriving (Eq)
+  deriving (Eq, Ord)
 
 type Declaration = Pos BareDeclaration
 

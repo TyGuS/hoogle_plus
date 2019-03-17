@@ -56,31 +56,52 @@ generateEnv pkgs mdls depth useHO = do
     pdoc = putStrLn . show
 
 
+getDeps :: PackageFetchOpts -> Map MdlName [Entry] -> [Entry] -> IO [Declaration]
+getDeps Local{} allEntries ourEntries = undefined
+getDeps Hackage{packages=ps} allEntries ourEntries = do
+  pkgsDeps <- mapM (\pkgName -> do
+    pkgDeps <- nubOrd <$> DC.packageDependencies pkgName True
+    entriesFromDeps <- concatMap (concat . Map.elems) <$> (mapM (flip DC.readDeclarations Nothing) pkgDeps)
+    let dependentEntries = DC.entryDependencies allEntries ourEntries entriesFromDeps
+    mapM (flip evalStateT 0 . DC.toSynquidDecl) dependentEntries
+    ) ps
+  return $ nubOrd $ concat pkgsDeps
+
 newGenerateEnv :: GenerationOpts -> IO Environment
 newGenerateEnv genOpts = do
+    let useHO = enableHOF genOpts
     let pkgOpts = pkgFetchOpts genOpts
     let mdls = modules genOpts
     let mbModuleNames = if length mdls > 0 then Just mdls else Nothing
     pkgFiles <- getFiles pkgOpts
-    entriesByMdl <- filesToEntries pkgFiles mbModuleNames
+    allEntriesByMdl <- filesToEntries pkgFiles
+    let entriesByMdl = filterEntries allEntriesByMdl mbModuleNames
+    let ourEntries = concat $ Map.elems entriesByMdl
+    dependencyEntries <- getDeps pkgOpts allEntriesByMdl ourEntries
+    putStrLn $ show dependencyEntries
     let moduleNames = Map.keys entriesByMdl
     let allCompleteEntries = concat (Map.elems entriesByMdl)
     let allEntries = nubOrd allCompleteEntries
-    hooglePlusDecls <- mapM (\entry -> evalStateT (DC.toSynquidDecl entry) 0) allEntries
+    ourDecls <- mapM (\entry -> evalStateT (DC.toSynquidDecl entry) 0) allEntries
+    let hooglePlusDecls = DC.reorderDecls $ nubOrd $ ourDecls ++ dependencyEntries ++ defaultFuncs ++ defaultDts
     case resolveDecls hooglePlusDecls moduleNames of
        Left errMessage -> error $ show errMessage
-       Right env -> return env
+       Right env -> return env {
+          _symbols = if useHO then env ^. symbols
+                              else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols,
+         _included_modules = Set.fromList mdls
+        }
+
+   where
+     filterEntries entries Nothing = entries
+     filterEntries entries (Just mdls) = Map.filterWithKey (\m _-> m `elem` mdls) entries
 
 -- filesToEntries reads each file into map of module -> declartions
 -- Filters for modules we care about. If none, use them all.
-filesToEntries :: [FilePath] -> Maybe [MdlName] -> IO (Map MdlName [Entry])
-filesToEntries fps mbMdls = do
+filesToEntries :: [FilePath] -> IO (Map MdlName [Entry])
+filesToEntries fps = do
     declsByModuleByFile <- mapM DC.readDeclarationsFromFile fps
-    let declsByModule = Map.unionsWith (++) declsByModuleByFile
-    let shouldKeepModule m _ = case mbMdls of
-          Nothing -> True
-          Just mdls -> m `elem` mdls
-    return (Map.filterWithKey shouldKeepModule declsByModule)
+    return $ Map.unionsWith (++) declsByModuleByFile
 
 
 getFiles :: PackageFetchOpts -> IO [FilePath]

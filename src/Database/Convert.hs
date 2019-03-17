@@ -287,11 +287,8 @@ readDeclarations pkg version = do
         case version of
             Nothing -> return pkg
             Just v -> ifM (checkVersion pkg v) (return $ pkg ++ "-" ++ v) (return pkg)
-    h   <- openFile (downloadDir ++ vpkg ++ ".txt") ReadMode
-    hSetEncoding h utf8
-    s   <- hGetContents h
-    let code = concat . rights . (map parseLine) $ splitOn "\n" s
-    return $ renameSigs "" code
+    let filePath = downloadDir ++ vpkg ++ ".txt"
+    readDeclarationsFromFile filePath
 
 readDeclarationsFromFile :: FilePath -> IO (Map MdlName [Entry])
 readDeclarationsFromFile fp = do
@@ -319,6 +316,43 @@ packageDependencies pkg toDownload = do
                     (return existDps)) [] dps
   where
     dependentPkg (Dependency name _) = unPackageName name
+
+--
+entryDependencies :: Map Id [Entry] -> [Entry] -> [Entry] -> [Entry]
+entryDependencies allEntries ourEntries dpDecls = let
+    myDtDefs = (dtDefsIn . concat . Map.elems) allEntries
+    closedDecls = dependencyClosure myDefinedDts myDts (theirDts ++ myDtDefs)
+    allDecls = closedDecls -- ++ (snd $ unzip myDtDefs)
+    sortedIds = topoSort $ dependencyGraph allDecls
+    in
+    matchDtWithCons $ map (\id -> case Map.lookup id $ declMap allDecls of
+                                             Nothing -> error $ "cannot find " ++ id
+                                             Just v -> v) $ nub $ sortedIds >.> ["List", "Pair"]
+  where
+    myDts = dtNamesIn ourEntries
+    myDefinedDts = definedDtsIn ourEntries
+    theirDts = dtDefsIn dpDecls
+    dependencyClosure definedDts allDts theirDts = let
+        undefinedDts = allDts >.> definedDts
+        in if length undefinedDts /= 0
+            then let
+                foreignDts = filter ((flip elem undefinedDts) . fst) theirDts
+                newDecls = nub $ snd $ unzip foreignDts
+                newAddedDts = Set.toList $ Set.unions $ map getDeclTy newDecls
+                in newDecls ++ dependencyClosure allDts newAddedDts theirDts
+            else []
+    declMap decls = foldr (\d -> Map.insert (getDeclName d) d) Map.empty $ filter isDataDecl decls
+    dependsOn decl = case decl of
+        EDecl (DataDecl _ _ _ head conDecls _) -> (declHeadName head, datatypeOfCon conDecls)
+        EDecl (TypeDecl _ head ty) -> (declHeadName head, datatypeOf ty)
+        _ -> error "[In `dependsOn`] Please filter before calling this function"
+    dependencyGraph decls = foldr (uncurry Map.insert) Map.empty $ map dependsOn $ filter isDataDecl decls
+    nodesOf graph = nub $ (Map.keys graph) ++ (Set.toList $ Set.unions $ Map.elems graph)
+    topoSort graph = reverse $ topoSortHelper (nodesOf graph) Set.empty graph
+    topoSortHelper [] _ graph = []
+    topoSortHelper (v:vs) visited graph = if Set.member v visited
+        then topoSortHelper vs visited graph
+        else topoSortHelper vs (Set.insert v visited) graph ++ v:(topoSortHelper (Set.toList (Map.findWithDefault Set.empty v graph)) visited graph)
 
 declDependencies :: Id -> [Entry] -> [Entry] -> IO [Entry]
 declDependencies pkgName decls dpDecls = do
