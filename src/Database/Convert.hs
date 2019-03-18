@@ -265,9 +265,13 @@ toSynquidDecl decl = return $ Pos (initialPos "") $ TP.QualifierDecl [] -- [TODO
 reorderDecls :: [Declaration] -> [Declaration]
 reorderDecls decls = Sort.sortOn toInt decls
   where
-    toInt (Pos _ (TP.TypeDecl {})) = 1
+    toInt (Pos _ (TP.TypeDecl "String" _ _)) = 1
+    toInt (Pos _ (TP.TypeDecl _ [] _)) = 2
+    toInt (Pos _ (TP.TypeDecl _ _ _)) = 3
     toInt (Pos _ (TP.DataDecl "List" _ _ _)) = 0
-    toInt (Pos _ (TP.DataDecl {})) = 1
+    toInt (Pos _ (TP.DataDecl "Char" _ _ _)) = 0
+    toInt (Pos _ (TP.DataDecl _ [] _ _)) = 2
+    toInt (Pos _ (TP.DataDecl _ _ _ _)) = 3
     toInt (Pos _ (TP.QualifierDecl {})) = 98
     toInt (Pos _ (TP.FuncDecl {})) = 99
     toInt (Pos _ (TP.SynthesisGoal {})) = 100

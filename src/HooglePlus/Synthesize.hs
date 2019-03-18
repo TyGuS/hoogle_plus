@@ -51,7 +51,7 @@ envToGoal env queryStr = do
   let transformedSig = "goal :: " ++ queryStr ++ "\ngoal = ??"
   let parseResult = flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" transformedSig
   case parseResult of
-    Left parseErr -> (putDoc $ pretty $ toErrorMessage parseErr) >> putDoc empty >> exitFailure
+    Left parseErr -> (putDoc $ pretty $ toErrorMessage parseErr) >> putDoc empty >> error "uh oh"
     Right (funcDecl:decl:_) -> case decl of
       Pos _ (SynthesisGoal id uprog) -> do
         let Pos _ (FuncDecl _ sch) = funcDecl

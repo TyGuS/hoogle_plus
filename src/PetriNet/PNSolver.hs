@@ -808,12 +808,16 @@ findFirstN :: (MonadIO m) => Environment -> RType -> EncodeState -> Int -> PNSol
 findFirstN env dst st cnt | cnt == 1  = do
     (res, _) <- withTime "total search time" $ findProgram env dst st
     stats <- view solverStats <$> get
+    loc <- view currentLoc <$> get
+    let stats = stats{pathLength = loc}
     printSolution res
     printStats
     return [(res, stats)]
 findFirstN env dst st cnt | otherwise = do
     (res, st') <- withTime "total search time" $ findProgram env dst st
     stats <- view solverStats <$> get
+    loc <- view currentLoc <$> get
+    let stats = stats{pathLength = loc}
     printSolution res
     printStats
     resetTiming
