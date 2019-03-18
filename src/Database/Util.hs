@@ -29,8 +29,13 @@ defaultInt = Pos (initialPos "Int") $ DataDecl "Int" [] [] []
 defaultBool = Pos (initialPos "Bool") $ DataDecl "Bool" [] [] []
 
 defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
-    ConstructorSig "Nil"  $ ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue
-  , ConstructorSig "Cons" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "xs" (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue) (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue))
+    ConstructorSig "Nil"  $
+      ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue
+  , ConstructorSig "Cons" $
+      FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue)
+      (FunctionT "xs"
+        (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)
+      (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue))
   ]
 
 defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [] [

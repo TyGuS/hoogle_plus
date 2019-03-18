@@ -18,13 +18,15 @@ import Synquid.Logic (ftrue)
 import Types.Type (BaseType(..), TypeSkeleton(..), SchemaSkeleton(..))
 import Synquid.Type (isHigherOrder, toMonotype)
 import Synquid.Pretty as Pretty
-import  Database.Util
+import Database.Util
 import qualified Database.Download as DD
 import qualified Database.Convert as DC
 import Types.Environment (Environment, symbols, _symbols, _included_modules)
 import Types.Program (BareDeclaration(..), Declaration(..), ConstructorSig(..))
 import Types.Generate
 import Synquid.Resolver (resolveDecls)
+
+import Synquid.Util
 
 
 writeEnv :: FilePath -> Environment -> IO ()
@@ -55,9 +57,12 @@ generateEnv pkgs mdls depth useHO = do
   where
     pdoc = putStrLn . show
 
-
+-- getDeps will try its best to come up with the declarations needed to satisfy unmet type dependencies in ourEntries.
+-- There are the entries in the current set of packages (allEntries), and the strategy to look at other packages.
 getDeps :: PackageFetchOpts -> Map MdlName [Entry] -> [Entry] -> IO [Declaration]
-getDeps Local{} allEntries ourEntries = undefined
+getDeps Local{files=f} allEntries ourEntries = do
+  let dependentEntries = DC.entryDependencies allEntries ourEntries (concat $ Map.elems allEntries)
+  nubOrd <$> mapM (flip evalStateT 0 . DC.toSynquidDecl) dependentEntries
 getDeps Hackage{packages=ps} allEntries ourEntries = do
   pkgsDeps <- mapM (\pkgName -> do
     pkgDeps <- nubOrd <$> DC.packageDependencies pkgName True
@@ -75,21 +80,22 @@ newGenerateEnv genOpts = do
     let mbModuleNames = if length mdls > 0 then Just mdls else Nothing
     pkgFiles <- getFiles pkgOpts
     allEntriesByMdl <- filesToEntries pkgFiles
+    DD.cleanTmpFiles pkgOpts pkgFiles
     let entriesByMdl = filterEntries allEntriesByMdl mbModuleNames
-    let ourEntries = concat $ Map.elems entriesByMdl
+    let ourEntries = nubOrd $ concat $ Map.elems entriesByMdl
     dependencyEntries <- getDeps pkgOpts allEntriesByMdl ourEntries
     putStrLn $ show dependencyEntries
     let moduleNames = Map.keys entriesByMdl
     let allCompleteEntries = concat (Map.elems entriesByMdl)
     let allEntries = nubOrd allCompleteEntries
     ourDecls <- mapM (\entry -> evalStateT (DC.toSynquidDecl entry) 0) allEntries
-    let hooglePlusDecls = DC.reorderDecls $ nubOrd $ ourDecls ++ dependencyEntries ++ defaultFuncs ++ defaultDts
+    let hooglePlusDecls = DC.reorderDecls $ nubOrd $ (ourDecls ++ dependencyEntries ++ defaultFuncs ++ defaultDts)
     case resolveDecls hooglePlusDecls moduleNames of
        Left errMessage -> error $ show errMessage
        Right env -> return env {
           _symbols = if useHO then env ^. symbols
                               else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols,
-         _included_modules = Set.fromList mdls
+         _included_modules = Set.fromList (moduleNames)
         }
 
    where

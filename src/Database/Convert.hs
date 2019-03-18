@@ -262,13 +262,12 @@ toSynquidDecl (EDecl (TypeSig _ names typ)) = do
 toSynquidDecl decl = return $ Pos (initialPos "") $ TP.QualifierDecl [] -- [TODO] a fake conversion
 
 
-
-
 reorderDecls :: [Declaration] -> [Declaration]
 reorderDecls decls = Sort.sortOn toInt decls
   where
-    toInt (Pos _ (TP.TypeDecl {})) = 0
-    toInt (Pos _ (TP.DataDecl {})) = 0
+    toInt (Pos _ (TP.TypeDecl {})) = 1
+    toInt (Pos _ (TP.DataDecl "List" _ _ _)) = 0
+    toInt (Pos _ (TP.DataDecl {})) = 1
     toInt (Pos _ (TP.QualifierDecl {})) = 98
     toInt (Pos _ (TP.FuncDecl {})) = 99
     toInt (Pos _ (TP.SynthesisGoal {})) = 100
@@ -317,7 +316,8 @@ packageDependencies pkg toDownload = do
   where
     dependentPkg (Dependency name _) = unPackageName name
 
---
+-- entryDependencies will look for the missing type declarations in `ourEntries`
+-- by first checking `allEntries`, then looking at `dpDecls`
 entryDependencies :: Map Id [Entry] -> [Entry] -> [Entry] -> [Entry]
 entryDependencies allEntries ourEntries dpDecls = let
     myDtDefs = (dtDefsIn . concat . Map.elems) allEntries

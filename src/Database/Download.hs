@@ -84,3 +84,9 @@ downloadCabal pkg version = do
                     then return Nothing -- error "Connection Error"
                     else runConduit (responseBody response .| sinkFile (downloadDir ++ pkg ++ ".cabal")) >> return (Just filepath)
         else return (Just filepath)
+
+cleanTmpFiles :: PackageFetchOpts -> [FilePath] -> IO ()
+cleanTmpFiles (Local {}) _ = return ()
+cleanTmpFiles (Hackage{}) fs = do
+    mapM_ removeFile fs
+    return ()
