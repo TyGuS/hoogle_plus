@@ -3,12 +3,14 @@ module Types.Encoder where
 
 import Data.Maybe
 import Data.HashMap.Strict (HashMap)
+import Data.Map (Map)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Z3.Base as Z3
 import Z3.Monad hiding(Z3Env, newEnv)
 import Control.Monad.State
 import Data.Data
 import Data.Typeable
+import GHC.Generics
 
 import Types.PetriNet
 import Types.Common
@@ -19,6 +21,12 @@ data EncoderType = Normal | Arity
 
 data VarType = VarPlace | VarTransition | VarFlow | VarTimestamp
     deriving(Eq, Ord, Show)
+
+data FoldedFunction = FoldedFunction {
+  funId :: Int, -- for transition id
+  funPretokens :: [(Id, Int)], -- for construction of preconditions
+  funPostokens :: [(Id, Int)]  -- for construction of postconditions
+} deriving(Eq, Ord, Show)
 
 data Variable = Variable {
   varId :: Int,
@@ -37,7 +45,6 @@ data Z3Env = Z3Env {
 data EncodeState = EncodeState {
   z3env :: Z3Env,
   block :: Z3.AST,
-  petriNet :: PetriNet,
   loc :: Int,
   abstractionLv :: Int,
   transitionNb :: Int,
@@ -48,8 +55,8 @@ data EncodeState = EncodeState {
   transition2id :: HashMap Int (HashMap Id Int), -- transition name and abstraction level
   id2transition :: HashMap Int (Id, Int),
   mustFirers :: [Id],
-  transitionChildren :: HashMap Id [Id],
-  transitionParents :: HashMap Id [Id],
+  foldedFuncs :: [FoldedFunction],
+  ty2tr :: Map Id [Id],
   prevChecked :: Bool
 }
 

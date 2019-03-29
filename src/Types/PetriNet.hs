@@ -9,22 +9,8 @@ import Data.HashMap.Strict (HashMap)
 import Data.Aeson (ToJSON(..), genericToEncoding, defaultOptions)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Serialize (Serialize)
-import GHC.Generics
 import Data.Hashable
 
--- for encoding abstractions into JSON string
-type Param = String -- parameter type
-
-data FunctionCode = FunctionCode {
-  funName   :: String,  -- function name
-  hoParams  :: [FunctionCode],
-  funParams :: [Param], -- function parameter types and their count
-  funReturn :: [String]   -- function return type
-} deriving(Eq, Ord, Show, Generic)
-
-instance ToJSON FunctionCode where
-    toEncoding = genericToEncoding defaultOptions
-instance Serialize FunctionCode
 
 data Place = Place {
   placeId :: Id,

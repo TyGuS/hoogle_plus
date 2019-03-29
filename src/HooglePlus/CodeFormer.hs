@@ -7,8 +7,6 @@ module HooglePlus.CodeFormer(
     ) where
 
 import Types.Common
-import Types.PetriNet
-import PetriNet.PNBuilder
 import Synquid.Util
 
 import Control.Monad.State

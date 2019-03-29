@@ -513,7 +513,7 @@ lfill w d        = case renderCompact d of
 
 instance Pretty AbstractSkeleton where
     pretty (ADatatypeT id args) = text id <+> hsep (map pretty args)
-    pretty (AExclusion ids) = text "-" <+> hlBraces (commaSep $ map pretty (Set.toList ids))
+    pretty (AExclusion ids) = operator "!" <+> hlBraces (commaSep $ map pretty (Set.toList ids))
     pretty (ATypeVarT id) = text id
     pretty (AFunctionT tArg tRet) = pretty tArg <+> operator "->" <+> pretty tRet
 
