@@ -64,15 +64,15 @@ summarizeResult envN paramN q results = ResultSummary {
     queryName = name q,
     queryStr = query q,
     solution = soln,
-    tFirstSoln = 0, -- totalTime firstR,
-    tEncFirstSoln = 0, --encodingTime firstR,
-    lenFirstSoln = 0,-- pathLength firstR,
-    refinementSteps = 0, -- iterations firstR,
-    transitions = 0 --snd $ head $ Map.toDescList $ numOfTransitions firstR
+    tFirstSoln = totalTime firstR,
+    tEncFirstSoln = encodingTime firstR,
+    lenFirstSoln = pathLength firstR,
+    refinementSteps = iterations firstR,
+    transitions = snd $ head $ Map.toDescList $ numOfTransitions firstR
     }
     where
       soln = mkOneLine (show solnProg)
-      (solnProg, firstR) = showme "huh" $ head results
+      (solnProg, firstR) = head results
 
 queryFile = "scripts/curated.json"
 defaultTimeoutus = 100 * (10 ^ 6) -- 10 seconds in microseconds

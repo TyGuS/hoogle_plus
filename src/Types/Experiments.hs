@@ -60,7 +60,14 @@ data TimeStatistics = TimeStatistics {
 
 emptyTimeStats = TimeStatistics 0 0 0 0 0 0 0 0 0 0 Map.empty Map.empty
 
-
+data TimeStatUpdate
+  = ConstructionTime
+  | EncodingTime
+  | FormerTime
+  | SolverTime
+  | RefinementTime
+  | TypeCheckTime
+  | TotalSearch
 
 -- | Parameters for template exploration
 defaultSearchParams = SearchParams {
