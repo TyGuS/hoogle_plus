@@ -1,0 +1,26 @@
+.hplus_font{
+  font-family: 'Roboto Condensed', sans-serif;
+  color: #59057B;
+}
+
+main-style {
+  min-height: 90vh;
+}
+
+.footer-style{
+  color: white;
+  background-color: #1b3764;
+  
+  display: flex;
+  align-items: center;
+  
+  position: absolute;
+  bottom: 0;
+  min-height: 10vh;
+  width: 100%;
+}
+/*.footer {
+  min-height: 10vh;
+  background-color: #1b3764;
+  color: white;
+}*/
