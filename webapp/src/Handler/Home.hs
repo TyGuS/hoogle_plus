@@ -10,31 +10,6 @@ module Handler.Home where
 import Import
 import Types.Types
 
--- TYGAR query params
--- TODO: Determine if these are all the supported modules
--- TODO: Refactor modules into a list of sorts (DRY)
--- TODO: add subfields
---data TygarQuery = TygarQuery 
---    {
---        signature :: Text,
-
-        -- Supported modules. Needs to be refactored
---        dMaybe :: Bool,
---        dEither :: Bool,
---        dList :: Bool,
---        tShow :: Bool, 
---        gChar :: Bool,
---        dInt :: Bool,
---        dBSLazy  :: Bool,
---        dBSLazyBuilder :: Bool,
-
---        tier :: Tier
---    }
-    
--- What tier to search in
---data Tier = Tier1 | Tier2
---    deriving (Show, Eq, Enum, Bounded)
-
 tiers :: [(Text, Tier)]
 tiers = [("Tier1", Tier1), ("Tier2", Tier2)]
 
