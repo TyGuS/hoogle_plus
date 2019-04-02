@@ -10,6 +10,7 @@ import Database.Environment
 import BTypes
 
 import Data.Aeson
+import Data.Maybe
 import Text.Pretty.Simple
 import System.Timeout
 import System.Exit
@@ -23,20 +24,19 @@ main = do
     let params = [(searchParams, "Default")]
     let exps = mkExperiments envs queries params
     resultSummaries <- mapM runExperiment exps
-    let fstR = head resultSummaries
-    case fstR of
-      Nothing -> putStrLn "nothing" >> return ()
-      Just rs -> do
-        mapM_ pPrint [rs]
-        return ()
-  where
-    query = "a -> List (Maybe a) -> a"
+    mapM_ showit resultSummaries
+    where
+      showit (Nothing) = pPrint "Nothing"
+      showit (Just timing) = pPrint timing
 
 type Experiment = (Environment, String, Query, SearchParams, String)
 
 mkExperiments :: [(Environment, String)] -> [Query] -> [(SearchParams, String)] -> [Experiment]
 mkExperiments envs qs params = [
-  (env, envN, q, param, paramN) | (env, envN) <- envs, q <- qs, (param, paramN) <- params]
+  (env, envN, q, param, paramN) |
+    (env, envN) <- envs,
+    q <- qs,
+    (param, paramN) <- params]
 
 runExperiment :: Experiment -> IO (Maybe ResultSummary)
 runExperiment (env, envName, q, params, paramName) = do
@@ -56,7 +56,6 @@ readQueryFile fp = do
     Nothing -> undefined
     Just qs -> return qs
 
-
 summarizeResult :: String -> String -> Query -> [(RProgram, TimeStatistics)] -> ResultSummary
 summarizeResult envN paramN q results = ResultSummary {
     envName = envN,
@@ -68,11 +67,13 @@ summarizeResult envN paramN q results = ResultSummary {
     tEncFirstSoln = encodingTime firstR,
     lenFirstSoln = pathLength firstR,
     refinementSteps = iterations firstR,
-    transitions = snd $ head $ Map.toDescList $ numOfTransitions firstR
+    transitions = safeTransitions
     }
     where
+      safeTransitions = snd $ fromMaybe (0,0) $ listToMaybe $ (Map.toDescList (numOfTransitions firstR))
       soln = mkOneLine (show solnProg)
-      (solnProg, firstR) = head results
+      (solnProg, firstR) =  errorhead "missing first solution" results
+      errorhead msg xs = fromMaybe (error msg) $ listToMaybe xs
 
 queryFile = "scripts/curated.json"
 defaultTimeoutus = 100 * (10 ^ 6) -- 10 seconds in microseconds

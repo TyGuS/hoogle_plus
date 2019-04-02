@@ -29,9 +29,6 @@ haskellTypeChecks env goalType prog = let
     hintQuery :: Interpreter Bool
     hintQuery = do
         setImports ("Prelude":modules)
-        say $ "importing: " ++ unlines modules
-        say $ "Checking:"
-        say $ expr
         -- Ensures that if there's a problem we'll know
         Language.Haskell.Interpreter.typeOf expr
         typeChecks expr
@@ -40,7 +37,7 @@ haskellTypeChecks env goalType prog = let
         case r of
             Left err -> (putStrLn $ displayException err) >> return False
             Right False -> (putStrLn "Program does not typecheck") >> return False
-            Right True -> (putStrLn "Program typechecks according to Haskell!") >> return True
+            Right True -> return True
 
 -- mkFunctionSigStr generates a function's type signature:
 -- Int -> Data.Foo.Foo -> Bar

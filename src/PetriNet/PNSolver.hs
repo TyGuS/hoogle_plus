@@ -775,18 +775,14 @@ findProgram env dst st = do
             numOfTransitions = Map.insert (iterations s + 1) (HashMap.size (pnTransitions net')) (numOfTransitions s),
             numOfPlaces = Map.insert (iterations s + 1) (HashMap.size (pnPlaces net')) (numOfPlaces s)
         })
-        -- net' <- withTime "petri net init" (initNet env)
         st' <- withTime EncodingTime (fixEncoder env dst st info)
         sigs <- view currentSigs <$> get
         dsigs <- view detailedSigs <$> get
-        -- liftIO $ print (Map.filterWithKey (\k _ -> Set.member k dsigs) sigs)
-        -- st' <- withTime EncodingTime (resetEncoder env dst net')
         findProgram env dst st'
 
     checkSolution st code = do
         let st' = st { prevChecked = True }
         solutions <- view currentSolutions <$> get
-        -- checkedSols <- withTime "type checking time" (filterM (liftIO . haskellTypeChecks env dst) codes)
         mapping <- view nameMapping <$> get
         let code' = recoverNames mapping code
         checkedSols <- withTime TypeCheckTime (filterM (liftIO . haskellTypeChecks env dst) [code'])
@@ -796,6 +792,11 @@ findProgram env dst st = do
            else do
                -- printSolution solution
                -- printStats
+               net' <- view solverNet <$> get
+               modify $ over solverStats (\s -> s {
+                   numOfTransitions = Map.insert (iterations s + 1) (HashMap.size (pnTransitions net')) (numOfTransitions s),
+                   numOfPlaces = Map.insert (iterations s + 1) (HashMap.size (pnPlaces net')) (numOfPlaces s)
+               })
                modify $ over currentSolutions ((:) code')
                return $ (code', st')
 

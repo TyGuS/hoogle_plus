@@ -23,6 +23,7 @@ import Database.Download
 import Database.Util
 import Synquid.Util (showme)
 import HooglePlus.Synthesize
+import HooglePlus.Stats
 import Types.Encoder
 
 import Control.Monad
@@ -186,7 +187,8 @@ runOnFile :: SynquidParams -> SearchParams  -> String -> IO ()
 runOnFile synquidParams searchParams query = do
   env <- readEnv
   goal <- envToGoal env query
-  result <- synthesize searchParams goal
+  results <- synthesize searchParams goal
+  when (_explorerLogLevel searchParams > 0) (mapM_ (printTime . snd) results)
   return ()
   where
     readEnv = do

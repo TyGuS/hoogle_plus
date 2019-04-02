@@ -11,6 +11,7 @@ import System.CPUTime
 import Text.Printf
 import Control.Lens
 import qualified Data.Map as Map
+import Text.Pretty.Simple
 
 -- | wrap some action with time measuring and print out the execution time
 withTime :: MonadIO m => TimeStatUpdate -> PNSolver m a -> PNSolver m a
@@ -59,3 +60,7 @@ printStats = do
     liftIO $ putStrLn ("Number of transitions: " ++ (show $ map snd (Map.toAscList (numOfTransitions stats))))
     liftIO $ putStrLn ("Solution Depth: " ++ show depth)
     liftIO $ putStrLn "********************END STATISTICS****************************"
+
+
+printTime :: TimeStatistics -> IO ()
+printTime ts = pPrint ts
