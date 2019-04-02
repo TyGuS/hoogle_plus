@@ -8,31 +8,32 @@
 module Handler.Home where
 
 import Import
+import Types.Types
 
 -- TYGAR query params
 -- TODO: Determine if these are all the supported modules
 -- TODO: Refactor modules into a list of sorts (DRY)
 -- TODO: add subfields
-data TygarQuery = TygarQuery 
-    {
-        signature :: Text,
+--data TygarQuery = TygarQuery 
+--    {
+--        signature :: Text,
 
         -- Supported modules. Needs to be refactored
-        dMaybe :: Bool,
-        dEither :: Bool,
-        dList :: Bool,
-        tShow :: Bool, 
-        gChar :: Bool,
-        dInt :: Bool,
-        dBSLazy  :: Bool,
-        dBSLazyBuilder :: Bool,
+--        dMaybe :: Bool,
+--        dEither :: Bool,
+--        dList :: Bool,
+--        tShow :: Bool, 
+--        gChar :: Bool,
+--        dInt :: Bool,
+--        dBSLazy  :: Bool,
+--        dBSLazyBuilder :: Bool,
 
-        tier :: Tier
-    }
+--        tier :: Tier
+--    }
     
 -- What tier to search in
-data Tier = Tier1 | Tier2
-    deriving (Show, Eq, Enum, Bounded)
+--data Tier = Tier1 | Tier2
+--    deriving (Show, Eq, Enum, Bounded)
 
 tiers :: [(Text, Tier)]
 tiers = [("Tier1", Tier1), ("Tier2", Tier2)]
@@ -50,7 +51,9 @@ personForm _ = do
     (dBSLazyRes, dBSLazyView) <- mreq checkBoxField settings2 Nothing
     (dBSLazyBuilderRes, dBSLazyBuilderView) <- mreq checkBoxField settings2 Nothing
 
-    let personRes = TygarQuery <$> signatureRes <*> dMaybeRes <*> dEitherRes <*> dListRes <*> tShowRes <*> gCharRes <*> dIntRes <*> dBSLazyRes <*> dBSLazyBuilderRes <*> tierRes  
+
+    let sm = SupportedModules <$> dMaybeRes <*> dEitherRes <*> dListRes <*> tShowRes <*> gCharRes <*> dIntRes <*> dBSLazyRes <*> dBSLazyBuilderRes
+    let personRes = TygarQuery <$> signatureRes <*> sm <*> tierRes
     let widget = [whamlet|
                 <p>
                     <b>
@@ -112,7 +115,6 @@ personForm _ = do
             fsName    = Nothing,
             fsAttrs   = []
             }
-        
 
 -- Homepage GET handler
 getHomeR :: Handler Html
