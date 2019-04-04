@@ -49,10 +49,12 @@ summarizeResult ((_, envN, q, _, paramN), Just results) = Just ResultSummary {
   tEncFirstSoln = encodingTime firstR,
   lenFirstSoln = pathLength firstR,
   refinementSteps = iterations firstR,
-  transitions = safeTransitions
+  transitions = safeTransitions,
+  rsTypes = safeTypes
   }
   where
     safeTransitions = snd $ errorhead "missing transitions" $ (Map.toDescList (numOfTransitions firstR))
+    safeTypes= snd $ errorhead "missing types" $ (Map.toDescList (numOfPlaces firstR))
     soln = mkOneLine (show solnProg)
     (solnProg, firstR) =  errorhead "missing first solution" results
     errorhead msg xs = fromMaybe (error msg) $ listToMaybe xs

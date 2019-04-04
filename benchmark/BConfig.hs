@@ -30,6 +30,7 @@ myModules = [
   "Data.Int",
   "Data.Bool",
   "Data.Maybe",
+  "Data.Either",
   "Data.Tuple",
   "GHC.Char",
   "Text.Show",

@@ -26,5 +26,6 @@ data ResultSummary = ResultSummary {
   tEncFirstSoln :: Double,
   lenFirstSoln :: Int,
   refinementSteps :: Int,
-  transitions :: Int
+  transitions :: Int,
+  rsTypes :: Int
   } deriving (Show, Eq)

@@ -80,3 +80,9 @@ defaultSearchParams = SearchParams {
   _encoderType = Normal,
   _useRefine = QueryRefinement
 }
+
+type ExperimentName = String
+expQueryRefinement = "Query Refinement":: ExperimentName
+expQueryRefinementHOF = "Query Refinement - HOF" :: ExperimentName
+expBaseline = "Baseline" :: ExperimentName
+expZeroCoverStart = "Zero Cover Start" :: ExperimentName

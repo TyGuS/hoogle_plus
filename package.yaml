@@ -88,3 +88,4 @@ executables:
     dependencies:
       - HooglePlus
       - parallel-io
+      - table-layout

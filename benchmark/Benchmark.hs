@@ -26,14 +26,16 @@ main = do
     queries <- readQueryFile queryFile
     let envs = [(tier1env, "Tier1")]
     let params = [
-          (searchParams, "Default"),
-          (searchParamsHOF, "Default - HOF"),
-          (searchParamsBaseline, "Baseline"),
-          (searchParamsZeroStart, "Zero Cover Start")]
+          (searchParams, expQueryRefinement),
+          (searchParamsHOF, expQueryRefinementHOF),
+          (searchParamsBaseline, expBaseline),
+          (searchParamsZeroStart, expZeroCoverStart)]
     let exps = mkExperiments envs queries params
     resultSummaries <- runExperiments exps
     let aggregatedResults = toGroup resultSummaries
-    pPrint aggregatedResults
+    let table = toTable aggregatedResults
+    putStrLn table
+    -- pPrint aggregatedResults
 
 
 mkExperiments :: [(Environment, String)] -> [Query] -> [(SearchParams, String)] -> [Experiment]
