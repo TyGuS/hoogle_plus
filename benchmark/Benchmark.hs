@@ -10,6 +10,7 @@ import Database.Environment
 import Runner
 import BConfig
 import BTypes
+import BOutput
 
 import Data.Aeson
 import Data.Maybe
@@ -23,16 +24,16 @@ main = do
     tier1env <- newGenerateEnv genOptsTier1
     tier2env <- newGenerateEnv genOptsTier2
     queries <- readQueryFile queryFile
-    let envs = [(tier1env, "Tier1"), (tier2env, "Tier2")]
+    let envs = [(tier1env, "Tier1")]
     let params = [
           (searchParams, "Default"),
+          (searchParamsHOF, "Default - HOF"),
           (searchParamsBaseline, "Baseline"),
           (searchParamsZeroStart, "Zero Cover Start")]
     let exps = mkExperiments envs queries params
     resultSummaries <- runExperiments exps
-    mapM_ showit resultSummaries
-    where
-      showit timing = pPrint timing
+    let aggregatedResults = toGroup resultSummaries
+    pPrint aggregatedResults
 
 
 mkExperiments :: [(Environment, String)] -> [Query] -> [(SearchParams, String)] -> [Experiment]
