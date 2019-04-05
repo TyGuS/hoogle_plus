@@ -21,7 +21,6 @@ import Distribution.Verbosity
 import Distribution.PackageDescription hiding (Var)
 import Distribution.PackageDescription.Parsec
 import Distribution.Package
-import Debug.Trace
 import System.Directory
 import System.IO
 

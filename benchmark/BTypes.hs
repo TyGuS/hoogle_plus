@@ -37,5 +37,9 @@ data Result = Result {
 
 data EvaluationException =
   TimeoutException
-  | RuntimeException SomeException deriving (Show)
+  | RuntimeException SomeException
+
+instance Show EvaluationException where
+  show (TimeoutException) = "Timeout"
+  show (RuntimeException _) = "Runtime error"
 instance Exception EvaluationException

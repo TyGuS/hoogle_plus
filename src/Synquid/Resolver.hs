@@ -34,7 +34,6 @@ import Data.List
 import qualified Data.Foldable as Foldable
 import qualified Data.Traversable as Traversable
 
-import Debug.Trace
 
 {- Interface -}
 

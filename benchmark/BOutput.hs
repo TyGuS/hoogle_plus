@@ -29,7 +29,7 @@ toTable rsMap = let
       column expand center dotAlign (singleCutMark "..."),
       column expand center dotAlign (singleCutMark "...")] ++ dataColumnStyle
     header = ["Name", "Query"] ++ dataHeader
-    dataColumnStyle = replicate (length dataHeader) (column (expandUntil 25) center dotAlign (singleCutMark "..."))
+    dataColumnStyle = replicate (length dataHeader) (column (expandUntil 50) center dotAlign (singleCutMark "..."))
     dataHeader =  [
       "tS - QR", "tEnc - QR",
       "l", "r", "tr", "ty",
