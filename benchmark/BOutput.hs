@@ -25,9 +25,12 @@ toTable rsMap = let
   in
     tableString columnStyle unicodeRoundS (titlesH header) body
   where
-    columnStyle = replicate (length header) (column expand center dotAlign (singleCutMark "..."))
-    header =  [
-      "Name", "Query",
+    columnStyle = [
+      column expand center dotAlign (singleCutMark "..."),
+      column expand center dotAlign (singleCutMark "...")] ++ dataColumnStyle
+    header = ["Name", "Query"] ++ dataHeader
+    dataColumnStyle = replicate (length dataHeader) (column (expandUntil 25) center dotAlign (singleCutMark "..."))
+    dataHeader =  [
       "tS - QR", "tEnc - QR",
       "l", "r", "tr", "ty",
       "tS - QRHOF", "tr - QRHOF",
@@ -45,19 +48,20 @@ toLine name rss = let
     map realizeMb [
       Just name,
       show . queryStr <$> mbqr,
-      showFloat . tFirstSoln <$> mbqr,
-      showFloat . tEncFirstSoln <$> mbqr,
-      show . lenFirstSoln <$> mbqr,
-      show . refinementSteps <$> mbqr,
-      show . transitions <$> mbqr,
-      show . rsTypes <$> mbqr,
-      showFloat . tFirstSoln <$> mbqrhof,
-      show . transitions <$> mbqrhof,
-      showFloat . tFirstSoln <$> mbbaseline,
-      show . transitions <$> mbbaseline,
-      showFloat . tFirstSoln <$> mbzero,
-      show . transitions <$> mbzero
+      either show (showFloat . resTFirstSoln) <$> result <$> mbqr,
+      either dash (showFloat . resTEncFirstSoln) <$> result <$> mbqr,
+      either dash (show . resLenFirstSoln) <$> result <$> mbqr,
+      either dash (show . resRefinementSteps) <$> result <$> mbqr,
+      either dash (show . resTransitions) <$> result <$> mbqr,
+      either dash (show . resTypes) <$> result <$> mbqr,
+      either show (showFloat . resTFirstSoln) <$> result <$> mbqrhof,
+      either dash (show . resTransitions) <$> result <$> mbqrhof,
+      either show (showFloat . resTFirstSoln) <$> result <$> mbbaseline,
+      either dash (show . resTransitions) <$> result <$> mbbaseline,
+      either show (showFloat . resTFirstSoln) <$> result <$> mbzero,
+      either dash (show . resTransitions) <$> result <$> mbzero
      ]
   where
     findwhere name xs = find ((==) name . paramName) xs
     realizeMb mbX = fromMaybe "-" mbX
+    dash = const "-"

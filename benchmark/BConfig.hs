@@ -6,7 +6,7 @@ import Types.Environment
 
 queryFile = "scripts/curated.json"
 defaultTimeoutus :: Int
-defaultTimeoutus = (5 * 60) * (10 ^ 6) -- 5 minutes in microseconds
+defaultTimeoutus = (1 * 60) * (10 ^ 6) -- 5 minutes in microseconds
 searchParams = defaultSearchParams
 searchParamsHOF = defaultSearchParams{_useHO=True}
 searchParamsBaseline = defaultSearchParams{_useRefine=NoRefine}
