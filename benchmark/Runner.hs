@@ -16,12 +16,13 @@ import qualified Data.Map as Map
 import Data.Maybe
 import Data.Either
 import GHC.Conc (getNumCapabilities)
-
+import Data.Ratio ((%))
 
 runExperiments :: [Experiment] -> IO [ResultSummary]
 runExperiments exps = do
   maxThreads <- getNumCapabilities
-  mbResults <- withPool (maxThreads - 1) (runPool exps) -- Leave one core for OS/other jobs
+  let threads = (ceiling ((fromIntegral (maxThreads * 3)) % (fromIntegral 4))) -- Use about 3/4 of the cores
+  mbResults <- withPool threads (runPool exps)
   return $ catMaybes $ map summarizeResult (zip exps mbResults)
 
 runPool :: [Experiment] -> Pool -> IO [Maybe [(RProgram, TimeStatistics)]]

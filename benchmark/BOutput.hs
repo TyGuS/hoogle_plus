@@ -59,5 +59,5 @@ toLine name rss = let
       show . transitions <$> mbzero
      ]
   where
-    findwhere name xs = find ((==) name . envName) xs
+    findwhere name xs = find ((==) name . paramName) xs
     realizeMb mbX = fromMaybe "-" mbX
