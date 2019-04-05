@@ -51,6 +51,7 @@ defaultSearchParams = SearchParams {
 test = do
     env <- readEnv
     goal <- envToGoal env "a -> a -> a"
+    print goal
     print "before synthezie"
     a <- synthesize defaultSearchParams goal
     print "after synthesize"
@@ -94,3 +95,42 @@ readEnv = do
     case envRes of
         Left err -> error err
         Right env -> return env
+
+newGenerateEnv :: GenerationOpts -> IO Environment
+newGenerateEnv genOpts = do
+    let useHO = enableHOF genOpts
+    let pkgOpts = pkgFetchOpts genOpts
+    let mdls = modules genOpts
+    let mbModuleNames = if length mdls > 0 then Just mdls else Nothing
+    pkgFiles <- getFiles pkgOpts
+    allEntriesByMdl <- filesToEntries pkgFiles
+    DD.cleanTmpFiles pkgOpts pkgFiles
+    let entriesByMdl = filterEntries allEntriesByMdl mbModuleNames
+    let ourEntries = nubOrd $ concat $ Map.elems entriesByMdl
+    dependencyEntries <- getDeps pkgOpts allEntriesByMdl ourEntries
+    putStrLn $ show dependencyEntries
+    let moduleNames = Map.keys entriesByMdl
+    let allCompleteEntries = concat (Map.elems entriesByMdl)
+    let allEntries = nubOrd allCompleteEntries
+    ourDecls <- mapM (\entry -> evalStateT (DC.toSynquidDecl entry) 0) allEntries
+    let hooglePlusDecls = DC.reorderDecls $ nubOrd $ (ourDecls ++ dependencyEntries ++ defaultFuncs ++ defaultDts)
+    case resolveDecls hooglePlusDecls moduleNames of
+       Left errMessage -> error $ show errMessage
+       Right env -> return env {
+          _symbols = if useHO then env ^. symbols
+                              else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols,
+         _included_modules = Set.fromList (moduleNames)
+        }
+
+   where
+     filterEntries entries Nothing = entries
+     filterEntries entries (Just mdls) = Map.filterWithKey (\m _-> m `elem` mdls) entries
+
+data GenerationOpts = GenerationOpts {
+    instantiationDepth :: Int,
+    enableHOF :: Bool,
+    pkgFetchOpts :: PackageFetchOpts,
+    modules :: [String],
+    envPath :: FilePath
+    }
+    deriving (Show, Typeable, Eq)
