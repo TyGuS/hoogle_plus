@@ -21,8 +21,7 @@ import qualified Data.Map as Map
 
 main :: IO ()
 main = do
-    tier1env <- newGenerateEnv genOptsTier1
-    tier2env <- newGenerateEnv genOptsTier2
+    tier1env <- generateEnv genOptsTier1
     queries <- readQueryFile queryFile
     let envs = [(tier1env, "Tier1")]
     let params = [
