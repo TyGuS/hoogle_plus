@@ -219,6 +219,9 @@ showme label thing = let
 showFullPrecision :: Double -> String
 showFullPrecision x = showFFloat Nothing x ""
 
+showFloat :: Double -> String
+showFloat x = showFFloat (Just 2) x ""
+
 mkOneLine :: String -> String
 mkOneLine = unwords . (map trim) . lines
   where
