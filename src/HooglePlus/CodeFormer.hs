@@ -61,7 +61,10 @@ applyFunction func = do
             []          -> return []
             codePieces  -> generateArgs codePieces tArgs
 
-    generateArg tArg | head tArg == 'f' = do
+    generateArg tArg | "AFunctionT" `isInfixOf` tArg = do
+        return ["f"]
+                {-
+    generateArg tArg | "AFunctionT" `isInfixOf` tArg = do
         -- find the function first
         let curr = case filter ((==) tArg . funName) $ hoParams func of
                         []  -> error $ "cannot find higher order param " ++ tArg
@@ -83,7 +86,7 @@ applyFunction func = do
         put oldSt
         case Set.toList bodies of
             [] -> return []
-            _  -> return $ map (withParen . (++) hoHeader) (Set.toList bodies)
+            _  -> return $ map (withParen . (++) hoHeader) (Set.toList bodies) -}
     generateArg tArg | otherwise = do
         tterms <- typedTerms <$> get
         return $ Set.toList $ HashMap.lookupDefault Set.empty tArg tterms

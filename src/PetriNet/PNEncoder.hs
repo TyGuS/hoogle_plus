@@ -479,7 +479,7 @@ mustFireTransitions = do
 -- helper function
 -- group parameters in function codes
 foldFunc :: FunctionCode -> Encoder FoldedFunction
-foldFunc (FunctionCode name _ params rets) = do
+foldFunc (FunctionCode name hoParams params rets) = do
     transMap <- gets transition2id
     lv <- gets abstractionLv
     let id = findVariable name (findVariable lv transMap)
@@ -487,4 +487,15 @@ foldFunc (FunctionCode name _ params rets) = do
     let pmap = Map.fromList pcnt
     let rmap = foldl' (\acc t -> Map.insertWith (+) t (-1) acc) pmap rets
     let rcnt = Map.toList rmap
+
+    -- add hoparam places, ignore their initial state but set final state to zero
+    mapM_ (addPlaceVar . funName) hoParams
+    mapM_ (emptyPlace . funName) hoParams 
+
     return (FoldedFunction id pcnt rcnt)
+  where
+    emptyPlace p = do
+        l <- loc <$> get
+        placeMap <- place2variable <$> get
+        tVar <- mkZ3IntVar $ findVariable (p, l) placeMap
+        mkIntNum 0 >>= mkEq tVar >>= assert

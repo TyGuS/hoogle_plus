@@ -71,10 +71,10 @@ encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
 encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [show $ lastAbstractType t]
   where
     base = (0, [])
-    hoFun x (i, a) = (i+1, encodeFunction ("f" ++ show i ++ "_" ++ id) x : a)
-    paramFun x (i, a) = if isAFunctionT x then (i+1, ("f" ++ show i ++ "_" ++ id):a) else (i, show x : a)
-    (_, hoParams) = foldr hoFun base $ filter isAFunctionT (abstractParamList t)
-    (_, params) = foldr paramFun base (abstractParamList t)
+    hoFun x = encodeFunction (show x) x
+    paramFun x = show x
+    hoParams = map hoFun $ filter isAFunctionT (abstractParamList t)
+    params = map paramFun (abstractParamList t)
 encodeFunction id t = FunctionCode id [] [] [show t]
 
 freshId :: (MonadIO m) => Id -> PNSolver m Id
@@ -112,7 +112,7 @@ instantiate env sigs = do
                      AbstractRefinement -> leafTypes (st ^. abstractionTree)
                      NoRefine -> filter notEx (leafTypes (st ^. abstractionTree))
                      Combination -> filter notEx (leafTypes (st ^. abstractionTree))
-                     QueryRefinement -> filter notEx (leafTypes (st ^. abstractionTree))
+                     QueryRefinement -> (leafTypes (st ^. abstractionTree))
         writeLog 3 $ text "Current abstract types:" <+> pretty typs
         sigs' <- foldM (\acc -> (<$>) (acc ++) . uncurry (instantiateWith env typs)) [] sigs
         return $ nubOrdOn (uncurry removeSuffix) (sigsAcc ++ sigs')
