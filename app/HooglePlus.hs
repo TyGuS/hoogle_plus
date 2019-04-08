@@ -16,7 +16,7 @@ import Types.Environment
 import Types.Program
 import Types.Solver
 import Synquid.HtmlOutput
-import Database.Environment (writeEnv, generateEnv, newGenerateEnv)
+import Database.Environment (writeEnv, generateEnv)
 import Database.Convert
 import Database.Generate
 import Database.Download
@@ -91,8 +91,7 @@ main = do
         pkgFetchOpts = fetchOpts,
         Types.Generate.envPath = pathToEnv
       }
-      -- precomputeGraph' generationOpts
-      precomputeGraph pkgs mdls d ho pathToEnv
+      precomputeGraph generationOpts
 
 {- Command line arguments -}
 
@@ -174,12 +173,8 @@ defaultSynquidParams = SynquidParams {
     Main.envPath = defaultEnvPath
 }
 
-precomputeGraph' :: GenerationOpts -> IO ()
-precomputeGraph' opts = newGenerateEnv opts >>= writeEnv (Types.Generate.envPath opts)
-
-precomputeGraph :: [PkgName] -> [String] -> Int -> Bool -> String -> IO ()
-precomputeGraph pkgs mdls depth useHO pathToEnv =
-  generateEnv pkgs mdls depth useHO >>= writeEnv pathToEnv
+precomputeGraph :: GenerationOpts -> IO ()
+precomputeGraph opts = generateEnv opts >>= writeEnv (Types.Generate.envPath opts)
 
 
 -- | Parse and resolve file, then synthesize the specified goals

@@ -16,18 +16,19 @@ import qualified Data.Map as Map
 import Data.Maybe
 import Data.Either
 import GHC.Conc (getNumCapabilities)
+import GHC.Exception
 import Data.Ratio ((%))
 
 runExperiments :: [Experiment] -> IO [ResultSummary]
 runExperiments exps = do
   maxThreads <- getNumCapabilities
   let threads = (ceiling ((fromIntegral (maxThreads * 3)) % (fromIntegral 4))) -- Use about 3/4 of the cores
-  mbResults <- withPool threads (runPool exps)
-  return $ catMaybes $ map summarizeResult (zip exps mbResults)
+  eitherMbResults <- withPool threads (runPool exps)
+  return $ map summarizeResult (zip exps eitherMbResults)
 
-runPool :: [Experiment] -> Pool -> IO [Maybe [(RProgram, TimeStatistics)]]
+runPool :: [Experiment] -> Pool -> IO [Either SomeException (Maybe [(RProgram, TimeStatistics)])]
 runPool exps pool = do
-  rights <$> parallelE pool (listOfExpsToDo exps)
+  parallelE pool (listOfExpsToDo exps)
   where
     listOfExpsToDo :: [Experiment] -> [IO (Maybe [(RProgram, TimeStatistics)])]
     listOfExpsToDo = map runExperiment
@@ -38,24 +39,31 @@ runExperiment (env, envName, q, params, paramName) = do
   goal <- envToGoal env queryStr
   timeout defaultTimeoutus $ synthesize params goal
 
-summarizeResult :: (Experiment, Maybe [(RProgram, TimeStatistics)]) -> Maybe ResultSummary
-summarizeResult (_, Nothing) = Nothing
-summarizeResult ((_, envN, q, _, paramN), Just results) = Just ResultSummary {
-  envName = envN,
-  paramName = paramN,
-  queryName = name q,
-  queryStr = query q,
-  solution = soln,
-  tFirstSoln = totalTime firstR,
-  tEncFirstSoln = encodingTime firstR,
-  lenFirstSoln = pathLength firstR,
-  refinementSteps = iterations firstR,
-  transitions = safeTransitions,
-  rsTypes = safeTypes
-  }
+summarizeResult :: (Experiment, Either SomeException (Maybe [(RProgram, TimeStatistics)])) -> ResultSummary
+summarizeResult ((_, envN, q, _, paramN), r) = let
+  results = case r of
+    Left err -> Left (RuntimeException err)
+    Right (Nothing) -> Left TimeoutException
+    Right (Just results) -> let
+      safeTransitions = snd $ errorhead "missing transitions" $ (Map.toDescList (numOfTransitions firstR))
+      safeTypes = snd $ errorhead "missing types" $ (Map.toDescList (numOfPlaces firstR))
+      soln = mkOneLine (show solnProg)
+      (solnProg, firstR) =  errorhead "missing first solution" results
+      in Right Result {
+      resSolution = soln,
+      resTFirstSoln = totalTime firstR,
+      resTEncFirstSoln = encodingTime firstR,
+      resLenFirstSoln = pathLength firstR,
+      resRefinementSteps = iterations firstR,
+      resTransitions = safeTransitions,
+      resTypes = safeTypes
+      }
+  in ResultSummary {
+    envName = envN,
+    paramName = paramN,
+    queryName = name q,
+    queryStr = query q,
+    result = results
+    }
   where
-    safeTransitions = snd $ errorhead "missing transitions" $ (Map.toDescList (numOfTransitions firstR))
-    safeTypes= snd $ errorhead "missing types" $ (Map.toDescList (numOfPlaces firstR))
-    soln = mkOneLine (show solnProg)
-    (solnProg, firstR) =  errorhead "missing first solution" results
     errorhead msg xs = fromMaybe (error msg) $ listToMaybe xs

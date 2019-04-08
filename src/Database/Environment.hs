@@ -1,5 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module Database.Environment(writeEnv, generateEnv, newGenerateEnv) where
+module Database.Environment(writeEnv, generateEnv) where
 
 import Data.Either
 import Data.Serialize (encode)
@@ -32,31 +32,6 @@ import Synquid.Util
 writeEnv :: FilePath -> Environment -> IO ()
 writeEnv path env = B.writeFile path (encode env)
 
-generateEnv :: [PkgName] -> [String] -> Int -> Bool -> IO Environment
-generateEnv pkgs mdls depth useHO = do
-  -- print pkgs
-  pkgDecls <- mapM (\pkgName -> do
-    DD.downloadFile pkgName Nothing >> DD.downloadCabal pkgName Nothing
-    declMap <- DC.readDeclarations pkgName Nothing
-    let fileDecls = concatMap (\mdl -> Map.findWithDefault [] mdl declMap) mdls
-    parsedDecls <- mapM (\decl -> evalStateT (DC.toSynquidDecl decl) 0) fileDecls
-    dependsPkg <- DC.packageDependencies pkgName True
-    dependsDecls <- concatMap (concat . Map.elems) <$> (mapM (flip DC.readDeclarations Nothing) $ nub dependsPkg)
-    additionalDts <- DC.declDependencies pkgName fileDecls dependsDecls >>= mapM (flip evalStateT 0 . DC.toSynquidDecl)
-    return $ additionalDts ++ parsedDecls
-    ) pkgs
-  let decls = DC.reorderDecls $ nub $ defaultFuncs ++ defaultDts ++ concat pkgDecls
-  case resolveDecls decls [] of
-    Left resolutionError -> (pdoc $ pretty resolutionError) >> pdoc empty >> exitFailure
-    Right env -> do
-      return env {
-          _symbols = if useHO then env ^. symbols
-                              else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols,
-         _included_modules = Set.fromList mdls
-        }
-  where
-    pdoc = putStrLn . show
-
 -- getDeps will try its best to come up with the declarations needed to satisfy unmet type dependencies in ourEntries.
 -- There are the entries in the current set of packages (allEntries), and the strategy to look at other packages.
 getDeps :: PackageFetchOpts -> Map MdlName [Entry] -> [Entry] -> IO [Declaration]
@@ -72,8 +47,8 @@ getDeps Hackage{packages=ps} allEntries ourEntries = do
     ) ps
   return $ nubOrd $ concat pkgsDeps
 
-newGenerateEnv :: GenerationOpts -> IO Environment
-newGenerateEnv genOpts = do
+generateEnv :: GenerationOpts -> IO Environment
+generateEnv genOpts = do
     let useHO = enableHOF genOpts
     let pkgOpts = pkgFetchOpts genOpts
     let mdls = modules genOpts
