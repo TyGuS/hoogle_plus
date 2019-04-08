@@ -28,7 +28,6 @@ import Text.Parsec.Indent
 import Text.Parsec.Error
 import Text.PrettyPrint.ANSI.Leijen (text, vsep)
 
-import Debug.Trace
 
 {- Interface -}
 
@@ -453,15 +452,3 @@ parseTypeName = try $ do
 -- | 'attachPosBefore' @p@ : parser that behaves like @p@, but also attaches the source position before the first token it parsed to the result
 attachPosBefore :: Parser a -> Parser (Pos a)
 attachPosBefore = liftM2 Pos getPosition
-
-{- Debug -}
-
-printRefPos :: String -> Parser ()
-printRefPos msg = do
-  pos <- get
-  trace (msg ++ show pos) $ return ()
-
-printCurPos :: String -> Parser ()
-printCurPos msg = do
-  pos <- getPosition
-  trace (msg ++ show pos) $ return ()

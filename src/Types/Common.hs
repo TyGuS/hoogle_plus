@@ -1,4 +1,5 @@
 module Types.Common where
+import qualified Language.Haskell.Exts.Syntax as HSE
 
 {-
 This is a place for any top-level types that will be used by many modules.

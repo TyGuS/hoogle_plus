@@ -11,6 +11,7 @@ import Types.Common
 import Data.Data
 import Control.Lens hiding (index, indices)
 import Data.Map (Map)
+import qualified Data.Map as Map
 
 {- Interface -}
 
@@ -52,6 +53,36 @@ data TimeStatistics = TimeStatistics {
   otherTime :: Double,
   totalTime :: Double,
   iterations :: Int,
+  pathLength :: Int,
   numOfTransitions :: Map Int Int,
   numOfPlaces :: Map Int Int
-} deriving(Eq)
+} deriving(Show, Eq)
+
+emptyTimeStats = TimeStatistics 0 0 0 0 0 0 0 0 0 0 Map.empty Map.empty
+
+data TimeStatUpdate
+  = ConstructionTime
+  | EncodingTime
+  | FormerTime
+  | SolverTime
+  | RefinementTime
+  | TypeCheckTime
+  | TotalSearch
+
+-- | Parameters for template exploration
+defaultSearchParams = SearchParams {
+  _eGuessDepth = 3,
+  _sourcePos = noPos,
+  _explorerLogLevel = 0,
+  _solutionCnt = 1,
+  _pathSearch = PetriNet,
+  _useHO = False,
+  _encoderType = Normal,
+  _useRefine = QueryRefinement
+}
+
+type ExperimentName = String
+expQueryRefinement = "Query Refinement":: ExperimentName
+expQueryRefinementHOF = "Query Refinement - HOF" :: ExperimentName
+expBaseline = "Baseline" :: ExperimentName
+expZeroCoverStart = "Zero Cover Start" :: ExperimentName

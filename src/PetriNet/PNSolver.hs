@@ -39,6 +39,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Z3.Monad as Z3
 import System.CPUTime
 import Text.Printf
+import Text.Pretty.Simple
 
 import Types.Common
 import Types.Type
@@ -518,7 +519,7 @@ refineSemantic env prog at = do
                foldrM (splitTransition env) splitNode tids
 
 initNet :: MonadIO m => Environment -> PNSolver m ()
-initNet env = withTime "construction time" $ do
+initNet env = withTime ConstructionTime $ do
     -- reset the solver state
     modify $ set functionMap HashMap.empty
     modify $ set currentSigs Map.empty
@@ -594,16 +595,16 @@ resetEncoder env dst = do
 
 findPath :: (MonadIO m) => Environment -> RType -> EncodeState -> PNSolver m (CodePieces, EncodeState)
 findPath env dst st = do
-    (res, st') <- withTime "solver time" (liftIO (encoderSolve st))
+    (res, st') <- withTime SolverTime (liftIO (encoderSolve st))
     case res of
         [] -> do
             currSt <- get
             maxDepth <- view maxApplicationDepth <$> get
             when (currSt ^. currentLoc >= maxDepth) (error "cannot find a path")
             modify $ set currentLoc ((currSt ^. currentLoc) + 1)
-            st'' <- withTime "encoding time" (resetEncoder env dst)
+            st'' <- withTime EncodingTime (resetEncoder env dst)
             findPath env dst st''
-        _  -> withTime "code former time" $ do
+        _  -> withTime FormerTime $ do
             fm <- view functionMap <$> get
             src <- view sourceTypes <$> get
             args <- view paramNames <$> get
@@ -684,7 +685,7 @@ findProgram env dst st = do
     (codeResult, st') <- findPath env dst st
     oldSemantic <- view abstractionTree <$> get
     writeLog 2 $ pretty (Set.toList codeResult)
-    checkResult <- withTime "type checking time" (firstCheckedOrError $ sortOn length (Set.toList codeResult))
+    checkResult <- withTime TypeCheckTime (firstCheckedOrError $ sortOn length (Set.toList codeResult))
     if isLeft checkResult
        then let Left code = checkResult in checkSolution st' code
        else let Right err = checkResult in findNextSolution st' oldSemantic err
@@ -724,17 +725,17 @@ findProgram env dst st = do
         case rs of
             NoRefine -> findProgram env dst st
             Combination -> do
-                splitInfo <- withTime "refinement time" (refineSemantic env prog at)
+                splitInfo <- withTime RefinementTime (refineSemantic env prog at)
                 -- add new places and transitions into the petri net
                 newSemantic <- view abstractionTree <$> get
                 refine st oldSemantic newSemantic splitInfo
             AbstractRefinement -> do
-                splitInfo <- withTime "refinement time" (refineSemantic env prog at)
+                splitInfo <- withTime RefinementTime (refineSemantic env prog at)
                 -- add new places and transitions into the petri net
                 newSemantic <- view abstractionTree <$> get
                 refine st oldSemantic newSemantic splitInfo
             QueryRefinement -> do
-                splitInfo <- withTime "refinement time" (refineSemantic env prog at)
+                splitInfo <- withTime RefinementTime (refineSemantic env prog at)
                 -- add new places and transitions into the petri net
                 newSemantic <- view abstractionTree <$> get
                 refine st oldSemantic newSemantic splitInfo
@@ -746,7 +747,7 @@ findProgram env dst st = do
         modify $ over solverStats (\s -> s {
             iterations = iterations s + 1
         })
-        st' <- withTime "encoding time" (fixEncoder env dst st info)
+        st' <- withTime EncodingTime (fixEncoder env dst st info)
         sigs <- view currentSigs <$> get
         dsigs <- view detailedSigs <$> get
         findProgram env dst st'
@@ -756,7 +757,7 @@ findProgram env dst st = do
         solutions <- view currentSolutions <$> get
         mapping <- view nameMapping <$> get
         let code' = recoverNames mapping code
-        checkedSols <- withTime "type checking time" (filterM (liftIO . haskellTypeChecks env dst) [code'])
+        checkedSols <- withTime TypeCheckTime (filterM (liftIO . haskellTypeChecks env dst) [code'])
         if (code' `elem` solutions) || (null checkedSols)
            then do
                findProgram env dst st'
@@ -770,23 +771,31 @@ printSolution solution = do
     liftIO $ putStrLn "************************************************"
 
 
-findFirstN :: (MonadIO m) => Environment -> RType -> EncodeState -> Int -> PNSolver m RProgram
+findFirstN :: (MonadIO m) => Environment -> RType -> EncodeState -> Int -> PNSolver m [(RProgram, TimeStatistics)]
 findFirstN env dst st cnt | cnt == 1  = do
-    (res, _) <- withTime "total search time" $ findProgram env dst st
+    (res, _) <- withTime TotalSearch $ findProgram env dst st
+    stats <- view solverStats <$> get
+    depth <- view currentLoc <$> get
+    liftIO $ pPrint (depth)
+    let stats' = stats{pathLength = depth}
     printSolution res
-    printStats
-    return res
+    -- printStats
+    return [(res, stats')]
 findFirstN env dst st cnt | otherwise = do
-    (res, st') <- withTime "total search time" $ findProgram env dst st
+    (res, st') <- withTime TotalSearch $ findProgram env dst st
+    stats <- view solverStats <$> get
+    loc <- view currentLoc <$> get
+    let stats' = stats{pathLength = loc}
     printSolution res
-    printStats
+    -- printStats
     resetTiming
-    findFirstN env dst st' (cnt-1)
+    rest <- (findFirstN env dst st' (cnt-1))
+    return $ (res, stats'):rest
 
-runPNSolver :: MonadIO m => Environment -> Int -> RType -> PNSolver m RProgram
+runPNSolver :: MonadIO m => Environment -> Int -> RType -> PNSolver m [(RProgram, TimeStatistics)]
 runPNSolver env cnt t = do
     initNet env
-    st <- withTime "encoding time" (resetEncoder env t)
+    st <- withTime EncodingTime (resetEncoder env t)
     findFirstN env t st cnt
 
 recoverNames :: Map Id Id -> RProgram -> RProgram
