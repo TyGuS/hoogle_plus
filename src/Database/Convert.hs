@@ -21,7 +21,6 @@ import Distribution.Verbosity
 import Distribution.PackageDescription hiding (Var)
 import Distribution.PackageDescription.Parsec
 import Distribution.Package
-import Debug.Trace
 import System.Directory
 import System.IO
 
@@ -33,6 +32,7 @@ import Synquid.Logic hiding (Var)
 import Synquid.Type
 import Synquid.Util
 import Types.Common
+import Types.Generate
 import Types.Environment
 import Types.Program (BareDeclaration, Declaration, BareProgram(..), UProgram, Program(..))
 import Types.Type
@@ -260,19 +260,17 @@ toSynquidDecl (EDecl (TypeSig _ names typ)) = do
         Just sch -> return $ Pos (initialPos (nameStr $ names !! 0)) $ TP.FuncDecl (nameStr $ head names) (toSynquidRSchema sch)
 toSynquidDecl decl = return $ Pos (initialPos "") $ TP.QualifierDecl [] -- [TODO] a fake conversion
 
--- synonymMap :: [Declaration] -> Map Id Declaration
--- synonymMap []           = Map.empty
--- synonymMap (decl:decls) = case decl of
---     Pos _ (TP.TypeDecl id _ typ) -> Map.insert id decl (synonymMap decls)
---     _ -> synonymMap decls
-
-
 
 reorderDecls :: [Declaration] -> [Declaration]
 reorderDecls decls = Sort.sortOn toInt decls
   where
-    toInt (Pos _ (TP.TypeDecl {})) = 0
-    toInt (Pos _ (TP.DataDecl {})) = 0
+    toInt (Pos _ (TP.TypeDecl "String" _ _)) = 1
+    toInt (Pos _ (TP.TypeDecl _ [] _)) = 2
+    toInt (Pos _ (TP.TypeDecl _ _ _)) = 3
+    toInt (Pos _ (TP.DataDecl "List" _ _ _)) = 0
+    toInt (Pos _ (TP.DataDecl "Char" _ _ _)) = 0
+    toInt (Pos _ (TP.DataDecl _ [] _ _)) = 2
+    toInt (Pos _ (TP.DataDecl _ _ _ _)) = 3
     toInt (Pos _ (TP.QualifierDecl {})) = 98
     toInt (Pos _ (TP.FuncDecl {})) = 99
     toInt (Pos _ (TP.SynthesisGoal {})) = 100
@@ -291,13 +289,15 @@ readDeclarations pkg version = do
         case version of
             Nothing -> return pkg
             Just v -> ifM (checkVersion pkg v) (return $ pkg ++ "-" ++ v) (return pkg)
-    h   <- openFile (downloadDir ++ vpkg ++ ".txt") ReadMode
-    hSetEncoding h utf8
-    s   <- hGetContents h
-    let code = concat . rights . (map parseLine) $ splitOn "\n" s
+    let filePath = downloadDir ++ vpkg ++ ".txt"
+    readDeclarationsFromFile filePath
+
+readDeclarationsFromFile :: FilePath -> IO (Map MdlName [Entry])
+readDeclarationsFromFile fp = do
+    fileLines <- lines <$> readFile fp
+    let code = concat $ rights $ map parseLine fileLines
     return $ renameSigs "" code
 
-type DependsOn = Map PkgName [Id]
 
 packageDependencies :: PkgName -> Bool -> IO [PkgName]
 packageDependencies pkg toDownload = do
@@ -309,12 +309,53 @@ packageDependencies pkg toDownload = do
             -- download necessary files to resolve package dependencies
             foldrM (\fname existDps ->
                 ifM (if toDownload
-                        then downloadFile fname Nothing >> downloadCabal fname Nothing
+                        then do
+                          gotFile <- isJust <$> (downloadFile fname Nothing)
+                          gotCabal <- isJust <$> (downloadCabal fname Nothing)
+                          return (gotFile && gotCabal)
                         else doesFileExist $ downloadDir ++ fname ++ ".txt")
                     (return $ fname:existDps)
                     (return existDps)) [] dps
   where
     dependentPkg (Dependency name _) = unPackageName name
+
+-- entryDependencies will look for the missing type declarations in `ourEntries`
+-- by first checking `allEntries`, then looking at `dpDecls`
+entryDependencies :: Map Id [Entry] -> [Entry] -> [Entry] -> [Entry]
+entryDependencies allEntries ourEntries dpDecls = let
+    myDtDefs = (dtDefsIn . concat . Map.elems) allEntries
+    closedDecls = dependencyClosure myDefinedDts myDts (theirDts ++ myDtDefs)
+    allDecls = closedDecls -- ++ (snd $ unzip myDtDefs)
+    sortedIds = topoSort $ dependencyGraph allDecls
+    in
+    matchDtWithCons $ map (\id -> case Map.lookup id $ declMap allDecls of
+                                             Nothing -> error $ "cannot find " ++ id
+                                             Just v -> v) $ nub $ sortedIds >.> ["List", "Pair"]
+  where
+    myDts = dtNamesIn ourEntries
+    myDefinedDts = definedDtsIn ourEntries
+    theirDts = dtDefsIn dpDecls
+    dependencyClosure definedDts allDts theirDts = let
+        undefinedDts = allDts >.> definedDts
+        in if length undefinedDts /= 0
+            then let
+                foreignDts = filter ((flip elem undefinedDts) . fst) theirDts
+                newDecls = nub $ snd $ unzip foreignDts
+                newAddedDts = Set.toList $ Set.unions $ map getDeclTy newDecls
+                in newDecls ++ dependencyClosure allDts newAddedDts theirDts
+            else []
+    declMap decls = foldr (\d -> Map.insert (getDeclName d) d) Map.empty $ filter isDataDecl decls
+    dependsOn decl = case decl of
+        EDecl (DataDecl _ _ _ head conDecls _) -> (declHeadName head, datatypeOfCon conDecls)
+        EDecl (TypeDecl _ head ty) -> (declHeadName head, datatypeOf ty)
+        _ -> error "[In `dependsOn`] Please filter before calling this function"
+    dependencyGraph decls = foldr (uncurry Map.insert) Map.empty $ map dependsOn $ filter isDataDecl decls
+    nodesOf graph = nub $ (Map.keys graph) ++ (Set.toList $ Set.unions $ Map.elems graph)
+    topoSort graph = reverse $ topoSortHelper (nodesOf graph) Set.empty graph
+    topoSortHelper [] _ graph = []
+    topoSortHelper (v:vs) visited graph = if Set.member v visited
+        then topoSortHelper vs visited graph
+        else topoSortHelper vs (Set.insert v visited) graph ++ v:(topoSortHelper (Set.toList (Map.findWithDefault Set.empty v graph)) visited graph)
 
 declDependencies :: Id -> [Entry] -> [Entry] -> IO [Entry]
 declDependencies pkgName decls dpDecls = do

@@ -16,17 +16,13 @@ import Data.Either
 import GHC.Generics
 import Control.Monad.Extra
 import Types.Type (SType, RSchema, TypeSkeleton(..))
+import Types.Generate
 import Synquid.Type (isFunctionType, lastType, toMonotype, shape, arity)
 import qualified Synquid.Program as SP
 import Synquid.Pretty
 
 import Database.Util
 
--- | An entry in the Hoogle DB
-data Entry = EPackage String
-           | EModule String
-           | EDecl (Decl ())
-             deriving (Data,Typeable,Show,Eq)
 
 parseMode :: ParseMode
 parseMode = defaultParseMode{extensions=map EnableExtension es}
