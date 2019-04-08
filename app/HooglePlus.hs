@@ -10,18 +10,20 @@ import Synquid.Pretty
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Resolver (resolveDecls, ResolverState (..), initResolverState, resolveSchema)
 import Synquid.SolverMonad
+import Types.Generate
 import Types.Experiments
 import Types.Environment
 import Types.Program
 import Types.Solver
 import Synquid.HtmlOutput
-import Database.Environment (writeEnv, generateEnv)
+import Database.Environment (writeEnv, generateEnv, newGenerateEnv)
 import Database.Convert
 import Database.Generate
 import Database.Download
 import Database.Util
 import Synquid.Util (showme)
 import HooglePlus.Synthesize
+import HooglePlus.Stats
 import Types.Encoder
 
 import Control.Monad
@@ -64,22 +66,34 @@ releaseDate = fromGregorian 2019 3 10
 main = do
   res <- cmdArgsRun $ mode
   case res of
-    (Synthesis file libs envPath appMax log_ sol_num path_search higher_order encoder refine) -> do
-                  let searchParams = defaultSearchParams {
-                    _eGuessDepth = appMax,
-                    _explorerLogLevel = log_,
-                    _solutionCnt = sol_num,
-                    _pathSearch = path_search,
-                    _useHO = higher_order,
-                    _encoderType = encoder,
-                    _useRefine = refine
-                    }
-                  let synquidParams = defaultSynquidParams {
-                    envPath = envPath
-                  }
-                  runOnFile synquidParams searchParams file
-    (Generate pkgs mdls d ho envPath) -> do
-                  precomputeGraph pkgs mdls d ho envPath
+    Synthesis file libs envPath appMax log_ sol_num path_search higher_order encoder refine -> do
+      let searchParams = defaultSearchParams {
+        _eGuessDepth = appMax,
+        _explorerLogLevel = log_,
+        _solutionCnt = sol_num,
+        _pathSearch = path_search,
+        _useHO = higher_order,
+        _encoderType = encoder,
+        _useRefine = refine
+        }
+      let synquidParams = defaultSynquidParams {
+        Main.envPath = envPath
+      }
+      runOnFile synquidParams searchParams file
+    Generate pkgs mdls d ho pathToEnv -> do
+      let fetchOpts = defaultHackageOpts {
+        packages = pkgs
+      }
+      let generationOpts = defaultGenerationOpts {
+        modules = mdls,
+        instantiationDepth = d,
+        enableHOF = ho,
+        pkgFetchOpts = fetchOpts,
+        Types.Generate.envPath = pathToEnv
+      }
+      -- precomputeGraph' generationOpts
+      precomputeGraph pkgs mdls d ho pathToEnv
+
 {- Command line arguments -}
 
 {-# ANN module "HLint: ignore Use camelCase" #-}
@@ -139,18 +153,6 @@ mode = cmdArgsMode $ modes [synt, generate] &=
   program programName &=
   summary (programName ++ " v" ++ versionName ++ ", " ++ showGregorian releaseDate)
 
--- | Parameters for template exploration
-defaultSearchParams = SearchParams {
-  _eGuessDepth = 3,
-  _sourcePos = noPos,
-  _explorerLogLevel = 0,
-  _solutionCnt = 1,
-  _pathSearch = PetriNet,
-  _useHO = False,
-  _encoderType = Normal,
-  _useRefine = QueryRefinement
-}
-
 -- | Output format
 data OutputFormat = Plain -- ^ Plain text
   | Ansi -- ^ Text with ANSI-terminal special characters
@@ -169,48 +171,34 @@ data SynquidParams = SynquidParams {
 }
 
 defaultSynquidParams = SynquidParams {
-    envPath = defaultEnvPath
+    Main.envPath = defaultEnvPath
 }
 
+precomputeGraph' :: GenerationOpts -> IO ()
+precomputeGraph' opts = newGenerateEnv opts >>= writeEnv (Types.Generate.envPath opts)
+
 precomputeGraph :: [PkgName] -> [String] -> Int -> Bool -> String -> IO ()
-precomputeGraph pkgs mdls depth useHO envPath = do
-  env <- generateEnv pkgs mdls depth useHO
-  writeEnv env envPath
+precomputeGraph pkgs mdls depth useHO pathToEnv =
+  generateEnv pkgs mdls depth useHO >>= writeEnv pathToEnv
+
 
 -- | Parse and resolve file, then synthesize the specified goals
 runOnFile :: SynquidParams -> SearchParams  -> String -> IO ()
-runOnFile synquidParams searchParams file = do
-  goal <- parseGoal file
-  goal' <- feedEnv goal
-  result <- synthesize searchParams goal'
+runOnFile synquidParams searchParams query = do
+  env <- readEnv
+  goal <- envToGoal env query
+  results <- synthesize searchParams goal
+  when (_explorerLogLevel searchParams > 0) (mapM_ (printTime . snd) results)
   return ()
   where
-    feedEnv goal = do
-      let envPathIn = envPath synquidParams
+    readEnv = do
+      let envPathIn = Main.envPath synquidParams
       doesExist <- doesFileExist envPathIn
       when (not doesExist) (error ("Please run `stack exec -- " ++ programName ++ " generate -p [PACKAGES]` to generate database first"))
       envRes <- decode <$> B.readFile envPathIn
       case envRes of
         Left err -> error err
-        Right env -> do
-          putStrLn $ "INSTRUMENTED: Components: " ++ show (sum (map length (map Map.elems (Map.elems (_symbols env)))))
-          let spec = runExcept $ evalStateT (resolveSchema (gSpec goal)) (initResolverState { _environment = env })
-          case spec of
-            Right sp -> return $ goal { gEnvironment = env, gSpec = sp }
-            Left parseErr -> (pdoc $ pretty parseErr) >> pdoc empty >> exitFailure
-    parseGoal sig = do
-      let transformedSig = "goal :: " ++ sig ++ "\ngoal = ??"
-      parseResult <- return $ flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" transformedSig
-      case parseResult of
-        Left parseErr -> (pdoc $ pretty $ toErrorMessage parseErr) >> pdoc empty >> exitFailure
-        -- Right ast -> print $ vsep $ map pretty ast
-        Right (funcDecl:decl:_) -> case decl of
-          Pos _ (SynthesisGoal id uprog) ->
-            let Pos _ (FuncDecl _ sch) = funcDecl
-            in do
-              -- let tvs = Set.toList $ typeVarsOf (toMonotype sch)
-              -- let spec = foldr ForallT sch tvs
-              return $ Goal id emptyEnv sch uprog 3 $ initialPos "goal"
-          _ -> error "parse a signature for a none goal declaration"
+        Right env ->
+          return env
 
-    pdoc = printDoc Plain
+pdoc = printDoc Plain

@@ -11,9 +11,10 @@ import System.CPUTime
 import Text.Printf
 import Control.Lens
 import qualified Data.Map as Map
+import Text.Pretty.Simple
 
 -- | wrap some action with time measuring and print out the execution time
-withTime :: MonadIO m => String -> PNSolver m a -> PNSolver m a
+withTime :: MonadIO m => TimeStatUpdate -> PNSolver m a -> PNSolver m a
 withTime desc f = do
     start <- liftIO getCPUTime
     res <- f
@@ -21,14 +22,14 @@ withTime desc f = do
     let diff = (fromIntegral (end - start)) / (10^12)
     modify $ over solverStats (\s ->
         case desc of
-          "construction time" -> s { constructionTime = (constructionTime s) + (diff :: Double) }
-          "encoding time" -> s { encodingTime = (encodingTime s) + (diff :: Double) }
-          "code former time" -> s { codeFormerTime = (codeFormerTime s) + (diff :: Double) }
-          "solver time" -> s { solverTime = (solverTime s) + (diff :: Double) }
-          "refinement time" -> s { refineTime = (refineTime s) + (diff :: Double) }
-          "type checking time" -> s { typeCheckerTime = (typeCheckerTime s) + (diff :: Double) }
-          "total search time" -> s {totalTime = (diff :: Double) }
-          _ -> s { otherTime = (otherTime s) + (diff :: Double) })
+          ConstructionTime -> s { constructionTime = (constructionTime s) + (diff :: Double) }
+          EncodingTime -> s { encodingTime = (encodingTime s) + (diff :: Double) }
+          FormerTime -> s { codeFormerTime = (codeFormerTime s) + (diff :: Double) }
+          SolverTime -> s { solverTime = (solverTime s) + (diff :: Double) }
+          RefinementTime -> s { refineTime = (refineTime s) + (diff :: Double) }
+          TypeCheckTime -> s { typeCheckerTime = (typeCheckerTime s) + (diff :: Double) }
+          TotalSearch -> s {totalTime = (diff :: Double) }
+        )
     return res
 
 resetTiming :: Monad m => PNSolver m ()
@@ -41,7 +42,6 @@ resetTiming = do
         typeCheckerTime=0,
         totalTime=0
       })
-
 
 printStats :: MonadIO m => PNSolver m ()
 printStats = do
@@ -60,3 +60,7 @@ printStats = do
     liftIO $ putStrLn ("Number of transitions: " ++ (show $ map snd (Map.toAscList (numOfTransitions stats))))
     liftIO $ putStrLn ("Solution Depth: " ++ show depth)
     liftIO $ putStrLn "********************END STATISTICS****************************"
+
+
+printTime :: TimeStatistics -> IO ()
+printTime ts = pPrint ts

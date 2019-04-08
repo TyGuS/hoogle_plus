@@ -94,9 +94,14 @@ executables:
     - yesod-core
     - yesod-form
     - shakespeare
-
-benchmarks:
-  benchmark:
+  evaluation:
     main: Benchmark.hs
     source-dirs: benchmark
-    dependencies: HooglePlus
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - HooglePlus
+      - parallel-io
+      - table-layout
