@@ -61,7 +61,7 @@ applyFunction func = do
             []          -> return []
             codePieces  -> generateArgs codePieces tArgs
 
-    generateArg tArg | head tArg == 'f' = do
+    generateArg tArg | "->" `isInfixOf` tArg = do
         -- find the function first
         let curr = case filter ((==) tArg . funName) $ hoParams func of
                         []  -> error $ "cannot find higher order param " ++ tArg
@@ -78,8 +78,7 @@ applyFunction func = do
         tterms <- typedTerms <$> get
         oldSt <- get
         let sigsAvail = take (fromJust (elemIndex func (allSignatures oldSt))) (allSignatures oldSt)
-        bodies <- generateProgram sigsAvail (funParams curr) vars (head (funReturn curr)) False -- Set.toList $ HashMap.lookupDefault Set.empty (head (funReturn curr)) tterms
-        liftIO $ print bodies
+        bodies <- generateProgram sigsAvail (funParams curr) vars (head (funReturn curr)) False
         put oldSt
         case Set.toList bodies of
             [] -> return []

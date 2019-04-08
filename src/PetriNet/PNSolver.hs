@@ -46,7 +46,6 @@ import Types.Environment
 import Types.Abstract
 import Types.Solver
 import Types.Program
-import Types.PetriNet
 import Types.Experiments
 import Types.Encoder
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
@@ -70,10 +69,9 @@ encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
 encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [show $ lastAbstractType t]
   where
     base = (0, [])
-    hoFun x (i, a) = (i+1, encodeFunction ("f" ++ show i ++ "_" ++ id) x : a)
-    paramFun x (i, a) = if isAFunctionT x then (i+1, ("f" ++ show i ++ "_" ++ id):a) else (i, show x : a)
-    (_, hoParams) = foldr hoFun base $ filter isAFunctionT (abstractParamList t)
-    (_, params) = foldr paramFun base (abstractParamList t)
+    hoFun x = encodeFunction (show x) x
+    hoParams = map hoFun $ filter isAFunctionT (abstractParamList t)
+    params = map show (abstractParamList t)
 encodeFunction id t = FunctionCode id [] [] [show t]
 
 freshId :: (MonadIO m) => Id -> PNSolver m Id
@@ -133,17 +131,19 @@ splitTransition env tid info | "|clone" `isSuffixOf` tid = do
     let newTyps = snd (head (splitedPlaces info))
     let mkFc t = FunctionCode (show t ++ "|clone") [] [show t] [show t, show t]
     let unifiedTyps = map (\t -> (show t ++ "|clone", mkFc t)) newTyps
-    -- step 2: add new transitions into the environment
+    -- step 1: add new transitions into the environment
     mapM_ (\(id, ty) -> modify $ over functionMap (HashMap.insert id ty)) unifiedTyps
-    -- step 3: pack the information into SplitInfo for incremental encoding
+    -- step 2: pack the information into SplitInfo for incremental encoding
     let newIds = fst (unzip unifiedTyps)
-    -- step 4: remove splited transition from the type2transition mapping
+    -- step 3: remove splited transition from the type2transition mapping
     modify $ over type2transition (Map.map (delete tid))
     modify $ over functionMap (HashMap.delete tid)
-    -- return the new split information with splited transitions
+    -- step 4: return the new split information with splited transitions
     return (info { splitedGroup = (tid, newIds) : splitedGroup info })
-splitTransition env tid info | "Pair_match" `isPrefixOf` tid = do
-    -- step 4: remove splited transition from the type2transition mapping
+splitTransition env tid info | "Pair_match" `isPrefixOf` tid || 
+                               "|color" `isSuffixOf` tid || 
+                               "|uncolor" `isSuffixOf` tid = do
+    -- step 1: remove splited transition from the type2transition mapping
     modify $ over type2transition (Map.map (delete tid))
     modify $ over functionMap (HashMap.delete tid)
     return info
@@ -170,21 +170,33 @@ splitTransition env tid info = do
     modify $ over detailedSigs (Set.union (Set.fromList newIds) . Set.delete tid)
     if null newIds
        then return info
-       else if "Pair" `isPrefixOf` tid
-                then do
-                    -- step 6: add pair pattern matching when we are splitting some Pair constructors, they share the same number with constructor
-                    let tid' = Text.unpack (Text.replace "Pair" "Pair_match" (Text.pack tid))
-                    let pairs = map (\(id, ty) -> mkPairMatch (encodeFunction id ty)) unifiedTyps
-                    mapM_ (\(id, ty) -> do
-                                            let AFunctionT arg0 (AFunctionT arg1 ret) = ty
-                                            modify $ over currentSigs (Map.insert (replaceId "Pair" "fst" id) (AFunctionT ret arg0))
-                                            modify $ over currentSigs (Map.insert (replaceId "Pair" "snd" id) (AFunctionT ret arg1))) unifiedTyps
-                    mapM_ (\ef -> modify $ over functionMap (HashMap.insert (funName ef) ef)) pairs
-                    mapM_ (\(id, ty) -> typeMap (replaceId "Pair" "Pair_match" id) ty) unifiedTyps
-                    let newIds' = map funName pairs
-                    return (info { splitedGroup = (tid', newIds') : (tid, newIds) : splitedGroup info })
-                else return (info { splitedGroup = (tid, newIds) : splitedGroup info })
+       else do
+           info <- addPairMatch unifiedTyps
+           idPairs <- mapM (addColorTrans typ) unifiedTyps
+           let pgs = groupOn fst (sortOn fst (concat idPairs))
+           let newPairs = map (\xs -> (show (fst (head xs)), map show (snd (unzip xs)))) pgs
+           return (info { splitedGroup = (tid, newIds) : newPairs ++ splitedGroup info })
   where
+    addPairMatch unifiedTyps | "Pair" `isPrefixOf` tid = do
+        -- step 6: add pair pattern matching when we are splitting some Pair constructors, they share the same number with constructor
+        let tid' = Text.unpack (Text.replace "Pair" "Pair_match" (Text.pack tid))
+        let pairs = map (\(id, ty) -> mkPairMatch (encodeFunction id ty)) unifiedTyps
+        mapM_ (\(id, ty) -> do
+                                let AFunctionT arg0 (AFunctionT arg1 ret) = ty
+                                modify $ over currentSigs (Map.insert (replaceId "Pair" "fst" id) (AFunctionT ret arg0))
+                                modify $ over currentSigs (Map.insert (replaceId "Pair" "snd" id) (AFunctionT ret arg1))) unifiedTyps
+        mapM_ (\ef -> modify $ over functionMap (HashMap.insert (funName ef) ef)) pairs
+        mapM_ (\(id, ty) -> typeMap (replaceId "Pair" "Pair_match" id) ty) unifiedTyps
+        let newIds' = map funName pairs
+        return (info { splitedGroup = (tid', newIds') : splitedGroup info })
+    addPairMatch unfiedTyps | otherwise = return info
+
+    addColorTrans typ (_, unifiedTyp) | isAHigherOrder typ = do
+        let hops = filter isAFunctionT (abstractParamList unifiedTyp)
+        let oldHops = filter isAFunctionT (abstractParamList typ)
+        mapM_ addHoParam hops
+        return (zip oldHops hops)
+    addColorTrans _ _ = return []
 
     getHoParams (AFunctionT tArg tRet) = init (decompose tArg) ++ getHoParams tRet
     getHoParams _ = []
@@ -556,6 +568,14 @@ initNet env = withTime "construction time" $ do
         let includedTyps = decompose f
         mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
         mapM_ (\t -> modify $ over type2transition (addTransition t (replaceId "Pair" "Pair_match" id))) includedTyps
+    addEncodedFunction (id, f) | isAHigherOrder f = do
+        -- for higher order functions, we add coloring and uncoloring transitions
+        let ef = encodeFunction id f
+        modify $ over functionMap (HashMap.insert id ef)
+        modify $ over currentSigs (Map.insert id f)
+        -- add transitions to color and uncolor tokens
+        let hops = filter isAFunctionT (abstractParamList f)
+        mapM_ addHoParam hops
     addEncodedFunction (id, f) = do
         let ef = encodeFunction id f
         modify $ over functionMap (HashMap.insert id ef)
@@ -564,7 +584,6 @@ initNet env = withTime "construction time" $ do
         let addTransition k tid = Map.insertWith union k [tid]
         let includedTyps = decompose f
         mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
-
 
 resetEncoder :: (MonadIO m) => Environment -> RType -> PNSolver m EncodeState
 resetEncoder env dst = do
@@ -610,7 +629,7 @@ findPath env dst st = do
             let sortedRes = sortOn snd res
             let transNames = map fst sortedRes
             writeLog 2 $ text "found path" <+> pretty transNames
-            let usefulTrans = filter (\n -> skipEntry n
+            let usefulTrans = filter (\n -> skipUncolor n
                                          && skipClone n
                                          && skipDiscard n) transNames
             let sigNames = map removeSuffix usefulTrans
@@ -638,7 +657,7 @@ findPath env dst st = do
         tgt <- view targetType <$> get
         liftIO (evalStateT (generateProgram sigs src args (show tgt) True) initialFormer)
 
-    skipEntry = not . isInfixOf "|entry"
+    skipUncolor = not . isInfixOf "|uncolor"
     skipClone = not . isInfixOf "|clone"
     skipDiscard = not . isInfixOf "|discard"
     removeSuffix = removeLast '|'
@@ -816,7 +835,7 @@ multiPermutation len elmts            = nubOrd $ [ l:r | l <- elmts, r <- multiP
 
 
 replaceId a b = Text.unpack . Text.replace a b . Text.pack
-mkPairMatch (FunctionCode name _ params ret) = FunctionCode (replaceId "Pair" "Pair_match" name) [] ret params
+mkPairMatch (FunctionCode name _ params ret) = FunctionCode (replaceId "Pair" "Pair_match" name) [] ret params 
 
 var2any env t@(ScalarT (TypeVarT _ id) _) | isBound env id = t
 var2any env t@(ScalarT (TypeVarT _ id) _) | otherwise = AnyT
@@ -831,3 +850,13 @@ addCloneFunction ty = do
     modify $ over functionMap (HashMap.insert fname fc)
     -- modify $ over currentSigs (Map.insert fname fc)
     modify $ over type2transition (addTransition ty fname)
+
+addHoParam t = do
+    let addTransition k tid = Map.insertWith union k [tid]
+    let params = init (decompose t)
+    let ret = last (decompose t)
+    let colorTr = show t ++ "|color"
+    let uncolorTr = show t ++ "|uncolor"
+    mapM_ (\k -> modify $ over type2transition (addTransition k colorTr)) params
+    modify $ over type2transition (addTransition ret uncolorTr)
+

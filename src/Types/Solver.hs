@@ -11,7 +11,6 @@ import Control.Lens
 import Control.Monad.State
 
 import Types.Program
-import Types.PetriNet
 import Types.Abstract
 import Types.Experiments hiding (PetriNet)
 import Types.Type
@@ -34,7 +33,6 @@ data SolverState = SolverState {
     _refineStrategy :: RefineStrategy,
     _groupMap :: Map Id [Id], -- mapping from group id to list of function names
     _type2transition :: Map AbstractSkeleton [Id], -- mapping from abstract type to group ids
-    _solverNet :: PetriNet,
     _solverStats :: TimeStatistics,
     _useGroup :: Bool,
     _splitTypes :: [(AbstractSkeleton, AbstractSkeleton)],
@@ -61,7 +59,6 @@ emptySolverState = SolverState {
     _refineStrategy = NoRefine,
     _groupMap = Map.empty,
     _type2transition = Map.empty,
-    _solverNet = PetriNet HashMap.empty HashMap.empty HashMap.empty,
     _solverStats = TimeStatistics (0::Double) (0::Double) (0::Double) (0) (0::Double) (0::Double) (0::Double) (0::Double) 0 Map.empty Map.empty,
     _useGroup = False,
     _splitTypes = [],
