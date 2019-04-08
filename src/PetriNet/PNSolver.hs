@@ -175,7 +175,7 @@ splitTransition env tid info = do
            info <- addPairMatch unifiedTyps
            idPairs <- mapM (addColorTrans typ) unifiedTyps
            let pgs = groupOn fst (sortOn fst (concat idPairs))
-           let newPairs = map (\xs -> (show (fst (head xs)), map show (snd (unzip xs)))) pgs
+           let newPairs = map (\xs -> (fst (head xs), nubOrd (snd (unzip xs)))) pgs
            return (info { splitedGroup = (tid, newIds) : newPairs ++ splitedGroup info })
   where
     addPairMatch unifiedTyps | "Pair" `isPrefixOf` tid = do
@@ -193,10 +193,14 @@ splitTransition env tid info = do
     addPairMatch unfiedTyps | otherwise = return info
 
     addColorTrans typ (_, unifiedTyp) | isAHigherOrder typ = do
+        let appendColor n = n ++ "|color"
+        let appendUnColor n = n ++ "|uncolor"
         let hops = filter isAFunctionT (abstractParamList unifiedTyp)
         let oldHops = filter isAFunctionT (abstractParamList typ)
         mapM_ addHoParam hops
-        return (zip oldHops hops)
+        let colors = zip (map (appendColor . show) oldHops) (map (appendColor . show) hops)
+        let uncolors = zip (map (appendUnColor . show) oldHops) (map (appendUnColor . show) hops)
+        return (colors ++ uncolors)
     addColorTrans _ _ = return []
 
     getHoParams (AFunctionT tArg tRet) = init (decompose tArg) ++ getHoParams tRet
@@ -577,6 +581,9 @@ initNet env = withTime ConstructionTime $ do
         -- add transitions to color and uncolor tokens
         let hops = filter isAFunctionT (abstractParamList f)
         mapM_ addHoParam hops
+        let addTransition k tid = Map.insertWith union k [tid]
+        let includedTyps = decompose f
+        mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
     addEncodedFunction (id, f) = do
         let ef = encodeFunction id f
         modify $ over functionMap (HashMap.insert id ef)
@@ -763,7 +770,6 @@ findProgram env dst st = do
         let st' = st { prevChecked = True }
         findProgram env dst st'
     refine st oldSemantic newSemantic info = do
-        withTime ConstructionTime (fixNet env info)
         modify $ over solverStats (\s -> s {
             iterations = iterations s + 1
         })

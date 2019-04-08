@@ -294,7 +294,10 @@ readDeclarations pkg version = do
 
 readDeclarationsFromFile :: FilePath -> IO (Map MdlName [Entry])
 readDeclarationsFromFile fp = do
-    fileLines <- lines <$> readFile fp
+    h   <- openFile fp ReadMode
+    hSetEncoding h utf8
+    s   <- hGetContents h
+    let fileLines = lines s
     let code = concat $ rights $ map parseLine fileLines
     return $ renameSigs "" code
 

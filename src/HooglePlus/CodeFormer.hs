@@ -61,7 +61,7 @@ applyFunction func = do
             []          -> return []
             codePieces  -> generateArgs codePieces tArgs
 
-    generateArg tArg | "->" `isInfixOf` tArg = do
+    generateArg tArg | "AFunctionT" `isInfixOf` tArg = do
         -- find the function first
         let curr = case filter ((==) tArg . funName) $ hoParams func of
                         []  -> error $ "cannot find higher order param " ++ tArg
