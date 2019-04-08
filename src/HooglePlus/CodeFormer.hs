@@ -81,7 +81,6 @@ applyFunction func = do
         oldSt <- get
         let sigsAvail = take (fromJust (elemIndex func (allSignatures oldSt))) (allSignatures oldSt)
         bodies <- generateProgram sigsAvail (funParams curr) vars (head (funReturn curr)) False -- Set.toList $ HashMap.lookupDefault Set.empty (head (funReturn curr)) tterms
-        liftIO $ print bodies
         put oldSt
         case Set.toList bodies of
             [] -> return []

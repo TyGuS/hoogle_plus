@@ -114,7 +114,7 @@ instantiate env sigs = do
                      AbstractRefinement -> leafTypes (st ^. abstractionTree)
                      NoRefine -> filter notEx (leafTypes (st ^. abstractionTree))
                      Combination -> filter notEx (leafTypes (st ^. abstractionTree))
-                     QueryRefinement -> filter notEx (leafTypes (st ^. abstractionTree))
+                     QueryRefinement -> leafTypes (st ^. abstractionTree)
         writeLog 3 $ text "Current abstract types:" <+> pretty typs
         sigs' <- foldM (\acc -> (<$>) ((++) acc) . uncurry (instantiateWith env typs)) [] sigs
         return $ nubOrdOn (uncurry removeSuffix) (sigsAcc ++ sigs')
