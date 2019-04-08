@@ -4,7 +4,7 @@ import Types.Generate
 import Types.Experiments
 import Types.Environment
 
-queryFile = "scripts/curated.json"
+queryFile = "benchmark/suites/curated.json"
 defaultTimeoutus :: Int
 defaultTimeoutus = (1 * 60) * (10 ^ 6) -- 5 minutes in microseconds
 searchParams = defaultSearchParams
