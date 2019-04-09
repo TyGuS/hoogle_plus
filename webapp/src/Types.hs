@@ -25,7 +25,8 @@ data SupportedModules = SupportedModules
     dInt :: Bool,
     dBSLazy  :: Bool,
     dBSLazyBuilder :: Bool
-  }
+  } deriving (Show)
+
 
 
 data Tier = Tier1 | Tier2
@@ -33,7 +34,7 @@ data Tier = Tier1 | Tier2
 
 data TygarQuery = TygarQuery
     {
-      signature :: Text,
+      typeSignature :: Text,
       modules :: SupportedModules,
       tier :: Tier
-    }
+    } deriving (Show)

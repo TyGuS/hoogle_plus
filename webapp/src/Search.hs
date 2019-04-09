@@ -2,6 +2,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module Search where
 
@@ -10,67 +11,37 @@ import Yesod.Core
 import Text.Lucius
 import Yesod.Form
 import Types hiding (modules)
-import Data.Text (Text)
+import Data.Text (unpack)
 import Home
 import HooglePlus.Synthesize (synthesize, envToGoal)
-
-import Database.Environment (newGenerateEnv)
-
+import Database.Environment (generateEnv)
 import Types.Experiments
-import Types.Generate-- (defaultGenerationOpts, PackageFetchOpts(..), GenerationOpts)
-import Synquid.Error
-import Types.Encoder
+import Types.Generate
 
 
--- Imports to remove once mj_benchmark gets merged
---import Synquid.Resolver (_environment)--remove later
---import Types.Environment (Environment) -- remove later
---import Types.Program  (BareDeclaration( .. ), Goal(..), gEnvironment, gSpec)-- remove later
---import Text.Parsec.Pos (initialPos)
---import Control.Monad.Trans.State.Lazy (evalStateT, evalState)
---import qualified Data.ByteString as B -- remove later
---import Text.PrettyPrint.ANSI.Leijen.Internal (putDoc, pretty, empty)
---import System.Directory (doesFileExist)
---import Data.Serialize (decode)
---import System.Exit (exitFailure)
---import Control.Monad.Trans.Except (runExcept)
---import Synquid.Parser (toErrorMessage, parseProgram)
---import GHC.Base (when)
---import Synquid.Resolver (initResolverState, resolveSchema)
---import Text.Parsec.Indent (runIndentParserT)
---programName = "hoogleplus" -- remove later
-
---defaultSearchParams = SearchParams {
---  _eGuessDepth = 3,
---  _sourcePos = noPos,
---  _explorerLogLevel = 0,
---  _solutionCnt = 1,
---  _pathSearch = PetriNet,
---  _useHO = False,
---  _encoderType = Normal,
---  _useRefine = QueryRefinement
---}
-
-test = do
-    env <- newGenerateEnv genOptsTier1
-    goal <- envToGoal env "a -> a -> a"
-    print goal
-    print "before synthezie"
-    a <- synthesize defaultSearchParams goal
-    print "after synthesize"
-    return ()
+runQuery queryOpts = do
+    env <- generateEnv genOptsTier1
+    goal <- envToGoal env (unpack $ typeSignature queryOpts)
+    (queryResults, _) <- fmap unzip $ synthesize defaultSearchParams goal
+    return queryResults
 
 postSearchR :: Handler Html
 postSearchR = do
-    -- Move this line below back to Home. HOW CAN I MAKE THIS WORK W/ TOKEN?
-    liftIO $ test 
     ((res, formWidget), formEnctype) <- runFormPostNoToken searchForm
     case res of
-        FormSuccess _ -> defaultLayout $ do
-                            --setTitle "TYGAR Demo | Search"
-                            error "hi" 
+        FormSuccess queryOpts -> defaultLayout $ do
+                            mcurrentRoute <- getCurrentRoute
+                            candidates <- liftIO $ runQuery queryOpts
+                            --let (candidates, _)  = unzip b
+
+                            setTitle "TYGAR Demo | Search"
+                            addScriptRemote "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"
+                            addStylesheetRemote "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css"
+                            addStylesheetRemote "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
+                            toWidget $(luciusFile "webapp/src/templates/style.lucius")
+                            $(whamletFile "webapp/src/templates/default.hamlet")
         FormFailure err -> error (show err)
-        FormMissing  -> error "Not Implemented Yet2"
+        FormMissing  -> error "Form Missing. Please Resubmit"
 
 genOptsTier1 = defaultGenerationOpts {
   modules = myModules,
