@@ -10,20 +10,27 @@ import Foundation
 import Yesod.Core
 import Text.Lucius
 import Yesod.Form
-import Types hiding (modules)
+import Types
 import Data.Text (unpack)
 import Home
 import HooglePlus.Synthesize (synthesize, envToGoal)
 import Database.Environment (generateEnv)
 import Types.Experiments
 import Types.Generate
+import Types.Program (RProgram)
 
-
+runQuery :: TygarQuery -> IO [RProgram]
 runQuery queryOpts = do
-    env <- generateEnv genOptsTier1
+    env <- generateEnv options
     goal <- envToGoal env (unpack $ typeSignature queryOpts)
     (queryResults, _) <- fmap unzip $ synthesize defaultSearchParams goal
     return queryResults
+    where options = defaultGenerationOpts {
+      modules = (chosenModules queryOpts),
+      pkgFetchOpts = Local {
+        files = ["libraries/tier1/base.txt", "libraries/tier1/bytestring.txt", "libraries/ghc-prim.txt"]
+        }
+    }
 
 postSearchR :: Handler Html
 postSearchR = do
@@ -40,24 +47,3 @@ postSearchR = do
                             $(whamletFile "webapp/src/templates/default.hamlet")
         FormFailure err -> error (show err)
         FormMissing  -> error "Form Missing. Please Resubmit"
-
-genOptsTier1 = defaultGenerationOpts {
-  modules = myModules,
-  pkgFetchOpts = Local {
-      files = ["libraries/tier1/base.txt", "libraries/tier1/bytestring.txt", "libraries/ghc-prim.txt"]
-      }
-  }
-
-myModules = [
-  -- base
-  "Data.Int",
-  "Data.Bool",
-  "Data.Maybe",
-  "Data.Either",
-  "Data.Tuple",
-  "GHC.Char",
-  "Text.Show",
-  -- ByteString
-  "Data.ByteString.Lazy",
-  "Data.ByteString.Builder"
-  ]

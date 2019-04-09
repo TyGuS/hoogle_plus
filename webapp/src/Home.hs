@@ -3,6 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Home where
 
@@ -12,9 +13,17 @@ import Text.Lucius
 import Yesod.Form
 import Types
 import Data.Text (Text)
+import Control.Monad (filterM)
 
 tiers :: [(Text, Tier)]
 tiers = [("Partial", Partial), ("Total", Total)]
+
+getChosenModules :: [FormResult Bool] ->  FormResult [String]
+getChosenModules selection =
+    let allModules = ["Data.Int","Data.Bool", "Data.Maybe","Data.Either","Data.Tuple", "GHC.Char","Text.Show","Data.ByteString.Lazy","Data.ByteString.Builder"] in
+    let chosenModules' = filterM (\(s::([Char]),b::(FormResult Bool)) -> b) $ zip allModules selection in
+    let chosenModules = (map (\(s,b) -> s)) <$> chosenModules'
+    in chosenModules
 
 searchForm :: Html -> MForm Handler (FormResult TygarQuery, Widget)
 searchForm _ = do
@@ -29,8 +38,9 @@ searchForm _ = do
     (dBSLazyRes, dBSLazyView) <- mreq checkBoxField defaultSettings Nothing
     (dBSLazyBuilderRes, dBSLazyBuilderView) <- mreq checkBoxField defaultSettings Nothing
 
-    let sm = ChosenModules <$> dMaybeRes <*> dEitherRes <*> dListRes <*> tShowRes <*> gCharRes <*> dIntRes <*> dBSLazyRes <*> dBSLazyBuilderRes
-    let personRes = TygarQuery <$> signatureRes <*> sm <*> tierRes
+    let selection = [dMaybeRes, dEitherRes, dListRes, tShowRes, gCharRes, dIntRes, dBSLazyRes, dBSLazyBuilderRes]
+    let chosenModules = getChosenModules selection 
+    let personRes = TygarQuery <$> signatureRes <*> chosenModules <*> tierRes
     let widget = $(whamletFile "webapp/src/templates/form.hamlet")
     return (personRes, widget)
     where settings = defaultSettings {
