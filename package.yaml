@@ -90,7 +90,6 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - HooglePlus
-    - base
     - yesod-core
     - yesod-form
     - shakespeare
