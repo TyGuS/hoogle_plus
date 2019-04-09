@@ -22,14 +22,17 @@ import qualified Data.Map as Map
 main :: IO ()
 main = do
     tier1env <- generateEnv genOptsTier1
+    tier2env <- generateEnv genOptsTier2
     queries <- readQueryFile queryFile
-    let envs = [(tier1env, "Tier1")]
+    let envs = [(tier1env, "Total")]
     let params = [
           (searchParams, expQueryRefinement),
           (searchParamsHOF, expQueryRefinementHOF),
           (searchParamsBaseline, expBaseline),
           (searchParamsZeroStart, expZeroCoverStart)]
-    let exps = mkExperiments envs queries params
+    let baseExps = mkExperiments envs queries params
+    let extraExps = mkExperiments [(tier2env, "Partial")] queries [(searchParamsHOF, expQueryRefinementHOF)]
+    let exps = baseExps ++ extraExps
     resultSummaries <- runExperiments exps
     let aggregatedResults = toGroup resultSummaries
     let table = toTable aggregatedResults
