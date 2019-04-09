@@ -1,0 +1,29 @@
+<main .container .main-style>
+    <h1 .hplus_font>
+        TYGAR
+    $if (Just HomeR == mcurrentRoute)
+        <br>
+        <h5>
+            Welcome to the TYGAR Demo
+        <p>
+            TYGAR (pronounced like tiger) is proof-of-concept tool aspiring to introduce new functionality in Haskell API search engines, most notably Hoogle.
+    <form method=post action=@{SearchR} enctype=#{formEnctype}>
+        ^{formWidget}
+
+    $if (Just HomeR /= mcurrentRoute)
+        <h5>
+            Results
+        <br>
+
+        $if null candidates
+            <p>
+            <b>
+                No results found.
+        $else
+            $forall candidate <- candidates
+                <code> 
+                    #{show candidate}
+<footer .footer .footer-style .text-center>
+    <div .container>
+        <span>
+            Made with blood, sweat, and tears by Zheng, David, Michael, Joe, Ranjit and Nadia.
