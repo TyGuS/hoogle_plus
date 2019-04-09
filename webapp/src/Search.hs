@@ -32,8 +32,6 @@ postSearchR = do
         FormSuccess queryOpts -> defaultLayout $ do
                             mcurrentRoute <- getCurrentRoute
                             candidates <- liftIO $ runQuery queryOpts
-                            --let (candidates, _)  = unzip b
-
                             setTitle "TYGAR Demo | Search"
                             addScriptRemote "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"
                             addStylesheetRemote "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css"
