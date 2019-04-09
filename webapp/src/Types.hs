@@ -28,7 +28,7 @@ data SupportedModules = SupportedModules
 
 
 
-data Tier = Tier1 | Tier2
+data Tier = Partial | Total
     deriving (Show, Eq, Enum, Bounded)
 
 data TygarQuery = TygarQuery

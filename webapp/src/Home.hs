@@ -14,7 +14,7 @@ import Types
 import Data.Text (Text)
 
 tiers :: [(Text, Tier)]
-tiers = [("Tier1", Tier1), ("Tier2", Tier2)]
+tiers = [("Partial", Partial), ("Total", Total)]
 
 searchForm :: Html -> MForm Handler (FormResult TygarQuery, Widget)
 searchForm _ = do
