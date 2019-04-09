@@ -29,7 +29,7 @@ searchForm _ = do
     (dBSLazyRes, dBSLazyView) <- mreq checkBoxField defaultSettings Nothing
     (dBSLazyBuilderRes, dBSLazyBuilderView) <- mreq checkBoxField defaultSettings Nothing
 
-    let sm = SupportedModules <$> dMaybeRes <*> dEitherRes <*> dListRes <*> tShowRes <*> gCharRes <*> dIntRes <*> dBSLazyRes <*> dBSLazyBuilderRes
+    let sm = ChosenModules <$> dMaybeRes <*> dEitherRes <*> dListRes <*> tShowRes <*> gCharRes <*> dIntRes <*> dBSLazyRes <*> dBSLazyBuilderRes
     let personRes = TygarQuery <$> signatureRes <*> sm <*> tierRes
     let widget = $(whamletFile "webapp/src/templates/form.hamlet")
     return (personRes, widget)

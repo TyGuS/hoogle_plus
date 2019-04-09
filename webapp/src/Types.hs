@@ -14,7 +14,7 @@ import Data.Text (Text)
 -- TYGAR query params
 -- TODO: Determine if these are all the supported modules
 
-data SupportedModules = SupportedModules
+data ChosenModules = ChosenModules
   {
     dMaybe :: Bool,
     dEither :: Bool,
@@ -34,6 +34,6 @@ data Tier = Partial | Total
 data TygarQuery = TygarQuery
     {
       typeSignature :: Text,
-      modules :: SupportedModules,
+      modules :: ChosenModules,
       tier :: Tier
     } deriving (Show)
