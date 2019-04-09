@@ -29,7 +29,7 @@ data ChosenModules = ChosenModules
 
 
 data Tier = Partial | Total
-    deriving (Show, Eq, Enum, Bounded)
+    deriving (Show, Eq)
 
 data TygarQuery = TygarQuery
     {
