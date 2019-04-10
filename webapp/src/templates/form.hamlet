@@ -1,6 +1,6 @@
 <p>
     <b>
-        Search in these modules
+        What modules to search on?
 <label .checkbox-inline>
     ^{fvInput dMaybeView}
         Data.Maybe
@@ -29,7 +29,7 @@
 <br>
 <p>
     <b>
-        Select tier
+        Search only on totally defined functions or partial functions?
 <label class="radio-inline">
     ^{fvInput tierView}
 <br>
