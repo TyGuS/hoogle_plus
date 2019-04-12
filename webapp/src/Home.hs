@@ -20,7 +20,7 @@ tiers = [("Partial", Partial), ("Total", Total)]
 
 getChosenModules :: [FormResult Bool] ->  FormResult [String]
 getChosenModules selection =
-    let allModules = ["Data.Int","Data.Bool", "Data.Maybe","Data.Either","Data.Tuple", "GHC.Char","Text.Show","Data.ByteString.Lazy","Data.ByteString.Builder"] in
+    let allModules = ["Data.Int","Data.Bool", "Data.Tuple", "Data.Either", "Data.Maybe", "GHC.Char","Text.Show","Data.ByteString.Lazy","Data.ByteString.Builder"] in
     let chosenModules' = filterM (\(s::([Char]),b::(FormResult Bool)) -> b) $ zip allModules selection in
     let chosenModules = (map (\(s,b) -> s)) <$> chosenModules'
     in chosenModules
@@ -39,18 +39,18 @@ searchForm _ = do
     (dBSLazyBuilderRes, dBSLazyBuilderView) <- mreq checkBoxField defaultSettings Nothing
 
     let selection = [dMaybeRes, dEitherRes, dListRes, tShowRes, gCharRes, dIntRes, dBSLazyRes, dBSLazyBuilderRes]
-    let chosenModules = getChosenModules selection 
+    let chosenModules = getChosenModules selection
     let personRes = TygarQuery <$> signatureRes <*> chosenModules <*> tierRes
     let widget = $(whamletFile "webapp/src/templates/form.hamlet")
     return (personRes, widget)
     where settings = defaultSettings {
             fsAttrs   = [
-                ("class", "form-control"), 
+                ("class", "form-control"),
                 ("placeholder", "Search by type singature!")
                 ]
             }
           defaultSettings = FieldSettings {
-            fsLabel   = "", 
+            fsLabel   = "",
             fsTooltip = Nothing,
             fsId      = Nothing,
             fsName    = Nothing,
