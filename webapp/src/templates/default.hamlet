@@ -13,7 +13,6 @@
     $if (Just HomeR /= mcurrentRoute)
         <h5>
             Results
-        <br>
 
         $if null candidates
             <p>
@@ -21,8 +20,14 @@
                 No results found.
         $else
             $forall candidate <- candidates
+                <br>
                 <code> 
                     #{show candidate}
+                <br>
+            <br>
+            <br>
+
+
 <footer .footer .footer-style .text-center>
     <div .container>
         <span>

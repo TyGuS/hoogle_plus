@@ -1,10 +1,15 @@
+body {
+flex-direction: column;
+min-height: 100vh;
+}
+
 .hplus_font{
     font-family: 'Roboto Condensed', sans-serif;
     color: #59057B;
 }
 
-main-style {
-    min-height: 90vh;
+.main-style {
+    min-height: 90vh !important;
 }
 
 .footer-style{
@@ -14,7 +19,6 @@ main-style {
     display: flex;
     align-items: center;
     
-    position: absolute;
     bottom: 0;
     min-height: 10vh;
     width: 100%;

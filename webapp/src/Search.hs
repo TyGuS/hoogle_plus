@@ -23,7 +23,7 @@ runQuery :: TygarQuery -> IO [RProgram]
 runQuery queryOpts = do
     env <- generateEnv options
     goal <- envToGoal env (unpack $ typeSignature queryOpts)
-    (queryResults, _) <- fmap unzip $ synthesize defaultSearchParams goal
+    (queryResults, _) <- fmap unzip $ synthesize (defaultSearchParams {_solutionCnt=10} ) goal
     return queryResults
     where options = defaultGenerationOpts {
       modules = (chosenModules queryOpts),
