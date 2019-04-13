@@ -29,16 +29,18 @@ searchForm :: Html -> MForm Handler (FormResult TygarQuery, Widget)
 searchForm _ = do
     (signatureRes, signatureView) <- mreq textField settings Nothing
     (tierRes, tierView) <- mreq (radioFieldList tiers) defaultSettings Nothing
+
+    (dIntRes, dIntView) <- mreq checkBoxField defaultSettings Nothing
+    (dBoolRes, dBoolView) <- mreq checkBoxField defaultSettings Nothing
     (dMaybeRes, dMaybeView) <- mreq checkBoxField defaultSettings Nothing
     (dEitherRes, dEitherView) <- mreq checkBoxField defaultSettings Nothing
-    (dListRes, dListView) <- mreq checkBoxField defaultSettings Nothing
-    (tShowRes, tShowView) <- mreq checkBoxField defaultSettings Nothing
+    (dTupleRes, dTupleView) <- mreq checkBoxField defaultSettings Nothing
     (gCharRes, gCharView) <- mreq checkBoxField defaultSettings Nothing
-    (dIntRes, dIntView) <- mreq checkBoxField defaultSettings Nothing
+    (tShowRes, tShowView) <- mreq checkBoxField defaultSettings Nothing
     (dBSLazyRes, dBSLazyView) <- mreq checkBoxField defaultSettings Nothing
     (dBSLazyBuilderRes, dBSLazyBuilderView) <- mreq checkBoxField defaultSettings Nothing
 
-    let selection = [dMaybeRes, dEitherRes, dListRes, tShowRes, gCharRes, dIntRes, dBSLazyRes, dBSLazyBuilderRes]
+    let selection = [dIntRes, dBoolRes, dMaybeRes, dEitherRes, dTupleRes, gCharRes, tShowRes, dBSLazyRes, dBSLazyBuilderRes]
     let chosenModules = getChosenModules selection 
     let personRes = TygarQuery <$> signatureRes <*> chosenModules <*> tierRes
     let widget = $(whamletFile "webapp/src/templates/form.hamlet")

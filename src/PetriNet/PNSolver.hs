@@ -6,6 +6,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module PetriNet.PNSolver (runPNSolver) where
 
 import qualified Data.Text as Text
@@ -68,6 +70,10 @@ import HooglePlus.Abstraction
 import HooglePlus.Refinement
 import Database.Convert
 import Database.Generate
+--import qualified Control.Monad.Catch as Err
+import Control.Exception as Arr
+import Control.Exception.Enclosed
+import Control.Monad.Trans.Control
 
 encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
 encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [show $ lastAbstractType t]
@@ -701,10 +707,16 @@ fixEncoder env dst st info = do
 
 findProgram :: MonadIO m => Environment -> RType -> EncodeState -> PNSolver m (RProgram, EncodeState)
 findProgram env dst st = do
+    liftIO $ print "IN FINDPROGRAM"
     modify $ set splitTypes []
     modify $ set typeAssignment Map.empty
+    
     writeLog 2 $ text "calling findProgram"
+    liftIO $ print "before calling findPath"
+    --queso <- try $ findPath env dst st
     (codeResult, st') <- findPath env dst st
+    liftIO $ print "after calling findPath" 
+    liftIO $ print codeResult
     oldSemantic <- view abstractionTree <$> get
     writeLog 2 $ pretty (Set.toList codeResult)
     checkResult <- withTime TypeCheckTime (firstCheckedOrError $ sortOn length (Set.toList codeResult))
@@ -808,6 +820,7 @@ printSolution solution = do
 
 findFirstN :: (MonadIO m) => Environment -> RType -> EncodeState -> Int -> PNSolver m [(RProgram, TimeStatistics)]
 findFirstN env dst st cnt | cnt == 1  = do
+    liftIO $ print "NOW HERE"
     (res, _) <- withTime TotalSearch $ findProgram env dst st
     stats <- view solverStats <$> get
     depth <- view currentLoc <$> get
@@ -817,21 +830,52 @@ findFirstN env dst st cnt | cnt == 1  = do
     -- printStats
     return [(res, stats')]
 findFirstN env dst st cnt | otherwise = do
+    liftIO $ print $ "FIRST HERE " ++ (show cnt)
+
+  
     (res, st') <- withTime TotalSearch $ findProgram env dst st
+    liftIO $ print "HERE?"
     stats <- view solverStats <$> get
     loc <- view currentLoc <$> get
     let stats' = stats{pathLength = loc}
     printSolution res
     -- printStats
     resetTiming
+    liftIO $ print $ "ABOUT 2 RECURSE"
     rest <- (findFirstN env dst st' (cnt-1))
     return $ (res, stats'):rest
 
-runPNSolver :: MonadIO m => Environment -> Int -> RType -> PNSolver m [(RProgram, TimeStatistics)]
+runPNSolver :: MonadIO m => MonadBaseControl IO m => Environment -> Int -> RType -> PNSolver m [(RProgram, TimeStatistics)]
 runPNSolver env cnt t = do
     initNet env
     st <- withTime EncodingTime (resetEncoder env t)
-    findFirstN env t st cnt
+    liftIO $ print "we HERE"
+    findFirstN' env t st cnt
+
+
+-- instance Err.MonadCatch (PNSolver m a)
+
+findProgramWithTime :: MonadIO m => MonadBaseControl IO m => Environment -> RType -> EncodeState -> TimeStatUpdate  -> PNSolver m (Either SomeException (RProgram, EncodeState))
+findProgramWithTime env dst st TotalSearch = tryAny $ ( withTime TotalSearch $ findProgram env dst st)
+    --res <- Err.try $ withTime TotalSearch $ findProgram env dst st 
+    --return b
+
+findFirstN' :: (MonadIO m) => MonadBaseControl IO m => Environment -> RType -> EncodeState -> Int -> PNSolver m [(RProgram, TimeStatistics)]
+findFirstN' env dst st cnt | cnt == 0 = do
+    return []
+
+findFirstN' env dst st cnt | otherwise = do
+    result <- findProgramWithTime env dst st TotalSearch
+    case result of
+      Right (res, st') -> do 
+          stats <- view solverStats <$> get
+          loc <- view currentLoc <$> get
+          let stats' = stats{pathLength = loc}         
+          printSolution res
+          rest <- (findFirstN' env dst st' (cnt-1))
+          return ((res, stats):(rest))
+      Left _ -> return []
+
 
 recoverNames :: Map Id Id -> RProgram -> RProgram
 recoverNames mapping (Program (PSymbol sym) t) =

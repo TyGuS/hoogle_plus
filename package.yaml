@@ -55,6 +55,9 @@ dependencies:
 - transformers-compat
 - unordered-containers
 - vector
+- exceptions
+- enclosed-exceptions
+- monad-control
 
 library:
   source-dirs: 

@@ -2,23 +2,26 @@
     <b>
         What modules to search on?
 <label .checkbox-inline>
+    ^{fvInput dIntView}
+        Data.Int
+<label .checkbox-inline>
+    ^{fvInput dIntView}
+        Data.Bool
+<label .checkbox-inline>
     ^{fvInput dMaybeView}
         Data.Maybe
 <label .checkbox-inline>
     ^{fvInput dEitherView}
         Data.Either
 <label .checkbox-inline>
-    ^{fvInput dListView}
-        Data.List
+    ^{fvInput dTupleView}
+        Data.Tuple
 <label .checkbox-inline>
     ^{fvInput tShowView}
         Text.Show
 <label .checkbox-inline>
     ^{fvInput gCharView}
         GHC.Char
-<label .checkbox-inline>
-    ^{fvInput dIntView}
-        Data.Int
 <label .checkbox-inline>
     ^{fvInput dBSLazyView}
         Data.ByteString.Lazy

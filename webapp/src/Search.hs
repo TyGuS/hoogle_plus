@@ -18,12 +18,18 @@ import Database.Environment (generateEnv)
 import Types.Experiments
 import Types.Generate
 import Types.Program (RProgram)
+--import Control.Exception
 
 runQuery :: TygarQuery -> IO [RProgram]
 runQuery queryOpts = do
     env <- generateEnv options
     goal <- envToGoal env (unpack $ typeSignature queryOpts)
-    (queryResults, _) <- fmap unzip $ synthesize (defaultSearchParams {_solutionCnt=10} ) goal
+    
+    --results <- (try $  fmap unzip $ synthesize (defaultSearchParams {_solutionCnt=5} ) goal)
+    --case results of
+    --	Right (queryResults,_) -> return queryResults
+    --    Left _ -> return []
+    (queryResults, _) <- fmap unzip $ synthesize (defaultSearchParams {_solutionCnt=3} ) goal
     return queryResults
     where options = defaultGenerationOpts {
       modules = (chosenModules queryOpts),
