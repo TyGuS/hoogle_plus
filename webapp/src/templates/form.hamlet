@@ -14,9 +14,6 @@
     ^{fvInput dEitherView}
         Data.Either
 <label .checkbox-inline>
-    ^{fvInput dTupleView}
-        Data.Tuple
-<label .checkbox-inline>
     ^{fvInput tShowView}
         Text.Show
 <label .checkbox-inline>

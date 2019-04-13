@@ -20,7 +20,7 @@ tiers = [("Partial", Partial), ("Total", Total)]
 
 getChosenModules :: [FormResult Bool] ->  FormResult [String]
 getChosenModules selection =
-    let allModules = ["Data.Int","Data.Bool", "Data.Maybe","Data.Either","Data.Tuple", "GHC.Char","Text.Show","Data.ByteString.Lazy","Data.ByteString.Builder"] in
+    let allModules = ["Data.Int","Data.Bool", "Data.Maybe","Data.Either", "GHC.Char","Text.Show","Data.ByteString.Lazy","Data.ByteString.Builder"] in
     let chosenModules' = filterM (\(s::([Char]),b::(FormResult Bool)) -> b) $ zip allModules selection in
     let chosenModules = (map (\(s,b) -> s)) <$> chosenModules'
     in chosenModules
@@ -34,13 +34,12 @@ searchForm _ = do
     (dBoolRes, dBoolView) <- mreq checkBoxField defaultSettings Nothing
     (dMaybeRes, dMaybeView) <- mreq checkBoxField defaultSettings Nothing
     (dEitherRes, dEitherView) <- mreq checkBoxField defaultSettings Nothing
-    (dTupleRes, dTupleView) <- mreq checkBoxField defaultSettings Nothing
     (gCharRes, gCharView) <- mreq checkBoxField defaultSettings Nothing
     (tShowRes, tShowView) <- mreq checkBoxField defaultSettings Nothing
     (dBSLazyRes, dBSLazyView) <- mreq checkBoxField defaultSettings Nothing
     (dBSLazyBuilderRes, dBSLazyBuilderView) <- mreq checkBoxField defaultSettings Nothing
 
-    let selection = [dIntRes, dBoolRes, dMaybeRes, dEitherRes, dTupleRes, gCharRes, tShowRes, dBSLazyRes, dBSLazyBuilderRes]
+    let selection = [dIntRes, dBoolRes, dMaybeRes, dEitherRes, gCharRes, tShowRes, dBSLazyRes, dBSLazyBuilderRes]
     let chosenModules = getChosenModules selection 
     let personRes = TygarQuery <$> signatureRes <*> chosenModules <*> tierRes
     let widget = $(whamletFile "webapp/src/templates/form.hamlet")
