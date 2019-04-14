@@ -29,7 +29,7 @@ runQuery queryOpts = do
     --case results of
     --	Right (queryResults,_) -> return queryResults
     --    Left _ -> return []
-    (queryResults, _) <- fmap unzip $ synthesize (defaultSearchParams {_solutionCnt=10} ) goal
+    (queryResults, _) <- fmap unzip $ synthesize (defaultSearchParams {_solutionCnt=4} ) goal
     return queryResults
     where options = defaultGenerationOpts {
       modules = (chosenModules queryOpts),
