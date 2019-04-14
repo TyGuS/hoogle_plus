@@ -109,7 +109,7 @@ typeDifference (ADatatypeT id1 args1) (ADatatypeT id2 args2) | id1 == id2 =
 typeDifference t1 t2 = error (printf "cannot compute difference between %s and %s" (show t1) (show t2))
 
 decompose :: AbstractSkeleton -> [AbstractSkeleton]
-decompose (AFunctionT tArg tRet) = decompose tArg ++ decompose tRet
+decompose (AFunctionT tArg tRet) = nub (tArg : decompose tArg ++ decompose tRet)
 decompose t = [t]
 
 toAbstractType :: SType -> AbstractSkeleton

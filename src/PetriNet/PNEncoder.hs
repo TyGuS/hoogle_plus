@@ -35,7 +35,7 @@ instance MonadZ3 Encoder where
     getContext = gets (envContext . z3env)
     getOptimize = gets (envOptimize . z3env)
 
-defaultColor = -1
+defaultColor = 0
 
 -- | create a new encoder in z3
 createEncoder :: [Id] -> Id -> [FunctionCode] -> Encoder ()
@@ -57,8 +57,7 @@ setInitialState :: [Id] -> [Id] -> Encoder ()
 setInitialState inputs places = do
     let nonInputs = filter (\k -> notElem k inputs) places
     let inputCounts = map (\t -> (head t, length t)) (group (sort inputs))
-    let nocolorCounts = map (\t -> (t ++ "_colored", 0)) places
-    let typeCounts = nocolorCounts ++ inputCounts ++ (map (\t -> (t, 0)) nonInputs)
+    let typeCounts = inputCounts ++ (map (\t -> (t, 0)) nonInputs)
     -- assign tokens to each types
     mapM_ (uncurry assignToken) typeCounts
   where
@@ -66,10 +65,6 @@ setInitialState inputs places = do
         placeMap <- place2variable <$> get
         tVar <- mkZ3IntVar $ findVariable (p, 0) placeMap
         mkIntNum v >>= mkEq tVar >>= assert
-    assignColor p = do
-        placeMap <- gets place2variable
-        cVar <- mkZ3IntVar $ findVariable (p ++ "_cidx", 0) placeMap
-        mkIntNum defaultColor >>= mkEq cVar >>= assert
 
 -- | set the final solver state, we allow only one token in the return type
 -- and maybe several tokens in the "void" place
@@ -108,7 +103,7 @@ solveAndGetModel = do
     -- res <- optimizeCheck
     res <- check
     l <- loc <$> get
-    when (l == 1) (do
+    when (l == 4) (do
         solverStr <- solverToString
         liftIO $ putStrLn solverStr
         transMap <- transition2id <$> get
@@ -171,7 +166,7 @@ encoderInit :: Int -> [Id] -> [Id] -> Id -> [FunctionCode] -> Map Id [Id] -> IO 
 encoderInit loc hoArgs inputs ret sigs t2tr = do
     z3Env <- initialZ3Env
     false <- Z3.mkFalse (envContext z3Env)
-    let initialState = EncodeState z3Env false loc 0 0 1 0 HashMap.empty HashMap.empty HashMap.empty HashMap.empty HashMap.empty HashMap.empty hoArgs [] t2tr False
+    let initialState = EncodeState z3Env false loc 0 0 1 1 HashMap.empty HashMap.empty HashMap.empty HashMap.empty HashMap.empty HashMap.empty hoArgs [] t2tr False
     execStateT (createEncoder inputs ret sigs) initialState
 
 encoderSolve :: EncodeState -> IO ([(Id, Int)], EncodeState)
@@ -200,6 +195,7 @@ encoderRefine info sigs t2tr inputs ret = do
 
     {- operation on places -}
     let newPlaces = map show (concat (snd (unzip (splitedPlaces info))))
+    let newHos = (Map.keys t2tr) \\ (Map.keys (ty2tr st))
     let typeClones = map (\(p, ps) -> (show p ++ "|clone", map (\n -> show n ++ "|clone") ps)) (splitedPlaces info)
 
     {- operation on transitions -}
@@ -216,7 +212,7 @@ encoderRefine info sigs t2tr inputs ret = do
     l <- loc <$> get
 
     -- add new place, transition and timestamp variables
-    mapM_ addPlaceVar newPlaces
+    mapM_ addPlaceVar (newPlaces ++ newHos)
     addTransitionVar (newTransId ++ oldTrans)
     mapM_ addTimestampVar [0..(l-1)]
 
@@ -228,8 +224,12 @@ encoderRefine info sigs t2tr inputs ret = do
     -- but enable transitions between abstraction levels fired simultaneously
     withTime "sequentialTransitions" sequentialTransitions
 
+    withTime "not negative" (nonnegativeTokens (newPlaces ++ newHos))
+
     -- refine the postcondition constraints
     withTime "fire conditions" $ mapM_ (uncurry fireTransitions) allTrans
+
+    withTime "assign colors" $ (assignColors newTrans)
 
     -- refine the no transition constraints
     let posMerge = map (\(p, ps) -> (show p, map show ps)) (splitedPlaces info)
@@ -257,7 +257,7 @@ encoderRefine info sigs t2tr inputs ret = do
         -- colored tokens
         let npColored = map (\np -> findVariable (np ++ "_colored", t) placeMap) nps
         npZ3Colored <- mapM mkZ3IntVar npColored
-        let pColorVar = findVariable (p, t) placeMap
+        let pColorVar = findVariable (p ++ "_colored", t) placeMap
         pColorZ3 <- mkZ3IntVar pColorVar
         mkAdd npZ3Colored >>= mkEq pColorZ3 >>= assert
         -- TODO: sanity check here: is it necessary to add constraints here for color indices?
@@ -372,12 +372,15 @@ createConstraints places transitions = do
     -- we assume we only have the first abstraction level each time when we call this method
     withTime "sequantial transitions:" sequentialTransitions
     -- we do not have parallel transitions in the first time encoding
+    withTime "non negative:" (nonnegativeTokens places)
 
     withTime "fire conditions:" (mapM_ (uncurry fireTransitions) allTrans)
 
     withTime "no fire:" (mapM_ (uncurry noTransitionTokens) allPlaces)
 
     withTime "must fire:" mustFireTransitions
+
+    withTime "assign colors:" (assignColors transitions)
 
 mkZ3BoolVar ::  Variable -> Encoder AST
 mkZ3BoolVar var = do
@@ -397,6 +400,20 @@ findVariable :: (Eq k, Hashable k, Show k) => k -> HashMap k v -> v
 findVariable k m = case HashMap.lookup k m of
                         Just v -> v
                         Nothing -> error $ "cannot find variable for " ++ show k
+
+
+nonnegativeTokens :: [Id] -> Encoder ()
+nonnegativeTokens places = do
+    l <- gets loc
+    let colors = map (\n -> n ++ "_colored") places
+    mapM_ (uncurry nonnegAt) [(p, t) | p <- (places ++ colors), t <- [0..l]]
+  where
+    nonnegAt p t = do
+        placeMap <- gets place2variable
+        let pVar = findVariable (p, t) placeMap
+        pZ3Var <- mkZ3IntVar pVar
+        zero <- mkIntNum 0
+        mkGe pZ3Var zero >>= assert
 
 -- | at each timestamp, only one transition can be fired, we restrict the
 -- fired transition id range here
@@ -448,6 +465,36 @@ noTransitionTokens t p = do
         tsZ3Var <- mkZ3IntVar tsVar
         mapM (mkEq tsZ3Var) idVars
 
+assignColors :: [FunctionCode] -> Encoder ()
+assignColors trs = do
+    -- build a mapping from arg types to their higher order args
+    paramMap <- foldM collectTypes HashMap.empty trs
+    mapM_ (uncurry assignInitialColor) (HashMap.toList paramMap)
+  where
+    collectTypes m (FunctionCode _ [] _ _) = return m
+    collectTypes m (FunctionCode _ hoParams _ _) = foldM assignParam m hoParams
+
+    assignParam m (FunctionCode name _ params _) = do
+        colorMap <- gets ho2id
+        let color = findVariable name colorMap
+        let m' = foldr (\p -> HashMap.insertWith union p [color]) m params
+        return m'
+
+    assignInitialColor param colors = do
+        -- each higher-order type is able to produce colored tokens
+        -- this is encoded in the initial state
+        placeMap <- gets place2variable
+        let paramToken = param ++ "_colored"
+        let paramColor = param ++ "_cidx"
+        zero <- mkIntNum 0
+        colorIdxs <- mapM mkIntNum colors
+        paramInit <- mkZ3IntVar $ findVariable (paramToken, 0) placeMap
+        colorInit <- mkZ3IntVar $ findVariable (paramColor, 0) placeMap
+        hasTokens <- mkGt paramInit zero
+        correctColors <- mapM (mkEq colorInit) colorIdxs
+        correctColor <- mkOr correctColors
+        mkImplies hasTokens correctColor >>= assert
+
 fireTransitions :: Int -> FunctionCode -> Encoder ()
 fireTransitions t (FunctionCode name [] params rets) = do
     transMap <- gets transition2id
@@ -463,38 +510,60 @@ fireTransitions t (FunctionCode name [] params rets) = do
     let tsVar = findVariable (t, lv) tsMap
     tsZ3Var <- mkZ3IntVar tsVar
     trVar <- mkIntNum tid
-    changes <- mapM (mkChange t) rcnt
+    changes <- mapM (mkChange False t) rcnt
     -- all parameter tokens must have the same color
     -- if one place has the id of p, then p + 1 indicates its colorful token number
     -- p + 2 indicates its color index
     let places = fst (unzip pcnt)
     let foPlaces = filter (not . ("AFunctionT" `isInfixOf`)) places
     let colors = map (\p -> findVariable (p ++ "_cidx", t) placeMap) foPlaces
-    cids <- mapM mkZ3IntVar colors
+    let currResColors = map (\p -> findVariable (p ++ "_cidx", t) placeMap) rets
+    let resColors = map (\p -> findVariable (p ++ "_cidx", t + 1) placeMap) rets
+    cids <- mapM mkZ3IntVar (colors ++ resColors ++ currResColors)
+    dcolor <- mkIntNum defaultColor
     sameColors <- maybe (return [])
                         (\(x, xs) -> mapM (mkEq x) xs)
                         (uncons cids)
-    enoughTokens <- mapM getSatisfiedPlace pcnt
     fire <- mkEq tsZ3Var trVar
-    postCond <- mkAnd (sameColors ++ enoughTokens ++ changes)
-    mkImplies fire postCond >>= assert
+    hasDefault <- if null cids then mkTrue else mkEq (head cids) dcolor
+    enoughTokens <- mapM (getSatisfiedPlace False) pcnt
+    defaultPost <- mkAnd (hasDefault : enoughTokens ++ changes ++ sameColors)
+    if places == foPlaces
+       then do
+           colorChanges <- mapM (mkChange True t) rcnt
+           notDefault <- if null cids then mkTrue else mkGt (head cids) dcolor
+           enoughColors <- mapM (getSatisfiedPlace True) pcnt
+           colorPost <- mkAnd (notDefault : enoughColors ++ colorChanges ++ sameColors)
+           postCond <- mkOr [defaultPost, colorPost]
+           mkImplies fire postCond >>= assert
+       else do
+           mkImplies fire defaultPost >>= assert
   where
-    mkChange t (p, diff) = do
+    mkChange color t (p, diff) = do
         let d = if p == "void" then 0 else -diff
+        let pc = if color then p ++ "_colored" else p
+        let pu = if color then p else p ++ "_colored"
         placeMap <- gets place2variable
-        before <- mkZ3IntVar $ findVariable (p, t) placeMap
-        after <- mkZ3IntVar $ findVariable (p, t + 1) placeMap
+        before <- mkZ3IntVar $ findVariable (pc, t) placeMap
+        after <- mkZ3IntVar $ findVariable (pc, t + 1) placeMap
         diffw <- mkIntNum d
-        mkAdd [before, diffw] >>= mkEq after
-    getSatisfiedPlace (p, cnt) = do
+        changed <- mkAdd [before, diffw] >>= mkEq after
+        tBef <- mkZ3IntVar $ findVariable (pu, t) placeMap
+        tAft <- mkZ3IntVar $ findVariable (pu, t + 1) placeMap
+        unchanged <- mkEq tBef tAft
+        mkAnd [changed, unchanged]
+
+    getSatisfiedPlace color (p, cnt) = do
         w <- mkIntNum cnt
         placeMap <- gets place2variable
-        pVar <- mkZ3IntVar (findVariable (p, t) placeMap)
+        let pc = if color then p ++ "_colored" else p
+        pVar <- mkZ3IntVar (findVariable (pc, t) placeMap)
         mkGe pVar w
 -- for higher order functions, on top of adding a new transition,
 -- we assign a new id for each of the higher order argument
 fireTransitions t (FunctionCode name hoParams params rets) = do
-    mapM_ addPlaceVarAt [(funName hp, v) | hp <- hoParams, v <- [0..(t+1)]]
+    -- mapM_ addPlaceVarAt [(funName hp, v) | hp <- hoParams, v <- [0..(t+1)]]
+    -- mapM_ initialHo (map funName hoParams)
     mapM_ newColor hoParams
     fireTransitions t (FunctionCode name [] params rets)
   where
@@ -508,6 +577,12 @@ fireTransitions t (FunctionCode name hoParams params rets) = do
                        , variableNb = variableNb st + 1
                        })
 
+    initialHo p = do
+        placeMap <- gets place2variable
+        let pv = findVariable (p, 0) placeMap
+        pZ3 <- mkZ3IntVar pv
+        mkIntNum 0 >>= mkEq pZ3 >>= assert
+
     newColor hp = do
         colorCnt <- gets colorNb
         lv <- gets abstractionLv
@@ -517,7 +592,6 @@ fireTransitions t (FunctionCode name hoParams params rets) = do
         tsMap <- gets time2variable
         let color = HashMap.lookupDefault colorCnt (funName hp) colorMap
         uncolorTr <- mkIntNum $ findVariable (funName hp ++ "|uncolor") transMap
-        colorTr <- mkIntNum $ findVariable (funName hp ++ "|color") transMap
         hoPlace <- mkZ3IntVar $ findVariable (funName hp, t) placeMap
         hoPlace' <- mkZ3IntVar $ findVariable (funName hp, t + 1) placeMap
         let tsVar = findVariable (t, lv) tsMap
@@ -526,26 +600,11 @@ fireTransitions t (FunctionCode name hoParams params rets) = do
         negUno <- mkIntNum (-1)
         uno <- mkIntNum 1
 
-        -- each higher-order type is able to produce colored tokens
-        let params = funParams hp
-        let paramColors = map (\n -> n ++ "_cidx") params
-        let paramTokens = map (\n -> n ++ "_colored") params
-        dcolor <- mkIntNum defaultColor
-        paramCurr <- mapM (\p -> mkZ3IntVar $ findVariable (p, t) placeMap) paramTokens
-        paramNext <- mapM (\p -> mkZ3IntVar $ findVariable (p, t + 1) placeMap) paramTokens
-        colorCurr <- mapM (\c -> mkZ3IntVar $ findVariable (c, t) placeMap) paramColors
-        colorNext <- mapM (\c -> mkZ3IntVar $ findVariable (c, t + 1) placeMap) paramColors
-        sameColor <- mapM (mkEq dcolor) colorCurr
-        fireColor <- mkEq tsZ3Var colorTr
-        changes <- mapM (\(c, n) -> mkAdd [c, uno] >>= mkEq n) (zip paramCurr paramNext)
-        colors <- mapM (mkEq assignedColor) colorNext
-        postCond <- mkAnd (changes ++ colors ++ sameColor)
-        mkImplies fireColor postCond >>= assert
-
         -- each higher-order is able to consume returned colored tokens
         let retColor = head (funReturn hp) ++ "_cidx"
         let retToken = head (funReturn hp) ++ "_colored"
         retCurr <- mkZ3IntVar $ findVariable (retColor, t) placeMap
+        retNext <- mkZ3IntVar $ findVariable (retColor, t + 1) placeMap
         retTokenCurr <- mkZ3IntVar $ findVariable (retToken, t) placeMap
         retTokenNext <- mkZ3IntVar $ findVariable (retToken, t + 1) placeMap
         fireUncolor <- mkEq tsZ3Var uncolorTr
@@ -553,51 +612,21 @@ fireTransitions t (FunctionCode name hoParams params rets) = do
         enoughColor <- mkGe retTokenCurr uno
         hoChange <- mkAdd [hoPlace, uno] >>= mkEq hoPlace'
         retChange <- mkAdd [retTokenCurr, negUno] >>= mkEq retTokenNext
-        postCond <- mkAnd [correctColor, enoughColor, hoChange, retChange]
+        hasDefault <- mkIntNum defaultColor >>= mkEq retNext
+        onlyOne <- mkEq retTokenCurr uno
+        colorChange <- mkImplies onlyOne hasDefault
+        moreThanOne <- mkGt retTokenCurr uno
+        colorRemain <- mkEq retNext retCurr >>= mkImplies moreThanOne
+        postCond <- mkAnd [correctColor, enoughColor, hoChange, retChange, colorChange, colorRemain]
         mkImplies fireUncolor postCond >>= assert
 
         -- update status
         st <- get
-        put $ st { colorNb = if color /= (colorNb st) then colorNb st else color + 1 }
-            {-
--- | calculate the preconditions for each transition to be fired
-preconditionsTransitions :: Int -> FoldedFunction -> Encoder ()
-preconditionsTransitions t (FoldedFunction tid pcnt _) = fireFor
-  where
-    -- get enough resources for current places to fire the tr
-    getSatisfiedPlaces trVar (p, cnt) = do
-        w <- mkIntNum cnt
-        placeMap <- gets place2variable
-        pVar <- mkZ3IntVar (findVariable (p, t) placeMap)
-        mkGe pVar w >>= mkImplies trVar >>= assert
+        let color' = if color /= (colorNb st) then colorNb st else color + 1
+        put $ st { colorNb = color'
+                 , ho2id = HashMap.insert (funName hp) color (ho2id st) 
+                 }
 
-    fireFor = do
-        transMap <- gets transition2id
-        tsMap <- gets time2variable
-        lv <- gets abstractionLv
-        let tsVar = findVariable (t, lv) tsMap
-        tsZ3Var <- mkZ3IntVar tsVar
-        trVar <- mkIntNum tid >>= mkEq tsZ3Var
-        mapM_ (getSatisfiedPlaces trVar) pcnt
-
-postconditionsTransitions :: Int -> FoldedFunction -> Encoder ()
-postconditionsTransitions t (FoldedFunction tid _ rcnt) = do
-    transMap <- transition2id <$> get
-    tsMap <- time2variable <$> get
-    lv <- abstractionLv <$> get
-    let tsVar = findVariable (t, lv) tsMap
-    tsZ3Var <- mkZ3IntVar tsVar
-    trVar <- mkIntNum tid >>= mkEq tsZ3Var
-    mapM_ (mkChange t trVar) rcnt
-  where
-    mkChange t trVar (p, diff) = do
-        let d = if p == "void" then 0 else -diff
-        placeMap <- place2variable <$> get
-        before <- mkZ3IntVar $ findVariable (p, t) placeMap
-        after <- mkZ3IntVar $ findVariable (p, t + 1) placeMap
-        diffw <- mkIntNum d
-        mkAdd [before, diffw] >>= mkEq after >>= mkImplies trVar >>= assert
--}
 
 mustFireTransitions ::  Encoder ()
 mustFireTransitions = do
@@ -616,32 +645,3 @@ mustFireTransitions = do
         tsVars <- mapM (\t -> mkZ3IntVar (findVariable (t, lv) tsMap)) [0..(l-1)]
         trVars <- mapM (mkEq trId) tsVars
         mkOr trVars >>= assert
-
-    {-
--- helper function
--- group parameters in function codes
-foldFunc :: FunctionCode -> Encoder FoldedFunction
-foldFunc (FunctionCode name [] params rets) = do
-    transMap <- gets transition2id
-    lv <- gets abstractionLv
-    let id = findVariable name (findVariable lv transMap)
-    let pcnt = map (\l -> (head l, length l)) (group (sort params))
-    let pmap = Map.fromList pcnt
-    let rmap = foldl' (\acc t -> Map.insertWith (+) t (-1) acc) pmap rets
-    let rcnt = Map.toList rmap
-    return (FoldedFunction id pcnt rcnt)
--- for higher order functions, on top of adding a new transition,
--- we assign a new id for each of the higher order argument
-foldFunc (FunctionCode name hoParams params rets) = do
-    colors <- gets ho2id
-    transMap <- gets transition2id
-    lv <- gets abstractionLv
-    -- assign fresh color id and update the state
-    let newColor acc hp = HashMap.insertWith (\_ old -> old) (funName hp) (HashMap.size acc) acc
-    let colors' = foldl' newColor colors hoParams
-    st <- get
-    put $ st { ho2id = colors' }
-    -- prepare edges to bleach colors
-    -- colored tokens can go from such transitions to default color tokens
-    let id = findVariable name (findVariable lv transMap)
--}

@@ -11,6 +11,7 @@ searchParams = defaultSearchParams
 searchParamsHOF = defaultSearchParams{_useHO=True}
 searchParamsBaseline = defaultSearchParams{_useRefine=NoRefine}
 searchParamsZeroStart = defaultSearchParams{_useRefine=AbstractRefinement}
+searchParamsZeroHOF = searchParamsHOF{_useRefine=AbstractRefinement}
 
 genOptsTier1 = defaultGenerationOpts {
   modules = myModules,
@@ -22,6 +23,13 @@ genOptsTier1 = defaultGenerationOpts {
 genOptsTier2 = genOptsTier1 {
   pkgFetchOpts = Local {
       files = ["libraries/base.txt", "libraries/bytestring.txt", "libraries/ghc-prim.txt"]
+      }
+  }
+
+genOptsMicro = defaultGenerationOpts {
+  modules = myModules,
+  pkgFetchOpts = Local {
+      files = ["libraries/testHOF1.txt"]
       }
   }
 

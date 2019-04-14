@@ -81,8 +81,9 @@ main = do
       }
       runOnFile synquidParams searchParams file
     Generate pkgs mdls d ho pathToEnv -> do
-      let fetchOpts = defaultHackageOpts {
-        packages = pkgs
+      let fetchOpts = defaultLocalOpts {
+        -- packages = pkgs
+        files = ["libraries/testHOF1.txt"]
       }
       let generationOpts = defaultGenerationOpts {
         modules = mdls,

@@ -142,7 +142,6 @@ splitTransition env tid info | "|clone" `isSuffixOf` tid = do
     -- step 4: return the new split information with splited transitions
     return (info { splitedGroup = (tid, newIds) : splitedGroup info })
 splitTransition env tid info | "Pair_match" `isPrefixOf` tid || 
-                               "|color" `isSuffixOf` tid || 
                                "|uncolor" `isSuffixOf` tid = do
     -- step 1: remove splited transition from the type2transition mapping
     modify $ over type2transition (Map.map (delete tid))
@@ -193,14 +192,12 @@ splitTransition env tid info = do
     addPairMatch unfiedTyps | otherwise = return info
 
     addColorTrans typ (_, unifiedTyp) | isAHigherOrder typ = do
-        let appendColor n = n ++ "|color"
         let appendUnColor n = n ++ "|uncolor"
         let hops = filter isAFunctionT (abstractParamList unifiedTyp)
         let oldHops = filter isAFunctionT (abstractParamList typ)
         mapM_ addHoParam hops
-        let colors = zip (map (appendColor . show) oldHops) (map (appendColor . show) hops)
         let uncolors = zip (map (appendUnColor . show) oldHops) (map (appendUnColor . show) hops)
-        return (colors ++ uncolors)
+        return (uncolors)
     addColorTrans _ _ = return []
 
     getHoParams (AFunctionT tArg tRet) = init (decompose tArg) ++ getHoParams tRet
@@ -820,6 +817,7 @@ findFirstN env dst st cnt | otherwise = do
 
 runPNSolver :: MonadIO m => Environment -> Int -> RType -> PNSolver m [(RProgram, TimeStatistics)]
 runPNSolver env cnt t = do
+    writeLog 3 $ text $ show (allSymbols env)
     initNet env
     st <- withTime EncodingTime (resetEncoder env t)
     findFirstN env t st cnt
@@ -871,8 +869,7 @@ addHoParam t = do
     let addTransition k tid = Map.insertWith union k [tid]
     let params = init (decompose t)
     let ret = last (decompose t)
-    let colorTr = show t ++ "|color"
     let uncolorTr = show t ++ "|uncolor"
-    mapM_ (\k -> modify $ over type2transition (addTransition k colorTr)) params
     modify $ over type2transition (addTransition ret uncolorTr)
+    modify $ over type2transition (addTransition t uncolorTr)
 
