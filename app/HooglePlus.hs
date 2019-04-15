@@ -143,7 +143,7 @@ generate = Generate {
   pkg_name             = []              &= help ("Package names to be generated"),
   module_name          = []              &= help ("Module names to be generated in the given packages"),
   type_depth           = 2               &= help ("Depth of the types to be instantiated for polymorphic type constructors"),
-  higher_order         = False           &= help ("Include higher order functions (default: False)"),
+  higher_order         = True           &= help ("Include higher order functions (default: True)"),
   env_file_path_out    = defaultEnvPath  &= help ("Environment file path (default:" ++ (show defaultEnvPath) ++ ")")
 } &= help "Generate the type conversion database for synthesis"
 
