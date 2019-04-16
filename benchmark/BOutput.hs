@@ -34,6 +34,7 @@ toTable rsMap = let
       "tS - QR", "tEnc - QR",
       "l", "r", "tr", "ty",
       "tS - QRHOF", "tr - QRHOF",
+      "partial - tS - QRHOF", "partial - tr - QRHOF",
       "tS - B", "tr - B",
       "tS - Z", "tr - Z"
       ]
@@ -41,8 +42,9 @@ toTable rsMap = let
 toLine :: String -> [ResultSummary] -> [String]
 toLine name rss = let
   mbqr = findwhere expQueryRefinement rss
-  mbqrhof = findwhere expQueryRefinementHOF rss
   mbbaseline = findwhere expBaseline rss
+  mbqrhof = find (\x -> (paramName x == expQueryRefinementHOF) && (envName x == "Total")) rss
+  mbPartialqrhof = find (\x -> (paramName x == expQueryRefinementHOF) && (envName x == "Partial"))  rss
   mbzero = findwhere expZeroCoverStart rss
   in
     map realizeMb [
@@ -54,8 +56,13 @@ toLine name rss = let
       either dash (show . resRefinementSteps) <$> result <$> mbqr,
       either dash (show . resTransitions) <$> result <$> mbqr,
       either dash (show . resTypes) <$> result <$> mbqr,
+
       either show (showFloat . resTFirstSoln) <$> result <$> mbqrhof,
       either dash (show . resTransitions) <$> result <$> mbqrhof,
+
+      either show (showFloat . resTFirstSoln) <$> result <$> mbPartialqrhof,
+      either dash (show . resTransitions) <$> result <$> mbPartialqrhof,
+
       either show (showFloat . resTFirstSoln) <$> result <$> mbbaseline,
       either dash (show . resTransitions) <$> result <$> mbbaseline,
       either show (showFloat . resTFirstSoln) <$> result <$> mbzero,

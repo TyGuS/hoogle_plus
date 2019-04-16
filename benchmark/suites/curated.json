@@ -1,8 +1,8 @@
 [
     {"name": "intToBytestring", "query": "Int64 -> ByteString"},
-    {"name": "firstMaybe", "query": "a -> List (Maybe a) -> a"},
     {"name": "conjunctMaybe", "query": "List (Maybe Bool) -> Bool"},
+    {"name": "firstMaybe", "query": "a -> List (Maybe a) -> a"},
     {"name": "both", "query": "Pair a a -> (a -> b) -> Pair b b"},
-    {"name": "firstJust", "query": "(a -> Maybe b) -> List a -> Maybe b"},
-    {"name": "justFirst", "query": "a -> Maybe (List a) -> a"}
+    {"name": "fromEither", "query": "Either a b -> (a -> b) -> b", "note": "Partial & HOF Required"},
+    {"name": "firstJust", "query": "(a -> Maybe b) -> List a -> Maybe b", "note": "Partial Required"}
 ]

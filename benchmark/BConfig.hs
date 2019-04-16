@@ -3,10 +3,8 @@ module BConfig where
 import Types.Generate
 import Types.Experiments
 import Types.Environment
+import BTypes
 
-queryFile = "benchmark/suites/curated.json"
-defaultTimeoutus :: Int
-defaultTimeoutus = (1 * 60) * (10 ^ 6) -- 5 minutes in microseconds
 searchParams = defaultSearchParams
 searchParamsHOF = defaultSearchParams{_useHO=True}
 searchParamsBaseline = defaultSearchParams{_useRefine=NoRefine}

@@ -85,7 +85,6 @@ allArgs (FunctionT x (ScalarT baseT _) tRes) = (Var (toSort baseT) x) : (allArgs
 allArgs (FunctionT x _ tRes) = (allArgs tRes)
 
 allBaseTypes :: RType -> [RType]
-allBaseTypes (ScalarT (TypeVarT _ _) _) = []
 allBaseTypes t@(ScalarT _ _) = [t]
 allBaseTypes (FunctionT _ tArg tRet) = allBaseTypes tArg ++ allBaseTypes tRet
 allBaseTypes _ = error "allBaseTypes: applied to unsupported types"
