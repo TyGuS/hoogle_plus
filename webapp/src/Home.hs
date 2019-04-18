@@ -20,7 +20,7 @@ tiers = [("Partial", Partial), ("Total", Total)]
 
 getChosenModules :: [FormResult Bool] ->  FormResult [String]
 getChosenModules selection =
-    let allModules = ["Data.Int","Data.Bool", "Data.Maybe","Data.Either","Data.Tuple", "GHC.Char","Text.Show","Data.ByteString.Lazy","Data.ByteString.Builder"] in
+    let allModules = ["Data.Int","Data.Bool", "Data.Maybe","Data.Either", "GHC.Char","Text.Show","Data.ByteString.Lazy","Data.ByteString.Builder"] in
     let chosenModules' = filterM (\(s::([Char]),b::(FormResult Bool)) -> b) $ zip allModules selection in
     let chosenModules = (map (\(s,b) -> s)) <$> chosenModules'
     in chosenModules
