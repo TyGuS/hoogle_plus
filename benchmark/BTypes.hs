@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 module BTypes where
 
@@ -7,6 +8,18 @@ import Types.Experiments
 import GHC.Generics
 import GHC.Exception
 import Data.Aeson hiding (Result)
+import Data.Data
+import Data.Typeable
+
+data Args = Args {
+  argsQueryFile :: String,
+  argsTimeout :: Int, -- Timeout in seconds
+  argsOutputFile :: Maybe FilePath
+  } deriving (Show, Data, Typeable)
+
+data ExperimentSetup = ExpSetup {
+  expTimeout :: Int -- Timeout in seconds
+  }
 
 type Experiment = (Environment, String, Query, SearchParams, String)
 

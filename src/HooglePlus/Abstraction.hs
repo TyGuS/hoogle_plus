@@ -30,7 +30,7 @@ firstLvAbs env schs =
 -- Produce the most specific abstraction possible from the given types.
 specificAbstractionFromTypes :: Environment -> [RSchema] -> AbstractionTree
 specificAbstractionFromTypes env schemas = let
-    abstrSkels = map (toAbstractType . shape . toMonotype) schemas
+    abstrSkels = map (toAbstractType . shape) (concatMap (allBaseTypes . toMonotype) schemas)
     baseTree = ALeaf (AExclusion Set.empty)
     in
         foldr (flip $ updateSemantic env) baseTree abstrSkels
