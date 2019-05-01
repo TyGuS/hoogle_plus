@@ -110,7 +110,7 @@ instantiate env sigs = do
                      AbstractRefinement -> leafTypes (st ^. abstractionTree)
                      NoRefine -> filter notEx (leafTypes (st ^. abstractionTree))
                      Combination -> filter notEx (leafTypes (st ^. abstractionTree))
-                     QueryRefinement -> filter notEx (leafTypes (st ^. abstractionTree))
+                     QueryRefinement -> leafTypes (st ^. abstractionTree)
         writeLog 3 $ text "Current abstract types:" <+> pretty typs
         sigs' <- foldM (\acc -> (<$>) (acc ++) . uncurry (instantiateWith env typs)) [] sigs
         return $ nubOrdOn (uncurry removeSuffix) (sigsAcc ++ sigs')
@@ -172,10 +172,15 @@ splitTransition env tid info = do
        then return info
        else do
            info <- addPairMatch unifiedTyps
-           idPairs <- mapM (addColorTrans typ) unifiedTyps
-           let pgs = groupOn fst (sortOn fst (concat idPairs))
+           colorPairs <- mapM (addColorTrans typ) unifiedTyps
+           let tyPairs = concat (fst (unzip colorPairs))
+           let idPairs = concat (snd (unzip colorPairs))
+           let pgs = groupOn fst (sortOn fst idPairs)
+           let hops = groupOn fst (sortOn fst tyPairs)
+           let tps = map (\xs -> (fst (head xs), nubOrd (snd (unzip xs)))) hops
            let newPairs = map (\xs -> (fst (head xs), nubOrd (snd (unzip xs)))) pgs
-           return (info { splitedGroup = (tid, newIds) : newPairs ++ splitedGroup info })
+           return (info { splitedPlaces = splitedPlaces info ++ tps
+                        , splitedGroup = (tid, newIds) : newPairs ++ splitedGroup info })
   where
     addPairMatch unifiedTyps | "Pair" `isPrefixOf` tid = do
         -- step 6: add pair pattern matching when we are splitting some Pair constructors, they share the same number with constructor
@@ -196,9 +201,10 @@ splitTransition env tid info = do
         let hops = filter isAFunctionT (abstractParamList unifiedTyp)
         let oldHops = filter isAFunctionT (abstractParamList typ)
         mapM_ addHoParam hops
+        let hoPairs = zip oldHops hops
         let uncolors = zip (map (appendUnColor . show) oldHops) (map (appendUnColor . show) hops)
-        return (uncolors)
-    addColorTrans _ _ = return []
+        return (hoPairs, uncolors)
+    addColorTrans _ _ = return ([], [])
 
     getHoParams (AFunctionT tArg tRet) = init (decompose tArg) ++ getHoParams tRet
     getHoParams _ = []
@@ -489,8 +495,8 @@ refineSemantic env prog at = do
     -- if any of the transitions is splitted again, merge the results
     combineInfo [] = SplitInfo [] []
     combineInfo (x:xs) = let SplitInfo ts trs = combineInfo xs
-                             SplitInfo [(t, ts')] trs' = x
-                          in SplitInfo ((t, ts'):ts) (trs ++ trs')
+                             SplitInfo ps trs' = x
+                          in SplitInfo (ps ++ ts) (trs ++ trs')
 
     replaceTrans tr trs [] = (False, [])
     replaceTrans tr trs ((x,xs):remains) = if tr `elem` xs then (True, (x, trs ++ delete tr xs):remains)
@@ -549,7 +555,7 @@ initNet env = withTime ConstructionTime $ do
     mapM_ addEncodedFunction (Map.toList sigs)
     -- add clone functions for each type
     allTy <- gets (Map.keys . view type2transition)
-    mapM_ addCloneFunction allTy   
+    mapM_ addCloneFunction (filter (not . isAFunctionT) allTy)  
   where
     abstractSymbol id sch = do
         t <- freshType sch
@@ -693,7 +699,7 @@ fixEncoder env dst st info = do
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
     writeLog 2 $ text ("get split information " ++ show info)
     let newTyps = concat (snd (unzip (splitedPlaces info)))
-    mapM_ addCloneFunction newTyps
+    mapM_ addCloneFunction (filter (not . isAFunctionT) newTyps)
     modify $ over type2transition (Map.filter (not . null))
     funcs <- gets (view functionMap)
     t2tr <- gets (view type2transition)

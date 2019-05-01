@@ -51,6 +51,7 @@ data EncodeState = EncodeState {
   colorNb :: Int, 
   lv2range :: HashMap Int (Int, Int),
   place2variable :: HashMap (Id, Int) Variable, -- place name and timestamp
+  color2variable :: HashMap (Id, Int, Int) Variable, -- place name, timestamp and level
   time2variable :: HashMap (Int, Int) Variable, -- timestamp and abstraction level
   transition2id :: HashMap Int (HashMap Id Int), -- transition name and abstraction level
   id2transition :: HashMap Int (Id, Int),
