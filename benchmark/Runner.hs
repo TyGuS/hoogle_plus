@@ -19,12 +19,15 @@ import GHC.Conc (getNumCapabilities)
 import GHC.Exception
 import Data.Ratio ((%))
 
+import System.IO.Unsafe
+
 runExperiments :: ExperimentSetup -> [Experiment] -> IO [ResultSummary]
 runExperiments setup exps = do
   maxThreads <- getNumCapabilities
   let threads = (ceiling ((fromIntegral (maxThreads * 3)) % (fromIntegral 4))) -- Use about 3/4 of the cores
   eitherMbResults <- withPool threads (runPool setup exps)
-  return $ map summarizeResult (zip exps eitherMbResults)
+  let currentExperiment = expCourse setup
+  return $ map (summarizeResult currentExperiment) (zip exps eitherMbResults)
 
 runPool :: ExperimentSetup -> [Experiment] -> Pool -> IO [Either SomeException (Maybe [(RProgram, TimeStatistics)])]
 runPool setup exps pool = do
@@ -40,14 +43,28 @@ runExperiment setup (env, envName, q, params, paramName) = do
   goal <- envToGoal env queryStr
   timeout timeoutUs $ synthesize params goal
 
-summarizeResult :: (Experiment, Either SomeException (Maybe [(RProgram, TimeStatistics)])) -> ResultSummary
-summarizeResult ((_, envN, q, _, paramN), r) = let
-  results = case r of
-    Left err -> Left (RuntimeException err)
-    Right (Nothing) -> Left TimeoutException
-    Right (Just results) -> let
+summarizeResult :: ExperimentCourse -> (Experiment, Either SomeException (Maybe [(RProgram, TimeStatistics)])) -> ResultSummary
+summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
+  results = case (currentExperiment, r) of
+    (_, Left err) -> unsafePerformIO ((putStrLn (show err)) >> (return $ Left (RuntimeException err)))
+    (_, Right (Nothing)) -> Left TimeoutException
+    (CompareInitialAbstractCovers, Right (Just results)) -> let
       safeTransitions = snd $ errorhead "missing transitions" $ (Map.toDescList (numOfTransitions firstR))
       safeTypes = snd $ errorhead "missing types" $ (Map.toDescList (numOfPlaces firstR))
+      soln = mkOneLine (show solnProg)
+      (solnProg, firstR) =  errorhead "missing first solution" results
+      in Right Result {
+      resSolution = soln,
+      resTFirstSoln = totalTime firstR,
+      resTEncFirstSoln = encodingTime firstR,
+      resLenFirstSoln = pathLength firstR,
+      resRefinementSteps = iterations firstR,
+      resTransitions = [safeTransitions],
+      resTypes = [safeTypes]
+      }
+    (TrackTypesAndTransitions, Right (Just results)) -> let
+      safeTransitions = map snd (Map.toAscList (numOfTransitions firstR))
+      safeTypes = map snd (Map.toAscList (numOfPlaces firstR))
       soln = mkOneLine (show solnProg)
       (solnProg, firstR) =  errorhead "missing first solution" results
       in Right Result {
@@ -59,6 +76,7 @@ summarizeResult ((_, envN, q, _, paramN), r) = let
       resTransitions = safeTransitions,
       resTypes = safeTypes
       }
+
   in ResultSummary {
     envName = envN,
     paramName = paramN,

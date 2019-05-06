@@ -71,7 +71,7 @@ data TimeStatUpdate
 
 -- | Parameters for template exploration
 defaultSearchParams = SearchParams {
-  _eGuessDepth = 3,
+  _eGuessDepth = 6,
   _sourcePos = noPos,
   _explorerLogLevel = 0,
   _solutionCnt = 1,
@@ -86,3 +86,10 @@ expQueryRefinement = "Query Refinement":: ExperimentName
 expQueryRefinementHOF = "Query Refinement - HOF" :: ExperimentName
 expBaseline = "Baseline" :: ExperimentName
 expZeroCoverStart = "Zero Cover Start" :: ExperimentName
+
+
+currentExperiment = TrackTypesAndTransitions
+
+data ExperimentCourse
+  = CompareInitialAbstractCovers
+  | TrackTypesAndTransitions --2019-05-06

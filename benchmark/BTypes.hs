@@ -18,7 +18,8 @@ data Args = Args {
   } deriving (Show, Data, Typeable)
 
 data ExperimentSetup = ExpSetup {
-  expTimeout :: Int -- Timeout in seconds
+  expTimeout :: Int, -- Timeout in seconds
+  expCourse :: ExperimentCourse
   }
 
 type Experiment = (Environment, String, Query, SearchParams, String)
@@ -29,6 +30,9 @@ data Query = Query {
   } deriving (Generic, Show)
 
 instance FromJSON Query
+
+class Summary a where
+  outputSummary :: ResultFormat -> ExperimentCourse -> a -> String
 
 data ResultSummary = ResultSummary {
   envName :: String,
@@ -44,13 +48,15 @@ data Result = Result {
   resTEncFirstSoln :: Double,
   resLenFirstSoln :: Int,
   resRefinementSteps :: Int,
-  resTransitions :: Int,
-  resTypes :: Int
+  resTransitions :: [Int],
+  resTypes :: [Int]
   } deriving (Show, Eq)
 
 data EvaluationException =
   TimeoutException
   | RuntimeException SomeException
+
+data ResultFormat = Table
 
 instance Show EvaluationException where
   show (TimeoutException) = "Timeout"
