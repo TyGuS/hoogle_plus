@@ -18,6 +18,10 @@ Example:
 
 `SOLUTION: (,) (Data.Maybe.fromMaybe (fst arg0) arg1) (snd arg0)`
 
+
+Sample genererate:
+stack exec -- hplus generate -p base  -p bytestring -m "Data.Word" -m "Data.Int" -m "Data.Maybe" -m "Data.ByteString.Builder"       -m "Data.ByteString.Lazy" -m "Data.List" -m "Data.Tuple" -m "GHC.List" -m "GHC.Char" -m "Data.Bool"  -m "Text.Show" 
+
 ## Docker image:
 First run `docker pull aaron069/hoogle-plus:v2`
 Then go to your hoogle_plus repo, run `docker run -v ./:/home/hoogle-plus -it aaron069/hoogle-plus:v2`
