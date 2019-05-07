@@ -10,6 +10,7 @@ import HooglePlus.Synthesize
 import Database.Environment
 
 import System.Timeout
+import Control.Concurrent
 import Control.Concurrent.Chan
 import Control.Concurrent.ParallelIO.Local
 import qualified Data.Map as Map
@@ -29,26 +30,40 @@ runExperiments setup exps = do
   let currentExperiment = expCourse setup
   return $ map (summarizeResult currentExperiment) (zip exps eitherMbResults)
 
-runPool :: ExperimentSetup -> [Experiment] -> Pool -> IO [Either SomeException (Maybe [(RProgram, TimeStatistics)])]
+runPool :: ExperimentSetup -> [Experiment] -> Pool -> IO [Either SomeException [(Maybe RProgram, TimeStatistics)]]
 runPool setup exps pool = do
   parallelE pool (listOfExpsToDo exps)
+  -- fmap (map Right) $ sequence $ listOfExpsToDo exps
   where
-    listOfExpsToDo :: [Experiment] -> [IO (Maybe [(RProgram, TimeStatistics)])]
+    listOfExpsToDo :: [Experiment] -> [IO [(Maybe RProgram, TimeStatistics)]]
     listOfExpsToDo = map (runExperiment setup)
 
-runExperiment :: ExperimentSetup -> Experiment -> IO (Maybe [(RProgram, TimeStatistics)])
+runExperiment :: ExperimentSetup -> Experiment -> IO ([(Maybe RProgram, TimeStatistics)])
 runExperiment setup (env, envName, q, params, paramName) = do
   let queryStr = query q
   let timeoutUs = (expTimeout setup * 10^6) -- Timeout in microseconds
   goal <- envToGoal env queryStr
-  timeout timeoutUs $ synthesize params goal
+  messageChan <- newChan
+  forkIO $ do
+    timeout timeoutUs $ synthesize params goal messageChan
+    writeChan messageChan MesgClose -- could possibly be putting a second close on the channel.
+  readChan messageChan >>= collectResults messageChan []
 
-summarizeResult :: ExperimentCourse -> (Experiment, Either SomeException (Maybe [(RProgram, TimeStatistics)])) -> ResultSummary
+
+collectResults :: Chan Message -> [(Maybe RProgram, TimeStatistics)] -> Message -> IO [(Maybe RProgram, TimeStatistics)]
+collectResults ch res MesgClose = return res
+collectResults ch ((Nothing, _):xs) (MesgP (p, ts)) = readChan ch >>= (collectResults ch ((Just p, ts):xs))
+collectResults ch xs (MesgP (p, ts)) = readChan ch >>= (collectResults ch ((Just p, ts):xs))
+collectResults ch ((Nothing, _):xs) (MesgD ts) = readChan ch >>= (collectResults ch ((Nothing, ts):xs))
+collectResults ch xs (MesgD ts) = readChan ch >>= (collectResults ch ((Nothing, ts):xs))
+
+
+summarizeResult :: ExperimentCourse -> (Experiment, Either SomeException [(Maybe RProgram, TimeStatistics)]) -> ResultSummary
 summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
   results = case (currentExperiment, r) of
     (_, Left err) -> unsafePerformIO ((putStrLn (show err)) >> (return $ Left (RuntimeException err)))
-    (_, Right (Nothing)) -> Left TimeoutException
-    (CompareInitialAbstractCovers, Right (Just results)) -> let
+    (_, Right []) -> Left TimeoutException
+    (CompareInitialAbstractCovers, Right results) -> let
       safeTransitions = snd $ errorhead "missing transitions" $ (Map.toDescList (numOfTransitions firstR))
       safeTypes = snd $ errorhead "missing types" $ (Map.toDescList (numOfPlaces firstR))
       soln = mkOneLine (show solnProg)
@@ -62,7 +77,7 @@ summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
       resTransitions = [safeTransitions],
       resTypes = [safeTypes]
       }
-    (TrackTypesAndTransitions, Right (Just results)) -> let
+    (TrackTypesAndTransitions, Right results) -> let
       safeTransitions = map snd (Map.toAscList (numOfTransitions firstR))
       safeTypes = map snd (Map.toAscList (numOfPlaces firstR))
       soln = mkOneLine (show solnProg)

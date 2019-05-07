@@ -3,6 +3,7 @@ module Types.Experiments where
 
 import Types.Type
 import Types.Encoder
+import Types.Program
 import Synquid.Program
 import Synquid.Error
 import Types.Common
@@ -93,3 +94,8 @@ currentExperiment = TrackTypesAndTransitions
 data ExperimentCourse
   = CompareInitialAbstractCovers
   | TrackTypesAndTransitions --2019-05-06
+
+data Message
+  = MesgClose
+  | MesgP (RProgram, TimeStatistics) -- Program with the stats associated with generating it
+  | MesgD TimeStatistics

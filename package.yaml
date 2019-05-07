@@ -48,7 +48,7 @@ dependencies:
 - safe
 - sort
 - split
-- split
+- stm
 - text
 - time
 - transformers
@@ -57,7 +57,7 @@ dependencies:
 - vector
 
 library:
-  source-dirs: 
+  source-dirs:
   - src
   other-extensions:
   - TemplateHaskell
@@ -80,7 +80,7 @@ executables:
     - HooglePlus
   webapp:
     main: Main.hs
-    source-dirs: 
+    source-dirs:
     - webapp/app
     - webapp/src
     ghc-options:

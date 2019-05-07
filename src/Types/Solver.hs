@@ -9,6 +9,7 @@ import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Control.Lens
 import Control.Monad.State
+import Control.Concurrent.Chan
 
 import Types.Program
 import Types.PetriNet
@@ -40,7 +41,9 @@ data SolverState = SolverState {
     _splitTypes :: [(AbstractSkeleton, AbstractSkeleton)],
     _nameMapping :: Map Id Id, -- mapping from fake names to real names
     _logLevel :: Int, -- temporary for log level
-    _maxApplicationDepth :: Int
+    _maxApplicationDepth :: Int,
+
+    _messageChan :: Chan Message
 } deriving(Eq)
 
 

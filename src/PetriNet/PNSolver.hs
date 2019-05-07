@@ -40,6 +40,7 @@ import qualified Z3.Monad as Z3
 import System.CPUTime
 import Text.Printf
 import Text.Pretty.Simple
+import Control.Concurrent.Chan
 
 import Types.Common
 import Types.Type
@@ -806,32 +807,34 @@ printSolution solution = do
     liftIO $ putStrLn "************************************************"
 
 
-findFirstN :: (MonadIO m) => Environment -> RType -> EncodeState -> Int -> PNSolver m [(RProgram, TimeStatistics)]
+findFirstN :: (MonadIO m) => Environment -> RType -> EncodeState -> Int -> PNSolver m ()
 findFirstN env dst st cnt | cnt == 1  = do
     (res, _) <- withTime TotalSearch $ findProgram env dst st
     stats <- view solverStats <$> get
     depth <- view currentLoc <$> get
+    msgChan <- view messageChan <$> get
     liftIO $ pPrint (depth)
     let stats' = stats{pathLength = depth}
     printSolution res
     -- printStats
-    return [(res, stats')]
+    liftIO $ writeChan msgChan (MesgP (res, stats'))
 findFirstN env dst st cnt | otherwise = do
     (res, st') <- withTime TotalSearch $ findProgram env dst st
+    msgChan <- view messageChan <$> get
     stats <- view solverStats <$> get
     loc <- view currentLoc <$> get
     let stats' = stats{pathLength = loc}
     printSolution res
-    -- printStats
+    liftIO $ writeChan msgChan (MesgP (res, stats'))
     resetTiming
-    rest <- (findFirstN env dst st' (cnt-1))
-    return $ (res, stats'):rest
+    findFirstN env dst st' (cnt-1)
 
-runPNSolver :: MonadIO m => Environment -> Int -> RType -> PNSolver m [(RProgram, TimeStatistics)]
+runPNSolver :: MonadIO m => Environment -> Int -> RType -> PNSolver m ()
 runPNSolver env cnt t = do
     initNet env
     st <- withTime EncodingTime (resetEncoder env t)
     findFirstN env t st cnt
+    return ()
 
 recoverNames :: Map Id Id -> RProgram -> RProgram
 recoverNames mapping (Program (PSymbol sym) t) =

@@ -35,6 +35,8 @@ import System.FilePath
 import Text.Parsec.Pos
 import Control.Monad.State (runState, evalStateT, execStateT, evalState)
 import Control.Monad.Except (runExcept)
+import Control.Concurrent
+import Control.Concurrent.Chan
 import Data.Char
 import Data.List
 import Data.Foldable
@@ -79,7 +81,7 @@ main = do
       let synquidParams = defaultSynquidParams {
         Main.envPath = envPath
       }
-      runOnFile synquidParams searchParams file
+      executeSearch synquidParams searchParams file
     Generate pkgs mdls d ho pathToEnv -> do
       let fetchOpts = defaultHackageOpts {
         packages = pkgs
@@ -178,12 +180,14 @@ precomputeGraph opts = generateEnv opts >>= writeEnv (Types.Generate.envPath opt
 
 
 -- | Parse and resolve file, then synthesize the specified goals
-runOnFile :: SynquidParams -> SearchParams  -> String -> IO ()
-runOnFile synquidParams searchParams query = do
+executeSearch :: SynquidParams -> SearchParams  -> String -> IO ()
+executeSearch synquidParams searchParams query = do
   env <- readEnv
   goal <- envToGoal env query
-  results <- synthesize searchParams goal
-  when (_explorerLogLevel searchParams > 0) (mapM_ (printTime . snd) results)
+  messageChan <- newChan
+  worker <- forkIO $ synthesize searchParams goal messageChan
+  readChan messageChan >>= (handleMessages messageChan)
+  -- when (_explorerLogLevel searchParams > 0) (mapM_ (printTime . snd) results)
   return ()
   where
     readEnv = do
@@ -195,5 +199,8 @@ runOnFile synquidParams searchParams query = do
         Left err -> error err
         Right env ->
           return env
+    handleMessages ch MesgClose = putStrLn "channel closed" >> return ()
+    handleMessages ch (MesgP (program, stats))  = print program >> readChan ch >>= (handleMessages ch)
+    handleMessages ch (MesgD debug) = print debug >> readChan ch >>= (handleMessages ch)
 
 pdoc = printDoc Plain

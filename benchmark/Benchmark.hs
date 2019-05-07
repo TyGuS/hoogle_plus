@@ -28,7 +28,7 @@ defaultArgs = Args {
   }
   where
     defaultQueryFile = "benchmark/suites/allQueries.json"
-    defaultTimeout = 5 * 60 :: Int
+    defaultTimeout = 1 * 60 :: Int
 
 main :: IO ()
 main = do
