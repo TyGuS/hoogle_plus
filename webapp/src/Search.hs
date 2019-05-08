@@ -37,7 +37,7 @@ runQuery queryOpts = do
           files = ["libraries/tier1/base.txt", "libraries/tier1/bytestring.txt", "libraries/ghc-prim.txt"]
           }
       }
-      collectResults ch res MesgClose = return res
+      collectResults ch res (MesgClose _) = return res
       collectResults ch res (MesgP (program, _)) = readChan ch >>= (collectResults ch (program:res))
       collectResults ch res _ = readChan ch >>= (collectResults ch res)
 

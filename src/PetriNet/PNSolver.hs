@@ -834,6 +834,8 @@ runPNSolver env cnt t = do
     initNet env
     st <- withTime EncodingTime (resetEncoder env t)
     findFirstN env t st cnt
+    msgChan <- view messageChan <$> get
+    liftIO $ writeChan msgChan (MesgClose CSNormal)
     return ()
 
 recoverNames :: Map Id Id -> RProgram -> RProgram

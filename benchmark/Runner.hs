@@ -10,6 +10,7 @@ import HooglePlus.Synthesize
 import Database.Environment
 
 import System.Timeout
+import Control.Exception
 import Control.Concurrent
 import Control.Concurrent.Chan
 import Control.Concurrent.ParallelIO.Local
@@ -32,13 +33,15 @@ runExperiments setup exps = do
 
 runPool :: ExperimentSetup -> [Experiment] -> Pool -> IO [Either SomeException [(Maybe RProgram, TimeStatistics)]]
 runPool setup exps pool = do
-  parallelE pool (listOfExpsToDo exps)
-  -- fmap (map Right) $ sequence $ listOfExpsToDo exps
+  nestedEithers <- parallelE pool (listOfExpsToDo exps)
+  return $ map mergeEithers nestedEithers
   where
-    listOfExpsToDo :: [Experiment] -> [IO [(Maybe RProgram, TimeStatistics)]]
+    listOfExpsToDo :: [Experiment] -> [IO (Either SomeException [(Maybe RProgram, TimeStatistics)])]
     listOfExpsToDo = map (runExperiment setup)
+    mergeEithers :: Either a (Either a b) -> Either a b
+    mergeEithers = either Left id -- written by Hoogle Plus!
 
-runExperiment :: ExperimentSetup -> Experiment -> IO ([(Maybe RProgram, TimeStatistics)])
+runExperiment :: ExperimentSetup -> Experiment -> IO (Either SomeException [(Maybe RProgram, TimeStatistics)])
 runExperiment setup (env, envName, q, params, paramName) = do
   let queryStr = query q
   let timeoutUs = (expTimeout setup * 10^6) -- Timeout in microseconds
@@ -46,16 +49,21 @@ runExperiment setup (env, envName, q, params, paramName) = do
   messageChan <- newChan
   forkIO $ do
     timeout timeoutUs $ synthesize params goal messageChan
-    writeChan messageChan MesgClose -- could possibly be putting a second close on the channel.
-  readChan messageChan >>= collectResults messageChan []
+    writeChan messageChan (MesgClose $ CSError (SomeException TimeoutException)) -- could possibly be putting a second close on the channel.
+  readChan messageChan >>= collectResults messageChan (Right [])
 
 
-collectResults :: Chan Message -> [(Maybe RProgram, TimeStatistics)] -> Message -> IO [(Maybe RProgram, TimeStatistics)]
-collectResults ch res MesgClose = return res
-collectResults ch ((Nothing, _):xs) (MesgP (p, ts)) = readChan ch >>= (collectResults ch ((Just p, ts):xs))
-collectResults ch xs (MesgP (p, ts)) = readChan ch >>= (collectResults ch ((Just p, ts):xs))
-collectResults ch ((Nothing, _):xs) (MesgD ts) = readChan ch >>= (collectResults ch ((Nothing, ts):xs))
-collectResults ch xs (MesgD ts) = readChan ch >>= (collectResults ch ((Nothing, ts):xs))
+-- collectResults will listen to a channel until it closes. Intermediate results are put on top
+-- and replace existing intermediate results. Once a program/stats pair comes in, that will replace
+-- any such intermediate results.
+collectResults :: Chan Message -> Either SomeException [(Maybe RProgram, TimeStatistics)] -> Message -> IO (Either SomeException [(Maybe RProgram, TimeStatistics)])
+collectResults ch res (MesgClose CSNormal) = return res
+collectResults ch _ (MesgClose (CSError err)) = return (Left err)
+collectResults ch (Left err) _ = return (Left err)
+collectResults ch (Right ((Nothing, _):xs)) (MesgP (p, ts)) = readChan ch >>= (collectResults ch $ Right ((Just p, ts):xs))
+collectResults ch (Right xs) (MesgP (p, ts)) = readChan ch >>= (collectResults ch $ Right ((Just p, ts):xs))
+collectResults ch (Right ((Nothing, _):xs)) (MesgD ts) = readChan ch >>= (collectResults ch $ Right ((Nothing, ts):xs))
+collectResults ch (Right xs) (MesgD ts) = readChan ch >>= (collectResults ch $ Right ((Nothing, ts):xs))
 
 
 summarizeResult :: ExperimentCourse -> (Experiment, Either SomeException [(Maybe RProgram, TimeStatistics)]) -> ResultSummary
@@ -67,10 +75,10 @@ summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
       safeTransitions = snd $ errorhead "missing transitions" $ (Map.toDescList (numOfTransitions firstR))
       safeTypes = snd $ errorhead "missing types" $ (Map.toDescList (numOfPlaces firstR))
       soln = mkOneLine (show solnProg)
-      (solnProg, firstR) =  errorhead "missing first solution" results
+      (solnProg, firstR) = head results
       in Right Result {
       resSolution = soln,
-      resTFirstSoln = totalTime firstR,
+      resTFirstSoln = if isJust solnProg then totalTime firstR else -1,
       resTEncFirstSoln = encodingTime firstR,
       resLenFirstSoln = pathLength firstR,
       resRefinementSteps = iterations firstR,
@@ -81,10 +89,10 @@ summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
       safeTransitions = map snd (Map.toAscList (numOfTransitions firstR))
       safeTypes = map snd (Map.toAscList (numOfPlaces firstR))
       soln = mkOneLine (show solnProg)
-      (solnProg, firstR) =  errorhead "missing first solution" results
+      (solnProg, firstR) = head results
       in Right Result {
       resSolution = soln,
-      resTFirstSoln = totalTime firstR,
+      resTFirstSoln = if isJust solnProg then totalTime firstR else -1,
       resTEncFirstSoln = encodingTime firstR,
       resLenFirstSoln = pathLength firstR,
       resRefinementSteps = iterations firstR,

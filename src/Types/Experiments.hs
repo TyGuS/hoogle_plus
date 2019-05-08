@@ -13,6 +13,7 @@ import Data.Data
 import Control.Lens hiding (index, indices)
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Control.Exception
 
 {- Interface -}
 
@@ -96,6 +97,10 @@ data ExperimentCourse
   | TrackTypesAndTransitions --2019-05-06
 
 data Message
-  = MesgClose
+  = MesgClose CloseStatus
   | MesgP (RProgram, TimeStatistics) -- Program with the stats associated with generating it
   | MesgD TimeStatistics
+
+data CloseStatus
+  = CSNormal
+  | CSError SomeException

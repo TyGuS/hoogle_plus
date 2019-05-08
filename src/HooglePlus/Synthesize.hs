@@ -91,7 +91,7 @@ synthesize searchParams goal messageChan = do
                QueryRefinement -> Abstraction.specificAbstractionFromTypes env (args)
            , _messageChan = messageChan
            }
-  finally (evalStateT (runPNSolver env cnt destinationType) is)
-          (writeChan messageChan MesgClose)
+  catch (evalStateT (runPNSolver env cnt destinationType) is)
+    (\e -> writeChan messageChan (MesgClose (CSError e)))
   -- will need to attach params
   return ()
