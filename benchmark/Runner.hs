@@ -58,7 +58,7 @@ runExperiment setup (env, envName, q, params, paramName) = do
 -- any such intermediate results.
 collectResults :: Chan Message -> Either SomeException [(Maybe RProgram, TimeStatistics)] -> Message -> IO (Either SomeException [(Maybe RProgram, TimeStatistics)])
 collectResults ch res (MesgClose CSNormal) = return res
-collectResults ch _ (MesgClose (CSError err)) = return (Left err)
+collectResults ch res (MesgClose (CSError err)) = return res -- (Left err)
 collectResults ch (Left err) _ = return (Left err)
 collectResults ch (Right ((Nothing, _):xs)) (MesgP (p, ts)) = readChan ch >>= (collectResults ch $ Right ((Just p, ts):xs))
 collectResults ch (Right xs) (MesgP (p, ts)) = readChan ch >>= (collectResults ch $ Right ((Just p, ts):xs))
@@ -92,7 +92,7 @@ summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
       (solnProg, firstR) = head results
       in Right Result {
       resSolution = soln,
-      resTFirstSoln = if isJust solnProg then totalTime firstR else -1,
+      resTFirstSoln = totalTime firstR,
       resTEncFirstSoln = encodingTime firstR,
       resLenFirstSoln = pathLength firstR,
       resRefinementSteps = iterations firstR,

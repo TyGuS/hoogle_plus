@@ -702,6 +702,9 @@ fixEncoder env dst st info = do
 
 findProgram :: MonadIO m => Environment -> RType -> EncodeState -> PNSolver m (RProgram, EncodeState)
 findProgram env dst st = do
+    mesgChan <- view messageChan <$> get
+    stats <- view solverStats <$> get
+    liftIO $ writeChan mesgChan (MesgD stats)
     modify $ set splitTypes []
     modify $ set typeAssignment Map.empty
     writeLog 2 $ text "calling findProgram"
