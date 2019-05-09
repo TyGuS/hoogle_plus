@@ -199,8 +199,8 @@ executeSearch synquidParams searchParams query = do
         Left err -> error err
         Right env ->
           return env
-    handleMessages ch (MesgClose _) = putStrLn "channel closed" >> return ()
+    handleMessages ch (MesgClose _) = putStrLn "Search complete" >> return ()
     handleMessages ch (MesgP (program, stats))  = print program >> readChan ch >>= (handleMessages ch)
-    handleMessages ch (MesgD debug) = print debug >> readChan ch >>= (handleMessages ch)
+    handleMessages ch (MesgD debug) = readChan ch >>= (handleMessages ch)
 
 pdoc = printDoc Plain
