@@ -20,6 +20,7 @@ import Data.Either
 import GHC.Conc (getNumCapabilities)
 import GHC.Exception
 import Data.Ratio ((%))
+import Data.List
 
 import System.IO.Unsafe
 
@@ -31,17 +32,18 @@ runExperiments setup exps = do
   let currentExperiment = expCourse setup
   return $ map (summarizeResult currentExperiment) (zip exps eitherMbResults)
 
-runPool :: ExperimentSetup -> [Experiment] -> Pool -> IO [Either SomeException [(Maybe RProgram, TimeStatistics)]]
+runPool :: ExperimentSetup -> [Experiment] -> Pool -> IO [[(Either EvaluationException (Maybe RProgram), TimeStatistics)]]
 runPool setup exps pool = do
   nestedEithers <- parallelE pool (listOfExpsToDo exps)
   return $ map mergeEithers nestedEithers
   where
-    listOfExpsToDo :: [Experiment] -> [IO (Either SomeException [(Maybe RProgram, TimeStatistics)])]
+    listOfExpsToDo :: [Experiment] -> [IO [(Either EvaluationException (Maybe RProgram), TimeStatistics)]]
     listOfExpsToDo = map (runExperiment setup)
-    mergeEithers :: Either a (Either a b) -> Either a b
-    mergeEithers = either Left id -- written by Hoogle Plus!
+    mergeEithers :: Either SomeException [((Either EvaluationException b), TimeStatistics)] -> [(Either EvaluationException b, TimeStatistics)]
+    mergeEithers (Left err) = [(Left (RuntimeException err), emptyTimeStats)]
+    mergeEithers (Right rest) = rest
 
-runExperiment :: ExperimentSetup -> Experiment -> IO (Either SomeException [(Maybe RProgram, TimeStatistics)])
+runExperiment :: ExperimentSetup -> Experiment -> IO [(Either EvaluationException (Maybe RProgram), TimeStatistics)]
 runExperiment setup (env, envName, q, params, paramName) = do
   let queryStr = query q
   let timeoutUs = (expTimeout setup * 10^6) -- Timeout in microseconds
@@ -49,49 +51,50 @@ runExperiment setup (env, envName, q, params, paramName) = do
   messageChan <- newChan
   forkIO $ do
     timeout timeoutUs $ synthesize params goal messageChan
-    writeChan messageChan (MesgClose $ CSError (SomeException TimeoutException)) -- could possibly be putting a second close on the channel.
-  readChan messageChan >>= collectResults messageChan (Right [])
+    writeChan messageChan (MesgClose CSTimeout) -- could possibly be putting a second close on the channel.
+  readChan messageChan >>= collectResults messageChan []
 
 
 -- collectResults will listen to a channel until it closes. Intermediate results are put on top
 -- and replace existing intermediate results. Once a program/stats pair comes in, that will replace
 -- any such intermediate results.
-collectResults :: Chan Message -> Either SomeException [(Maybe RProgram, TimeStatistics)] -> Message -> IO (Either SomeException [(Maybe RProgram, TimeStatistics)])
+collectResults :: Chan Message -> [(Either EvaluationException (Maybe RProgram), TimeStatistics)] -> Message
+                            -> IO [(Either EvaluationException (Maybe RProgram), TimeStatistics)]
 collectResults ch res (MesgClose CSNormal) = return res
-collectResults ch res (MesgClose (CSError err)) = return res -- (Left err)
-collectResults ch (Left err) _ = return (Left err)
-collectResults ch (Right ((Nothing, _):xs)) (MesgP (p, ts)) = readChan ch >>= (collectResults ch $ Right ((Just p, ts):xs))
-collectResults ch (Right xs) (MesgP (p, ts)) = readChan ch >>= (collectResults ch $ Right ((Just p, ts):xs))
-collectResults ch (Right ((Nothing, _):xs)) (MesgD ts) = readChan ch >>= (collectResults ch $ Right ((Nothing, ts):xs))
-collectResults ch (Right xs) (MesgD ts) = readChan ch >>= (collectResults ch $ Right ((Nothing, ts):xs))
+collectResults ch ((_,stats):xs) (MesgClose (CSError err)) = let
+  errTy = if ("timeout" `isInfixOf` (show err)) then TimeoutException else RuntimeException err
+  in return ((Left errTy, stats):xs)
+collectResults ch ((_,stats):xs) (MesgClose CSTimeout) = return ((Left TimeoutException, stats):xs)
+collectResults ch ((_,stats):xs) (MesgClose CSNoSolution) = return ((Left NoSolutionException, stats):xs)
+collectResults ch res@((Left err, _):_) _ = return res
+collectResults ch ((Right Nothing, _):xs) (MesgP (p, ts)) = readChan ch >>= (collectResults ch $ ((Right $ Just p, ts):xs))
+collectResults ch xs (MesgP (p, ts)) = readChan ch >>= (collectResults ch $ ((Right $ Just p, ts):xs))
+collectResults ch ((Right Nothing, _):xs) (MesgD ts) = readChan ch >>= (collectResults ch $ ((Right Nothing, ts):xs))
+collectResults ch xs (MesgD ts) = readChan ch >>= (collectResults ch $ ((Right Nothing, ts):xs))
 
 
-summarizeResult :: ExperimentCourse -> (Experiment, Either SomeException [(Maybe RProgram, TimeStatistics)]) -> ResultSummary
+summarizeResult :: ExperimentCourse -> (Experiment, [(Either EvaluationException (Maybe RProgram), TimeStatistics)]) -> ResultSummary
 summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
   results = case (currentExperiment, r) of
-    (_, Left err) -> unsafePerformIO ((putStrLn (show err)) >> (return $ Left (RuntimeException err)))
-    (_, Right []) -> Left TimeoutException
-    (CompareInitialAbstractCovers, Right results) -> let
+    (_, []) -> emptyResult {resSolutionOrError = Left TimeoutException}
+    -- (_, (Left err, _):_) -> Result {resSolutionOrError = Left (SomeException $ RuntimeException err)}
+    (CompareInitialAbstractCovers, (errOrMbSoln, firstR):_) -> let
       safeTransitions = snd $ errorhead "missing transitions" $ (Map.toDescList (numOfTransitions firstR))
       safeTypes = snd $ errorhead "missing types" $ (Map.toDescList (numOfPlaces firstR))
-      soln = mkOneLine (show solnProg)
-      (solnProg, firstR) = head results
-      in Right Result {
-      resSolution = soln,
-      resTFirstSoln = if isJust solnProg then totalTime firstR else -1,
+      in Result {
+      resSolutionOrError = fmap (mkOneLine . show) errOrMbSoln,
+      resTFirstSoln = totalTime firstR,
       resTEncFirstSoln = encodingTime firstR,
       resLenFirstSoln = pathLength firstR,
       resRefinementSteps = iterations firstR,
       resTransitions = [safeTransitions],
       resTypes = [safeTypes]
       }
-    (TrackTypesAndTransitions, Right results) -> let
+    (TrackTypesAndTransitions, (errOrMbSoln, firstR):_) -> let
       safeTransitions = map snd (Map.toAscList (numOfTransitions firstR))
       safeTypes = map snd (Map.toAscList (numOfPlaces firstR))
-      soln = mkOneLine (show solnProg)
-      (solnProg, firstR) = head results
-      in Right Result {
-      resSolution = soln,
+      in Result {
+      resSolutionOrError = fmap (mkOneLine . show) errOrMbSoln,
       resTFirstSoln = totalTime firstR,
       resTEncFirstSoln = encodingTime firstR,
       resLenFirstSoln = pathLength firstR,

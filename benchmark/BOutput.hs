@@ -14,6 +14,9 @@ import Data.List
 import Data.List.Extra
 import Data.Maybe
 import Text.Layout.Table
+import Control.Exception
+
+textWidth = 50
 
 toGroup :: [ResultSummary] -> Map String [ResultSummary]
 toGroup rss = let
@@ -25,7 +28,7 @@ toGroup rss = let
 
 toTable :: ExperimentCourse -> Map String [ResultSummary] -> String
 toTable currentExperiment rsMap = let
-  body = map (\(x, y) -> rowG $ toLine currentExperiment x y) (Map.toList rsMap)
+  body = map (\(x, y) -> colsAllG center $ toLine currentExperiment x y) (Map.toList rsMap)
   in
     tableString columnStyle unicodeRoundS (titlesH header) body
   where
@@ -33,7 +36,7 @@ toTable currentExperiment rsMap = let
       column expand center dotAlign (singleCutMark "..."),
       column expand center dotAlign (singleCutMark "...")] ++ dataColumnStyle
     header = ["Name", "Query"] ++ dataHeader
-    dataColumnStyle = replicate (length dataHeader) (column (expandUntil 50) center dotAlign (singleCutMark "..."))
+    dataColumnStyle = replicate (length dataHeader) (column (expandUntil textWidth) center noAlign (singleCutMark "..."))
     dataHeader = case currentExperiment of
       CompareInitialAbstractCovers -> [
         "tS - QR", "tEnc - QR",
@@ -45,9 +48,9 @@ toTable currentExperiment rsMap = let
         ]
       TrackTypesAndTransitions -> [
         "time", "encoding - s",
-        "l", "r", "transitions", "types"]
+        "l", "r", "transitions", "types", "status"]
 
-toLine :: ExperimentCourse -> String -> [ResultSummary] -> [String]
+toLine :: ExperimentCourse -> String -> [ResultSummary] -> [Col String]
 toLine currentExperiment name rss = let
   mbqr = findwhere expQueryRefinement rss
   mbbaseline = findwhere expBaseline rss
@@ -56,41 +59,42 @@ toLine currentExperiment name rss = let
   mbzero = findwhere expZeroCoverStart rss
   rest = case currentExperiment of
       CompareInitialAbstractCovers -> [
-        either show (showFloat . resTFirstSoln) <$> result <$> mbqr,
-        either dash (showFloat . resTEncFirstSoln) <$> result <$> mbqr,
-        either dash (show . resLenFirstSoln) <$> result <$> mbqr,
-        either dash (show . resRefinementSteps) <$> result <$> mbqr,
-        either dash (show . resTransitions) <$> result <$> mbqr,
-        either dash (show . resTypes) <$> result <$> mbqr,
+        (:[]) <$> (showFloat . resTFirstSoln) <$> result <$> mbqr,
+        (:[]) <$> (showFloat . resTEncFirstSoln) <$> result <$> mbqr,
+        (:[]) <$> (show . resLenFirstSoln) <$> result <$> mbqr,
+        (:[]) <$> (show . resRefinementSteps) <$> result <$> mbqr,
+        (:[]) <$> (show . resTransitions) <$> result <$> mbqr,
+        (:[]) <$> (show . resTypes) <$> result <$> mbqr,
 
-        either show (showFloat . resTFirstSoln) <$> result <$> mbqrhof,
-        either dash (show . resTransitions) <$> result <$> mbqrhof,
+        (:[]) <$> (showFloat . resTFirstSoln) <$> result <$> mbqrhof,
+        (:[]) <$> (show . resTransitions) <$> result <$> mbqrhof,
 
-        either show (showFloat . resTFirstSoln) <$> result <$> mbPartialqrhof,
-        either dash (show . resTransitions) <$> result <$> mbPartialqrhof,
+        (:[]) <$> (showFloat . resTFirstSoln) <$> result <$> mbPartialqrhof,
+        (:[]) <$> (show . resTransitions) <$> result <$> mbPartialqrhof,
 
-        either show (showFloat . resTFirstSoln) <$> result <$> mbbaseline,
-        either dash (show . resTransitions) <$> result <$> mbbaseline,
-        either show (showFloat . resTFirstSoln) <$> result <$> mbzero,
-        either dash (show . resTransitions) <$> result <$> mbzero
+        (:[]) <$> (showFloat . resTFirstSoln) <$> result <$> mbbaseline,
+        (:[]) <$> (show . resTransitions) <$> result <$> mbbaseline,
+        (:[]) <$> (showFloat . resTFirstSoln) <$> result <$> mbzero,
+        (:[]) <$> (show . resTransitions) <$> result <$> mbzero
         ]
       TrackTypesAndTransitions -> [
-        either show (showFloat . resTFirstSoln) <$> result <$> mbqr,
-        either dash (showFloat . resTEncFirstSoln) <$> result <$> mbqr,
-        either dash (show . resLenFirstSoln) <$> result <$> mbqr,
-        either dash (show . resRefinementSteps) <$> result <$> mbqr,
-        either dash (show . resTransitions) <$> result <$> mbqr,
-        either dash (show . resTypes) <$> result <$> mbqr
+        justifyText textWidth <$> (showFloat . resTFirstSoln) <$> result <$> mbqr,
+        justifyText textWidth <$> (showFloat . resTEncFirstSoln) <$> result <$> mbqr,
+        justifyText textWidth <$> (show . resLenFirstSoln) <$> result <$> mbqr,
+        justifyText textWidth <$> (show . resRefinementSteps) <$> result <$> mbqr,
+        justifyText textWidth <$> (spaceList . show . resTransitions . result) <$> mbqr,
+        justifyText textWidth <$> (spaceList . show . resTypes . result) <$> mbqr,
+        justifyText textWidth <$> either show show <$> resSolutionOrError <$> result <$> mbqr
         ]
   in
-    map realizeMb ([
-      Just name,
-      show . queryStr <$> mbqr
+    map (fromMaybe ["-"]) ([
+      Just [name],
+      justifyText textWidth <$> show . queryStr <$> mbqr
       ] ++ rest)
   where
     findwhere name xs = find ((==) name . paramName) xs
-    realizeMb mbX = fromMaybe "-" mbX
     dash = const "-"
+    spaceList xs = intercalate ", " $ splitBy ',' xs
 
 
 toEnvTable :: [(Environment, String)] -> String
@@ -110,7 +114,7 @@ toEnvTable envAndNames = let
         [name],
         [show $ length $ concatMap Map.elems $ Map.elems $ _symbols env],
         [show $ length $ Map.keys $ _datatypes env],
-        justifyText 50 $ (replace "," " " $ show $ Set.toList $ _included_modules env)
+        justifyText textWidth $ (replace "," " " $ show $ Set.toList $ _included_modules env)
       ]
 
 instance Summary [(Environment, String)] where

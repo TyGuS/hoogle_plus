@@ -10,11 +10,14 @@ import GHC.Exception
 import Data.Aeson hiding (Result)
 import Data.Data
 import Data.Typeable
+import Data.Either
+import Control.Exception
 
 data Args = Args {
   argsQueryFile :: String,
   argsTimeout :: Int, -- Timeout in seconds
-  argsOutputFile :: Maybe FilePath
+  argsOutputFile :: Maybe FilePath,
+  argsExperiment :: ExperimentCourse
   } deriving (Show, Data, Typeable)
 
 data ExperimentSetup = ExpSetup {
@@ -39,26 +42,32 @@ data ResultSummary = ResultSummary {
   paramName :: String,
   queryName :: String,
   queryStr :: String,
-  result :: Either EvaluationException Result
+  result :: Result
   } deriving (Show)
 
 data Result = Result {
-  resSolution :: String,
+  resSolutionOrError :: Either EvaluationException String,
   resTFirstSoln :: Double,
   resTEncFirstSoln :: Double,
   resLenFirstSoln :: Int,
   resRefinementSteps :: Int,
   resTransitions :: [Int],
   resTypes :: [Int]
-  } deriving (Show, Eq)
+  } deriving (Show)
+
+emptyResult = Result (Left NotImplementedException) 0 0 0 0 [] []
 
 data EvaluationException =
   TimeoutException
+  | NoSolutionException
   | RuntimeException SomeException
+  | NotImplementedException
 
 data ResultFormat = Table
 
 instance Show EvaluationException where
   show (TimeoutException) = "Timeout"
+  show (NoSolutionException) = "No Solution"
+  show (NotImplementedException) = "Not Implemented"
   show (RuntimeException _) = "Runtime error"
 instance Exception EvaluationException

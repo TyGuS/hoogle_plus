@@ -90,11 +90,10 @@ expBaseline = "Baseline" :: ExperimentName
 expZeroCoverStart = "Zero Cover Start" :: ExperimentName
 
 
-currentExperiment = TrackTypesAndTransitions
-
 data ExperimentCourse
   = CompareInitialAbstractCovers
   | TrackTypesAndTransitions --2019-05-06
+  deriving (Show, Data, Typeable)
 
 data Message
   = MesgClose CloseStatus
@@ -103,4 +102,6 @@ data Message
 
 data CloseStatus
   = CSNormal
+  | CSNoSolution
+  | CSTimeout
   | CSError SomeException

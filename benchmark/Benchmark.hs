@@ -24,15 +24,15 @@ import qualified Data.Map as Map
 defaultArgs = Args {
   argsQueryFile=defaultQueryFile &= name "queries" &= typFile,
   argsTimeout=defaultTimeout &= name "timeout" &= help "Each experiment will have N seconds to complete" ,
-  argsOutputFile=Nothing &= name "output" &= typFile
+  argsOutputFile=Nothing &= name "output" &= typFile,
+  argsExperiment=defaultExperiment &= name "experiment"
   }
   where
-    defaultQueryFile = "benchmark/suites/allQueries.json"
-    defaultTimeout = 1 * 60 :: Int
 
 main :: IO ()
 main = do
     args <- cmdArgs defaultArgs
+    let currentExperiment = argsExperiment args
     let setup = ExpSetup {expTimeout = argsTimeout args, expCourse = currentExperiment}
     (envs, params, exps) <- getSetup args
     resultSummaries <- runExperiments setup exps
@@ -63,6 +63,7 @@ getSetup args = do
   tier2env <- generateEnv genOptsTier2
   queries <- readQueryFile (argsQueryFile args)
   let envs = [(tier1env, "Total")]
+  let currentExperiment = argsExperiment args
   let params =
         case currentExperiment of
           CompareInitialAbstractCovers -> [

@@ -604,7 +604,11 @@ findPath env dst st = do
         [] -> do
             currSt <- get
             maxDepth <- view maxApplicationDepth <$> get
-            when (currSt ^. currentLoc >= maxDepth) (error "cannot find a path")
+            when (currSt ^. currentLoc >= maxDepth) (
+              do
+                mesgChan <- view messageChan <$> get
+                liftIO $ writeChan mesgChan (MesgClose CSNoSolution)
+                error "cannot find a path")
             modify $ set currentLoc ((currSt ^. currentLoc) + 1)
             -- initNet env
             st'' <- withTime EncodingTime (resetEncoder env dst)
