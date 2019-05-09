@@ -45,16 +45,14 @@ data EncodeState = EncodeState {
   z3env :: Z3Env,
   block :: Z3.AST,
   loc :: Int,
-  abstractionLv :: Int,
   transitionNb :: Int,
   variableNb :: Int,
   colorNb :: Int, 
-  lv2range :: HashMap Int (Int, Int),
   place2variable :: HashMap (Id, Int) Variable, -- place name and timestamp
-  color2variable :: HashMap (Id, Int, Int) Variable, -- place name, timestamp and level
-  time2variable :: HashMap (Int, Int) Variable, -- timestamp and abstraction level
-  transition2id :: HashMap Int (HashMap Id Int), -- transition name and abstraction level
-  id2transition :: HashMap Int (Id, Int),
+  color2variable :: HashMap (Id, Int) Variable, -- place name, timestamp and level
+  time2variable :: HashMap Int Variable, -- timestamp and abstraction level
+  transition2id :: HashMap Id Int, -- transition name and abstraction level
+  id2transition :: HashMap Int Id,
   ho2id :: HashMap Id Int,
   mustFirers :: [Id],
   foldedFuncs :: [FoldedFunction],

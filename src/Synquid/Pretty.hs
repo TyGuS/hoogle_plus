@@ -65,7 +65,6 @@ import Synquid.Error
 import Synquid.Program
 import Synquid.Tokens
 import Synquid.Util
-import PetriNet.AbstractType
 
 import Text.PrettyPrint.ANSI.Leijen hiding ((<+>), (<$>), hsep, vsep)
 import qualified Text.PrettyPrint.ANSI.Leijen as L
@@ -511,12 +510,30 @@ lfill w d        = case renderCompact d of
   spaces n | n <= 0    = empty
            | otherwise = text $ replicate n ' '
 
+instance Pretty UnifConstraint where
+    pretty (TypeShape t1 t2) = pretty t1 <+> operator "~" <+> pretty t2
+    pretty (NotShape t1 t2) = pretty t1 <+> operator "!~" <+> pretty t2
+
+instance Show UnifConstraint where
+    show = show . plain . pretty
+
+instance Pretty Abstraction where
+    pretty abs = hlBraces (text (show (Set.toList abs)))
+
+instance Pretty AbstractionTree where
+    pretty (ALeaf cons) = pretty cons
+    pretty (ANode t l r) = pretty t <+> hlBraces (pretty l) <+> hlBraces (pretty r)
+
 instance Pretty AbstractSkeleton where
-    pretty (ADatatypeT id args) = text id <+> hsep (map pretty args)
-    pretty (AExclusion ids) = operator "!" <+> hlBraces (commaSep $ map pretty (Set.toList ids))
-    pretty (ATypeVarT id) = text id
+    pretty (AScalar b) = pretty b
     pretty (AFunctionT tArg tRet) = pretty tArg <+> operator "->" <+> pretty tRet
+
+instance Show AbstractSkeleton where
+    show = show . plain . pretty
 
 instance Hashable AbstractSkeleton where
   hash typ = hash (show typ)
   hashWithSalt s typ = s + hash typ
+
+instance Pretty SplitInfo where
+    pretty (SplitInfo p tr) = text "Splitted places:" <+> text (show p) $+$ text "Splitted transitions:" <+> text (show tr)
