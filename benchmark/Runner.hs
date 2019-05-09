@@ -62,6 +62,7 @@ collectResults :: Chan Message -> [(Either EvaluationException (Maybe RProgram),
                             -> IO [(Either EvaluationException (Maybe RProgram), TimeStatistics)]
 collectResults ch res (MesgClose CSNormal) = return res
 collectResults ch ((_,stats):xs) (MesgClose (CSError err)) = let
+  -- This is a big of a hack
   errTy = if ("timeout" `isInfixOf` (show err)) then TimeoutException else RuntimeException err
   in return ((Left errTy, stats):xs)
 collectResults ch ((_,stats):xs) (MesgClose CSTimeout) = return ((Left TimeoutException, stats):xs)
