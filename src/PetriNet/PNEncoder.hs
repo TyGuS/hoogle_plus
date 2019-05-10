@@ -53,7 +53,7 @@ setInitialState :: [Id] -> HashMap Id Place -> Encoder ()
 setInitialState inputs places = do
     let nonInputs = HashMap.keys (HashMap.filterWithKey (\k _ -> notElem k inputs && not (head k == '-')) places)
     let inputCounts = map (\t -> (head t, length t)) $ group $ sort inputs
-    let typeCounts = inputCounts ++ (map (\t -> (t, 0)) nonInputs)
+    let typeCounts = inputCounts ++ (map (\t -> if (t == "void") then ("void", 1) else (t, 0)) nonInputs)
     -- assign tokens to each types
     mapM_ (uncurry assignToken) typeCounts
   where
