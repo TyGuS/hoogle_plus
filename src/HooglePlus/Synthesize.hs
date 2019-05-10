@@ -74,8 +74,8 @@ synthesize searchParams goal messageChan = do
   let useHO = _useHO searchParams
   let env = if useHO then env'
                       else env' { _symbols = Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env' ^. symbols }
+  print (show $ env' ^. symbols)
   let args = (Monotype destinationType):(Map.elems $ env ^. arguments)
-  -- start with all the datatypes defined in the components, first level abstraction
   let cnt = _solutionCnt searchParams
   let maxLevel = _explorerLogLevel searchParams
   let rs = _useRefine searchParams

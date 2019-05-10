@@ -64,7 +64,8 @@ generateEnv genOpts = do
     let allCompleteEntries = concat (Map.elems entriesByMdl)
     let allEntries = nubOrd allCompleteEntries
     ourDecls <- mapM (\entry -> evalStateT (DC.toSynquidDecl entry) 0) allEntries
-    let hooglePlusDecls = DC.reorderDecls $ nubOrd $ (ourDecls ++ dependencyEntries ++ defaultFuncs ++ defaultDts)
+    let hooglePlusDecls = DC.reorderDecls $ nubOrd $ (
+          ourDecls ++ dependencyEntries ++ defaultFuncs ++ defaultDts ++ defaultTypeclasses)
     case resolveDecls hooglePlusDecls moduleNames of
        Left errMessage -> error $ show errMessage
        Right env -> return env {

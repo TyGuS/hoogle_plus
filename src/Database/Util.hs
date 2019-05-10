@@ -22,7 +22,9 @@ defaultFuncs = [ Pos (initialPos "fst") $ FuncDecl "fst" (Monotype (FunctionT "p
                 , Pos (initialPos "snd") $ FuncDecl "snd" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) (ScalarT (TypeVarT Map.empty "b") ftrue)))
                 ]
 
-defaultDts = [defaultList, defaultPair, defaultUnit, defaultInt, defaultBool]
+defaultDts = [defaultList, defaultPair, defaultUnit, defaultInt, defaultBool, defaultChar, defaultString]
+
+defaultTypeclasses = [defaultShowClass, defaultShowFunc, intShow]
 
 defaultInt = Pos (initialPos "Int") $ DataDecl "Int" [] [] []
 
@@ -38,8 +40,28 @@ defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
       (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue))
   ]
 
+defaultChar = Pos (initialPos "Char") $ DataDecl "Char" [] [] []
+
+defaultString = Pos (initialPos "String") $ TypeDecl "String" []
+    (ScalarT (DatatypeT "List" [ScalarT (DatatypeT "Char" [] []) ftrue] []) ftrue)
+
 defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [] [
     ConstructorSig "Pair" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "y" (ScalarT (TypeVarT Map.empty "b") ftrue) (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue))
   ]
 
 defaultUnit = Pos (initialPos "Unit") $ DataDecl "Unit" [] [] []
+
+defaultShowClass = Pos (initialPos "ShowD") $ DataDecl "ShowD" ["a"] [] [
+    -- ShowDict ::  (a -> String) -> ShowD a
+    ConstructorSig "ShowDict" $ FunctionT "y"
+      (FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (ScalarT (DatatypeT "String" [] []) ftrue))
+      (ScalarT (DatatypeT "ShowD" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)
+    ]
+
+defaultShowFunc = Pos (initialPos "show") $ FuncDecl "show"
+    (Monotype (FunctionT "dict" (ScalarT (DatatypeT "ShowD" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)
+              (FunctionT "thing" (ScalarT (TypeVarT Map.empty "a") ftrue)
+              (ScalarT (DatatypeT "String" [] []) ftrue))))
+
+intShow = Pos (initialPos "showDInt") $ FuncDecl "showDInt"
+    (Monotype (ScalarT (DatatypeT "ShowD" [ScalarT (DatatypeT "Int" [] []) ftrue] []) ftrue))
