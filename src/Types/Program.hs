@@ -23,10 +23,7 @@ data BareProgram t =
   PSymbol Id |                                -- ^ Symbol (variable or constant)
   PApp (Program t) (Program t) |              -- ^ Function application
   PFun Id (Program t) |                       -- ^ Lambda abstraction
-  PIf (Program t) (Program t) (Program t) |   -- ^ Conditional
   PMatch (Program t) [Case t] |               -- ^ Pattern match on datatypes
-  PFix [Id] (Program t) |                     -- ^ Fixpoint
-  PLet Id (Program t) (Program t) |           -- ^ Let binding
   PHole |                                     -- ^ Hole (program to fill in)
   PErr                                        -- ^ Error
   deriving (Eq, Ord, Functor, Generic)

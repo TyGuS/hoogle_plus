@@ -51,10 +51,7 @@ symbolsOf (Program p _) = case p of
   PSymbol name -> Set.singleton name
   PApp fun arg -> symbolsOf fun `Set.union` symbolsOf arg
   PFun x body -> symbolsOf body
-  PIf cond thn els -> symbolsOf cond `Set.union` symbolsOf thn `Set.union` symbolsOf els
   PMatch scr cases -> symbolsOf scr `Set.union` Set.unions (map (symbolsOf . expr) cases)
-  PFix x body -> symbolsOf body
-  PLet x def body -> symbolsOf def `Set.union` symbolsOf body
   _ -> Set.empty
 
 hasHole (Program p _) = case p of
@@ -75,10 +72,7 @@ programSubstituteSymbol name subterm (Program p t) = Program (programSubstituteS
     programSubstituteSymbol' (PSymbol x) = if x == name then content subterm else p
     programSubstituteSymbol' (PApp fun arg) = PApp (pss fun) (pss arg)
     programSubstituteSymbol' (PFun name pBody) = PFun name (pss pBody)
-    programSubstituteSymbol' (PIf c p1 p2) = PIf (pss c) (pss p1) (pss p2)
     programSubstituteSymbol' (PMatch scr cases) = PMatch (pss scr) (map (\(Case ctr args pBody) -> Case ctr args (pss pBody)) cases)
-    programSubstituteSymbol' (PFix args pBody) = PFix args (pss pBody)
-    programSubstituteSymbol' (PLet x pDef pBody) = PLet x (pss pDef) (pss pBody)
 
 -- | Convert an executable formula into a program
 fmlToProgram :: Formula -> RProgram

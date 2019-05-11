@@ -340,10 +340,7 @@ prettyProgram (Program p typ) = case p of
             _ -> prefix
           _ -> prefix
     PFun x e -> nest 2 $ operator "\\" <> text x <+> operator "->" </> prettyProgram e
-    PIf c t e -> linebreak <> (hang tab $ keyword "if" <+> prettyProgram c $+$ (hang tab (keyword "then" </> prettyProgram t)) $+$ (hang tab (keyword "else" </> prettyProgram e)))
     PMatch l cases -> linebreak <> (hang tab $ keyword "match" <+> prettyProgram l <+> keyword "with" $+$ vsep (map prettyCase cases))
-    PFix fs e -> prettyProgram e
-    PLet x e e' -> linebreak <> (align $ hang tab (keyword "let" <+> withType (text x) (typeOf e) <+> operator "=" </> prettyProgram e </> keyword "in") $+$ prettyProgram e')
     PHole -> if show (pretty typ) == dontCare then operator "??" else hlParens $ operator "?? ::" <+> pretty typ
     PErr -> keyword "error"
   where
@@ -476,10 +473,7 @@ programNodeCount (Program p _) = case p of
   PSymbol _ -> 1
   PApp e1 e2 -> 1 + programNodeCount e1 + programNodeCount e2
   PFun _ e -> 1 + programNodeCount e
-  PIf c e1 e2 -> 1 + programNodeCount c + programNodeCount e1 + programNodeCount e2
   PMatch e cases -> 1 + programNodeCount e + sum (map (\(Case _ _ e) -> programNodeCount e) cases)
-  PFix _ e -> programNodeCount e
-  PLet x e e' -> 1 + programNodeCount e + programNodeCount e'
   PHole -> 0
   PErr -> 1
 

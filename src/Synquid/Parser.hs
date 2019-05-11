@@ -347,7 +347,7 @@ parseTerm = parseIte <|> try parseAppTerm <|> parseAtomTerm
 {- Implementations -}
 
 parseImpl :: Parser UProgram
-parseImpl = withPos (parseError <|> parseLet <|> parseFun <|> parseMatch <|> parseIf <|> parseETerm)
+parseImpl = withPos (parseError <|> parseFun <|> parseMatch <|> parseETerm)
 
 parseError = reserved "error" >> return (untyped PErr)
 
@@ -357,15 +357,6 @@ parseFun = do
   reservedOp "."
   body <- parseImpl
   return $ untyped $ PFun x body
-
-parseLet = do
-  reserved "let"
-  x <- parseIdentifierOrBlank
-  reservedOp "="
-  e1 <- parseImpl
-  reserved "in"
-  e2 <- parseImpl
-  return $ untyped $ PLet x e1 e2
 
 parseMatch = do
     reserved "match"
@@ -380,15 +371,6 @@ parseMatch = do
       reservedOp "->"
       body <- parseImpl
       return $ Case ctor args body
-
-parseIf = do
-  reserved "if"
-  iCond <- parseETerm
-  reserved "then"
-  iThen <- parseImpl
-  reserved "else"
-  iElse <- parseImpl
-  return $ untyped $ PIf iCond iThen iElse
 
 parseETerm = buildExpressionParser (exprTable mkUnary mkBinary False) parseAppTerm <?> "elimination term"
   where
