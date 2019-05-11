@@ -58,10 +58,10 @@ defaultShowClass = Pos (initialPos "ShowD") $ DataDecl "ShowD" ["a"] [] [
       (ScalarT (DatatypeT "ShowD" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)
     ]
 
-defaultShowFunc = Pos (initialPos "show") $ FuncDecl "show"
+defaultShowFunc = Pos (initialPos "show") $ FuncDecl "show$TC"
     (Monotype (FunctionT "dict" (ScalarT (DatatypeT "ShowD" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)
               (FunctionT "thing" (ScalarT (TypeVarT Map.empty "a") ftrue)
               (ScalarT (DatatypeT "String" [] []) ftrue))))
 
-intShow = Pos (initialPos "showDInt") $ FuncDecl "showDInt"
+intShow = Pos (initialPos "showInt") $ FuncDecl "show<Int>"
     (Monotype (ScalarT (DatatypeT "ShowD" [ScalarT (DatatypeT "Int" [] []) ftrue] []) ftrue))

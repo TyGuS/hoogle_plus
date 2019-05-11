@@ -48,6 +48,3 @@ snd :: (a, b) -> b
 swap :: (a, b) -> (b, a)
 
 (||) :: Bool -> Bool -> Bool
-
-module Data.MJ
-mkShowInt :: ShowD Int

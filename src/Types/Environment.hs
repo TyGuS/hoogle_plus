@@ -28,7 +28,7 @@ makeLenses ''DatatypeDef
 data Environment = Environment {
   _symbols :: Map Int (Map Id RSchema),    -- ^ Variables and constants (with their refinement types), indexed by arity
   _arguments :: Map Id RSchema,            -- ^ Function arguments, required in all the solutions
-  _typeClasses :: Map Id (Set Id),         -- ^ Type class instances
+  _typeClasses :: Map Id [(Id, [Id])],     -- ^ Type class constraint mapping: original function name -> (classname, [contrained vars in func for that class])
   _boundTypeVars :: [Id],                  -- ^ Bound type variables
   _unfoldedVars :: Set Id,                 -- ^ In eager match mode, datatype variables that can be scrutinized
   -- | Constant part:
@@ -53,7 +53,7 @@ instance Ord Environment where
 emptyEnv = Environment {
   _symbols = Map.empty,
   _arguments = Map.empty,
-  _typeClasses = Map.empty,
+  _typeClasses = Map.fromList [("show", [("Show", ["a"])])],
   _boundTypeVars = [],
   _unfoldedVars = Set.empty,
   _constants = Set.empty,
