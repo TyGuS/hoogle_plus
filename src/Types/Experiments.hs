@@ -98,7 +98,8 @@ data ExperimentCourse
 data Message
   = MesgClose CloseStatus
   | MesgP (RProgram, TimeStatistics) -- Program with the stats associated with generating it
-  | MesgD TimeStatistics
+  | MesgS TimeStatistics
+  | MesgLog Int String String -- Log level, tag, message
 
 data CloseStatus
   = CSNormal

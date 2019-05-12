@@ -70,15 +70,15 @@ collectResults ch ((_,stats):xs) (MesgClose CSNoSolution) = return ((Left NoSolu
 collectResults ch res@((Left err, _):_) _ = return res
 collectResults ch ((Right Nothing, _):xs) (MesgP (p, ts)) = readChan ch >>= (collectResults ch $ ((Right $ Just p, ts):xs))
 collectResults ch xs (MesgP (p, ts)) = readChan ch >>= (collectResults ch $ ((Right $ Just p, ts):xs))
-collectResults ch ((Right Nothing, _):xs) (MesgD ts) = readChan ch >>= (collectResults ch $ ((Right Nothing, ts):xs))
-collectResults ch xs (MesgD ts) = readChan ch >>= (collectResults ch $ ((Right Nothing, ts):xs))
+collectResults ch ((Right Nothing, _):xs) (MesgS ts) = readChan ch >>= (collectResults ch $ ((Right Nothing, ts):xs))
+collectResults ch xs (MesgS ts) = readChan ch >>= (collectResults ch $ ((Right Nothing, ts):xs))
+collectResults ch xs _ = readChan ch >>= (collectResults ch xs)
 
 
 summarizeResult :: ExperimentCourse -> (Experiment, [(Either EvaluationException (Maybe RProgram), TimeStatistics)]) -> ResultSummary
 summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
   results = case (currentExperiment, r) of
     (_, []) -> emptyResult {resSolutionOrError = Left TimeoutException}
-    -- (_, (Left err, _):_) -> Result {resSolutionOrError = Left (SomeException $ RuntimeException err)}
     (CompareInitialAbstractCovers, (errOrMbSoln, firstR):_) -> let
       safeTransitions = snd $ errorhead "missing transitions" $ (Map.toDescList (numOfTransitions firstR))
       safeTypes = snd $ errorhead "missing types" $ (Map.toDescList (numOfPlaces firstR))

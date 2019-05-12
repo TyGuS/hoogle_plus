@@ -33,6 +33,7 @@ import System.Console.CmdArgs hiding (Normal)
 import System.Console.ANSI
 import System.FilePath
 import Text.Parsec.Pos
+import Text.Printf
 import Control.Monad.State (runState, evalStateT, execStateT, evalState)
 import Control.Monad.Except (runExcept)
 import Control.Concurrent
@@ -190,6 +191,7 @@ executeSearch synquidParams searchParams query = do
   -- when (_explorerLogLevel searchParams > 0) (mapM_ (printTime . snd) results)
   return ()
   where
+    logLevel = searchParams ^. explorerLogLevel
     readEnv = do
       let envPathIn = Main.envPath synquidParams
       doesExist <- doesFileExist envPathIn
@@ -201,6 +203,9 @@ executeSearch synquidParams searchParams query = do
           return env
     handleMessages ch (MesgClose _) = putStrLn "Search complete" >> return ()
     handleMessages ch (MesgP (program, stats))  = print program >> readChan ch >>= (handleMessages ch)
-    handleMessages ch (MesgD debug) = readChan ch >>= (handleMessages ch)
+    handleMessages ch (MesgS debug) = readChan ch >>= (handleMessages ch)
+    handleMessages ch (MesgLog level tag msg) = do
+      when (level <= logLevel) (printf "[%s]: %s\n" tag msg)
+      readChan ch >>= (handleMessages ch)
 
 pdoc = printDoc Plain
