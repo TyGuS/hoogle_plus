@@ -61,12 +61,15 @@ runExperiment setup (env, envName, q, params, paramName) = do
 collectResults :: Chan Message -> [(Either EvaluationException (Maybe RProgram), TimeStatistics)] -> Message
                             -> IO [(Either EvaluationException (Maybe RProgram), TimeStatistics)]
 collectResults ch res (MesgClose CSNormal) = return res
-collectResults ch ((_,stats):xs) (MesgClose (CSError err)) = let
-  -- This is a big of a hack
-  errTy = if ("timeout" `isInfixOf` (show err)) then TimeoutException else RuntimeException err
-  in return ((Left errTy, stats):xs)
 collectResults ch ((_,stats):xs) (MesgClose CSTimeout) = return ((Left TimeoutException, stats):xs)
 collectResults ch ((_,stats):xs) (MesgClose CSNoSolution) = return ((Left NoSolutionException, stats):xs)
+collectResults ch xs (MesgClose (CSError err)) = let
+  -- This is a big of a hack
+  errTy = if ("timeout" `isInfixOf` (show err)) then TimeoutException else RuntimeException err
+  stats = case xs of
+    (_, existingStats):_ -> existingStats
+    _ -> emptyTimeStats
+  in return ((Left errTy, stats):xs)
 collectResults ch res@((Left err, _):_) _ = return res
 collectResults ch ((Right Nothing, _):xs) (MesgP (p, ts)) = readChan ch >>= (collectResults ch $ ((Right $ Just p, ts):xs))
 collectResults ch xs (MesgP (p, ts)) = readChan ch >>= (collectResults ch $ ((Right $ Just p, ts):xs))

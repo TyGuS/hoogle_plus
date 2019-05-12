@@ -92,6 +92,5 @@ synthesize searchParams goal messageChan = do
            , _messageChan = messageChan
            }
   catch (evalStateT (runPNSolver env cnt destinationType) is)
-    (\e -> (putStrLn $ show e) >> writeChan messageChan (MesgClose (CSError e)))
-  -- will need to attach params
+    (\e -> (print "FINDME") >> writeChan messageChan (MesgClose (CSError e)))
   return ()
