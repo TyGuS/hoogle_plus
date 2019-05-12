@@ -12,10 +12,67 @@ import Types.Type
 import Synquid.Type
 import Synquid.Pretty as Pretty
 
+-- TODO: filter out unecessary imports
+import GHC
+import GHC.Paths ( libdir )
+import HscTypes
+import CorePrep
+import DynFlags
+import CoreSyn
+import Outputable hiding (text, (<+>))
+import qualified CoreSyn as Syn
+import Control.Monad.Trans
+import Var
+import IdInfo
+import Data.Typeable
+import Demand
+import Data.Data
+import FamInstEnv
+import DmdAnal
+
+showGhc :: (Outputable a) => a -> String
+showGhc = showPpr unsafeGlobalDynFlags
+
+checkStrictness lambdaExprStr = GHC.runGhc (Just libdir) $ do
+
+    -- TODO: can we use GHC to dynamically compile strings? I think not
+    let sourceCode = "module Temp where\nfoo = " ++ lambExpr
+    liftIO $ writeFile "Temp.hs" sourceCode
+
+    -- Establishing GHC session
+    env <- getSession
+    dflags <- getSessionDynFlags
+    setSessionDynFlags $ dflags { hscTarget = HscInterpreted }
+  
+    -- Compile to core
+    target <- guessTarget "Temp.hs" Nothing
+    setTargets [target]
+    load LoadAllTargets
+    modSum <- getModSummary $ mkModuleName "Temp"
+  
+    pmod <- parseModule modSum      -- ModuleSummary
+    tmod <- typecheckModule pmod    -- TypecheckedSource
+    dmod <- desugarModule tmod      -- DesugaredModule
+    let core = coreModule dmod      -- CoreModule
+  
+    -- Run the demand analyzer
+    -- prog is [<fooBinding>, <moduleBinding>]
+    prog <- liftIO $ (dmdAnalProgram dflags emptyFamInstEnvs $ mg_binds core)
+    let decl = prog !! 0 -- only one method
+
+    -- TODO: I'm thinking of simply checking for the presence of `L` (lazy) or `A` (absent)
+    -- on the singatures. That would be enough to show that the relevancy requirement is not met.
+    case decl of
+        NonRec id _  -> liftIO $ putStrLn $ getStrictnessSig id
+        _ -> error "checkStrictness: recursive expression found"
+
+    where getStrictnessSig x = showSDocUnsafe $ ppr $ strictnessInfo $ idInfo x
+
+-- TODO: can we remove this?
 say :: String -> Interpreter ()
 say = liftIO . putStrLn
 
-
+-- TODO: If this is to include a call to the strictness check, then I want to change this name
 haskellTypeChecks :: Environment -> RType -> UProgram -> IO Bool
 haskellTypeChecks env goalType prog = let
     args = _arguments env
@@ -24,7 +81,7 @@ haskellTypeChecks env goalType prog = let
     argNames = map fst argList
     argTypes = map snd argList
     funcSig = mkFunctionSigStr (map toMonotype argTypes) goalType
-    body = mkLambdaStr argNames prog
+    body = mkLambdaStr argNames prog  --TODO: add call to checkStrictness?
     expr = body ++ " :: " ++ funcSig
     hintQuery :: Interpreter Bool
     hintQuery = do

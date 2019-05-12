@@ -55,6 +55,8 @@ dependencies:
 - transformers-compat
 - unordered-containers
 - vector
+- ghc
+- ghc-paths
 
 library:
   source-dirs: 
