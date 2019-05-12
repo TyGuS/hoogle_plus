@@ -47,6 +47,9 @@ type RProgram = Program RType
 -- | Simple-typed programs
 type TProgram = Program SType
 
+-- | Haskell-like program
+type HProgram = Program HType
+
 type SProgram = Program (RType, RType)
 
 

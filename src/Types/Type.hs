@@ -7,6 +7,7 @@ import Synquid.Logic
 
 import GHC.Generics
 import Data.Map (Map)
+import qualified Language.Haskell.Exts.Syntax as HSE
 
 
 data SchemaSkeleton r =
@@ -41,3 +42,6 @@ type RSchema = SchemaSkeleton Formula
 
 -- | Mapping from type variables to types
 type TypeSubstitution = Map Id RType
+
+
+type HType = HSE.Type ()
