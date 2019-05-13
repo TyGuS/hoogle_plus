@@ -48,7 +48,7 @@ toTable currentExperiment rsMap = let
         ]
       TrackTypesAndTransitions -> [
         "time", "encoding - s",
-        "l", "r", "transitions", "types", "status"]
+        "l", "r", "transitions", "types", "duplicate symbols", "status"]
 
 toLine :: ExperimentCourse -> String -> [ResultSummary] -> [Col String]
 toLine currentExperiment name rss = let
@@ -84,6 +84,7 @@ toLine currentExperiment name rss = let
         justifyText textWidth <$> (show . resRefinementSteps) <$> result <$> mbqr,
         justifyText textWidth <$> (spaceList . show . resTransitions . result) <$> mbqr,
         justifyText textWidth <$> (spaceList . show . resTypes . result) <$> mbqr,
+        justifyText textWidth <$> (show . resDuplicateSymbols . result) <$> mbqr,
         justifyText textWidth <$> either show show <$> resSolutionOrError <$> result <$> mbqr
         ]
   in

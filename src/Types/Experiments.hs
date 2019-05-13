@@ -57,10 +57,11 @@ data TimeStatistics = TimeStatistics {
   iterations :: Int,
   pathLength :: Int,
   numOfTransitions :: Map Int Int,
-  numOfPlaces :: Map Int Int
+  numOfPlaces :: Map Int Int,
+  duplicateSymbols :: (Int, Int)
 } deriving(Show, Eq)
 
-emptyTimeStats = TimeStatistics 0 0 0 0 0 0 0 0 0 0 Map.empty Map.empty
+emptyTimeStats = TimeStatistics 0 0 0 0 0 0 0 0 0 0 Map.empty Map.empty (0, 0)
 
 data TimeStatUpdate
   = ConstructionTime

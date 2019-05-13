@@ -534,6 +534,7 @@ initNet env = withTime ConstructionTime $ do
     writeLog 3 "initNet" $ text "instantiated sigs" <+> pretty (Map.toList sigs)
     symbols <- mapM addEncodedFunction (Map.toList sigs)
     let symbols' = concat symbols
+    countDuplicates symbols'
     modify $ set solverNet (buildPetriNet symbols' (map show srcTypes))
   where
     abstractSymbol id sch = do
@@ -564,6 +565,28 @@ initNet env = withTime ConstructionTime $ do
         let includedTyps = decompose f
         mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
         return [ef]
+
+    countDuplicates symbols = do
+        mesgChan <- view messageChan <$> get
+        let groupedSymbols = groupBy areEqFuncs symbols
+        let counts = [ (length ss, head ss) | ss <- groupedSymbols]
+        let dupes = [ x | x <- counts, (fst x) > 1]
+        modify $ over solverStats (\s -> s {
+            duplicateSymbols = (length dupes, length counts)
+        })
+        stats <- view solverStats <$> get
+        liftIO $ writeChan mesgChan (MesgS stats)
+        writeLog 1 "countDuplicates" $ text $ printf "%d / %d" (length dupes) (length counts)
+
+    areEqFuncs fc1 fc2 = let
+        ho1 = Set.fromList (hoParams fc1)
+        ho2 = Set.fromList (hoParams fc2)
+        params1 = Set.fromList (funParams fc1)
+        params2 = Set.fromList (funParams fc2)
+        ret1 = Set.fromList (funReturn fc1)
+        ret2 = Set.fromList (funReturn fc2)
+        in
+            ho1 == ho2 && params1 == params2 && ret1 == ret2
 
 resetEncoder :: (MonadIO m) => Environment -> RType -> PNSolver m EncodeState
 resetEncoder env dst = do
@@ -839,7 +862,7 @@ findFirstN env dst st cnt | otherwise = do
 runPNSolver :: MonadIO m => Environment -> Int -> RType -> PNSolver m ()
 runPNSolver env cnt t = do
     initNet env
-    st <- withTime EncodingTime (resetEncoder env t)
+    st <- withTime TotalSearch $ withTime EncodingTime (resetEncoder env t)
     findFirstN env t st cnt
     msgChan <- view messageChan <$> get
     liftIO $ writeChan msgChan (MesgClose CSNormal)
@@ -864,7 +887,6 @@ recoverNames mapping (Program (PFun x body) t) = Program (PFun x body') t
 
 writeLog :: MonadIO m => Int -> String -> Doc -> PNSolver m ()
 writeLog level tag msg = do
-    st <- get
     mesgChan <- view messageChan <$> get
     liftIO $ writeChan mesgChan (MesgLog level tag $ show $ plain msg)
 

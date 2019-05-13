@@ -85,7 +85,7 @@ summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
     (CompareInitialAbstractCovers, (errOrMbSoln, firstR):_) -> let
       safeTransitions = snd $ errorhead "missing transitions" $ (Map.toDescList (numOfTransitions firstR))
       safeTypes = snd $ errorhead "missing types" $ (Map.toDescList (numOfPlaces firstR))
-      in Result {
+      in emptyResult {
       resSolutionOrError = fmap (mkOneLine . show) errOrMbSoln,
       resTFirstSoln = totalTime firstR,
       resTEncFirstSoln = encodingTime firstR,
@@ -97,14 +97,15 @@ summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
     (TrackTypesAndTransitions, (errOrMbSoln, firstR):_) -> let
       safeTransitions = map snd (Map.toAscList (numOfTransitions firstR))
       safeTypes = map snd (Map.toAscList (numOfPlaces firstR))
-      in Result {
+      in emptyResult {
       resSolutionOrError = fmap (mkOneLine . show) errOrMbSoln,
       resTFirstSoln = totalTime firstR,
       resTEncFirstSoln = encodingTime firstR,
       resLenFirstSoln = pathLength firstR,
       resRefinementSteps = iterations firstR,
       resTransitions = safeTransitions,
-      resTypes = safeTypes
+      resTypes = safeTypes,
+      resDuplicateSymbols = duplicateSymbols firstR
       }
 
   in ResultSummary {

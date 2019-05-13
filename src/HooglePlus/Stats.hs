@@ -28,7 +28,7 @@ withTime desc f = do
           SolverTime -> s { solverTime = (solverTime s) + (diff :: Double) }
           RefinementTime -> s { refineTime = (refineTime s) + (diff :: Double) }
           TypeCheckTime -> s { typeCheckerTime = (typeCheckerTime s) + (diff :: Double) }
-          TotalSearch -> s {totalTime = (diff :: Double) }
+          TotalSearch -> s {totalTime = (totalTime s) + (diff :: Double) }
         )
     return res
 

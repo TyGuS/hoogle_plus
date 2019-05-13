@@ -34,6 +34,7 @@ import System.Console.ANSI
 import System.FilePath
 import Text.Parsec.Pos
 import Text.Printf
+import Text.Pretty.Simple
 import Control.Monad.State (runState, evalStateT, execStateT, evalState)
 import Control.Monad.Except (runExcept)
 import Control.Concurrent
@@ -202,8 +203,12 @@ executeSearch synquidParams searchParams query = do
         Right env ->
           return env
     handleMessages ch (MesgClose _) = putStrLn "Search complete" >> return ()
-    handleMessages ch (MesgP (program, stats))  = print program >> readChan ch >>= (handleMessages ch)
-    handleMessages ch (MesgS debug) = readChan ch >>= (handleMessages ch)
+    handleMessages ch (MesgP (program, stats)) = do
+      when (logLevel > 0) (pPrint stats)
+      print program >> readChan ch >>= (handleMessages ch)
+    handleMessages ch (MesgS debug) = do
+      when (logLevel > 0) (pPrint debug)
+      readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgLog level tag msg) = do
       when (level <= logLevel) (printf "[%s]: %s\n" tag msg)
       readChan ch >>= (handleMessages ch)
