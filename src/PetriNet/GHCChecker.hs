@@ -1,4 +1,4 @@
-module PetriNet.GHCChecker (haskellTypeChecks) where
+module PetriNet.GHCChecker (runGhcChecks) where
 
 import Language.Haskell.Interpreter
 
@@ -29,14 +29,16 @@ import Demand
 import Data.Data
 import FamInstEnv
 import DmdAnal
+import Data.List (isInfixOf)
 
 showGhc :: (Outputable a) => a -> String
 showGhc = showPpr unsafeGlobalDynFlags
 
-checkStrictness lambdaExprStr = GHC.runGhc (Just libdir) $ do
+checkStrictness :: String -> IO Bool
+checkStrictness lambdaExpr = GHC.runGhc (Just libdir) $ do
 
     -- TODO: can we use GHC to dynamically compile strings? I think not
-    let sourceCode = "module Temp where\nfoo = " ++ lambExpr
+    let sourceCode = "module Temp where\nfoo = " ++ lambdaExpr
     liftIO $ writeFile "Temp.hs" sourceCode
 
     -- Establishing GHC session
@@ -63,38 +65,46 @@ checkStrictness lambdaExprStr = GHC.runGhc (Just libdir) $ do
     -- TODO: I'm thinking of simply checking for the presence of `L` (lazy) or `A` (absent)
     -- on the singatures. That would be enough to show that the relevancy requirement is not met.
     case decl of
-        NonRec id _  -> liftIO $ putStrLn $ getStrictnessSig id
+        NonRec id _  -> return $ isItStrict id --liftIO $ putStrLn $ getStrictnessSig id
         _ -> error "checkStrictness: recursive expression found"
 
     where getStrictnessSig x = showSDocUnsafe $ ppr $ strictnessInfo $ idInfo x
+          isItStrict x = if isInfixOf "A" (getStrictnessSig x) then False else True
 
 -- TODO: can we remove this?
 say :: String -> Interpreter ()
 say = liftIO . putStrLn
 
--- TODO: If this is to include a call to the strictness check, then I want to change this name
-haskellTypeChecks :: Environment -> RType -> UProgram -> IO Bool
-haskellTypeChecks env goalType prog = let
+
+
+
+runGhcChecks :: Environment -> RType -> UProgram -> IO Bool 
+runGhcChecks env goalType prog = let
+    -- constructs program and its type signature as strings
     args = _arguments env
     modules = Set.toList $ _included_modules env
     argList = Map.toList args
     argNames = map fst argList
     argTypes = map snd argList
     funcSig = mkFunctionSigStr (map toMonotype argTypes) goalType
-    body = mkLambdaStr argNames prog  --TODO: add call to checkStrictness?
+    body = mkLambdaStr argNames prog
     expr = body ++ " :: " ++ funcSig
-    hintQuery :: Interpreter Bool
-    hintQuery = do
+
+    -- ensures that the program type-checks
+    checkType :: Interpreter Bool
+    checkType = do
         setImports ("Prelude":modules)
         -- Ensures that if there's a problem we'll know
         Language.Haskell.Interpreter.typeOf expr
         typeChecks expr
+
     in do
-        r <- runInterpreter hintQuery
-        case r of
+        typeCheckResult <- runInterpreter checkType
+        strictCheckResult <- checkStrictness body 
+        case typeCheckResult of
             Left err -> (putStrLn $ displayException err) >> return False
             Right False -> (putStrLn "Program does not typecheck") >> return False
-            Right True -> return True
+            Right True -> return strictCheckResult
 
 -- mkFunctionSigStr generates a function's type signature:
 -- Int -> Data.Foo.Foo -> Bar
