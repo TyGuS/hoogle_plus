@@ -1,0 +1,4 @@
+[
+    {"name": "intToBytestring", "query": "Int64 -> ByteString"},
+    {"name": "Q35", "query": "Pair (a -> b) (a -> c) -> a -> Pair b c"}
+]

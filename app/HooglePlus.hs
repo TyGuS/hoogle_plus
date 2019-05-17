@@ -33,8 +33,12 @@ import System.Console.CmdArgs hiding (Normal)
 import System.Console.ANSI
 import System.FilePath
 import Text.Parsec.Pos
+import Text.Printf
+import Text.Pretty.Simple
 import Control.Monad.State (runState, evalStateT, execStateT, evalState)
 import Control.Monad.Except (runExcept)
+import Control.Concurrent
+import Control.Concurrent.Chan
 import Data.Char
 import Data.List
 import Data.Foldable
@@ -79,7 +83,7 @@ main = do
       let synquidParams = defaultSynquidParams {
         Main.envPath = envPath
       }
-      runOnFile synquidParams searchParams file
+      executeSearch synquidParams searchParams file
     Generate pkgs mdls d ho pathToEnv -> do
       let fetchOpts = defaultHackageOpts {
         packages = pkgs
@@ -178,14 +182,17 @@ precomputeGraph opts = generateEnv opts >>= writeEnv (Types.Generate.envPath opt
 
 
 -- | Parse and resolve file, then synthesize the specified goals
-runOnFile :: SynquidParams -> SearchParams  -> String -> IO ()
-runOnFile synquidParams searchParams query = do
+executeSearch :: SynquidParams -> SearchParams  -> String -> IO ()
+executeSearch synquidParams searchParams query = do
   env <- readEnv
   goal <- envToGoal env query
-  results <- synthesize searchParams goal
-  when (_explorerLogLevel searchParams > 0) (mapM_ (printTime . snd) results)
+  messageChan <- newChan
+  worker <- forkIO $ synthesize searchParams goal messageChan
+  readChan messageChan >>= (handleMessages messageChan)
+  -- when (_explorerLogLevel searchParams > 0) (mapM_ (printTime . snd) results)
   return ()
   where
+    logLevel = searchParams ^. explorerLogLevel
     readEnv = do
       let envPathIn = Main.envPath synquidParams
       doesExist <- doesFileExist envPathIn
@@ -195,5 +202,14 @@ runOnFile synquidParams searchParams query = do
         Left err -> error err
         Right env ->
           return env
+    handleMessages ch (MesgClose _) = putStrLn "Search complete" >> return ()
+    handleMessages ch (MesgP (program, stats)) = do
+      print program >> readChan ch >>= (handleMessages ch)
+    handleMessages ch (MesgS debug) = do
+      when (logLevel > 0) (pPrint debug)
+      readChan ch >>= (handleMessages ch)
+    handleMessages ch (MesgLog level tag msg) = do
+      when (level <= logLevel) (printf "[%s]: %s\n" tag msg)
+      readChan ch >>= (handleMessages ch)
 
 pdoc = printDoc Plain

@@ -3,6 +3,7 @@ module Types.Experiments where
 
 import Types.Type
 import Types.Encoder
+import Types.Program
 import Synquid.Program
 import Synquid.Error
 import Types.Common
@@ -12,6 +13,7 @@ import Data.Data
 import Control.Lens hiding (index, indices)
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Control.Exception
 
 {- Interface -}
 
@@ -55,10 +57,11 @@ data TimeStatistics = TimeStatistics {
   iterations :: Int,
   pathLength :: Int,
   numOfTransitions :: Map Int Int,
-  numOfPlaces :: Map Int Int
+  numOfPlaces :: Map Int Int,
+  duplicateSymbols :: (Int, Int)
 } deriving(Show, Eq)
 
-emptyTimeStats = TimeStatistics 0 0 0 0 0 0 0 0 0 0 Map.empty Map.empty
+emptyTimeStats = TimeStatistics 0 0 0 0 0 0 0 0 0 0 Map.empty Map.empty (0, 0)
 
 data TimeStatUpdate
   = ConstructionTime
@@ -71,7 +74,7 @@ data TimeStatUpdate
 
 -- | Parameters for template exploration
 defaultSearchParams = SearchParams {
-  _eGuessDepth = 3,
+  _eGuessDepth = 6,
   _sourcePos = noPos,
   _explorerLogLevel = 0,
   _solutionCnt = 1,
@@ -86,3 +89,21 @@ expQueryRefinement = "Query Refinement":: ExperimentName
 expQueryRefinementHOF = "Query Refinement - HOF" :: ExperimentName
 expBaseline = "Baseline" :: ExperimentName
 expZeroCoverStart = "Zero Cover Start" :: ExperimentName
+
+
+data ExperimentCourse
+  = CompareInitialAbstractCovers
+  | TrackTypesAndTransitions --2019-05-06
+  deriving (Show, Data, Typeable)
+
+data Message
+  = MesgClose CloseStatus
+  | MesgP (RProgram, TimeStatistics) -- Program with the stats associated with generating it
+  | MesgS TimeStatistics
+  | MesgLog Int String String -- Log level, tag, message
+
+data CloseStatus
+  = CSNormal
+  | CSNoSolution
+  | CSTimeout
+  | CSError SomeException

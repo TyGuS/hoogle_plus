@@ -26,6 +26,16 @@ instance ToJSON FunctionCode where
     toEncoding = genericToEncoding defaultOptions
 instance Serialize FunctionCode
 
+areEqFuncs fc1 fc2 = let
+  ho1 = Set.fromList (hoParams fc1)
+  ho2 = Set.fromList (hoParams fc2)
+  params1 = Set.fromList (funParams fc1)
+  params2 = Set.fromList (funParams fc2)
+  ret1 = Set.fromList (funReturn fc1)
+  ret2 = Set.fromList (funReturn fc2)
+  in
+      ho1 == ho2 && params1 == params2 && ret1 == ret2
+
 data Place = Place {
   placeId :: Id,
   placePreset :: Set Id, -- set of transition ids
