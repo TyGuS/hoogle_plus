@@ -204,7 +204,6 @@ executeSearch synquidParams searchParams query = do
           return env
     handleMessages ch (MesgClose _) = putStrLn "Search complete" >> return ()
     handleMessages ch (MesgP (program, stats)) = do
-      when (logLevel > 0) (pPrint stats)
       print program >> readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgS debug) = do
       when (logLevel > 0) (pPrint debug)

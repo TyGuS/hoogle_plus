@@ -534,7 +534,8 @@ initNet env = withTime ConstructionTime $ do
     writeLog 3 "initNet" $ text "instantiated sigs" <+> pretty (Map.toList sigs)
     symbols <- mapM addEncodedFunction (Map.toList sigs)
     let symbols' = concat symbols
-    countDuplicates symbols'
+    dupes <- countDuplicates symbols'
+    writeLog 1 "initNet" $ text "duplicate funcs" <+> text dupes
     modify $ set solverNet (buildPetriNet symbols' (map show srcTypes))
   where
     abstractSymbol id sch = do
@@ -565,28 +566,6 @@ initNet env = withTime ConstructionTime $ do
         let includedTyps = decompose f
         mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
         return [ef]
-
-    countDuplicates symbols = do
-        mesgChan <- view messageChan <$> get
-        let groupedSymbols = groupBy areEqFuncs symbols
-        let counts = [ (length ss, head ss) | ss <- groupedSymbols]
-        let dupes = [ x | x <- counts, (fst x) > 1]
-        modify $ over solverStats (\s -> s {
-            duplicateSymbols = (length dupes, length counts)
-        })
-        stats <- view solverStats <$> get
-        liftIO $ writeChan mesgChan (MesgS stats)
-        writeLog 1 "countDuplicates" $ text $ printf "%d / %d" (length dupes) (length counts)
-
-    areEqFuncs fc1 fc2 = let
-        ho1 = Set.fromList (hoParams fc1)
-        ho2 = Set.fromList (hoParams fc2)
-        params1 = Set.fromList (funParams fc1)
-        params2 = Set.fromList (funParams fc2)
-        ret1 = Set.fromList (funReturn fc1)
-        ret2 = Set.fromList (funReturn fc2)
-        in
-            ho1 == ho2 && params1 == params2 && ret1 == ret2
 
 resetEncoder :: (MonadIO m) => Environment -> RType -> PNSolver m EncodeState
 resetEncoder env dst = do
@@ -709,6 +688,8 @@ fixNet env (SplitInfo splitedTys splitedGps) = do
     let encodedFuncs = map (\name -> case HashMap.lookup name fm of
                                        Nothing -> error $ "cannot find function name " ++ name ++ " in functionMap"
                                        Just n -> n) newGroups
+    dupes <- countDuplicates encodedFuncs
+    writeLog 1 "fixNet" $ text "duplicate funcs" <+> text dupes
     let functionedNet = foldr addArgClone (foldr addFunction net encodedFuncs) (map show (concat (snd (unzip splitedTys))))
     modify $ set solverNet functionedNet
 
@@ -902,3 +883,15 @@ var2any env t@(ScalarT (TypeVarT _ id) _) | isBound env id = t
 var2any env t@(ScalarT (TypeVarT _ id) _) | otherwise = AnyT
 var2any env (ScalarT (DatatypeT id args l) r) = ScalarT (DatatypeT id (map (var2any env) args) l) r
 var2any env (FunctionT x tArg tRet) = FunctionT x (var2any env tArg) (var2any env tRet)
+
+countDuplicates symbols = do
+    mesgChan <- view messageChan <$> get
+    let groupedSymbols = groupBy areEqFuncs symbols
+    let counts = [ (length ss, head ss) | ss <- groupedSymbols]
+    let dupes = [ x | x <- counts, (fst x) > 1]
+    modify $ over solverStats (\s -> s {
+        duplicateSymbols = (length dupes, length counts)
+    })
+    stats <- view solverStats <$> get
+    liftIO $ writeChan mesgChan (MesgS stats)
+    return $ printf "%d / %d" (length dupes) (length counts)
