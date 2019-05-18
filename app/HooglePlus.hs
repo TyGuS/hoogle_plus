@@ -16,6 +16,7 @@ import Types.Environment
 import Types.Program
 import Types.Solver
 import Synquid.HtmlOutput
+import Database.Presets
 import Database.Environment (writeEnv, generateEnv)
 import Database.Convert
 import Database.Generate
@@ -84,7 +85,14 @@ main = do
         Main.envPath = envPath
       }
       executeSearch synquidParams searchParams file
-    Generate pkgs mdls d ho pathToEnv -> do
+
+    Generate {preset=(Just preset)} -> do
+      let opts = case preset of
+                    ICFPTotal -> genOptsTier1
+                    ICFPPartial -> genOptsTier2
+      precomputeGraph opts
+
+    Generate Nothing pkgs mdls d ho pathToEnv -> do
       let fetchOpts = defaultHackageOpts {
         packages = pkgs
       }
@@ -122,6 +130,7 @@ data CommandLineArgs
       }
       | Generate {
         -- | Input
+        preset :: Maybe Preset,
         pkg_name :: [String],
         module_name :: [String],
         type_depth :: Int,
@@ -144,6 +153,7 @@ synt = Synthesis {
   } &= auto &= help "Synthesize goals specified in the input file"
 
 generate = Generate {
+  preset               = Nothing         &= help ("Environment preset to use"),
   pkg_name             = []              &= help ("Package names to be generated"),
   module_name          = []              &= help ("Module names to be generated in the given packages"),
   type_depth           = 2               &= help ("Depth of the types to be instantiated for polymorphic type constructors"),
