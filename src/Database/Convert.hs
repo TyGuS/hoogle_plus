@@ -189,12 +189,12 @@ toSynquidSkeleton (TyVar _ name) = return $ Just [ScalarT (TypeVarT Map.empty $ 
 toSynquidSkeleton (TyList _ typ) = do
     typ' <- toSynquidSkeleton typ
     return $ (\ty -> [ScalarT (DatatypeT ("List") ty []) ()]) <$> typ'
-toSynquidSkeleton (TyTuple _ _ typs) = do
-    fst <- toSynquidSkeleton (head typs)
-    snd <- toSynquidSkeleton (typs !! 1)
+toSynquidSkeleton (TyTuple _ _ (f:s:_)) = do
+    fst <- toSynquidSkeleton f
+    snd <- toSynquidSkeleton s
     return $ liftA2 (\f s -> [ScalarT (DatatypeT ("Pair") (f ++ s) []) ()]) fst snd
 toSynquidSkeleton t = do
-    liftIO $ print $ "unhandled case: " ++ show t
+    liftIO $ print $ "[toSynquidSkeleton] unhandled case, ignoring: " ++ show t
     return Nothing -- error $ "Unhandled case " ++ show t
 
 varsFromBind (KindedVar _ name _) = nameStr name
