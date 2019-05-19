@@ -3,7 +3,7 @@
 -- | Formulas of the refinement logic
 module Synquid.Logic where
 
-import Types.Common
+import Types.Common hiding (varName)
 import Synquid.Util
 
 import Data.Tuple

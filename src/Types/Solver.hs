@@ -19,8 +19,7 @@ import Types.Common
 data SolverState = SolverState {
     _nameCounter :: Map Id Int,  -- name map for generating fresh names (type variables, parameters)
     _typeAssignment :: Map Id SType,  -- current type assignment for each type variable
-    _typingError :: (SType, SType), -- typing error message, represented by the expected type and actual type
-    _abstractionTree :: AbstractionTree,
+    _abstractionTree :: Set AbstractSkeleton,
     _isChecked :: Bool, -- is the current state check passed
     _currentSolutions :: [RProgram], -- type checked solutions
     _currentLoc :: Int, -- current solution depth
@@ -45,15 +44,14 @@ data SolverState = SolverState {
 emptySolverState = SolverState {
     _nameCounter = Map.empty,
     _typeAssignment = Map.empty,
-    _typingError = (AnyT, AnyT),
-    _abstractionTree = ALeaf Set.empty,
+    _abstractionTree = Set.singleton (AScalar (ATypeVarT varName)),
     _isChecked = True,
     _currentSolutions = [],
     _currentLoc = 1,
     _currentSigs = Map.empty,
     _detailedSigs = Set.empty,
     _functionMap = HashMap.empty,
-    _targetType = AScalar Set.empty,
+    _targetType = AScalar (ATypeVarT varName),
     _sourceTypes = [],
     _paramNames = [],
     _refineStrategy = NoRefine,

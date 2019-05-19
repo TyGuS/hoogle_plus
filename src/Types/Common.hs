@@ -17,3 +17,5 @@ data FunctionCode = FunctionCode {
   funParams :: [Param], -- function parameter types and their count
   funReturn :: [String]   -- function return type
 } deriving(Eq, Ord, Show)
+
+varName = "_v"

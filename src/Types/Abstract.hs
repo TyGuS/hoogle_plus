@@ -9,23 +9,14 @@ import Data.Set (Set)
 import GHC.Generics
 import Data.Serialize
 
--- | in case we need to add other kind of constraints
--- for now, we only have constraints with shape v ~ C t
-data UnifConstraint = 
-      TypeShape SType SType
-    | NotShape SType SType
+data AbstractBase = 
+      ATypeVarT Id
+    | ADatatypeT Id [AbstractSkeleton]
     deriving (Eq, Ord)
-
-type Abstraction = Set UnifConstraint
 
 data AbstractSkeleton =
-      AScalar Abstraction
+      AScalar AbstractBase
     | AFunctionT AbstractSkeleton AbstractSkeleton
-    deriving (Eq, Ord)
-
-data AbstractionTree =
-      ALeaf Abstraction
-    | ANode Abstraction AbstractionTree AbstractionTree
     deriving (Eq, Ord)
 
 -- distinguish one type from a given general one
@@ -33,8 +24,11 @@ type SplitMsg = (AbstractSkeleton, AbstractSkeleton)
 
 data SplitInfo = SplitInfo {
     splitedPlaces :: [(AbstractSkeleton, [AbstractSkeleton])],
-    splitedGroup :: [(Id, [Id])]
+    removedTrans :: [Id],
+    newTrans :: [(Id, [Id])]
 } deriving (Eq, Ord)
 
 type AProgram = Program (RType, RType, AbstractSkeleton) 
 -- (actual, expected, abstract) types
+--
+type UnifConstraint = (AbstractSkeleton, AbstractSkeleton)

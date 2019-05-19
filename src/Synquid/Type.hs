@@ -3,7 +3,7 @@
 -- | Refinement Types
 module Synquid.Type where
 
-import Types.Common
+import Types.Common hiding (varName)
 import Types.Type
 import Synquid.Logic
 import Synquid.Tokens

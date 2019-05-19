@@ -63,7 +63,8 @@ distinguish' tvs t1@(ScalarT (TypeVarT {}) _) t2@(ScalarT (DatatypeT id args _) 
     argNames <- mapM (\_ -> freshId "A") args
     let args' = map (\n -> ScalarT (TypeVarT Map.empty n) ()) argNames
     return (Just (ScalarT (DatatypeT id args' []) ()))
-distinguish' _ (ScalarT (DatatypeT {}) _) (ScalarT (TypeVarT _ id) _) = return (Just (ScalarT (TypeVarT Map.empty id) ()))
+distinguish' tvs (ScalarT (DatatypeT {}) _) (ScalarT (TypeVarT _ id) _) | id `elem` tvs = return (Just (ScalarT (TypeVarT Map.empty id) ()))
+distinguish' tvs (ScalarT (DatatypeT {}) _) (ScalarT (TypeVarT _ id) _) = error "undecided actual type" -- return (Just (ScalarT (TypeVarT Map.empty id) ()))
 distinguish' tvs (ScalarT (TypeVarT _ id) _) (ScalarT (TypeVarT {}) _) | id `elem` tvs = return (Just (ScalarT (TypeVarT Map.empty id) ()))
 distinguish' tvs (ScalarT (TypeVarT {}) _) (ScalarT (TypeVarT _ id) _) | id `elem` tvs = return (Just (ScalarT (TypeVarT Map.empty id) ()))
 distinguish' tvs (ScalarT (TypeVarT {}) _) (ScalarT (TypeVarT {}) _) = return Nothing
@@ -83,7 +84,7 @@ findSymbol env sym = do
                 Just sch -> freshType sch
         Just sch -> freshType sch
 
-strengthenRoot :: MonadIO m => Environment -> Abstraction -> SType -> SType -> PNSolver m Abstraction
+strengthenRoot :: MonadIO m => Environment -> AbstractSkeleton -> SType -> SType -> PNSolver m AbstractSkeleton
 strengthenRoot env dfault expected actual = do
     diff <- distinguish env expected actual
     semantic <- gets (view abstractionTree)
@@ -91,11 +92,19 @@ strengthenRoot env dfault expected actual = do
     case diff of
       Nothing -> error $ "same expected and actual type" 
       Just t -> do
-          let newCons = TypeShape (ScalarT (TypeVarT Map.empty varName) ()) t
-          let newAbsTyp = simplify (env ^. boundTypeVars) (newCons `Set.insert` dfault)
-          when (newAbsTyp /= dfault)
-               (modify $ over splitTypes (nub . (:) (AScalar dfault, AScalar newAbsTyp)))
-          return newAbsTyp
+          let bound = env ^. boundTypeVars
+          -- find an abstraction that unifies both the current abstraction and the distinguished type
+          absTyp <- freshAbstract bound (toAbstractType t)
+          v <- freshId "v"
+          let constraints = [(AScalar (ATypeVarT v), absTyp), (AScalar (ATypeVarT v), dfault)]
+          let unifier = getUnifier bound constraints
+          case unifier of
+              Nothing -> error $ "distinguished type does not unify the current abstraction"
+              Just u -> do
+                  let newAbsTyp = foldr (uncurry abstractSubstitute) (AScalar (ATypeVarT v)) (Map.toList u)
+                  when (not (equalAbstract bound newAbsTyp dfault))
+                       (modify $ over splitTypes (nubBy (equalSplit bound) . (:) (dfault, newAbsTyp)))
+                  return newAbsTyp
 
 propagate :: MonadIO m => Environment -> AProgram -> AbstractSkeleton -> PNSolver m (Maybe AbstractSkeleton)
 propagate env (Program (PSymbol sym) (_, _, local)) upstream = do
@@ -103,24 +112,22 @@ propagate env (Program (PSymbol sym) (_, _, local)) upstream = do
     sigs <- gets (view currentSigs)
     -- try to unify the upstream type with the current return type
     t <- findSymbol env (removeLast '_' sym)
-    v <- freshId varName
-    let AScalar resCons = toAbstractType (shape (lastType t))
-    let AScalar localCons = lastAbstract local
-    let AScalar upstreamCons = upstream
-    let constraints = Set.toList (resCons `Set.union` upstreamCons `Set.union` localCons)
-    let renamedCons = map (constraintRename varName v) constraints
-    let unifier = getUnifier (env ^. boundTypeVars) renamedCons
+    let bound = env ^. boundTypeVars
+    let resTyp = toAbstractType (shape (lastType t))
+    let localTyp = lastAbstract local
+    let upstreamTyp = upstream
+    let consTyps = if isFunctionType t then [resTyp, localTyp, upstreamTyp] else [localTyp, upstreamTyp]
+    v <- freshId "v"
+    constraints <- mapM (mkConstraint bound v) consTyps
+    let unifier = getUnifier bound constraints
     case unifier of
         Nothing -> return Nothing
-        Just (tass, dass) -> do
-            let newCons = simplify (env ^. boundTypeVars) (localCons `Set.union` upstreamCons)
-            when (newCons /= localCons)
-                 (modify $ over splitTypes (nub . (:) (AScalar localCons, AScalar newCons)))
-            let vars = typeVarsOf t
-            let tass' = foldr (\v m -> if Map.member v m then m else Map.insert v AnyT m) tass vars
-            let t' = foldr (uncurry abstractSubstitute) (toAbstractType (shape t)) (Map.toList tass')
-            let t'' = addDisunification dass t'
-            return (Just t'')
+        Just tass -> do
+            let absTyp = foldr (uncurry abstractSubstitute) (AScalar (ATypeVarT v)) (Map.toList tass)
+            when (not (equalAbstract bound absTyp localTyp))
+                 (modify $ over splitTypes (nubBy (equalSplit bound) . (:) (localTyp, absTyp)))
+            let t' = foldr (uncurry abstractSubstitute) (toAbstractType (shape t)) (Map.toList tass)
+            return (Just t')
 propagate env (Program (PApp pFun pArg) (_, _, local)) upstream = do
     maybeFun <- propagate env pFun upstream
     case maybeFun of
