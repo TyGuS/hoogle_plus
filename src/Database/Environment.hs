@@ -55,19 +55,24 @@ generateEnv genOpts = do
     let mbModuleNames = if length mdls > 0 then Just mdls else Nothing
     pkgFiles <- getFiles pkgOpts
     allEntriesByMdl <- filesToEntries pkgFiles
+    print "0"
     DD.cleanTmpFiles pkgOpts pkgFiles
     let entriesByMdl = filterEntries allEntriesByMdl mbModuleNames
     let ourEntries = nubOrd $ concat $ Map.elems entriesByMdl
     dependencyEntries <- getDeps pkgOpts allEntriesByMdl ourEntries
+    print "1"
+
     putStrLn $ show dependencyEntries
     let moduleNames = Map.keys entriesByMdl
     let allCompleteEntries = concat (Map.elems entriesByMdl)
     let allEntries = nubOrd allCompleteEntries
-    ourDecls <- mapM (\entry -> evalStateT (DC.toSynquidDecl entry) 0) allEntries
+    ourDecls <- mapM (\entry -> print (entry) >> evalStateT (DC.toSynquidDecl entry) 0) allEntries
+    print "2"
     let hooglePlusDecls = DC.reorderDecls $ nubOrd $ (ourDecls ++ dependencyEntries ++ defaultFuncs ++ defaultDts)
+    print "3"
     case resolveDecls hooglePlusDecls moduleNames of
        Left errMessage -> error $ show errMessage
-       Right env -> return env {
+       Right env -> print "4" >> return env {
           _symbols = if useHO then env ^. symbols
                               else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols,
          _included_modules = Set.fromList (moduleNames)

@@ -10,7 +10,7 @@ import Synquid.Pretty
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Resolver (resolveDecls, ResolverState (..), initResolverState, resolveSchema)
 import Synquid.SolverMonad
-import Types.Generate
+import Types.Generate hiding (files)
 import Types.Experiments
 import Types.Environment
 import Types.Program
@@ -92,10 +92,10 @@ main = do
                     ICFPPartial -> genOptsTier2
       precomputeGraph opts
 
-    Generate Nothing pkgs mdls d ho pathToEnv -> do
-      let fetchOpts = defaultHackageOpts {
-        packages = pkgs
-      }
+    Generate Nothing files pkgs mdls d ho pathToEnv -> do
+      let fetchOpts = if (length files > 0)
+                        then Local files
+                        else defaultHackageOpts {packages=pkgs}
       let generationOpts = defaultGenerationOpts {
         modules = mdls,
         instantiationDepth = d,
@@ -131,6 +131,7 @@ data CommandLineArgs
       | Generate {
         -- | Input
         preset :: Maybe Preset,
+        files :: [String],
         pkg_name :: [String],
         module_name :: [String],
         type_depth :: Int,
@@ -154,6 +155,7 @@ synt = Synthesis {
 
 generate = Generate {
   preset               = Nothing         &= help ("Environment preset to use"),
+  files                = []              &= help ("Files to use to generate from. Exclusive with packages and modules. Takes precedence"),
   pkg_name             = []              &= help ("Package names to be generated"),
   module_name          = []              &= help ("Module names to be generated in the given packages"),
   type_depth           = 2               &= help ("Depth of the types to be instantiated for polymorphic type constructors"),
