@@ -5,7 +5,6 @@ module PetriNet.PNBuilder(
   , addFunction
   , removeTransition
   , addArgClone
-  , transitionDuplicates
   , areEqFuncs
 )
 where
@@ -228,36 +227,7 @@ setMaxToken inputs pn = pn {
 equating a b f = f a == f b
 
 areEqFuncs fc1 fc2 = let
-  ho1 = Set.fromList (hoParams fc1)
-  ho2 = Set.fromList (hoParams fc2)
-  params1 = Set.fromList (funParams fc1)
-  params2 = Set.fromList (funParams fc2)
-  ret1 = Set.fromList (funReturn fc1)
-  ret2 = Set.fromList (funReturn fc2)
-  in
-      ho1 == ho2 && params1 == params2 && ret1 == ret2
-
-areTransitionsEq pn tr1 tr2 = let
-  preq = areFlowSetsEq pn (transitionPreset tr1) (transitionPreset tr2)
-  posteq = areFlowSetsEq pn (transitionPostset tr1) (transitionPostset tr2)
-  in preq && posteq
-
-areFlowSetsEq :: PetriNet -> Set Id -> Set Id -> Bool
-areFlowSetsEq pn fs1 fs2 = let
-  getFlow id = pnFlows pn HashMap.! id
-  toMatch = map getFlow $ Set.toList fs2
-  remaining = map getFlow $ Set.toList fs1
-  remainingElems = foldr match remaining toMatch
-  match f2 = filter (areFlowsEq f2)
-  in null remainingElems
-
-areFlowsEq fl1 fl2 = let
-  fs = [flowFrom, flowTo, flowPlace, flowTransition]
-  in all (equating fl1 fl2) fs && (equating fl1 fl2 flowWeight)
-
-transitionDuplicates :: PetriNet -> (Int, Int)
-transitionDuplicates pn = let
-  allTransitions = HashMap.elems $ pnTransitions pn
-  duplicates = groupBy (areTransitionsEq pn) allTransitions
-  dupes = [ length xs | xs <- duplicates, length xs > 1 ]
-  in (sum dupes, length allTransitions)
+  ho = equating fc1 fc2 (sort . hoParams)
+  params = equating fc1 fc2 (sort . funParams)
+  rets = equating fc1 fc2 (sort . funReturn)
+  in ho && params && rets

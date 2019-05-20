@@ -12,7 +12,7 @@ spec = do
     it "Should find duplicate transitions of the same type" $ do
       let pn = buildPetriNet testFuncs []
       pPrint pn
-      let dupes = transitionDuplicates pn
+      let dupes = undefined pn
       dupes `shouldBe` (2, 3)
 
 testFuncs = [

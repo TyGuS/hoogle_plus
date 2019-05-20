@@ -218,9 +218,10 @@ executeSearch synquidParams searchParams query = do
 
     handleMessages ch (MesgClose _) = putStrLn "Search complete" >> return ()
     handleMessages ch (MesgP (program, stats)) = do
+      when (logLevel > 2) (pPrint stats)
       print program >> readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgS debug) = do
-      -- when (logLevel > 0) (pPrint debug)
+      when (logLevel > 2) (pPrint debug)
       readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgLog level tag msg) = do
       when (level <= logLevel) ((printf "[%s]: %s\n" tag msg) >> hFlush stdout)

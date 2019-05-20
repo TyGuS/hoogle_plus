@@ -536,9 +536,9 @@ initNet env = withTime ConstructionTime $ do
     let symbols' = concat symbols
     -- Count the symbols with the SAME signature being put in the net.
     dupes <- countDuplicates symbols'
+    writeLog 2 "initNet" $ text "duplicate sigs" <+> text (countDuplicateSigs sigs)
     writeLog 1 "initNet" $ text "duplicate funcs" <+> text dupes
     let net = (buildPetriNet symbols' (map show srcTypes))
-    writeLog 1 "initNet" $ text "duplicate transitions" <+> text (show $ transitionDuplicates net)
     modify $ set solverNet net
   where
     abstractSymbol id sch = do
@@ -691,10 +691,11 @@ fixNet env (SplitInfo splitedTys splitedGps) = do
     let encodedFuncs = map (\name -> case HashMap.lookup name fm of
                                        Nothing -> error $ "cannot find function name " ++ name ++ " in functionMap"
                                        Just n -> n) newGroups
-    dupes <- countDuplicates encodedFuncs
+    let allFuncs = (HashMap.elems fm)
+    dupes <- countDuplicates allFuncs
+    writeLog 2 "fixNet" $ text "duplicate sigs" <+> text (countDuplicateSigs sigs)
     writeLog 1 "fixNet" $ text "duplicate funcs" <+> text dupes
     let functionedNet = foldr addArgClone (foldr addFunction net encodedFuncs) (map show (concat (snd (unzip splitedTys))))
-    writeLog 1 "fixNet" $ text "duplicate transitions" <+> text (show $ transitionDuplicates functionedNet)
     modify $ set solverNet functionedNet
 
 fixEncoder :: MonadIO m => Environment -> RType -> EncodeState -> SplitInfo -> PNSolver m EncodeState
@@ -888,15 +889,27 @@ var2any env t@(ScalarT (TypeVarT _ id) _) | otherwise = AnyT
 var2any env (ScalarT (DatatypeT id args l) r) = ScalarT (DatatypeT id (map (var2any env) args) l) r
 var2any env (FunctionT x tArg tRet) = FunctionT x (var2any env tArg) (var2any env tRet)
 
+countDuplicateSigs :: Map Id AbstractSkeleton -> String
+countDuplicateSigs sigs = let
+    reversedSigs = foldr update Map.empty (Map.toList sigs)
+    countList = Map.toList reversedSigs
+    dupes = [length (snd x) | x <- countList, length (snd x) > 1]
+    in
+        printf "%d classes; %d equiv; %d total" (length dupes) (sum dupes) (length (Map.toList sigs))
+    where
+        update (id, sig) reversedMap = Map.alter (alter id) sig reversedMap
+        alter id Nothing = Just [id]
+        alter id (Just ids) = Just (id:ids)
+
 countDuplicates symbols = do
     mesgChan <- view messageChan <$> get
-    let groupedSymbols = groupBy areEqFuncs symbols
+    let groupedSymbols = groupBySlow areEqFuncs symbols
     let counts = [ (length ss, head ss) | ss <- groupedSymbols]
-    let dupes = [ x | x <- counts, (fst x) > 1]
+    let dupes = [ (fst x) | x <- counts, (fst x) > 1]
     modify $ over solverStats (\s -> s {
-        duplicateSymbols = (length dupes, length counts)
+        duplicateSymbols = (length dupes, length symbols)
     })
-    when (length dupes > 0) (writeLog 2 "countDuplicates" $ text . show . snd $ dupes !! 0)
+    -- when (length dupes > 0) (writeLog 2 "countDuplicates" $ text . show . snd $ dupes !! 0)
     stats <- view solverStats <$> get
     liftIO $ writeChan mesgChan (MesgS stats)
-    return $ printf "%d / %d" (length dupes) (length counts)
+    return $ printf "%d classes; %d equiv; %d total" (length dupes) (sum dupes) (length symbols)

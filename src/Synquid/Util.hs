@@ -226,3 +226,12 @@ mkOneLine :: String -> String
 mkOneLine = unwords . (map trim) . lines
   where
    trim = dropWhileEnd isSpace . dropWhile isSpace
+
+-- GroupBySlow does not require adjacency to group by.
+-- However it runs in n^2 time.
+groupBySlow :: (a -> a -> Bool) -> [a] -> [[a]]
+groupBySlow = go [] where
+  go acc comp [] = acc
+  go acc comp (h:t) =
+    let (hs, nohs) = partition (comp h) t
+    in go ((h:hs):acc) comp nohs

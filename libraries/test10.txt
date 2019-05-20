@@ -12,6 +12,7 @@ data {-# CTYPE "HsInt64" #-} Int64
 
 -- base
 module Data.String
+data Char
 type String = [Char]
 
 -- base

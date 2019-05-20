@@ -59,7 +59,7 @@ partition :: (a -> Bool) -> Map k a -> (Map k a, Map k a)
 
 module Prelude
 (==) :: (Eq a) => a -> a -> Bool
-bool :: a -> a -> Bool -> a 
+bool :: a -> a -> Bool -> a
 
 module Data.Either
 data Either a b
