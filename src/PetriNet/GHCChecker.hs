@@ -30,6 +30,7 @@ import Data.Data
 import FamInstEnv
 import DmdAnal
 import Data.List (isInfixOf)
+import System.Directory (removeFile)
 
 showGhc :: (Outputable a) => a -> String
 showGhc = showPpr unsafeGlobalDynFlags
@@ -39,7 +40,8 @@ checkStrictness lambdaExpr = GHC.runGhc (Just libdir) $ do
 
     -- TODO: can we use GHC to dynamically compile strings? I think not
     let sourceCode = "module Temp where\nfoo = " ++ lambdaExpr
-    liftIO $ writeFile "Temp.hs" sourceCode
+    let fileName = "./tmp/Temp.hs"
+    liftIO $ writeFile fileName sourceCode
 
     -- Establishing GHC session
     env <- getSession
@@ -47,7 +49,7 @@ checkStrictness lambdaExpr = GHC.runGhc (Just libdir) $ do
     setSessionDynFlags $ dflags { hscTarget = HscInterpreted }
   
     -- Compile to core
-    target <- guessTarget "Temp.hs" Nothing
+    target <- guessTarget fileName Nothing
     setTargets [target]
     load LoadAllTargets
     modSum <- getModSummary $ mkModuleName "Temp"
@@ -61,21 +63,16 @@ checkStrictness lambdaExpr = GHC.runGhc (Just libdir) $ do
     -- prog is [<fooBinding>, <moduleBinding>]
     prog <- liftIO $ (dmdAnalProgram dflags emptyFamInstEnvs $ mg_binds core)
     let decl = prog !! 0 -- only one method
+    liftIO $ removeFile fileName
 
     -- TODO: I'm thinking of simply checking for the presence of `L` (lazy) or `A` (absent)
     -- on the singatures. That would be enough to show that the relevancy requirement is not met.
     case decl of
-        NonRec id _  -> return $ isItStrict id --liftIO $ putStrLn $ getStrictnessSig id
+        NonRec id _  -> return $ isStrict id --liftIO $ putStrLn $ getStrictnessSig id
         _ -> error "checkStrictness: recursive expression found"
 
     where getStrictnessSig x = showSDocUnsafe $ ppr $ strictnessInfo $ idInfo x
-          isItStrict x = if isInfixOf "A" (getStrictnessSig x) then False else True
-
--- TODO: can we remove this?
-say :: String -> Interpreter ()
-say = liftIO . putStrLn
-
-
+          isStrict x = not(isInfixOf "A" (getStrictnessSig x))
 
 
 runGhcChecks :: Environment -> RType -> UProgram -> IO Bool 
@@ -90,21 +87,21 @@ runGhcChecks env goalType prog = let
     body = mkLambdaStr argNames prog
     expr = body ++ " :: " ++ funcSig
 
-    -- ensures that the program type-checks
-    checkType :: Interpreter Bool
-    checkType = do
-        setImports ("Prelude":modules)
-        -- Ensures that if there's a problem we'll know
-        Language.Haskell.Interpreter.typeOf expr
-        typeChecks expr
-
     in do
-        typeCheckResult <- runInterpreter checkType
+        typeCheckResult <- runInterpreter $ checkType expr modules 
         strictCheckResult <- checkStrictness body 
         case typeCheckResult of
             Left err -> (putStrLn $ displayException err) >> return False
             Right False -> (putStrLn "Program does not typecheck") >> return False
             Right True -> return strictCheckResult
+
+-- ensures that the program type-checks
+checkType :: String -> [String] -> Interpreter Bool
+checkType expr modules = do
+    setImports ("Prelude":modules)
+    -- Ensures that if there's a problem we'll know
+    Language.Haskell.Interpreter.typeOf expr
+    typeChecks expr
 
 -- mkFunctionSigStr generates a function's type signature:
 -- Int -> Data.Foo.Foo -> Bar
