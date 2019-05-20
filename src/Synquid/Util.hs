@@ -13,6 +13,7 @@ import Data.Char
 import Data.Function (on)
 import Data.Ord (comparing)
 import qualified Data.Text.Lazy
+import System.Environment
 
 import Control.Applicative
 import Control.Monad
@@ -235,3 +236,6 @@ groupBySlow = go [] where
   go acc comp (h:t) =
     let (hs, nohs) = partition (comp h) t
     in go ((h:hs):acc) comp nohs
+
+getTmpDir :: IO String
+getTmpDir = fromMaybe "/tmp/" <$> lookupEnv "TMPDIR"

@@ -10,6 +10,7 @@ import Types.Environment
 import Types.Program
 import Types.Type
 import Synquid.Type
+import Synquid.Util
 import Synquid.Pretty as Pretty
 
 -- TODO: filter out unecessary imports
@@ -38,12 +39,12 @@ showGhc = showPpr unsafeGlobalDynFlags
 
 checkStrictness :: String -> [String] -> IO Bool
 checkStrictness lambdaExpr modules = GHC.runGhc (Just libdir) $ do
-
+    tmpDir <- liftIO $ getTmpDir
     -- TODO: can we use GHC to dynamically compile strings? I think not
     let toModuleImportStr = (printf "import qualified %s\n") :: String -> String
     let moduleImports = concatMap toModuleImportStr modules
     let sourceCode = printf "module Temp where\n%s\nfoo = %s\n" moduleImports lambdaExpr
-    let fileName = "tmp/Temp.hs"
+    let fileName = tmpDir ++ "/Temp.hs"
     liftIO $ writeFile fileName sourceCode
 
     -- Establishing GHC session
