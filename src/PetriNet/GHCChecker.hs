@@ -31,34 +31,37 @@ import FamInstEnv
 import DmdAnal
 import Data.List (isInfixOf)
 import System.Directory (removeFile)
+import Text.Printf
 
 showGhc :: (Outputable a) => a -> String
 showGhc = showPpr unsafeGlobalDynFlags
 
-checkStrictness :: String -> IO Bool
-checkStrictness lambdaExpr = GHC.runGhc (Just libdir) $ do
+checkStrictness :: String -> [String] -> IO Bool
+checkStrictness lambdaExpr modules = GHC.runGhc (Just libdir) $ do
 
     -- TODO: can we use GHC to dynamically compile strings? I think not
-    let sourceCode = "module Temp where\nfoo = " ++ lambdaExpr
-    let fileName = "./tmp/Temp.hs"
+    let toModuleImportStr = (printf "import qualified %s\n") :: String -> String
+    let moduleImports = concatMap toModuleImportStr modules
+    let sourceCode = printf "module Temp where\n%s\nfoo = %s\n" moduleImports lambdaExpr
+    let fileName = "tmp/Temp.hs"
     liftIO $ writeFile fileName sourceCode
 
     -- Establishing GHC session
     env <- getSession
     dflags <- getSessionDynFlags
     setSessionDynFlags $ dflags { hscTarget = HscInterpreted }
-  
+
     -- Compile to core
     target <- guessTarget fileName Nothing
     setTargets [target]
     load LoadAllTargets
     modSum <- getModSummary $ mkModuleName "Temp"
-  
+
     pmod <- parseModule modSum      -- ModuleSummary
     tmod <- typecheckModule pmod    -- TypecheckedSource
     dmod <- desugarModule tmod      -- DesugaredModule
     let core = coreModule dmod      -- CoreModule
-  
+
     -- Run the demand analyzer
     -- prog is [<fooBinding>, <moduleBinding>]
     prog <- liftIO $ (dmdAnalProgram dflags emptyFamInstEnvs $ mg_binds core)
@@ -68,14 +71,14 @@ checkStrictness lambdaExpr = GHC.runGhc (Just libdir) $ do
     -- TODO: I'm thinking of simply checking for the presence of `L` (lazy) or `A` (absent)
     -- on the singatures. That would be enough to show that the relevancy requirement is not met.
     case decl of
-        NonRec id _  -> return $ isStrict id --liftIO $ putStrLn $ getStrictnessSig id
+        NonRec id _  -> do return $ isStrict id --liftIO $ putStrLn $ getStrictnessSig id
         _ -> error "checkStrictness: recursive expression found"
 
     where getStrictnessSig x = showSDocUnsafe $ ppr $ strictnessInfo $ idInfo x
           isStrict x = not(isInfixOf "A" (getStrictnessSig x))
 
 
-runGhcChecks :: Environment -> RType -> UProgram -> IO Bool 
+runGhcChecks :: Environment -> RType -> UProgram -> IO Bool
 runGhcChecks env goalType prog = let
     -- constructs program and its type signature as strings
     args = _arguments env
@@ -88,8 +91,8 @@ runGhcChecks env goalType prog = let
     expr = body ++ " :: " ++ funcSig
 
     in do
-        typeCheckResult <- runInterpreter $ checkType expr modules 
-        strictCheckResult <- checkStrictness body 
+        typeCheckResult <- runInterpreter $ checkType expr modules
+        strictCheckResult <- checkStrictness body modules
         case typeCheckResult of
             Left err -> (putStrLn $ displayException err) >> return False
             Right False -> (putStrLn "Program does not typecheck") >> return False
