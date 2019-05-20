@@ -907,7 +907,7 @@ countDuplicates symbols = do
     let counts = [ (length ss, head ss) | ss <- groupedSymbols]
     let dupes = [ (fst x) | x <- counts, (fst x) > 1]
     modify $ over solverStats (\s -> s {
-        duplicateSymbols = (length dupes, length symbols)
+        duplicateSymbols = duplicateSymbols s ++ [(length dupes, length symbols)]
     })
     -- when (length dupes > 0) (writeLog 2 "countDuplicates" $ text . show . snd $ dupes !! 0)
     stats <- view solverStats <$> get
