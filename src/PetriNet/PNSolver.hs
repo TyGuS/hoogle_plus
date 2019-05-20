@@ -482,18 +482,18 @@ refineSemantic env prog at = do
 
     hasNewSplit t1 t2 = do
         semantic <- view abstractionTree <$> get
-        writeLog 2 "refineSemantic" $ text "check add type" <+> pretty t2 <+> text "into" <+> text (show semantic)
+        writeLog 2 "refineSemantic" $ text "check add type" <+> pretty t2 <+> text "into" </> pretty semantic
         let semantic' = updateSemantic env semantic t2
         return (semantic /= semantic')
 
     transSplit t1 t2 = do
         semantic <- view abstractionTree <$> get
-        writeLog 2 "refineSemantic" $ text "add type" <+> pretty t2 <+> text "into" <+> text (show semantic)
+        writeLog 2 "refineSemantic" $ text "add type" <+> pretty t2 <+> text "into" </> pretty semantic
         let semantic' = updateSemantic env semantic t2
         modify $ set abstractionTree semantic'
         let t2' = head (cutoff env semantic' t2)
-        writeLog 2 "refineSemantic" $ text $ printf "%s is splited into %s" (show t1) (show t2')
-        writeLog 2 "refineSemantic" $ text $ printf "new semantic is %s" (show semantic')
+        writeLog 2 "refineSemantic" $ pretty t1 <+> text "is splited into" <+> pretty t2'
+        writeLog 2 "refineSemantic" $ text "new semantic is:" </> pretty semantic'
         t2tr <- view type2transition <$> get
         let tids = Map.findWithDefault [] t1 t2tr
         let nts = (leafTypes semantic') \\ (leafTypes semantic)
@@ -536,7 +536,6 @@ initNet env = withTime ConstructionTime $ do
     let symbols' = concat symbols
     -- Count the symbols with the SAME signature being put in the net.
     dupes <- countDuplicates symbols'
-    writeLog 1 "findme" $ text (prettyPrintAbstractionTree abstraction)
     writeLog 1 "initNet" $ text "duplicate funcs" <+> text dupes
     let net = (buildPetriNet symbols' (map show srcTypes))
     writeLog 1 "initNet" $ text "duplicate transitions" <+> text (show $ transitionDuplicates net)
@@ -693,7 +692,6 @@ fixNet env (SplitInfo splitedTys splitedGps) = do
                                        Nothing -> error $ "cannot find function name " ++ name ++ " in functionMap"
                                        Just n -> n) newGroups
     dupes <- countDuplicates encodedFuncs
-    writeLog 1 "findme" $ text (prettyPrintAbstractionTree abstraction)
     writeLog 1 "fixNet" $ text "duplicate funcs" <+> text dupes
     let functionedNet = foldr addArgClone (foldr addFunction net encodedFuncs) (map show (concat (snd (unzip splitedTys))))
     writeLog 1 "fixNet" $ text "duplicate transitions" <+> text (show $ transitionDuplicates functionedNet)
