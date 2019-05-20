@@ -56,6 +56,7 @@ import Distribution.PackDeps
 import Text.Parsec hiding (State)
 import Text.Parsec.Indent
 import System.Directory
+import System.IO
 import qualified Data.ByteString as B
 
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
@@ -214,14 +215,15 @@ executeSearch synquidParams searchParams query = do
         Left err -> error err
         Right env ->
           return env
+
     handleMessages ch (MesgClose _) = putStrLn "Search complete" >> return ()
     handleMessages ch (MesgP (program, stats)) = do
       print program >> readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgS debug) = do
-      when (logLevel > 0) (pPrint debug)
+      -- when (logLevel > 0) (pPrint debug)
       readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgLog level tag msg) = do
-      when (level <= logLevel) (printf "[%s]: %s\n" tag msg)
+      when (level <= logLevel) ((printf "[%s]: %s\n" tag msg) >> hFlush stdout)
       readChan ch >>= (handleMessages ch)
 
 pdoc = printDoc Plain

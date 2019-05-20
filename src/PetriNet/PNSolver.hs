@@ -534,9 +534,13 @@ initNet env = withTime ConstructionTime $ do
     writeLog 3 "initNet" $ text "instantiated sigs" <+> pretty (Map.toList sigs)
     symbols <- mapM addEncodedFunction (Map.toList sigs)
     let symbols' = concat symbols
+    -- Count the symbols with the SAME signature being put in the net.
     dupes <- countDuplicates symbols'
+    writeLog 1 "findme" $ text (prettyPrintAbstractionTree abstraction)
     writeLog 1 "initNet" $ text "duplicate funcs" <+> text dupes
-    modify $ set solverNet (buildPetriNet symbols' (map show srcTypes))
+    let net = (buildPetriNet symbols' (map show srcTypes))
+    writeLog 1 "initNet" $ text "duplicate transitions" <+> text (show $ transitionDuplicates net)
+    modify $ set solverNet net
   where
     abstractSymbol id sch = do
         t <- freshType sch
@@ -689,8 +693,10 @@ fixNet env (SplitInfo splitedTys splitedGps) = do
                                        Nothing -> error $ "cannot find function name " ++ name ++ " in functionMap"
                                        Just n -> n) newGroups
     dupes <- countDuplicates encodedFuncs
+    writeLog 1 "findme" $ text (prettyPrintAbstractionTree abstraction)
     writeLog 1 "fixNet" $ text "duplicate funcs" <+> text dupes
     let functionedNet = foldr addArgClone (foldr addFunction net encodedFuncs) (map show (concat (snd (unzip splitedTys))))
+    writeLog 1 "fixNet" $ text "duplicate transitions" <+> text (show $ transitionDuplicates functionedNet)
     modify $ set solverNet functionedNet
 
 fixEncoder :: MonadIO m => Environment -> RType -> EncodeState -> SplitInfo -> PNSolver m EncodeState
@@ -892,6 +898,7 @@ countDuplicates symbols = do
     modify $ over solverStats (\s -> s {
         duplicateSymbols = (length dupes, length counts)
     })
+    when (length dupes > 0) (writeLog 2 "countDuplicates" $ text . show . snd $ dupes !! 0)
     stats <- view solverStats <$> get
     liftIO $ writeChan mesgChan (MesgS stats)
     return $ printf "%d / %d" (length dupes) (length counts)
