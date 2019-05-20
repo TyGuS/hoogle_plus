@@ -29,9 +29,12 @@ import Demand
 import Data.Data
 import FamInstEnv
 import DmdAnal
-import Data.List (isInfixOf)
+import Data.List (isInfixOf, intercalate)
 import System.Directory (removeFile)
 import Text.Printf
+import Debug.Trace (trace)
+import SimplCore (core2core)
+import CoreMonad (getHscEnv)
 
 showGhc :: (Outputable a) => a -> String
 showGhc = showPpr unsafeGlobalDynFlags
@@ -42,14 +45,17 @@ checkStrictness lambdaExpr modules = GHC.runGhc (Just libdir) $ do
     -- TODO: can we use GHC to dynamically compile strings? I think not
     let toModuleImportStr = (printf "import qualified %s\n") :: String -> String
     let moduleImports = concatMap toModuleImportStr modules
-    let sourceCode = printf "module Temp where\n%s\nfoo = %s\n" moduleImports lambdaExpr
+    let sourceCode = printf "module Temp where\n%s\n%s\n" moduleImports lambdaExpr
     let fileName = "tmp/Temp.hs"
     liftIO $ writeFile fileName sourceCode
 
     -- Establishing GHC session
     env <- getSession
     dflags <- getSessionDynFlags
-    setSessionDynFlags $ dflags { hscTarget = HscInterpreted }
+    let dflags' = (updOptLevel 2 dflags)
+    -- Dev tip: if playing with dflags, remember to update it *every* call
+    --let dflags'' = dopt_set dflags' Opt_D_dump_stranal -- {optLevel = 2}
+    setSessionDynFlags $ dflags' -- { hscTarget = HscInterpreted }
 
     -- Compile to core
     target <- guessTarget fileName Nothing
@@ -62,10 +68,11 @@ checkStrictness lambdaExpr modules = GHC.runGhc (Just libdir) $ do
     dmod <- desugarModule tmod      -- DesugaredModule
     let core = coreModule dmod      -- CoreModule
 
+    core' <- liftIO $ core2core env core
     -- Run the demand analyzer
     -- prog is [<fooBinding>, <moduleBinding>]
-    prog <- liftIO $ (dmdAnalProgram dflags emptyFamInstEnvs $ mg_binds core)
-    let decl = prog !! 0 -- only one method
+    prog <- liftIO $ (dmdAnalProgram dflags' emptyFamInstEnvs $ mg_binds core')
+    let decl =  prog !! 0 -- only one method
     liftIO $ removeFile fileName
 
     -- TODO: I'm thinking of simply checking for the presence of `L` (lazy) or `A` (absent)
@@ -74,8 +81,9 @@ checkStrictness lambdaExpr modules = GHC.runGhc (Just libdir) $ do
         NonRec id _  -> do return $ isStrict id --liftIO $ putStrLn $ getStrictnessSig id
         _ -> error "checkStrictness: recursive expression found"
 
-    where getStrictnessSig x = showSDocUnsafe $ ppr $ strictnessInfo $ idInfo x
-          isStrict x = not(isInfixOf "A" (getStrictnessSig x))
+    -- TODO: remove trace. Keeping it here for development purposes only
+    where getStrictnessSig x = showSDocUnsafe $ pprStrictness $ strictnessInfo $ idInfo x --showSDocUnsafe $ ppr $ strictnessInfo $ idInfo x
+          isStrict x = trace ("STRICTNESS SIGNATURE: "++ getStrictnessSig x) $ not(isInfixOf "A" (getStrictnessSig x))
 
 
 runGhcChecks :: Environment -> RType -> UProgram -> IO Bool
@@ -88,11 +96,12 @@ runGhcChecks env goalType prog = let
     argTypes = map snd argList
     funcSig = mkFunctionSigStr (map toMonotype argTypes) goalType
     body = mkLambdaStr argNames prog
+    dummyDecl = mkFooDeclStr argNames prog
     expr = body ++ " :: " ++ funcSig
 
     in do
         typeCheckResult <- runInterpreter $ checkType expr modules
-        strictCheckResult <- checkStrictness body modules
+        strictCheckResult <- checkStrictness dummyDecl modules
         case typeCheckResult of
             Left err -> (putStrLn $ displayException err) >> return False
             Right False -> (putStrLn "Program does not typecheck") >> return False
@@ -122,3 +131,11 @@ mkLambdaStr args body = let
     addFuncArg arg rest = Pretty.parens $ text ("\\" ++ arg ++ " -> ") <+> rest
     in
         show $ foldr addFuncArg (text oneLineBody) args
+
+--TODO: are the arguments in the right oder?
+mkFooDeclStr :: [String] -> UProgram -> String
+mkFooDeclStr args body =
+    let bodyStr = show body in
+    let oneLineBody = unwords $ lines bodyStr in
+    let argsDecl = intercalate " " args
+    in  "foo " ++ argsDecl ++ "=" ++ oneLineBody
