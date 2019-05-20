@@ -6,6 +6,7 @@ import Types.Environment
 import Types.Program
 import Synquid.Util
 import HooglePlus.Synthesize
+import Database.Presets
 import Database.Environment
 import Runner
 import BConfig
