@@ -59,17 +59,23 @@ freshType sch = freshType' Map.empty [] sch
     freshType' subst constraints (Monotype t) = return (typeSubstitute subst t)
 
 freshAbstract :: MonadIO m => [Id] -> AbstractSkeleton -> PNSolver m AbstractSkeleton
-freshAbstract bound t@(AScalar (ATypeVarT id)) | id `elem` bound = return t
-freshAbstract bound (AScalar (ATypeVarT {})) = do
-    v <- freshId "A"
-    return (AScalar (ATypeVarT v))
-freshAbstract bound (AScalar (ADatatypeT id args)) = do
-    args' <- mapM (freshAbstract bound) args
-    return (AScalar (ADatatypeT id args'))
-freshAbstract bound (AFunctionT tArg tRes) = do
-    tArg' <- freshAbstract bound tArg
-    tRes' <- freshAbstract bound tRes
-    return (AFunctionT tArg' tRes')
+freshAbstract bound t = do
+    (_, t') <- freshAbstract' bound (Map.empty) t
+    return t'
+  where
+    freshAbstract' bound m t@(AScalar (ATypeVarT id)) | id `elem` bound = return (m, t)
+    freshAbstract' bound m (AScalar (ATypeVarT id)) | id `Map.member` m = 
+        return (m, fromJust (Map.lookup id m))
+    freshAbstract' bound m (AScalar (ATypeVarT id)) = do
+        v <- freshId "A"
+        return (Map.insert id v m, AScalar (ATypeVarT v))
+    freshAbstract' bound m (AScalar (ADatatypeT id args)) = do
+        (m', args') <- foldrM (\(accm, acct) t -> (m', t') <- freshAbstract bound accm t; return (m', t':acct)) (m,[]) args
+        return (m', AScalar (ADatatypeT id args'))
+    freshAbstract' bound m (AFunctionT tArg tRes) = do
+        (m', tArg') <- freshAbstract' bound m tArg
+        (m'', tRes') <- freshAbstract' bound m' tRes
+        return (m'', AFunctionT tArg' tRes')
 
 mkConstraint :: MonadIO m => [Id] -> Id -> AbstractSkeleton -> PNSolver m UnifConstraint
 mkConstraint bound v t = do

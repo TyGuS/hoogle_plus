@@ -48,7 +48,7 @@ import Types.Abstract
 import Types.Solver
 import Types.Program
 import Types.Experiments
-import Types.Encoder hiding (varName)
+import Types.Encoder hiding (varName, mustFirers)
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Program
 import Synquid.Type
@@ -87,34 +87,35 @@ instantiate env sigs = Map.fromList <$> instantiate' sigs
         sigs' <- Map.toList <$> mapM freshType sigs
         foldM (\acc -> (<$>) (acc ++) . uncurry (instantiateWith env typs)) [] sigs'
 
+-- add Pair_match function as needed
 instantiateWith :: MonadIO m => Environment -> [AbstractSkeleton] -> Id -> RType -> PNSolver m [(Id, AbstractSkeleton)]
 instantiateWith env typs id t = do
-    let varNum = nestedArity t + 1
-    let multiSubsts = multiPermutation varNum typs
-    foldM (\accMap ats -> do
-        t' <- toAbstractType . shape <$> freshType (Monotype t)
-        let at = construct ats t
-        let bound = env ^. boundTypeVars
-        constraints <- typeConstraints bound t' at
-        let unifier = getUnifier bound constraints
-        case unifier of
-            Just u -> do
-                newId <- if "Pair" `isPrefixOf` id then freshId (id ++ "_") else freshId "f"
-                modify $ over nameMapping (Map.insert newId id)
-                abstraction <- gets (view abstractionTree)
-                let resAt = foldr (uncurry abstractSubstitute) (lastAbstract t') (Map.toList u)
-                let currRes = currentAbst bound abstraction resAt
-                let at' = attachLast currRes at
-                return ((newId, at') : accMap)
-            Nothing -> return accMap) [] multiSubsts
-  where
-    nestedArity (FunctionT _ tArg tRes) = 1 + nestedArity tArg + nestedArity tRes
-    nestedArity _ = 0
-
-    -- for higher order args
-    construct ats (FunctionT _ tArg tRes) = let (argAt, resAt) = splitAt (nestedArity tArg + 1) ats
-                                            in AFunctionT (construct argAt tArg) (construct resAt tRes)
-    construct [at] t = at
+    abstraction <- gets (view abstractionTree)
+    ft <- freshType (Monotype t)
+    let t' = toAbstractType (shape ft)
+    let bound = env ^. boundTypeVars
+    let comps = decompose t'
+    let vars = Set.toList (typeVarsOf ft)
+    let typComp = [(comp, typ) | comp <- comps, typ <- typs]
+    let unifiers = getUnifier bound typComp
+    let usefulUnifs = filter isJust unifiers
+    let unboxUnifs = nub (map fromJust usefulUnifs)
+    let findSubst = Map.findWithDefault (AScalar (ATypeVarT varName))
+    let mkSubst u = map (\id -> (id, findSubst id u)) vars
+    let fullUnifs = map mkSubst unboxUnifs
+    mapM (\subst -> do
+        newId <- if "Pair" `isPrefixOf` id then freshId (id ++ "_") 
+                                           else freshId "f"
+        modify $ over nameMapping (Map.insert newId id)
+        currentInsts <- gets (view instanceMapping)
+        let sig = foldr (uncurry abstractSubstitute) t' subst
+        let currSig = currentAbst bound abstraction sig
+        -- check whether this signature is used
+        -- TODO: check whether the hash function is correct here, if not change back to list and it is definitely correct
+        modify $ over instanceMapping (Map.insert (id, subst) newId)
+        when (Map.member id (env ^. arguments))
+             (modify $ over mustFirers ((:) newId))
+        return (newId, at'))
 
 -- | we need to decide which transitions to be disabled after our current refinement
 -- if any of the arguments in the signature after the refinement is more 
@@ -137,6 +138,7 @@ splitTransition env tid info = do
     writeLog 3 $ pretty tid
     sigs <- gets (view currentSigs)
     abstraction <- gets (view abstractionTree)
+    musters <- gets (view mustFirers)
     let splitedTyp = fst (head (splitedPlaces info))
     let newTyps = snd (head (splitedPlaces info))
     let typ = fromMaybe (error $ printf "cannot find transition %s in sig map" tid) (Map.lookup tid sigs)
@@ -159,6 +161,8 @@ splitTransition env tid info = do
     mapM_ (\(id, ty) -> modify $ over currentSigs (Map.insert id ty)) purgedTyps
     mapM_ (\(id, ty) -> modify $ over functionMap (HashMap.insert id (encodeFunction id ty))) purgedTyps
     mapM_ (uncurry typeMap) purgedTyps
+    when (tid `elem` musters) 
+         (mapM_ (\(id,_) -> modify $ over mustFirers ((:) id)) purgedTyps)
     -- step 3: pack the information into SplitInfo for incremental encoding
     let newIds = fst (unzip purgedTyps)
     -- step 4: remove splited transition from the type2transition mapping when necessary
@@ -170,7 +174,8 @@ splitTransition env tid info = do
         modify $ over type2transition (Map.map (delete tid))
         modify $ over functionMap (HashMap.delete tid)
         -- step 5: update the detailed signature ids
-        modify $ over detailedSigs (Set.delete tid))
+        modify $ over detailedSigs (Set.delete tid)
+        modify $ over mustFirers (delete tid))
     -- step 5: update the detailed signature ids
     modify $ over detailedSigs (Set.union (Set.fromList newIds))
     -- step 6: return the new split information with splited transitions
@@ -185,19 +190,33 @@ splitTransition env tid info = do
            let hops = groupOn fst (sortOn fst tyPairs)
            let tps = map (\xs -> (fst (head xs), nubOrd (snd (unzip xs)))) hops
            let newPairs = map (\xs -> (fst (head xs), nubOrd (snd (unzip xs)))) pgs
+           let tid' = Text.unpack (Text.replace "Pair" "Pair_match" (Text.pack tid))
            return (info { splitedPlaces = splitedPlaces info ++ tps
-                        , removedTrans = if canDelete then tid : removedTrans info else removedTrans info
+                        , removedTrans = if canDelete
+                                            then if "Pair" `isPrefixOf` tid 
+                                                    then tid':tid:removedTrans info 
+                                                    else tid:removedTrans info 
+                                            else removedTrans info
                         , newTrans = (tid, newIds) : newPairs ++ newTrans info })
   where
+    restrictArgs abstraction (AScalar (ADatatypeT "Pair" args)) params =
+        let args' = map (currentAbst (env ^. boundTypeVars) abstraction) args
+            tyPairs = zip params args'
+         in and (map (uncurry (isSubtypeOf (env ^. boundTypeVars))) tyPairs)
+    restrictArgs _ _ _ = True
+
     addPairMatch unifiedTyps | "Pair" `isPrefixOf` tid = do
+        abstraction <- gets (view abstractionTree)
         let tid' = Text.unpack (Text.replace "Pair" "Pair_match" (Text.pack tid))
-        let pairs = map (\(id, ty) -> mkPairMatch (encodeFunction id ty)) unifiedTyps
+        -- when the parameter are not most restrictive, do not add the pair projection
+        let restrictPairs = filter (\(_, ty) -> let tys = decompose ty in restrictArgs abstraction (last tys) (init tys)) unifiedTyps
+        let pairs = map (\(id, ty) -> mkPairMatch (encodeFunction id ty)) restrictPairs
         mapM_ (\(id, ty) -> do
                                 let AFunctionT arg0 (AFunctionT arg1 ret) = ty
                                 modify $ over currentSigs (Map.insert (replaceId "Pair" "fst" id) (AFunctionT ret arg0))
                                 modify $ over currentSigs (Map.insert (replaceId "Pair" "snd" id) (AFunctionT ret arg1))) unifiedTyps
         mapM_ (\ef -> modify $ over functionMap (HashMap.insert (funName ef) ef)) pairs
-        mapM_ (\(id, ty) -> typeMap (replaceId "Pair" "Pair_match" id) ty) unifiedTyps
+        mapM_ (\(id, ty) -> typeMap (replaceId "Pair" "Pair_match" id) ty) restrictPairs
         let newIds' = map funName pairs
         return (info { newTrans = (tid', newIds') : newTrans info })
     addPairMatch unfiedTyps | otherwise = return info
@@ -216,15 +235,19 @@ splitTransition env tid info = do
     getHoParams _ = []
 
     typeMap id ty = do
-        let tys = decomposeHo ty
+        let tys = nub (decomposeHo ty)
         mapM_ (\t -> modify $ over type2transition (Map.insertWith union t [id])) tys
 
-    genTypes pattern newTyps (AFunctionT tArg tRet) =
+    genTypes pattern newTyps (AFunctionT tArg tRet) (AFunctionT tArg' tRet') =
             [ AFunctionT arg ret | arg <- args, ret <- rets ]
         where
-            args = genTypes pattern newTyps tArg
-            rets = genTypes pattern newTyps tRet
-    genTypes pattern newTyps t = if t == pattern then t:newTyps else [t]
+            args = genTypes pattern newTyps tArg tArg'
+            rets = if isAFunctionT tRet then genTypes pattern newTyps tRet tRet' else [tRet]
+    genTypes pattern [] t t' = error "empty newTyps"
+    genTypes pattern newTyps t t' | t == pattern = if isSubtypeOf (env ^. boundTypeVars) t' (head newTyps)
+                                                      then newTyps 
+                                                      else t:newTyps
+                                  | otherwise = [t]
 
     isConsistent t1 t2 = let (_, res) = isConsistent' Map.empty t1 t2 in res
     -- unify all the arguments and substitute the result in the return value
@@ -241,18 +264,40 @@ splitTransition env tid info = do
 
     constructFinal res unifier t = do
         abstraction <- gets (view abstractionTree)
-        res' <- constructFinal' res unifier (AScalar (ATypeVarT varName)) (Set.toList abstraction)
-        return (attachLast res' t)
+        let bound = env ^. boundTypeVars
+        let res' = foldl' (\acc (id, t) -> abstractSubstitute id t acc) res (Map.toList unifier)
+        (resCand, currList) <- constructFinal' res' unifier (AScalar (ATypeVarT varName), []) (Set.toList abstraction)
+        if isSubtypeOf bound res' resCand
+           then return [attachLast resCand t]
+           else do
+               -- we are underapproximating the return type
+               -- relax the type until we are overapproximating it
+               let resCands = takeWhile' res' currList
+               let compTyps = map (`attachLast` t) resCands
+               return compTyps
+
+    insertTyp t [] = [t]
+    insertTyp t (x:xs) | isSubtypeOf (env ^. boundTypeVars) t x = t:x:xs
+    insertTyp t (x:xs) = x:(insertTyp t xs)
+
+    takeWhile' _ [] = []
+    takeWhile' t (x:xs) | equalAbstract (env ^. boundTypeVars) t x = [x]
+                        | isSubtypeOf (env ^. boundTypeVars) x t = x:takeWhile' t xs
+                        | otherwise = [x]
 
     constructFinal' res unifier sofar [] = return sofar
     constructFinal' res unifier sofar (t:ts) = do
         let bound = env ^. boundTypeVars
-        t' <- freshAbstract t
+        t' <- freshAbstract bound t
         let unifier' = getUnifier' bound (Just unifier) [(res, t')]
+        let (approx, currList) = sofar
         case unifier' of
             Nothing -> constructFinal' res unifier sofar ts
-            Just u | isSubtypeOf bound t sofar -> constructFinal' res unifier t ts
-                   | otherwise -> constructFinal' res unifier sofar ts
+            Just u | isSubtypeOf bound t approx && (isSubtypeOf bound t res || isSubtypeOf bound res t) 
+                        -> constructFinal' res unifier (t, insertTyp t currList) ts
+                   | isSubtypeOf bound t res || isSubtypeOf bound res t 
+                        -> constructFinal' res unifier (approx, insertTyp t currList) ts
+                   | otherwise -> constructFinal' res unifier (approx, currList) ts
 
     unifyNewType typ newTyps = do
         let id' = removeLast '_' tid
@@ -261,7 +306,8 @@ splitTransition env tid info = do
         -- pass the current abstract hierarchy into the unifier
         abstraction <- view abstractionTree <$> get
         -- get all the constraints
-        let typs = genTypes (fst (head (splitedPlaces info))) newTyps typ
+        writeLog 3 $ pretty (splitedPlaces info)
+        let typs = genTypes (fst (head (splitedPlaces info))) newTyps typ polyTyp
         constraints <- mapM (typeConstraints bound polyTyp) typs
         writeLog 3 $ text "trying to solve constraints" <+> pretty constraints
         let unifiers = map (getUnifier bound) constraints
@@ -272,7 +318,7 @@ splitTransition env tid info = do
                let unboxUnifs = map (\(u, t) -> (fromJust u, t)) usefulUnifs
                ts <- nub . filter (isConsistent polyTyp)
                         <$> if isAFunctionT polyTyp 
-                               then mapM (uncurry (constructFinal (lastAbstract polyTyp))) unboxUnifs
+                               then concat <$> mapM (uncurry (constructFinal (lastAbstract polyTyp))) unboxUnifs
                                else return (snd (unzip unboxUnifs))
                -- writeLog 3 $ text "get signatures" <+> pretty ts
                -- let filteredTs = filter (isConsistent polyTyp) ts
@@ -310,10 +356,10 @@ refineSemantic env prog at = do
     propagate env prog at
     -- get the split pairs
     splits <- gets (view splitTypes)
-    writeLog 2 $ pretty splits
-    splitInfos <- mapM (uncurry transSplit) splits
-    let SplitInfo pls dtrs trs = combineInfo splitInfos
-    writeLog 2 $ pretty trs
+    -- writeLog 3 $ pretty splits
+    splitInfos <- mapM transSplit splits
+    let SplitInfo pls dtrs trs = combineInfo (concat splitInfos)
+    -- writeLog 3 $ pretty trs
     (dtrs', trs') <- flattenInfo dtrs trs
     return (SplitInfo pls dtrs' trs')
   where
@@ -343,27 +389,21 @@ refineSemantic env prog at = do
                    (dtrs'', infos') <- flattenInfo dtrs' infos
                    return (dtrs'', (tr, trs):infos')
 
-    transSplit t1 t2 = do
+    transSplit t = do
         semantic <- gets (view abstractionTree)
-        writeLog 2 $ text "add type" <+> pretty t2 <+> text "into" <+> pretty (Set.toList semantic)
-        let semantic' = t2 `Set.insert` semantic
+        writeLog 3 $ text "add type" <+> pretty t <+> text "into" <+> pretty (Set.toList semantic)
+        let semantic' = t `Set.insert` semantic
         modify $ set abstractionTree semantic'
-        writeLog 2 $ text $ printf "%s is splited into %s" (show t1) (show t2)
+        -- writeLog 2 $ text $ printf "%s is splited into %s" (show t1) (show t2)
         writeLog 2 $ text "new semantic is" <+> pretty (Set.toList semantic')
+        let bound = env ^. boundTypeVars
         t2tr <- view type2transition <$> get
-        let tids = Map.findWithDefault [] t1 t2tr
-        let nts = Set.toList (Set.difference semantic' semantic)
-        if null tids
-           then error "null transition splits"
-               {-               -- find one of the leaf node to split at
-               let t1' = head (filter (isSubtypeOf t2) (leafTypes semantic))
-               let splitNode = SplitInfo [(t1', nts)] []
-               let tids' = Map.findWithDefault [] t1' t2tr
-               SplitInfo _ trs <- foldrM (splitTransition env) splitNode tids'
-               return (SplitInfo [(t1, nts)] trs) -}
-           else do
-               let splitNode = SplitInfo [(t1, nts)] [] []
-               foldrM (splitTransition env) splitNode tids
+        let potentialSplits = filter (isSubtypeOf bound t) (Set.toList semantic)
+        mapM (\pt -> do
+            let tids = Map.findWithDefault [] pt t2tr
+            let nts = [t]
+            let splitNode = SplitInfo [(pt, nts)] [] []
+            foldrM (splitTransition env) splitNode tids) potentialSplits
 
 initNet :: MonadIO m => Environment -> PNSolver m ()
 initNet env = withTime ConstructionTime $ do
@@ -402,7 +442,7 @@ initNet env = withTime ConstructionTime $ do
         modify $ over currentSigs (Map.insert (replaceId "Pair" "snd" id) (AFunctionT ret arg1))
         -- store the used abstract types and their groups into mapping
         let addTransition k tid = Map.insertWith union k [tid]
-        let includedTyps = decomposeHo f
+        let includedTyps = nub (decomposeHo f)
         mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
         mapM_ (\t -> modify $ over type2transition (addTransition t (replaceId "Pair" "Pair_match" id))) includedTyps
     addEncodedFunction (id, f) | isAHigherOrder f = do
@@ -414,7 +454,7 @@ initNet env = withTime ConstructionTime $ do
         let hops = filter isAFunctionT (abstractParamList f)
         mapM_ addHoParam hops
         let addTransition k tid = Map.insertWith union k [tid]
-        let includedTyps = decomposeHo f
+        let includedTyps = nub (decomposeHo f)
         mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
     addEncodedFunction (id, f) = do
         let ef = encodeFunction id f
@@ -422,7 +462,7 @@ initNet env = withTime ConstructionTime $ do
         modify $ over currentSigs (Map.insert id f)
         -- store the used abstract types and their groups into mapping
         let addTransition k tid = Map.insertWith union k [tid]
-        let includedTyps = decomposeHo f
+        let includedTyps = nub (decomposeHo f)
         mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
 
 resetEncoder :: (MonadIO m) => Environment -> RType -> PNSolver m EncodeState
@@ -446,9 +486,10 @@ resetEncoder env dst = do
     loc <- gets (view currentLoc)
     funcs <- gets (view functionMap)
     t2tr <- gets (view type2transition)
+    musters <- gets (view mustFirers)
     let tid2tr = Map.foldrWithKey (\k v -> Map.insert (show k) v) Map.empty t2tr
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    liftIO $ encoderInit loc hoArgs (map show srcTypes) (show tgt) (HashMap.elems funcs) tid2tr
+    liftIO $ encoderInit loc musters (map show srcTypes) (show tgt) (HashMap.elems funcs) tid2tr
 
 incEncoder :: MonadIO m => Environment -> EncodeState -> PNSolver m EncodeState
 incEncoder env st = do
@@ -457,6 +498,7 @@ incEncoder env st = do
     loc <- gets (view currentLoc)
     funcs <- gets (view functionMap)
     t2tr <- gets (view type2transition)
+    musters <- gets (view mustFirers)
     let tid2tr = Map.foldrWithKey (\k v -> Map.insert (show k) v) Map.empty t2tr
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
     liftIO $ execStateT (encoderInc (HashMap.elems funcs) (map show src) (show tgt)) st
@@ -541,8 +583,9 @@ fixEncoder env dst st info = do
     modify $ over type2transition (Map.filter (not . null))
     funcs <- gets (view functionMap)
     t2tr <- gets (view type2transition)
+    musters <- gets (view mustFirers)
     let tid2tr = Map.foldrWithKey (\k v -> Map.insert (show k) v) Map.empty t2tr
-    liftIO $ execStateT (encoderRefine info (HashMap.elems funcs) tid2tr (map show srcTypes) (show tgt)) st
+    liftIO $ execStateT (encoderRefine info (HashMap.elems funcs) tid2tr (map show srcTypes) (show tgt) musters) st
 
 findProgram :: MonadIO m => Environment -> RType -> EncodeState -> PNSolver m (RProgram, EncodeState)
 findProgram env dst st = do
@@ -678,8 +721,8 @@ addCloneFunction ty = do
 
 addHoParam t = do
     let addTransition k tid = Map.insertWith union k [tid]
-    let params = init (decomposeHo t)
-    let ret = last (decomposeHo t)
+    let params = init (nub (decomposeHo t))
+    let ret = last (nub (decomposeHo t))
     let uncolorTr = show t ++ "|uncolor"
     modify $ over type2transition (addTransition ret uncolorTr)
     modify $ over type2transition (addTransition t uncolorTr)

@@ -43,7 +43,7 @@ defaultColor = 0
 -- | create a new encoder in z3
 createEncoder :: [Id] -> Id -> [FunctionCode] -> Encoder ()
 createEncoder inputs ret sigs = do
-    places <- gets (Map.keys . ty2tr)
+    places <- gets ((:) "void" . Map.keys . ty2tr)
     transIds <- gets (nubOrd . concat . Map.elems . ty2tr)
     -- create all the type variables for encoding
     createVariables places transIds
@@ -60,7 +60,7 @@ setInitialState :: [Id] -> [Id] -> Encoder ()
 setInitialState inputs places = do
     let nonInputs = filter (\k -> notElem k inputs) places
     let inputCounts = map (\t -> (head t, length t)) (group (sort inputs))
-    let typeCounts = inputCounts ++ (map (\t -> (t, 0)) nonInputs)
+    let typeCounts = inputCounts ++ (map (\t -> if t == "void" then ("void", 1) else (t, 0)) nonInputs)
     -- assign tokens to each types
     mapM_ (uncurry assignToken) typeCounts
   where
@@ -176,7 +176,7 @@ encoderInc sigs inputs ret = do
 
     st <- get
     put $ st { loc = loc st + 1 }
-    places <- gets (Map.keys . ty2tr)
+    places <- gets ((:) "void" . Map.keys . ty2tr)
     transitions <- gets (nubOrd . concat . Map.elems . ty2tr)
     l <- gets loc
 
@@ -213,23 +213,25 @@ encoderInc sigs inputs ret = do
 -- | wrap some action with time measuring and print out the execution time
 withTime :: String -> Encoder a -> Encoder a
 withTime desc f = do
-    start <- liftIO getCPUTime
+    {-    start <- liftIO getCPUTime
     res <- f
     end <- liftIO getCPUTime
     let diff = (fromIntegral (end - start)) / (10^12)
     let time = printf "%s time: %0.3f sec\n" desc (diff :: Double)
     liftIO $ putStrLn time
     return res
+    -}
+    f
 
-    -- f
-
-encoderRefine :: SplitInfo -> [FunctionCode] -> Map Id [Id] -> [Id] -> Id -> Encoder ()
-encoderRefine info sigs t2tr inputs ret = do
+encoderRefine :: SplitInfo -> [FunctionCode] -> Map Id [Id] -> [Id] -> Id -> [Id] -> Encoder ()
+encoderRefine info sigs t2tr inputs ret musters = do
     pop 1
 
     {- update the abstraction level -}
     st <- get
-    put $ st { ty2tr = t2tr }
+    put $ st { ty2tr = t2tr 
+             , mustFirers = musters
+             }
 
     {- operation on places -}
     let newPlaces = map show (concat (snd (unzip (splitedPlaces info))))
@@ -498,7 +500,7 @@ fireTransitions t (FunctionCode name [] params rets) = do
     tsMap <- gets time2variable
     -- accumulate counting for parameters and return types
     let tid = findVariable name transMap
-    let pcnt = map (\l -> (head l, length l)) (group (sort params))
+    let pcnt = if null params then [("void", 1)] else map (\l -> (head l, length l)) (group (sort params))
     let pmap = Map.fromList pcnt
     let rmap = foldl' (\acc t -> Map.insertWith (+) t (-1) acc) pmap rets
     let rcnt = Map.toList rmap

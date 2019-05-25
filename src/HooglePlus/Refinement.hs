@@ -22,9 +22,10 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Control.Lens
 import Data.List
+import Data.Tuple (swap)
 import Data.Maybe
 
-distinguish :: MonadIO m => Environment -> SType -> SType -> PNSolver m (Maybe SType)
+distinguish :: MonadIO m => Environment -> SType -> SType -> PNSolver m (Maybe (SType, SType))
 distinguish env AnyT _ = return Nothing
 distinguish env _ AnyT = return Nothing
 distinguish env t1 t2 = do
@@ -34,39 +35,49 @@ distinguish env t1 t2 = do
     distinguish' (env ^. boundTypeVars) t1' t2'
 
 -- | t1 is the expected type, t2 is the actual type
-distinguish' :: MonadIO m => [Id] -> SType -> SType -> PNSolver m (Maybe SType)
+distinguish' :: MonadIO m => [Id] -> SType -> SType -> PNSolver m (Maybe (SType, SType))
 distinguish' _ t1 t2 | t1 == t2 = return Nothing
 distinguish' _ t1@(ScalarT (DatatypeT id1 tArgs1 _) _) t2@(ScalarT (DatatypeT id2 tArgs2 _) _) | id1 /= id2 = do
-    argNames <- mapM (\_ -> freshId "A") tArgs2
-    let args = map (\n -> ScalarT (TypeVarT Map.empty n) ()) argNames
-    return (Just (ScalarT (DatatypeT id2 args []) ()))
+    argNames1 <- mapM (\_ -> freshId "A") tArgs1
+    let freshArgs1 = map (\n -> ScalarT (TypeVarT Map.empty n) ()) argNames1
+    argNames2 <- mapM (\_ -> freshId "A") tArgs2
+    let freshArgs2 = map (\n -> ScalarT (TypeVarT Map.empty n) ()) argNames2
+    return (Just (ScalarT (DatatypeT id1 freshArgs1 []) (), ScalarT (DatatypeT id2 freshArgs2 []) ()))
 distinguish' tvs t1@(ScalarT (DatatypeT id1 tArgs1 _) _) t2@(ScalarT (DatatypeT id2 tArgs2 _) _) | id1 == id2 = do
     diffs <- firstDifference tArgs1 tArgs2
     case diffs of
-      [] -> return Nothing
-      ds -> return (Just (ScalarT (DatatypeT id2 ds []) ()))
+      ([], []) -> return Nothing
+      (ds1, ds2) -> return (Just (ScalarT (DatatypeT id1 ds1 []) (), ScalarT (DatatypeT id2 ds2 []) ()))
   where
-    firstDifference [] [] = return []
+    firstDifference [] [] = return ([], [])
     firstDifference (arg:args) (arg':args') = do
         currDiff <- distinguish' tvs arg arg'
         case currDiff of
             Nothing -> do
                 argsDiff <- firstDifference args args'
                 case argsDiff of
-                    [] -> return []
-                    diffs -> ((:diffs) . flip ScalarT () . TypeVarT Map.empty) <$> (freshId "A")
-            Just t  -> do
-                argNames <- mapM (\_ -> freshId "A") args'
-                let freshArgs = map (\n -> ScalarT (TypeVarT Map.empty n) ()) argNames
-                return (t:freshArgs)
+                    ([],[]) -> return ([],[])
+                    (diffs1, diffs2) -> do
+                        a1 <- flip ScalarT () . TypeVarT Map.empty <$> freshId "A"
+                        a2 <- flip ScalarT () . TypeVarT Map.empty <$> freshId "A"
+                        return (a1:diffs1, a2:diffs2)
+            Just (t1, t2) -> do
+                argNames1 <- mapM (\_ -> freshId "A") args
+                let freshArgs1 = map (\n -> ScalarT (TypeVarT Map.empty n) ()) argNames1
+                argNames2 <- mapM (\_ -> freshId "A") args'
+                let freshArgs2 = map (\n -> ScalarT (TypeVarT Map.empty n) ()) argNames2
+                return (t1:freshArgs1, t2:freshArgs2)
 distinguish' tvs t1@(ScalarT (TypeVarT {}) _) t2@(ScalarT (DatatypeT id args _) _) = do
     argNames <- mapM (\_ -> freshId "A") args
     let args' = map (\n -> ScalarT (TypeVarT Map.empty n) ()) argNames
-    return (Just (ScalarT (DatatypeT id args' []) ()))
-distinguish' tvs (ScalarT (DatatypeT {}) _) (ScalarT (TypeVarT _ id) _) | id `elem` tvs = return (Just (ScalarT (TypeVarT Map.empty id) ()))
+    return (Just (t1, ScalarT (DatatypeT id args' []) ()))
+distinguish' tvs t1@(ScalarT (DatatypeT {}) _) t2@(ScalarT (TypeVarT _ id) _) | id `elem` tvs = do
+    diffs <- distinguish' tvs t2 t1
+    case diffs of
+      Nothing -> return Nothing
+      Just d -> return (Just (swap d))
 distinguish' tvs (ScalarT (DatatypeT {}) _) (ScalarT (TypeVarT _ id) _) = error "undecided actual type" -- return (Just (ScalarT (TypeVarT Map.empty id) ()))
-distinguish' tvs (ScalarT (TypeVarT _ id) _) (ScalarT (TypeVarT {}) _) | id `elem` tvs = return (Just (ScalarT (TypeVarT Map.empty id) ()))
-distinguish' tvs (ScalarT (TypeVarT {}) _) (ScalarT (TypeVarT _ id) _) | id `elem` tvs = return (Just (ScalarT (TypeVarT Map.empty id) ()))
+distinguish' tvs t1@(ScalarT (TypeVarT _ id1) _) t2@(ScalarT (TypeVarT _ id2) _) | id1 `elem` tvs || id2 `elem` tvs = return (Just (t1, t2))
 distinguish' tvs (ScalarT (TypeVarT {}) _) (ScalarT (TypeVarT {}) _) = return Nothing
 distinguish' _ t1 t2 = error $ printf "unhandled case for distinguish %s and %s" (show t1) (show t2)
 
@@ -91,19 +102,27 @@ strengthenRoot env dfault expected actual = do
     writeLog 3 $ text "strengthen root with expected" <+> pretty expected <+> text "and actual" <+> pretty actual <+> text "and get" <+> pretty diff
     case diff of
       Nothing -> error $ "same expected and actual type" 
-      Just t -> do
+      Just (ed, ad) -> do
           let bound = env ^. boundTypeVars
           -- find an abstraction that unifies both the current abstraction and the distinguished type
-          absTyp <- freshAbstract bound (toAbstractType t)
-          v <- freshId "v"
-          let constraints = [(AScalar (ATypeVarT v), absTyp), (AScalar (ATypeVarT v), dfault)]
+          absTyp <- freshAbstract bound (toAbstractType ad)
+          eabsTyp <- freshAbstract bound (toAbstractType ed)
+          let constraints = [(absTyp, dfault)]
           let unifier = getUnifier bound constraints
           case unifier of
-              Nothing -> error $ "distinguished type does not unify the current abstraction"
+              Nothing -> do
+                  writeLog 3 $ text "distinguished type" <+> pretty absTyp <+> text "does not unify the current abstraction" <+> pretty dfault
+                  when (and (map (not . equalAbstract bound absTyp) (Set.toList semantic)))
+                       (modify $ over splitTypes (nubBy (equalAbstract bound) . (:) absTyp))
+                  when (and (map (not . equalAbstract bound eabsTyp) (Set.toList semantic)))
+                       (modify $ over splitTypes (nubBy (equalAbstract bound) . (:) eabsTyp))
+                  return absTyp
               Just u -> do
-                  let newAbsTyp = foldr (uncurry abstractSubstitute) (AScalar (ATypeVarT v)) (Map.toList u)
-                  when (not (equalAbstract bound newAbsTyp dfault))
-                       (modify $ over splitTypes (nubBy (equalSplit bound) . (:) (dfault, newAbsTyp)))
+                  let newAbsTyp = foldr (uncurry abstractSubstitute) absTyp (Map.toList u)
+                  when (and (map (not . equalAbstract bound newAbsTyp) (Set.toList semantic)))
+                       (modify $ over splitTypes (nubBy (equalAbstract bound) . (:) newAbsTyp))
+                  when (and (map (not . equalAbstract bound eabsTyp) (Set.toList semantic)))
+                       (modify $ over splitTypes (nubBy (equalAbstract bound) . (:) eabsTyp))
                   return newAbsTyp
 
 propagate :: MonadIO m => Environment -> AProgram -> AbstractSkeleton -> PNSolver m (Maybe AbstractSkeleton)
@@ -116,17 +135,26 @@ propagate env (Program (PSymbol sym) (_, _, local)) upstream = do
     let resTyp = toAbstractType (shape (lastType t))
     let localTyp = lastAbstract local
     let upstreamTyp = upstream
-    let consTyps = if isFunctionType t then [resTyp, localTyp, upstreamTyp] else [localTyp, upstreamTyp]
+    let consTyps = [localTyp, upstreamTyp]
     v <- freshId "v"
     constraints <- mapM (mkConstraint bound v) consTyps
     let unifier = getUnifier bound constraints
     case unifier of
-        Nothing -> return Nothing
+        Nothing -> do
+            writeLog 3 $ pretty localTyp <+> text "and" <+> pretty upstreamTyp <+> text "does not unify"
+            let absTyp = upstreamTyp
+            when (and (map (not . equalAbstract bound absTyp) (Set.toList semantic)))
+                 (modify $ over splitTypes (nubBy (equalAbstract bound) . (:) absTyp))
+            let tass' = fromJust (getUnifier bound [(resTyp, absTyp)])
+            let t' = foldl' (\acc (id, tt) -> abstractSubstitute id tt acc) (toAbstractType (shape t)) (Map.toList tass')
+            return (Just t')
         Just tass -> do
-            let absTyp = foldr (uncurry abstractSubstitute) (AScalar (ATypeVarT v)) (Map.toList tass)
-            when (not (equalAbstract bound absTyp localTyp))
-                 (modify $ over splitTypes (nubBy (equalSplit bound) . (:) (localTyp, absTyp)))
-            let t' = foldr (uncurry abstractSubstitute) (toAbstractType (shape t)) (Map.toList tass)
+            let absTyp = foldl' (\acc (id, tt) -> abstractSubstitute id tt acc) (AScalar (ATypeVarT v)) (Map.toList tass)
+            writeLog 3 $ text "backprop get" <+> pretty absTyp <+> text "from upstream" <+> pretty upstream <+> text "and local" <+> pretty localTyp
+            when (and (map (not . equalAbstract bound absTyp) (Set.toList semantic)))
+                 (modify $ over splitTypes (nubBy (equalAbstract bound) . (:) absTyp))
+            let tass' = fromJust (getUnifier bound [(resTyp, absTyp)])
+            let t' = foldl' (\acc (id, tt) -> abstractSubstitute id tt acc) (toAbstractType (shape t)) (Map.toList tass')
             return (Just t')
 propagate env (Program (PApp pFun pArg) (_, _, local)) upstream = do
     maybeFun <- propagate env pFun upstream

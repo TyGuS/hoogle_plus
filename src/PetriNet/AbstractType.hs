@@ -39,11 +39,11 @@ lastAbstract (AFunctionT _ tRet) = lastAbstract tRet
 lastAbstract t = t
 
 decompose :: AbstractSkeleton -> [AbstractSkeleton]
-decompose (AFunctionT tArg tRet) = nub (decompose tArg ++ decompose tRet)
+decompose (AFunctionT tArg tRet) = decompose tArg ++ decompose tRet
 decompose t@(AScalar {}) = [t]
 
 decomposeHo :: AbstractSkeleton -> [AbstractSkeleton]
-decomposeHo (AFunctionT tArg tRet) = nub (tArg : decomposeHo tRet)
+decomposeHo (AFunctionT tArg tRet) = tArg : decomposeHo tRet
 decomposeHo t = [t]
 
 toAbstractType :: SType -> AbstractSkeleton
@@ -66,8 +66,12 @@ checkUnification bound tass t1 t2 | t1 == t2 = Just tass
 checkUnification bound tass (AScalar (ATypeVarT id)) (AScalar (ATypeVarT id')) | id `elem` bound && id' `elem` bound = Nothing
 checkUnification bound tass t@(AScalar (ATypeVarT id)) t' | id `elem` bound = checkUnification bound tass t' t
 checkUnification bound tass (AScalar (ATypeVarT id)) t | id `Map.member` tass =
-    checkUnification bound tass assigned t
+    -- keep the most informative substitution, eagerly substitute into the final result
+    case checkUnification bound tass assigned t of
+        Nothing -> Nothing
+        Just u -> Just (Map.insert id (substed u) tass)
   where
+    substed = foldl' (\acc (id, tt) -> abstractSubstitute id tt acc) assigned . Map.toList
     assigned = fromJust (Map.lookup id tass)
 checkUnification bound tass (AScalar (ADatatypeT {})) (AScalar (ATypeVarT id)) | id `elem` bound = Nothing
 checkUnification bound tass t@(AScalar (ADatatypeT {})) (AScalar (ATypeVarT id)) = Just (Map.insert id t tass)

@@ -28,15 +28,17 @@ data SolverState = SolverState {
     _functionMap :: HashMap Id FunctionCode,
     _targetType :: AbstractSkeleton,
     _sourceTypes :: [AbstractSkeleton],
+    _mustFirers :: [Id],
     _paramNames :: [Id],
     _refineStrategy :: RefineStrategy,
     _groupMap :: Map Id [Id], -- mapping from group id to list of function names
     _type2transition :: Map AbstractSkeleton [Id], -- mapping from abstract type to group ids
     _solverStats :: TimeStatistics,
     _useGroup :: Bool,
-    _splitTypes :: [(AbstractSkeleton, AbstractSkeleton)],
+    _splitTypes :: [AbstractSkeleton],
     _nameMapping :: Map Id Id, -- mapping from fake names to real names
     _logLevel :: Int, -- temporary for log level
+    _instanceMapping :: HashMap (Id, [(Id, AbstractSkeleton)]) Id,
     _maxApplicationDepth :: Int
 } deriving(Eq)
 
@@ -53,6 +55,7 @@ emptySolverState = SolverState {
     _functionMap = HashMap.empty,
     _targetType = AScalar (ATypeVarT varName),
     _sourceTypes = [],
+    _mustFirers = [],
     _paramNames = [],
     _refineStrategy = NoRefine,
     _groupMap = Map.empty,
@@ -62,6 +65,7 @@ emptySolverState = SolverState {
     _splitTypes = [],
     _nameMapping = Map.empty,
     _logLevel = 0,
+    _instanceMapping = HashMap.empty,
     _maxApplicationDepth = 6
 }
 
