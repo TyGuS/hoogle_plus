@@ -22,7 +22,7 @@ module Database.Typeclasses where
     -- The `Pos` stuff is really useless isn't it?
     mkTypeclassDict :: Environment -> Typeclass -> ConstructorSig
     mkTypeclassDict env tyclass = ConstructorSig tyclassName tySig
-        where tySig = foldl toSignature returnTy $ interface
+        where tySig = foldl toSignature returnTy $ interfaceAsArgs
               tyclassName = dictName tyclass
 
               -- TODO: does the function name matter? 
