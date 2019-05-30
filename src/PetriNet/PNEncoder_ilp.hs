@@ -87,9 +87,8 @@ mkFlowId pn from to = unlines ["(", fromLabel, ",", toLabel, ")"]
 encoderSolve :: EncodeStateILP -> IO ([(Id, Int)],EncodeStateILP)
 encoderSolve state = 
     case solve $ prog state of
-    Left e -> error $ "Error: " ++ show e
-    Right res@(Assignment zs _) -> do
-        return (getResult (transitions state) $ Map.filterWithKey (\k a -> a /= Z 0 && 'F' == head k) zs, state)
+    Left e -> return ([], state)
+    Right res@(Assignment zs _) -> return (getResult (transitions state) $ Map.filterWithKey (\k a -> a /= Z 0 && 'F' == head k) zs, state)
 
 getResult :: [Id] -> Map.Map String (Z c) -> [(Id, Int)]
 getResult trans zs =  map (\k -> (trans !! (read (head (split k)) :: Int ), read (last (split k)) :: Int)) $ Map.keys zs

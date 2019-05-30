@@ -156,6 +156,7 @@ splitTransition env tid info = do
     let newIds = fst (unzip unifiedTyps)
     -- step 4: remove splited transition from the type2transition mapping
     modify $ over type2transition (Map.map (delete tid))
+    modify $ over solverNet (removeTransition tid)
     -- return the new split information with splited transitions
     -- step 5: update the detailed signature ids
     modify $ over detailedSigs (Set.union (Set.fromList newIds) . Set.delete tid)
