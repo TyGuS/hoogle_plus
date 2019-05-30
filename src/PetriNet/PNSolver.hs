@@ -60,8 +60,7 @@ import Synquid.Error
 import Synquid.Pretty
 import PetriNet.AbstractType
 import PetriNet.PNBuilder
-import PetriNet.PNEncoder
-import PetriNet.PNEncoder
+import PetriNet.PNEncoder_ilp
 import PetriNet.GHCChecker
 import HooglePlus.Stats
 import HooglePlus.CodeFormer
@@ -69,6 +68,13 @@ import HooglePlus.Abstraction
 import HooglePlus.Refinement
 import Database.Convert
 import Database.Generate
+
+import Numeric.Limp.Rep
+import qualified Numeric.Limp.Program as ILP
+import Numeric.Limp.Solvers.Cbc
+import qualified Data.Map.Strict as MapS
+import ILP.Encoding
+
 
 encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
 encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [show $ lastAbstractType t]
@@ -567,7 +573,7 @@ initNet env = withTime ConstructionTime $ do
         mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
         return [ef]
 
-resetEncoder :: (MonadIO m) => Environment -> RType -> PNSolver m EncodeState
+resetEncoder :: (MonadIO m) => Environment -> RType -> PNSolver m EncodeStateILP
 resetEncoder env dst = do
     -- reset source and destination types
     let binds = env ^. boundTypeVars
@@ -597,11 +603,11 @@ resetEncoder env dst = do
     modify $ set solverNet net'
     loc <- view currentLoc <$> get
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    liftIO $ encoderInit net' loc hoArgs (map show srcTypes) (show tgt)
+    return $ encoderInit net' loc hoArgs (map show srcTypes) (show tgt)
 
-findPath :: (MonadIO m) => Environment -> RType -> EncodeState -> PNSolver m (CodePieces, EncodeState)
+findPath :: (MonadIO m) => Environment -> RType -> EncodeStateILP -> PNSolver m (CodePieces, EncodeStateILP)
 findPath env dst st = do
-    (res, st') <- withTime SolverTime (liftIO (encoderSolve st))
+    (res, st') <- withTime SolverTime (liftIO $ encoderSolve st)
     case res of
         [] -> do
             currSt <- get
@@ -693,7 +699,7 @@ fixNet env (SplitInfo splitedTys splitedGps) = do
     let functionedNet = foldr addArgClone (foldr addFunction net encodedFuncs) (map show (concat (snd (unzip splitedTys))))
     modify $ set solverNet functionedNet
 
-fixEncoder :: MonadIO m => Environment -> RType -> EncodeState -> SplitInfo -> PNSolver m EncodeState
+fixEncoder :: MonadIO m => Environment -> RType -> EncodeStateILP -> SplitInfo -> PNSolver m EncodeStateILP
 fixEncoder env dst st info = do
     let binds = env ^. boundTypeVars
     abstraction <- view abstractionTree <$> get
@@ -706,9 +712,11 @@ fixEncoder env dst st info = do
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
     writeLog 2 "fixEncoder" $ text ("get split information " ++ show info)
     net <- view solverNet <$> get
-    liftIO $ execStateT (encoderRefine net info (map show srcTypes) (show tgt)) st
+    loc <- view currentLoc <$> get
+    -- liftIO $ execStateT (encoderRefine net info (map show srcTypes) (show tgt)) st
+    return $ encoderInit net loc [] (map show srcTypes) (show tgt)
 
-findProgram :: MonadIO m => Environment -> RType -> EncodeState -> PNSolver m (RProgram, EncodeState)
+findProgram :: MonadIO m => Environment -> RType -> EncodeStateILP -> PNSolver m (RProgram, EncodeStateILP)
 findProgram env dst st = do
     mesgChan <- view messageChan <$> get
     stats <- view solverStats <$> get
@@ -777,7 +785,8 @@ findProgram env dst st = do
                 refine st oldSemantic newSemantic splitInfo
 
     refine st oldSemantic newSemantic info | oldSemantic == newSemantic = do
-        let st' = st { prevChecked = True }
+        -- let st' = st { prevChecked = True }
+        let st' = st
         findProgram env dst st'
     refine st oldSemantic newSemantic info = do
         withTime ConstructionTime (fixNet env info)
@@ -793,7 +802,8 @@ findProgram env dst st = do
         findProgram env dst st'
 
     checkSolution st code = do
-        let st' = st { prevChecked = True }
+        -- let st' = st { prevChecked = True }
+        let st' = st
         solutions <- view currentSolutions <$> get
         mapping <- view nameMapping <$> get
         let code' = recoverNames mapping code
@@ -818,7 +828,7 @@ printSolution solution = do
     liftIO $ putStrLn "************************************************"
 
 
-findFirstN :: (MonadIO m) => Environment -> RType -> EncodeState -> Int -> PNSolver m ()
+findFirstN :: (MonadIO m) => Environment -> RType -> EncodeStateILP -> Int -> PNSolver m ()
 findFirstN env dst st cnt | cnt == 1  = do
     (res, _) <- withTime TotalSearch $ findProgram env dst st
     stats <- view solverStats <$> get

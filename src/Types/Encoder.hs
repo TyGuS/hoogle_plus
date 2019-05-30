@@ -14,6 +14,9 @@ import Types.PetriNet
 import Types.Common
 import Types.Abstract
 
+import Numeric.Limp.Rep
+import Numeric.Limp.Program
+
 data EncoderType = Normal | Arity
     deriving(Eq, Show, Data, Typeable)
 
@@ -51,6 +54,13 @@ data EncodeState = EncodeState {
   transitionChildren :: HashMap Id [Id],
   transitionParents :: HashMap Id [Id],
   prevChecked :: Bool
+}
+
+data EncodeStateILP = EncodeStateILP {
+  pn :: PetriNet,
+  prog :: Program String String IntDouble,
+  places :: [Id],
+  transitions :: [Id]
 }
 
 newEnv :: Maybe Logic -> Opts -> IO Z3Env

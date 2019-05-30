@@ -4,3 +4,5 @@ resolver: lts-12.4
 extra-deps:
   - table-layout-0.8.0.3
   - data-default-instances-base-0.1.0.1
+  - limp-0.3.2.3@sha256:d2802905557ebabe27f2146b0e4e7695998a8d5a170bfa5ab34a7a5ecc0148db
+  - limp-cbc-0.3.2.3@sha256:285f01fa4f4638ac821fb3549d7046abcf44993e4ae747996bd96c0bf24a0887
