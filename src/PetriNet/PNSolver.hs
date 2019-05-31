@@ -808,8 +808,9 @@ findProgram env dst st = do
         solutions <- view currentSolutions <$> get
         mapping <- view nameMapping <$> get
         let code' = recoverNames mapping code
-        checkedSols <- withTime TypeCheckTime (filterM (liftIO . runGhcChecks env dst) [code'])
-        if (code' `elem` solutions) || (null checkedSols)
+        -- checkedSols <- withTime TypeCheckTime (filterM (liftIO . runGhcChecks env dst) [code'])
+        -- if (code' `elem` solutions) || (null checkedSols)
+        if (code' `elem` solutions)
            then do
                findProgram env dst st'
            else do
