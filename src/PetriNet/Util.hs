@@ -10,6 +10,7 @@ import Synquid.Program
 import Synquid.Logic hiding (varName)
 import Synquid.Type
 
+import Data.Maybe
 import qualified Data.Text as Text
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -17,6 +18,7 @@ import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Control.Lens
 import Control.Monad.State
+import Control.Monad.Extra
 import Debug.Trace
 import Data.List.Extra
 import Text.Pretty.Simple
@@ -68,9 +70,10 @@ freshAbstract bound t = do
         return (m, fromJust (Map.lookup id m))
     freshAbstract' bound m (AScalar (ATypeVarT id)) = do
         v <- freshId "A"
-        return (Map.insert id v m, AScalar (ATypeVarT v))
+        let t = AScalar (ATypeVarT v)
+        return (Map.insert id t m, AScalar (ATypeVarT v))
     freshAbstract' bound m (AScalar (ADatatypeT id args)) = do
-        (m', args') <- foldrM (\(accm, acct) t -> (m', t') <- freshAbstract bound accm t; return (m', t':acct)) (m,[]) args
+        (m', args') <- foldM (\(accm, acct) t -> do (m', t') <- freshAbstract' bound accm t; return (m', t':acct)) (m,[]) args
         return (m', AScalar (ADatatypeT id args'))
     freshAbstract' bound m (AFunctionT tArg tRes) = do
         (m', tArg') <- freshAbstract' bound m tArg

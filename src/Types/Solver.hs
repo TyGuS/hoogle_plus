@@ -38,7 +38,8 @@ data SolverState = SolverState {
     _splitTypes :: [AbstractSkeleton],
     _nameMapping :: Map Id Id, -- mapping from fake names to real names
     _logLevel :: Int, -- temporary for log level
-    _instanceMapping :: HashMap (Id, [(Id, AbstractSkeleton)]) Id,
+    _instanceMapping :: HashMap (Id, [AbstractSkeleton]) (Id, AbstractSkeleton),
+    _toRemove :: [Id],
     _maxApplicationDepth :: Int
 } deriving(Eq)
 
@@ -66,6 +67,7 @@ emptySolverState = SolverState {
     _nameMapping = Map.empty,
     _logLevel = 0,
     _instanceMapping = HashMap.empty,
+    _toRemove = [],
     _maxApplicationDepth = 6
 }
 

@@ -38,6 +38,10 @@ lastAbstract :: AbstractSkeleton -> AbstractSkeleton
 lastAbstract (AFunctionT _ tRet) = lastAbstract tRet
 lastAbstract t = t
 
+absFunArgs :: AbstractSkeleton -> [AbstractSkeleton]
+absFunArgs (AFunctionT tArg tRes) = tArg : absFunArgs tRes
+absFunArgs t = []
+
 decompose :: AbstractSkeleton -> [AbstractSkeleton]
 decompose (AFunctionT tArg tRet) = decompose tArg ++ decompose tRet
 decompose t@(AScalar {}) = [t]
@@ -52,6 +56,7 @@ toAbstractType (ScalarT (DatatypeT id args _) _) = AScalar (ADatatypeT id (map t
 toAbstractType (FunctionT x tArg tRet) = AFunctionT (toAbstractType tArg) (toAbstractType tRet)
 toAbstractType AnyT = AScalar (ATypeVarT varName)
 
+-- this is not subtype relation!!!
 isSubtypeOf :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Bool
 isSubtypeOf bound (AScalar (ATypeVarT id)) (AScalar (ATypeVarT id')) | id == id' = True
 isSubtypeOf bound (AScalar (ATypeVarT id)) (AScalar (ATypeVarT id')) | id `elem` bound && id' `elem` bound = False

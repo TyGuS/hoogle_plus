@@ -234,21 +234,22 @@ encoderRefine info sigs t2tr inputs ret musters = do
              }
 
     {- operation on places -}
-    let newPlaces = map show (concat (snd (unzip (splitedPlaces info))))
-    let newHos = (Map.keys t2tr) \\ (Map.keys (ty2tr st))
-    let newTransIds = concat (snd (unzip (newTrans info)))
+    let newPlaceIds = map show (newPlaces info)
+    let newHos = filter (`isInfixOf` "AFunctionT") ((Map.keys t2tr) \\ (Map.keys (ty2tr st)))
+    let newTransIds = newTrans info
 
     l <- loc <$> get
 
     -- add new place, transition and timestamp variables
-    mapM_ addPlaceVar (newPlaces ++ newHos)
-    addColorVar (nub (newPlaces ++ newHos))
+    mapM_ addPlaceVar (newPlaceIds ++ newHos)
+    addColorVar (nub (newPlaceIds ++ newHos))
     addTransitionVar newTransIds
 
-    let allTrans = [(t, tr) | t <- [0..(l-1)], tr <- sigs ]
+    let newSigs = filter ((`elem` newTransIds) . funName) sigs
+    let allTrans = [(t, tr) | t <- [0..(l-1)], tr <- newSigs ]
 
     -- all places have non-negative number of tokens
-    withTime "not negative" (nonnegativeTokens (newPlaces ++ newHos))
+    withTime "not negative" (nonnegativeTokens (newPlaceIds ++ newHos))
 
     -- refine the postcondition constraints
     withTime "fire conditions" $ mapM_ (uncurry fireTransitions) allTrans
@@ -265,7 +266,7 @@ encoderRefine info sigs t2tr inputs ret musters = do
 
     withTime "transition index range" transitionRng
 
-    withTime "assign colors" $ (assignColors sigs hoPlaces)
+    withTime "assign colors" $ (assignColors newSigs hoPlaces)
 
     withTime "noTransitionTokens" $ mapM_ (uncurry noTransitionTokens) [(t, p) | p <- currPlaces, t <- [0..(l-1)]]
 
