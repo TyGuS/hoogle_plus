@@ -5,6 +5,7 @@
 {-# LANGUAGE DeriveGeneric  #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module PetriNet.PNSolver (runPNSolver) where
 
@@ -63,6 +64,7 @@ import PetriNet.PNBuilder
 import PetriNet.PNEncoder
 import PetriNet.PNEncoder
 import PetriNet.GHCChecker
+import PetriNet.Utils
 import HooglePlus.Stats
 import HooglePlus.CodeFormer
 import HooglePlus.Abstraction
@@ -111,7 +113,7 @@ instantiate env sigs = do
     instantiate' sigs sigsAcc = do
         st <- get
         -- to test first level abstraction, please disable the complement type here
-        let typs = case st ^. refineStrategy of
+        let typs = case st ^. (searchParams . refineStrategy) of
                      AbstractRefinement -> leafTypes (st ^. abstractionTree)
                      NoRefine -> filter notEx (leafTypes (st ^. abstractionTree))
                      Combination -> filter notEx (leafTypes (st ^. abstractionTree))
@@ -203,9 +205,9 @@ splitTransition env tid info = do
         -- get all the constraints
         let typs = genTypes (fst (head (splitedPlaces info))) newTyps typ
         let constraints = map (\t -> typeConstraints t polyTyp) typs
-        writeLog 3 "splitTranstion" $ text "trying to solve constraints" <+> pretty constraints
+        writeLog 3 "splitTransition" $ text "trying to solve constraints" <+> pretty constraints
         let unifiers = map (getUnifier abstraction (env ^. boundTypeVars) (Just Map.empty)) constraints
-        writeLog 3 "splitTransition" $ text "unify result is" <+> pretty (show unifiers)
+        writeLog 3 "splitTransition" $ text "unify result is" <+> pretty (map (Map.toList <$>) unifiers)
         let checkSuccess = filter isJust unifiers
         if not (null checkSuccess)
            then do
@@ -463,8 +465,29 @@ refineSemantic env prog at = do
     -- the only problem is to deal with split one type more than once, let's assume it would not happen first
     splitInfos <- filterM (uncurry hasNewSplit) (nubOrdOn fst splits) >>= mapM (uncurry transSplit)
     let SplitInfo pls trs = combineInfo splitInfos
-    return (SplitInfo pls (flattenInfo trs))
+    let groups = flattenInfo trs
+    sigs <- view currentSigs <$> get
+    shouldRemoveDuplicates' <- view (searchParams . shouldRemoveDuplicates) <$> get
+    groups' <- if (shouldRemoveDuplicates') then dedupeSplitGroups sigs groups else return groups
+    groups' <- return groups
+    return (SplitInfo pls groups')
   where
+    -- dedupeSplitGroups :: Map Id AbstractSkeleton -> [(Id,[Id])] -> [(Id, [Id])]
+    dedupeSplitGroups currentSigs groups = do
+        let normalizeId = replaceId "Pair_match" "Pair"
+        let lookupTable = unPartitionMap (Map.fromList groups)
+        writeLog 3 "dedupeSplitGroups" $ text "lookupTable: " <+> pretty (Map.toList lookupTable)
+        let ids = Map.keys lookupTable
+        let getSig id = lookupWithError (normalizeId id) currentSigs
+        writeLog 3 "dedupeSplitGroups" $ text "currentSigs: " <+> pretty (Map.toList currentSigs)
+        let groupedIds = groupBy (\x y -> getSig x == getSig y) ids
+        writeLog 3 "dedupeSplitGroups" $ text "groupedIds: " <+> pretty groupedIds
+        let dupes = [x | x <- groupedIds, length x > 1]
+        writeLog 3 "dedupeSplitGroups" $ text "Duplicate splits: " <+> pretty dupes
+        let firstIds = map head groupedIds
+        let subLookupTable = Map.filterWithKey (\k _ -> k `elem` firstIds) lookupTable
+        return $ Map.toList $ groupByMap subLookupTable
+        -- return $ map dedupe groups
     -- if any of the transitions is splitted again, merge the results
     combineInfo [] = SplitInfo [] []
     combineInfo (x:xs) = let SplitInfo ts trs = combineInfo xs
@@ -536,9 +559,21 @@ initNet env = withTime ConstructionTime $ do
     let symbols' = concat symbols
     -- Count the symbols with the SAME signature being put in the net.
     dupes <- countDuplicates symbols'
+    shouldRemoveDuplicates' <- view (searchParams . shouldRemoveDuplicates) <$> get
+    symbols'' <- if (shouldRemoveDuplicates') then do
+        (s, toBeRemoved) <- partitionDuplicateFunctions symbols'
+        removeDuplicates toBeRemoved
+        return s
+        else (return symbols')
+    gm <- view groupMap <$> get
+    names <- view nameMapping <$> get
+    let realNames = map (\x -> x ++ " → " ++ (fromJust $ Map.lookup x names)) (Map.keys sigs)
+    writeLog 2 "initNet" $ text "groupable funcs" <+> (pretty $ map (map funName) (groupSortBy compare symbols'))
     writeLog 2 "initNet" $ text "duplicate sigs" <+> text (countDuplicateSigs sigs)
+    writeLog 3 "initNet" $ text "groups" <+> pretty (Map.toList gm)
+    writeLog 3 "initNet" $ text "realNames" <+> pretty realNames
     writeLog 1 "initNet" $ text "duplicate funcs" <+> text dupes
-    let net = (buildPetriNet symbols' (map show srcTypes))
+    let net = (buildPetriNet symbols'' (map show srcTypes))
     modify $ set solverNet net
   where
     abstractSymbol id sch = do
@@ -569,6 +604,7 @@ initNet env = withTime ConstructionTime $ do
         let includedTyps = decompose f
         mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
         return [ef]
+
 
 resetEncoder :: (MonadIO m) => Environment -> RType -> PNSolver m EncodeState
 resetEncoder env dst = do
@@ -608,7 +644,7 @@ findPath env dst st = do
     case res of
         [] -> do
             currSt <- get
-            maxDepth <- view maxApplicationDepth <$> get
+            maxDepth <- view (searchParams . eGuessDepth) <$> get
             when (currSt ^. currentLoc >= maxDepth) (
               do
                 mesgChan <- view messageChan <$> get
@@ -683,23 +719,33 @@ fixNet env (SplitInfo splitedTys splitedGps) = do
     modify $ set sourceTypes srcTypes
     -- add new function into the petri net
     let newGroups = concat (snd (unzip splitedGps))
+    writeLog 3 "fixNet" $ text "splitGroups" <+> pretty splitedGps
+    writeLog 3 "fixNet" $ text "newGroups" <+> pretty newGroups
     sigs <- view currentSigs <$> get
     net <- view solverNet <$> get
     let sigs' = Map.filterWithKey (\k _ -> k `elem` newGroups) sigs
-    writeLog 3 "fixNet" $ text "sigs to be added include" <+> text (show sigs')
+    writeLog 3 "fixNet" $ text "sigs to be added include" <+> pretty (Map.toList sigs')
     fm <- view functionMap <$> get
     let encodedFuncs = map (\name -> case HashMap.lookup name fm of
                                        Nothing -> error $ "cannot find function name " ++ name ++ " in functionMap"
                                        Just n -> n) newGroups
     let allFuncs = (HashMap.elems fm)
-    dupes <- countDuplicates allFuncs
+    dupes <- countDuplicates encodedFuncs
     writeLog 2 "fixNet" $ text "duplicate sigs" <+> text (countDuplicateSigs sigs)
     writeLog 1 "fixNet" $ text "duplicate funcs" <+> text dupes
-    let functionedNet = foldr addArgClone (foldr addFunction net encodedFuncs) (map show (concat (snd (unzip splitedTys))))
+    shouldRemoveDuplicates' <- view (searchParams . shouldRemoveDuplicates) <$> get
+    let newPlaces = (map show (concat (snd (unzip splitedTys))))
+    functionedNet <- if (shouldRemoveDuplicates') then do
+            (deduplicatedFuncs, toBeRemoved) <- partitionDuplicateFunctions encodedFuncs
+            removeDuplicates toBeRemoved
+            writeLog 3 "fixNet" $ text "deduplicated funcs" <+> pretty (map funName deduplicatedFuncs)
+            return $ foldr addArgClone (foldr addFunction net deduplicatedFuncs) newPlaces
+        else do
+            return $ foldr addArgClone (foldr addFunction net encodedFuncs) newPlaces
     modify $ set solverNet functionedNet
 
 fixEncoder :: MonadIO m => Environment -> RType -> EncodeState -> SplitInfo -> PNSolver m EncodeState
-fixEncoder env dst st info = do
+fixEncoder env dst st info@(SplitInfo splitedTys splitedGps) = do
     let binds = env ^. boundTypeVars
     abstraction <- view abstractionTree <$> get
     let tgt = head (cutoff env abstraction (toAbstractType (shape dst)))
@@ -709,9 +755,23 @@ fixEncoder env dst st info = do
     writeLog 2 "fixEncoder" $ text "fixed return type is" <+> pretty tgt
     loc <- view currentLoc <$> get
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    writeLog 2 "fixEncoder" $ text ("get split information " ++ show info)
     net <- view solverNet <$> get
-    liftIO $ execStateT (encoderRefine net info (map show srcTypes) (show tgt)) st
+    -- TODO remove dupes from the info's group
+    let newGroups = concat (snd (unzip splitedGps))
+    fm <- view functionMap <$> get
+    let encodedFuncs = map (\name -> case HashMap.lookup name fm of
+                                       Nothing -> error $ "cannot find function name " ++ name ++ " in functionMap"
+                                       Just n -> n) newGroups
+    shouldRemoveDuplicates' <- view (searchParams . shouldRemoveDuplicates) <$> get
+    info' <- if (shouldRemoveDuplicates') then do
+            (_, toBeRemoved) <- partitionDuplicateFunctions encodedFuncs
+            let dupedNames = map funName toBeRemoved
+            let newGroups = map (\(x, ys) -> (x, filter (not . (flip elem dupedNames)) ys)) splitedGps
+            return (SplitInfo splitedTys newGroups)
+        else do
+            return info
+    writeLog 2 "fixEncoder" $ text "get split information" <+> pretty info
+    liftIO $ execStateT (encoderRefine net info' (map show srcTypes) (show tgt)) st
 
 findProgram :: MonadIO m => Environment -> RType -> EncodeState -> PNSolver m (RProgram, EncodeState)
 findProgram env dst st = do
@@ -760,7 +820,7 @@ findProgram env dst st = do
             (return (Right (btm, at)))
 
     findNextSolution st oldSemantic (prog, at) = do -- [errorProg, errorTop] = do
-        rs <- view refineStrategy <$> get
+        rs <- gets $ view (searchParams . refineStrategy)
         case rs of
             NoRefine -> findProgram env dst st
             Combination -> do
@@ -866,50 +926,3 @@ recoverNames mapping (Program (PApp pFun pArg) t) = Program (PApp pFun' pArg') t
 recoverNames mapping (Program (PFun x body) t) = Program (PFun x body') t
   where
     body' = recoverNames mapping body
-
--------------------------------------------------------------------------------
--- | helper functions
--------------------------------------------------------------------------------
-
-writeLog :: MonadIO m => Int -> String -> Doc -> PNSolver m ()
-writeLog level tag msg = do
-    mesgChan <- view messageChan <$> get
-    liftIO $ writeChan mesgChan (MesgLog level tag $ show $ plain msg)
-
-multiPermutation len elmts | len == 0 = []
-multiPermutation len elmts | len == 1 = [[e] | e <- elmts]
-multiPermutation len elmts            = nubOrd $ [ l:r | l <- elmts, r <- multiPermutation (len - 1) elmts]
-
-
-replaceId a b = Text.unpack . Text.replace a b . Text.pack
-mkPairMatch (FunctionCode name _ params ret) = FunctionCode (replaceId "Pair" "Pair_match" name) [] ret params
-
-var2any env t@(ScalarT (TypeVarT _ id) _) | isBound env id = t
-var2any env t@(ScalarT (TypeVarT _ id) _) | otherwise = AnyT
-var2any env (ScalarT (DatatypeT id args l) r) = ScalarT (DatatypeT id (map (var2any env) args) l) r
-var2any env (FunctionT x tArg tRet) = FunctionT x (var2any env tArg) (var2any env tRet)
-
-countDuplicateSigs :: Map Id AbstractSkeleton -> String
-countDuplicateSigs sigs = let
-    reversedSigs = foldr update Map.empty (Map.toList sigs)
-    countList = Map.toList reversedSigs
-    dupes = [length (snd x) | x <- countList, length (snd x) > 1]
-    in
-        printf "%d classes; %d equiv; %d total" (length dupes) (sum dupes) (length (Map.toList sigs))
-    where
-        update (id, sig) reversedMap = Map.alter (alter id) sig reversedMap
-        alter id Nothing = Just [id]
-        alter id (Just ids) = Just (id:ids)
-
-countDuplicates symbols = do
-    mesgChan <- view messageChan <$> get
-    let groupedSymbols = groupBySlow areEqFuncs symbols
-    let counts = [ (length ss, head ss) | ss <- groupedSymbols]
-    let dupes = [ (fst x) | x <- counts, (fst x) > 1]
-    modify $ over solverStats (\s -> s {
-        duplicateSymbols = duplicateSymbols s ++ [(length dupes, sum dupes, length symbols)]
-    })
-    -- when (length dupes > 0) (writeLog 2 "countDuplicates" $ text . show . snd $ dupes !! 0)
-    stats <- view solverStats <$> get
-    liftIO $ writeChan mesgChan (MesgS stats)
-    return $ printf "%d classes; %d equiv; %d total" (length dupes) (sum dupes) (length symbols)

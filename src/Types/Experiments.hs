@@ -40,8 +40,9 @@ data SearchParams = SearchParams {
   _encoderType :: EncoderType,
   _pathSearch :: PathStrategy,
   _useHO :: Bool,
-  _useRefine :: RefineStrategy
-}
+  _refineStrategy :: RefineStrategy,
+  _shouldRemoveDuplicates :: Bool
+} deriving (Show, Eq)
 
 makeLenses ''SearchParams
 
@@ -81,7 +82,8 @@ defaultSearchParams = SearchParams {
   _pathSearch = PetriNet,
   _useHO = False,
   _encoderType = Normal,
-  _useRefine = QueryRefinement
+  _refineStrategy = QueryRefinement,
+  _shouldRemoveDuplicates = False
 }
 
 type ExperimentName = String

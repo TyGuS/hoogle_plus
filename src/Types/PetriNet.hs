@@ -11,6 +11,8 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Serialize (Serialize)
 import GHC.Generics
 import Data.Hashable
+import Data.List (sort, find)
+import Data.Maybe
 
 -- for encoding abstractions into JSON string
 type Param = String -- parameter type
@@ -20,7 +22,16 @@ data FunctionCode = FunctionCode {
   hoParams  :: [FunctionCode],
   funParams :: [Param], -- function parameter types and their count
   funReturn :: [String]   -- function return type
-} deriving(Eq, Ord, Show, Generic)
+} deriving(Eq, Show, Generic)
+
+instance Ord FunctionCode where
+  compare fc1 fc2 = let
+    using d a b f = d (f a) (f b)
+    myCompare = compare fc1 fc2
+    ho = using compare fc1 fc2 hoParams
+    params = using compare fc1 fc2 funParams
+    rets = using compare fc1 fc2 funReturn
+    in fromMaybe EQ (find (/= EQ) [ho, params, rets])
 
 instance ToJSON FunctionCode where
     toEncoding = genericToEncoding defaultOptions

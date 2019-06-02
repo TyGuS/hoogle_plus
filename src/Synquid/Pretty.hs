@@ -1,3 +1,4 @@
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE FlexibleInstances, UndecidableInstances, FlexibleContexts #-}
 
 module Synquid.Pretty (
@@ -535,3 +536,10 @@ instance Pretty AbstractionTree where
       abstractTreetoTree :: AbstractionTree -> Tree AbstractSkeleton
       abstractTreetoTree (ALeaf sk) = Node sk []
       abstractTreetoTree (ANode sk left right) = Node sk [abstractTreetoTree left, abstractTreetoTree right]
+
+instance Pretty SplitInfo where
+  pretty (SplitInfo places groups) = let
+    groupDoc = pretty $ map (\(x, xs) -> pretty x <+> text "↦" <+> (hlBraces $ pretty xs)) groups
+    placesDoc = pretty $ map (\(x, xs) -> pretty x <+> text "↦" <+> (hlBraces $ pretty xs)) places
+    in
+      text "place split:" <+> placesDoc </> text "group split:" <+> groupDoc

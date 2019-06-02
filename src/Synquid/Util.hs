@@ -238,4 +238,22 @@ groupBySlow = go [] where
     in go ((h:hs):acc) comp nohs
 
 getTmpDir :: IO String
-getTmpDir = fromMaybe "/tmp/" <$> lookupEnv "TMPDIR"
+getTmpDir = (fromMaybe "/tmp" <$> lookupEnv "TMPDIR") >>= (\x -> return $ x ++ "/")
+
+lookupWithError :: (Ord k, Show k) => k -> Map k v -> v
+lookupWithError k mp = case Map.lookup k mp of
+  Just v -> v
+  Nothing -> error $ "Failed to find " ++ show k
+
+groupByMap :: (Ord k, Ord v) => Map k v -> Map v [k]
+groupByMap mp = foldr update Map.empty (Map.toList mp)
+  where
+    update (k, v) = Map.alter (alter k) v
+    alter k Nothing = Just [k]
+    alter k (Just ks) = Just (k:ks)
+
+-- Assumes that the v are all distinct.
+unPartitionMap :: (Ord k, Ord v) => Map k [v] -> Map v k
+unPartitionMap mp = foldr update Map.empty (Map.toList mp)
+  where
+    update (k, vs) m = foldr (`Map.insert` k) m vs

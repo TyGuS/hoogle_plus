@@ -226,6 +226,7 @@ setMaxToken inputs pn = pn {
 
 equating a b f = f a == f b
 
+areEqFuncs :: FunctionCode -> FunctionCode -> Bool
 areEqFuncs fc1 fc2 = let
   ho = equating fc1 fc2 (sort . hoParams)
   params = equating fc1 fc2 (sort . funParams)
