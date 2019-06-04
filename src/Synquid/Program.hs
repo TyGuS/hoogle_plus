@@ -45,11 +45,11 @@ eraseTypes = fmap (const AnyT)
 
 symbolName (Program (PSymbol name) _) = name
 symbolList (Program (PSymbol name) _) = [name]
-symbolList (Program (PApp fun arg) _) = symbolList fun ++ symbolList arg
+symbolList (Program (PApp f arg) _) = f : concatMap symbolList arg
 
 symbolsOf (Program p _) = case p of
   PSymbol name -> Set.singleton name
-  PApp fun arg -> symbolsOf fun `Set.union` symbolsOf arg
+  PApp fun arg -> fun `Set.insert` (Set.unions $ map symbolsOf arg)
   PFun x body -> symbolsOf body
   PIf cond thn els -> symbolsOf cond `Set.union` symbolsOf thn `Set.union` symbolsOf els
   PMatch scr cases -> symbolsOf scr `Set.union` Set.unions (map (symbolsOf . expr) cases)
@@ -58,7 +58,7 @@ symbolsOf (Program p _) = case p of
   _ -> Set.empty
 
 hasHole (Program p _) = case p of
-  PApp fun arg -> hasHole fun || hasHole arg
+  PApp fun arg -> or (map hasHole arg)
   PHole -> True
   _ -> False
 
@@ -73,7 +73,7 @@ programSubstituteSymbol name subterm (Program p t) = Program (programSubstituteS
     pss = programSubstituteSymbol name subterm
 
     programSubstituteSymbol' (PSymbol x) = if x == name then content subterm else p
-    programSubstituteSymbol' (PApp fun arg) = PApp (pss fun) (pss arg)
+    programSubstituteSymbol' (PApp fun arg) = PApp fun (map pss arg)
     programSubstituteSymbol' (PFun name pBody) = PFun name (pss pBody)
     programSubstituteSymbol' (PIf c p1 p2) = PIf (pss c) (pss p1) (pss p2)
     programSubstituteSymbol' (PMatch scr cases) = PMatch (pss scr) (map (\(Case ctr args pBody) -> Case ctr args (pss pBody)) cases)
@@ -88,8 +88,8 @@ fmlToProgram (Var s x) = Program (PSymbol x) (addRefinement (fromSort s) (varRef
 fmlToProgram fml@(Unary op e) = let
     s = sortOf fml
     p = fmlToProgram e
-    fun = Program (PSymbol $ unOpTokens Map.! op) (FunctionT "x" (typeOf p) opRes)
-  in Program (PApp fun p) (addRefinement (fromSort s) (Var s valueVarName |=| fml))
+    fun = unOpTokens Map.! op
+  in Program (PApp fun [p]) (addRefinement (fromSort s) (Var s valueVarName |=| fml))
   where
     opRes
       | op == Not = bool $ valBool |=| fnot (intVar "x")
@@ -98,9 +98,8 @@ fmlToProgram fml@(Binary op e1 e2) = let
     s = sortOf fml
     p1 = fmlToProgram e1
     p2 = fmlToProgram e2
-    fun1 = Program (PSymbol $ binOpTokens Map.! op) (FunctionT "x" (typeOf p1) (FunctionT "y" (typeOf p2) opRes))
-    fun2 = Program (PApp fun1 p1) (FunctionT "y" (typeOf p2) opRes)
-  in Program (PApp fun2 p2) (addRefinement (fromSort s) (Var s valueVarName |=| fml))
+    fun = binOpTokens Map.! op
+  in Program (PApp fun [p1, p2]) (addRefinement (fromSort s) (Var s valueVarName |=| fml))
   where
     opRes
       | op == Times || op == Times || op == Times = int $ valInt |=| Binary op (intVar "x") (intVar "y")
@@ -116,30 +115,6 @@ renameAsImpl isBound = renameAsImpl' Map.empty
     renameAsImpl' subst  _ t = substituteInType isBound subst t
 
 {- Top-level definitions -}
-
-
-
-
-mtComp :: Metadata -> Metadata -> Bool
-mtComp mt1 mt2 =
-  if mt1 ^. distFromGoal < mt2 ^. distFromGoal
-    then True
-    else if mt1 ^. distFromGoal == mt2 ^. distFromGoal
-      then if mt1 ^. mWeight > mt2 ^. mWeight
-        then True
-        else False
-      else False
-
-instance Ord Metadata where
-  (<=) mt1 mt2 = mt1 ^. distFromGoal <= mt2 ^. distFromGoal && mt1 ^. mWeight <= mt2 ^. mWeight
-
-
-instance (Eq k, Hashable k, Serialize k, Serialize v) => Serialize (HashMap k v) where
-  put hm = S.put (HashMap.toList hm)
-  get = HashMap.fromList <$> S.getListOf S.get
-
-
-
 
 -- | 'symbolsOfArity' @n env@: all symbols of arity @n@ in @env@
 symbolsOfArity n env = Map.findWithDefault Map.empty n (env ^. symbols)
@@ -285,24 +260,3 @@ isSynthesisGoal _ = False
 unresolvedType env ident = (env ^. unresolvedConstants) Map.! ident
 -- unresolvedSpec goal = unresolvedType (gEnvironment goal) (gName goal)
 unresolvedSpec goal = gSpec goal
-
--- | analysis of program components for exploration convenience
-depth (Program p (_,t,_)) = case p of
-  PApp fun arg -> case t of
-    FunctionT _ _ _ -> max (depth fun) (depth arg)
-    _ -> 1 + max (depth fun) (depth arg)
-  _ -> 0
-
-countHole (Program p _) = case p of
-  PApp fun arg -> (countHole fun) + (countHole arg)
-  PHole -> 1
-  _ -> 0
-
-holeTypes (Program p (sty, _, _)) = case p of
-  PApp fun arg -> holeTypes fun `Set.union` holeTypes arg
-  PHole -> Set.singleton sty
-  _ -> Set.empty
-
-termSize (Program p _) = case p of
-  PApp fun arg -> 1 + (termSize fun) + (termSize arg)
-  _ -> 1

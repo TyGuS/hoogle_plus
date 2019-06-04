@@ -164,7 +164,7 @@ encoderInit :: Int -> [Id] -> [Id] -> Id -> [FunctionCode] -> Map Id [Id] -> IO 
 encoderInit loc hoArgs inputs ret sigs t2tr = do
     z3Env <- initialZ3Env
     false <- Z3.mkFalse (envContext z3Env)
-    let initialState = EncodeState z3Env false loc 0 1 1 HashMap.empty HashMap.empty HashMap.empty HashMap.empty HashMap.empty HashMap.empty hoArgs [] t2tr False
+    let initialState = EncodeState z3Env false loc 0 1 1 HashMap.empty HashMap.empty HashMap.empty HashMap.empty HashMap.empty HashMap.empty hoArgs [] t2tr False []
     execStateT (createEncoder inputs ret sigs) initialState
 
 encoderSolve :: EncodeState -> IO ([(Id, Int)], EncodeState)
@@ -193,6 +193,10 @@ encoderInc sigs inputs ret = do
 
     -- refine the postcondition constraints
     withTime "fire conditions" $ mapM_ (uncurry fireTransitions) allTrans
+
+    -- disable transitions at the new timestamp
+    toRemove <- gets disabledTrans
+    withTime "disable transitions" $ disableTransitions toRemove (l-1)
 
     -- save the current state and add changeable constraints
     push
@@ -231,6 +235,7 @@ encoderRefine info sigs t2tr inputs ret musters = do
     st <- get
     put $ st { ty2tr = t2tr 
              , mustFirers = musters
+             , disabledTrans = disabledTrans st ++ (removedTrans info)
              }
 
     {- operation on places -}
@@ -255,7 +260,7 @@ encoderRefine info sigs t2tr inputs ret musters = do
     withTime "fire conditions" $ mapM_ (uncurry fireTransitions) allTrans
 
     -- disable splitted transitions
-    withTime "disable transitions" $ disableTransitions (removedTrans info)
+    withTime "disable transitions" $ mapM_ (disableTransitions (removedTrans info)) [0..(l-1)]
 
     -- save the current state and add changeable constraints
     push
@@ -277,12 +282,11 @@ encoderRefine info sigs t2tr inputs ret musters = do
     setInitialState inputs currPlaces
     setFinalState ret currPlaces
 
-disableTransitions :: [Id] -> Encoder ()
-disableTransitions trs = do
-    l <- gets loc
-    mapM_ (uncurry disableTrAt) [(t, tr) | t <- [0..(l-1)], tr <- trs]
+disableTransitions :: [Id] -> Int -> Encoder ()
+disableTransitions trs t = do
+    mapM_ disableTrAt trs
   where
-    disableTrAt t tr = do
+    disableTrAt tr = do
         transMap <- gets transition2id
         tsMap <- gets time2variable
         trVar <- mkIntNum (findVariable tr transMap)

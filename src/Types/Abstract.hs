@@ -18,6 +18,7 @@ data AbstractBase =
 data AbstractSkeleton =
       AScalar AbstractBase
     | AFunctionT AbstractSkeleton AbstractSkeleton
+    | ABottom
     deriving (Eq, Ord)
 
 -- distinguish one type from a given general one

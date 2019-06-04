@@ -447,7 +447,12 @@ toSynquidProgram :: Exp SrcSpanInfo -> UProgram
 toSynquidProgram (Lambda _ pats body) =
     foldr (\(PVar _ name) p -> Program (PFun (nameStr name) p) AnyT) (toSynquidProgram body) pats
 toSynquidProgram (Var _ qname) = Program (PSymbol (qnameStr qname)) AnyT
-toSynquidProgram (App _ fun arg) = Program (PApp (toSynquidProgram fun) (toSynquidProgram arg)) AnyT
+toSynquidProgram (App _ fun arg) = 
+    let synFun = toSynquidProgram fun 
+     in case content synFun of
+          PSymbol f -> Program (PApp f [toSynquidProgram arg]) AnyT
+          PApp f args -> Program (PApp f (args ++ [toSynquidProgram arg])) AnyT
+          _ -> error "unrecognized function type"
 toSynquidProgram (Paren _ e) = toSynquidProgram e
 toSynquidProgram (Con _ qname) = Program (PSymbol (qnameStr qname)) AnyT
 toSynquidProgram e = error $ show e

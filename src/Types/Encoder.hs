@@ -57,7 +57,8 @@ data EncodeState = EncodeState {
   mustFirers :: [Id],
   foldedFuncs :: [FoldedFunction],
   ty2tr :: Map Id [Id],
-  prevChecked :: Bool
+  prevChecked :: Bool,
+  disabledTrans :: [Id]
 }
 
 newEnv :: Maybe Logic -> Opts -> IO Z3Env

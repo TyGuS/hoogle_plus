@@ -55,6 +55,7 @@ toAbstractType (ScalarT (TypeVarT _ id) _) = AScalar (ATypeVarT id)
 toAbstractType (ScalarT (DatatypeT id args _) _) = AScalar (ADatatypeT id (map toAbstractType args))
 toAbstractType (FunctionT x tArg tRet) = AFunctionT (toAbstractType tArg) (toAbstractType tRet)
 toAbstractType AnyT = AScalar (ATypeVarT varName)
+toAbstractType BotT = ABottom
 
 -- this is not subtype relation!!!
 isSubtypeOf :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Bool
@@ -125,3 +126,37 @@ equalAbstract tvs t1 t2 = isSubtypeOf tvs t1 t2 && isSubtypeOf tvs t2 t1
 
 equalSplit :: [Id] -> SplitMsg -> SplitMsg -> Bool
 equalSplit tvs s1 s2 = fst s1 == fst s2 && equalAbstract tvs (snd s1) (snd s2)
+
+existAbstract :: [Id] -> Set AbstractSkeleton -> AbstractSkeleton -> Bool
+existAbstract tvs cover t = or $ map (equalAbstract tvs t) (Set.toList cover)
+
+abstractIntersect :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Maybe AbstractSkeleton
+abstractIntersect bound t1@(AScalar (ATypeVarT id)) t2@(AScalar (ATypeVarT id')) 
+  | id == id' = Just t1
+  | id `elem` bound && id' `notElem` bound = Just t1
+  | id `notElem` bound && id' `elem` bound = Just t2
+  | id `notElem` bound && id' `notElem` bound = Just t1
+  | otherwise = Nothing
+abstractIntersect bound t1@(AScalar (ATypeVarT id)) t2@(AScalar (ADatatypeT {}))
+  | id `notElem` bound = Just t2
+  | otherwise = Nothing
+abstractIntersect bound t1@(AScalar (ADatatypeT {})) t2@(AScalar (ATypeVarT {})) = abstractIntersect bound t2 t1
+abstractIntersect bound (AScalar (ADatatypeT id args)) (AScalar (ADatatypeT id' args'))
+  | id == id' = case argsIntersect args args' of
+                  Nothing -> Nothing
+                  Just ias -> Just $ AScalar $ ADatatypeT id ias
+  where
+    argsIntersect [] [] = Just []
+    argsIntersect (a:as) (a':as') =
+        case abstractIntersect bound a a' of
+          Nothing -> Nothing
+          Just ia -> case argsIntersect as as' of
+                       Nothing -> Nothing
+                       Just ias -> Just (ia:ias)
+abstractIntersect bound (AFunctionT tArg tRes) (AFunctionT tArg' tRes') = 
+    case abstractIntersect bound tArg tArg' of
+      Nothing -> Nothing
+      Just a  -> case abstractIntersect bound tRes tRes' of
+                   Nothing -> Nothing
+                   Just r  -> Just (AFunctionT a r)
+abstractIntersect _ _ _ = Nothing

@@ -19,6 +19,7 @@ import qualified Data.HashMap.Strict as HashMap
 import GHC.Generics
 import Control.Lens
 import Control.Monad.State
+import Control.Monad.Logic
 import Data.Foldable
 import Data.List
 import Data.Maybe
@@ -109,36 +110,43 @@ instantiateWith env typs id t = do
         -- when same arguments exist for a function, replace it
         when (not (noneInst ty)) (do
             let (tid, _) = fromJust (HashMap.lookup (id, absFunArgs ty) instMap)
+            writeLog 3 $ text tid <+> text "exists in the instance map for" <+> text id
             modify $ over toRemove ((:) tid)
             modify $ over mustFirers (delete tid))
         -- add corresponding must firers, function code and type mapping
         when (Map.member id (env ^. arguments)) (modify $ over mustFirers ((:) newId))
-        modify $ over functionMap (HashMap.insert newId (encodeFunction newId ty))
-        let addTransition k tid = Map.insertWith union k [tid]
-        let includedTyps = nub (decompose ty)
-        mapM_ (\t -> modify $ over type2transition (addTransition t newId)) includedTyps
         modify $ over nameMapping (Map.insert newId id)
+        modify $ over instanceMapping (HashMap.insert (id, absFunArgs ty) (newId, ty))
+        writeLog 3 $ text newId <+> text "::" <+> pretty ty
         return (newId, ty)) sigs
   where
     enumSigs queue [] = do
         -- filter out the chosen signatures from the queue
         -- the rule is list of elements produce only the most restrictive type
         let sameArgs t1 t2 = absFunArgs t1 == absFunArgs t2
-        let sigs = fst (unzip queue)
+        let mkFunc tys = foldr AFunctionT (last tys) (init tys)
+        let sigs = map mkFunc $ fst (unzip queue)
         let sigGroups = groupBy sameArgs (sortOn absFunArgs sigs)
         let bound = env ^. boundTypeVars
         let sigs = map (mostRestrict bound) sigGroups
         return sigs
+    enumSigs queue [t] = do
+        -- the last one is the return type of current application
+        cover <- gets (view abstractionTree)
+        let bound = env ^. boundTypeVars
+        let substRes m = foldr (uncurry abstractSubstitute) t (Map.toList m) 
+        let currRes m = currentAbst bound cover (substRes m)
+        enumSigs (map (\(t, m) -> (t ++ [currRes m], m)) queue) []
     enumSigs [] (t:ts) = do
         let mkFunc _ ty = ty
-        elmts <- nextElmt mkFunc (AScalar (ATypeVarT "A"), Map.empty) t
+        elmts <- nextElmt ([], Map.empty) t
         enumSigs elmts ts
     enumSigs queue (t:ts) = do
         let mkFunc ht ty = AFunctionT ht ty
-        elmts <- mapM (\h -> nextElmt mkFunc h t) queue
+        elmts <- mapM (\h -> nextElmt h t) queue
         enumSigs (concat elmts) ts
 
-    nextElmt mkFunc hd t = do
+    nextElmt hd t = do
         let (ht, m) = hd
         let bound = env ^. boundTypeVars
         constraints <- mapM (typeConstraints bound t) typs
@@ -146,21 +154,18 @@ instantiateWith env typs id t = do
         let unifPairs = zip unifiers typs
         let usefulUnifs = filter (isJust . fst) unifPairs
         let unboxUnifs = map (\(mm, ty) -> (fromJust mm, ty)) usefulUnifs
-        let elmts = map (\(m, ty) -> (mkFunc ht ty, m)) unboxUnifs
+        let elmts = map (\(m, ty) -> (ht ++ [ty], m)) unboxUnifs
         return elmts
 
 -- | refine the current abstraction
 -- do the bidirectional type checking first, compare the two programs we get,
 -- with the type split information update the abstraction tree
-refineSemantic :: MonadIO m => Environment -> AProgram -> AbstractSkeleton -> PNSolver m SplitInfo
+refineSemantic :: MonadIO m => Environment -> RProgram -> AbstractSkeleton -> PNSolver m SplitInfo
 refineSemantic env prog at = do
     -- back propagation of the error types to get all split information
     propagate env prog at
     -- get the split pairs
     splits <- gets (view splitTypes)
-    semantic <- gets (view abstractionTree)
-    let semantic' = foldr Set.insert semantic splits
-    modify $ set abstractionTree semantic'
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
     -- first abstraction all the symbols with fresh type variables and then instantiate them
     let envSymbols = allSymbols env
@@ -168,11 +173,17 @@ refineSemantic env prog at = do
     let usefulPipe k _ = k `notElem` ("fst" : "snd" : Map.keys foArgs)
     let usefulSymbols = Map.filterWithKey usefulPipe envSymbols
     sigs <- instantiate env usefulSymbols
+    modify $ over detailedSigs (Set.union (Map.keysSet sigs))
+    mapM_ addEncodedFunction (Map.toList sigs)
     useless <- gets (view toRemove)
+    -- add clone functions and add them into new transition set
+    cloneNames <- mapM addCloneFunction $ Set.toList splits
+    let pairNames = filter (isPrefixOf "Pair") (Map.keys sigs)
+    let projectionNames = map (replaceId "Pair" "Pair_match") pairNames
     -- call the refined encoder on these signatures and disabled signatures
-    return SplitInfo { newPlaces = splits
+    return SplitInfo { newPlaces = Set.toList splits
                      , removedTrans = useless
-                     , newTrans = Map.keys sigs
+                     , newTrans = Map.keys sigs ++ cloneNames ++ projectionNames
                      }
 
 initNet :: MonadIO m => Environment -> PNSolver m ()
@@ -201,39 +212,40 @@ initNet env = withTime ConstructionTime $ do
         let absTy = toAbstractType (shape t)
         return (id, absTy)
 
-    addEncodedFunction (id, f) | "Pair" `isPrefixOf` id = do
-        let ef = encodeFunction id f
-        modify $ over functionMap (HashMap.insert (replaceId "Pair" "Pair_match" id) (mkPairMatch ef))
-        modify $ over functionMap (HashMap.insert id ef)
-        modify $ over currentSigs (Map.insert id f)
-        let AFunctionT arg0 (AFunctionT arg1 ret) = f
-        -- add fst and snd sigs
-        modify $ over currentSigs (Map.insert (replaceId "Pair" "fst" id) (AFunctionT ret arg0))
-        modify $ over currentSigs (Map.insert (replaceId "Pair" "snd" id) (AFunctionT ret arg1))
-        -- store the used abstract types and their groups into mapping
-        let addTransition k tid = Map.insertWith union k [tid]
-        let includedTyps = nub (decomposeHo f)
-        mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
-        mapM_ (\t -> modify $ over type2transition (addTransition t (replaceId "Pair" "Pair_match" id))) includedTyps
-    addEncodedFunction (id, f) | isAHigherOrder f = do
-        -- for higher order functions, we add coloring and uncoloring transitions
-        let ef = encodeFunction id f
-        modify $ over functionMap (HashMap.insert id ef)
-        modify $ over currentSigs (Map.insert id f)
-        -- add transitions to color and uncolor tokens
-        let hops = filter isAFunctionT (abstractParamList f)
-        mapM_ addHoParam hops
-        let addTransition k tid = Map.insertWith union k [tid]
-        let includedTyps = nub (decomposeHo f)
-        mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
-    addEncodedFunction (id, f) = do
-        let ef = encodeFunction id f
-        modify $ over functionMap (HashMap.insert id ef)
-        modify $ over currentSigs (Map.insert id f)
-        -- store the used abstract types and their groups into mapping
-        let addTransition k tid = Map.insertWith union k [tid]
-        let includedTyps = nub (decomposeHo f)
-        mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
+addEncodedFunction :: MonadIO m => (Id, AbstractSkeleton) -> PNSolver m ()
+addEncodedFunction (id, f) | "Pair" `isPrefixOf` id = do
+    let ef = encodeFunction id f
+    modify $ over functionMap (HashMap.insert (replaceId "Pair" "Pair_match" id) (mkPairMatch ef))
+    modify $ over functionMap (HashMap.insert id ef)
+    modify $ over currentSigs (Map.insert id f)
+    let AFunctionT arg0 (AFunctionT arg1 ret) = f
+    -- add fst and snd sigs
+    modify $ over currentSigs (Map.insert (replaceId "Pair" "fst" id) (AFunctionT ret arg0))
+    modify $ over currentSigs (Map.insert (replaceId "Pair" "snd" id) (AFunctionT ret arg1))
+    -- store the used abstract types and their groups into mapping
+    let addTransition k tid = Map.insertWith union k [tid]
+    let includedTyps = nub (decomposeHo f)
+    mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
+    mapM_ (\t -> modify $ over type2transition (addTransition t (replaceId "Pair" "Pair_match" id))) includedTyps
+addEncodedFunction (id, f) | isAHigherOrder f = do
+    -- for higher order functions, we add coloring and uncoloring transitions
+    let ef = encodeFunction id f
+    modify $ over functionMap (HashMap.insert id ef)
+    modify $ over currentSigs (Map.insert id f)
+    -- add transitions to color and uncolor tokens
+    let hops = filter isAFunctionT (abstractParamList f)
+    mapM_ addHoParam hops
+    let addTransition k tid = Map.insertWith union k [tid]
+    let includedTyps = nub (decomposeHo f)
+    mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
+addEncodedFunction (id, f) = do
+    let ef = encodeFunction id f
+    modify $ over functionMap (HashMap.insert id ef)
+    modify $ over currentSigs (Map.insert id f)
+    -- store the used abstract types and their groups into mapping
+    let addTransition k tid = Map.insertWith union k [tid]
+    let includedTyps = nub (decomposeHo f)
+    mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
 
 resetEncoder :: (MonadIO m) => Environment -> RType -> PNSolver m EncodeState
 resetEncoder env dst = do
@@ -359,7 +371,7 @@ fixEncoder env dst st info = do
 
 findProgram :: MonadIO m => Environment -> RType -> EncodeState -> PNSolver m (RProgram, EncodeState)
 findProgram env dst st = do
-    modify $ set splitTypes []
+    modify $ set splitTypes Set.empty
     modify $ set typeAssignment Map.empty
     writeLog 2 $ text "calling findProgram"
     (codeResult, st') <- findPath env dst st
@@ -371,7 +383,7 @@ findProgram env dst st = do
        then let Left code = checkResult in checkSolution st' code
        else let Right err = checkResult in nextSolution st' rs err
   where
-    firstCheckedOrError [] = return (Right (Program PHole (AnyT, AnyT, AScalar (ATypeVarT varName)), AScalar (ATypeVarT varName)))
+    firstCheckedOrError [] = return (Right (uHole, AScalar (ATypeVarT varName)))
     firstCheckedOrError (x:xs) = do
         res <- parseAndCheck x
         case res of
@@ -382,6 +394,14 @@ findProgram env dst st = do
                 Left prog -> return (Left prog)
                 Right _   -> return (Right err)
 
+    pickGeneralization ABottom target = return ABottom
+    pickGeneralization ty target = do
+        let bound = env ^. boundTypeVars
+        ty' <- generalize bound ty
+        let unifier = getUnifier bound [(ty', target)]
+        guard (isNothing unifier)
+        return ty'
+
     parseAndCheck code = do
         let prog = case parseExp code of
                        ParseOk exp -> toSynquidProgram exp
@@ -391,17 +411,18 @@ findProgram env dst st = do
         modify $ set isChecked True
         modify $ set typeAssignment Map.empty
         btm <- bottomUpCheck env prog
-        mapping <- view nameMapping <$> get
         writeLog 3 $ text "bottom up checking get program" <+> pretty (recoverNames mapping btm)
         checkStatus <- gets (view isChecked)
-        let (tyBtm, typ, at) = typeOf btm
-        let expected = shape (if checkStatus then dst else typ)
+        let tyBtm = typeOf btm
         when checkStatus (solveTypeConstraint env (shape tyBtm) (shape dst))
+        tass <- gets (view typeAssignment)
         ifM (view isChecked <$> get)
-            (return (Left (pureType btm)))
+            (return (Left btm))
             (do
-                at' <- strengthenRoot env at expected (shape tyBtm)
-                return (Right (btm, at')))
+                let tyBtm' = toAbstractType $ stypeSubstitute tass $ shape tyBtm
+                let absDst = toAbstractType $ shape dst
+                absBtm <- observeT $ pickGeneralization tyBtm' absDst
+                return (Right (btm, absBtm)))
 
     nextSolution st NoRefine (prog, at) = findProgram env dst st
     nextSolution st _ (prog, at) = do
@@ -471,10 +492,12 @@ recoverNames mapping (Program (PSymbol sym) t) =
     case Map.lookup sym mapping of
       Nothing -> Program (PSymbol (removeLast '_' sym)) t
       Just name -> Program (PSymbol (removeLast '_' name)) t
-recoverNames mapping (Program (PApp pFun pArg) t) = Program (PApp pFun' pArg') t
+recoverNames mapping (Program (PApp fun pArg) t) = Program (PApp fun' pArg') t
   where
-    pFun' = recoverNames mapping pFun
-    pArg' = recoverNames mapping pArg
+    fun' = case Map.lookup fun mapping of
+                Nothing -> removeLast '_' fun
+                Just name -> removeLast '_' name
+    pArg' = map (recoverNames mapping) pArg
 recoverNames mapping (Program (PFun x body) t) = Program (PFun x body') t
   where
     body' = recoverNames mapping body
@@ -488,6 +511,7 @@ addCloneFunction ty = do
     modify $ over functionMap (HashMap.insert fname fc)
     -- modify $ over currentSigs (Map.insert fname fc)
     modify $ over type2transition (addTransition ty fname)
+    return fname
 
 addHoParam t = do
     let addTransition k tid = Map.insertWith union k [tid]
@@ -496,8 +520,6 @@ addHoParam t = do
     let uncolorTr = show t ++ "|uncolor"
     modify $ over type2transition (addTransition ret uncolorTr)
     modify $ over type2transition (addTransition t uncolorTr)
-
-pureType = fmap (\(t1, t2, t3) -> t1)
 
 -- | find the current most restrictive abstraction for a given type
 currentAbst :: [Id] -> Set AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton

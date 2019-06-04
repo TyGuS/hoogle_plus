@@ -21,7 +21,7 @@ data Case t = Case {
 -- | Program skeletons parametrized by information stored symbols, conditionals, and by node types
 data BareProgram t =
   PSymbol Id |                                -- ^ Symbol (variable or constant)
-  PApp (Program t) (Program t) |              -- ^ Function application
+  PApp Id [Program t] |              -- ^ Function application
   PFun Id (Program t) |                       -- ^ Lambda abstraction
   PIf (Program t) (Program t) (Program t) |   -- ^ Conditional
   PMatch (Program t) [Case t] |               -- ^ Pattern match on datatypes

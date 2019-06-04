@@ -327,17 +327,10 @@ prettyProgram (Program p typ) = case p of
         Program (PSymbol _) _ -> prettyProgram p
         Program PHole _ -> prettyProgram p
         _ -> hlParens (prettyProgram p)
-      prefix = hang tab $ prettyProgram f </> optParens x
-      in case content f of
-          PSymbol name -> if name `elem` Map.elems unOpTokens
-                            then hang tab $ operator name <+> optParens x
-                            else prefix
-          PApp g y -> case content g of
-            PSymbol name -> if name `elem` Map.elems binOpTokens
-                              then hang tab $ optParens y </> operator name </> optParens x -- Binary operator: use infix notation
-                              else prefix
-            _ -> prefix
-          _ -> prefix
+      prefix = hang tab $ text f <+> hsep (map optParens x)
+      in if f `elem` Map.elems unOpTokens
+            then hang tab $ operator f <+> hsep (map optParens x)
+            else prefix
     PFun x e -> nest 2 $ operator "\\" <> text x <+> operator "->" </> prettyProgram e
     PIf c t e -> linebreak <> (hang tab $ keyword "if" <+> prettyProgram c $+$ (hang tab (keyword "then" </> prettyProgram t)) $+$ (hang tab (keyword "else" </> prettyProgram e)))
     PMatch l cases -> linebreak <> (hang tab $ keyword "match" <+> prettyProgram l <+> keyword "with" $+$ vsep (map prettyCase cases))
@@ -473,7 +466,7 @@ typeNodeCount (FunctionT _ tArg tRes) = typeNodeCount tArg + typeNodeCount tRes
 programNodeCount :: RProgram -> Int
 programNodeCount (Program p _) = case p of
   PSymbol _ -> 1
-  PApp e1 e2 -> 1 + programNodeCount e1 + programNodeCount e2
+  PApp e1 e2 -> 1 + sum (map programNodeCount e2)
   PFun _ e -> 1 + programNodeCount e
   PIf c e1 e2 -> 1 + programNodeCount c + programNodeCount e1 + programNodeCount e2
   PMatch e cases -> 1 + programNodeCount e + sum (map (\(Case _ _ e) -> programNodeCount e) cases)
@@ -519,7 +512,8 @@ instance Show AbstractBase where
 
 instance Pretty AbstractSkeleton where
     pretty (AScalar b) = pretty b
-    pretty (AFunctionT tArg tRet) = pretty tArg <+> operator "->" <+> pretty tRet
+    pretty (AFunctionT tArg tRet) = hlParens (pretty tArg <+> operator "->" <+> pretty tRet)
+    pretty ABottom = text "_|_"
 
 instance Show AbstractSkeleton where
     show = show . plain . pretty

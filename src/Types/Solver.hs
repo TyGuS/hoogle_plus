@@ -35,7 +35,7 @@ data SolverState = SolverState {
     _type2transition :: Map AbstractSkeleton [Id], -- mapping from abstract type to group ids
     _solverStats :: TimeStatistics,
     _useGroup :: Bool,
-    _splitTypes :: [AbstractSkeleton],
+    _splitTypes :: Set AbstractSkeleton,
     _nameMapping :: Map Id Id, -- mapping from fake names to real names
     _logLevel :: Int, -- temporary for log level
     _instanceMapping :: HashMap (Id, [AbstractSkeleton]) (Id, AbstractSkeleton),
@@ -63,7 +63,7 @@ emptySolverState = SolverState {
     _type2transition = Map.empty,
     _solverStats = emptyTimeStats,
     _useGroup = False,
-    _splitTypes = [],
+    _splitTypes = Set.empty,
     _nameMapping = Map.empty,
     _logLevel = 0,
     _instanceMapping = HashMap.empty,
