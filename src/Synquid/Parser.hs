@@ -218,10 +218,11 @@ parseFunctionTypeMb = do
 
 parseTypeAtom :: Parser RType
 parseTypeAtom = choice [
-  parens parseType,
+  try $ parens parseType,
   parseScalarRefType,
   parseUnrefTypeNoArgs,
-  parseListType
+  parseListType,
+  parsePairType
   ]
 
 parseUnrefTypeNoArgs = do
@@ -253,6 +254,13 @@ parseScalarRefType = braces $ do
 parseListType = do
   elemType <- brackets parseType
   return $ ScalarT (DatatypeT "List" [elemType] []) ftrue
+
+parsePairType = do
+  elemType <- parens (commaSep1 parseType)
+  return $ foldr mkPair (initial elemType) (drop 2 elemType)
+  where
+    mkPair t p = ScalarT (DatatypeT "Pair" [p, t] []) ftrue
+    initial (x:y:_) = ScalarT (DatatypeT "Pair" [x, y] []) ftrue
 
 parseSort :: Parser Sort
 parseSort = withPos (parseSortWithArgs <|> parseSortAtom <?> "sort")
@@ -420,7 +428,7 @@ parseList = do
     nil = untyped $ PSymbol "Nil"
 
 parsePair = do
-  elems <- parens (commaSep parseImpl)
+  elems <- parens (commaSep1 parseImpl)
   if length elems < 2 then error "parsePair: invalid pair"
                       else return $ foldr mkPair (initialPair elems) elems
   where
