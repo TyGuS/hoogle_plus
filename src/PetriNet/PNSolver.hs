@@ -92,70 +92,71 @@ instantiate env sigs = do
 
 -- add Pair_match function as needed
 instantiateWith :: MonadIO m => Environment -> [AbstractSkeleton] -> Id -> RType -> PNSolver m [(Id, AbstractSkeleton)]
+-- skip "snd" function, it would be handled together with "fst"
+instantiateWith env typs id t | id == "snd" = return []
 instantiateWith env typs id t = do
     abstraction <- gets (view abstractionTree)
     instMap <- gets (view instanceMapping)
-    ft <- freshType (Monotype t)
-    let t' = toAbstractType (shape ft)
     let bound = env ^. boundTypeVars
-    -- TODO: need to be changed if we would like to support higher order functions
-    let comps = decompose t'
-    rawSigs <- enumSigs [] comps
-    let noneInst t = not (HashMap.member (id, absFunArgs t) instMap)
-    let diffInst t = (snd (HashMap.lookupDefault ("dum", AScalar (ATypeVarT varName)) (id, absFunArgs t) instMap)) /= t
-    let sigs = filter (\t -> noneInst t || diffInst t) rawSigs
-    mapM (\ty -> do
-        newId <- if "Pair" `isPrefixOf` id then freshId (id ++ "_") 
-                                           else freshId "f"
-        -- when same arguments exist for a function, replace it
-        when (not (noneInst ty)) (do
-            let (tid, _) = fromJust (HashMap.lookup (id, absFunArgs ty) instMap)
-            writeLog 3 $ text tid <+> text "exists in the instance map for" <+> text id
-            modify $ over toRemove ((:) tid)
-            modify $ over mustFirers (delete tid))
-        -- add corresponding must firers, function code and type mapping
-        when (Map.member id (env ^. arguments)) (modify $ over mustFirers ((:) newId))
-        modify $ over nameMapping (Map.insert newId id)
-        modify $ over instanceMapping (HashMap.insert (id, absFunArgs ty) (newId, ty))
-        writeLog 3 $ text newId <+> text "::" <+> pretty ty
-        return (newId, ty)) sigs
+    if id == "fst"
+       then do -- this is hack, hope to get rid of it sometime
+           first <- freshType (Monotype t)
+           secod <- findSymbol env "snd"
+           fstSigs <- enumSigs $ toAbstractType $ shape first
+           sndSigs <- enumSigs $ toAbstractType $ shape secod
+           -- assertion, check they have same elements
+           when (length fstSigs /= length sndSigs)
+                (error "fst and snd have different number of instantiations")
+           let matches = map (uncurry assemblePair) (zip fstSigs sndSigs)
+           mapM (mkNewSig "pair_match") matches
+       else do
+           ft <- freshType (Monotype t)
+           let t' = toAbstractType (shape ft)
+           rawSigs <- enumSigs t'
+           let sigs = filter (\t -> noneInst instMap id t || diffInst instMap id t) rawSigs
+           mapM (mkNewSig id) sigs
   where
-    enumSigs queue [] = do
-        -- filter out the chosen signatures from the queue
-        -- the rule is list of elements produce only the most restrictive type
-        let sameArgs t1 t2 = absFunArgs t1 == absFunArgs t2
-        let mkFunc tys = foldr AFunctionT (last tys) (init tys)
-        let sigs = map mkFunc $ fst (unzip queue)
-        let sigGroups = groupBy sameArgs (sortOn absFunArgs sigs)
-        let bound = env ^. boundTypeVars
-        let sigs = map (mostRestrict bound) sigGroups
-        return sigs
-    enumSigs queue [t] = do
-        -- the last one is the return type of current application
-        cover <- gets (view abstractionTree)
-        let bound = env ^. boundTypeVars
-        let substRes m = foldr (uncurry abstractSubstitute) t (Map.toList m) 
-        let currRes m = currentAbst bound cover (substRes m)
-        enumSigs (map (\(t, m) -> (t ++ [currRes m], m)) queue) []
-    enumSigs [] (t:ts) = do
-        let mkFunc _ ty = ty
-        elmts <- nextElmt ([], Map.empty) t
-        enumSigs elmts ts
-    enumSigs queue (t:ts) = do
-        let mkFunc ht ty = AFunctionT ht ty
-        elmts <- mapM (\h -> nextElmt h t) queue
-        enumSigs (concat elmts) ts
+    noneInst instMap id t = not (HashMap.member (id, absFunArgs id t) instMap)
 
-    nextElmt hd t = do
-        let (ht, m) = hd
+    diffInst instMap id t = (snd (fromJust $ HashMap.lookup (id, absFunArgs id t) instMap)) /= t
+
+    assemblePair first secod | absFunArgs "fst" first == absFunArgs "snd" secod =
+        let AFunctionT p f = first
+            AFunctionT _ s = secod
+         in AFunctionT p (AFunctionT f s)
+    assemblePair first second | otherwise = error "fst and snd have different arguments"
+
+    enumSigs typ = do
         let bound = env ^. boundTypeVars
-        constraints <- mapM (typeConstraints bound t) typs
-        let unifiers = map (getUnifier' bound (Just m)) constraints
-        let unifPairs = zip unifiers typs
-        let usefulUnifs = filter (isJust . fst) unifPairs
-        let unboxUnifs = map (\(mm, ty) -> (fromJust mm, ty)) usefulUnifs
-        let elmts = map (\(m, ty) -> (ht ++ [ty], m)) unboxUnifs
-        return elmts
+        -- [TODO] to support higher order function, this is incorrect
+        let argNum = length (decompose typ) - 1
+        let allArgCombs = multiPermutation argNum typs
+        applyRes <- mapM (applySemantic bound typ) allArgCombs
+        let resSigs = filter (not . isBot . fst) (zip applyRes allArgCombs)
+        return $ map (uncurry $ foldr AFunctionT) resSigs
+
+    mkNewSig id ty = do
+        instMap <- gets (view instanceMapping)
+        newId <- if "pair_match" `isPrefixOf` id then freshId (id ++ "_") 
+                                                 else freshId "f"
+        -- when same arguments exist for a function, replace it
+        when (not (noneInst instMap id ty)) (excludeUseless id ty)
+        -- add corresponding must firers, function code and type mapping
+        when (Map.member id (env ^. arguments)) 
+             (modify $ over mustFirers (Map.insertWith (++) id [newId]))
+        modify $ over nameMapping (Map.insert newId id)
+        modify $ over instanceMapping (HashMap.insert (id, absFunArgs id ty) (newId, ty))
+        writeLog 3 $ text newId <+> text "::" <+> pretty ty
+        return (newId, ty)
+
+    excludeUseless id ty = do
+        instMap <- gets (view instanceMapping)
+        let (tid, _) = fromJust (HashMap.lookup (id, absFunArgs id ty) instMap)
+        -- writeLog 3 $ text tid <+> text "exists in the instance map for" <+> text id
+        modify $ over toRemove ((:) tid)
+        musts <- gets (view mustFirers)
+        when (id `Map.member` musts)
+             (modify $ over mustFirers (Map.insertWith (\new old -> old \\ new) id [tid]))
 
 -- | refine the current abstraction
 -- do the bidirectional type checking first, compare the two programs we get,
@@ -170,7 +171,7 @@ refineSemantic env prog at = do
     -- first abstraction all the symbols with fresh type variables and then instantiate them
     let envSymbols = allSymbols env
     -- first order arguments are tokens but not transitions in petri net
-    let usefulPipe k _ = k `notElem` ("fst" : "snd" : Map.keys foArgs)
+    let usefulPipe k _ = k `notElem` (Map.keys foArgs)
     let usefulSymbols = Map.filterWithKey usefulPipe envSymbols
     sigs <- instantiate env usefulSymbols
     modify $ over detailedSigs (Set.union (Map.keysSet sigs))
@@ -178,12 +179,10 @@ refineSemantic env prog at = do
     useless <- gets (view toRemove)
     -- add clone functions and add them into new transition set
     cloneNames <- mapM addCloneFunction $ Set.toList splits
-    let pairNames = filter (isPrefixOf "Pair") (Map.keys sigs)
-    let projectionNames = map (replaceId "Pair" "Pair_match") pairNames
     -- call the refined encoder on these signatures and disabled signatures
     return SplitInfo { newPlaces = Set.toList splits
                      , removedTrans = useless
-                     , newTrans = Map.keys sigs ++ cloneNames ++ projectionNames
+                     , newTrans = Map.keys sigs ++ cloneNames
                      }
 
 initNet :: MonadIO m => Environment -> PNSolver m ()
@@ -197,7 +196,7 @@ initNet env = withTime ConstructionTime $ do
     -- first abstraction all the symbols with fresh type variables and then instantiate them
     let envSymbols = allSymbols env
     -- first order arguments are tokens but not transitions in petri net
-    let usefulPipe k _ = k `notElem` ("fst" : "snd" : Map.keys foArgs)
+    let usefulPipe k _ = k `notElem` (Map.keys foArgs)
     let usefulSymbols = Map.filterWithKey usefulPipe envSymbols
     sigs <- instantiate env usefulSymbols
     modify $ set detailedSigs (Map.keysSet sigs)
@@ -213,20 +212,19 @@ initNet env = withTime ConstructionTime $ do
         return (id, absTy)
 
 addEncodedFunction :: MonadIO m => (Id, AbstractSkeleton) -> PNSolver m ()
-addEncodedFunction (id, f) | "Pair" `isPrefixOf` id = do
-    let ef = encodeFunction id f
-    modify $ over functionMap (HashMap.insert (replaceId "Pair" "Pair_match" id) (mkPairMatch ef))
+addEncodedFunction (id, f) | "pair_match" `isPrefixOf` id = do
+    let toMatch (FunctionCode name ho [p1,p2] ret) = FunctionCode name ho [p1] (p2:ret)
+    let ef = toMatch $ encodeFunction id f
     modify $ over functionMap (HashMap.insert id ef)
     modify $ over currentSigs (Map.insert id f)
-    let AFunctionT arg0 (AFunctionT arg1 ret) = f
+    let AFunctionT ret (AFunctionT arg0 arg1) = f
     -- add fst and snd sigs
-    modify $ over currentSigs (Map.insert (replaceId "Pair" "fst" id) (AFunctionT ret arg0))
-    modify $ over currentSigs (Map.insert (replaceId "Pair" "snd" id) (AFunctionT ret arg1))
+    modify $ over currentSigs (Map.insert (replaceId "pair_match" "fst" id) (AFunctionT ret arg0))
+    modify $ over currentSigs (Map.insert (replaceId "pair_match" "snd" id) (AFunctionT ret arg1))
     -- store the used abstract types and their groups into mapping
     let addTransition k tid = Map.insertWith union k [tid]
-    let includedTyps = nub (decomposeHo f)
+    let includedTyps = nub (decompose f)
     mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
-    mapM_ (\t -> modify $ over type2transition (addTransition t (replaceId "Pair" "Pair_match" id))) includedTyps
 addEncodedFunction (id, f) | isAHigherOrder f = do
     -- for higher order functions, we add coloring and uncoloring transitions
     let ef = encodeFunction id f
@@ -236,7 +234,7 @@ addEncodedFunction (id, f) | isAHigherOrder f = do
     let hops = filter isAFunctionT (abstractParamList f)
     mapM_ addHoParam hops
     let addTransition k tid = Map.insertWith union k [tid]
-    let includedTyps = nub (decomposeHo f)
+    let includedTyps = nub (decompose f)
     mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
 addEncodedFunction (id, f) = do
     let ef = encodeFunction id f
@@ -244,7 +242,7 @@ addEncodedFunction (id, f) = do
     modify $ over currentSigs (Map.insert id f)
     -- store the used abstract types and their groups into mapping
     let addTransition k tid = Map.insertWith union k [tid]
-    let includedTyps = nub (decomposeHo f)
+    let includedTyps = nub (decompose f)
     mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
 
 resetEncoder :: (MonadIO m) => Environment -> RType -> PNSolver m EncodeState
@@ -252,13 +250,13 @@ resetEncoder env dst = do
     -- reset source and destination types
     let binds = env ^. boundTypeVars
     abstraction <- gets (view abstractionTree)
-    let tgt = currentAbst binds abstraction (toAbstractType (shape dst))
+    tgt <- currentAbst binds abstraction (toAbstractType (shape dst))
     modify $ set targetType tgt
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
-    let srcTypes = map ( currentAbst binds abstraction
-                       . toAbstractType
-                       . shape
-                       . toMonotype) $ Map.elems foArgs
+    srcTypes <- mapM ( currentAbst binds abstraction
+                     . toAbstractType
+                     . shape
+                     . toMonotype) $ Map.elems foArgs
     modify $ set sourceTypes srcTypes
     modify $ set paramNames $ Map.keys foArgs
     srcTypes <- gets (view sourceTypes)
@@ -280,7 +278,6 @@ incEncoder env st = do
     loc <- gets (view currentLoc)
     funcs <- gets (view functionMap)
     t2tr <- gets (view type2transition)
-    musters <- gets (view mustFirers)
     let tid2tr = Map.foldrWithKey (\k v -> Map.insert (show k) v) Map.empty t2tr
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
     liftIO $ execStateT (encoderInc (HashMap.elems funcs) (map show src) (show tgt)) st
@@ -308,7 +305,7 @@ findPath env dst st = do
                                          && skipDiscard n) transNames
             let sigNames = map removeSuffix usefulTrans
             dsigs <- view detailedSigs <$> get
-            let sigNames' = filter (\name -> Set.member name dsigs || "Pair_match" `isPrefixOf` name) sigNames
+            let sigNames' = filter (\name -> Set.member name dsigs || "pair_match" `isPrefixOf` name) sigNames
             let sigs = substPair (map (findFunction fm) sigNames')
             writeLog 2 $ text "found filtered sigs" <+> text (show sigs)
             let initialFormer = FormerState 0 HashMap.empty [] []
@@ -337,9 +334,9 @@ findPath env dst st = do
     removeSuffix = removeLast '|'
 
     substPair [] = []
-    substPair (x:xs) = if "Pair_match" `isPrefixOf` funName x
-                          then   ( x { funName = replaceId "Pair_match" "fst" (funName x), funReturn = [head (funReturn x)] } )
-                               : ( x { funName = replaceId "Pair_match" "snd" (funName x), funReturn = [funReturn x !! 1] } )
+    substPair (x:xs) = if "pair_match" `isPrefixOf` funName x
+                          then   ( x { funName = replaceId "pair_match" "fst" (funName x), funReturn = [head (funReturn x)] } )
+                               : ( x { funName = replaceId "pair_match" "snd" (funName x), funReturn = [funReturn x !! 1] } )
                                : substPair xs
                           else x : substPair xs
 
@@ -348,12 +345,12 @@ fixEncoder env dst st info = do
     let binds = env ^. boundTypeVars
     abstraction <- gets (view abstractionTree)
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
-    let srcTypes = map ( currentAbst binds abstraction
-                       . toAbstractType
-                       . shape
-                       . toMonotype) $ Map.elems foArgs
+    srcTypes <- mapM ( currentAbst binds abstraction
+                     . toAbstractType
+                     . shape
+                     . toMonotype) $ Map.elems foArgs
     modify $ set sourceTypes srcTypes
-    let tgt = currentAbst binds abstraction (toAbstractType (shape dst))
+    tgt <- currentAbst binds abstraction (toAbstractType (shape dst))
     modify $ set targetType tgt
     writeLog 2 $ text "fixed parameter types are" <+> pretty srcTypes
     writeLog 2 $ text "fixed return type is" <+> pretty tgt
@@ -520,27 +517,6 @@ addHoParam t = do
     let uncolorTr = show t ++ "|uncolor"
     modify $ over type2transition (addTransition ret uncolorTr)
     modify $ over type2transition (addTransition t uncolorTr)
-
--- | find the current most restrictive abstraction for a given type
-currentAbst :: [Id] -> Set AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
-currentAbst tvs cover (AFunctionT tArg tRes) = AFunctionT tArg' tRes'
-  where
-    tArg' = currentAbst tvs cover tArg
-    tRes' = currentAbst tvs cover tRes
-currentAbst tvs cover at = currentAbst' tvs (Set.toList cover) at (AScalar (ATypeVarT varName))
-
-currentAbst' :: [Id] -> [AbstractSkeleton] -> AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
-currentAbst' _ [] _ sofar = sofar
-currentAbst' tvs (t:ts) at sofar | isSubtypeOf tvs at t && isSubtypeOf tvs t sofar = currentAbst' tvs ts at t
-currentAbst' tvs (t:ts) at sofar = currentAbst' tvs ts at sofar
-
-mostRestrict :: [Id] -> [AbstractSkeleton] -> AbstractSkeleton
-mostRestrict tvs ts = mostRestrict' tvs ts (AScalar (ATypeVarT varName))
-
-mostRestrict' :: [Id] -> [AbstractSkeleton] -> AbstractSkeleton -> AbstractSkeleton
-mostRestrict' tvs [] sofar = sofar
-mostRestrict' tvs (t:ts) sofar | isSubtypeOf tvs t sofar = mostRestrict' tvs ts t
-mostRestrict' tvs (t:ts) sofar = mostRestrict' tvs ts sofar
 
 attachLast :: AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
 attachLast t (AFunctionT tArg tRes) | isAFunctionT tRes = AFunctionT tArg (attachLast t tRes)

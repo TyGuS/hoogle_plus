@@ -28,7 +28,7 @@ data SolverState = SolverState {
     _functionMap :: HashMap Id FunctionCode,
     _targetType :: AbstractSkeleton,
     _sourceTypes :: [AbstractSkeleton],
-    _mustFirers :: [Id],
+    _mustFirers :: Map Id [Id],
     _paramNames :: [Id],
     _refineStrategy :: RefineStrategy,
     _groupMap :: Map Id [Id], -- mapping from group id to list of function names
@@ -56,7 +56,7 @@ emptySolverState = SolverState {
     _functionMap = HashMap.empty,
     _targetType = AScalar (ATypeVarT varName),
     _sourceTypes = [],
-    _mustFirers = [],
+    _mustFirers = Map.empty,
     _paramNames = [],
     _refineStrategy = NoRefine,
     _groupMap = Map.empty,

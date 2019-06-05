@@ -73,7 +73,7 @@ freshAbstract bound t = do
         let t = AScalar (ATypeVarT v)
         return (Map.insert id t m, AScalar (ATypeVarT v))
     freshAbstract' bound m (AScalar (ADatatypeT id args)) = do
-        (m', args') <- foldM (\(accm, acct) t -> do (m', t') <- freshAbstract' bound accm t; return (m', t':acct)) (m,[]) args
+        (m', args') <- foldM (\(accm, acct) t -> do (m', t') <- freshAbstract' bound accm t; return (m', acct++[t'])) (m,[]) args
         return (m', AScalar (ADatatypeT id args'))
     freshAbstract' bound m (AFunctionT tArg tRes) = do
         (m', tArg') <- freshAbstract' bound m tArg

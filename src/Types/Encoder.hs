@@ -54,7 +54,7 @@ data EncodeState = EncodeState {
   transition2id :: HashMap Id Int, -- transition name and abstraction level
   id2transition :: HashMap Int Id,
   ho2id :: HashMap Id Int,
-  mustFirers :: [Id],
+  mustFirers :: Map Id [Id],
   foldedFuncs :: [FoldedFunction],
   ty2tr :: Map Id [Id],
   prevChecked :: Bool,

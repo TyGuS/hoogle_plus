@@ -327,7 +327,11 @@ prettyProgram (Program p typ) = case p of
         Program (PSymbol _) _ -> prettyProgram p
         Program PHole _ -> prettyProgram p
         _ -> hlParens (prettyProgram p)
-      prefix = hang tab $ text f <+> hsep (map optParens x)
+      funName = case f of
+                  "Cons" -> "(:)"
+                  "Pair" -> "(,)"
+                  _      -> f
+      prefix = hang tab $ text funName <+> hsep (map optParens x)
       in if f `elem` Map.elems unOpTokens
             then hang tab $ operator f <+> hsep (map optParens x)
             else prefix

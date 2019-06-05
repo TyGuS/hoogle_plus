@@ -160,7 +160,7 @@ solveAndGetModel = do
             Just i -> mkEq pVar i
             Nothing -> error $ "cannot eval the variable" ++ show k
 
-encoderInit :: Int -> [Id] -> [Id] -> Id -> [FunctionCode] -> Map Id [Id] -> IO EncodeState
+encoderInit :: Int -> Map Id [Id] -> [Id] -> Id -> [FunctionCode] -> Map Id [Id] -> IO EncodeState
 encoderInit loc hoArgs inputs ret sigs t2tr = do
     z3Env <- initialZ3Env
     false <- Z3.mkFalse (envContext z3Env)
@@ -227,7 +227,7 @@ withTime desc f = do
     -}
     f
 
-encoderRefine :: SplitInfo -> [FunctionCode] -> Map Id [Id] -> [Id] -> Id -> [Id] -> Encoder ()
+encoderRefine :: SplitInfo -> [FunctionCode] -> Map Id [Id] -> [Id] -> Id -> Map Id [Id] -> Encoder ()
 encoderRefine info sigs t2tr inputs ret musters = do
     pop 1
 
@@ -622,9 +622,7 @@ fireTransitions t (FunctionCode name hoParams params rets) = do
 mustFireTransitions ::  Encoder ()
 mustFireTransitions = do
     must <- gets mustFirers
-    transitions <- gets transition2id
-    let mustTrans = HashMap.filterWithKey (\k _ -> nameInMust must k) transitions
-    mapM_ fireTransition mustTrans
+    mapM_ fireTransitionFor (Map.toList must)
   where
     nameInMust must name = foldr ((||) . flip isInfixOf name) False must
     fireTransition tid = do
@@ -633,4 +631,9 @@ mustFireTransitions = do
         trId <- mkIntNum tid
         tsVars <- mapM (\t -> mkZ3IntVar (findVariable t tsMap)) [0..(l-1)]
         trVars <- mapM (mkEq trId) tsVars
-        mkOr trVars >>= assert
+        return trVars
+    fireTransitionFor (id, tids) = do
+        transitions <- gets transition2id
+        let mustTrans = HashMap.filterWithKey (\k _ -> nameInMust tids k) transitions
+        fires <- mapM fireTransition mustTrans
+        mkOr (concat fires) >>= assert

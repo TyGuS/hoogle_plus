@@ -413,7 +413,6 @@ parseETerm = buildExpressionParser (exprTable mkUnary mkBinary False) (choice [p
       , parseIntLit
       , parseSymbol
       , parseList
-      , parsePair
       ]
     parseBoolLit = (reserved "False" >> return (untyped $ PSymbol "False")) <|> (reserved "True" >> return (untyped $ PSymbol "True"))
     parseIntLit = natural >>= return . untyped . PSymbol . show
@@ -426,16 +425,6 @@ parseList = do
   where
     cons x xs = untyped $ PApp "Cons" [x, xs]
     nil = untyped $ PSymbol "Nil"
-
-parsePair = do
-  elems <- parens (commaSep1 parseImpl)
-  if length elems < 2 then error "parsePair: invalid pair"
-                      else return $ foldr mkPair (initialPair elems) elems
-  where
-    initialPair elems = untyped $ PApp "Pair" [ elems !! (length elems - 2)
-                                              , elems !! (length elems - 1)
-                                              ]
-    mkPair p1 p2 = untyped $ PApp "Pair" [p1, p2]
 
 withOptionalType p = do
   (Program content _) <- p

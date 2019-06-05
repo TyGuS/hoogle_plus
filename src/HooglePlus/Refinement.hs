@@ -146,6 +146,7 @@ propagate env p@(Program (PApp f args) BotT) upstream = do
 propagate env p@(Program (PApp f args) typ) upstream = do
     writeLog 3 $ text "propagate" <+> pretty upstream <+> text "into" <+> pretty p
     t <- findSymbol env (removeLast '_' f)
+    -- writeLog 3 $ pretty t
     let bound = env ^. boundTypeVars
     let argTyps = allArgTypes t
     let retTyp = lastType t
@@ -159,9 +160,11 @@ propagate env p@(Program (PApp f args) typ) upstream = do
     case unifier of
       Nothing -> return ()
       Just m  -> do
+        -- writeLog 3 $ pretty (Map.toList m)
         -- propagate recursively to its arguments after substitution
         let subst arg = foldr (uncurry abstractSubstitute) arg (Map.toList m)
         let argTyps' = map (subst . toAbstractType . shape) argTyps
+        -- writeLog 3 $ text "arg types" <+> pretty argTyps'
         mapM_ (uncurry $ propagate env) (zip args argTyps')
 -- | case for lambda functions
 propagate env (Program (PFun x body) (FunctionT _ tArg tRet))
@@ -310,7 +313,7 @@ generalize bound t@(AScalar (ATypeVarT id))
 -- (3) datatype with incrementally generalized inner types
 generalize bound t@(AScalar (ADatatypeT id args)) = do
     v <- lift $ freshId "T"
-    (return $ AScalar (ATypeVarT v)) `mplus` freshVars `mplus` subsetTyps
+    (return $ AScalar (ATypeVarT v)) `mplus` interleave
   where
     -- this search may explode when we have a large number of datatype parameters
     patternOfLen n
@@ -324,11 +327,14 @@ generalize bound t@(AScalar (ADatatypeT id args)) = do
           msum $ map (\c -> return (c:prevPat)) (candidates prevPat)
 
     freshVars = do
-        let n = length args
-        pattern <- patternOfLen n
-        let argNames = map (\i -> "T" ++ show i) pattern
-        let args' = map (\n -> AScalar (ATypeVarT n)) argNames
-        lift $ freshAbstract bound (AScalar (ADatatypeT id args'))
+      let n = length args
+      pattern <- patternOfLen n
+      let argNames = map (\i -> "T" ++ show i) pattern
+      let args' = map (\n -> AScalar (ATypeVarT n)) argNames
+      absTy <- lift $ freshAbstract bound (AScalar (ADatatypeT id args'))
+      let unifier = getUnifier bound [(t, absTy)]
+      guard (isJust unifier)
+      return absTy       
 
     subsets [] = return []
     subsets (arg:args) = do
@@ -339,6 +345,11 @@ generalize bound t@(AScalar (ADatatypeT id args)) = do
     subsetTyps = do
         args' <- subsets args
         return (AScalar (ADatatypeT id args'))
+
+    interleave = do
+      var <- freshVars
+      typ <- subsetTyps
+      return var `mplus` return typ
 generalize bound (AFunctionT tArg tRes) = do
     tArg' <- generalize bound tArg
     tRes' <- generalize bound tRes

@@ -26,6 +26,10 @@ import Text.Printf
 import Control.Monad.State
 import Debug.Trace
 
+isBot :: AbstractSkeleton -> Bool
+isBot ABottom = True
+isBot _ = False
+
 isAFunctionT :: AbstractSkeleton -> Bool
 isAFunctionT (AFunctionT {}) = True
 isAFunctionT _ = False
@@ -38,9 +42,10 @@ lastAbstract :: AbstractSkeleton -> AbstractSkeleton
 lastAbstract (AFunctionT _ tRet) = lastAbstract tRet
 lastAbstract t = t
 
-absFunArgs :: AbstractSkeleton -> [AbstractSkeleton]
-absFunArgs (AFunctionT tArg tRes) = tArg : absFunArgs tRes
-absFunArgs t = []
+absFunArgs :: Id -> AbstractSkeleton -> [AbstractSkeleton]
+absFunArgs id (AFunctionT tArg tRes) | id == "pair_match" = [tArg]
+absFunArgs id (AFunctionT tArg tRes) = tArg : absFunArgs id tRes
+absFunArgs _ t = []
 
 decompose :: AbstractSkeleton -> [AbstractSkeleton]
 decompose (AFunctionT tArg tRet) = decompose tArg ++ decompose tRet
@@ -59,13 +64,9 @@ toAbstractType BotT = ABottom
 
 -- this is not subtype relation!!!
 isSubtypeOf :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Bool
-isSubtypeOf bound (AScalar (ATypeVarT id)) (AScalar (ATypeVarT id')) | id == id' = True
-isSubtypeOf bound (AScalar (ATypeVarT id)) (AScalar (ATypeVarT id')) | id `elem` bound && id' `elem` bound = False
-isSubtypeOf bound (AScalar (ATypeVarT id)) (AScalar (ATypeVarT _)) | id `elem` bound = True
-isSubtypeOf bound _ (AScalar (ATypeVarT id)) | id `notElem` bound = True
-isSubtypeOf bound (AScalar (ADatatypeT id args)) (AScalar (ADatatypeT id' args')) | id == id' = foldr (\(t, t') -> (&&) (isSubtypeOf bound t t')) True (zip args args')
-isSubtypeOf bound (AFunctionT tArg tRes) (AFunctionT tArg' tRes') = isSubtypeOf bound tArg tArg' && isSubtypeOf bound tRes tRes'
-isSubtypeOf _ _ _ = False
+isSubtypeOf bound t1 t2 = isJust unifier
+  where
+    unifier = getUnifier (bound ++ abstractTypeVars bound t1) [(t2, t1)]
 
 checkUnification :: [Id] -> Map Id AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton -> Maybe (Map Id AbstractSkeleton)
 checkUnification bound tass t1 t2 | t1 == t2 = Just tass
@@ -121,6 +122,14 @@ abstractSubstitute id typ (AFunctionT tArg tRes) = AFunctionT tArg' tRes'
     tArg' = abstractSubstitute id typ tArg
     tRes' = abstractSubstitute id typ tRes
 
+abstractTypeVars :: [Id] -> AbstractSkeleton -> [Id]
+abstractTypeVars bound (AScalar (ATypeVarT id)) 
+  | id `elem` bound = []
+  | otherwise = [id]
+abstractTypeVars bound (AScalar (ADatatypeT id args)) = concatMap (abstractTypeVars bound) args 
+abstractTypeVars bound (AFunctionT tArg tRes) = abstractTypeVars bound tArg ++ abstractTypeVars bound tRes
+abstractTypeVars bound _ = []
+
 equalAbstract :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Bool
 equalAbstract tvs t1 t2 = isSubtypeOf tvs t1 t2 && isSubtypeOf tvs t2 t1
 
@@ -160,3 +169,35 @@ abstractIntersect bound (AFunctionT tArg tRes) (AFunctionT tArg' tRes') =
                    Nothing -> Nothing
                    Just r  -> Just (AFunctionT a r)
 abstractIntersect _ _ _ = Nothing
+
+-- | find the current most restrictive abstraction for a given type
+currentAbst :: MonadIO m => [Id] -> Set AbstractSkeleton -> AbstractSkeleton -> PNSolver m AbstractSkeleton
+currentAbst tvs cover (AFunctionT tArg tRes) = do
+    tArg' <- currentAbst tvs cover tArg
+    tRes' <- currentAbst tvs cover tRes
+    return $ AFunctionT tArg' tRes'
+currentAbst tvs cover at = currentAbst' tvs (Set.toList cover) at (AScalar (ATypeVarT varName))
+
+currentAbst' :: MonadIO m => [Id] -> [AbstractSkeleton] -> AbstractSkeleton -> AbstractSkeleton -> PNSolver m AbstractSkeleton
+currentAbst' _ [] _ sofar = return sofar
+currentAbst' tvs (t:ts) at sofar = do
+  freshT <- freshAbstract tvs t
+  freshSofar <- freshAbstract tvs sofar
+  -- writeLog 3 $ pretty at <+> text "<:" <+> pretty freshT
+  -- writeLog 3 $ pretty t <+> text "<:" <+> pretty freshSofar
+  if isSubtypeOf tvs at freshT && isSubtypeOf tvs t freshSofar
+     then currentAbst' tvs ts at t
+     else currentAbst' tvs ts at sofar
+
+applySemantic :: MonadIO m => [Id] -> AbstractSkeleton -> [AbstractSkeleton] -> PNSolver m AbstractSkeleton
+applySemantic tvs fun args = do
+    let cargs = init (decompose fun)
+    let ret = last (decompose fun)
+    constraints <- mapM (uncurry $ typeConstraints tvs) (zip cargs args)
+    let unifier = getUnifier tvs (concat constraints)
+    case unifier of
+        Nothing -> return ABottom
+        Just m -> do
+            cover <- gets (view abstractionTree)
+            let substRes = foldr (uncurry abstractSubstitute) ret (Map.toList m) 
+            currentAbst tvs cover substRes
