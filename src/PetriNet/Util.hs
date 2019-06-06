@@ -6,9 +6,11 @@ import Types.Type
 import Types.Common
 import Types.Solver
 import Types.Abstract
+import Types.Experiments
 import Synquid.Program
 import Synquid.Logic hiding (varName)
 import Synquid.Type
+import Synquid.Pretty
 
 import Data.Maybe
 import qualified Data.Text as Text
@@ -22,14 +24,15 @@ import Control.Monad.Extra
 import Debug.Trace
 import Data.List.Extra
 import Text.Pretty.Simple
+import Control.Concurrent.Chan
 
 -------------------------------------------------------------------------------
 -- | helper functions
 -------------------------------------------------------------------------------
-
-writeLog level msg = do
-    st <- get
-    if level <= st ^. logLevel then traceShow msg $ return () else return ()
+writeLog :: MonadIO m => Int -> String -> Doc -> PNSolver m ()
+writeLog level tag msg = do
+    mesgChan <- view messageChan <$> get
+    liftIO $ writeChan mesgChan (MesgLog level tag $ show $ plain msg)
 
 multiPermutation len elmts | len == 0 = [[]]
 multiPermutation len elmts | len == 1 = [[e] | e <- elmts]

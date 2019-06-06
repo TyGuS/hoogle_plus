@@ -45,7 +45,7 @@ allAbstractDts _ _ = Set.empty
 specificAbstractionFromTypes :: Environment -> [RSchema] -> Set AbstractSkeleton
 specificAbstractionFromTypes env schemas = let
     abstrSkels = map (toAbstractType . shape) (concatMap (allBaseTypes . toMonotype) schemas)
-    baseTree = Set.empty
+    baseTree = Set.singleton (AScalar (ATypeVarT varName))
     in
         foldr Set.insert baseTree abstrSkels
 

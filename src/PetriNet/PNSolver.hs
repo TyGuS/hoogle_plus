@@ -310,7 +310,7 @@ findPath env dst st = do
             let sortedRes = sortOn snd res
             let transNames = map fst sortedRes
             writeLog 2 "findPath" $ text "found path" <+> pretty transNames
-            let usefulTrans = filter (\n -> skipEntry n
+            let usefulTrans = filter (\n -> skipUncolor n
                                          && skipClone n
                                          && skipDiscard n) transNames
             let sigNames = map removeSuffix usefulTrans
@@ -455,8 +455,8 @@ findProgram env dst st = do
         solutions <- view currentSolutions <$> get
         mapping <- view nameMapping <$> get
         let code' = recoverNames mapping code
-        checkedSols <- withTime TypeCheckTime (filterM (liftIO . runGhcChecks env dst) [code'])
-        if (code' `elem` solutions) || (null checkedSols)
+        -- checkedSols <- withTime TypeCheckTime (filterM (liftIO . runGhcChecks env dst) [code'])
+        if (code' `elem` solutions) -- || (null checkedSols)
            then do
                findProgram env dst st'
            else do
@@ -493,7 +493,7 @@ findFirstN env dst st cnt | otherwise = do
 
 runPNSolver :: MonadIO m => Environment -> Int -> RType -> PNSolver m ()
 runPNSolver env cnt t = do
-    writeLog 3 $ text $ show (allSymbols env)
+    writeLog 3 "runPNSolver" $ text $ show (allSymbols env)
     initNet env
     st <- withTime TotalSearch $ withTime EncodingTime (resetEncoder env t)
     findFirstN env t st cnt
