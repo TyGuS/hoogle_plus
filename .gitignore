@@ -31,3 +31,4 @@ tags
 .python-version
 .DS_Store
 HooglePlus.cabal
+webapp/static/tmp/*

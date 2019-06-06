@@ -24,13 +24,11 @@ main = do
     tier1env <- generateEnv genOptsTier1
     queries <- readQueryFile queryFile
     let envs = [(tier1env, "Tier1")]
-        {-    let params = [
+    let params = [
           (searchParams, expQueryRefinement),
           (searchParamsHOF, expQueryRefinementHOF),
           (searchParamsBaseline, expBaseline),
-          (searchParamsZeroStart, expZeroCoverStart)] -}
-    
-    let params = [ (searchParamsZeroHOF, expZeroCoverStart) ]
+          (searchParamsZeroStart, expZeroCoverStart)]
     let exps = mkExperiments envs queries params
     resultSummaries <- runExperiments exps
     let aggregatedResults = toGroup resultSummaries
