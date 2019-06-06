@@ -70,8 +70,6 @@ isSubtypeOf bound t1 t2 = isJust unifier
 
 checkUnification :: [Id] -> Map Id AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton -> Maybe (Map Id AbstractSkeleton)
 checkUnification bound tass t1 t2 | t1 == t2 = Just tass
-checkUnification bound tass (AScalar (ATypeVarT id)) (AScalar (ATypeVarT id')) | id `elem` bound && id' `elem` bound = Nothing
-checkUnification bound tass t@(AScalar (ATypeVarT id)) t' | id `elem` bound = checkUnification bound tass t' t
 checkUnification bound tass (AScalar (ATypeVarT id)) t | id `Map.member` tass =
     -- keep the most informative substitution, eagerly substitute into the final result
     case checkUnification bound tass assigned t of
@@ -80,8 +78,12 @@ checkUnification bound tass (AScalar (ATypeVarT id)) t | id `Map.member` tass =
   where
     substed = foldl' (\acc (id, tt) -> abstractSubstitute id tt acc) assigned . Map.toList
     assigned = fromJust (Map.lookup id tass)
-checkUnification bound tass (AScalar (ADatatypeT {})) (AScalar (ATypeVarT id)) | id `elem` bound = Nothing
-checkUnification bound tass t@(AScalar (ADatatypeT {})) (AScalar (ATypeVarT id)) = Just (Map.insert id t tass)
+checkUnification bound tass t@(AScalar (ATypeVarT id)) t'@(AScalar (ATypeVarT id')) 
+  | id `elem` bound && id' `elem` bound = Nothing
+  | id `elem` bound && id' `notElem` bound = checkUnification bound tass t' t
+  | id `notElem` bound = Just (Map.insert id t' tass)
+checkUnification bound tass (AScalar (ATypeVarT id)) t | id `elem` bound = Nothing
+checkUnification bound tass t@(AScalar (ADatatypeT {})) t'@(AScalar (ATypeVarT id)) = checkUnification bound tass t' t
 checkUnification bound tass (AScalar (ATypeVarT id)) t = Just (Map.insert id t tass)
 checkUnification bound tass (AScalar (ADatatypeT id tArgs)) (AScalar (ADatatypeT id' tArgs')) | id /= id' = Nothing
 checkUnification bound tass (AScalar (ADatatypeT id tArgs)) (AScalar (ADatatypeT id' tArgs')) | id == id' = checkArgs tass tArgs tArgs'

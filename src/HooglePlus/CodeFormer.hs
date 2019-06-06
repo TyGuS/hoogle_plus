@@ -78,7 +78,7 @@ applyFunction func = do
         tterms <- typedTerms <$> get
         oldSt <- get
         let sigsAvail = take (fromJust (elemIndex func (allSignatures oldSt))) (allSignatures oldSt)
-        bodies <- generateProgram sigsAvail (funParams curr) vars (head (funReturn curr)) False
+        bodies <- generateProgram sigsAvail (funParams curr) vars (funReturn curr) False
         put oldSt
         case Set.toList bodies of
             [] -> return []
@@ -90,8 +90,8 @@ applyFunction func = do
 -- | generate the program from the signatures appeared in selected transitions
 -- these signatures are sorted by their timestamps,
 -- i.e. they may only use symbols appearing before them
-generateProgram :: [FunctionCode] -> [Id] -> [Id] -> Id -> Bool -> CodeFormer CodePieces
-generateProgram signatures inputs argNames ret isFinal = do
+generateProgram :: [FunctionCode] -> [Id] -> [Id] -> [Id] -> Bool -> CodeFormer CodePieces
+generateProgram signatures inputs argNames rets isFinal = do
     -- prepare scalar variables
     st <- get
     put $ st { varCounter = 0
@@ -103,9 +103,10 @@ generateProgram signatures inputs argNames ret isFinal = do
     st <- get
     put $ st { varCounter = 0 }
     mapM_ applyFunction signatures
-    codePieces <- HashMap.lookupDefault Set.empty ret . typedTerms <$> get
+    termLib <- gets typedTerms
+    let codePieces = map (\ret -> HashMap.lookupDefault Set.empty ret termLib) rets
     let vars = []
-    return $ Set.filter (includeAllSymbols vars) codePieces
+    return $ Set.filter (includeAllSymbols vars) (Set.unions codePieces)
   where
     addTypedArg input argName = do
         st <- get

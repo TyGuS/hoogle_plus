@@ -108,7 +108,8 @@ instantiateWith env typs id t = do
            when (length fstSigs /= length sndSigs)
                 (error "fst and snd have different number of instantiations")
            let matches = map (uncurry assemblePair) (zip fstSigs sndSigs)
-           mapM (mkNewSig "pair_match") matches
+           let matches' = filter (\t -> noneInst instMap "pair_match" t || diffInst instMap "pair_match" t) matches
+           mapM (mkNewSig "pair_match") matches'
        else do
            ft <- freshType (Monotype t)
            let t' = toAbstractType (shape ft)
@@ -269,7 +270,8 @@ resetEncoder env dst = do
     musters <- gets (view mustFirers)
     let tid2tr = Map.foldrWithKey (\k v -> Map.insert (show k) v) Map.empty t2tr
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    liftIO $ encoderInit loc musters (map show srcTypes) (show tgt) (HashMap.elems funcs) tid2tr
+    let accepts = filter (isSubtypeOf binds tgt) (Set.toList abstraction)
+    liftIO $ encoderInit loc musters (map show srcTypes) (map show accepts) (HashMap.elems funcs) tid2tr
 
 incEncoder :: MonadIO m => Environment -> EncodeState -> PNSolver m EncodeState
 incEncoder env st = do
@@ -278,9 +280,12 @@ incEncoder env st = do
     loc <- gets (view currentLoc)
     funcs <- gets (view functionMap)
     t2tr <- gets (view type2transition)
+    cover <- gets (view abstractionTree)
+    let bound = env ^. boundTypeVars
     let tid2tr = Map.foldrWithKey (\k v -> Map.insert (show k) v) Map.empty t2tr
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    liftIO $ execStateT (encoderInc (HashMap.elems funcs) (map show src) (show tgt)) st
+    let accepts = filter (isSubtypeOf bound tgt) (Set.toList cover)
+    liftIO $ execStateT (encoderInc (HashMap.elems funcs) (map show src) (map show accepts)) st
 
 findPath :: (MonadIO m) => Environment -> RType -> EncodeState -> PNSolver m (CodePieces, EncodeState)
 findPath env dst st = do
@@ -325,8 +330,11 @@ findPath env dst st = do
     combinations (h:t) = [ hh:tt | hh <- h, tt <- combinations t ]
 
     generateCode initialFormer src args sigs = do
-        tgt <- view targetType <$> get
-        liftIO (evalStateT (generateProgram sigs src args (show tgt) True) initialFormer)
+        tgt <- gets (view targetType)
+        cover <- gets (view abstractionTree)
+        let bound = env ^. boundTypeVars
+        let rets = filter (isSubtypeOf bound tgt) (Set.toList cover)
+        liftIO (evalStateT (generateProgram sigs src args (map show rets) True) initialFormer)
 
     skipUncolor = not . isInfixOf "|uncolor"
     skipClone = not . isInfixOf "|clone"
@@ -364,7 +372,8 @@ fixEncoder env dst st info = do
     t2tr <- gets (view type2transition)
     musters <- gets (view mustFirers)
     let tid2tr = Map.foldrWithKey (\k v -> Map.insert (show k) v) Map.empty t2tr
-    liftIO $ execStateT (encoderRefine info (HashMap.elems funcs) tid2tr (map show srcTypes) (show tgt) musters) st
+    let accepts = filter (isSubtypeOf binds tgt) (Set.toList abstraction)
+    liftIO $ execStateT (encoderRefine info (HashMap.elems funcs) tid2tr (map show srcTypes) (map show accepts) musters) st
 
 findProgram :: MonadIO m => Environment -> RType -> EncodeState -> PNSolver m (RProgram, EncodeState)
 findProgram env dst st = do
@@ -406,7 +415,6 @@ findProgram env dst st = do
         mapping <- view nameMapping <$> get
         writeLog 1 $ text "Find program" <+> pretty (recoverNames mapping prog)
         modify $ set isChecked True
-        modify $ set typeAssignment Map.empty
         btm <- bottomUpCheck env prog
         writeLog 3 $ text "bottom up checking get program" <+> pretty (recoverNames mapping btm)
         checkStatus <- gets (view isChecked)

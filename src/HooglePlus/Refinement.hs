@@ -124,48 +124,25 @@ propagate env p@(Program (PSymbol sym) t) upstream = do
 -- | starter case, when we start from a bottom type
 -- find the most general abstraction that unifies with the concrete types
 -- of the arguments, but not unify with the function args of its signature
-propagate env p@(Program (PApp f args) BotT) upstream = do
+propagate env p@(Program (PApp f args) _) upstream = do
+    when (not $ isBot upstream) (propagate env (Program (PSymbol "x") AnyT) upstream)
     writeLog 3 $ text "propagate" <+> pretty upstream <+> text "into" <+> pretty p
     t <- findSymbol env (removeLast '_' f)
     tass <- gets (view typeAssignment)
+    writeLog 3 $ text "current assignments" <+> pretty (Map.toList tass)
     let closedArgs = map (stypeSubstitute tass . shape . typeOf) args
     let argConcs = map toAbstractType closedArgs
-    let argTempls = map (toAbstractType . shape) (allArgTypes t)
-    abstractArgs <- observeT $ mostGeneral argConcs argTempls
+    let absFun = toAbstractType $ shape t
+    abstractArgs <- observeT $ mostGeneral argConcs absFun
     mapM_ (uncurry $ propagate env) (zip args abstractArgs)
   where
-    mostGeneral cArgs tArgs = do
+    mostGeneral cArgs t = do
         let bound = env ^. boundTypeVars
         absArgs <- mapM (generalize bound) cArgs
-        writeLog 3 $ text "get generalized types" <+> pretty absArgs
-        constraints <- lift $ mapM (uncurry (typeConstraints bound)) (zip tArgs absArgs)
-        let unifier = getUnifier bound (concat constraints)
-        guard (isNothing unifier)
+        writeLog 3 $ text "get generalized types" <+> pretty absArgs <+> text "from" <+> pretty cArgs
+        res <- lift $ applySemantic bound t absArgs
+        guard (isSubtypeOf bound res upstream)
         return absArgs
--- | recursive case, when we start from a regular type
-propagate env p@(Program (PApp f args) typ) upstream = do
-    writeLog 3 $ text "propagate" <+> pretty upstream <+> text "into" <+> pretty p
-    t <- findSymbol env (removeLast '_' f)
-    -- writeLog 3 $ pretty t
-    let bound = env ^. boundTypeVars
-    let argTyps = allArgTypes t
-    let retTyp = lastType t
-    -- add the new discovered type into cover
-    cover <- gets (view abstractionTree)
-    let newCover = updateCover bound upstream cover
-    modify $ set abstractionTree newCover
-    modify $ over splitTypes (Set.union (newCover `Set.difference` cover))
-    constraints <- typeConstraints bound (toAbstractType $ shape retTyp) upstream
-    let unifier = getUnifier bound constraints
-    case unifier of
-      Nothing -> return ()
-      Just m  -> do
-        -- writeLog 3 $ pretty (Map.toList m)
-        -- propagate recursively to its arguments after substitution
-        let subst arg = foldr (uncurry abstractSubstitute) arg (Map.toList m)
-        let argTyps' = map (subst . toAbstractType . shape) argTyps
-        -- writeLog 3 $ text "arg types" <+> pretty argTyps'
-        mapM_ (uncurry $ propagate env) (zip args argTyps')
 -- | case for lambda functions
 propagate env (Program (PFun x body) (FunctionT _ tArg tRet))
               (AFunctionT atArg atRet) = 
@@ -313,7 +290,7 @@ generalize bound t@(AScalar (ATypeVarT id))
 -- (3) datatype with incrementally generalized inner types
 generalize bound t@(AScalar (ADatatypeT id args)) = do
     v <- lift $ freshId "T"
-    (return $ AScalar (ATypeVarT v)) `mplus` interleave
+    (return $ AScalar (ATypeVarT v)) `mplus` freshVars `mplus` subsetTyps -- interleave
   where
     -- this search may explode when we have a large number of datatype parameters
     patternOfLen n
@@ -334,6 +311,7 @@ generalize bound t@(AScalar (ADatatypeT id args)) = do
       absTy <- lift $ freshAbstract bound (AScalar (ADatatypeT id args'))
       let unifier = getUnifier bound [(t, absTy)]
       guard (isJust unifier)
+      writeLog 3 $ text "generalize" <+> pretty t <+> text "into" <+> pretty absTy <+> text "with unifier" <+> pretty (Map.toList (fromJust unifier))
       return absTy       
 
     subsets [] = return []
