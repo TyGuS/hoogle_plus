@@ -44,7 +44,7 @@ allAbstractDts _ _ = Set.empty
 -- Produce the most specific abstraction possible from the given types.
 specificAbstractionFromTypes :: Environment -> [RSchema] -> Set AbstractSkeleton
 specificAbstractionFromTypes env schemas = let
-    abstrSkels = concatMap (decompose . toAbstractType . shape . toMonotype) schemas
+    abstrSkels = map (toAbstractType . shape) (concatMap (allBaseTypes . toMonotype) schemas)
     baseTree = Set.empty
     in
         foldr Set.insert baseTree abstrSkels

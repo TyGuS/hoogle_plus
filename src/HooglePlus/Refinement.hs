@@ -128,9 +128,7 @@ propagate env p@(Program (PApp f args) _) upstream = do
     when (not $ isBot upstream) (propagate env (Program (PSymbol "x") AnyT) upstream)
     writeLog 3 $ text "propagate" <+> pretty upstream <+> text "into" <+> pretty p
     t <- findSymbol env (removeLast '_' f)
-    tass <- gets (view typeAssignment)
-    writeLog 3 $ text "current assignments" <+> pretty (Map.toList tass)
-    let closedArgs = map (stypeSubstitute tass . shape . typeOf) args
+    let closedArgs = map (shape . typeOf) args
     let argConcs = map toAbstractType closedArgs
     let absFun = toAbstractType $ shape t
     abstractArgs <- observeT $ mostGeneral argConcs absFun
@@ -171,10 +169,13 @@ bottomUpCheck env (Program (PApp f args) typ) = do
       let argVars = map shape (allArgTypes t)
       let checkedArgTys = map (shape . typeOf) checkedArgs
       mapM_ (uncurry $ solveTypeConstraint env) (zip checkedArgTys argVars)
+      -- we eagerly substitute the assignments into the return type of t
+      tass <- gets (view typeAssignment)
+      let ret = addTrue $ stypeSubstitute tass (shape $ lastType t)
       -- if any of these checks returned false, this function application 
       -- would produce a bottom type
       ifM (gets $ view isChecked)
-          (return $ Program (PApp f checkedArgs) (lastType t))
+          (return $ Program (PApp f checkedArgs) ret)
           (return $ Program (PApp f checkedArgs) BotT)
   where
     checkArgs [] = return $ Right []

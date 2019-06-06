@@ -10,12 +10,13 @@ import Synquid.Pretty
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Resolver (resolveDecls, ResolverState (..), initResolverState, resolveSchema)
 import Synquid.SolverMonad
-import Types.Generate
+import Types.Generate hiding (files)
 import Types.Experiments
 import Types.Environment
 import Types.Program
 import Types.Solver
 import Synquid.HtmlOutput
+import Database.Presets
 import Database.Environment (writeEnv, generateEnv)
 import Database.Convert
 import Database.Generate
@@ -33,8 +34,12 @@ import System.Console.CmdArgs hiding (Normal)
 import System.Console.ANSI
 import System.FilePath
 import Text.Parsec.Pos
+import Text.Printf
+import Text.Pretty.Simple
 import Control.Monad.State (runState, evalStateT, execStateT, evalState)
 import Control.Monad.Except (runExcept)
+import Control.Concurrent
+import Control.Concurrent.Chan
 import Data.Char
 import Data.List
 import Data.Foldable
@@ -79,11 +84,18 @@ main = do
       let synquidParams = defaultSynquidParams {
         Main.envPath = envPath
       }
-      runOnFile synquidParams searchParams file
-    Generate pkgs mdls d ho pathToEnv -> do
-      let fetchOpts = defaultHackageOpts {
-        packages = pkgs
-      }
+      executeSearch synquidParams searchParams file
+
+    Generate {preset=(Just preset)} -> do
+      let opts = case preset of
+                    ICFPTotal -> genOptsTier1
+                    ICFPPartial -> genOptsTier2
+      precomputeGraph opts
+
+    Generate Nothing files pkgs mdls d ho pathToEnv -> do
+      let fetchOpts = if (length files > 0)
+                        then Local files
+                        else defaultHackageOpts {packages=pkgs}
       let generationOpts = defaultGenerationOpts {
         modules = mdls,
         instantiationDepth = d,
@@ -118,6 +130,8 @@ data CommandLineArgs
       }
       | Generate {
         -- | Input
+        preset :: Maybe Preset,
+        files :: [String],
         pkg_name :: [String],
         module_name :: [String],
         type_depth :: Int,
@@ -140,10 +154,12 @@ synt = Synthesis {
   } &= auto &= help "Synthesize goals specified in the input file"
 
 generate = Generate {
+  preset               = Nothing         &= help ("Environment preset to use"),
+  files                = []              &= help ("Files to use to generate from. Exclusive with packages and modules. Takes precedence"),
   pkg_name             = []              &= help ("Package names to be generated"),
   module_name          = []              &= help ("Module names to be generated in the given packages"),
   type_depth           = 2               &= help ("Depth of the types to be instantiated for polymorphic type constructors"),
-  higher_order         = False           &= help ("Include higher order functions (default: False)"),
+  higher_order         = True           &= help ("Include higher order functions (default: True)"),
   env_file_path_out    = defaultEnvPath  &= help ("Environment file path (default:" ++ (show defaultEnvPath) ++ ")")
 } &= help "Generate the type conversion database for synthesis"
 
@@ -178,14 +194,17 @@ precomputeGraph opts = generateEnv opts >>= writeEnv (Types.Generate.envPath opt
 
 
 -- | Parse and resolve file, then synthesize the specified goals
-runOnFile :: SynquidParams -> SearchParams  -> String -> IO ()
-runOnFile synquidParams searchParams query = do
+executeSearch :: SynquidParams -> SearchParams  -> String -> IO ()
+executeSearch synquidParams searchParams query = do
   env <- readEnv
   goal <- envToGoal env query
-  results <- synthesize searchParams goal
-  when (_explorerLogLevel searchParams > 0) (mapM_ (printTime . snd) results)
+  messageChan <- newChan
+  worker <- forkIO $ synthesize searchParams goal messageChan
+  readChan messageChan >>= (handleMessages messageChan)
+  -- when (_explorerLogLevel searchParams > 0) (mapM_ (printTime . snd) results)
   return ()
   where
+    logLevel = searchParams ^. explorerLogLevel
     readEnv = do
       let envPathIn = Main.envPath synquidParams
       doesExist <- doesFileExist envPathIn
@@ -195,5 +214,14 @@ runOnFile synquidParams searchParams query = do
         Left err -> error err
         Right env ->
           return env
+    handleMessages ch (MesgClose _) = putStrLn "Search complete" >> return ()
+    handleMessages ch (MesgP (program, stats)) = do
+      print program >> readChan ch >>= (handleMessages ch)
+    handleMessages ch (MesgS debug) = do
+      when (logLevel > 0) (pPrint debug)
+      readChan ch >>= (handleMessages ch)
+    handleMessages ch (MesgLog level tag msg) = do
+      when (level <= logLevel) (printf "[%s]: %s\n" tag msg)
+      readChan ch >>= (handleMessages ch)
 
 pdoc = printDoc Plain

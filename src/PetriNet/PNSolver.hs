@@ -41,6 +41,7 @@ import qualified Z3.Monad as Z3
 import System.CPUTime
 import Text.Printf
 import Text.Pretty.Simple
+import Control.Concurrent.Chan
 
 import Types.Common
 import Types.Type
@@ -86,7 +87,7 @@ instantiate env sigs = do
         tree <- gets (view abstractionTree)
         let typs = Set.toList tree
         -- to test first level abstraction, please disable the complement type here
-        writeLog 3 $ text "Current abstract types:" <+> pretty typs
+        writeLog 3 "instantiate" $ text "Current abstract types:" <+> pretty typs
         sigs' <- Map.toList <$> mapM freshType sigs
         foldM (\acc -> (<$>) (acc ++) . uncurry (instantiateWith env typs)) [] sigs'
 
@@ -147,7 +148,7 @@ instantiateWith env typs id t = do
              (modify $ over mustFirers (Map.insertWith (++) id [newId]))
         modify $ over nameMapping (Map.insert newId id)
         modify $ over instanceMapping (HashMap.insert (id, absFunArgs id ty) (newId, ty))
-        writeLog 3 $ text newId <+> text "::" <+> pretty ty
+        writeLog 3 "instantiateWith" $ text newId <+> text "::" <+> pretty ty
         return (newId, ty)
 
     excludeUseless id ty = do
@@ -201,7 +202,7 @@ initNet env = withTime ConstructionTime $ do
     let usefulSymbols = Map.filterWithKey usefulPipe envSymbols
     sigs <- instantiate env usefulSymbols
     modify $ set detailedSigs (Map.keysSet sigs)
-    writeLog 3 $ text "instantiated sigs" <+> pretty (Map.toList sigs)
+    writeLog 3 "initNet" $ text "instantiated sigs" <+> pretty (Map.toList sigs)
     mapM_ addEncodedFunction (Map.toList sigs)
     -- add clone functions for each type
     allTy <- gets (Map.keys . view type2transition)
@@ -261,8 +262,8 @@ resetEncoder env dst = do
     modify $ set sourceTypes srcTypes
     modify $ set paramNames $ Map.keys foArgs
     srcTypes <- gets (view sourceTypes)
-    writeLog 2 $ text "parameter types are" <+> pretty srcTypes
-    writeLog 2 $ text "return type is" <+> pretty tgt
+    writeLog 2 "resetEncoder" $ text "parameter types are" <+> pretty srcTypes
+    writeLog 2 "resetEncoder" $ text "return type is" <+> pretty tgt
 
     loc <- gets (view currentLoc)
     funcs <- gets (view functionMap)
@@ -294,7 +295,11 @@ findPath env dst st = do
         [] -> do
             currSt <- get
             maxDepth <- view maxApplicationDepth <$> get
-            when (currSt ^. currentLoc >= maxDepth) (error "cannot find a path")
+            when (currSt ^. currentLoc >= maxDepth) (
+              do
+                mesgChan <- view messageChan <$> get
+                liftIO $ writeChan mesgChan (MesgClose CSNoSolution)
+                error "cannot find a path")
             modify $ set currentLoc ((currSt ^. currentLoc) + 1)
             st'' <- withTime EncodingTime (incEncoder env st')
             findPath env dst st''
@@ -304,15 +309,15 @@ findPath env dst st = do
             args <- view paramNames <$> get
             let sortedRes = sortOn snd res
             let transNames = map fst sortedRes
-            writeLog 2 $ text "found path" <+> pretty transNames
-            let usefulTrans = filter (\n -> skipUncolor n
+            writeLog 2 "findPath" $ text "found path" <+> pretty transNames
+            let usefulTrans = filter (\n -> skipEntry n
                                          && skipClone n
                                          && skipDiscard n) transNames
             let sigNames = map removeSuffix usefulTrans
             dsigs <- view detailedSigs <$> get
             let sigNames' = filter (\name -> Set.member name dsigs || "pair_match" `isPrefixOf` name) sigNames
             let sigs = substPair (map (findFunction fm) sigNames')
-            writeLog 2 $ text "found filtered sigs" <+> text (show sigs)
+            writeLog 2 "findPath" $ text "found filtered sigs" <+> text (show sigs)
             let initialFormer = FormerState 0 HashMap.empty [] []
             code <- generateCode initialFormer (map show src) args sigs
             return (code, st')
@@ -360,11 +365,11 @@ fixEncoder env dst st info = do
     modify $ set sourceTypes srcTypes
     tgt <- currentAbst binds abstraction (toAbstractType (shape dst))
     modify $ set targetType tgt
-    writeLog 2 $ text "fixed parameter types are" <+> pretty srcTypes
-    writeLog 2 $ text "fixed return type is" <+> pretty tgt
+    writeLog 2 "fixEncoder" $ text "fixed parameter types are" <+> pretty srcTypes
+    writeLog 2 "fixEncoder" $ text "fixed return type is" <+> pretty tgt
     loc <- gets (view currentLoc)
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    writeLog 2 $ text "get split information" <+> pretty info
+    writeLog 2 "fixEncoder" $ text "get split information" <+> pretty info
     let newTyps = newPlaces info
     mapM_ addCloneFunction (filter (not . isAFunctionT) newTyps)
     modify $ over type2transition (Map.filter (not . null))
@@ -379,10 +384,10 @@ findProgram :: MonadIO m => Environment -> RType -> EncodeState -> PNSolver m (R
 findProgram env dst st = do
     modify $ set splitTypes Set.empty
     modify $ set typeAssignment Map.empty
-    writeLog 2 $ text "calling findProgram"
+    writeLog 2 "findProgram" $ text "calling findProgram"
     (codeResult, st') <- findPath env dst st
     oldSemantic <- view abstractionTree <$> get
-    writeLog 2 $ pretty (Set.toList codeResult)
+    writeLog 2 "findProgram" $ pretty (Set.toList codeResult)
     checkResult <- withTime TypeCheckTime (firstCheckedOrError $ sortOn length (Set.toList codeResult))
     rs <- gets (view refineStrategy)
     if isLeft checkResult
@@ -413,10 +418,10 @@ findProgram env dst st = do
                        ParseOk exp -> toSynquidProgram exp
                        ParseFailed loc err -> error err
         mapping <- view nameMapping <$> get
-        writeLog 1 $ text "Find program" <+> pretty (recoverNames mapping prog)
+        writeLog 1 "findProgram" $ text "Find program" <+> pretty (recoverNames mapping prog)
         modify $ set isChecked True
         btm <- bottomUpCheck env prog
-        writeLog 3 $ text "bottom up checking get program" <+> pretty (recoverNames mapping btm)
+        writeLog 3 "findProgram" $ text "bottom up checking get program" <+> pretty (recoverNames mapping btm)
         checkStatus <- gets (view isChecked)
         let tyBtm = typeOf btm
         when checkStatus (solveTypeConstraint env (shape tyBtm) (shape dst))
@@ -450,7 +455,7 @@ findProgram env dst st = do
         solutions <- view currentSolutions <$> get
         mapping <- view nameMapping <$> get
         let code' = recoverNames mapping code
-        checkedSols <- withTime TypeCheckTime (filterM (liftIO . haskellTypeChecks env dst) [code'])
+        checkedSols <- withTime TypeCheckTime (filterM (liftIO . runGhcChecks env dst) [code'])
         if (code' `elem` solutions) || (null checkedSols)
            then do
                findProgram env dst st'
@@ -464,33 +469,37 @@ printSolution solution = do
     liftIO $ putStrLn "************************************************"
 
 
-findFirstN :: (MonadIO m) => Environment -> RType -> EncodeState -> Int -> PNSolver m [(RProgram, TimeStatistics)]
+findFirstN :: (MonadIO m) => Environment -> RType -> EncodeState -> Int -> PNSolver m ()
 findFirstN env dst st cnt | cnt == 1  = do
     (res, _) <- withTime TotalSearch $ findProgram env dst st
     stats <- view solverStats <$> get
     depth <- view currentLoc <$> get
-    liftIO $ pPrint (depth)
+    msgChan <- view messageChan <$> get
+    writeLog 1 "findFirstN" $ text (show depth)
     let stats' = stats{pathLength = depth}
     printSolution res
     -- printStats
-    return [(res, stats')]
+    liftIO $ writeChan msgChan (MesgP (res, stats'))
 findFirstN env dst st cnt | otherwise = do
     (res, st') <- withTime TotalSearch $ findProgram env dst st
+    msgChan <- view messageChan <$> get
     stats <- view solverStats <$> get
     loc <- view currentLoc <$> get
     let stats' = stats{pathLength = loc}
     printSolution res
-    -- printStats
+    liftIO $ writeChan msgChan (MesgP (res, stats'))
     resetTiming
-    rest <- (findFirstN env dst st' (cnt-1))
-    return $ (res, stats'):rest
+    findFirstN env dst st' (cnt-1)
 
-runPNSolver :: MonadIO m => Environment -> Int -> RType -> PNSolver m [(RProgram, TimeStatistics)]
+runPNSolver :: MonadIO m => Environment -> Int -> RType -> PNSolver m ()
 runPNSolver env cnt t = do
     writeLog 3 $ text $ show (allSymbols env)
     initNet env
-    st <- withTime EncodingTime (resetEncoder env t)
+    st <- withTime TotalSearch $ withTime EncodingTime (resetEncoder env t)
     findFirstN env t st cnt
+    msgChan <- view messageChan <$> get
+    liftIO $ writeChan msgChan (MesgClose CSNormal)
+    return ()
 
 recoverNames :: Map Id Id -> Program t -> Program t
 recoverNames mapping (Program (PSymbol sym) t) =

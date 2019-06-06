@@ -34,6 +34,8 @@ import Control.Applicative ((<$>))
 import Text.Parsec.Pos
 import Text.Parsec.Indent
 import System.Exit
+import Control.Concurrent.Chan
+import Control.Exception
 
 import Data.Time.Clock
 import Data.Time.Format
@@ -64,8 +66,8 @@ envToGoal env queryStr = do
       _ -> error "parse a signature for a none goal declaration"
 
 
-synthesize :: SearchParams  -> Goal -> IO [(RProgram, TimeStatistics)]
-synthesize searchParams goal = do
+synthesize :: SearchParams -> Goal -> Chan Message -> IO ()
+synthesize searchParams goal messageChan = do
   let env''' = gEnvironment goal
   let (env'', monospec) = updateEnvWithBoundTyVars (gSpec goal) env'''
   let (env', destinationType) = updateEnvWithSpecArgs monospec env''
@@ -87,7 +89,8 @@ synthesize searchParams goal = do
                AbstractRefinement -> emptySolverState ^. abstractionTree
                Combination -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
                QueryRefinement -> Abstraction.specificAbstractionFromTypes env (args)
+           , _messageChan = messageChan
            }
-  programs <- evalStateT (runPNSolver env cnt destinationType) is
-  -- will need to attach params
-  return programs
+  catch (evalStateT (runPNSolver env cnt destinationType) is)
+    (\e -> (print e) >> writeChan messageChan (MesgClose (CSError e)))
+  return ()

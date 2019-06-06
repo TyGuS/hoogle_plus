@@ -48,16 +48,18 @@ dependencies:
 - safe
 - sort
 - split
-- split
+- stm
 - text
 - time
 - transformers
 - transformers-compat
 - unordered-containers
 - vector
+- ghc
+- ghc-paths
 
 library:
-  source-dirs: 
+  source-dirs:
   - src
   other-extensions:
   - TemplateHaskell
@@ -74,14 +76,13 @@ executables:
     main: HooglePlus.hs
     source-dirs: app
     ghc-options:
-    - -threaded
     - -rtsopts
     - -O2
     dependencies:
     - HooglePlus
   webapp:
     main: Main.hs
-    source-dirs: 
+    source-dirs:
     - webapp/app
     - webapp/src
     ghc-options:
@@ -96,10 +97,6 @@ executables:
   evaluation:
     main: Benchmark.hs
     source-dirs: benchmark
-    ghc-options:
-      - -threaded
-      - -rtsopts
-      - -with-rtsopts=-N
     dependencies:
       - HooglePlus
       - parallel-io

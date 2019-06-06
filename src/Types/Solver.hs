@@ -9,6 +9,7 @@ import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Control.Lens
 import Control.Monad.State
+import Control.Concurrent.Chan
 
 import Types.Program
 import Types.Abstract
@@ -40,7 +41,8 @@ data SolverState = SolverState {
     _logLevel :: Int, -- temporary for log level
     _instanceMapping :: HashMap (Id, [AbstractSkeleton]) (Id, AbstractSkeleton),
     _toRemove :: [Id],
-    _maxApplicationDepth :: Int
+    _maxApplicationDepth :: Int,
+    _messageChan :: Chan Message
 } deriving(Eq)
 
 

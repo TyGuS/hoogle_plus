@@ -6,36 +6,44 @@ import Types.Environment
 import Types.Program
 import Synquid.Util
 import HooglePlus.Synthesize
+import Database.Presets
 import Database.Environment
 import Runner
 import BConfig
-import BTypes
+import BTypes hiding (name)
 import BOutput
 
 import Data.Aeson
 import Data.Maybe
 import Text.Pretty.Simple
+import System.Console.CmdArgs.Implicit
 import System.Timeout
 import System.Exit
 import qualified Data.Map as Map
 
+
+defaultArgs = Args {
+  argsQueryFile=defaultQueryFile &= name "queries" &= typFile,
+  argsTimeout=defaultTimeout &= name "timeout" &= help "Each experiment will have N seconds to complete" ,
+  argsOutputFile=Nothing &= name "output" &= typFile,
+  argsExperiment=defaultExperiment &= name "experiment"
+  }
+  where
+
 main :: IO ()
 main = do
-    tier1env <- generateEnv genOptsTier1
-    queries <- readQueryFile queryFile
-    let envs = [(tier1env, "Tier1")]
-    let params = [
-          (searchParams, expQueryRefinement),
-          (searchParamsHOF, expQueryRefinementHOF),
-          (searchParamsBaseline, expBaseline),
-          (searchParamsZeroStart, expZeroCoverStart)]
-    let exps = mkExperiments envs queries params
-    resultSummaries <- runExperiments exps
-    let aggregatedResults = toGroup resultSummaries
-    let table = toTable aggregatedResults
-    putStrLn table
-    -- pPrint aggregatedResults
+    args <- cmdArgs defaultArgs
+    let currentExperiment = argsExperiment args
+    let setup = ExpSetup {expTimeout = argsTimeout args, expCourse = currentExperiment}
+    (envs, params, exps) <- getSetup args
+    resultSummaries <- runExperiments setup exps
+    let environmentStatsTable = outputSummary Table currentExperiment envs
+    let resultTable = outputSummary Table currentExperiment resultSummaries
+    outputResults (argsOutputFile args) (unlines [environmentStatsTable, resultTable])
 
+outputResults :: Maybe FilePath -> String -> IO ()
+outputResults Nothing res = putStrLn res
+outputResults (Just fp) res = putStrLn res >> writeFile fp res
 
 mkExperiments :: [(Environment, String)] -> [Query] -> [(SearchParams, String)] -> [Experiment]
 mkExperiments envs qs params = [
@@ -48,5 +56,28 @@ readQueryFile :: FilePath -> IO [Query]
 readQueryFile fp = do
   mbQs <- decodeFileStrict' fp
   case mbQs of
-    Nothing -> undefined
+    Nothing -> error "Unable to read query file. Is the JSON poorly formatted?"
     Just qs -> return qs
+
+getSetup args = do
+  tier1env <- generateEnv genOptsTier1
+  tier2env <- generateEnv genOptsTier2
+  queries <- readQueryFile (argsQueryFile args)
+  let envs = [(tier1env, "Total")]
+  let currentExperiment = argsExperiment args
+  let params =
+        case currentExperiment of
+          CompareInitialAbstractCovers -> [
+            (searchParams, expQueryRefinement),
+            (searchParamsHOF, expQueryRefinementHOF),
+            (searchParamsBaseline, expBaseline),
+            (searchParamsZeroStart, expZeroCoverStart)]
+          TrackTypesAndTransitions -> [(searchParams, expQueryRefinement)]
+  let exps =
+        case currentExperiment of
+          CompareInitialAbstractCovers -> let
+            baseExps = mkExperiments envs queries params
+            extraExps = mkExperiments [(tier2env, "Partial")] queries [(searchParamsHOF, expQueryRefinementHOF)]
+            in baseExps ++ extraExps
+          TrackTypesAndTransitions -> mkExperiments envs queries params
+  return (envs, params, exps)

@@ -19,18 +19,27 @@ import Types.Experiments
 import Types.Generate
 import Types.Program (RProgram)
 
+import Control.Concurrent
+import Control.Concurrent.Chan
+
 runQuery :: TygarQuery -> IO [RProgram]
 runQuery queryOpts = do
     env <- generateEnv options
     goal <- envToGoal env (unpack $ typeSignature queryOpts)
-    (queryResults, _) <- fmap unzip $ synthesize defaultSearchParams goal
+    messageChan <- newChan
+    forkIO $ synthesize defaultSearchParams goal messageChan
+    queryResults <- readChan messageChan >>= collectResults messageChan []
     return queryResults
-    where options = defaultGenerationOpts {
-      modules = (chosenModules queryOpts),
-      pkgFetchOpts = Local {
-        files = ["libraries/tier1/base.txt", "libraries/tier1/bytestring.txt", "libraries/ghc-prim.txt"]
-        }
-    }
+    where
+      options = defaultGenerationOpts {
+        modules = (chosenModules queryOpts),
+        pkgFetchOpts = Local {
+          files = ["libraries/tier1/base.txt", "libraries/tier1/bytestring.txt", "libraries/ghc-prim.txt"]
+          }
+      }
+      collectResults ch res (MesgClose _) = return res
+      collectResults ch res (MesgP (program, _)) = readChan ch >>= (collectResults ch (program:res))
+      collectResults ch res _ = readChan ch >>= (collectResults ch res)
 
 postSearchR :: Handler Html
 postSearchR = do
