@@ -148,7 +148,7 @@ instantiateWith env typs id t = do
              (modify $ over mustFirers (Map.insertWith (++) id [newId]))
         modify $ over nameMapping (Map.insert newId id)
         modify $ over instanceMapping (HashMap.insert (id, absFunArgs id ty) (newId, ty))
-        writeLog 3 "instantiateWith" $ text newId <+> text "::" <+> pretty ty
+        writeLog 3 "instantiateWith" $ text id <+> text "==>"  <+> text newId <+> text "::" <+> pretty ty
         return (newId, ty)
 
     excludeUseless id ty = do

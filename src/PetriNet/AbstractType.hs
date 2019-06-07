@@ -76,7 +76,7 @@ checkUnification bound tass (AScalar (ATypeVarT id)) t | id `Map.member` tass =
         Nothing -> Nothing
         Just u -> Just (Map.insert id (substed u) tass)
   where
-    substed = foldl' (\acc (id, tt) -> abstractSubstitute id tt acc) assigned . Map.toList
+    substed m = abstractSubstitute m assigned
     assigned = fromJust (Map.lookup id tass)
 checkUnification bound tass t@(AScalar (ATypeVarT id)) t'@(AScalar (ATypeVarT id')) 
   | id `elem` bound && id' `elem` bound = Nothing
@@ -115,14 +115,21 @@ getUnifier' bound (Just tass) (c:cs) =
         Nothing -> Nothing
         Just m  -> getUnifier' bound (Just m) cs
 
-abstractSubstitute :: Id -> AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
-abstractSubstitute id typ (AScalar (ATypeVarT id')) | id == id' = typ
-abstractSubstitute id typ t@(AScalar (ATypeVarT {})) = t
-abstractSubstitute id typ (AScalar (ADatatypeT id' args)) = AScalar (ADatatypeT id' (map (abstractSubstitute id typ) args))
-abstractSubstitute id typ (AFunctionT tArg tRes) = AFunctionT tArg' tRes'
+abstractSubstitute :: Map Id AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
+abstractSubstitute tass typ = 
+    if substed /= typ then abstractSubstitute tass substed
+                      else substed
   where
-    tArg' = abstractSubstitute id typ tArg
-    tRes' = abstractSubstitute id typ tRes
+    substed = foldr (uncurry abstractSubstitute') typ (Map.toList tass)
+
+abstractSubstitute' :: Id -> AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
+abstractSubstitute' id typ (AScalar (ATypeVarT id')) | id == id' = typ
+abstractSubstitute' id typ t@(AScalar (ATypeVarT {})) = t
+abstractSubstitute' id typ (AScalar (ADatatypeT id' args)) = AScalar (ADatatypeT id' (map (abstractSubstitute' id typ) args))
+abstractSubstitute' id typ (AFunctionT tArg tRes) = AFunctionT tArg' tRes'
+  where
+    tArg' = abstractSubstitute' id typ tArg
+    tRes' = abstractSubstitute' id typ tRes
 
 abstractTypeVars :: [Id] -> AbstractSkeleton -> [Id]
 abstractTypeVars bound (AScalar (ATypeVarT id)) 
@@ -142,35 +149,12 @@ existAbstract :: [Id] -> Set AbstractSkeleton -> AbstractSkeleton -> Bool
 existAbstract tvs cover t = or $ map (equalAbstract tvs t) (Set.toList cover)
 
 abstractIntersect :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Maybe AbstractSkeleton
-abstractIntersect bound t1@(AScalar (ATypeVarT id)) t2@(AScalar (ATypeVarT id')) 
-  | id == id' = Just t1
-  | id `elem` bound && id' `notElem` bound = Just t1
-  | id `notElem` bound && id' `elem` bound = Just t2
-  | id `notElem` bound && id' `notElem` bound = Just t1
-  | otherwise = Nothing
-abstractIntersect bound t1@(AScalar (ATypeVarT id)) t2@(AScalar (ADatatypeT {}))
-  | id `notElem` bound = Just t2
-  | otherwise = Nothing
-abstractIntersect bound t1@(AScalar (ADatatypeT {})) t2@(AScalar (ATypeVarT {})) = abstractIntersect bound t2 t1
-abstractIntersect bound (AScalar (ADatatypeT id args)) (AScalar (ADatatypeT id' args'))
-  | id == id' = case argsIntersect args args' of
-                  Nothing -> Nothing
-                  Just ias -> Just $ AScalar $ ADatatypeT id ias
-  where
-    argsIntersect [] [] = Just []
-    argsIntersect (a:as) (a':as') =
-        case abstractIntersect bound a a' of
-          Nothing -> Nothing
-          Just ia -> case argsIntersect as as' of
-                       Nothing -> Nothing
-                       Just ias -> Just (ia:ias)
-abstractIntersect bound (AFunctionT tArg tRes) (AFunctionT tArg' tRes') = 
-    case abstractIntersect bound tArg tArg' of
+abstractIntersect bound t1 t2 = 
+    case unifier of
       Nothing -> Nothing
-      Just a  -> case abstractIntersect bound tRes tRes' of
-                   Nothing -> Nothing
-                   Just r  -> Just (AFunctionT a r)
-abstractIntersect _ _ _ = Nothing
+      Just u -> Just $ abstractSubstitute u t1 
+  where
+    unifier = getUnifier bound [(t1, t2)]
 
 -- | find the current most restrictive abstraction for a given type
 currentAbst :: MonadIO m => [Id] -> Set AbstractSkeleton -> AbstractSkeleton -> PNSolver m AbstractSkeleton
@@ -201,5 +185,5 @@ applySemantic tvs fun args = do
         Nothing -> return ABottom
         Just m -> do
             cover <- gets (view abstractionTree)
-            let substRes = foldr (uncurry abstractSubstitute) ret (Map.toList m) 
+            let substRes = abstractSubstitute m ret
             currentAbst tvs cover substRes

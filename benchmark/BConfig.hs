@@ -7,7 +7,7 @@ import BTypes
 
 
 defaultTimeout = 2 * 60 :: Int
-defaultQueryFile = "benchmark/suites/test.json"
+defaultQueryFile = "benchmark/suites/allQueries.json"
 defaultExperiment = TrackTypesAndTransitions
 
 searchParams = defaultSearchParams
