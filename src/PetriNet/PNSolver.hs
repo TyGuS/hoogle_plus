@@ -435,14 +435,21 @@ findProgram env dst st = do
                 absBtm <- observeT $ pickGeneralization tyBtm' absDst
                 return (Right (btm, absBtm)))
 
-    nextSolution st NoRefine (prog, at) = findProgram env dst st
+    nextSolution st NoRefine (prog, at) = do
+        let st' = st { prevChecked = True }
+        findProgram env dst st'
     nextSolution st _ (prog, at) = do
-        splitInfo <- withTime RefinementTime (refineSemantic env prog at)
-        -- add new places and transitions into the petri net
-        newSemantic <- view abstractionTree <$> get
-        refine st newSemantic splitInfo
+        stop <- gets (view stopRefine)
+        placeNum <- gets (view threshold)
+        cover <- gets (view abstractionTree)
+        if stop && Set.size cover >= placeNum
+           then findProgram env dst (st {prevChecked=True})
+           else do
+             splitInfo <- withTime RefinementTime (refineSemantic env prog at)
+             -- add new places and transitions into the petri net
+             refine st splitInfo
 
-    refine st newSemantic info = do
+    refine st info = do
         cover <- gets (view abstractionTree)
         funcs <- gets (view detailedSigs)
         modify $ over solverStats (\s -> s {
@@ -451,8 +458,6 @@ findProgram env dst st = do
           , numOfTransitions = Map.insert (iterations s + 1) (Set.size funcs) (numOfTransitions s)
         })
         st' <- withTime EncodingTime (fixEncoder env dst st info)
-        sigs <- view currentSigs <$> get
-        dsigs <- view detailedSigs <$> get
         findProgram env dst st'
 
     checkSolution st code = do

@@ -40,7 +40,9 @@ data SearchParams = SearchParams {
   _encoderType :: EncoderType,
   _pathSearch :: PathStrategy,
   _useHO :: Bool,
-  _useRefine :: RefineStrategy
+  _useRefine :: RefineStrategy,
+  _earlyCut :: Bool,
+  _stopThresh :: Int
 }
 
 makeLenses ''SearchParams
@@ -81,7 +83,9 @@ defaultSearchParams = SearchParams {
   _pathSearch = PetriNet,
   _useHO = False,
   _encoderType = Normal,
-  _useRefine = QueryRefinement
+  _useRefine = QueryRefinement,
+  _earlyCut = False,
+  _stopThresh = 30
 }
 
 type ExperimentName = String
@@ -89,6 +93,8 @@ expQueryRefinement = "Query Refinement":: ExperimentName
 expQueryRefinementHOF = "Query Refinement - HOF" :: ExperimentName
 expBaseline = "Baseline" :: ExperimentName
 expZeroCoverStart = "Zero Cover Start" :: ExperimentName
+expStopEarly = "Stop Early" :: ExperimentName
+expStopEarlyZeroStart = "Zero Cover with Stop Early" :: ExperimentName
 
 
 data ExperimentCourse

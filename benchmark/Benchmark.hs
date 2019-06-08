@@ -69,9 +69,11 @@ getSetup args = do
         case currentExperiment of
           CompareInitialAbstractCovers -> [
             (searchParams, expQueryRefinement),
-            (searchParamsHOF, expQueryRefinementHOF),
+            -- (searchParamsHOF, expQueryRefinementHOF),
             (searchParamsBaseline, expBaseline),
-            (searchParamsZeroStart, expZeroCoverStart)]
+            (searchParamsZeroStart, expZeroCoverStart),
+            (searchParamsStopEarly, expStopEarly),
+            (searchParamsZeroStopEarly, expStopEarlyZeroStart)]
           TrackTypesAndTransitions -> [(searchParams, expQueryRefinement)]
   let exps =
         case currentExperiment of

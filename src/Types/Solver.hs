@@ -42,7 +42,9 @@ data SolverState = SolverState {
     _instanceMapping :: HashMap (Id, [AbstractSkeleton]) (Id, AbstractSkeleton),
     _toRemove :: [Id],
     _maxApplicationDepth :: Int,
-    _messageChan :: Chan Message
+    _messageChan :: Chan Message,
+    _stopRefine :: Bool,
+    _threshold :: Int
 } deriving(Eq)
 
 
@@ -70,7 +72,9 @@ emptySolverState = SolverState {
     _logLevel = 0,
     _instanceMapping = HashMap.empty,
     _toRemove = [],
-    _maxApplicationDepth = 6
+    _maxApplicationDepth = 6,
+    _stopRefine = False,
+    _threshold = 30
 }
 
 makeLenses ''SolverState

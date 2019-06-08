@@ -80,10 +80,14 @@ synthesize searchParams goal messageChan = do
   let maxLevel = _explorerLogLevel searchParams
   let rs = _useRefine searchParams
   let maxDepth = _eGuessDepth searchParams
+  let toStop = _earlyCut searchParams
+  let threshold = _stopThresh searchParams
   let is = emptySolverState {
              _logLevel = maxLevel
            , _maxApplicationDepth = maxDepth
            , _refineStrategy = rs
+           , _stopRefine = toStop
+           , _threshold = threshold
            , _abstractionTree = case rs of
                NoRefine -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
                AbstractRefinement -> emptySolverState ^. abstractionTree

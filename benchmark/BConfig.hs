@@ -14,3 +14,5 @@ searchParams = defaultSearchParams
 searchParamsHOF = defaultSearchParams{_useHO=True}
 searchParamsBaseline = defaultSearchParams{_useRefine=NoRefine}
 searchParamsZeroStart = defaultSearchParams{_useRefine=AbstractRefinement}
+searchParamsStopEarly = defaultSearchParams{_earlyCut=True}
+searchParamsZeroStopEarly = searchParamsStopEarly{_useRefine=AbstractRefinement}

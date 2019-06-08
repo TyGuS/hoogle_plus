@@ -26,7 +26,7 @@ import Text.Printf
 import Control.Monad.State
 
 firstLvAbs :: Environment -> [RSchema] -> Set AbstractSkeleton
-firstLvAbs env schs = dts
+firstLvAbs env schs = (AScalar (ATypeVarT varName)) `Set.insert` dts
   where
     typs = map (shape . toMonotype) schs
     dts = Set.unions (map (allAbstractDts (env ^. boundTypeVars)) typs)

@@ -71,15 +71,16 @@ releaseDate = fromGregorian 2019 3 10
 main = do
   res <- cmdArgsRun $ mode
   case res of
-    Synthesis file libs envPath appMax log_ sol_num path_search higher_order encoder refine -> do
+    Synthesis file libs envPath appMax log_ solNum path_search higher_order refine stopRefine threshold -> do
       let searchParams = defaultSearchParams {
         _eGuessDepth = appMax,
         _explorerLogLevel = log_,
-        _solutionCnt = sol_num,
+        _solutionCnt = solNum,
         _pathSearch = path_search,
         _useHO = higher_order,
-        _encoderType = encoder,
-        _useRefine = refine
+        _useRefine = refine,
+        _earlyCut = stopRefine,
+        _stopThresh = threshold
         }
       let synquidParams = defaultSynquidParams {
         Main.envPath = envPath
@@ -125,8 +126,9 @@ data CommandLineArgs
         sol_num :: Int,
         path_search :: PathStrategy,
         higher_order :: Bool,
-        encoder :: EncoderType,
-        use_refine :: RefineStrategy
+        use_refine :: RefineStrategy,
+        stop_refine :: Bool,
+        stop_threshold :: Int
       }
       | Generate {
         -- | Input
@@ -149,8 +151,9 @@ synt = Synthesis {
   sol_num             = 1               &= help ("Number of solutions need to find (default: 1)") &= name "cnt",
   path_search         = PetriNet     &= help ("Use path search algorithm to ensure the usage of provided parameters (default: PetriNet)") &= name "path",
   higher_order        = False           &= help ("Include higher order functions (default: False)"),
-  encoder             = Normal &= help ("Choose normal or refined arity encoder (default: Normal)"),
-  use_refine          = QueryRefinement    &= help ("Use abstract refinement or not (default: QueryRefinement)")
+  use_refine          = QueryRefinement    &= help ("Use abstract refinement or not (default: QueryRefinement)"),
+  stop_refine         = False           &= help ("Stop refine the abstraction cover after some threshold (default: False)"),
+  stop_threshold      = 30              &= help ("Refinement stops when the number of places reaches the threshold, only when stop_refine is True")
   } &= auto &= help "Synthesize goals specified in the input file"
 
 generate = Generate {
