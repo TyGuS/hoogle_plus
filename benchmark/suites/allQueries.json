@@ -16,10 +16,9 @@
     {"name": "Q24", "query": "[a] -> a -> Int"},
     {"name": "Q26", "query": "Either a b -> Either a b -> Either a b"},
     {"name": "Q30", "query": "(a, b) -> (a, b) -> (a, b)"},
-    {"name": "Q31", "query": "a -> a -> Maybe a"},
     {"name": "Q34", "query": "[Either a b] -> Either a [b]"},
     {"name": "Q37", "query": "a -> [String] -> String"},
-    {"name": "Q38", "query": "[(a, b)] -> a -> b"},
-    {"name": "Q40", "query": "(a -> b) -> [a] -> [(a,b)]"},
+    {"name": "Q38", "query": "[(a, b)] -> a -> b -> b"},
+    {"name": "Q40", "query": "(a -> b) -> (a, a) -> (a, b)"},
     {"name": "Q41", "query": "[a] -> [b] -> [[(a, b)]]"}
 ]

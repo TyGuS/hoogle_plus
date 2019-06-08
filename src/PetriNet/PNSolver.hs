@@ -156,6 +156,7 @@ instantiateWith env typs id t = do
         let (tid, _) = fromJust (HashMap.lookup (id, absFunArgs id ty) instMap)
         -- writeLog 3 $ text tid <+> text "exists in the instance map for" <+> text id
         modify $ over toRemove ((:) tid)
+        modify $ over detailedSigs (Set.delete tid)
         musts <- gets (view mustFirers)
         when (id `Map.member` musts)
              (modify $ over mustFirers (Map.insertWith (\new old -> old \\ new) id [tid]))
@@ -442,8 +443,12 @@ findProgram env dst st = do
         refine st newSemantic splitInfo
 
     refine st newSemantic info = do
+        cover <- gets (view abstractionTree)
+        funcs <- gets (view detailedSigs)
         modify $ over solverStats (\s -> s {
             iterations = iterations s + 1
+          , numOfPlaces = Map.insert (iterations s + 1) (Set.size cover) (numOfPlaces s)
+          , numOfTransitions = Map.insert (iterations s + 1) (Set.size funcs) (numOfTransitions s)
         })
         st' <- withTime EncodingTime (fixEncoder env dst st info)
         sigs <- view currentSigs <$> get
