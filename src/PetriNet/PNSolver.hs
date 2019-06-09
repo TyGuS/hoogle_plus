@@ -442,6 +442,12 @@ findProgram env dst st = do
         stop <- gets (view stopRefine)
         placeNum <- gets (view threshold)
         cover <- gets (view abstractionTree)
+        funcs <- gets (view detailedSigs)
+        modify $ over solverStats (\s -> s {
+            iterations = iterations s + 1
+          , numOfPlaces = Map.insert (iterations s + 1) (Set.size cover) (numOfPlaces s)
+          , numOfTransitions = Map.insert (iterations s + 1) (Set.size funcs) (numOfTransitions s)
+        })
         if stop && Set.size cover >= placeNum
            then findProgram env dst (st {prevChecked=True})
            else do
@@ -450,13 +456,6 @@ findProgram env dst st = do
              refine st splitInfo
 
     refine st info = do
-        cover <- gets (view abstractionTree)
-        funcs <- gets (view detailedSigs)
-        modify $ over solverStats (\s -> s {
-            iterations = iterations s + 1
-          , numOfPlaces = Map.insert (iterations s + 1) (Set.size cover) (numOfPlaces s)
-          , numOfTransitions = Map.insert (iterations s + 1) (Set.size funcs) (numOfTransitions s)
-        })
         st' <- withTime EncodingTime (fixEncoder env dst st info)
         findProgram env dst st'
 
