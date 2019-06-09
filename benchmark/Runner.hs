@@ -85,8 +85,8 @@ summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
     (CompareInitialAbstractCovers, (errOrMbSoln, firstR):_) -> let
       safeTransitions = snd $ errorhead "missing transitions" $ (Map.toDescList (numOfTransitions firstR))
       safeTypes = snd $ errorhead "missing types" $ (Map.toDescList (numOfPlaces firstR))
-      unsafeTransitions = map snd $ take 1 $ Map.toDescList $ numOfTransitions firstR
-      unsafeTypes = map snd $ take 1 $ Map.toDescList $ numOfPlaces firstR
+      unsafeTransitions = map snd $ Map.toDescList $ numOfTransitions firstR
+      unsafeTypes = map snd $ Map.toDescList $ numOfPlaces firstR
       in emptyResult {
       resSolutionOrError = fmap (mkOneLine . show) errOrMbSoln,
       resTFirstSoln = totalTime firstR,
