@@ -393,7 +393,16 @@ findProgram env dst st = do
     rs <- gets (view refineStrategy)
     if isLeft checkResult
        then let Left code = checkResult in checkSolution st' code
-       else let Right err = checkResult in nextSolution st' rs err
+       else do
+         let Right err = checkResult 
+         funcs <- gets (view detailedSigs)
+         cover <- gets (view abstractionTree)
+         modify $ over solverStats (\s -> s {
+            iterations = iterations s + 1
+          , numOfPlaces = Map.insert (iterations s + 1) (Set.size cover) (numOfPlaces s)
+          , numOfTransitions = Map.insert (iterations s + 1) (Set.size funcs) (numOfTransitions s)
+         })
+         nextSolution st' rs err
   where
     firstCheckedOrError [] = return (Right (uHole, AScalar (ATypeVarT varName)))
     firstCheckedOrError (x:xs) = do
@@ -442,18 +451,19 @@ findProgram env dst st = do
         stop <- gets (view stopRefine)
         placeNum <- gets (view threshold)
         cover <- gets (view abstractionTree)
-        funcs <- gets (view detailedSigs)
-        modify $ over solverStats (\s -> s {
-            iterations = iterations s + 1
-          , numOfPlaces = Map.insert (iterations s + 1) (Set.size cover) (numOfPlaces s)
-          , numOfTransitions = Map.insert (iterations s + 1) (Set.size funcs) (numOfTransitions s)
-        })
         if stop && Set.size cover >= placeNum
            then findProgram env dst (st {prevChecked=True})
            else do
              splitInfo <- withTime RefinementTime (refineSemantic env prog at)
              -- add new places and transitions into the petri net
-             refine st splitInfo
+             res <- refine st splitInfo
+             cover <- gets (view abstractionTree)
+             funcs <- gets (view detailedSigs)
+             modify $ over solverStats (\s -> s {
+                numOfPlaces = Map.insert (iterations s) (Set.size cover) (numOfPlaces s)
+              , numOfTransitions = Map.insert (iterations s) (Set.size funcs) (numOfTransitions s)
+             })
+             return res
 
     refine st info = do
         st' <- withTime EncodingTime (fixEncoder env dst st info)
