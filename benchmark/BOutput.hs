@@ -27,6 +27,13 @@ toGroup rss = let
     foldr updateMap Map.empty rss
 
 toTable :: ExperimentCourse -> Map String [ResultSummary] -> String
+toTable CompareSolutions rsMap = let
+  header = ["Name", "Query", "solutions"]
+  columnStyle = replicate (length header) (column (expandUntil textWidth) center noAlign (singleCutMark "..."))
+  -- body = map (uncurry . (collsAllG center) . (toLine CompareSolutions)) (Map.toList rsMap)
+  body = map (\(x, y) -> colsAllG center $ toLine CompareSolutions x y) (Map.toList rsMap)
+  in
+    tableString columnStyle unicodeRoundS (titlesH header) body
 toTable currentExperiment rsMap = let
   body = map (\(x, y) -> colsAllG center $ toLine currentExperiment x y) (Map.toList rsMap)
   in

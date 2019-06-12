@@ -94,10 +94,10 @@ expQueryRefinementHOF = "Query Refinement - HOF" :: ExperimentName
 expBaseline = "Baseline" :: ExperimentName
 expZeroCoverStart = "Zero Cover Start" :: ExperimentName
 
-
 data ExperimentCourse
   = CompareInitialAbstractCovers
-  | TrackTypesAndTransitions --2019-05-06
+  | TrackTypesAndTransitions -- 2019-05-06
+  | CompareSolutions -- 2019-06-12
   deriving (Show, Data, Typeable)
 
 data Message

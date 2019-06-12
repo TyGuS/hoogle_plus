@@ -73,6 +73,9 @@ getSetup args = do
             (searchParamsBaseline, expBaseline),
             (searchParamsZeroStart, expZeroCoverStart)]
           TrackTypesAndTransitions -> [(searchParams, expQueryRefinement)]
+          CompareSolutions -> [
+            (searchParams, expQueryRefinement),
+            (searchParams{_disableDemand=True}, "Query Refinement - no demand")]
   let exps =
         case currentExperiment of
           CompareInitialAbstractCovers -> let
@@ -80,4 +83,5 @@ getSetup args = do
             extraExps = mkExperiments [(tier2env, "Partial")] queries [(searchParamsHOF, expQueryRefinementHOF)]
             in baseExps ++ extraExps
           TrackTypesAndTransitions -> mkExperiments envs queries params
+          CompareSolutions -> mkExperiments envs queries params
   return (envs, params, exps)
