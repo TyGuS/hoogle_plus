@@ -89,12 +89,12 @@ defaultSearchParams = SearchParams {
 }
 
 type ExperimentName = String
-expQueryRefinement = "Query Refinement":: ExperimentName
+expQueryRefinement = "TYGAR-Q":: ExperimentName
 expQueryRefinementHOF = "Query Refinement - HOF" :: ExperimentName
-expBaseline = "Baseline" :: ExperimentName
-expZeroCoverStart = "Zero Cover Start" :: ExperimentName
-expStopEarly = "Stop Early" :: ExperimentName
-expStopEarlyZeroStart = "Zero Cover with Stop Early" :: ExperimentName
+expBaseline = "Sypet-Clone" :: ExperimentName
+expZeroCoverStart = "TYGAR-0" :: ExperimentName
+expStopEarly = "TYGAR-QB" :: ExperimentName
+expStopEarlyZeroStart = "TYGAR-0B" :: ExperimentName
 
 
 data ExperimentCourse
@@ -109,7 +109,7 @@ data Message
   | MesgLog Int String String -- Log level, tag, message
 
 data CloseStatus
-  = CSNormal
+
   | CSNoSolution
   | CSTimeout
   | CSError SomeException

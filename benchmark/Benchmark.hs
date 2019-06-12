@@ -37,9 +37,12 @@ main = do
     let setup = ExpSetup {expTimeout = argsTimeout args, expCourse = currentExperiment}
     (envs, params, exps) <- getSetup args
     resultSummaries <- runExperiments setup exps
+    {-
     let environmentStatsTable = outputSummary Table currentExperiment envs
     let resultTable = outputSummary Table currentExperiment resultSummaries
     outputResults (argsOutputFile args) (unlines [environmentStatsTable, resultTable])
+    -}
+    print resultSummaries 
 
 outputResults :: Maybe FilePath -> String -> IO ()
 outputResults Nothing res = putStrLn res
@@ -73,13 +76,21 @@ getSetup args = do
             (searchParamsBaseline, expBaseline),
             (searchParamsZeroStart, expZeroCoverStart),
             (searchParamsStopEarly, expStopEarly),
-            (searchParamsZeroStopEarly, expStopEarlyZeroStart)]
+            (searchParamsZeroStopEarly, expStopEarlyZeroStart),
+            (searchParamsZeroQuery, expNoGar)]
+          SypetClone -> [(searchParamsBaseline, expBaseline)]
+          NoGAR -> [(searchParamsZeroQuery, expNoGar)]
+          TyGAR0 -> [(searchParamsZeroStart, expZeroCoverStart)]
+          TyGARQ -> [(searchParams, expQueryRefinement)]
+          TyGAR0B -> [(searchParamsZeroStopEarly, expStopEarlyZeroStart)]
+          TyGARQB -> [(searchParamsStopEarly, expStopEarly)]
+          TyGARILP -> [(searchParamsILP, expILP)]
           TrackTypesAndTransitions -> [(searchParams, expQueryRefinement)]
   let exps =
         case currentExperiment of
-          CompareInitialAbstractCovers -> let
+          TrackTypesAndTransitions -> mkExperiments envs queries params
+          _ -> let
             baseExps = mkExperiments envs queries params
             extraExps = mkExperiments [(tier2env, "Partial")] queries [(searchParamsHOF, expQueryRefinementHOF)]
-            in baseExps ++ extraExps
-          TrackTypesAndTransitions -> mkExperiments envs queries params
+            in baseExps -- ++ extraExps
   return (envs, params, exps)

@@ -139,10 +139,8 @@ solveAndGetModel = do
 
             return (zip selectedNames [0,1..])
         Unsat -> do
-            liftIO $ print "unsat"
             return []
         Undef -> do
-            liftIO $ print "undef"
             return []
   where
     getTrNames selected = do

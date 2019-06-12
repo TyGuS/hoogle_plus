@@ -1,0 +1,115 @@
+
+Query Refinement
+Query Name	 Query Str	 Solution	 Total Time(s)	                  Encoding Time(s)	 Solver Time(s)	 Iterations	                  Places	 Transitions
+intToBytestring	Int64 -> ByteString	Right "Just Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty	6.004005626	1.423548299	4.232285194	7	531	10
+conjunctMaybe	['Maybe Bool] -> Bool']	Right "Just Data.Either.isRight (Data.Either.Right arg0)	0.972437749	0.251856702	0.6490095140000001	3	327	6
+firstMaybe	a -> [Maybe a] -> a	Left Timeout	0.0	0.0	0.0	0		
+both	(a	Left Timeout	0.0	0.0	0.0	0		
+Q07	(a -> b -> c -> d) -> (a	Right "Just arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))	1.5122351209999998	0.383696573	1.070613824	1	311	8
+Q08	Maybe a -> a -> Maybe a	Right "Just Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)	1.059661906	0.235887779	0.726084527	4	324	7
+Q12	Int -> [Int]	Right "Just (:) arg0 []	2.793017929	1.2272159900000001	1.2940430090000001	7	537	10
+Q14	(a -> b -> c) -> (a -> b) -> a -> c	Right "Just arg2 arg0 (arg1 arg0)	7.448909132	0.997983647	6.296906952	5	481	9
+Q15	a -> [a] -> ([a]	Left Timeout	0.0	0.0	0.0	0		
+Q17	(t2 -> t1 -> t) -> (t1 -> t2) -> t1 -> t	Right "Just arg2 (arg1 arg0) arg0	2.880108602	0.7884619429999999	1.9376997969999998	5	481	9
+Q21	String -> Char -> [String]	Right "Just (:) ((:) arg0 arg1) []	3.403837117	0.493452692	2.7234305579999996	5	387	9
+Q22	a -> [a] -> Maybe a	Right "Just Data.Maybe.listToMaybe ((:) arg1 arg0)	1.950783251	0.351827822	1.245654296	5	397	9
+Q26	Either a b -> Either a b -> Either a b	Right "Just Data.Bool.bool arg0 arg1 Data.Bool.False	1.244658506	0.293917286	0.7672095320000001	5	366	8
+Q30	(a	Right "Just Data.Bool.bool arg0 arg1 Data.Bool.otherwise	12.105044239	1.639896411	8.435088387	9	897	18
+Q34	['Either a b] -> Either a [b']	Left Timeout	0.0	0.0	0.0	0		
+Q40	(a -> b) -> (a	Right "Just (	3.319623043	0.47517841299999997	2.681572167	4	392	9
+Q41	['a] -> [b] -> [[(a']	Left Timeout	0.0	0.0	0.0	0		
+Baseline
+Query Name	 Query Str	 Solution	 Total Time(s)	                  Encoding Time(s)	 Solver Time(s)	 Iterations	                  Places	 Transitions
+intToBytestring	Int64 -> ByteString	Right "Just Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64HexFixed arg0)	5.074401106	3.1455117280000002	1.927399928	0		
+conjunctMaybe	['Maybe Bool] -> Bool']	Right "Just Data.Either.isRight (Data.Either.Left arg0)	8.097972856	3.143490162	4.953150896	1	1543	26
+firstMaybe	a -> [Maybe a] -> a	Right "Just Data.Maybe.fromMaybe arg1 (Data.Maybe.listToMaybe (Data.Maybe.catMaybes arg0))	30.34061166	4.2513220149999995	26.07080219299999	28	1616	27
+both	(a	Right "Just (	78.40570259600001	5.699815733	72.63860410299996	73	1693	28
+Q07	(a -> b -> c -> d) -> (a	Right "Just arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))	26.273896957999998	7.308616413999999	18.951571999	1	1855	30
+Q08	Maybe a -> a -> Maybe a	Right "Just Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)	7.948413888	4.262820947	3.684227783	0		
+Q12	Int -> [Int]	Right "Just (:) arg0 []	11.43399071	3.262790252	8.16980915	1	1543	26
+Q14	(a -> b -> c) -> (a -> b) -> a -> c	Right "Just arg2 arg0 (arg1 arg0)	25.151047945	6.144007665	19.005945967000002	0		
+Q15	a -> [a] -> ([a]	Right "Just (	88.957879554	4.479260436	84.26378876699992	406	1616	27
+Q17	(t2 -> t1 -> t) -> (t1 -> t2) -> t1 -> t	Right "Just arg2 (arg1 arg0) arg0	23.811400493	6.015173646	17.794683444	0		
+Q21	String -> Char -> [String]	Left Timeout	0.0	0.0	0.0	0		
+Q22	a -> [a] -> Maybe a	Right "Just Data.Maybe.listToMaybe ((:) arg1 arg0)	6.937911373	3.883265829	3.052970568	0		
+Q26	Either a b -> Either a b -> Either a b	Right "Just Data.Bool.bool arg0 arg1 Data.Bool.otherwise	10.898157258000001	4.568937262	6.326559431	1	1691	28
+Q30	(a	Right "Just Data.Bool.bool arg0 arg1 Data.Bool.otherwise	13.818675604000001	4.453156475999999	9.363042602	1	1691	28
+Q34	['Either a b] -> Either a [b']	Right "Just Data.Either.Right (Data.Either.rights arg0)	35.181889109	4.240127286	30.930305163	25	1691	28
+Q40	(a -> b) -> (a	Right "Just (	14.547968611	5.052151775	9.492831179	1	1693	28
+Q41	['a] -> [b] -> [[(a']	Left Timeout	0.0	0.0	0.0	0		
+Zero Cover Start
+Query Name	 Query Str	 Solution	 Total Time(s)	                  Encoding Time(s)	 Solver Time(s)	 Iterations	                  Places	 Transitions
+intToBytestring	Int64 -> ByteString	Right "Just Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64HexFixed arg0)	3.232997112	0.693576307	2.3504117640000004	7	394	8
+conjunctMaybe	['Maybe Bool] -> Bool']	Right "Just Data.Maybe.isJust (Data.Maybe.Just arg0)	0.7346790910000001	0.278385118	0.361082768	5	304	6
+firstMaybe	a -> [Maybe a] -> a	Right "Just Data.Maybe.fromMaybe arg1 (Data.Maybe.listToMaybe (Data.Maybe.catMaybes arg0))	10.628392946	1.3021503110000001	8.518475839	11	746	14
+both	(a	Left Timeout	0.0	0.0	0.0	0		
+Q07	(a -> b -> c -> d) -> (a	Right "Just arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))	0.8186461549999999	0.179894131	0.574089674	3	263	6
+Q08	Maybe a -> a -> Maybe a	Right "Just Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)	0.35891033699999997	0.18968490200000002	0.14262154300000002	3	208	4
+Q12	Int -> [Int]	Right "Just Data.Maybe.maybeToList (Data.Maybe.Just arg0)	6.444047873	1.427690347	4.654520421000001	10	574	11
+Q14	(a -> b -> c) -> (a -> b) -> a -> c	Right "Just arg2 arg0 (arg1 arg0)	7.7075742e-2	5.8641027e-2	1.7845027e-2	0		
+Q15	a -> [a] -> ([a]	Left Timeout	0.0	0.0	0.0	0		
+Q17	(t2 -> t1 -> t) -> (t1 -> t2) -> t1 -> t	Right "Just arg2 (arg1 arg0) arg0	7.6160481e-2	6.0591854e-2	1.4732025999999999e-2	0		
+Q21	String -> Char -> [String]	Right "Just (:) ((:) arg0 arg1) []	39.17835916	2.245065697	35.548655665	14	897	16
+Q22	a -> [a] -> Maybe a	Right "Just Data.Maybe.listToMaybe ((:) arg1 arg0)	2.292196998	0.461201065	1.670869471	7	369	8
+Q26	Either a b -> Either a b -> Either a b	Right "Just Data.Bool.bool arg0 arg1 Data.Bool.otherwise	3.949776825	0.670735296	2.771382245	9	585	11
+Q30	(a	Right "Just Data.Bool.bool arg0 arg1 Data.Bool.True	5.995455998000001	0.701508502	4.481469947	8	591	12
+Q34	['Either a b] -> Either a [b']	Left Timeout	0.0	0.0	0.0	0		
+Q40	(a -> b) -> (a	Right "Just (	17.196524385	1.320238925	14.990241191	10	661	13
+Q41	['a] -> [b] -> [[(a']	Left Timeout	0.0	0.0	0.0	0		
+Stop Early
+Query Name	 Query Str	 Solution	 Total Time(s)	                  Encoding Time(s)	 Solver Time(s)	 Iterations	                  Places	 Transitions
+intToBytestring	Int64 -> ByteString	Right "Just Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64HexFixed arg0)	8.388960251	1.493665434	6.603532208999999	7	574	10
+conjunctMaybe	['Maybe Bool] -> Bool']	Right "Just Data.Either.isRight (Data.Either.Right arg0)	1.081203669	0.26993173400000003	0.7530569739999999	3	327	6
+firstMaybe	a -> [Maybe a] -> a	Right "Just Data.Maybe.fromMaybe arg1 (Data.Maybe.listToMaybe (Data.Maybe.catMaybes arg0))	45.53018042	2.708334772	40.264371108999995	14	969	18
+both	(a	Right "Just (	25.448301603	2.5199330030000002	21.936126638999998	9	767	15
+Q07	(a -> b -> c -> d) -> (a	Right "Just arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))	1.4582871590000002	0.33202133100000003	1.064984392	1	311	8
+Q08	Maybe a -> a -> Maybe a	Right "Just Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)	1.1758264829999998	0.23919869299999996	0.838384071	4	324	7
+Q12	Int -> [Int]	Right "Just (:) arg0 []	7.904465343	1.3845830920000002	5.9268470970000005	9	621	12
+Q14	(a -> b -> c) -> (a -> b) -> a -> c	Right "Just arg2 arg0 (arg1 arg0)	7.180054263000001	0.929947228	5.955300308	5	481	9
+Q15	a -> [a] -> ([a]	Right "Just (	26.475253980999998	3.960580251	19.764739047	11	1075	22
+Q17	(t2 -> t1 -> t) -> (t1 -> t2) -> t1 -> t	Right "Just arg2 (arg1 arg0) arg0	3.674543328	0.646295059	2.927070239	4	385	8
+Q21	String -> Char -> [String]	Right "Just (:) (Text.Show.shows arg0 arg1) []	6.95192088	0.665873111	5.887305237	6	455	10
+Q22	a -> [a] -> Maybe a	Right "Just Data.Maybe.listToMaybe ((:) arg1 arg0)	0.950181871	0.308744504	0.504164081	4	360	8
+Q26	Either a b -> Either a b -> Either a b	Right "Just Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1)	1.351522793	0.48616605699999993	0.674407204	5	366	8
+Q30	(a	Right "Just Data.Bool.bool arg0 arg1 Data.Bool.False	0.958566916	0.251696291	0.604983475	4	326	7
+Q34	['Either a b] -> Either a [b']	Right "Just Data.Either.Right (Data.Either.rights arg0)	35.042706872000004	3.872620555	26.673288017999994	23	1406	23
+Q40	(a -> b) -> (a	Right "Just (	3.31542533	0.47236891000000003	2.679636764	4	392	9
+Q41	['a] -> [b] -> [[(a']	Left Timeout	0.0	0.0	0.0	0		
+Zero Cover with Stop Early
+Query Name	 Query Str	 Solution	 Total Time(s)	                  Encoding Time(s)	 Solver Time(s)	 Iterations	                  Places	 Transitions
+intToBytestring	Int64 -> ByteString	Right "Just Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64BE arg0)	10.840246024	1.7737410999999998	8.535344552	11	690	12
+conjunctMaybe	['Maybe Bool] -> Bool']	Right "Just Data.Either.isRight (Data.Either.Right arg0)	3.277562498	0.629772722	2.445584044	7	412	9
+firstMaybe	a -> [Maybe a] -> a	Right "Just Data.Maybe.fromMaybe arg1 (Data.Maybe.listToMaybe (Data.Maybe.catMaybes arg0))	31.622528818	1.7572072109999999	28.583724011	13	777	15
+both	(a	Left Timeout	0.0	0.0	0.0	0		
+Q07	(a -> b -> c -> d) -> (a	Right "Just arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))	0.940144886	0.18002893	0.568601122	3	263	6
+Q08	Maybe a -> a -> Maybe a	Right "Just Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)	0.263646738	9.688941200000001e-2	0.14218100700000003	3	208	4
+Q12	Int -> [Int]	Right "Just (:) arg0 []	4.998278641	1.203850651	3.431105825	10	574	11
+Q14	(a -> b -> c) -> (a -> b) -> a -> c	Right "Just arg2 arg0 (arg1 arg0)	7.6488598e-2	6.1143305e-2	1.4771016000000001e-2	0		
+Q15	a -> [a] -> ([a]	Right "Just (	49.38041584	4.632062854	42.286833351999995	61	1139	22
+Q17	(t2 -> t1 -> t) -> (t1 -> t2) -> t1 -> t	Right "Just arg2 (arg1 arg0) arg0	7.6310903e-2	5.9740757000000005e-2	1.6185047e-2	0		
+Q21	String -> Char -> [String]	Right "Just Data.Maybe.maybeToList (Data.Maybe.Just ((:) arg0 arg1))	4.993746702	0.63174522	4.148338627999999	8	414	9
+Q22	a -> [a] -> Maybe a	Right "Just Data.Maybe.listToMaybe ((:) arg1 arg0)	0.9156630769999999	0.240222331	0.563178167	6	326	7
+Q26	Either a b -> Either a b -> Either a b	Right "Just Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1)	0.22688795	0.109765034	8.6804696e-2	3	220	4
+Q30	(a	Right "Just Data.Bool.bool arg0 arg1 Data.Bool.otherwise	1.216101929	0.248328538	0.848467818	5	332	7
+Q34	['Either a b] -> Either a [b']	Right "Just Data.Either.Right (Data.Either.rights arg0)	26.599235155	3.236999559	20.251304133999994	28	1195	22
+Q40	(a -> b) -> (a	Right "Just (	17.878276204	1.4129801119999998	15.611490087	10	722	13
+Q41	['a] -> [b] -> [[(a']	Left Timeout	0.0	0.0	0.0	0		
+No Gar
+Query Name	 Query Str	 Solution	 Total Time(s)	                  Encoding Time(s)	 Solver Time(s)	 Iterations	                  Places	 Transitions
+intToBytestring	Int64 -> ByteString	Right "Just Data.ByteString.Lazy.take arg0 Data.ByteString.Lazy.empty	1.6757793810000001	0.149358598	1.5022574599999996	111	252	3
+conjunctMaybe	['Maybe Bool] -> Bool']	Right "Just Data.Either.isLeft (Data.Either.Right arg0)	1.8991698030000002	7.4495406e-2	1.7801213809999994	205	199	3
+firstMaybe	a -> [Maybe a] -> a	Right "Just Data.Maybe.fromMaybe arg1 (Data.Maybe.listToMaybe (Data.Maybe.catMaybes arg0))	8.208278061	8.8484562e-2	7.528236476000014	1652	185	3
+both	(a	Right "Just (	51.732265346999995	0.15890094700000001	50.00189093799993	5082	225	5
+Q07	(a -> b -> c -> d) -> (a	Right "Just arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))	0.76177436	0.162261524	0.588076417	15	251	6
+Q08	Maybe a -> a -> Maybe a	Right "Just Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)	0.275523051	6.6886451e-2	0.19547444999999997	47	186	3
+Q12	Int -> [Int]	Right "Just (:) arg0 []	1.652355711	7.2322689e-2	1.538880913999999	167	192	3
+Q14	(a -> b -> c) -> (a -> b) -> a -> c	Right "Just arg2 arg0 (arg1 arg0)	0.852463508	0.109062955	0.741153054	7	205	4
+Q15	a -> [a] -> ([a]	Right "Just (	1.880719802	0.13593485400000002	1.7064106420000005	141	205	4
+Q17	(t2 -> t1 -> t) -> (t1 -> t2) -> t1 -> t	Right "Just arg2 (arg1 arg0) arg0	0.343926452	0.107476311	0.236024136	0		
+Q21	String -> Char -> [String]	Right "Just (:) (Text.Show.showChar arg0 arg1) []	65.32303517300001	0.137831059	62.38851247999997	8406	239	4
+Q22	a -> [a] -> Maybe a	Right "Just Data.Maybe.listToMaybe ((:) arg1 arg0)	1.5013600200000001	8.3387941e-2	1.384677394	128	208	4
+Q26	Either a b -> Either a b -> Either a b	Right "Just Data.Bool.bool arg0 arg1 Data.Bool.False	8.817708499999999e-2	5.2933263999999994e-2	3.354127e-2	3	167	2
+Q30	(a	Right "Just Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1)	0.100688043	5.5031284e-2	4.3409067999999995e-2	3	167	2
+Q34	['Either a b] -> Either a [b']	Left Timeout	0.0	0.0	0.0	0		
+Q40	(a -> b) -> (a	Right "Just (	0.480811992	0.129054661	0.343391336	31	225	5
+Q41	['a] -> [b] -> [[(a']	Left Timeout	0.0	0.0	0.0	0		

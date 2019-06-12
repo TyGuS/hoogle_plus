@@ -93,6 +93,7 @@ synthesize searchParams goal messageChan = do
                AbstractRefinement -> emptySolverState ^. abstractionTree
                Combination -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
                QueryRefinement -> Abstraction.specificAbstractionFromTypes env (args)
+               NoGar -> Abstraction.specificAbstractionFromTypes env args
            , _messageChan = messageChan
            }
   catch (evalStateT (runPNSolver env cnt destinationType) is)

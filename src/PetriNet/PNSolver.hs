@@ -272,7 +272,7 @@ resetEncoder env dst = do
     musters <- gets (view mustFirers)
     let tid2tr = Map.foldrWithKey (\k v -> Map.insert (show k) v) Map.empty t2tr
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    let accepts = filter (isSubtypeOf binds tgt) (Set.toList abstraction)
+    let accepts = [tgt] -- filter (isSubtypeOf binds tgt) (Set.toList abstraction)
     liftIO $ encoderInit loc musters (map show srcTypes) (map show accepts) (HashMap.elems funcs) tid2tr
 
 incEncoder :: MonadIO m => Environment -> EncodeState -> PNSolver m EncodeState
@@ -286,7 +286,7 @@ incEncoder env st = do
     let bound = env ^. boundTypeVars
     let tid2tr = Map.foldrWithKey (\k v -> Map.insert (show k) v) Map.empty t2tr
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    let accepts = filter (isSubtypeOf bound tgt) (Set.toList cover)
+    let accepts = [tgt] -- filter (isSubtypeOf bound tgt) (Set.toList cover)
     liftIO $ execStateT (encoderInc (HashMap.elems funcs) (map show src) (map show accepts)) st
 
 findPath :: (MonadIO m) => Environment -> RType -> EncodeState -> PNSolver m (CodePieces, EncodeState)
@@ -378,7 +378,7 @@ fixEncoder env dst st info = do
     t2tr <- gets (view type2transition)
     musters <- gets (view mustFirers)
     let tid2tr = Map.foldrWithKey (\k v -> Map.insert (show k) v) Map.empty t2tr
-    let accepts = filter (isSubtypeOf binds tgt) (Set.toList abstraction)
+    let accepts = [tgt] -- filter (isSubtypeOf binds tgt) (Set.toList abstraction)
     liftIO $ execStateT (encoderRefine info (HashMap.elems funcs) tid2tr (map show srcTypes) (map show accepts) musters) st
 
 findProgram :: MonadIO m => Environment -> RType -> EncodeState -> PNSolver m (RProgram, EncodeState)
@@ -447,6 +447,9 @@ findProgram env dst st = do
     nextSolution st NoRefine (prog, at) = do
         let st' = st { prevChecked = True }
         findProgram env dst st'
+    nextSolution st NoGar (prog, at) = do
+        let st' = st { prevChecked = True }
+        findProgram env dst st'
     nextSolution st _ (prog, at) = do
         stop <- gets (view stopRefine)
         placeNum <- gets (view threshold)
@@ -497,7 +500,6 @@ findFirstN env dst st cnt | cnt == 1  = do
     writeLog 1 "findFirstN" $ text (show depth)
     let stats' = stats{pathLength = depth}
     printSolution res
-    -- printStats
     liftIO $ writeChan msgChan (MesgP (res, stats'))
 findFirstN env dst st cnt | otherwise = do
     (res, st') <- withTime TotalSearch $ findProgram env dst st
