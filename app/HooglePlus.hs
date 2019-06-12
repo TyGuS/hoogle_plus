@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, StandaloneDeriving #-}
+{-# LANGUAGE DeriveDataTypeable, StandaloneDeriving, NamedFieldPuns #-}
 
 module Main (main) where
 
@@ -72,19 +72,21 @@ releaseDate = fromGregorian 2019 3 10
 main = do
   res <- cmdArgsRun $ mode
   case res of
-    Synthesis file libs envPath appMax log_ sol_num path_search higher_order encoder refine remove_duplicates -> do
+    Synthesis {file, libs, env_file_path_in, app_max, log_, sol_num, path_search,
+      higher_order, encoder, use_refine, remove_duplicates, disable_demand} -> do
       let searchParams = defaultSearchParams {
-        _eGuessDepth = appMax,
+        _eGuessDepth = app_max,
         _explorerLogLevel = log_,
         _solutionCnt = sol_num,
         _pathSearch = path_search,
         _useHO = higher_order,
         _encoderType = encoder,
-        _refineStrategy = refine,
-        _shouldRemoveDuplicates = remove_duplicates
+        _refineStrategy = use_refine,
+        _shouldRemoveDuplicates = remove_duplicates,
+        _disableDemand = disable_demand
         }
       let synquidParams = defaultSynquidParams {
-        Main.envPath = envPath
+        Main.envPath = env_file_path_in
       }
       executeSearch synquidParams searchParams file
 
@@ -129,7 +131,8 @@ data CommandLineArgs
         higher_order :: Bool,
         encoder :: EncoderType,
         use_refine :: RefineStrategy,
-        remove_duplicates :: Bool
+        remove_duplicates :: Bool,
+        disable_demand :: Bool
       }
       | Generate {
         -- | Input
@@ -154,7 +157,8 @@ synt = Synthesis {
   higher_order        = False           &= help ("Include higher order functions (default: False)"),
   encoder             = Normal &= help ("Choose normal or refined arity encoder (default: Normal)"),
   use_refine          = QueryRefinement    &= help ("Use abstract refinement or not (default: QueryRefinement)"),
-  remove_duplicates   = False &= help ("Remove duplicates while searching. Under development.")
+  remove_duplicates   = False &= help ("Remove duplicates while searching. Under development."),
+  disable_demand = False &= name "d" &= help ("Disable the demand analyzer (default: False)")
   } &= auto &= help "Synthesize goals specified in the input file"
 
 generate = Generate {

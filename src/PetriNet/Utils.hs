@@ -57,7 +57,10 @@ import Control.Concurrent.Chan
 
 
 shouldDedupe :: MonadIO m => PNSolver m Bool
-shouldDedupe = gets $ view (searchParams. shouldRemoveDuplicates)
+shouldDedupe = gets $ view (searchParams . shouldRemoveDuplicates)
+
+shouldDisableDemand :: MonadIO m => PNSolver m Bool
+shouldDisableDemand = gets $ view (searchParams . disableDemand)
 
 writeLog :: MonadIO m => Int -> String -> Doc -> PNSolver m ()
 writeLog level tag msg = do

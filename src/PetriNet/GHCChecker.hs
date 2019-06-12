@@ -78,9 +78,8 @@ checkStrictness lambdaExpr modules = GHC.runGhc (Just libdir) $ do
     where getStrictnessSig x = showSDocUnsafe $ ppr $ strictnessInfo $ idInfo x
           isStrict x = not(isInfixOf "A" (getStrictnessSig x))
 
-
-runGhcChecks :: Environment -> RType -> UProgram -> IO Bool
-runGhcChecks env goalType prog = let
+runGhcChecks :: Bool -> Environment -> RType -> UProgram -> IO Bool
+runGhcChecks disableDemand env goalType prog = let
     -- constructs program and its type signature as strings
     args = _arguments env
     modules = Set.toList $ _included_modules env
@@ -93,7 +92,7 @@ runGhcChecks env goalType prog = let
 
     in do
         typeCheckResult <- runInterpreter $ checkType expr modules
-        strictCheckResult <- checkStrictness body modules
+        strictCheckResult <- if disableDemand then return True else checkStrictness body modules
         case typeCheckResult of
             Left err -> (putStrLn $ displayException err) >> return False
             Right False -> (putStrLn "Program does not typecheck") >> return False

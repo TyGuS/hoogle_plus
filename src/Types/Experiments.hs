@@ -41,7 +41,8 @@ data SearchParams = SearchParams {
   _pathSearch :: PathStrategy,
   _useHO :: Bool,
   _refineStrategy :: RefineStrategy,
-  _shouldRemoveDuplicates :: Bool
+  _shouldRemoveDuplicates :: Bool,
+  _disableDemand :: Bool
 } deriving (Show, Eq)
 
 makeLenses ''SearchParams
@@ -83,7 +84,8 @@ defaultSearchParams = SearchParams {
   _useHO = False,
   _encoderType = Normal,
   _refineStrategy = QueryRefinement,
-  _shouldRemoveDuplicates = False
+  _shouldRemoveDuplicates = False,
+  _disableDemand = False
 }
 
 type ExperimentName = String
