@@ -58,7 +58,8 @@ data EncodeState = EncodeState {
   foldedFuncs :: [FoldedFunction],
   ty2tr :: Map Id [Id],
   prevChecked :: Bool,
-  disabledTrans :: [Id]
+  disabledTrans :: [Id],
+  returnTyps :: [Id]
 }
 
 newEnv :: Maybe Logic -> Opts -> IO Z3Env

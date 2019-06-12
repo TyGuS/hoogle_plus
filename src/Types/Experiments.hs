@@ -29,6 +29,7 @@ data RefineStrategy =
   | AbstractRefinement
   | Combination
   | QueryRefinement
+  | NoGar
   deriving(Data, Show, Eq)
 
 -- | Parameters of program exploration
@@ -85,7 +86,7 @@ defaultSearchParams = SearchParams {
   _encoderType = Normal,
   _useRefine = QueryRefinement,
   _earlyCut = False,
-  _stopThresh = 30
+  _stopThresh = 10
 }
 
 type ExperimentName = String
@@ -95,11 +96,19 @@ expBaseline = "Sypet-Clone" :: ExperimentName
 expZeroCoverStart = "TYGAR-0" :: ExperimentName
 expStopEarly = "TYGAR-QB" :: ExperimentName
 expStopEarlyZeroStart = "TYGAR-0B" :: ExperimentName
-
+expNoGar = "No Gar" :: ExperimentName
+expILP = "Integer Linear Programming" :: ExperimentName
 
 data ExperimentCourse
   = CompareInitialAbstractCovers
   | TrackTypesAndTransitions --2019-05-06
+  | SypetClone
+  | NoGAR
+  | TyGAR0
+  | TyGARQ
+  | TyGAR0B
+  | TyGARQB
+  | TyGARILP
   deriving (Show, Data, Typeable)
 
 data Message
@@ -109,7 +118,7 @@ data Message
   | MesgLog Int String String -- Log level, tag, message
 
 data CloseStatus
-
+  = CSNormal
   | CSNoSolution
   | CSTimeout
   | CSError SomeException

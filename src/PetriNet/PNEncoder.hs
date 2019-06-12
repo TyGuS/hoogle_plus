@@ -41,18 +41,19 @@ instance MonadZ3 Encoder where
 defaultColor = 0
 
 -- | create a new encoder in z3
-createEncoder :: [Id] -> [Id] -> [FunctionCode] -> Encoder ()
-createEncoder inputs rets sigs = do
+createEncoder :: [Id] -> Id -> [FunctionCode] -> Encoder ()
+createEncoder inputs ret sigs = do
     places <- gets ((:) "void" . Map.keys . ty2tr)
     transIds <- gets (nubOrd . concat . Map.elems . ty2tr)
     -- create all the type variables for encoding
     createVariables places transIds
-    -- transitions <- mapM foldFunc sigs
     -- add all the constraints for the solver
     createConstraints places sigs
     -- set initial and final state for solver
     setInitialState inputs places
-    setFinalState rets places
+
+    push
+    setFinalState ret places
 
 -- | set the initial state for the solver, where we have tokens only in void or inputs
 -- the tokens in the other places should be zero
@@ -71,19 +72,19 @@ setInitialState inputs places = do
 
 -- | set the final solver state, we allow only one token in the return type
 -- and maybe several tokens in the "void" place
-setFinalState :: [Id] -> [Id] -> Encoder ()
-setFinalState rets places = do
+setFinalState :: Id -> [Id] -> Encoder ()
+setFinalState ret places = do
     -- the return value should have only one token
     includeRet
     -- other places excluding void and ret should have nothing
-    let nonOutputs = filter (`notElem` rets) places
+    let nonOutputs = filter ((/=) ret) places
     mapM_ excludeOther nonOutputs
     mapM_ excludeColor places
   where
     includeRet = do
         placeMap <- place2variable <$> get
         l <- loc <$> get
-        retVars <- mapM (\r -> mkZ3IntVar $ findVariable (r, l) placeMap) rets
+        retVars <- mapM (\r -> mkZ3IntVar $ findVariable (r, l) placeMap) [ret]
         let hasToken v = mkIntNum 1 >>= mkEq v
         let noToken v = mkIntNum 0 >>= mkEq v
         assrts <- mapM (includeOneRet retVars) [0..(length retVars - 1)]
@@ -101,6 +102,7 @@ setFinalState rets places = do
         when (p /= "void") $ do
             tVar <- mkZ3IntVar $ findVariable (p, l) placeMap
             mkIntNum 0 >>= mkEq tVar >>= assert
+
     excludeColor p = do
         l <- gets loc
         placeMap <- gets place2variable
@@ -139,7 +141,17 @@ solveAndGetModel = do
 
             return (zip selectedNames [0,1..])
         Unsat -> do
-            return []
+            rets <- gets returnTyps
+            if length rets == 1
+              then return []
+              else do
+                -- try a more general return type
+                pop 1
+                t2tr <- gets ty2tr
+                modify $ \st -> st { returnTyps = tail rets }
+                push
+                setFinalState (rets !! 1) (Map.keys t2tr)
+                solveAndGetModel
         Undef -> do
             return []
   where
@@ -172,18 +184,19 @@ encoderInit :: Int -> Map Id [Id] -> [Id] -> [Id] -> [FunctionCode] -> Map Id [I
 encoderInit loc hoArgs inputs rets sigs t2tr = do
     z3Env <- initialZ3Env
     false <- Z3.mkFalse (envContext z3Env)
-    let initialState = EncodeState z3Env false loc 0 1 1 HashMap.empty HashMap.empty HashMap.empty HashMap.empty HashMap.empty HashMap.empty hoArgs [] t2tr False []
-    execStateT (createEncoder inputs rets sigs) initialState
+    let initialState = EncodeState z3Env false loc 0 1 1 HashMap.empty HashMap.empty HashMap.empty HashMap.empty HashMap.empty HashMap.empty hoArgs [] t2tr False [] rets
+    execStateT (createEncoder inputs (head rets) sigs) initialState
 
 encoderSolve :: EncodeState -> IO ([(Id, Int)], EncodeState)
 encoderSolve st = runStateT solveAndGetModel st
 
 encoderInc :: [FunctionCode] -> [Id] -> [Id] -> Encoder ()
 encoderInc sigs inputs rets = do
-    pop 1
+    pop 2
 
     st <- get
-    put $ st { loc = loc st + 1 }
+    put $ st { loc = loc st + 1
+             , returnTyps = rets }
     places <- gets ((:) "void" . Map.keys . ty2tr)
     transitions <- gets (nubOrd . concat . Map.elems . ty2tr)
     l <- gets loc
@@ -220,7 +233,9 @@ encoderInc sigs inputs rets = do
 
     -- set new initial and final state
     setInitialState inputs places
-    setFinalState rets places
+    
+    push
+    setFinalState (head rets) places
 
 -- | wrap some action with time measuring and print out the execution time
 withTime :: String -> Encoder a -> Encoder a
@@ -237,13 +252,14 @@ withTime desc f = do
 
 encoderRefine :: SplitInfo -> [FunctionCode] -> Map Id [Id] -> [Id] -> [Id] -> Map Id [Id] -> Encoder ()
 encoderRefine info sigs t2tr inputs rets musters = do
-    pop 1
+    pop 2
 
     {- update the abstraction level -}
     st <- get
     put $ st { ty2tr = t2tr 
              , mustFirers = musters
              , disabledTrans = disabledTrans st ++ (removedTrans info)
+             , returnTyps = rets
              }
 
     {- operation on places -}
@@ -288,7 +304,9 @@ encoderRefine info sigs t2tr inputs rets musters = do
 
     -- set new initial and final state
     setInitialState inputs currPlaces
-    setFinalState rets currPlaces
+    
+    push
+    setFinalState (head rets) currPlaces
 
 disableTransitions :: [Id] -> Int -> Encoder ()
 disableTransitions trs t = do

@@ -187,3 +187,7 @@ applySemantic tvs fun args = do
             cover <- gets (view abstractionTree)
             let substRes = abstractSubstitute m ret
             currentAbst tvs cover substRes
+
+compareAbstract :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Ordering
+compareAbstract tvs t1 t2 = if isSubtypeOf tvs t1 t2 && isSubtypeOf tvs t2 t1 then EQ
+                            else if isSubtypeOf tvs t1 t2 then LT else GT

@@ -272,8 +272,9 @@ resetEncoder env dst = do
     musters <- gets (view mustFirers)
     let tid2tr = Map.foldrWithKey (\k v -> Map.insert (show k) v) Map.empty t2tr
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    let accepts = [tgt] -- filter (isSubtypeOf binds tgt) (Set.toList abstraction)
-    liftIO $ encoderInit loc musters (map show srcTypes) (map show accepts) (HashMap.elems funcs) tid2tr
+    let accepts = filter (isSubtypeOf binds tgt) (Set.toList abstraction)
+    let rets = sortBy (compareAbstract binds) accepts 
+    liftIO $ encoderInit loc musters (map show srcTypes) (map show rets) (HashMap.elems funcs) tid2tr
 
 incEncoder :: MonadIO m => Environment -> EncodeState -> PNSolver m EncodeState
 incEncoder env st = do
@@ -286,8 +287,9 @@ incEncoder env st = do
     let bound = env ^. boundTypeVars
     let tid2tr = Map.foldrWithKey (\k v -> Map.insert (show k) v) Map.empty t2tr
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    let accepts = [tgt] -- filter (isSubtypeOf bound tgt) (Set.toList cover)
-    liftIO $ execStateT (encoderInc (HashMap.elems funcs) (map show src) (map show accepts)) st
+    let accepts = filter (isSubtypeOf bound tgt) (Set.toList cover)
+    let rets = sortBy (compareAbstract bound) accepts
+    liftIO $ execStateT (encoderInc (HashMap.elems funcs) (map show src) (map show rets)) st
 
 findPath :: (MonadIO m) => Environment -> RType -> EncodeState -> PNSolver m (CodePieces, EncodeState)
 findPath env dst st = do
@@ -378,8 +380,9 @@ fixEncoder env dst st info = do
     t2tr <- gets (view type2transition)
     musters <- gets (view mustFirers)
     let tid2tr = Map.foldrWithKey (\k v -> Map.insert (show k) v) Map.empty t2tr
-    let accepts = [tgt] -- filter (isSubtypeOf binds tgt) (Set.toList abstraction)
-    liftIO $ execStateT (encoderRefine info (HashMap.elems funcs) tid2tr (map show srcTypes) (map show accepts) musters) st
+    let accepts = filter (isSubtypeOf binds tgt) (Set.toList abstraction)
+    let rets = sortBy (compareAbstract binds) accepts
+    liftIO $ execStateT (encoderRefine info (HashMap.elems funcs) tid2tr (map show srcTypes) (map show rets) musters) st
 
 findProgram :: MonadIO m => Environment -> RType -> EncodeState -> PNSolver m (RProgram, EncodeState)
 findProgram env dst st = do
