@@ -72,32 +72,6 @@ import HooglePlus.Refinement
 import Database.Convert
 import Database.Generate
 
-encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
-encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [show $ lastAbstractType t]
-  where
-    base = (0, [])
-    hoFun x (i, a) = (i+1, (encodeFunction ("f" ++ show i ++ "_" ++ id) x) : a)
-    paramFun x (i, a) = if isAFunctionT x then (i+1, ("f" ++ show i ++ "_" ++ id):a) else (i, (show x):a)
-    (_, hoParams) = foldr hoFun base $ filter isAFunctionT (abstractParamList t)
-    (_, params) = foldr paramFun base (abstractParamList t)
-encodeFunction id t = FunctionCode id [] [] [show t]
-
-freshId :: (MonadIO m) => Id -> PNSolver m Id
-freshId prefix = do
-    indices <- flip (^.) nameCounter <$> get
-    let idx = Map.findWithDefault 0 prefix indices
-    modify (over nameCounter $ Map.insert prefix (idx+1))
-    return $ prefix ++ show idx
-
--- | Replace all bound type variables with fresh free variables
-freshType :: (MonadIO m) => RSchema -> PNSolver m RType
-freshType sch = freshType' Map.empty [] sch
-  where
-    freshType' subst constraints (ForallT a sch) = do
-        a' <- freshId "A"
-        freshType' (Map.insert a (vart a' ftrue) subst) (a':constraints) sch
-    freshType' subst constraints (Monotype t) = return (typeSubstitute subst t)
-
 instantiate :: (MonadIO m) => Environment -> [(Id, AbstractSkeleton)] -> PNSolver m (Map Id AbstractSkeleton)
 instantiate env sigs = do
     semantic <- view abstractionTree <$> get
@@ -143,10 +117,30 @@ splitTransition env tid info = do
     let typ = transitionSig sigs
     -- step 1: unify the type with refined abstract type and get new signatures
     unifyRes <- unifyNewType typ newTyps
+    writeLog 3 "splitTransition - unifyRes" $ pretty unifyRes
     let unifiedTyps = nubOrdOn snd unifyRes
     -- step 2: add new transitions into the environment
-    mapM_ (\(id, ty) -> modify $ over currentSigs (Map.insert id ty)) unifiedTyps
-    mapM_ (\(id, ty) -> modify $ over functionMap (HashMap.insert id (encodeFunction id ty))) unifiedTyps
+    mapM_ (\(id, ty) -> do
+        let add x = (modify $ over currentSigs (Map.insert id x))
+        ifM (shouldDedupe)
+            (do (error "not implemented")
+                sigs <- view currentSigs <$> get
+                let reversedSigs = groupByMap sigs
+                if ty `Map.member` reversedSigs then
+                    (writeLog 3 "splitTransition" $ text "not including sig" <+> pretty (id, ty))
+                    else add ty)
+            (add ty)) unifiedTyps
+    mapM_ (\(id, ty) -> do
+        let add x = (modify $ over functionMap (HashMap.insert id x))
+        ifM (shouldDedupe)
+            (do (error "not implemented")
+                fm <- view functionMap <$> get
+                let reversedFm = groupByMap (Map.fromList $ HashMap.toList fm)
+                let encodedFunc = encodeFunction id ty
+                if encodedFunc `Map.member` reversedFm then
+                    (writeLog 3 "splitTransition" $ text "not including function" <+> pretty (id, ty))
+                    else add encodedFunc)
+            (add (encodeFunction id ty))) unifiedTyps
     mapM_ (uncurry typeMap) unifiedTyps
     -- step 3: pack the information into SplitInfo for incremental encoding
     let newIds = fst (unzip unifiedTyps)
@@ -205,14 +199,14 @@ splitTransition env tid info = do
         -- get all the constraints
         let typs = genTypes (fst (head (splitedPlaces info))) newTyps typ
         let constraints = map (\t -> typeConstraints t polyTyp) typs
-        writeLog 3 "splitTransition" $ text "trying to solve constraints" <+> pretty constraints
+        writeLog 3 "unifyNewType" $ text "trying to solve constraints" <+> pretty constraints
         let unifiers = map (getUnifier abstraction (env ^. boundTypeVars) (Just Map.empty)) constraints
-        writeLog 3 "splitTransition" $ text "unify result is" <+> pretty (map (Map.toList <$>) unifiers)
+        writeLog 3 "unifyNewType" $ text "unify result is" <+> pretty (map (Map.toList <$>) unifiers)
         let checkSuccess = filter isJust unifiers
         if not (null checkSuccess)
            then do
                let ts = snd (unzip (filter (isJust . fst) (zip unifiers typs)))
-               writeLog 3 "splitTransition" $ text "get signatures" <+> pretty ts
+               writeLog 3 "unifyNewType" $ text "get signatures" <+> pretty ts
                ids <- mapM (\_ -> if Map.member id' (env ^. arguments) || "Pair" `isPrefixOf` id' then freshId (id'++"_") else freshId "f") ts
                mapping <- view nameMapping <$> get
                let actualName = case Map.lookup tid mapping of
@@ -467,27 +461,8 @@ refineSemantic env prog at = do
     let SplitInfo pls trs = combineInfo splitInfos
     let groups = flattenInfo trs
     sigs <- view currentSigs <$> get
-    shouldRemoveDuplicates' <- view (searchParams . shouldRemoveDuplicates) <$> get
-    groups' <- if (shouldRemoveDuplicates') then dedupeSplitGroups sigs groups else return groups
-    groups' <- return groups
-    return (SplitInfo pls groups')
+    return (SplitInfo pls groups)
   where
-    -- dedupeSplitGroups :: Map Id AbstractSkeleton -> [(Id,[Id])] -> [(Id, [Id])]
-    dedupeSplitGroups currentSigs groups = do
-        let normalizeId = replaceId "Pair_match" "Pair"
-        let lookupTable = unPartitionMap (Map.fromList groups)
-        writeLog 3 "dedupeSplitGroups" $ text "lookupTable: " <+> pretty (Map.toList lookupTable)
-        let ids = Map.keys lookupTable
-        let getSig id = lookupWithError (normalizeId id) currentSigs
-        writeLog 3 "dedupeSplitGroups" $ text "currentSigs: " <+> pretty (Map.toList currentSigs)
-        let groupedIds = groupBy (\x y -> getSig x == getSig y) ids
-        writeLog 3 "dedupeSplitGroups" $ text "groupedIds: " <+> pretty groupedIds
-        let dupes = [x | x <- groupedIds, length x > 1]
-        writeLog 3 "dedupeSplitGroups" $ text "Duplicate splits: " <+> pretty dupes
-        let firstIds = map head groupedIds
-        let subLookupTable = Map.filterWithKey (\k _ -> k `elem` firstIds) lookupTable
-        return $ Map.toList $ groupByMap subLookupTable
-        -- return $ map dedupe groups
     -- if any of the transitions is splitted again, merge the results
     combineInfo [] = SplitInfo [] []
     combineInfo (x:xs) = let SplitInfo ts trs = combineInfo xs
@@ -505,18 +480,18 @@ refineSemantic env prog at = do
 
     hasNewSplit t1 t2 = do
         semantic <- view abstractionTree <$> get
-        writeLog 2 "refineSemantic" $ text "check add type" <+> pretty t2 <+> text "into" </> pretty semantic
+        writeLog 3 "refineSemantic" $ text "check add type" <+> pretty t2 <+> text "into" </> pretty semantic
         let semantic' = updateSemantic env semantic t2
         return (semantic /= semantic')
 
     transSplit t1 t2 = do
         semantic <- view abstractionTree <$> get
-        writeLog 2 "refineSemantic" $ text "add type" <+> pretty t2 <+> text "into" </> pretty semantic
+        writeLog 3 "refineSemantic" $ text "add type" <+> pretty t2 <+> text "into" </> pretty semantic
         let semantic' = updateSemantic env semantic t2
         modify $ set abstractionTree semantic'
         let t2' = head (cutoff env semantic' t2)
-        writeLog 2 "refineSemantic" $ pretty t1 <+> text "is splited into" <+> pretty t2'
-        writeLog 2 "refineSemantic" $ text "new semantic is:" </> pretty semantic'
+        writeLog 3 "refineSemantic" $ pretty t1 <+> text "is splited into" <+> pretty t2'
+        writeLog 3 "refineSemantic" $ text "new semantic is:" </> pretty semantic'
         t2tr <- view type2transition <$> get
         let tids = Map.findWithDefault [] t1 t2tr
         let nts = (leafTypes semantic') \\ (leafTypes semantic)
@@ -733,15 +708,17 @@ fixNet env (SplitInfo splitedTys splitedGps) = do
     dupes <- countDuplicates encodedFuncs
     writeLog 2 "fixNet" $ text "duplicate sigs" <+> text (countDuplicateSigs sigs)
     writeLog 1 "fixNet" $ text "duplicate funcs" <+> text dupes
-    shouldRemoveDuplicates' <- view (searchParams . shouldRemoveDuplicates) <$> get
     let newPlaces = (map show (concat (snd (unzip splitedTys))))
-    functionedNet <- if (shouldRemoveDuplicates') then do
+    functionedNet <- ifM (shouldDedupe) (
+        do
+            (error "not implemented")
             (deduplicatedFuncs, toBeRemoved) <- partitionDuplicateFunctions encodedFuncs
             removeDuplicates toBeRemoved
             writeLog 3 "fixNet" $ text "deduplicated funcs" <+> pretty (map funName deduplicatedFuncs)
-            return $ foldr addArgClone (foldr addFunction net deduplicatedFuncs) newPlaces
-        else do
-            return $ foldr addArgClone (foldr addFunction net encodedFuncs) newPlaces
+            writeLog 3 "fixNet" $ text "to be removed funcs" <+> pretty (map funName toBeRemoved)
+            return $ foldr addArgClone (foldr addFunction net deduplicatedFuncs) newPlaces)
+            -- (return $ foldr addArgClone (foldr addFunction net encodedFuncs) newPlaces))
+        (return $ foldr addArgClone (foldr addFunction net encodedFuncs) newPlaces)
     modify $ set solverNet functionedNet
 
 fixEncoder :: MonadIO m => Environment -> RType -> EncodeState -> SplitInfo -> PNSolver m EncodeState
@@ -913,16 +890,3 @@ runPNSolver env cnt t = do
     msgChan <- view messageChan <$> get
     liftIO $ writeChan msgChan (MesgClose CSNormal)
     return ()
-
-recoverNames :: Map Id Id -> RProgram -> RProgram
-recoverNames mapping (Program (PSymbol sym) t) =
-    case Map.lookup sym mapping of
-      Nothing -> Program (PSymbol (removeLast '_' sym)) t
-      Just name -> Program (PSymbol (removeLast '_' name)) t
-recoverNames mapping (Program (PApp pFun pArg) t) = Program (PApp pFun' pArg') t
-  where
-    pFun' = recoverNames mapping pFun
-    pArg' = recoverNames mapping pArg
-recoverNames mapping (Program (PFun x body) t) = Program (PFun x body') t
-  where
-    body' = recoverNames mapping body

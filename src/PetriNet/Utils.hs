@@ -17,6 +17,8 @@ import Synquid.Util
 import Synquid.Error
 import Synquid.Pretty
 import Synquid.Program
+import Synquid.Logic
+import Synquid.Type
 import PetriNet.PNBuilder
 
 import qualified Data.Text as Text
@@ -54,16 +56,17 @@ import Text.Pretty.Simple
 import Control.Concurrent.Chan
 
 
+shouldDedupe :: MonadIO m => PNSolver m Bool
+shouldDedupe = gets $ view (searchParams. shouldRemoveDuplicates)
+
 writeLog :: MonadIO m => Int -> String -> Doc -> PNSolver m ()
 writeLog level tag msg = do
-    mesgChan <- view messageChan <$> get
+    mesgChan <- gets $ view messageChan
     liftIO $ writeChan mesgChan (MesgLog level tag $ show $ plain msg)
-
 
 multiPermutation len elmts | len == 0 = []
 multiPermutation len elmts | len == 1 = [[e] | e <- elmts]
 multiPermutation len elmts            = nubOrd $ [ l:r | l <- elmts, r <- multiPermutation (len - 1) elmts]
-
 
 replaceId a b = Text.unpack . Text.replace a b . Text.pack
 mkPairMatch (FunctionCode name _ params ret) = FunctionCode (replaceId "Pair" "Pair_match" name) [] ret params
@@ -126,3 +129,34 @@ countDuplicates symbols = do
     stats <- view solverStats <$> get
     liftIO $ writeChan mesgChan (MesgS stats)
     return $ printf "%d classes; %d equiv; %d total" (length dupes) (sum dupes) (length symbols)
+
+freshId :: (MonadIO m) => Id -> PNSolver m Id
+freshId prefix = do
+    indices <- gets $ flip (^.) nameCounter
+    let idx = Map.findWithDefault 0 prefix indices
+    modify (over nameCounter $ Map.insert prefix (idx+1))
+    return $ prefix ++ show idx
+
+
+-- | Replace all bound type variables with fresh free variables
+freshType :: (MonadIO m) => RSchema -> PNSolver m RType
+freshType sch = freshType' Map.empty [] sch
+  where
+    freshType' subst constraints (ForallT a sch) = do
+        a' <- freshId "A"
+        freshType' (Map.insert a (vart a' ftrue) subst) (a':constraints) sch
+    freshType' subst constraints (Monotype t) = return (typeSubstitute subst t)
+
+
+recoverNames :: Map Id Id -> RProgram -> RProgram
+recoverNames mapping (Program (PSymbol sym) t) =
+    case Map.lookup sym mapping of
+        Nothing -> Program (PSymbol (removeLast '_' sym)) t
+        Just name -> Program (PSymbol (removeLast '_' name)) t
+recoverNames mapping (Program (PApp pFun pArg) t) = Program (PApp pFun' pArg') t
+    where
+    pFun' = recoverNames mapping pFun
+    pArg' = recoverNames mapping pArg
+recoverNames mapping (Program (PFun x body) t) = Program (PFun x body') t
+    where
+    body' = recoverNames mapping body
