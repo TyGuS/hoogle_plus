@@ -12,7 +12,6 @@ data {-# CTYPE "HsInt64" #-} Int64
 
 -- base
 module Data.String
-data Char
 type String = [Char]
 
 -- base
@@ -43,6 +42,9 @@ data ByteString
 module GHC.List
 and :: [Bool] -> Bool
 
-
+module Data.Tuple
+fst :: (a, b) -> a
+snd :: (a, b) -> b
+swap :: (a, b) -> (b, a)
 
 (||) :: Bool -> Bool -> Bool

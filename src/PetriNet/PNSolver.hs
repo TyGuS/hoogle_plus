@@ -460,7 +460,6 @@ refineSemantic env prog at = do
     splitInfos <- filterM (uncurry hasNewSplit) (nubOrdOn fst splits) >>= mapM (uncurry transSplit)
     let SplitInfo pls trs = combineInfo splitInfos
     let groups = flattenInfo trs
-    sigs <- view currentSigs <$> get
     return (SplitInfo pls groups)
   where
     -- if any of the transitions is splitted again, merge the results
@@ -534,20 +533,17 @@ initNet env = withTime ConstructionTime $ do
     let symbols' = concat symbols
     -- Count the symbols with the SAME signature being put in the net.
     dupes <- countDuplicates symbols'
-    shouldRemoveDuplicates' <- view (searchParams . shouldRemoveDuplicates) <$> get
-    symbols'' <- if (shouldRemoveDuplicates') then do
-        (s, toBeRemoved) <- partitionDuplicateFunctions symbols'
-        removeDuplicates toBeRemoved
-        return s
-        else (return symbols')
+    symbols'' <- ifM (shouldDedupe) (
+        do
+            error "not implemented"
+            (s, toBeRemoved) <- partitionDuplicateFunctions symbols'
+            removeDuplicates toBeRemoved
+            return s)
+        (return symbols')
     gm <- view groupMap <$> get
     names <- view nameMapping <$> get
     let realNames = map (\x -> x ++ " → " ++ (fromJust $ Map.lookup x names)) (Map.keys sigs)
-    writeLog 2 "initNet" $ text "groupable funcs" <+> (pretty $ map (map funName) (groupSortBy compare symbols'))
-    writeLog 2 "initNet" $ text "duplicate sigs" <+> text (countDuplicateSigs sigs)
-    writeLog 3 "initNet" $ text "groups" <+> pretty (Map.toList gm)
-    writeLog 3 "initNet" $ text "realNames" <+> pretty realNames
-    writeLog 1 "initNet" $ text "duplicate funcs" <+> text dupes
+    writeLog 3 "initNet" $ text "duplicate funcs" <+> text dupes
     let net = (buildPetriNet symbols'' (map show srcTypes))
     modify $ set solverNet net
   where
@@ -740,13 +736,14 @@ fixEncoder env dst st info@(SplitInfo splitedTys splitedGps) = do
                                        Nothing -> error $ "cannot find function name " ++ name ++ " in functionMap"
                                        Just n -> n) newGroups
     shouldRemoveDuplicates' <- view (searchParams . shouldRemoveDuplicates) <$> get
-    info' <- if (shouldRemoveDuplicates') then do
+    info' <- ifM (shouldDedupe) (
+        do
+            error "not implemented"
             (_, toBeRemoved) <- partitionDuplicateFunctions encodedFuncs
             let dupedNames = map funName toBeRemoved
             let newGroups = map (\(x, ys) -> (x, filter (not . (flip elem dupedNames)) ys)) splitedGps
-            return (SplitInfo splitedTys newGroups)
-        else do
-            return info
+            return (SplitInfo splitedTys newGroups))
+        (return info)
     writeLog 2 "fixEncoder" $ text "get split information" <+> pretty info
     liftIO $ execStateT (encoderRefine net info' (map show srcTypes) (show tgt)) st
 

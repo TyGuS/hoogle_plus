@@ -18,7 +18,7 @@ import Data.Maybe
 import Data.List
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.HashMap.Strict (HashMap, (!))
+import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Control.Lens
 import Data.Aeson (ToJSON(..), genericToEncoding, defaultOptions)
@@ -224,10 +224,10 @@ setMaxToken inputs pn = pn {
     inputedCnt = foldr (uncurry (HashMap.insertWith max)) tredCnt inputCounts
 -}
 
-equating a b f = f a == f b
 
 areEqFuncs :: FunctionCode -> FunctionCode -> Bool
 areEqFuncs fc1 fc2 = let
+  equating a b f = f a == f b
   ho = equating fc1 fc2 (sort . hoParams)
   params = equating fc1 fc2 (sort . funParams)
   rets = equating fc1 fc2 (sort . funReturn)
