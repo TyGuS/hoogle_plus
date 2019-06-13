@@ -4,6 +4,7 @@ import Types.Common
 import Types.Type
 import Types.Abstract
 import Types.Environment
+import Types.PetriNet
 import PetriNet.AbstractType
 import Synquid.Type
 import Types.Environment
@@ -159,3 +160,13 @@ lastAbstractType (AFunctionT tArg tFun) = lastAbstractType tFun
 lastAbstractType t                      = t
 
 fillAny arg = AExclusion Set.empty
+
+encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
+encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [show $ lastAbstractType t]
+    where
+        base = (0, [])
+        hoFun x (i, a) = (i+1, (encodeFunction ("f" ++ show i ++ "_" ++ id) x) : a)
+        paramFun x (i, a) = if isAFunctionT x then (i+1, ("f" ++ show i ++ "_" ++ id):a) else (i, (show x):a)
+        (_, hoParams) = foldr hoFun base $ filter isAFunctionT (abstractParamList t)
+        (_, params) = foldr paramFun base (abstractParamList t)
+encodeFunction id t = FunctionCode id [] [] [show t]

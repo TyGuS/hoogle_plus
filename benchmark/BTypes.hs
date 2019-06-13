@@ -53,10 +53,10 @@ data Result = Result {
   resRefinementSteps :: Int,
   resTransitions :: [Int],
   resTypes :: [Int],
-  resDuplicateSymbols :: (Int, Int)
+  resDuplicateSymbols :: [(Int, Int, Int)]
   } deriving (Show)
 
-emptyResult = Result (Left NotImplementedException) 0 0 0 0 [] [] (0,0)
+emptyResult = Result (Left NotImplementedException) 0 0 0 0 [] [] []
 
 data EvaluationException =
   TimeoutException

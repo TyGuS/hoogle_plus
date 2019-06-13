@@ -11,6 +11,8 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Serialize (Serialize)
 import GHC.Generics
 import Data.Hashable
+import Data.List (sort, find)
+import Data.Maybe
 
 -- for encoding abstractions into JSON string
 type Param = String -- parameter type
@@ -20,21 +22,20 @@ data FunctionCode = FunctionCode {
   hoParams  :: [FunctionCode],
   funParams :: [Param], -- function parameter types and their count
   funReturn :: [String]   -- function return type
-} deriving(Eq, Ord, Show, Generic)
+} deriving(Eq, Show, Generic)
+
+instance Ord FunctionCode where
+  compare fc1 fc2 = let
+    using d a b f = d (f a) (f b)
+    myCompare = compare fc1 fc2
+    ho = using compare fc1 fc2 hoParams
+    params = using compare fc1 fc2 funParams
+    rets = using compare fc1 fc2 funReturn
+    in fromMaybe EQ (find (/= EQ) [ho, params, rets])
 
 instance ToJSON FunctionCode where
     toEncoding = genericToEncoding defaultOptions
 instance Serialize FunctionCode
-
-areEqFuncs fc1 fc2 = let
-  ho1 = Set.fromList (hoParams fc1)
-  ho2 = Set.fromList (hoParams fc2)
-  params1 = Set.fromList (funParams fc1)
-  params2 = Set.fromList (funParams fc2)
-  ret1 = Set.fromList (funReturn fc1)
-  ret2 = Set.fromList (funReturn fc2)
-  in
-      ho1 == ho2 && params1 == params2 && ret1 == ret2
 
 data Place = Place {
   placeId :: Id,
@@ -54,7 +55,6 @@ data Transition = Transition {
 
 instance Hashable Transition where
     hashWithSalt s (Transition id pre post) = hashWithSalt s (id, Set.toList pre, Set.toList post)
-
 data Flow = Flow {
   flowId :: Id, -- flow id is the string version of pair (Place:<placeid>,Transition:<transitionid>) or reversed
   flowFrom :: Id,

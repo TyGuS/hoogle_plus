@@ -7,6 +7,7 @@ module PetriNet.AbstractType where
 import Types.Abstract
 import Types.Type
 import Types.Common
+import Types.PetriNet
 
 import Control.Lens
 import GHC.Generics
@@ -20,8 +21,7 @@ import Data.Either (isLeft)
 import Data.List
 import Text.Printf
 
-
-isAFunctionT (AFunctionT {}) = True
+isAFunctionT AFunctionT{} = True
 isAFunctionT _ = False
 notEx (AExclusion _) = False
 notEx _ = True

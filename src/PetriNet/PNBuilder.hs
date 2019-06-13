@@ -5,6 +5,7 @@ module PetriNet.PNBuilder(
   , addFunction
   , removeTransition
   , addArgClone
+  , areEqFuncs
 )
 where
 
@@ -222,3 +223,12 @@ setMaxToken inputs pn = pn {
     tredCnt = foldr checkTransition counts transitions
     inputedCnt = foldr (uncurry (HashMap.insertWith max)) tredCnt inputCounts
 -}
+
+
+areEqFuncs :: FunctionCode -> FunctionCode -> Bool
+areEqFuncs fc1 fc2 = let
+  equating a b f = f a == f b
+  ho = equating fc1 fc2 (sort . hoParams)
+  params = equating fc1 fc2 (sort . funParams)
+  rets = equating fc1 fc2 (sort . funReturn)
+  in ho && params && rets

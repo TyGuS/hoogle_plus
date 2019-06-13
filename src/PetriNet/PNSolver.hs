@@ -5,6 +5,7 @@
 {-# LANGUAGE DeriveGeneric  #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module PetriNet.PNSolver (runPNSolver) where
 
@@ -63,38 +64,13 @@ import PetriNet.PNBuilder
 import PetriNet.PNEncoder
 import PetriNet.PNEncoder
 import PetriNet.GHCChecker
+import PetriNet.Utils
 import HooglePlus.Stats
 import HooglePlus.CodeFormer
 import HooglePlus.Abstraction
 import HooglePlus.Refinement
 import Database.Convert
 import Database.Generate
-
-encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
-encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [show $ lastAbstractType t]
-  where
-    base = (0, [])
-    hoFun x (i, a) = (i+1, (encodeFunction ("f" ++ show i ++ "_" ++ id) x) : a)
-    paramFun x (i, a) = if isAFunctionT x then (i+1, ("f" ++ show i ++ "_" ++ id):a) else (i, (show x):a)
-    (_, hoParams) = foldr hoFun base $ filter isAFunctionT (abstractParamList t)
-    (_, params) = foldr paramFun base (abstractParamList t)
-encodeFunction id t = FunctionCode id [] [] [show t]
-
-freshId :: (MonadIO m) => Id -> PNSolver m Id
-freshId prefix = do
-    indices <- flip (^.) nameCounter <$> get
-    let idx = Map.findWithDefault 0 prefix indices
-    modify (over nameCounter $ Map.insert prefix (idx+1))
-    return $ prefix ++ show idx
-
--- | Replace all bound type variables with fresh free variables
-freshType :: (MonadIO m) => RSchema -> PNSolver m RType
-freshType sch = freshType' Map.empty [] sch
-  where
-    freshType' subst constraints (ForallT a sch) = do
-        a' <- freshId "A"
-        freshType' (Map.insert a (vart a' ftrue) subst) (a':constraints) sch
-    freshType' subst constraints (Monotype t) = return (typeSubstitute subst t)
 
 instantiate :: (MonadIO m) => Environment -> [(Id, AbstractSkeleton)] -> PNSolver m (Map Id AbstractSkeleton)
 instantiate env sigs = do
@@ -111,7 +87,7 @@ instantiate env sigs = do
     instantiate' sigs sigsAcc = do
         st <- get
         -- to test first level abstraction, please disable the complement type here
-        let typs = case st ^. refineStrategy of
+        let typs = case st ^. (searchParams . refineStrategy) of
                      AbstractRefinement -> leafTypes (st ^. abstractionTree)
                      NoRefine -> filter notEx (leafTypes (st ^. abstractionTree))
                      Combination -> filter notEx (leafTypes (st ^. abstractionTree))
@@ -141,10 +117,30 @@ splitTransition env tid info = do
     let typ = transitionSig sigs
     -- step 1: unify the type with refined abstract type and get new signatures
     unifyRes <- unifyNewType typ newTyps
+    writeLog 3 "splitTransition - unifyRes" $ pretty unifyRes
     let unifiedTyps = nubOrdOn snd unifyRes
     -- step 2: add new transitions into the environment
-    mapM_ (\(id, ty) -> modify $ over currentSigs (Map.insert id ty)) unifiedTyps
-    mapM_ (\(id, ty) -> modify $ over functionMap (HashMap.insert id (encodeFunction id ty))) unifiedTyps
+    mapM_ (\(id, ty) -> do
+        let add x = (modify $ over currentSigs (Map.insert id x))
+        ifM (shouldDedupe)
+            (do (error "not implemented")
+                sigs <- view currentSigs <$> get
+                let reversedSigs = groupByMap sigs
+                if ty `Map.member` reversedSigs then
+                    (writeLog 3 "splitTransition" $ text "not including sig" <+> pretty (id, ty))
+                    else add ty)
+            (add ty)) unifiedTyps
+    mapM_ (\(id, ty) -> do
+        let add x = (modify $ over functionMap (HashMap.insert id x))
+        ifM (shouldDedupe)
+            (do (error "not implemented")
+                fm <- view functionMap <$> get
+                let reversedFm = groupByMap (Map.fromList $ HashMap.toList fm)
+                let encodedFunc = encodeFunction id ty
+                if encodedFunc `Map.member` reversedFm then
+                    (writeLog 3 "splitTransition" $ text "not including function" <+> pretty (id, ty))
+                    else add encodedFunc)
+            (add (encodeFunction id ty))) unifiedTyps
     mapM_ (uncurry typeMap) unifiedTyps
     -- step 3: pack the information into SplitInfo for incremental encoding
     let newIds = fst (unzip unifiedTyps)
@@ -203,14 +199,14 @@ splitTransition env tid info = do
         -- get all the constraints
         let typs = genTypes (fst (head (splitedPlaces info))) newTyps typ
         let constraints = map (\t -> typeConstraints t polyTyp) typs
-        writeLog 3 "splitTranstion" $ text "trying to solve constraints" <+> pretty constraints
+        writeLog 3 "unifyNewType" $ text "trying to solve constraints" <+> pretty constraints
         let unifiers = map (getUnifier abstraction (env ^. boundTypeVars) (Just Map.empty)) constraints
-        writeLog 3 "splitTransition" $ text "unify result is" <+> pretty (show unifiers)
+        writeLog 3 "unifyNewType" $ text "unify result is" <+> pretty (map (Map.toList <$>) unifiers)
         let checkSuccess = filter isJust unifiers
         if not (null checkSuccess)
            then do
                let ts = snd (unzip (filter (isJust . fst) (zip unifiers typs)))
-               writeLog 3 "splitTransition" $ text "get signatures" <+> pretty ts
+               writeLog 3 "unifyNewType" $ text "get signatures" <+> pretty ts
                ids <- mapM (\_ -> if Map.member id' (env ^. arguments) || "Pair" `isPrefixOf` id' then freshId (id'++"_") else freshId "f") ts
                mapping <- view nameMapping <$> get
                let actualName = case Map.lookup tid mapping of
@@ -463,7 +459,8 @@ refineSemantic env prog at = do
     -- the only problem is to deal with split one type more than once, let's assume it would not happen first
     splitInfos <- filterM (uncurry hasNewSplit) (nubOrdOn fst splits) >>= mapM (uncurry transSplit)
     let SplitInfo pls trs = combineInfo splitInfos
-    return (SplitInfo pls (flattenInfo trs))
+    let groups = flattenInfo trs
+    return (SplitInfo pls groups)
   where
     -- if any of the transitions is splitted again, merge the results
     combineInfo [] = SplitInfo [] []
@@ -482,18 +479,18 @@ refineSemantic env prog at = do
 
     hasNewSplit t1 t2 = do
         semantic <- view abstractionTree <$> get
-        writeLog 2 "refineSemantic" $ text "check add type" <+> pretty t2 <+> text "into" <+> text (show semantic)
+        writeLog 3 "refineSemantic" $ text "check add type" <+> pretty t2 <+> text "into" </> pretty semantic
         let semantic' = updateSemantic env semantic t2
         return (semantic /= semantic')
 
     transSplit t1 t2 = do
         semantic <- view abstractionTree <$> get
-        writeLog 2 "refineSemantic" $ text "add type" <+> pretty t2 <+> text "into" <+> text (show semantic)
+        writeLog 3 "refineSemantic" $ text "add type" <+> pretty t2 <+> text "into" </> pretty semantic
         let semantic' = updateSemantic env semantic t2
         modify $ set abstractionTree semantic'
         let t2' = head (cutoff env semantic' t2)
-        writeLog 2 "refineSemantic" $ text $ printf "%s is splited into %s" (show t1) (show t2')
-        writeLog 2 "refineSemantic" $ text $ printf "new semantic is %s" (show semantic')
+        writeLog 3 "refineSemantic" $ pretty t1 <+> text "is splited into" <+> pretty t2'
+        writeLog 3 "refineSemantic" $ text "new semantic is:" </> pretty semantic'
         t2tr <- view type2transition <$> get
         let tids = Map.findWithDefault [] t1 t2tr
         let nts = (leafTypes semantic') \\ (leafTypes semantic)
@@ -534,9 +531,21 @@ initNet env = withTime ConstructionTime $ do
     writeLog 3 "initNet" $ text "instantiated sigs" <+> pretty (Map.toList sigs)
     symbols <- mapM addEncodedFunction (Map.toList sigs)
     let symbols' = concat symbols
+    -- Count the symbols with the SAME signature being put in the net.
     dupes <- countDuplicates symbols'
-    writeLog 1 "initNet" $ text "duplicate funcs" <+> text dupes
-    modify $ set solverNet (buildPetriNet symbols' (map show srcTypes))
+    symbols'' <- ifM (shouldDedupe) (
+        do
+            error "not implemented"
+            (s, toBeRemoved) <- partitionDuplicateFunctions symbols'
+            removeDuplicates toBeRemoved
+            return s)
+        (return symbols')
+    gm <- view groupMap <$> get
+    names <- view nameMapping <$> get
+    let realNames = map (\x -> x ++ " → " ++ (fromJust $ Map.lookup x names)) (Map.keys sigs)
+    writeLog 3 "initNet" $ text "duplicate funcs" <+> text dupes
+    let net = (buildPetriNet symbols'' (map show srcTypes))
+    modify $ set solverNet net
   where
     abstractSymbol id sch = do
         t <- freshType sch
@@ -566,6 +575,7 @@ initNet env = withTime ConstructionTime $ do
         let includedTyps = decompose f
         mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
         return [ef]
+
 
 resetEncoder :: (MonadIO m) => Environment -> RType -> PNSolver m EncodeState
 resetEncoder env dst = do
@@ -605,7 +615,7 @@ findPath env dst st = do
     case res of
         [] -> do
             currSt <- get
-            maxDepth <- view maxApplicationDepth <$> get
+            maxDepth <- view (searchParams . eGuessDepth) <$> get
             when (currSt ^. currentLoc >= maxDepth) (
               do
                 mesgChan <- view messageChan <$> get
@@ -680,21 +690,35 @@ fixNet env (SplitInfo splitedTys splitedGps) = do
     modify $ set sourceTypes srcTypes
     -- add new function into the petri net
     let newGroups = concat (snd (unzip splitedGps))
+    writeLog 3 "fixNet" $ text "splitGroups" <+> pretty splitedGps
+    writeLog 3 "fixNet" $ text "newGroups" <+> pretty newGroups
     sigs <- view currentSigs <$> get
     net <- view solverNet <$> get
     let sigs' = Map.filterWithKey (\k _ -> k `elem` newGroups) sigs
-    writeLog 3 "fixNet" $ text "sigs to be added include" <+> text (show sigs')
+    writeLog 3 "fixNet" $ text "sigs to be added include" <+> pretty (Map.toList sigs')
     fm <- view functionMap <$> get
     let encodedFuncs = map (\name -> case HashMap.lookup name fm of
                                        Nothing -> error $ "cannot find function name " ++ name ++ " in functionMap"
                                        Just n -> n) newGroups
+    let allFuncs = (HashMap.elems fm)
     dupes <- countDuplicates encodedFuncs
+    writeLog 2 "fixNet" $ text "duplicate sigs" <+> text (countDuplicateSigs sigs)
     writeLog 1 "fixNet" $ text "duplicate funcs" <+> text dupes
-    let functionedNet = foldr addArgClone (foldr addFunction net encodedFuncs) (map show (concat (snd (unzip splitedTys))))
+    let newPlaces = (map show (concat (snd (unzip splitedTys))))
+    functionedNet <- ifM (shouldDedupe) (
+        do
+            (error "not implemented")
+            (deduplicatedFuncs, toBeRemoved) <- partitionDuplicateFunctions encodedFuncs
+            removeDuplicates toBeRemoved
+            writeLog 3 "fixNet" $ text "deduplicated funcs" <+> pretty (map funName deduplicatedFuncs)
+            writeLog 3 "fixNet" $ text "to be removed funcs" <+> pretty (map funName toBeRemoved)
+            return $ foldr addArgClone (foldr addFunction net deduplicatedFuncs) newPlaces)
+            -- (return $ foldr addArgClone (foldr addFunction net encodedFuncs) newPlaces))
+        (return $ foldr addArgClone (foldr addFunction net encodedFuncs) newPlaces)
     modify $ set solverNet functionedNet
 
 fixEncoder :: MonadIO m => Environment -> RType -> EncodeState -> SplitInfo -> PNSolver m EncodeState
-fixEncoder env dst st info = do
+fixEncoder env dst st info@(SplitInfo splitedTys splitedGps) = do
     let binds = env ^. boundTypeVars
     abstraction <- view abstractionTree <$> get
     let tgt = head (cutoff env abstraction (toAbstractType (shape dst)))
@@ -704,9 +728,24 @@ fixEncoder env dst st info = do
     writeLog 2 "fixEncoder" $ text "fixed return type is" <+> pretty tgt
     loc <- view currentLoc <$> get
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    writeLog 2 "fixEncoder" $ text ("get split information " ++ show info)
     net <- view solverNet <$> get
-    liftIO $ execStateT (encoderRefine net info (map show srcTypes) (show tgt)) st
+    -- TODO remove dupes from the info's group
+    let newGroups = concat (snd (unzip splitedGps))
+    fm <- view functionMap <$> get
+    let encodedFuncs = map (\name -> case HashMap.lookup name fm of
+                                       Nothing -> error $ "cannot find function name " ++ name ++ " in functionMap"
+                                       Just n -> n) newGroups
+    shouldRemoveDuplicates' <- view (searchParams . shouldRemoveDuplicates) <$> get
+    info' <- ifM (shouldDedupe) (
+        do
+            error "not implemented"
+            (_, toBeRemoved) <- partitionDuplicateFunctions encodedFuncs
+            let dupedNames = map funName toBeRemoved
+            let newGroups = map (\(x, ys) -> (x, filter (not . (flip elem dupedNames)) ys)) splitedGps
+            return (SplitInfo splitedTys newGroups))
+        (return info)
+    writeLog 2 "fixEncoder" $ text "get split information" <+> pretty info
+    liftIO $ execStateT (encoderRefine net info' (map show srcTypes) (show tgt)) st
 
 findProgram :: MonadIO m => Environment -> RType -> EncodeState -> PNSolver m (RProgram, EncodeState)
 findProgram env dst st = do
@@ -755,7 +794,7 @@ findProgram env dst st = do
             (return (Right (btm, at)))
 
     findNextSolution st oldSemantic (prog, at) = do -- [errorProg, errorTop] = do
-        rs <- view refineStrategy <$> get
+        rs <- gets $ view (searchParams . refineStrategy)
         case rs of
             NoRefine -> findProgram env dst st
             Combination -> do
@@ -848,50 +887,3 @@ runPNSolver env cnt t = do
     msgChan <- view messageChan <$> get
     liftIO $ writeChan msgChan (MesgClose CSNormal)
     return ()
-
-recoverNames :: Map Id Id -> RProgram -> RProgram
-recoverNames mapping (Program (PSymbol sym) t) =
-    case Map.lookup sym mapping of
-      Nothing -> Program (PSymbol (removeLast '_' sym)) t
-      Just name -> Program (PSymbol (removeLast '_' name)) t
-recoverNames mapping (Program (PApp pFun pArg) t) = Program (PApp pFun' pArg') t
-  where
-    pFun' = recoverNames mapping pFun
-    pArg' = recoverNames mapping pArg
-recoverNames mapping (Program (PFun x body) t) = Program (PFun x body') t
-  where
-    body' = recoverNames mapping body
-
--------------------------------------------------------------------------------
--- | helper functions
--------------------------------------------------------------------------------
-
-writeLog :: MonadIO m => Int -> String -> Doc -> PNSolver m ()
-writeLog level tag msg = do
-    mesgChan <- view messageChan <$> get
-    liftIO $ writeChan mesgChan (MesgLog level tag $ show $ plain msg)
-
-multiPermutation len elmts | len == 0 = []
-multiPermutation len elmts | len == 1 = [[e] | e <- elmts]
-multiPermutation len elmts            = nubOrd $ [ l:r | l <- elmts, r <- multiPermutation (len - 1) elmts]
-
-
-replaceId a b = Text.unpack . Text.replace a b . Text.pack
-mkPairMatch (FunctionCode name _ params ret) = FunctionCode (replaceId "Pair" "Pair_match" name) [] ret params
-
-var2any env t@(ScalarT (TypeVarT _ id) _) | isBound env id = t
-var2any env t@(ScalarT (TypeVarT _ id) _) | otherwise = AnyT
-var2any env (ScalarT (DatatypeT id args l) r) = ScalarT (DatatypeT id (map (var2any env) args) l) r
-var2any env (FunctionT x tArg tRet) = FunctionT x (var2any env tArg) (var2any env tRet)
-
-countDuplicates symbols = do
-    mesgChan <- view messageChan <$> get
-    let groupedSymbols = groupBy areEqFuncs symbols
-    let counts = [ (length ss, head ss) | ss <- groupedSymbols]
-    let dupes = [ x | x <- counts, (fst x) > 1]
-    modify $ over solverStats (\s -> s {
-        duplicateSymbols = (length dupes, length counts)
-    })
-    stats <- view solverStats <$> get
-    liftIO $ writeChan mesgChan (MesgS stats)
-    return $ printf "%d / %d" (length dupes) (length counts)

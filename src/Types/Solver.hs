@@ -19,6 +19,7 @@ import Types.Type
 import Types.Common
 
 data SolverState = SolverState {
+    _searchParams :: SearchParams,
     _nameCounter :: Map Id Int,  -- name map for generating fresh names (type variables, parameters)
     _typeAssignment :: Map Id SType,  -- current type assignment for each type variable
     _typingError :: (SType, SType), -- typing error message, represented by the expected type and actual type
@@ -32,22 +33,20 @@ data SolverState = SolverState {
     _targetType :: AbstractSkeleton,
     _sourceTypes :: [AbstractSkeleton],
     _paramNames :: [Id],
-    _refineStrategy :: RefineStrategy,
     _groupMap :: Map Id [Id], -- mapping from group id to list of function names
     _type2transition :: Map AbstractSkeleton [Id], -- mapping from abstract type to group ids
+    _type2transitionBackup :: Map AbstractSkeleton [Id],
     _solverNet :: PetriNet,
     _solverStats :: TimeStatistics,
-    _useGroup :: Bool,
     _splitTypes :: [(AbstractSkeleton, AbstractSkeleton)],
     _nameMapping :: Map Id Id, -- mapping from fake names to real names
-    _logLevel :: Int, -- temporary for log level
-    _maxApplicationDepth :: Int,
 
     _messageChan :: Chan Message
 } deriving(Eq)
 
 
 emptySolverState = SolverState {
+    _searchParams = defaultSearchParams,
     _nameCounter = Map.empty,
     _typeAssignment = Map.empty,
     _typingError = (AnyT, AnyT),
@@ -61,16 +60,13 @@ emptySolverState = SolverState {
     _targetType = AExclusion Set.empty,
     _sourceTypes = [],
     _paramNames = [],
-    _refineStrategy = NoRefine,
     _groupMap = Map.empty,
     _type2transition = Map.empty,
     _solverNet = PetriNet HashMap.empty HashMap.empty HashMap.empty,
     _solverStats = emptyTimeStats,
-    _useGroup = False,
     _splitTypes = [],
     _nameMapping = Map.empty,
-    _logLevel = 0,
-    _maxApplicationDepth = 6
+    _messageChan = undefined
 }
 
 makeLenses ''SolverState

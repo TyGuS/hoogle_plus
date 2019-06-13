@@ -56,6 +56,7 @@ import Distribution.PackDeps
 import Text.Parsec hiding (State)
 import Text.Parsec.Indent
 import System.Directory
+import System.IO
 import qualified Data.ByteString as B
 
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
@@ -71,7 +72,7 @@ releaseDate = fromGregorian 2019 3 10
 main = do
   res <- cmdArgsRun $ mode
   case res of
-    Synthesis file libs envPath appMax log_ sol_num path_search higher_order encoder refine -> do
+    Synthesis file libs envPath appMax log_ sol_num path_search higher_order encoder refine remove_duplicates -> do
       let searchParams = defaultSearchParams {
         _eGuessDepth = appMax,
         _explorerLogLevel = log_,
@@ -79,7 +80,8 @@ main = do
         _pathSearch = path_search,
         _useHO = higher_order,
         _encoderType = encoder,
-        _useRefine = refine
+        _refineStrategy = refine,
+        _shouldRemoveDuplicates = remove_duplicates
         }
       let synquidParams = defaultSynquidParams {
         Main.envPath = envPath
@@ -126,7 +128,8 @@ data CommandLineArgs
         path_search :: PathStrategy,
         higher_order :: Bool,
         encoder :: EncoderType,
-        use_refine :: RefineStrategy
+        use_refine :: RefineStrategy,
+        remove_duplicates :: Bool
       }
       | Generate {
         -- | Input
@@ -150,7 +153,8 @@ synt = Synthesis {
   path_search         = PetriNet     &= help ("Use path search algorithm to ensure the usage of provided parameters (default: PetriNet)") &= name "path",
   higher_order        = False           &= help ("Include higher order functions (default: False)"),
   encoder             = Normal &= help ("Choose normal or refined arity encoder (default: Normal)"),
-  use_refine          = QueryRefinement    &= help ("Use abstract refinement or not (default: QueryRefinement)")
+  use_refine          = QueryRefinement    &= help ("Use abstract refinement or not (default: QueryRefinement)"),
+  remove_duplicates   = False &= help ("Remove duplicates while searching. Under development.")
   } &= auto &= help "Synthesize goals specified in the input file"
 
 generate = Generate {
@@ -214,14 +218,18 @@ executeSearch synquidParams searchParams query = do
         Left err -> error err
         Right env ->
           return env
+
     handleMessages ch (MesgClose _) = putStrLn "Search complete" >> return ()
     handleMessages ch (MesgP (program, stats)) = do
+      when (logLevel > 2) (pPrint stats)
       print program >> readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgS debug) = do
-      when (logLevel > 0) (pPrint debug)
+      when (logLevel > 2) (pPrint debug)
       readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgLog level tag msg) = do
-      when (level <= logLevel) (printf "[%s]: %s\n" tag msg)
+      when (level <= logLevel) (do
+        mapM (printf "[%s]: %s\n" tag) (lines msg)
+        hFlush stdout)
       readChan ch >>= (handleMessages ch)
 
 pdoc = printDoc Plain

@@ -224,10 +224,10 @@ encoderRefine net info inputs ret = do
 
     {- operation on transitions -}
     let transIds = concat (snd (unzip (splitedGroup info)))
-    let allTransIds = fst (unzip (splitedGroup info)) ++ transIds ++ (fst (unzip typeClones)) ++ (concat (snd (unzip typeClones)))
+    let allTransIds = fst (unzip (splitedGroup info)) ++ transIds ++ (map fst typeClones) ++ (concatMap snd typeClones)
     -- some of the transitions are splitted
     let existingTrans = findVariable (abstractionLv st) (transition2id st)
-    let newTrans = map (\tr -> findVariable tr (pnTransitions net)) (concat (snd (unzip typeClones)) ++ transIds)
+    let newTrans = map (\tr -> findVariable tr (pnTransitions net)) (concatMap snd typeClones ++ transIds)
     -- other transition have no change but need to be copied to the next level
     let noSplit k _ = not (elem k allTransIds)
     let oldTransIds = HashMap.keys (HashMap.filterWithKey noSplit existingTrans)

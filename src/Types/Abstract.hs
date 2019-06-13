@@ -4,6 +4,7 @@ module Types.Abstract where
 import Types.Common
 
 import Data.Set (Set)
+import qualified Data.Set as Set
 import GHC.Generics
 import Data.Serialize
 

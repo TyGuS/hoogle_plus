@@ -40,8 +40,9 @@ data SearchParams = SearchParams {
   _encoderType :: EncoderType,
   _pathSearch :: PathStrategy,
   _useHO :: Bool,
-  _useRefine :: RefineStrategy
-}
+  _refineStrategy :: RefineStrategy,
+  _shouldRemoveDuplicates :: Bool
+} deriving (Show, Eq)
 
 makeLenses ''SearchParams
 
@@ -58,10 +59,10 @@ data TimeStatistics = TimeStatistics {
   pathLength :: Int,
   numOfTransitions :: Map Int Int,
   numOfPlaces :: Map Int Int,
-  duplicateSymbols :: (Int, Int)
+  duplicateSymbols :: [(Int, Int, Int)]
 } deriving(Show, Eq)
 
-emptyTimeStats = TimeStatistics 0 0 0 0 0 0 0 0 0 0 Map.empty Map.empty (0, 0)
+emptyTimeStats = TimeStatistics 0 0 0 0 0 0 0 0 0 0 Map.empty Map.empty []
 
 data TimeStatUpdate
   = ConstructionTime
@@ -81,7 +82,8 @@ defaultSearchParams = SearchParams {
   _pathSearch = PetriNet,
   _useHO = False,
   _encoderType = Normal,
-  _useRefine = QueryRefinement
+  _refineStrategy = QueryRefinement,
+  _shouldRemoveDuplicates = False
 }
 
 type ExperimentName = String

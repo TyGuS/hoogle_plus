@@ -1,3 +1,4 @@
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE FlexibleInstances, UndecidableInstances, FlexibleContexts #-}
 
 module Synquid.Pretty (
@@ -6,6 +7,7 @@ module Synquid.Pretty (
   Doc,
   renderPretty,
   putDoc,
+  prettyShow,
   -- * Basic documents
   empty,
   isEmpty,
@@ -75,11 +77,16 @@ import qualified Data.Map as Map
 import Data.Map (Map, (!))
 import Data.List
 import Data.Hashable
+import Data.Tree
+import Data.Tree.Pretty
 
 import Control.Lens
 
 infixr 5 $+$
 infixr 6 <+>
+
+prettyShow :: Pretty p => p -> String
+prettyShow p = displayS (renderCompact $ pretty p) ""
 
 tab = 2
 
@@ -512,11 +519,27 @@ lfill w d        = case renderCompact d of
            | otherwise = text $ replicate n ' '
 
 instance Pretty AbstractSkeleton where
+    pretty (ADatatypeT id args) | length args > 1 = text id <+> hsep (map (hlParens . pretty) args)
     pretty (ADatatypeT id args) = text id <+> hsep (map pretty args)
-    pretty (AExclusion ids) = text "-" <+> hlBraces (commaSep $ map pretty (Set.toList ids))
+    pretty (AExclusion ids) | null ids = text "*"
+    pretty (AExclusion ids) = (text "¬") <> (hlBraces (commaSep $ map pretty (Set.toList ids)))
     pretty (ATypeVarT id) = text id
-    pretty (AFunctionT tArg tRet) = pretty tArg <+> operator "->" <+> pretty tRet
+    pretty (AFunctionT tArg tRet) = pretty tArg <+> operator "→" <+> pretty tRet
 
 instance Hashable AbstractSkeleton where
   hash typ = hash (show typ)
   hashWithSalt s typ = s + hash typ
+
+instance Pretty AbstractionTree where
+  pretty x = text $ drawTree $ ((show . pretty) <$> (abstractTreetoTree x))
+    where
+      abstractTreetoTree :: AbstractionTree -> Tree AbstractSkeleton
+      abstractTreetoTree (ALeaf sk) = Node sk []
+      abstractTreetoTree (ANode sk left right) = Node sk [abstractTreetoTree left, abstractTreetoTree right]
+
+instance Pretty SplitInfo where
+  pretty (SplitInfo places groups) = let
+    groupDoc = pretty $ map (\(x, xs) -> pretty x <+> text "↦" <+> (hlBraces $ pretty xs)) groups
+    placesDoc = pretty $ map (\(x, xs) -> pretty x <+> text "↦" <+> (hlBraces $ pretty xs)) places
+    in
+      text "place split:" <+> placesDoc </> text "group split:" <+> groupDoc
