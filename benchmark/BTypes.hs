@@ -42,7 +42,7 @@ data ResultSummary = ResultSummary {
   paramName :: String,
   queryName :: String,
   queryStr :: String,
-  result :: Result
+  results :: [Result]
   } deriving (Show)
 
 data Result = Result {

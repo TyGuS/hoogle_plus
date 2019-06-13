@@ -73,9 +73,9 @@ getSetup args = do
             (searchParamsBaseline, expBaseline),
             (searchParamsZeroStart, expZeroCoverStart)]
           TrackTypesAndTransitions -> [(searchParams, expQueryRefinement)]
-          CompareSolutions -> [
-            (searchParams, expQueryRefinement),
-            (searchParams{_disableDemand=True}, "Query Refinement - no demand")]
+          CompareSolutions -> let solnCount = 5 in
+              [ (searchParams{_solutionCnt=solnCount}, expQueryRefinement),
+                (searchParams{_disableDemand=True, _solutionCnt=solnCount}, expQueryRefinementNoDemand)]
   let exps =
         case currentExperiment of
           CompareInitialAbstractCovers -> let

@@ -93,6 +93,7 @@ expQueryRefinement = "Query Refinement":: ExperimentName
 expQueryRefinementHOF = "Query Refinement - HOF" :: ExperimentName
 expBaseline = "Baseline" :: ExperimentName
 expZeroCoverStart = "Zero Cover Start" :: ExperimentName
+expQueryRefinementNoDemand = "Query Refinement - no demand" :: ExperimentName
 
 data ExperimentCourse
   = CompareInitialAbstractCovers

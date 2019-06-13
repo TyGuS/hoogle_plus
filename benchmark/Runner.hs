@@ -81,11 +81,11 @@ collectResults ch xs _ = readChan ch >>= (collectResults ch xs)
 summarizeResult :: ExperimentCourse -> (Experiment, [(Either EvaluationException (Maybe RProgram), TimeStatistics)]) -> ResultSummary
 summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
   results = case (currentExperiment, r) of
-    (_, []) -> emptyResult {resSolutionOrError = Left TimeoutException}
+    (_, []) -> [emptyResult {resSolutionOrError = Left TimeoutException}]
     (CompareInitialAbstractCovers, (errOrMbSoln, firstR):_) -> let
       safeTransitions = snd $ errorhead "missing transitions" $ (Map.toDescList (numOfTransitions firstR))
       safeTypes = snd $ errorhead "missing types" $ (Map.toDescList (numOfPlaces firstR))
-      in emptyResult {
+      in [emptyResult {
       resSolutionOrError = fmap (mkOneLine . show) errOrMbSoln,
       resTFirstSoln = totalTime firstR,
       resTEncFirstSoln = encodingTime firstR,
@@ -93,11 +93,11 @@ summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
       resRefinementSteps = iterations firstR,
       resTransitions = [safeTransitions],
       resTypes = [safeTypes]
-      }
+      }]
     (TrackTypesAndTransitions, (errOrMbSoln, firstR):_) -> let
       safeTransitions = map snd (Map.toAscList (numOfTransitions firstR))
       safeTypes = map snd (Map.toAscList (numOfPlaces firstR))
-      in emptyResult {
+      in [emptyResult {
       resSolutionOrError = fmap (mkOneLine . show) errOrMbSoln,
       resTFirstSoln = totalTime firstR,
       resTEncFirstSoln = encodingTime firstR,
@@ -106,14 +106,19 @@ summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
       resTransitions = safeTransitions,
       resTypes = safeTypes,
       resDuplicateSymbols = duplicateSymbols firstR
-      }
+      }]
+    (CompareSolutions, solns) -> let
+      toSolution (Right (Just soln), _) = emptyResult {resSolutionOrError = (Right $ show soln)}
+      toSolution (Right Nothing, _) = emptyResult {resSolutionOrError = Left NoSolutionException}
+      toSolution (Left err, _) = emptyResult {resSolutionOrError = Left err}
+      in map toSolution solns
 
   in ResultSummary {
     envName = envN,
     paramName = paramN,
     queryName = name q,
     queryStr = query q,
-    result = results
+    results = results
     }
   where
     errorhead msg xs = fromMaybe (error msg) $ listToMaybe xs

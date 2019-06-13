@@ -28,8 +28,8 @@ toGroup rss = let
 
 toTable :: ExperimentCourse -> Map String [ResultSummary] -> String
 toTable CompareSolutions rsMap = let
-  header = ["Name", "Query", "solutions"]
-  columnStyle = replicate (length header) (column (expandUntil textWidth) center noAlign (singleCutMark "..."))
+  header = ["Name", "Query", "with demand", "no demand"]
+  columnStyle = replicate (length header) (column expand center noAlign (singleCutMark "..."))
   -- body = map (uncurry . (collsAllG center) . (toLine CompareSolutions)) (Map.toList rsMap)
   body = map (\(x, y) -> colsAllG center $ toLine CompareSolutions x y) (Map.toList rsMap)
   in
@@ -66,34 +66,43 @@ toLine currentExperiment name rss = let
   mbzero = findwhere expZeroCoverStart rss
   rest = case currentExperiment of
       CompareInitialAbstractCovers -> [
-        (:[]) <$> (showFloat . resTFirstSoln) <$> result <$> mbqr,
-        (:[]) <$> (showFloat . resTEncFirstSoln) <$> result <$> mbqr,
-        (:[]) <$> (show . resLenFirstSoln) <$> result <$> mbqr,
-        (:[]) <$> (show . resRefinementSteps) <$> result <$> mbqr,
-        (:[]) <$> (show . resTransitions) <$> result <$> mbqr,
-        (:[]) <$> (show . resTypes) <$> result <$> mbqr,
+        (:[]) <$> (showFloat . resTFirstSoln) <$> (head . results) <$> mbqr,
+        (:[]) <$> (showFloat . resTEncFirstSoln) <$> (head . results) <$> mbqr,
+        (:[]) <$> (show . resLenFirstSoln) <$> (head . results) <$> mbqr,
+        (:[]) <$> (show . resRefinementSteps) <$> (head . results) <$> mbqr,
+        (:[]) <$> (show . resTransitions) <$> (head . results) <$> mbqr,
+        (:[]) <$> (show . resTypes) <$> (head . results) <$> mbqr,
 
-        (:[]) <$> (showFloat . resTFirstSoln) <$> result <$> mbqrhof,
-        (:[]) <$> (show . resTransitions) <$> result <$> mbqrhof,
+        (:[]) <$> (showFloat . resTFirstSoln) <$> (head . results) <$> mbqrhof,
+        (:[]) <$> (show . resTransitions) <$> (head . results) <$> mbqrhof,
 
-        (:[]) <$> (showFloat . resTFirstSoln) <$> result <$> mbPartialqrhof,
-        (:[]) <$> (show . resTransitions) <$> result <$> mbPartialqrhof,
+        (:[]) <$> (showFloat . resTFirstSoln) <$> (head . results) <$> mbPartialqrhof,
+        (:[]) <$> (show . resTransitions) <$> (head . results) <$> mbPartialqrhof,
 
-        (:[]) <$> (showFloat . resTFirstSoln) <$> result <$> mbbaseline,
-        (:[]) <$> (show . resTransitions) <$> result <$> mbbaseline,
-        (:[]) <$> (showFloat . resTFirstSoln) <$> result <$> mbzero,
-        (:[]) <$> (show . resTransitions) <$> result <$> mbzero
+        (:[]) <$> (showFloat . resTFirstSoln) <$> (head . results) <$> mbbaseline,
+        (:[]) <$> (show . resTransitions) <$> (head . results) <$> mbbaseline,
+        (:[]) <$> (showFloat . resTFirstSoln) <$> (head . results) <$> mbzero,
+        (:[]) <$> (show . resTransitions) <$> (head . results) <$> mbzero
         ]
       TrackTypesAndTransitions -> [
-        justifyText textWidth <$> (showFloat . resTFirstSoln) <$> result <$> mbqr,
-        justifyText textWidth <$> (showFloat . resTEncFirstSoln) <$> result <$> mbqr,
-        justifyText textWidth <$> (show . resLenFirstSoln) <$> result <$> mbqr,
-        justifyText textWidth <$> (show . resRefinementSteps) <$> result <$> mbqr,
-        justifyText textWidth <$> (spaceList . resTransitions . result) <$> mbqr,
-        justifyText textWidth <$> (spaceList . resTypes . result) <$> mbqr,
-        justifyText textWidth <$> (spaceList . resDuplicateSymbols . result) <$> mbqr,
-        justifyText textWidth <$> either show show <$> resSolutionOrError <$> result <$> mbqr
+        justifyText textWidth <$> (showFloat . resTFirstSoln) <$> (head . results) <$> mbqr,
+        justifyText textWidth <$> (showFloat . resTEncFirstSoln) <$> (head . results) <$> mbqr,
+        justifyText textWidth <$> (show . resLenFirstSoln) <$> (head . results) <$> mbqr,
+        justifyText textWidth <$> (show . resRefinementSteps) <$> (head . results) <$> mbqr,
+        justifyText textWidth <$> (spaceList . resTransitions . (head . results)) <$> mbqr,
+        justifyText textWidth <$> (spaceList . resTypes . (head . results)) <$> mbqr,
+        justifyText textWidth <$> (spaceList . resDuplicateSymbols . (head . results)) <$> mbqr,
+        justifyText textWidth <$> either show show <$> resSolutionOrError <$> (head . results) <$> mbqr
         ]
+      CompareSolutions -> let
+          mbQueryRefinementNoDmd = findwhere expQueryRefinementNoDemand rss
+          queryRefinementResults = (fromJust (results <$> mbqr)) :: [Result]
+          queryRefinementResultsNoDmd = (fromJust (results <$> mbQueryRefinementNoDmd)) :: [Result]
+          toSolution = (either show show . resSolutionOrError) :: Result -> String
+          myResults = [queryRefinementResults, queryRefinementResultsNoDmd]
+        in
+          map (\x -> Just (map (mkOneLine . toSolution) (reverse x))) myResults
+
   in
     map (fromMaybe ["-"]) ([
       Just [name],
