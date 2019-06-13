@@ -16,20 +16,16 @@ import qualified Data.Map as Map
 import Control.Exception
 
 {- Interface -}
-
--- | Choices for the type of path search
-data PathStrategy =
-  MaxSAT -- ^ Use SMT solver to find a path
-  | PetriNet -- ^ Use PetriNet and SyPet
-  | PNSMT -- ^ Use PetriNet and SMT solver
-  deriving (Eq, Show, Data)
-
 data RefineStrategy =
-    NoRefine
-  | AbstractRefinement
-  | Combination
-  | QueryRefinement
-  | NoGar
+    SypetClone -- first level abstraction, no refinement
+  | TyGar0 -- start from \nu, refinement
+  | TyGarQ -- start from query types, refinement
+  | NoGar -- start from query types, no refinement
+  | NoGar0 -- start from \nu, no refinement
+  | NoGarTyGar0 -- start from the final cover of TyGar0, no refinement
+  | NoGarTyGarQ -- start from the final cover of TyGarQ, no refinement
+  | NoGarTyGar0B -- start from the final cover of TyGar0B, no refinement
+  | NoGarTyGarQB -- start from the final cover of TyGarQB, no refinement
   deriving(Data, Show, Eq)
 
 -- | Parameters of program exploration
@@ -38,8 +34,6 @@ data SearchParams = SearchParams {
   _sourcePos :: SourcePos,                -- ^ Source position of the current goal
   _explorerLogLevel :: Int,               -- ^ How verbose logging is
   _solutionCnt :: Int,
-  _encoderType :: EncoderType,
-  _pathSearch :: PathStrategy,
   _useHO :: Bool,
   _useRefine :: RefineStrategy,
   _earlyCut :: Bool,
@@ -81,34 +75,31 @@ defaultSearchParams = SearchParams {
   _sourcePos = noPos,
   _explorerLogLevel = 0,
   _solutionCnt = 1,
-  _pathSearch = PetriNet,
   _useHO = False,
-  _encoderType = Normal,
-  _useRefine = QueryRefinement,
+  _useRefine = TyGarQ,
   _earlyCut = False,
   _stopThresh = 10
 }
 
 type ExperimentName = String
-expQueryRefinement = "TYGAR-Q":: ExperimentName
+expTyGarQ = "TYGAR-Q":: ExperimentName
 expQueryRefinementHOF = "Query Refinement - HOF" :: ExperimentName
-expBaseline = "Sypet-Clone" :: ExperimentName
-expZeroCoverStart = "TYGAR-0" :: ExperimentName
-expStopEarly = "TYGAR-QB" :: ExperimentName
-expStopEarlyZeroStart = "TYGAR-0B" :: ExperimentName
-expNoGar = "No Gar" :: ExperimentName
+expSypetClone = "Sypet-Clone" :: ExperimentName
+expTyGar0 = "TYGAR-0" :: ExperimentName
+expTyGarQB = "TYGAR-QB" :: ExperimentName
+expTyGar0B = "TYGAR-0B" :: ExperimentName
+expNoGar = "NoGar" :: ExperimentName
+expNoGar0 = "NoGar0" :: ExperimentName
+expNoGarTyGar0 = "NoGar with TyGar0's cover" :: ExperimentName
+expNoGarTyGarQ = "NoGar with TyGarQ's cover" :: ExperimentName
+expNoGarTyGar0B = "NoGar with TyGar0B's cover" :: ExperimentName
+expNoGarTyGarQB = "NoGar with TyGarQB's cover" :: ExperimentName
 expILP = "Integer Linear Programming" :: ExperimentName
 
 data ExperimentCourse
   = CompareInitialAbstractCovers
   | TrackTypesAndTransitions --2019-05-06
-  | SypetClone
-  | NoGAR
-  | TyGAR0
-  | TyGARQ
-  | TyGAR0B
-  | TyGARQB
-  | TyGARILP
+  | CompareFinalCovers
   deriving (Show, Data, Typeable)
 
 data Message

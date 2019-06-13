@@ -18,6 +18,7 @@ import Data.List
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Maybe
+import Data.List.Split
 
 type Code = String
 type CodePieces = Set Code
@@ -106,7 +107,7 @@ generateProgram signatures inputs argNames rets isFinal = do
     termLib <- gets typedTerms
     let codePieces = map (\ret -> HashMap.lookupDefault Set.empty ret termLib) rets
     let vars = []
-    return $ Set.filter (includeAllSymbols vars) (Set.unions codePieces)
+    return $ Set.filter (includeAllSymbols vars . splitOneOf " ()") (Set.unions codePieces)
   where
     addTypedArg input argName = do
         st <- get
@@ -124,20 +125,9 @@ generateProgram signatures inputs argNames rets isFinal = do
         addTypedArg fparam argName
 
     includeAllSymbols vars code =
-        let fold_fn f (b, c) = if b then includeSymbol c f else (b, c)
+        let fold_fn f (b, c) = if b && f `elem` c then (True, f `delete` c) else (False, c)
             base             = (True, code)
             funcNames        = map funName signatures
             (res, c)         = foldr fold_fn base (argNames ++ if isFinal then funcNames else []) -- vars exists after slash and the function body, at least twice
             -- eachOnce         = foldr (\n acc -> isInfixOf n c || acc) False (if isFinal then funcNames else []) -- each function should be used only once according to our design of petri net
         in res -- && (not eachOnce)
-
-    includeSymbol code fname | fname `isInfixOf` code =
-        (True, Text.unpack $ replaceOne (Text.pack fname) Text.empty (Text.pack code))
-    includeSymbol _    _     | otherwise              = (False, [])
-
-    replaceOne :: Text -> Text -> Text -> Text
-    replaceOne pattern substitution text
-      | Text.null back = text    -- pattern doesn't occur
-      | otherwise = Text.concat [front, substitution, Text.drop (Text.length pattern) back]
-        where
-          (front, back) = Text.breakOn pattern text

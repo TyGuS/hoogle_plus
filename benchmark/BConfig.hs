@@ -10,11 +10,16 @@ defaultTimeout = 2 * 60 :: Int
 defaultQueryFile = "benchmark/suites/allQueries.json"
 defaultExperiment = TrackTypesAndTransitions
 
-searchParams = defaultSearchParams
+searchParamsTyGarQ = defaultSearchParams
 searchParamsHOF = defaultSearchParams{_useHO=True}
-searchParamsBaseline = defaultSearchParams{_useRefine=NoRefine}
-searchParamsZeroStart = defaultSearchParams{_useRefine=AbstractRefinement}
-searchParamsStopEarly = defaultSearchParams{_earlyCut=True,_stopThresh=20}
-searchParamsZeroStopEarly = searchParamsStopEarly{_useRefine=AbstractRefinement}
-searchParamsZeroQuery = defaultSearchParams{_useRefine=NoGar}
+searchParamsSypetClone = defaultSearchParams{_useRefine=SypetClone}
+searchParamsTyGar0 = defaultSearchParams{_useRefine=TyGar0}
+searchParamsTyGarQB = defaultSearchParams{_earlyCut=True,_stopThresh=10}
+searchParamsTyGar0B = searchParamsTyGar0B{_useRefine=TyGar0}
+searchParamsNoGar = defaultSearchParams{_useRefine=NoGar}
+searchParamsNoGar0 = defaultSearchParams{_useRefine=NoGar0}
+searchParamsNoGarTyGar0 = defaultSearchParams{_useRefine=NoGarTyGar0}
+searchParamsNoGarTyGarQ = defaultSearchParams{_useRefine=NoGarTyGarQ}
+searchParamsNoGarTyGar0B = defaultSearchParams{_useRefine=NoGarTyGar0B}
+searchParamsNoGarTyGarQB = defaultSearchParams{_useRefine=NoGarTyGarQB}
 searchParamsILP = defaultSearchParams

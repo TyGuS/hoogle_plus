@@ -73,16 +73,10 @@ def output_res(filename, json_obj):
     #f.close()
     
     # output the data structure for plotting
-    exp_name_mapping = {'Query Refinement': 'TYGAR-Q',
-                        'Baseline': 'Sypet-clone',
-                        'Zero Cover Start': 'TYGAR-0',
-                        'Stop Early': 'TYGAR-QB',
-                        'Zero Cover with Stop Early': 'TYGAR-0B',
-                        'No Gar': 'NoGAR'}
     plot_data = []
     for exp_type, exp_list in res_dict.items():
         plot_line = {}
-        plot_line['name'] = exp_name_mapping[exp_type]
+        plot_line['name'] = exp_type
         filtered_list = filter(lambda x: x['result']['resTFirstSoln'] != '0.0', exp_list)
         plot_line['data'] = map(lambda x: float(x['result']['resTFirstSoln']),filtered_list)
         plot_data.append(plot_line)

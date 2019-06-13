@@ -57,6 +57,7 @@ dependencies:
 - vector
 - ghc
 - ghc-paths
+- split
 
 library:
   source-dirs:

@@ -89,11 +89,15 @@ synthesize searchParams goal messageChan = do
            , _stopRefine = toStop
            , _threshold = threshold
            , _abstractionTree = case rs of
-               NoRefine -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
-               AbstractRefinement -> emptySolverState ^. abstractionTree
-               Combination -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
-               QueryRefinement -> Abstraction.specificAbstractionFromTypes env (args)
+               SypetClone -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
+               TyGar0 -> emptySolverState ^. abstractionTree
+               TyGarQ -> Abstraction.specificAbstractionFromTypes env (args)
                NoGar -> Abstraction.specificAbstractionFromTypes env args
+               NoGar0 -> emptySolverState ^. abstractionTree
+               NoGarTyGar0 -> emptySolverState ^. abstractionTree
+               NoGarTyGarQ -> Abstraction.specificAbstractionFromTypes env args
+               NoGarTyGar0B -> emptySolverState ^. abstractionTree
+               NoGarTyGarQB -> Abstraction.specificAbstractionFromTypes env args
            , _messageChan = messageChan
            }
   catch (evalStateT (runPNSolver env cnt destinationType) is)

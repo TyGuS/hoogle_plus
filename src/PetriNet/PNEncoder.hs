@@ -16,8 +16,6 @@ import Data.List.Extra
 import Data.Hashable
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import Data.Map (Map)
-import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Z3.Monad hiding(Z3Env, newEnv)
 import qualified Z3.Base as Z3
@@ -43,8 +41,8 @@ defaultColor = 0
 -- | create a new encoder in z3
 createEncoder :: [Id] -> Id -> [FunctionCode] -> Encoder ()
 createEncoder inputs ret sigs = do
-    places <- gets ((:) "void" . Map.keys . ty2tr)
-    transIds <- gets (nubOrd . concat . Map.elems . ty2tr)
+    places <- gets ((:) "void" . HashMap.keys . ty2tr)
+    transIds <- gets (nubOrd . concat . HashMap.elems . ty2tr)
     -- create all the type variables for encoding
     createVariables places transIds
     -- add all the constraints for the solver
@@ -138,7 +136,6 @@ solveAndGetModel = do
             st <- get
             put $ st { block = blockAss }
             selectedNames <- getTrNames selected
-
             return (zip selectedNames [0,1..])
         Unsat -> do
             rets <- gets returnTyps
@@ -150,7 +147,7 @@ solveAndGetModel = do
                 t2tr <- gets ty2tr
                 modify $ \st -> st { returnTyps = tail rets }
                 push
-                setFinalState (rets !! 1) (Map.keys t2tr)
+                setFinalState (rets !! 1) (HashMap.keys t2tr)
                 solveAndGetModel
         Undef -> do
             return []
@@ -180,7 +177,7 @@ solveAndGetModel = do
             Just i -> mkEq pVar i
             Nothing -> error $ "cannot eval the variable" ++ show k
 
-encoderInit :: Int -> Map Id [Id] -> [Id] -> [Id] -> [FunctionCode] -> Map Id [Id] -> IO EncodeState
+encoderInit :: Int -> HashMap Id [Id] -> [Id] -> [Id] -> [FunctionCode] -> HashMap Id [Id] -> IO EncodeState
 encoderInit loc hoArgs inputs rets sigs t2tr = do
     z3Env <- initialZ3Env
     false <- Z3.mkFalse (envContext z3Env)
@@ -197,8 +194,8 @@ encoderInc sigs inputs rets = do
     st <- get
     put $ st { loc = loc st + 1
              , returnTyps = rets }
-    places <- gets ((:) "void" . Map.keys . ty2tr)
-    transitions <- gets (nubOrd . concat . Map.elems . ty2tr)
+    places <- gets ((:) "void" . HashMap.keys . ty2tr)
+    transitions <- gets (nubOrd . concat . HashMap.elems . ty2tr)
     l <- gets loc
 
     -- add new place, transition and timestamp variables
@@ -250,7 +247,7 @@ withTime desc f = do
     -}
     f
 
-encoderRefine :: SplitInfo -> [FunctionCode] -> Map Id [Id] -> [Id] -> [Id] -> Map Id [Id] -> Encoder ()
+encoderRefine :: SplitInfo -> [FunctionCode] -> HashMap Id [Id] -> [Id] -> [Id] -> HashMap Id [Id] -> Encoder ()
 encoderRefine info sigs t2tr inputs rets musters = do
     pop 2
 
@@ -264,7 +261,7 @@ encoderRefine info sigs t2tr inputs rets musters = do
 
     {- operation on places -}
     let newPlaceIds = map show (newPlaces info)
-    let newHos = filter (`isInfixOf` "AFunctionT") ((Map.keys t2tr) \\ (Map.keys (ty2tr st)))
+    let newHos = filter (`isInfixOf` "AFunctionT") ((HashMap.keys t2tr) \\ (HashMap.keys (ty2tr st)))
     let newTransIds = newTrans info
 
     l <- loc <$> get
@@ -291,7 +288,7 @@ encoderRefine info sigs t2tr inputs rets musters = do
 
     -- prepare hierarchical higher order places
     let hoPlaces = []
-    let currPlaces = Map.keys t2tr
+    let currPlaces = HashMap.keys t2tr
 
     withTime "transition index range" transitionRng
 
@@ -470,7 +467,7 @@ noTransitionTokens :: Int -> Id -> Encoder ()
 noTransitionTokens t p = do
     trans <- gets transition2id
     t2tr <- gets ty2tr
-    let transitions = map (\i -> findVariable i trans) (Map.findWithDefault [] p t2tr)
+    let transitions = map (\i -> findVariable i trans) (HashMap.lookupDefault [] p t2tr)
     noFireLvs <- noFireAt transitions p t
     noFire <- mkOr noFireLvs >>= mkNot
     placeMap <- gets place2variable
@@ -532,9 +529,9 @@ fireTransitions t (FunctionCode name [] params rets) = do
     -- accumulate counting for parameters and return types
     let tid = findVariable name transMap
     let pcnt = if null params then [("void", 1)] else map (\l -> (head l, length l)) (group (sort params))
-    let pmap = Map.fromList pcnt
-    let rmap = foldl' (\acc t -> Map.insertWith (+) t (-1) acc) pmap rets
-    let rcnt = Map.toList rmap
+    let pmap = HashMap.fromList pcnt
+    let rmap = foldl' (\acc t -> HashMap.insertWith (+) t (-1) acc) pmap rets
+    let rcnt = HashMap.toList rmap
     let tsVar = findVariable t tsMap
     tsZ3Var <- mkZ3IntVar tsVar
     trVar <- mkIntNum tid
@@ -648,7 +645,7 @@ fireTransitions t (FunctionCode name hoParams params rets) = do
 mustFireTransitions ::  Encoder ()
 mustFireTransitions = do
     must <- gets mustFirers
-    mapM_ fireTransitionFor (Map.toList must)
+    mapM_ fireTransitionFor (HashMap.toList must)
   where
     nameInMust must name = foldr ((||) . flip isInfixOf name) False must
     fireTransition tid = do

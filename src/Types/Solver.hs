@@ -29,11 +29,11 @@ data SolverState = SolverState {
     _functionMap :: HashMap Id FunctionCode,
     _targetType :: AbstractSkeleton,
     _sourceTypes :: [AbstractSkeleton],
-    _mustFirers :: Map Id [Id],
+    _mustFirers :: HashMap Id [Id],
     _paramNames :: [Id],
     _refineStrategy :: RefineStrategy,
     _groupMap :: Map Id [Id], -- mapping from group id to list of function names
-    _type2transition :: Map AbstractSkeleton [Id], -- mapping from abstract type to group ids
+    _type2transition :: HashMap AbstractSkeleton [Id], -- mapping from abstract type to group ids
     _solverStats :: TimeStatistics,
     _useGroup :: Bool,
     _splitTypes :: Set AbstractSkeleton,
@@ -60,11 +60,11 @@ emptySolverState = SolverState {
     _functionMap = HashMap.empty,
     _targetType = AScalar (ATypeVarT varName),
     _sourceTypes = [],
-    _mustFirers = Map.empty,
+    _mustFirers = HashMap.empty,
     _paramNames = [],
-    _refineStrategy = NoRefine,
+    _refineStrategy = TyGarQ,
     _groupMap = Map.empty,
-    _type2transition = Map.empty,
+    _type2transition = HashMap.empty,
     _solverStats = emptyTimeStats,
     _useGroup = False,
     _splitTypes = Set.empty,
@@ -74,7 +74,7 @@ emptySolverState = SolverState {
     _toRemove = [],
     _maxApplicationDepth = 6,
     _stopRefine = False,
-    _threshold = 30
+    _threshold = 10
 }
 
 makeLenses ''SolverState

@@ -145,10 +145,10 @@ instantiateWith env typs id t = do
         when (not (noneInst instMap id ty)) (excludeUseless id ty)
         -- add corresponding must firers, function code and type mapping
         when (Map.member id (env ^. arguments)) 
-             (modify $ over mustFirers (Map.insertWith (++) id [newId]))
+             (modify $ over mustFirers (HashMap.insertWith (++) id [newId]))
         modify $ over nameMapping (Map.insert newId id)
         modify $ over instanceMapping (HashMap.insert (id, absFunArgs id ty) (newId, ty))
-        writeLog 3 "instantiateWith" $ text id <+> text "==>"  <+> text newId <+> text "::" <+> pretty ty
+        writeLog 4 "instantiateWith" $ text id <+> text "==>"  <+> text newId <+> text "::" <+> pretty ty
         return (newId, ty)
 
     excludeUseless id ty = do
@@ -158,8 +158,8 @@ instantiateWith env typs id t = do
         modify $ over toRemove ((:) tid)
         modify $ over detailedSigs (Set.delete tid)
         musts <- gets (view mustFirers)
-        when (id `Map.member` musts)
-             (modify $ over mustFirers (Map.insertWith (\new old -> old \\ new) id [tid]))
+        when (id `HashMap.member` musts)
+             (modify $ over mustFirers (HashMap.insertWith (\new old -> old \\ new) id [tid]))
 
 -- | refine the current abstraction
 -- do the bidirectional type checking first, compare the two programs we get,
@@ -193,7 +193,8 @@ initNet env = withTime ConstructionTime $ do
     -- reset the solver state
     modify $ set functionMap HashMap.empty
     modify $ set currentSigs Map.empty
-    modify $ set type2transition Map.empty
+    modify $ set type2transition HashMap.empty
+    modify $ set instanceMapping HashMap.empty
 
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
     -- first abstraction all the symbols with fresh type variables and then instantiate them
@@ -206,7 +207,7 @@ initNet env = withTime ConstructionTime $ do
     writeLog 3 "initNet" $ text "instantiated sigs" <+> pretty (Map.toList sigs)
     mapM_ addEncodedFunction (Map.toList sigs)
     -- add clone functions for each type
-    allTy <- gets (Map.keys . view type2transition)
+    allTy <- gets (HashMap.keys . view type2transition)
     mapM_ addCloneFunction (filter (not . isAFunctionT) allTy)  
   where
     abstractSymbol id sch = do
@@ -225,7 +226,7 @@ addEncodedFunction (id, f) | "pair_match" `isPrefixOf` id = do
     modify $ over currentSigs (Map.insert (replaceId "pair_match" "fst" id) (AFunctionT ret arg0))
     modify $ over currentSigs (Map.insert (replaceId "pair_match" "snd" id) (AFunctionT ret arg1))
     -- store the used abstract types and their groups into mapping
-    let addTransition k tid = Map.insertWith union k [tid]
+    let addTransition k tid = HashMap.insertWith (\[x] y -> nubOrd $ x:y) k [tid]
     let includedTyps = nub (decompose f)
     mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
 addEncodedFunction (id, f) | isAHigherOrder f = do
@@ -236,7 +237,7 @@ addEncodedFunction (id, f) | isAHigherOrder f = do
     -- add transitions to color and uncolor tokens
     let hops = filter isAFunctionT (abstractParamList f)
     mapM_ addHoParam hops
-    let addTransition k tid = Map.insertWith union k [tid]
+    let addTransition k tid = HashMap.insertWith (\[x] y -> nubOrd $ x:y) k [tid]
     let includedTyps = nub (decompose f)
     mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
 addEncodedFunction (id, f) = do
@@ -244,7 +245,7 @@ addEncodedFunction (id, f) = do
     modify $ over functionMap (HashMap.insert id ef)
     modify $ over currentSigs (Map.insert id f)
     -- store the used abstract types and their groups into mapping
-    let addTransition k tid = Map.insertWith union k [tid]
+    let addTransition k tid = HashMap.insertWith (\[x] y -> nubOrd $ x:y) k [tid]
     let includedTyps = nub (decompose f)
     mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
 
@@ -270,7 +271,7 @@ resetEncoder env dst = do
     funcs <- gets (view functionMap)
     t2tr <- gets (view type2transition)
     musters <- gets (view mustFirers)
-    let tid2tr = Map.foldrWithKey (\k v -> Map.insert (show k) v) Map.empty t2tr
+    let tid2tr = HashMap.foldrWithKey (\k v -> HashMap.insert (show k) v) HashMap.empty t2tr
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
     let accepts = filter (isSubtypeOf binds tgt) (Set.toList abstraction)
     let rets = sortBy (compareAbstract binds) accepts 
@@ -285,7 +286,7 @@ incEncoder env st = do
     t2tr <- gets (view type2transition)
     cover <- gets (view abstractionTree)
     let bound = env ^. boundTypeVars
-    let tid2tr = Map.foldrWithKey (\k v -> Map.insert (show k) v) Map.empty t2tr
+    let tid2tr = HashMap.foldrWithKey (\k v -> HashMap.insert (show k) v) HashMap.empty t2tr
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
     let accepts = filter (isSubtypeOf bound tgt) (Set.toList cover)
     let rets = sortBy (compareAbstract bound) accepts
@@ -360,6 +361,7 @@ fixEncoder :: MonadIO m => Environment -> RType -> EncodeState -> SplitInfo -> P
 fixEncoder env dst st info = do
     let binds = env ^. boundTypeVars
     abstraction <- gets (view abstractionTree)
+    writeLog 2 "fixEncoder" $ text "new abstraction cover is" <+> pretty (Set.toList abstraction)
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
     srcTypes <- mapM ( currentAbst binds abstraction
                      . toAbstractType
@@ -372,14 +374,14 @@ fixEncoder env dst st info = do
     writeLog 2 "fixEncoder" $ text "fixed return type is" <+> pretty tgt
     loc <- gets (view currentLoc)
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    writeLog 2 "fixEncoder" $ text "get split information" <+> pretty info
+    writeLog 3 "fixEncoder" $ text "get split information" <+> pretty info
     let newTyps = newPlaces info
     mapM_ addCloneFunction (filter (not . isAFunctionT) newTyps)
-    modify $ over type2transition (Map.filter (not . null))
+    modify $ over type2transition (HashMap.filter (not . null))
     funcs <- gets (view functionMap)
     t2tr <- gets (view type2transition)
     musters <- gets (view mustFirers)
-    let tid2tr = Map.foldrWithKey (\k v -> Map.insert (show k) v) Map.empty t2tr
+    let tid2tr = HashMap.foldrWithKey (\k v -> HashMap.insert (show k) v) HashMap.empty t2tr
     let accepts = filter (isSubtypeOf binds tgt) (Set.toList abstraction)
     let rets = sortBy (compareAbstract binds) accepts
     liftIO $ execStateT (encoderRefine info (HashMap.elems funcs) tid2tr (map show srcTypes) (map show rets) musters) st
@@ -447,10 +449,7 @@ findProgram env dst st = do
                 absBtm <- observeT $ pickGeneralization tyBtm' absDst
                 return (Right (btm, absBtm)))
 
-    nextSolution st NoRefine (prog, at) = do
-        let st' = st { prevChecked = True }
-        findProgram env dst st'
-    nextSolution st NoGar (prog, at) = do
+    nextSolution st rs (prog, at) | not (doRefine rs) = do
         let st' = st { prevChecked = True }
         findProgram env dst st'
     nextSolution st _ (prog, at) = do
@@ -497,13 +496,23 @@ printSolution solution = do
 findFirstN :: (MonadIO m) => Environment -> RType -> EncodeState -> Int -> PNSolver m ()
 findFirstN env dst st cnt | cnt == 1  = do
     (res, _) <- withTime TotalSearch $ findProgram env dst st
-    stats <- view solverStats <$> get
-    depth <- view currentLoc <$> get
-    msgChan <- view messageChan <$> get
+    stats <- gets $ view solverStats
+    depth <- gets $ view currentLoc
+    msgChan <- gets $ view messageChan
+    strategy <- gets $ view refineStrategy
     writeLog 1 "findFirstN" $ text (show depth)
     let stats' = stats{pathLength = depth}
     printSolution res
-    liftIO $ writeChan msgChan (MesgP (res, stats'))
+    writeLog 2 "findFirstN" $ text (show stats)
+    if noGarTyGarIdx strategy >= 0 
+      then do
+        resetTiming
+        modify $ set refineStrategy NoGar
+        modify $ set stopRefine False
+        modify $ set currentLoc 1
+        modify $ set currentSolutions []
+        runPNSolver env cnt dst
+      else liftIO $ writeChan msgChan (MesgP (res, stats'))
 findFirstN env dst st cnt | otherwise = do
     (res, st') <- withTime TotalSearch $ findProgram env dst st
     msgChan <- view messageChan <$> get
@@ -545,14 +554,14 @@ addCloneFunction ty = do
     let tyStr = show ty
     let fname = tyStr ++ "|clone"
     let fc = FunctionCode fname [] [tyStr] [tyStr, tyStr]
-    let addTransition k tid = Map.insertWith union k [tid]
+    let addTransition k tid = HashMap.insertWith (\[x] y -> nubOrd $ x:y) k [tid]
     modify $ over functionMap (HashMap.insert fname fc)
     -- modify $ over currentSigs (Map.insert fname fc)
     modify $ over type2transition (addTransition ty fname)
     return fname
 
 addHoParam t = do
-    let addTransition k tid = Map.insertWith union k [tid]
+    let addTransition k tid = HashMap.insertWith (\_ y -> nubOrd $ tid:y) k [tid]
     let params = init (nub (decomposeHo t))
     let ret = last (nub (decomposeHo t))
     let uncolorTr = show t ++ "|uncolor"
@@ -563,3 +572,14 @@ attachLast :: AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
 attachLast t (AFunctionT tArg tRes) | isAFunctionT tRes = AFunctionT tArg (attachLast t tRes)
 attachLast t (AFunctionT tArg _) = AFunctionT tArg t
 attachLast t _ = t
+
+noGarTyGarIdx NoGarTyGar0 = 0
+noGarTyGarIdx NoGarTyGarQ = 1
+noGarTyGarIdx NoGarTyGar0B = 2
+noGarTyGarIdx NoGarTyGarQB = 3
+noGarTyGarIdx _ = -1 
+
+doRefine NoGar = False
+doRefine NoGar0 = False
+doRefine SypetClone = False
+doRefine _ = True

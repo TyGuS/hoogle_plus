@@ -71,21 +71,21 @@ getSetup args = do
   let params =
         case currentExperiment of
           CompareInitialAbstractCovers -> [
-            (searchParams, expQueryRefinement),
+            (searchParamsTyGarQ, expTyGarQ),
             -- (searchParamsHOF, expQueryRefinementHOF),
-            (searchParamsBaseline, expBaseline),
-            (searchParamsZeroStart, expZeroCoverStart),
-            (searchParamsStopEarly, expStopEarly),
-            (searchParamsZeroStopEarly, expStopEarlyZeroStart),
-            (searchParamsZeroQuery, expNoGar)]
-          SypetClone -> [(searchParamsBaseline, expBaseline)]
-          NoGAR -> [(searchParamsZeroQuery, expNoGar)]
-          TyGAR0 -> [(searchParamsZeroStart, expZeroCoverStart)]
-          TyGARQ -> [(searchParams, expQueryRefinement)]
-          TyGAR0B -> [(searchParamsZeroStopEarly, expStopEarlyZeroStart)]
-          TyGARQB -> [(searchParamsStopEarly, expStopEarly)]
-          TyGARILP -> [(searchParamsILP, expILP)]
-          TrackTypesAndTransitions -> [(searchParams, expQueryRefinement)]
+            (searchParamsSypetClone, expSypetClone),
+            (searchParamsTyGar0, expTyGar0),
+            (searchParamsTyGarQB, expTyGarQB),
+            (searchParamsTyGar0B, expTyGar0B),
+            (searchParamsNoGar, expNoGar)]
+          CompareFinalCovers -> [
+            (searchParamsNoGar, expNoGar),
+            (searchParamsNoGar0, expNoGar0),
+            (searchParamsNoGarTyGar0, expNoGarTyGar0),
+            (searchParamsNoGarTyGarQ, expNoGarTyGarQ),
+            (searchParamsNoGarTyGar0B, expNoGarTyGar0B),
+            (searchParamsNoGarTyGarQB, expNoGarTyGarQB)]
+          TrackTypesAndTransitions -> [(searchParamsTyGarQ, expTyGarQ)]
   let exps =
         case currentExperiment of
           TrackTypesAndTransitions -> mkExperiments envs queries params
