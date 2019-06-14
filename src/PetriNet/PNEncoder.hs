@@ -128,6 +128,9 @@ solveAndGetModel = do
                   ) -}
     case res of
         Sat -> do
+            -- solverStr <- solverToString
+            -- liftIO $ putStrLn solverStr
+ 
             model <- solverGetModel
             modelStr <- modelToString model
             selected <- mapM (checkLit model) [0..(l-1)]
