@@ -57,6 +57,8 @@ dependencies:
 - vector
 - ghc
 - ghc-paths
+- limp
+- limp-cbc
 
 library:
   source-dirs:
