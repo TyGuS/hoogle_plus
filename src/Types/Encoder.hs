@@ -43,23 +43,23 @@ data Z3Env = Z3Env {
 
 data EncodeState = EncodeState {
   z3env :: Z3Env,
+  counter :: Int,
   block :: Z3.AST,
   loc :: Int,
   transitionNb :: Int,
   variableNb :: Int,
-  colorNb :: Int, 
   place2variable :: HashMap (Id, Int) Variable, -- place name and timestamp
-  color2variable :: HashMap (Id, Int) Variable, -- place name, timestamp and level
   time2variable :: HashMap Int Variable, -- timestamp and abstraction level
   transition2id :: HashMap Id Int, -- transition name and abstraction level
   id2transition :: HashMap Int Id,
-  ho2id :: HashMap Id Int,
   mustFirers :: HashMap Id [Id],
-  foldedFuncs :: [FoldedFunction],
   ty2tr :: HashMap Id [Id],
   prevChecked :: Bool,
   disabledTrans :: [Id],
-  returnTyps :: [Id]
+  returnTyps :: [Id],
+  persistConstraints :: [Z3.AST],
+  optionalConstraints :: [Z3.AST],
+  finalConstraints :: [Z3.AST]
 }
 
 newEnv :: Maybe Logic -> Opts -> IO Z3Env
@@ -72,5 +72,10 @@ newEnv mbLogic opts =
     return $ Z3Env solver ctx opt
 
 initialZ3Env = newEnv Nothing stdOpts
+
+freshEnv :: Z3.Context -> IO Z3Env
+freshEnv ctx = do
+  env <- initialZ3Env
+  return $ env { envContext = ctx }
 
 type Encoder = StateT EncodeState IO
