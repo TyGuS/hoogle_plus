@@ -95,8 +95,8 @@ summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
       resDuplicateSymbols = duplicateSymbols firstR
       }
     (_, (errOrMbSoln, firstR):_) -> let
-      unsafeTransitions = map snd $ Map.toDescList $ numOfTransitions firstR
-      unsafeTypes = map snd $ Map.toDescList $ numOfPlaces firstR
+      unsafeTransitions = head $ map snd $ Map.toDescList $ numOfTransitions firstR
+      unsafeTypes = head $ map snd $ Map.toDescList $ numOfPlaces firstR
       in emptyResult {
       resSolutionOrError = fmap (mkOneLine . show) errOrMbSoln,
       resTFirstSoln = totalTime firstR,
@@ -104,8 +104,8 @@ summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
       resTSolveFirstSoln = solverTime firstR,
       resLenFirstSoln = pathLength firstR,
       resRefinementSteps = iterations firstR,
-      resTransitions = unsafeTransitions,
-      resTypes = unsafeTypes
+      resTransitions = [unsafeTransitions],
+      resTypes = [unsafeTypes]
       }
 
   in ResultSummary {

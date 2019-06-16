@@ -78,7 +78,7 @@ defaultSearchParams = SearchParams {
   _useHO = False,
   _useRefine = TyGarQ,
   _earlyCut = False,
-  _stopThresh = 10
+  _stopThresh = 5
 }
 
 type ExperimentName = String

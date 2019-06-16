@@ -74,8 +74,11 @@ newEnv mbLogic opts =
 initialZ3Env = newEnv Nothing stdOpts
 
 freshEnv :: Z3.Context -> IO Z3Env
-freshEnv ctx = do
-  env <- initialZ3Env
-  return $ env { envContext = ctx }
+freshEnv ctx = 
+  Z3.withConfig $ \cfg -> do
+    setOpts cfg stdOpts
+    solver <- Z3.mkSolver ctx
+    opt <- Z3.mkOptimize ctx
+    return $ Z3Env solver ctx opt
 
 type Encoder = StateT EncodeState IO

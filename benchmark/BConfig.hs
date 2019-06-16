@@ -14,8 +14,8 @@ searchParamsTyGarQ = defaultSearchParams
 searchParamsHOF = defaultSearchParams{_useHO=True}
 searchParamsSypetClone = defaultSearchParams{_useRefine=SypetClone}
 searchParamsTyGar0 = defaultSearchParams{_useRefine=TyGar0}
-searchParamsTyGarQB = defaultSearchParams{_earlyCut=True,_stopThresh=10}
-searchParamsTyGar0B = searchParamsTyGar0B{_useRefine=TyGar0}
+searchParamsTyGarQB = defaultSearchParams{_earlyCut=True,_stopThresh=5}
+searchParamsTyGar0B = searchParamsTyGarQB{_useRefine=TyGar0}
 searchParamsNoGar = defaultSearchParams{_useRefine=NoGar}
 searchParamsNoGar0 = defaultSearchParams{_useRefine=NoGar0}
 searchParamsNoGarTyGar0 = defaultSearchParams{_useRefine=NoGarTyGar0}

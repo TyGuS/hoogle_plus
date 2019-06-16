@@ -131,7 +131,7 @@ solveAndGetModel = do
     -}
     case res of
         Sat -> do
-            liftIO $ print "sat"
+            -- liftIO $ print "sat"
             model <- solverGetModel
             places <- gets (HashMap.keys . ty2tr)
             selected <- mapM (checkLit model) [0..(l-1)]
@@ -151,9 +151,11 @@ solveAndGetModel = do
             env <- liftIO $ freshEnv $ envContext currEnv
             modify $ \st -> st { z3env = env }
             if length rets == 1
-              then liftIO (print "unsat for inc path") >> return []
+              then do
+                -- liftIO $ print "unsat for inc path"
+                return []
               else do
-                liftIO $ print "unsat for change goal"
+                -- liftIO $ print "unsat for change goal"
                 -- try a more general return type
                 t2tr <- gets ty2tr
                 modify $ \st -> st { finalConstraints = []
