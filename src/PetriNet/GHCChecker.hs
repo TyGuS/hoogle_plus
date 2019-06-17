@@ -33,6 +33,7 @@ import DmdAnal
 import Data.List (isInfixOf)
 import System.Directory (removeFile)
 import Text.Printf
+import SimplCore (core2core)
 
 showGhc :: (Outputable a) => a -> String
 showGhc = showPpr unsafeGlobalDynFlags
@@ -50,7 +51,8 @@ checkStrictness lambdaExpr modules = GHC.runGhc (Just libdir) $ do
     -- Establishing GHC session
     env <- getSession
     dflags <- getSessionDynFlags
-    setSessionDynFlags $ dflags { hscTarget = HscInterpreted }
+    let dflags' = (updOptLevel 2 dflags)
+    setSessionDynFlags $ dflags'
 
     -- Compile to core
     target <- guessTarget fileName Nothing
@@ -65,7 +67,8 @@ checkStrictness lambdaExpr modules = GHC.runGhc (Just libdir) $ do
 
     -- Run the demand analyzer
     -- prog is [<fooBinding>, <moduleBinding>]
-    prog <- liftIO $ (dmdAnalProgram dflags emptyFamInstEnvs $ mg_binds core)
+    core' <- liftIO $ core2core env core
+    prog <- liftIO $ (dmdAnalProgram dflags emptyFamInstEnvs $ mg_binds core')
     let decl = prog !! 0 -- only one method
     liftIO $ removeFile fileName
 
