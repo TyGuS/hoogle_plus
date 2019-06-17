@@ -41,6 +41,7 @@ main = do
     let outputFormat = argsOutputFormat args
     let environmentStatsTable = outputSummary Table currentExperiment envs
     let resultTable = outputSummary outputFormat currentExperiment resultSummaries
+    putStrLn environmentStatsTable
     outputResults (argsOutputFile args) (resultTable)
 
 outputResults :: Maybe FilePath -> String -> IO ()
@@ -65,7 +66,7 @@ getSetup args = do
   tier1env <- generateEnv genOptsTier1
   tier2env <- generateEnv genOptsTier2
   queries <- readQueryFile (argsQueryFile args)
-  let envs = [(tier1env, "Total")]
+  let envs = [(tier2env, "Partial")]
   let currentExperiment = argsExperiment args
   let params =
         case currentExperiment of

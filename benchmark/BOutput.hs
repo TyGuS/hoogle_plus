@@ -127,15 +127,12 @@ toTabling CompareSolutions rsMap = let
 toRow :: ExperimentCourse -> (String, [ResultSummary]) -> [String]
 toRow currentExp (name, rss) = let
   mbqr = findwhere expQueryRefinement rss
-  mbbaseline = findwhere expBaseline rss
-  mbqrhof = find (\x -> (paramName x == expQueryRefinementHOF) && (envName x == "Total")) rss
-  mbPartialqrhof = find (\x -> (paramName x == expQueryRefinementHOF) && (envName x == "Partial"))  rss
-  mbzero = findwhere expZeroCoverStart rss
+  mbPartial = find (\x -> (paramName x == expQueryRefinement) && (envName x == "Partial"))  rss
+  mbPartialNoDmd = find (\x -> (paramName x == expQueryRefinementNoDemand) && (envName x == "Partial"))  rss
   rest = case currentExp of
     CompareSolutions -> let
-        mbQueryRefinementNoDmd = findwhere expQueryRefinementNoDemand rss
-        queryRefinementResults = (fromJust (results <$> mbqr)) :: [Result]
-        queryRefinementResultsNoDmd = (fromJust (results <$> mbQueryRefinementNoDmd)) :: [Result]
+        queryRefinementResults = (fromJust (results <$> mbPartial)) :: [Result]
+        queryRefinementResultsNoDmd = (fromJust (results <$> mbPartialNoDmd)) :: [Result]
         toSolution = (either show id . resSolutionOrError) :: Result -> String
         myResults = [queryRefinementResults, queryRefinementResultsNoDmd]
       in
@@ -143,7 +140,7 @@ toRow currentExp (name, rss) = let
   in
     map (fromMaybe "-") ([
       Just name,
-      queryStr <$> mbqr
+      queryStr <$> mbPartial
       ] ++ rest)
   where
     findwhere name = find ((==) name . paramName)
