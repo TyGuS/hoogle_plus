@@ -76,7 +76,7 @@ encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [sh
     hoFun x = encodeFunction (show x) x
     hoParams = map hoFun $ filter isAFunctionT (abstractParamList t)
     params = map show (abstractParamList t)
-encodeFunction id t@(AScalar {}) = FunctionCode id [] [] [show t]
+encodeFunction id t@(AScalar {}) = FunctionCode id [] ["void"] [show t]
 
 instantiate :: MonadIO m => Environment -> Map Id RSchema -> PNSolver m (Map Id AbstractSkeleton)
 instantiate env sigs = do
@@ -275,7 +275,7 @@ resetEncoder env dst = do
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
     let accepts = filter (isSubtypeOf binds tgt) (Set.toList abstraction)
     let rets = sortBy (compareAbstract binds) accepts 
-    liftIO $ encoderInit loc musters (map show srcTypes) (map show rets) (HashMap.elems funcs) tid2tr
+    liftIO $ encoderInit loc musters (map show srcTypes) (map show rets) funcs tid2tr
 
 incEncoder :: MonadIO m => Environment -> EncodeState -> PNSolver m EncodeState
 incEncoder env st = do
@@ -290,7 +290,7 @@ incEncoder env st = do
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
     let accepts = filter (isSubtypeOf bound tgt) (Set.toList cover)
     let rets = sortBy (compareAbstract bound) accepts
-    liftIO $ execStateT (encoderInc (HashMap.elems funcs) (map show src) (map show rets)) st
+    liftIO $ execStateT (encoderInc funcs (map show src) (map show rets)) st
 
 findPath :: (MonadIO m) => Environment -> RType -> EncodeState -> PNSolver m (CodePieces, EncodeState)
 findPath env dst st = do
@@ -384,7 +384,7 @@ fixEncoder env dst st info = do
     let tid2tr = HashMap.foldrWithKey (\k v -> HashMap.insert (show k) v) HashMap.empty t2tr
     let accepts = filter (isSubtypeOf binds tgt) (Set.toList abstraction)
     let rets = sortBy (compareAbstract binds) accepts
-    liftIO $ execStateT (encoderRefine info (HashMap.elems funcs) tid2tr (map show srcTypes) (map show rets) musters) st
+    liftIO $ execStateT (encoderRefine info funcs tid2tr (map show srcTypes) (map show rets) musters) st
 
 findProgram :: MonadIO m => Environment -> RType -> EncodeState -> PNSolver m (RProgram, EncodeState)
 findProgram env dst st = do

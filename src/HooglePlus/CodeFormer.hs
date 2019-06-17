@@ -55,6 +55,7 @@ applyFunction func = do
     fname = funName func
 
     generateArgs codeSoFar [] = return codeSoFar
+    generateArgs codeSoFar ["void"] = return codeSoFar
     generateArgs codeSoFar (tArg:tArgs) = do
         args <- generateArg tArg
         let partialApplication = [f ++ " " ++ a | f <- codeSoFar, a <- args]

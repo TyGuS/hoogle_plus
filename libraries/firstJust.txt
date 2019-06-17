@@ -1,0 +1,5 @@
+module Data.Maybe
+data Maybe a
+fromMaybe :: a -> Maybe a -> a
+listToMaybe :: [a] -> Maybe a
+catMaybes :: [Maybe a] -> [a]

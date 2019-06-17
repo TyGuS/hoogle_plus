@@ -87,3 +87,6 @@ mkConstraint :: MonadIO m => [Id] -> Id -> AbstractSkeleton -> PNSolver m UnifCo
 mkConstraint bound v t = do
     t' <- freshAbstract bound t
     return (AScalar (ATypeVarT v), t')
+
+count :: Eq a => a -> [a] -> Int
+count x xs = length $ filter ((==) x) xs

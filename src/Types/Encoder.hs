@@ -21,12 +21,6 @@ data EncoderType = Normal | Arity
 data VarType = VarPlace | VarTransition | VarFlow | VarTimestamp
     deriving(Eq, Ord, Show)
 
-data FoldedFunction = FoldedFunction {
-  funId :: Int, -- for transition id
-  funPretokens :: [(Id, Int)], -- for construction of preconditions
-  funPostokens :: [(Id, Int)]  -- for construction of postconditions
-} deriving(Eq, Ord, Show)
-
 data Variable = Variable {
   varId :: Int,
   varName :: String,
@@ -48,18 +42,17 @@ data EncodeState = EncodeState {
   loc :: Int,
   transitionNb :: Int,
   variableNb :: Int,
+  place2id :: HashMap Id Int,
   place2variable :: HashMap (Id, Int) Variable, -- place name and timestamp
   time2variable :: HashMap Int Variable, -- timestamp and abstraction level
   transition2id :: HashMap Id Int, -- transition name and abstraction level
   id2transition :: HashMap Int Id,
   mustFirers :: HashMap Id [Id],
   ty2tr :: HashMap Id [Id],
+  functionCodes :: HashMap Id FunctionCode,
   prevChecked :: Bool,
   disabledTrans :: [Id],
-  returnTyps :: [Id],
-  persistConstraints :: [Z3.AST],
-  optionalConstraints :: [Z3.AST],
-  finalConstraints :: [Z3.AST]
+  returnTyps :: [Id]
 }
 
 newEnv :: Maybe Logic -> Opts -> IO Z3Env
