@@ -1,11 +1,4 @@
 [
     {"name": "intToBytestring", "query": "Int64 -> ByteString"},
-    {"name": "Q35", "query": "Pair (a -> b) (a -> c) -> a -> Pair b c"},
-    {"name": "Q07", "query": "(a -> b -> c -> d) -> a -> c -> b -> d"},
-    {"name": "Q08", "query": "Maybe a -> a -> Maybe a"},
-    {"name": "Q09", "query": "List (a) -> List (a) -> Int"},
-    {"name": "Q12", "query": "Int -> List Int"},
-    {"name": "Q14", "query": "(a -> b -> c) -> (a -> b) -> a -> c"},
-    {"name": "Q15", "query": "a -> List (a) -> Pair (List (a)) (List (a))"},
-    {"name": "Q17", "query": "(t2 -> t1 -> t) -> (t1 -> t2) -> t1 -> t"}
+    {"name": "Q35", "query": "Pair (a -> b) (a -> c) -> a -> Pair b c"}
 ]

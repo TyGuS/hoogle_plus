@@ -26,7 +26,8 @@ defaultArgs = Args {
   argsQueryFile=defaultQueryFile &= name "queries" &= typFile,
   argsTimeout=defaultTimeout &= name "timeout" &= help "Each experiment will have N seconds to complete" ,
   argsOutputFile=Nothing &= name "output" &= typFile,
-  argsExperiment=defaultExperiment &= name "experiment"
+  argsExperiment=defaultExperiment &= name "experiment",
+  argsOutputFormat=Table &= name "format"
   }
   where
 
@@ -37,9 +38,10 @@ main = do
     let setup = ExpSetup {expTimeout = argsTimeout args, expCourse = currentExperiment}
     (envs, params, exps) <- getSetup args
     resultSummaries <- runExperiments setup exps
+    let outputFormat = argsOutputFormat args
     let environmentStatsTable = outputSummary Table currentExperiment envs
-    let resultTable = outputSummary Table currentExperiment resultSummaries
-    outputResults (argsOutputFile args) (unlines [environmentStatsTable, resultTable])
+    let resultTable = outputSummary outputFormat currentExperiment resultSummaries
+    outputResults (argsOutputFile args) (resultTable)
 
 outputResults :: Maybe FilePath -> String -> IO ()
 outputResults Nothing res = putStrLn res

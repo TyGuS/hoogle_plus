@@ -12,6 +12,7 @@ import qualified Data.Set as Set
 import Data.Map (Map)
 import Data.List
 import Data.List.Extra
+-- import Data.List.Utils (replace)
 import Data.Maybe
 import Text.Layout.Table
 import Control.Exception
@@ -106,14 +107,64 @@ toLine currentExperiment name rss = let
   in
     map (fromMaybe ["-"]) ([
       Just [name],
-      justifyText textWidth <$> show . queryStr <$> mbqr
+      justifyText textWidth <$> queryStr <$> mbqr
       ] ++ rest)
   where
-    findwhere name xs = find ((==) name . paramName) xs
+    findwhere name = find ((==) name . paramName)
     dash = const "-"
     spaceList :: Show a => [a] -> String
     spaceList xs = intercalate ", " $ splitBy ',' $ show xs
 
+
+toTabling :: ExperimentCourse -> Map String [ResultSummary] -> [(String, [String])]
+toTabling CompareSolutions rsMap = let
+  header = ["Name", "Query", "With demand", "No demand"]
+  body = map (toRow CompareSolutions) (Map.toList rsMap)
+  bodyT = transpose body
+  in
+    zip header bodyT
+
+toRow :: ExperimentCourse -> (String, [ResultSummary]) -> [String]
+toRow currentExp (name, rss) = let
+  mbqr = findwhere expQueryRefinement rss
+  mbbaseline = findwhere expBaseline rss
+  mbqrhof = find (\x -> (paramName x == expQueryRefinementHOF) && (envName x == "Total")) rss
+  mbPartialqrhof = find (\x -> (paramName x == expQueryRefinementHOF) && (envName x == "Partial"))  rss
+  mbzero = findwhere expZeroCoverStart rss
+  rest = case currentExp of
+    CompareSolutions -> let
+        mbQueryRefinementNoDmd = findwhere expQueryRefinementNoDemand rss
+        queryRefinementResults = (fromJust (results <$> mbqr)) :: [Result]
+        queryRefinementResultsNoDmd = (fromJust (results <$> mbQueryRefinementNoDmd)) :: [Result]
+        toSolution = (either show id . resSolutionOrError) :: Result -> String
+        myResults = [queryRefinementResults, queryRefinementResultsNoDmd]
+      in
+        map (\x -> Just $ unlines (map (mkOneLine . toSolution) (reverse x))) myResults
+  in
+    map (fromMaybe "-") ([
+      Just name,
+      queryStr <$> mbqr
+      ] ++ rest)
+  where
+    findwhere name = find ((==) name . paramName)
+
+toAsciiTable :: [(String, [String])] -> String
+toAsciiTable table = let
+  columnStyles = foldr ((:) . addColumnStyle . fst) [] table
+  addColumnStyle _ = column expand center noAlign (singleCutMark "...")
+  headers = map fst table
+  body = map (\(_, b) -> colsAllG center $ map (justifyText textWidth) b) table
+  in tableString columnStyles unicodeRoundS (titlesH headers) body
+
+toTSV :: [(String, [String])] -> String
+toTSV table = let
+  headers = map fst table
+  body = map (\y -> map (\x -> "\"" ++ (replace "\"" "\\\"" x ++ "\"")) $ snd y) table
+  bodyT = transpose body
+  tsvBody = [headers] ++ bodyT
+  rows = (map (intercalate "\t") tsvBody)
+  in
+    intercalate "\r\n" rows
 
 toEnvTable :: [(Environment, String)] -> String
 toEnvTable envAndNames = let
@@ -139,4 +190,6 @@ instance Summary [(Environment, String)] where
   outputSummary Table _ = toEnvTable
 
 instance Summary [ResultSummary] where
+  outputSummary Table CompareSolutions = toAsciiTable . (toTabling CompareSolutions) . toGroup
+  outputSummary TSV CompareSolutions = toTSV . (toTabling CompareSolutions) . toGroup
   outputSummary Table exp = (toTable exp) . toGroup
