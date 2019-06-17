@@ -100,6 +100,7 @@ data ExperimentCourse
   = CompareInitialAbstractCovers
   | TrackTypesAndTransitions --2019-05-06
   | CompareFinalCovers
+  | CompareThresholds
   deriving (Show, Data, Typeable)
 
 data Message
