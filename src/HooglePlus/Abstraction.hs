@@ -6,7 +6,6 @@ import Types.Abstract
 import Types.Environment
 import PetriNet.AbstractType
 import Synquid.Type
-import Types.Environment
 import Synquid.Util
 import Synquid.Program
 import Synquid.Logic (ftrue)
@@ -26,7 +25,7 @@ import Text.Printf
 import Control.Monad.State
 
 firstLvAbs :: Environment -> [RSchema] -> Set AbstractSkeleton
-firstLvAbs env schs = (AScalar (ATypeVarT varName)) `Set.insert` dts
+firstLvAbs env schs = AScalar (ATypeVarT varName) `Set.insert` dts
   where
     typs = map (shape . toMonotype) schs
     dts = Set.unions (map (allAbstractDts (env ^. boundTypeVars)) typs)
@@ -50,11 +49,11 @@ specificAbstractionFromTypes env schemas = let
         foldr Set.insert baseTree abstrSkels
 
 abstractParamList :: AbstractSkeleton -> [AbstractSkeleton]
-abstractParamList t@(AScalar {}) = [t]
+abstractParamList t@AScalar {} = [t]
 abstractParamList (AFunctionT tArg tFun) =
     case tFun of
         AScalar _  -> [tArg]
-        _          -> (tArg) : (abstractParamList tFun)
+        _          -> tArg : abstractParamList tFun
 
 lastAbstractType :: AbstractSkeleton -> AbstractSkeleton
 lastAbstractType (AFunctionT tArg tFun) = lastAbstractType tFun

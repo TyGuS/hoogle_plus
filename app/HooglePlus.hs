@@ -74,7 +74,7 @@ main = do
   case res of
     Synthesis file libs envPath appMax log_ solNum higher_order refine stopRefine threshold remove_duplicates -> do
       let searchParams = defaultSearchParams {
-        _eGuessDepth = appMax,
+        _maxApplicationDepth = appMax,
         _explorerLogLevel = log_,
         _solutionCnt = solNum,
         _useHO = higher_order,

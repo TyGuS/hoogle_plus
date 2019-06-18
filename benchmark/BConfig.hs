@@ -23,3 +23,4 @@ searchParamsNoGarTyGarQ = defaultSearchParams{_refineStrategy=NoGarTyGarQ}
 searchParamsNoGarTyGar0B = defaultSearchParams{_refineStrategy=NoGarTyGar0B}
 searchParamsNoGarTyGarQB = defaultSearchParams{_refineStrategy=NoGarTyGarQB}
 searchParamsILP = defaultSearchParams
+searchParamsTyGars = map (\t -> searchParamsTyGar0{_stopRefine=True,_threshold=t}) [0..10]

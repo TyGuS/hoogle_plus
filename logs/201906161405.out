@@ -1,0 +1,492 @@
+[data Char where,data Double where,type String = ([((Char))]),type FilePath = (String),data Float where,data Handle where,data IO a where,data Integer where,data ShortByteString where,data Word where,data Word16 where,data Word32 where,data Word64 where,data Word8 where]
+[data Char where,data Double where,type String = ([((Char))]),type FilePath = (String),data Float where,data Handle where,data IO a where,data Integer where,data ShortByteString where,data Word where,data Word16 where,data Word32 where,data Word64 where,data Word8 where]
+["void","Int64","ByteString","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64BE arg0)
+************************************************
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","Int","Double","Float","Int16","Builder","List _v1","Char","ByteString","Word16","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64LE arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64LE arg0)
+************************************************
+["void","Int64","ByteString","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64BE arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64HexFixed arg0)
+************************************************
+["void","Int64","ByteString","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty
+************************************************
+["void","Bool","List Maybe Bool","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","Int","Double","Float","Int16","Builder","List _v1","Char","ByteString","Word16","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","Bool","List Maybe Bool","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","Bool","List Maybe Bool","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","a","List Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.fromMaybe arg1 (Data.Maybe.listToMaybe (Data.Maybe.catMaybes arg0))
+************************************************
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","a","Int","Double","Float","Int16","Builder","List _v1","Char","ByteString","Word16","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg1 arg1 (GHC.List.null arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg1 arg1 (GHC.List.null arg0)
+************************************************
+["void","a","List Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.fromMaybe arg1 (GHC.List.lookup arg0 [])
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.fromMaybe arg1 (GHC.List.lookup arg0 [])
+************************************************
+["void","a","List Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg1 arg1 (GHC.List.null arg0)
+************************************************
+["void","Pair a a","a","Pair b b","b","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","a","Int","Double","Float","b","Int16","Builder","List _v1","Char","ByteString","Word16","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","Pair a a","a","Pair b b","b","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","Pair a a","a","Pair b b","b","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","Pair Pair a c b","a","d","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","a","Int","Double","d","Float","b","Int16","c","Builder","List _v1","Char","ByteString","Word16","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","Pair Pair a c b","a","d","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","Pair Pair a c b","a","d","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","a","Int","Double","Float","Int16","Builder","List _v1","Char","ByteString","Word16","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","List a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length (GHC.List.zip arg0 arg1)
+************************************************
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","a","Int","Double","Float","Int16","Builder","List _v1","Char","ByteString","Word16","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((GHC.List.++) arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((GHC.List.++) arg0 arg1)
+************************************************
+["void","List a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length (GHC.List.zip arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length (GHC.List.zip arg0 arg1)
+************************************************
+["void","List a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((GHC.List.++) arg0 arg1)
+************************************************
+["void","Int","List Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) arg0 []
+************************************************
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","Int","Double","Float","Int16","Builder","List _v1","Char","ByteString","Word16","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.take arg0 []
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.take arg0 []
+************************************************
+["void","Int","List Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) arg0 []
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.replicate arg0 arg0
+************************************************
+["void","Int","List Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) arg0 []
+************************************************
+["void","a","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","a","Int","Double","Float","b","Int16","c","Builder","List _v1","Char","ByteString","Word16","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","a","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","a","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","Pair List a List a","List a","a","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) ((:) arg1 []) arg0
+************************************************
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","a","Int","Double","Float","Int16","Builder","List _v1","Char","ByteString","Word16","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) ((:) arg1 arg0) []
+************************************************
+["void","_v"]
+<<timeout>>
+["void","Pair List a List a","List a","a","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) ((:) arg1 arg0) arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) ((:) arg1 []) arg0
+************************************************
+["void","Pair List a List a","List a","a","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) ((:) arg1 []) arg0
+************************************************
+["void","t1","t","t2","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","Int","Double","t1","t","Float","Int16","Builder","List _v1","Char","t2","ByteString","Word16","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","t1","t","t2","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","t1","t","t2","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","List Char","List List Char","Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.replicate (GHC.List.length (Text.Show.show arg0)) arg1
+************************************************
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","Int","Double","Float","Int16","Builder","List _v1","Char","ByteString","Word16","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.replicate (GHC.List.length (Text.Show.show arg0)) arg1
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) ((:) arg0 arg1) []
+************************************************
+["void","List Char","List List Char","Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) ((:) arg0 arg1) []
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) ((:) arg0 arg1) []
+************************************************
+["void","List Char","List List Char","Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.replicate (GHC.List.length (Text.Show.show arg0)) arg1
+************************************************
+["void","List a","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","a","Int","Double","Float","Int16","Builder","List _v1","Char","ByteString","Word16","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","List a","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","List a","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","List a","a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","a","Int","Double","Float","Int16","Builder","List _v1","Char","ByteString","Word16","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","List a","a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","List a","a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.False
+************************************************
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","a","Int","Double","Float","b","Int16","Builder","List _v1","Char","ByteString","Word16","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.otherwise
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.True
+************************************************
+["void","Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.False
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.True
+************************************************
+["void","Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.otherwise
+************************************************
+["void","Pair a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.otherwise
+************************************************
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","a","Int","Double","Float","b","Int16","Builder","List _v1","Char","ByteString","Word16","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.otherwise
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1)
+************************************************
+["void","Pair a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.otherwise
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1)
+************************************************
+["void","Pair a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.otherwise
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Bool.bool arg0 arg1 Data.Bool.otherwise)
+************************************************
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","a","Int","Double","Float","Int16","Builder","List _v1","Char","ByteString","Word16","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Bool.bool arg0 arg1 Data.Bool.False)
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1))
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1))
+************************************************
+["void","Either a List b","List Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Either.Right (Data.Either.rights arg0)
+************************************************
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","a","Int","Double","Float","b","Int16","Builder","List _v1","Char","ByteString","Word16","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Either.Right (Data.Either.rights arg0)
+************************************************
+["void","_v"]
+<<timeout>>
+["void","Either a List b","List Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Either.Right (Data.Either.rights arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Either.Right (Data.Either.rights arg0)
+************************************************
+["void","Either a List b","List Either a b","_v"]
+<<timeout>>
+["void","List Char","a","List List Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.shows arg0 (Text.Show.show arg1)
+************************************************
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","a","Int","Double","Float","Int16","Builder","List _v1","Char","ByteString","Word16","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.showList arg0 (Text.Show.show arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.shows arg0 (Text.Show.show arg1)
+************************************************
+["void","List Char","a","List List Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.show ((,) arg1 arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.shows arg1 (Text.Show.show arg0)
+************************************************
+["void","List Char","a","List List Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.showList arg0 (Text.Show.show arg1)
+************************************************
+["void","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","a","Int","Double","Float","b","Int16","Builder","List _v1","Char","ByteString","Word16","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","List a","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","a","Int","Double","Float","b","Int16","Builder","List _v1","Char","ByteString","Word16","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","List a","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","List a","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","List a","List List Pair a b","List b","_v"]
+<<timeout>>
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","a","Int","Double","Float","b","Int16","Builder","List _v1","Char","ByteString","Word16","_v"]
+<<timeout>>
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) (GHC.List.zip arg1 arg0) []
+************************************************
+["void","List a","List List Pair a b","List b","_v"]
+<<timeout>>
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) (GHC.List.zip arg1 arg0) []
+************************************************
+["void","List a","List List Pair a b","List b","_v"]
+<<timeout>>

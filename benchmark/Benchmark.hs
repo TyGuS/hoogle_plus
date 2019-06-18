@@ -28,7 +28,6 @@ defaultArgs = Args {
   argsOutputFile=Nothing &= name "output" &= typFile,
   argsExperiment=defaultExperiment &= name "experiment"
   }
-  where
 
 main :: IO ()
 main = do
@@ -85,6 +84,9 @@ getSetup args = do
             (searchParamsNoGarTyGarQ, expNoGarTyGarQ),
             (searchParamsNoGarTyGar0B, expNoGarTyGar0B),
             (searchParamsNoGarTyGarQB, expNoGarTyGarQB)]
+          CompareThresholds -> 
+            map (\i -> (searchParamsTyGar0 {_stopRefine=True,_threshold=i}, "TyGar0B"++show i)) [1..10]
+            ++ map (\i -> (searchParamsTyGarQ {_stopRefine=True,_threshold=i}, "TyGarQB"++show i)) [1..10]
           TrackTypesAndTransitions -> [(searchParamsTyGarQ, expTyGarQ)]
   let exps =
         case currentExperiment of

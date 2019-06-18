@@ -71,21 +71,21 @@ applyFunction func = do
         vars <- mapM (\_ -> do
                                 v <- newVar
                                 st <- get
-                                put $ st { createdVars = v : (createdVars st)
-                                         }
+                                put $ st { createdVars = v : createdVars st }
                                 return v) (funParams curr)
-        let hoHeader = "\\" ++ concat (intersperse " " vars) ++ " -> "
+        let hoHeader = "\\" ++ unwords vars ++ " -> "
         -- find argument body
-        tterms <- typedTerms <$> get
+        tterms <- gets typedTerms
         oldSt <- get
-        let sigsAvail = take (fromJust (elemIndex func (allSignatures oldSt))) (allSignatures oldSt)
+        let oldSigs = allSignatures oldSt
+        let sigsAvail = take (fromJust (elemIndex func oldSigs)) oldSigs
         bodies <- generateProgram sigsAvail (funParams curr) vars (funReturn curr) False
         put oldSt
         case Set.toList bodies of
             [] -> return []
             _  -> return $ map (withParen . (++) hoHeader) (Set.toList bodies)
-    generateArg tArg | otherwise = do
-        tterms <- typedTerms <$> get
+    generateArg tArg = do
+        tterms <- gets typedTerms
         return $ Set.toList $ HashMap.lookupDefault Set.empty tArg tterms
 
 -- | generate the program from the signatures appeared in selected transitions
@@ -117,7 +117,7 @@ generateProgram signatures inputs argNames rets isFinal = do
 
     -- ignore the nested higher order arguments
     addHOParams func = do
-        tterms <- typedTerms <$> get
+        tterms <- gets typedTerms
         mapM_ (mapM_ addHOParam . funParams) $ hoParams func
 
     addHOParam fparam = do

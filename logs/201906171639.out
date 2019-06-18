@@ -1,0 +1,1627 @@
+[data Char where,data Double where,type String = ([((Char))]),type FilePath = (String),data Float where,data Handle where,data IO a where,data Integer where,data ShortByteString where,data Word where,data Word16 where,data Word32 where,data Word64 where,data Word8 where]
+[data Char where,data Double where,type String = ([((Char))]),type FilePath = (String),data Float where,data Handle where,data IO a where,data Integer where,data ShortByteString where,data Word where,data Word16 where,data Word32 where,data Word64 where,data Word8 where]
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Lazy.take arg0 Data.ByteString.Lazy.empty
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Lazy.take arg0 Data.ByteString.Lazy.empty
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64HexFixed arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64BE arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64BE arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Lazy.take arg0 Data.ByteString.Lazy.empty
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64LE arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64LE arg0)
+************************************************
+["void","Int64","ByteString","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty
+************************************************
+["void","Int64","ByteString","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty
+************************************************
+["void","Int64","ByteString","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty
+************************************************
+["void","Int64","ByteString","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty
+************************************************
+["void","Int64","ByteString","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64BE arg0)
+************************************************
+["void","Int64","ByteString","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty
+************************************************
+["void","Int64","ByteString","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty
+************************************************
+["void","Int64","ByteString","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64BE arg0)
+************************************************
+["void","Int64","ByteString","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64BE arg0)
+************************************************
+["void","Int64","ByteString","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64BE arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","Bool","List Maybe Bool","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","Bool","List Maybe Bool","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","Bool","List Maybe Bool","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","Bool","List Maybe Bool","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","Bool","List Maybe Bool","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","Bool","List Maybe Bool","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","Bool","List Maybe Bool","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","Bool","List Maybe Bool","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","Bool","List Maybe Bool","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","Bool","List Maybe Bool","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+["void","_v"]
+<<timeout>>
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg1 arg1 (GHC.List.null arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg1 arg1 (GHC.List.null arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.fromMaybe arg1 (GHC.List.lookup arg0 [])
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.fromMaybe arg1 (GHC.List.lookup arg0 [])
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg1 arg1 (GHC.List.null arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg1 arg1 (GHC.List.null arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg1 arg1 (GHC.List.null arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg1 arg1 (GHC.List.null arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg1 arg1 (GHC.List.null arg0)
+************************************************
+["void","a","List Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg1 arg1 (GHC.List.null arg0)
+************************************************
+["void","a","List Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg1 arg1 (GHC.List.null arg0)
+************************************************
+["void","a","List Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg1 arg1 (GHC.List.null arg0)
+************************************************
+["void","a","List Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg1 arg1 (GHC.List.null arg0)
+************************************************
+["void","a","List Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.fromMaybe arg1 (GHC.List.lookup arg0 [])
+************************************************
+["void","a","List Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg1 arg1 (GHC.List.null arg0)
+************************************************
+["void","a","List Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg1 arg1 (GHC.List.null arg0)
+************************************************
+["void","a","List Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg1 arg1 (GHC.List.null arg0)
+************************************************
+["void","a","List Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg1 arg1 (GHC.List.null arg0)
+************************************************
+["void","a","List Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.fromMaybe arg1 (GHC.List.lookup arg0 [])
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","Pair a a","a","Pair b b","b","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","Pair a a","a","Pair b b","b","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","Pair a a","a","Pair b b","b","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","Pair a a","a","Pair b b","b","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","Pair a a","a","Pair b b","b","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","Pair a a","a","Pair b b","b","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","Pair a a","a","Pair b b","b","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","Pair a a","a","Pair b b","b","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","Pair a a","a","Pair b b","b","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","Pair a a","a","Pair b b","b","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (arg0 (fst arg1)) (arg0 (snd arg1))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","Pair Pair a c b","a","d","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","Pair Pair a c b","a","d","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","Pair Pair a c b","a","d","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","Pair Pair a c b","a","d","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","Pair Pair a c b","a","d","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","Pair Pair a c b","a","d","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","Pair Pair a c b","a","d","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","Pair Pair a c b","a","d","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","Pair Pair a c b","a","d","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","Pair Pair a c b","a","d","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg1 (fst (fst arg0)) (snd arg0) (snd (fst arg0))
+************************************************
+["void","_v"]
+<<timeout>>
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.fromMaybe arg1 (GHC.List.lookup arg0 [])
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 arg1)
+************************************************
+["void","_v"]
+<<timeout>>
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((GHC.List.++) arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((GHC.List.++) arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length (GHC.List.zip arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length (GHC.List.zip arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((GHC.List.++) arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length (GHC.List.zip arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((GHC.List.++) arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((GHC.List.++) arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((GHC.List.++) arg0 arg1)
+************************************************
+["void","List a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((GHC.List.++) arg0 arg1)
+************************************************
+["void","List a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((GHC.List.++) arg0 arg1)
+************************************************
+["void","List a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((GHC.List.++) arg0 arg1)
+************************************************
+["void","List a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length (GHC.List.zip arg0 arg1)
+************************************************
+["void","List a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length (GHC.List.zip arg0 arg1)
+************************************************
+["void","List a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length (GHC.List.zip arg0 arg1)
+************************************************
+["void","List a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length (GHC.List.zip arg0 arg1)
+************************************************
+["void","List a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length (GHC.List.zip arg0 arg1)
+************************************************
+["void","List a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length (GHC.List.zip arg0 arg1)
+************************************************
+["void","List a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length (GHC.List.zip arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) arg0 []
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) arg0 []
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.take arg0 []
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.maybeToList (Data.Maybe.Just arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.replicate arg0 arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.maybeToList (Data.Maybe.Just arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.maybeToList (Data.Maybe.Just arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.replicate arg0 arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.replicate arg0 arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) arg0 []
+************************************************
+["void","Int","List Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) arg0 []
+************************************************
+["void","Int","List Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) arg0 []
+************************************************
+["void","Int","List Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) arg0 []
+************************************************
+["void","Int","List Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.replicate arg0 arg0
+************************************************
+["void","Int","List Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) arg0 []
+************************************************
+["void","Int","List Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) arg0 []
+************************************************
+["void","Int","List Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) arg0 []
+************************************************
+["void","Int","List Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) arg0 []
+************************************************
+["void","Int","List Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) arg0 []
+************************************************
+["void","Int","List Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) arg0 []
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","a","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","a","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","a","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","a","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","a","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","a","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","a","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","a","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","a","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","a","b","c","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 arg0 (arg1 arg0)
+************************************************
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) ((:) arg1 arg0) []
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) ((:) arg1 arg0) []
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) ((:) arg1 []) arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) ((:) arg1 []) arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) ((:) arg1 arg0) []
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) ((:) arg1 []) arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) (Data.Maybe.maybeToList (Data.Maybe.Just arg1)) arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.splitAt (GHC.List.length (Text.Show.show arg1)) arg0
+************************************************
+["void","Pair List a List a","List a","a","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) ((:) arg1 []) arg0
+************************************************
+["void","Pair List a List a","List a","a","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) ((:) arg1 []) arg0
+************************************************
+["void","Pair List a List a","List a","a","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) ((:) arg1 []) arg0
+************************************************
+["void","Pair List a List a","List a","a","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) ((:) arg1 []) arg0
+************************************************
+["void","Pair List a List a","List a","a","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) ((:) arg1 arg0) arg0
+************************************************
+["void","Pair List a List a","List a","a","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) ((:) arg1 arg0) arg0
+************************************************
+["void","Pair List a List a","List a","a","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) ((:) arg1 arg0) arg0
+************************************************
+["void","Pair List a List a","List a","a","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) ((:) arg1 arg0) arg0
+************************************************
+["void","Pair List a List a","List a","a","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) ((:) arg1 []) arg0
+************************************************
+["void","Pair List a List a","List a","a","_v"]
+*******************SOLUTION*********************
+SOLUTION: (,) ((:) arg1 []) arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","t1","t","t2","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","t1","t","t2","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","t1","t","t2","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","t1","t","t2","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","t1","t","t2","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","t1","t","t2","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","t1","t","t2","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","t1","t","t2","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","t1","t","t2","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","t1","t","t2","_v"]
+*******************SOLUTION*********************
+SOLUTION: arg2 (arg1 arg0) arg0
+************************************************
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) ((:) arg0 arg1) []
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) ((:) arg0 arg1) []
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) (Text.Show.showChar arg0 arg1) []
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) ((:) arg0 arg1) []
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.replicate (GHC.List.length (Text.Show.show arg0)) arg1
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) (Text.Show.shows arg0 arg1) []
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) (Text.Show.shows arg0 arg1) []
+************************************************
+["void","List Char","List List Char","Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.replicate (GHC.List.length (Text.Show.show arg0)) arg1
+************************************************
+["void","List Char","List List Char","Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.replicate (GHC.List.length (Text.Show.show arg0)) arg1
+************************************************
+["void","List Char","List List Char","Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.replicate (GHC.List.length (Text.Show.show arg0)) arg1
+************************************************
+["void","List Char","List List Char","Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.replicate (GHC.List.length (Text.Show.show arg0)) arg1
+************************************************
+["void","List Char","List List Char","Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) ((:) arg0 arg1) []
+************************************************
+["void","List Char","List List Char","Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.replicate (GHC.List.length arg1) (Text.Show.show arg0)
+************************************************
+["void","List Char","List List Char","Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.replicate (GHC.List.length arg1) (Text.Show.show arg0)
+************************************************
+["void","List Char","List List Char","Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) ((:) arg0 arg1) []
+************************************************
+["void","List Char","List List Char","Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.replicate (GHC.List.length (Text.Show.show arg0)) arg1
+************************************************
+["void","List Char","List List Char","Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.replicate (GHC.List.length (Text.Show.show arg0)) arg1
+************************************************
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","List a","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","List a","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","List a","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","List a","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","List a","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","List a","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","List a","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","List a","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","List a","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","List a","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.listToMaybe ((:) arg1 arg0)
+************************************************
+["void","_v"]
+<<timeout>>
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","List a","a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","List a","a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","List a","a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","List a","a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","List a","a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","List a","a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","List a","a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","List a","a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","List a","a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","List a","a","Int","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.length ((:) arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.True
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.False
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.True
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.True
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.True
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.True
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.True
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.True
+************************************************
+["void","Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.otherwise
+************************************************
+["void","Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.otherwise
+************************************************
+["void","Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.False
+************************************************
+["void","Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.False
+************************************************
+["void","Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.False
+************************************************
+["void","Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.False
+************************************************
+["void","Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.False
+************************************************
+["void","Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.False
+************************************************
+["void","Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.False
+************************************************
+["void","Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.False
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.True
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1)
+************************************************
+["void","Pair a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.otherwise
+************************************************
+["void","Pair a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.otherwise
+************************************************
+["void","Pair a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.otherwise
+************************************************
+["void","Pair a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.otherwise
+************************************************
+["void","Pair a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.otherwise
+************************************************
+["void","Pair a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.otherwise
+************************************************
+["void","Pair a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.otherwise
+************************************************
+["void","Pair a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.otherwise
+************************************************
+["void","Pair a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.otherwise
+************************************************
+["void","Pair a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Bool.bool arg0 arg1 Data.Bool.otherwise
+************************************************
+["void","_v"]
+<<timeout>>
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Bool.bool arg0 arg1 Data.Bool.True)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Bool.bool arg0 arg1 Data.Bool.True)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Bool.bool arg0 arg1 Data.Bool.True)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Bool.bool arg0 arg1 Data.Bool.True)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Bool.bool arg0 arg1 Data.Bool.False)
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1))
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1))
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1))
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1))
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1))
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Bool.bool arg0 arg1 Data.Bool.otherwise)
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1))
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Bool.bool arg0 arg1 Data.Bool.otherwise)
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Maybe.fromMaybe arg0 (Data.Maybe.Just arg1))
+************************************************
+["void","a","Maybe a","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.Just (Data.Bool.bool arg0 arg1 Data.Bool.otherwise)
+************************************************
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Either.Right (Data.Either.rights arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Either.Right (Data.Either.rights arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Either.Right (Data.Either.rights arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Either.Right (Data.Either.rights arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Either.Right (Data.Either.rights arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Either.Right (Data.Either.rights arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Either.Right (Data.Either.rights arg0)
+************************************************
+["void","Either a List b","List Either a b","_v"]
+<<timeout>>
+["void","Either a List b","List Either a b","_v"]
+<<timeout>>
+["void","Either a List b","List Either a b","_v"]
+<<timeout>>
+["void","Either a List b","List Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Either.Right (Data.Either.rights arg0)
+************************************************
+["void","Either a List b","List Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Either.Right (Data.Either.rights arg0)
+************************************************
+["void","Either a List b","List Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Either.Right (Data.Either.rights arg0)
+************************************************
+["void","Either a List b","List Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Either.Right (Data.Either.rights arg0)
+************************************************
+["void","Either a List b","List Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Either.Right (Data.Either.rights arg0)
+************************************************
+["void","Either a List b","List Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Either.Right (Data.Either.rights arg0)
+************************************************
+["void","Either a List b","List Either a b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Either.Right (Data.Either.rights arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (GHC.List.++) (Text.Show.show arg0) (Text.Show.show arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.shows arg1 (GHC.List.concat arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.shows arg1 (Text.Show.show arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.show ((,) arg0 arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.shows arg1 (Text.Show.show arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.shows arg0 (Text.Show.show arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.shows arg0 (Text.Show.show arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.shows arg0 (Text.Show.show arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.shows arg0 (Text.Show.show arg1)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.shows arg0 (Text.Show.show arg1)
+************************************************
+["void","List Char","a","List List Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.showList arg0 (Text.Show.show arg1)
+************************************************
+["void","List Char","a","List List Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.showList arg0 (Text.Show.show arg1)
+************************************************
+["void","List Char","a","List List Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.showList arg0 (Text.Show.show arg1)
+************************************************
+["void","List Char","a","List List Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.showList arg0 (Text.Show.show arg1)
+************************************************
+["void","List Char","a","List List Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.show ((,) arg1 arg0)
+************************************************
+["void","List Char","a","List List Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.shows arg1 (GHC.List.concat arg0)
+************************************************
+["void","List Char","a","List List Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.shows arg0 (Text.Show.show arg1)
+************************************************
+["void","List Char","a","List List Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.shows arg0 (Text.Show.show arg1)
+************************************************
+["void","List Char","a","List List Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.shows arg0 (Text.Show.show arg1)
+************************************************
+["void","List Char","a","List List Char","_v"]
+*******************SOLUTION*********************
+SOLUTION: Text.Show.shows arg0 (Text.Show.show arg1)
+************************************************
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","List a","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","List a","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","List a","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","List a","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","List a","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","List a","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","List a","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","List a","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","List a","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","List a","a","b","List Pair a b","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+<<timeout>>
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) (GHC.List.zip arg1 arg0) []
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) (GHC.List.zip arg1 arg0) []
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) (GHC.List.zip arg1 arg0) []
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) (GHC.List.zip arg1 arg0) []
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) (GHC.List.zip arg1 arg0) []
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: (:) (GHC.List.zip arg1 arg0) []
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.maybeToList (Data.Maybe.Just (GHC.List.zip arg1 arg0))
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.maybeToList (Data.Maybe.Just (GHC.List.zip arg1 arg0))
+************************************************
+["void","List a","List List Pair a b","List b","_v"]
+<<timeout>>
+["void","List a","List List Pair a b","List b","_v"]
+<<timeout>>
+["void","List a","List List Pair a b","List b","_v"]
+<<timeout>>
+["void","List a","List List Pair a b","List b","_v"]
+<<timeout>>
+["void","List a","List List Pair a b","List b","_v"]
+<<timeout>>
+["void","List a","List List Pair a b","List b","_v"]
+<<timeout>>
+["void","List a","List List Pair a b","List b","_v"]
+<<timeout>>
+["void","List a","List List Pair a b","List b","_v"]
+<<timeout>>
+["void","List a","List List Pair a b","List b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.maybeToList (Data.Maybe.Just (GHC.List.zip arg1 arg0))
+************************************************
+["void","List a","List List Pair a b","List b","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.maybeToList (Data.Maybe.Just (GHC.List.zip arg1 arg0))
+************************************************
+[ResultSummary {envName = "Total", paramName = "TyGar0B1", queryName = "intToBytestring", queryStr = "Int64 -> ByteString", result = Result {resSolutionOrError = Right "Just Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty", resTFirstSoln = 8.054355170000001, resTEncFirstSoln = 3.3025273e-2, resTSolveFirstSoln = 7.882675614000001, resLenFirstSoln = 2, resRefinementSteps = 320, resTransitions = [170], resTypes = [1], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGar0B2", queryName = "intToBytestring", queryStr = "Int64 -> ByteString", result = Result {resSolutionOrError = Right "Just Data.ByteString.Lazy.take arg0 Data.ByteString.Lazy.empty", resTFirstSoln = 1.660866274, resTEncFirstSoln = 2.9627488000000004e-2, resTSolveFirstSoln = 1.607909461, resLenFirstSoln = 2, resRefinementSteps = 63, resTransitions = [197], resTypes = [2], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGar0B3", queryName = "intToBytestring", queryStr = "Int64 -> ByteString", result = Result {resSolutionOrError = Right "Just Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty", resTFirstSoln = 1.778807137, resTEncFirstSoln = 4.516095099999999e-2, resTSolveFirstSoln = 1.7003838640000002, resLenFirstSoln = 2, resRefinementSteps = 60, resTransitions = [223], resTypes = [3], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGar0B4", queryName = "intToBytestring", queryStr = "Int64 -> ByteString", result = Result {resSolutionOrError = Right "Just Data.ByteString.Lazy.take arg0 Data.ByteString.Lazy.empty", resTFirstSoln = 1.377267756, resTEncFirstSoln = 9.1511774e-2, resTSolveFirstSoln = 1.2467241140000003, resLenFirstSoln = 2, resRefinementSteps = 40, resTransitions = [248], resTypes = [4], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGar0B5", queryName = "intToBytestring", queryStr = "Int64 -> ByteString", result = Result {resSolutionOrError = Right "Just Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64HexFixed arg0)", resTFirstSoln = 0.41002171099999996, resTEncFirstSoln = 0.112945705, resTSolveFirstSoln = 0.247152056, resLenFirstSoln = 2, resRefinementSteps = 8, resTransitions = [275], resTypes = [5], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGar0B6", queryName = "intToBytestring", queryStr = "Int64 -> ByteString", result = Result {resSolutionOrError = Right "Just Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64BE arg0)", resTFirstSoln = 1.2372953549999999, resTEncFirstSoln = 0.216974208, resTSolveFirstSoln = 0.9362498140000001, resLenFirstSoln = 2, resRefinementSteps = 19, resTransitions = [387], resTypes = [6], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGar0B7", queryName = "intToBytestring", queryStr = "Int64 -> ByteString", result = Result {resSolutionOrError = Right "Just Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64BE arg0)", resTFirstSoln = 1.018531388, resTEncFirstSoln = 0.275376818, resTSolveFirstSoln = 0.614697726, resLenFirstSoln = 2, resRefinementSteps = 13, resTransitions = [424], resTypes = [7], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGar0B8", queryName = "intToBytestring", queryStr = "Int64 -> ByteString", result = Result {resSolutionOrError = Right "Just Data.ByteString.Lazy.take arg0 Data.ByteString.Lazy.empty", resTFirstSoln = 1.2531568530000001, resTEncFirstSoln = 0.373824301, resTSolveFirstSoln = 0.693448369, resLenFirstSoln = 2, resRefinementSteps = 12, resTransitions = [490], resTypes = [8], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGar0B9", queryName = "intToBytestring", queryStr = "Int64 -> ByteString", result = Result {resSolutionOrError = Right "Just Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64LE arg0)", resTFirstSoln = 1.442181203, resTEncFirstSoln = 0.413983182, resTSolveFirstSoln = 0.7405673090000001, resLenFirstSoln = 2, resRefinementSteps = 13, resTransitions = [569], resTypes = [9], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGar0B10", queryName = "intToBytestring", queryStr = "Int64 -> ByteString", result = Result {resSolutionOrError = Right "Just Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64LE arg0)", resTFirstSoln = 1.628802198, resTEncFirstSoln = 0.696017742, resTSolveFirstSoln = 0.570201199, resLenFirstSoln = 2, resRefinementSteps = 10, resTransitions = [710], resTypes = [10], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGarQB1", queryName = "intToBytestring", queryStr = "Int64 -> ByteString", result = Result {resSolutionOrError = Right "Just Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty", resTFirstSoln = 0.25946215100000003, resTEncFirstSoln = 6.1353961e-2, resTSolveFirstSoln = 0.19621887699999999, resLenFirstSoln = 2, resRefinementSteps = 8, resTransitions = [279], resTypes = [3], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGarQB2", queryName = "intToBytestring", queryStr = "Int64 -> ByteString", result = Result {resSolutionOrError = Right "Just Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty", resTFirstSoln = 0.28228215, resTEncFirstSoln = 8.362665e-2, resTSolveFirstSoln = 0.19145542200000001, resLenFirstSoln = 2, resRefinementSteps = 8, resTransitions = [279], resTypes = [3], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGarQB3", queryName = "intToBytestring", queryStr = "Int64 -> ByteString", result = Result {resSolutionOrError = Right "Just Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty", resTFirstSoln = 0.278472922, resTEncFirstSoln = 8.4000675e-2, resTSolveFirstSoln = 0.192521515, resLenFirstSoln = 2, resRefinementSteps = 8, resTransitions = [279], resTypes = [3], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGarQB4", queryName = "intToBytestring", queryStr = "Int64 -> ByteString", result = Result {resSolutionOrError = Right "Just Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty", resTFirstSoln = 0.312853791, resTEncFirstSoln = 8.057225600000001e-2, resTSolveFirstSoln = 0.21547202199999999, resLenFirstSoln = 2, resRefinementSteps = 7, resTransitions = [303], resTypes = [4], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGarQB5", queryName = "intToBytestring", queryStr = "Int64 -> ByteString", result = Result {resSolutionOrError = Right "Just Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64BE arg0)", resTFirstSoln = 0.347474944, resTEncFirstSoln = 0.14357474299999998, resTSolveFirstSoln = 0.16954618999999999, resLenFirstSoln = 2, resRefinementSteps = 4, resTransitions = [329], resTypes = [5], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGarQB6", queryName = "intToBytestring", queryStr = "Int64 -> ByteString", result = Result {resSolutionOrError = Right "Just Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty", resTFirstSoln = 0.430956152, resTEncFirstSoln = 0.17857231199999998, resTSolveFirstSoln = 0.18823527099999998, resLenFirstSoln = 2, resRefinementSteps = 4, resTransitions = [364], resTypes = [6], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGarQB7", queryName = "intToBytestring", queryStr = "Int64 -> ByteString", result = Result {resSolutionOrError = Right "Just Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty", resTFirstSoln = 0.7157471089999999, resTEncFirstSoln = 0.29683934000000006, resTSolveFirstSoln = 0.28561714800000004, resLenFirstSoln = 2, resRefinementSteps = 5, resTransitions = [487], resTypes = [7], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGarQB8", queryName = "intToBytestring", queryStr = "Int64 -> ByteString", result = Result {resSolutionOrError = Right "Just Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64BE arg0)", resTFirstSoln = 0.9949024310000001, resTEncFirstSoln = 0.501832377, resTSolveFirstSoln = 0.302868063, resLenFirstSoln = 2, resRefinementSteps = 5, resTransitions = [601], resTypes = [8], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGarQB9", queryName = "intToBytestring", queryStr = "Int64 -> ByteString", result = Result {resSolutionOrError = Right "Just Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64BE arg0)", resTFirstSoln = 0.943556779, resTEncFirstSoln = 0.416583591, resTSolveFirstSoln = 0.307451094, resLenFirstSoln = 2, resRefinementSteps = 5, resTransitions = [601], resTypes = [8], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGarQB10", queryName = "intToBytestring", queryStr = "Int64 -> ByteString", result = Result {resSolutionOrError = Right "Just Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64BE arg0)", resTFirstSoln = 0.972846855, resTEncFirstSoln = 0.502942074, resTSolveFirstSoln = 0.30260754700000003, resLenFirstSoln = 2, resRefinementSteps = 5, resTransitions = [601], resTypes = [8], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGar0B1", queryName = "conjunctMaybe", queryStr = "List (Maybe Bool) -> Bool", result = Result {resSolutionOrError = Right "Just GHC.List.null arg0", resTFirstSoln = 0.363432608, resTEncFirstSoln = 1.6986002e-2, resTSolveFirstSoln = 0.342365293, resLenFirstSoln = 1, resRefinementSteps = 19, resTransitions = [170], resTypes = [1], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGar0B2", queryName = "conjunctMaybe", queryStr = "List (Maybe Bool) -> Bool", result = Result {resSolutionOrError = Right "Just GHC.List.null arg0", resTFirstSoln = 0.12352754699999999, resTEncFirstSoln = 3.3353952e-2, resTSolveFirstSoln = 8.1862239e-2, resLenFirstSoln = 1, resRefinementSteps = 4, resTransitions = [214], resTypes = [2], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGar0B3", queryName = "conjunctMaybe", queryStr = "List (Maybe Bool) -> Bool", result = Result {resSolutionOrError = Right "Just GHC.List.null arg0", resTFirstSoln = 0.189905575, resTEncFirstSoln = 0.114190524, resTSolveFirstSoln = 5.5195348000000005e-2, resLenFirstSoln = 1, resRefinementSteps = 2, resTransitions = [320], resTypes = [3], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGar0B4", queryName = "conjunctMaybe", queryStr = "List (Maybe Bool) -> Bool", result = Result {resSolutionOrError = Right "Just GHC.List.null arg0", resTFirstSoln = 0.188804498, resTEncFirstSoln = 0.11120380399999999, resTSolveFirstSoln = 5.6403797000000006e-2, resLenFirstSoln = 1, resRefinementSteps = 2, resTransitions = [320], resTypes = [3], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGar0B5", queryName = "conjunctMaybe", queryStr = "List (Maybe Bool) -> Bool", result = Result {resSolutionOrError = Right "Just GHC.List.null arg0", resTFirstSoln = 0.157620221, resTEncFirstSoln = 8.2882142e-2, resTSolveFirstSoln = 5.4159703000000003e-2, resLenFirstSoln = 1, resRefinementSteps = 2, resTransitions = [320], resTypes = [3], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGar0B6", queryName = "conjunctMaybe", queryStr = "List (Maybe Bool) -> Bool", result = Result {resSolutionOrError = Right "Just GHC.List.null arg0", resTFirstSoln = 0.193405568, resTEncFirstSoln = 0.11364822200000001, resTSolveFirstSoln = 5.903206899999999e-2, resLenFirstSoln = 1, resRefinementSteps = 2, resTransitions = [320], resTypes = [3], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGar0B7", queryName = "conjunctMaybe", queryStr = "List (Maybe Bool) -> Bool", result = Result {resSolutionOrError = Right "Just GHC.List.null arg0", resTFirstSoln = 0.158539246, resTEncFirstSoln = 8.3552613e-2, resTSolveFirstSoln = 5.4457883e-2, resLenFirstSoln = 1, resRefinementSteps = 2, resTransitions = [320], resTypes = [3], resDuplicateSymbols = (0,0)}},ResultSummary {envName = "Total", paramName = "TyGar0B8", queryName = "conjunctMayb

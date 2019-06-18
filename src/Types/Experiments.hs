@@ -30,7 +30,7 @@ data RefineStrategy =
 
 -- | Parameters of program exploration
 data SearchParams = SearchParams {
-  _eGuessDepth :: Int,                    -- ^ Maximum depth of application trees
+  _maxApplicationDepth :: Int,                    -- ^ Maximum depth of application trees
   _sourcePos :: SourcePos,                -- ^ Source position of the current goal
   _explorerLogLevel :: Int,               -- ^ How verbose logging is
   _solutionCnt :: Int,
@@ -72,7 +72,7 @@ data TimeStatUpdate
 
 -- | Parameters for template exploration
 defaultSearchParams = SearchParams {
-  _eGuessDepth = 6,
+  _maxApplicationDepth = 6,
   _sourcePos = noPos,
   _explorerLogLevel = 0,
   _solutionCnt = 1,
@@ -102,6 +102,7 @@ data ExperimentCourse
   = CompareInitialAbstractCovers
   | TrackTypesAndTransitions --2019-05-06
   | CompareFinalCovers
+  | CompareThresholds
   deriving (Show, Data, Typeable)
 
 data Message
