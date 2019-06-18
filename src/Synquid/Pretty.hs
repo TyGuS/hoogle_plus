@@ -1,3 +1,4 @@
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE FlexibleInstances, UndecidableInstances, FlexibleContexts #-}
 
 module Synquid.Pretty (
@@ -6,6 +7,7 @@ module Synquid.Pretty (
   Doc,
   renderPretty,
   putDoc,
+  prettyShow,
   -- * Basic documents
   empty,
   isEmpty,
@@ -74,11 +76,16 @@ import qualified Data.Map as Map
 import Data.Map (Map, (!))
 import Data.List
 import Data.Hashable
+import Data.Tree
+import Data.Tree.Pretty
 
 import Control.Lens
 
 infixr 5 $+$
 infixr 6 <+>
+
+prettyShow :: Pretty p => p -> String
+prettyShow p = displayS (renderCompact $ pretty p) ""
 
 tab = 2
 
@@ -516,8 +523,8 @@ instance Show AbstractBase where
 
 instance Pretty AbstractSkeleton where
     pretty (AScalar b) = pretty b
-    pretty (AFunctionT tArg tRet) = hlParens (pretty tArg <+> operator "->" <+> pretty tRet)
-    pretty ABottom = text "_|_"
+    pretty (AFunctionT tArg tRet) = hlParens (pretty tArg <+> operator "→" <+> pretty tRet)
+    pretty ABottom = text "⊥"
 
 instance Show AbstractSkeleton where
     show = show . plain . pretty
@@ -527,6 +534,6 @@ instance Hashable AbstractSkeleton where
   hashWithSalt s typ = s + hash typ
 
 instance Pretty SplitInfo where
-    pretty (SplitInfo p r tr) = text "Splitted places:" <+> text (show p) 
+    pretty (SplitInfo p r tr) = text "Split places:" <+> text (show p) 
                              $+$ text "Removed transitions:" <+> text (show r)
                              $+$ text "New transitions:" <+> text (show tr)

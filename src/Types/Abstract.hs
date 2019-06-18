@@ -6,6 +6,7 @@ import Types.Program
 import Types.Type
 
 import Data.Set (Set)
+import qualified Data.Set as Set
 import GHC.Generics
 import Data.Serialize
 import Data.Char

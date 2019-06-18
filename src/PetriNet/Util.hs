@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, NamedFieldPuns #-}
 
 module PetriNet.Util where
 
@@ -7,6 +7,7 @@ import Types.Common
 import Types.Solver
 import Types.Abstract
 import Types.Experiments
+import Types.Program
 import Synquid.Program
 import Synquid.Logic hiding (varName)
 import Synquid.Type
@@ -25,6 +26,12 @@ import Debug.Trace
 import Data.List.Extra
 import Text.Pretty.Simple
 import Control.Concurrent.Chan
+
+
+shouldDedupe :: MonadIO m => PNSolver m Bool
+shouldDedupe = gets $ view (searchParams . shouldRemoveDuplicates)
+
+getExperiment exp = gets $ view (searchParams . exp)
 
 -------------------------------------------------------------------------------
 -- | helper functions
@@ -87,3 +94,58 @@ mkConstraint :: MonadIO m => [Id] -> Id -> AbstractSkeleton -> PNSolver m UnifCo
 mkConstraint bound v t = do
     t' <- freshAbstract bound t
     return (AScalar (ATypeVarT v), t')
+
+fullStats locationName = undefined {- do
+    sigs <- gets $ view currentSigs
+    fm <- view functionMap <$> get
+    namemapping <- view nameMapping <$> get
+    t2t <- view type2transition <$> get
+    writeLog 3 locationName $ text "current sigs:" <+> pretty (Map.toList sigs)
+    writeLog 3 locationName $ text "current fm:" <+> pretty (HashMap.toList $ HashMap.map funName fm)
+    writeLog 3 locationName $ text "current nameMapping:" <+> pretty (Map.toList namemapping)
+    writeLog 3 locationName $ text "current t2t:" <+> pretty (Map.toList t2t) -}
+
+partitionDuplicateFunctions :: MonadIO m => [FunctionCode] -> PNSolver m ([FunctionCode],[FunctionCode])
+partitionDuplicateFunctions symbols = undefined {-do
+    let groupedSymbols = groupSortBy compare symbols
+    let deduplicatedSymbols = map head $ groupedSymbols
+    let toBeRemoved = (concatMap tail $ groupedSymbols)
+    let newGroupMap = map (\(x:xs) -> (x, x:xs)) (map (map funName) groupedSymbols)
+    modify $ set groupMap (Map.fromList newGroupMap)
+    return (deduplicatedSymbols, toBeRemoved)-}
+
+removeDuplicates [] = return ()
+removeDuplicates (FunctionCode{funName}:rest) = undefined {-do
+    gm <- view groupMap <$> get
+    t2t <- view type2transition <$> get
+    modify $ set type2transitionBackup t2t
+    when (funName `elem` (concat $ Map.elems t2t)) (writeLog 1 "removeDuplicates" $ text "type2transition:" <+> text funName)
+    modify $ over type2transition (Map.map (removeName funName))
+    removeDuplicates rest
+    where
+        removeName :: String -> [String] -> [String]
+        removeName _ [] = []
+        removeName id (x:xs) | id == x = removeName id xs
+                                | otherwise = x:(removeName id xs) -}
+
+countDuplicateSigs :: Map Id AbstractSkeleton -> String
+countDuplicateSigs sigs = undefined {-let
+    reversedSigs = groupByMap sigs
+    countList = Map.toList reversedSigs
+    dupes = [length (snd x) | x <- countList, length (snd x) > 1]
+    in
+        printf "%d classes; %d equiv; %d total" (length dupes) (sum dupes) (length (Map.toList sigs))
+        -}
+
+countDuplicates symbols = undefined {-do
+    mesgChan <- view messageChan <$> get
+    let groupedSymbols = groupBySlow areEqFuncs symbols
+    let counts = [ (length ss, head ss) | ss <- groupedSymbols]
+    let dupes = [ (fst x) | x <- counts, (fst x) > 1]
+    modify $ over solverStats (\s -> s {
+        duplicateSymbols = duplicateSymbols s ++ [(length dupes, sum dupes, length symbols)]
+    })
+    -- when (length dupes > 0) (writeLog 2 "countDuplicates" $ pretty groupedSymbols)
+    stats <- view solverStats <$> get
+    liftIO $ writeChan mesgChan (MesgS stats)
+    return $ printf "%d classes; %d equiv; %d total" (length dupes) (sum dupes) (length symbols)-}

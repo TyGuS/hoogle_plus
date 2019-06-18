@@ -5,6 +5,7 @@
 {-# LANGUAGE DeriveGeneric  #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module PetriNet.PNSolver (runPNSolver) where
 
@@ -249,6 +250,7 @@ addEncodedFunction (id, f) = do
     let includedTyps = nub (decompose f)
     mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
 
+
 resetEncoder :: (MonadIO m) => Environment -> RType -> PNSolver m EncodeState
 resetEncoder env dst = do
     -- reset source and destination types
@@ -298,7 +300,7 @@ findPath env dst st = do
     case res of
         [] -> do
             currSt <- get
-            maxDepth <- view maxApplicationDepth <$> get
+            maxDepth <- view (searchParams . eGuessDepth) <$> get
             when (currSt ^. currentLoc >= maxDepth) (
               do
                 mesgChan <- view messageChan <$> get
@@ -395,7 +397,7 @@ findProgram env dst st = do
     oldSemantic <- view abstractionTree <$> get
     writeLog 2 "findProgram" $ pretty (Set.toList codeResult)
     checkResult <- withTime TypeCheckTime (firstCheckedOrError $ sortOn length (Set.toList codeResult))
-    rs <- gets (view refineStrategy)
+    rs <- getExperiment refineStrategy
     if isLeft checkResult
        then let Left code = checkResult in checkSolution st' code
        else do
@@ -453,8 +455,8 @@ findProgram env dst st = do
         let st' = st { prevChecked = True }
         findProgram env dst st'
     nextSolution st _ (prog, at) = do
-        stop <- gets (view stopRefine)
-        placeNum <- gets (view threshold)
+        stop <- getExperiment stopRefine
+        placeNum <- getExperiment threshold
         cover <- gets (view abstractionTree)
         if stop && Set.size cover >= placeNum
            then findProgram env dst (st {prevChecked=True})
@@ -499,7 +501,7 @@ findFirstN env dst st cnt | cnt == 1  = do
     stats <- gets $ view solverStats
     depth <- gets $ view currentLoc
     msgChan <- gets $ view messageChan
-    strategy <- gets $ view refineStrategy
+    strategy <- getExperiment refineStrategy
     writeLog 1 "findFirstN" $ text (show depth)
     let stats' = stats{pathLength = depth}
     printSolution res
@@ -507,8 +509,8 @@ findFirstN env dst st cnt | cnt == 1  = do
     if noGarTyGarIdx strategy >= 0 
       then do
         resetTiming
-        modify $ set refineStrategy NoGar
-        modify $ set stopRefine False
+        modify $ set (searchParams . refineStrategy) NoGar
+        modify $ set (searchParams . stopRefine) False
         modify $ set currentLoc 1
         modify $ set currentSolutions []
         runPNSolver env cnt dst

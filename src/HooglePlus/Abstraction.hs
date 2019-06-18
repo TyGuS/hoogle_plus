@@ -59,4 +59,3 @@ abstractParamList (AFunctionT tArg tFun) =
 lastAbstractType :: AbstractSkeleton -> AbstractSkeleton
 lastAbstractType (AFunctionT tArg tFun) = lastAbstractType tFun
 lastAbstractType t                      = t
-

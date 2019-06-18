@@ -18,6 +18,7 @@ import Types.Type
 import Types.Common
 
 data SolverState = SolverState {
+    _searchParams :: SearchParams,
     _nameCounter :: Map Id Int,  -- name map for generating fresh names (type variables, parameters)
     _typeAssignment :: Map Id SType,  -- current type assignment for each type variable
     _abstractionTree :: Set AbstractSkeleton,
@@ -31,24 +32,20 @@ data SolverState = SolverState {
     _sourceTypes :: [AbstractSkeleton],
     _mustFirers :: HashMap Id [Id],
     _paramNames :: [Id],
-    _refineStrategy :: RefineStrategy,
     _groupMap :: Map Id [Id], -- mapping from group id to list of function names
     _type2transition :: HashMap AbstractSkeleton [Id], -- mapping from abstract type to group ids
     _solverStats :: TimeStatistics,
-    _useGroup :: Bool,
     _splitTypes :: Set AbstractSkeleton,
     _nameMapping :: Map Id Id, -- mapping from fake names to real names
     _logLevel :: Int, -- temporary for log level
     _instanceMapping :: HashMap (Id, [AbstractSkeleton]) (Id, AbstractSkeleton),
     _toRemove :: [Id],
-    _maxApplicationDepth :: Int,
-    _messageChan :: Chan Message,
-    _stopRefine :: Bool,
-    _threshold :: Int
+    _messageChan :: Chan Message
 } deriving(Eq)
 
 
 emptySolverState = SolverState {
+    _searchParams = defaultSearchParams,
     _nameCounter = Map.empty,
     _typeAssignment = Map.empty,
     _abstractionTree = Set.singleton (AScalar (ATypeVarT varName)),
@@ -62,19 +59,15 @@ emptySolverState = SolverState {
     _sourceTypes = [],
     _mustFirers = HashMap.empty,
     _paramNames = [],
-    _refineStrategy = TyGarQ,
     _groupMap = Map.empty,
     _type2transition = HashMap.empty,
     _solverStats = emptyTimeStats,
-    _useGroup = False,
     _splitTypes = Set.empty,
     _nameMapping = Map.empty,
-    _logLevel = 0,
     _instanceMapping = HashMap.empty,
     _toRemove = [],
-    _maxApplicationDepth = 6,
-    _stopRefine = False,
-    _threshold = 10
+
+    _messageChan = undefined
 }
 
 makeLenses ''SolverState

@@ -60,4 +60,3 @@ defaultGenerationOpts = GenerationOpts {
     }
 
 defaultEnvPath = "data/env.db"
-downloadDir = "/tmp/"

@@ -56,6 +56,7 @@ import Distribution.PackDeps
 import Text.Parsec hiding (State)
 import Text.Parsec.Indent
 import System.Directory
+import System.IO
 import qualified Data.ByteString as B
 
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
@@ -71,15 +72,16 @@ releaseDate = fromGregorian 2019 3 10
 main = do
   res <- cmdArgsRun $ mode
   case res of
-    Synthesis file libs envPath appMax log_ solNum higher_order refine stopRefine threshold -> do
+    Synthesis file libs envPath appMax log_ solNum higher_order refine stopRefine threshold remove_duplicates -> do
       let searchParams = defaultSearchParams {
         _eGuessDepth = appMax,
         _explorerLogLevel = log_,
         _solutionCnt = solNum,
         _useHO = higher_order,
-        _useRefine = refine,
-        _earlyCut = stopRefine,
-        _stopThresh = threshold
+        _refineStrategy = refine,
+        _stopRefine = stopRefine,
+        _threshold = threshold,
+        _shouldRemoveDuplicates = remove_duplicates
         }
       let synquidParams = defaultSynquidParams {
         Main.envPath = envPath
@@ -126,7 +128,8 @@ data CommandLineArgs
         higher_order :: Bool,
         use_refine :: RefineStrategy,
         stop_refine :: Bool,
-        stop_threshold :: Int
+        stop_threshold :: Int,
+        remove_duplicates :: Bool
       }
       | Generate {
         -- | Input
@@ -150,7 +153,8 @@ synt = Synthesis {
   higher_order        = False           &= help ("Include higher order functions (default: False)"),
   use_refine          = TyGarQ          &= help ("Use abstract refinement or not (default: TyGarQ)"),
   stop_refine         = False           &= help ("Stop refine the abstraction cover after some threshold (default: False)"),
-  stop_threshold      = 10              &= help ("Refinement stops when the number of places reaches the threshold, only when stop_refine is True")
+  stop_threshold      = 10              &= help ("Refinement stops when the number of places reaches the threshold, only when stop_refine is True"),
+  remove_duplicates   = False &= help ("Remove duplicates while searching. Under development.")
   } &= auto &= help "Synthesize goals specified in the input file"
 
 generate = Generate {
@@ -214,14 +218,18 @@ executeSearch synquidParams searchParams query = do
         Left err -> error err
         Right env ->
           return env
+
     handleMessages ch (MesgClose _) = putStrLn "Search complete" >> return ()
     handleMessages ch (MesgP (program, stats)) = do
+      when (logLevel > 2) (pPrint stats)
       print program >> readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgS debug) = do
-      when (logLevel > 0) (pPrint debug)
+      when (logLevel > 2) (pPrint debug)
       readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgLog level tag msg) = do
-      when (level <= logLevel) (printf "[%s]: %s\n" tag msg)
+      when (level <= logLevel) (do
+        mapM (printf "[%s]: %s\n" tag) (lines msg)
+        hFlush stdout)
       readChan ch >>= (handleMessages ch)
 
 pdoc = printDoc Plain

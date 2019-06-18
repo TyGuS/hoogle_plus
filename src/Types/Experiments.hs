@@ -35,10 +35,11 @@ data SearchParams = SearchParams {
   _explorerLogLevel :: Int,               -- ^ How verbose logging is
   _solutionCnt :: Int,
   _useHO :: Bool,
-  _useRefine :: RefineStrategy,
-  _earlyCut :: Bool,
-  _stopThresh :: Int
-}
+  _refineStrategy :: RefineStrategy,
+  _stopRefine :: Bool,
+  _threshold :: Int,
+  _shouldRemoveDuplicates :: Bool
+} deriving (Eq, Show)
 
 makeLenses ''SearchParams
 
@@ -55,10 +56,10 @@ data TimeStatistics = TimeStatistics {
   pathLength :: Int,
   numOfTransitions :: Map Int Int,
   numOfPlaces :: Map Int Int,
-  duplicateSymbols :: (Int, Int)
+  duplicateSymbols :: [(Int, Int, Int)]
 } deriving(Show, Eq)
 
-emptyTimeStats = TimeStatistics 0 0 0 0 0 0 0 0 0 0 Map.empty Map.empty (0, 0)
+emptyTimeStats = TimeStatistics 0 0 0 0 0 0 0 0 0 0 Map.empty Map.empty []
 
 data TimeStatUpdate
   = ConstructionTime
@@ -76,9 +77,10 @@ defaultSearchParams = SearchParams {
   _explorerLogLevel = 0,
   _solutionCnt = 1,
   _useHO = False,
-  _useRefine = TyGarQ,
-  _earlyCut = False,
-  _stopThresh = 5
+  _refineStrategy = TyGarQ,
+  _stopRefine = False,
+  _threshold = 10,
+  _shouldRemoveDuplicates = False
 }
 
 type ExperimentName = String
