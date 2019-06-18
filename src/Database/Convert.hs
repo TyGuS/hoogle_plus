@@ -279,7 +279,6 @@ toSynquidDecl (EDecl (TypeSig _ names typ)) = do
         Nothing  -> return $ Pos (initialPos "") $ TP.QualifierDecl [] -- a fake conversion
         Just sch -> return $ Pos (initialPos (nameStr $ names !! 0)) $ TP.FuncDecl (nameStr $ head names) (toSynquidRSchema sch)
 toSynquidDecl (EDecl (ClassDecl _ _ head _ _)) = do
-    -- TODO: Is initialPos does not matter much, does it?
     let name = "__hplusTC__"++ (declHeadName head)
     let vars = declHeadVars head
     return $ Pos (initialPos "") $ TP.DataDecl name vars [] []
