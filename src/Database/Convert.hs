@@ -61,17 +61,17 @@ declHeadName (DHApp _ head _) = declHeadName head
 declHeadVars (DHead _ _) = []
 declHeadVars (DHInfix _ bvar name) = [varsFromBind bvar]
 declHeadVars (DHParen _ head) = declHeadVars head
-declHeadVars (DHApp _ head bvar) = varsFromBind bvar : (declHeadVars head)
+declHeadVars (DHApp _ head bvar) = varsFromBind bvar : declHeadVars head
 
 qnameStr name = case name of
-    Qual _ moduleName consName -> (moduleNameStr moduleName) ++ "." ++ (nameStr consName)
+    Qual _ moduleName consName -> moduleNameStr moduleName ++ "." ++ nameStr consName
     UnQual _ name -> nameStr name
     Special _ name -> specialConsStr name
 
 consStr (TyCon _ name) = qnameStr name
 consStr (TyApp _ fun arg) = consStr fun
-consStr (TyFun _ arg ret) = (consStr arg) ++ "To" ++ (consStr ret)
-consStr (TyList _ typ) = "List"++(consStr typ)
+consStr (TyFun _ arg ret) = consStr arg ++ "To" ++ consStr ret
+consStr (TyList _ typ) = "List" ++ consStr typ
 consStr _ = "_"
 
 specialConsStr (UnitCon _) = "Unit"
@@ -81,7 +81,7 @@ specialConsStr _ = "_"
 
 allTypeVars (TyForall _ _ _ typ) = allTypeVars typ
 allTypeVars (TyFun _ arg ret) = allTypeVars arg `Set.union` allTypeVars ret
-allTypeVars (TyTuple _ _ typs) = foldr (\t vars -> vars `Set.union` allTypeVars t) Set.empty typs
+allTypeVars (TyTuple _ _ typs) = foldr (Set.union . allTypeVars) Set.empty typs
 -- allTypeVars (TyUnboxedSum _ typs) = foldr (\t vars -> vars `Set.union` allTypeVars t) Set.empty typs
 allTypeVars (TyList _ typ) = allTypeVars typ
 allTypeVars (TyApp _ fun arg) = allTypeVars fun `Set.union` allTypeVars arg
@@ -101,7 +101,7 @@ datatypeOf (TyList _ typ) = Set.singleton "List" `Set.union` datatypeOf typ
 datatypeOf (TyApp _ fun arg) = datatypeOf fun `Set.union` datatypeOf arg
 datatypeOf (TyVar _ name) = Set.empty
 datatypeOf t@(TyCon _ name) | Special _ _ <- name = Set.empty
-datatypeOf t@(TyCon _ name) | otherwise = Set.singleton $ consStr t
+datatypeOf t@(TyCon _ name) = Set.singleton $ consStr t
 datatypeOf (TyParen _ typ) = datatypeOf typ
 datatypeOf (TyInfix _ typ1 _ typ2) = datatypeOf typ1 `Set.union` datatypeOf typ2
 datatypeOf (TyKind _ typ _) = datatypeOf typ
@@ -115,7 +115,7 @@ matchDtWithCons (decl:decls) = case decl of
         [] -> decl : matchDtWithCons decls
         decl':decls' | EDecl (TypeSig _ names typ) <- decl' -> if nameStr (head names) == declHeadName hd
                                                                    then let conDecl = QualConDecl a Nothing c (ConDecl a (head names) [typ])
-                                                                        in (EDecl (DataDecl a b c hd (conDecl:conDecls) d)): matchDtWithCons decls'
+                                                                        in EDecl (DataDecl a b c hd (conDecl:conDecls) d) : matchDtWithCons decls'
                                                                    else decl : matchDtWithCons decls
                      | otherwise -> decl : matchDtWithCons decls
     _ -> decl : matchDtWithCons decls
@@ -138,10 +138,7 @@ toSynquidSchema (TyForall _ _ (Just ctx) typ) = do -- if this type has some cont
     case mbTyps of
         Nothing -> return Nothing
         Just [] -> return Nothing
-        Just (typ:_)  -> do
-            return (Just (Monotype typ))
-            -- classQuals <- resolveContext ctx
-            -- return $ Just $ foldr ForallT (Monotype typ') classQuals
+        Just (typ:_)  -> return (Just (Monotype typ))
 toSynquidSchema typ = do
     mbTyps <- toSynquidSkeleton typ
     case mbTyps of
@@ -158,41 +155,40 @@ toSynquidSkeleton (TyFun _ arg ret) = do
     ret' <- toSynquidSkeleton ret
     arg' <- toSynquidSkeleton arg
     case (arg', ret') of
-        (Just (a:_), Just (r:_)) -> return $ Just $ [FunctionT ("arg"++show counter) a r]
+        (Just (a:_), Just (r:_)) -> return $ Just [FunctionT ("arg"++show counter) a r]
         _ -> return Nothing
-
 toSynquidSkeleton (TyParen _ typ) = toSynquidSkeleton typ
 toSynquidSkeleton (TyKind _ typ _) = toSynquidSkeleton typ
 toSynquidSkeleton t@(TyCon _ name) = case name of
-    Qual _ moduleName consName -> return $ Just [ScalarT (DatatypeT ((moduleNameStr moduleName) ++ "." ++ (nameStr consName)) [] []) ()]
+    Qual _ moduleName consName -> return $ Just [ScalarT (DatatypeT (moduleNameStr moduleName ++ "." ++ nameStr consName) [] []) ()]
     UnQual _ name -> return $ Just [ScalarT (DatatypeT (nameStr name) [] []) ()]
     Special _ name -> return $ Just [ScalarT (DatatypeT (specialConsStr name) [] []) ()]
 toSynquidSkeleton (TyApp _ fun arg)
-    | (TyCon _ name) <- fun = do
-        mbdt <- toSynquidSkeleton fun
-        let toTys ((ScalarT (DatatypeT id tys _) _):_) = (id, tys)
-        let idTys = toTys <$> mbdt
-        args <- toSynquidSkeleton arg
-        return $ liftA2 (\(id,t) a -> [ScalarT (DatatypeT id (t ++ a) []) ()]) idTys args
-    | (TyApp _ fun' arg') <- fun = do
-        mbdt <- toSynquidSkeleton fun
-        let toTys ((ScalarT (DatatypeT id tys _) _):_) = (id, tys)
-        let idTys = toTys <$> mbdt
-        args <- toSynquidSkeleton arg
-        return $ liftA2 (\ (id,t) a -> [ScalarT (DatatypeT id (t ++ a) []) ()]) idTys args
+    | (TyCon _ name) <- fun = constructTyp
+    | (TyApp _ fun' arg') <- fun = constructTyp
     | (TyVar _ _) <- fun = return Nothing -- this is a higher kinded type variable, do not support now
     | otherwise = do
         funs <- toSynquidSkeleton fun
         args <- toSynquidSkeleton arg
         return $ liftA2 (++) funs args
+  where
+    constructTyp = do
+        mbdt <- toSynquidSkeleton fun
+        let toTys (ScalarT (DatatypeT id tys _) _:_) = (id, tys)
+        let idTys = toTys <$> mbdt
+        args <- toSynquidSkeleton arg
+        return $ liftA2 (\(id,t) a -> [ScalarT (DatatypeT id (t ++ a) []) ()]) idTys args
 toSynquidSkeleton (TyVar _ name) = return $ Just [ScalarT (TypeVarT Map.empty $ nameStr name) ()]
 toSynquidSkeleton (TyList _ typ) = do
     typ' <- toSynquidSkeleton typ
-    return $ (\ty -> [ScalarT (DatatypeT ("List") ty []) ()]) <$> typ'
-toSynquidSkeleton (TyTuple _ _ (f:s:_)) = do
-    fst <- toSynquidSkeleton f
-    snd <- toSynquidSkeleton s
-    return $ liftA2 (\f s -> [ScalarT (DatatypeT ("Pair") (f ++ s) []) ()]) fst snd
+    return $ (\ty -> [ScalarT (DatatypeT "List" ty []) ()]) <$> typ'
+toSynquidSkeleton (TyTuple _ _ (f:s:ts)) = do
+    Just fst <- toSynquidSkeleton f
+    Just snd <- toSynquidSkeleton s
+    pts <- mapM toSynquidSkeleton ts
+    let base = ScalarT (DatatypeT "Pair" (fst ++ snd) []) ()
+    let res = foldl' (\a (Just t) -> ScalarT (DatatypeT "Pair" (a:t) []) ()) base pts
+    return $ Just [res]
 toSynquidSkeleton t = do
     liftIO $ print $ "[toSynquidSkeleton] unhandled case, ignoring: " ++ show t
     return Nothing -- error $ "Unhandled case " ++ show t
@@ -239,13 +235,13 @@ processConDecls (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
         ConDecl _ name typs -> do
             typ <- toSynquidRType $ head typs
             if hasAny typ then processConDecls decls
-                          else (:) (TP.ConstructorSig (nameStr name) typ) <$> (processConDecls decls)
+                          else (:) (TP.ConstructorSig (nameStr name) typ) <$> processConDecls decls
         InfixConDecl _ typl name typr -> do
             typl' <- toSynquidRType typl
             typr' <- toSynquidRType typr
             if hasAny typl' || hasAny typr'
                 then processConDecls decls
-                else (:) (TP.ConstructorSig (nameStr name) (FunctionT "arg0" typl' typr')) <$> (processConDecls decls)
+                else (:) (TP.ConstructorSig (nameStr name) (FunctionT "arg0" typl' typr')) <$> processConDecls decls
         RecDecl _ name fields -> error "record declaration is not supported"
 
 datatypeOfCon :: [QualConDecl ()] -> Set Id
@@ -271,23 +267,23 @@ toSynquidDecl (EDecl (TypeSig _ names typ)) = do
     maybeSch <- toSynquidSchema typ
     case maybeSch of
         Nothing  -> return $ Pos (initialPos "") $ TP.QualifierDecl [] -- a fake conversion
-        Just sch -> return $ Pos (initialPos (nameStr $ names !! 0)) $ TP.FuncDecl (nameStr $ head names) (toSynquidRSchema sch)
+        Just sch -> return $ Pos (initialPos (nameStr $ head names)) $ TP.FuncDecl (nameStr $ head names) (toSynquidRSchema sch)
 toSynquidDecl decl = return $ Pos (initialPos "") $ TP.QualifierDecl [] -- [TODO] a fake conversion
 
 
 reorderDecls :: [Declaration] -> [Declaration]
-reorderDecls decls = Sort.sortOn toInt decls
+reorderDecls = Sort.sortOn toInt
   where
     toInt (Pos _ (TP.TypeDecl "String" _ _)) = 1
     toInt (Pos _ (TP.TypeDecl _ [] _)) = 2
-    toInt (Pos _ (TP.TypeDecl _ _ _)) = 3
+    toInt (Pos _ TP.TypeDecl {}) = 3
     toInt (Pos _ (TP.DataDecl "List" _ _ _)) = 0
     toInt (Pos _ (TP.DataDecl "Char" _ _ _)) = 0
     toInt (Pos _ (TP.DataDecl _ [] _ _)) = 2
-    toInt (Pos _ (TP.DataDecl _ _ _ _)) = 3
-    toInt (Pos _ (TP.QualifierDecl {})) = 98
-    toInt (Pos _ (TP.FuncDecl {})) = 99
-    toInt (Pos _ (TP.SynthesisGoal {})) = 100
+    toInt (Pos _ TP.DataDecl {}) = 3
+    toInt (Pos _ TP.QualifierDecl {}) = 98
+    toInt (Pos _ TP.FuncDecl {}) = 99
+    toInt (Pos _ TP.SynthesisGoal {}) = 100
 
 renameSigs :: String -> [Entry] -> Map Id [Entry]
 renameSigs _ [] = Map.empty
@@ -299,7 +295,7 @@ renameSigs currModule (decl:decls) = case decl of
 
 readDeclarations :: PkgName -> Maybe Version -> IO (Map Id [Entry])
 readDeclarations pkg version = do
-    vpkg <- do
+    vpkg <-
         case version of
             Nothing -> return pkg
             Just v -> ifM (checkVersion pkg v) (return $ pkg ++ "-" ++ v) (return pkg)
@@ -327,8 +323,8 @@ packageDependencies pkg toDownload = do
             foldrM (\fname existDps ->
                 ifM (if toDownload
                         then do
-                          gotFile <- isJust <$> (downloadFile fname Nothing)
-                          gotCabal <- isJust <$> (downloadCabal fname Nothing)
+                          gotFile <- isJust <$> downloadFile fname Nothing
+                          gotCabal <- isJust <$> downloadCabal fname Nothing
                           return (gotFile && gotCabal)
                         else doesFileExist $ downloadDir ++ fname ++ ".txt")
                     (return $ fname:existDps)
@@ -336,83 +332,66 @@ packageDependencies pkg toDownload = do
   where
     dependentPkg (Dependency name _) = unPackageName name
 
+declMap :: [Entry] -> Map Id Entry
+declMap decls = foldr (\d -> Map.insert (getDeclName d) d) Map.empty $ filter isDataDecl decls
+
+dependsOn :: Entry -> (Id, Set Id)
+dependsOn decl = case decl of
+    EDecl (DataDecl _ _ _ head conDecls _) -> (declHeadName head, datatypeOfCon conDecls)
+    EDecl (TypeDecl _ head ty) -> (declHeadName head, datatypeOf ty)
+    _ -> error "[In `dependsOn`] Please filter before calling this function"
+
+dependencyGraph :: [Entry] -> Map Id (Set Id)
+dependencyGraph = foldr (uncurry Map.insert . dependsOn) Map.empty . filter isDataDecl 
+
+nodesOf :: Map Id (Set Id) -> [Id]
+nodesOf graph = nub $ Map.keys graph ++ Set.toList (Set.unions $ Map.elems graph)
+
+topoSort :: Map Id (Set Id) -> [Id]
+topoSort graph = reverse $ topoSortHelper (nodesOf graph) Set.empty graph
+  where
+    topoSortHelper [] _ graph = []
+    topoSortHelper (v:vs) visited graph = if Set.member v visited
+        then topoSortHelper vs visited graph
+        else topoSortHelper vs (Set.insert v visited) graph ++ 
+                v:topoSortHelper (Set.toList (Map.findWithDefault Set.empty v graph)) visited graph
+
+dependencyClosure :: [Id] -> [Id] -> [(Id, Entry)] -> [Entry]
+dependencyClosure definedDts allDts theirDts = let
+    undefinedDts = allDts >.> definedDts
+    in if not (null undefinedDts)
+        then let
+            foreignDts = filter ((`elem` undefinedDts) . fst) theirDts
+            newDecls = nub $ map snd foreignDts
+            newAddedDts = Set.toList $ Set.unions $ map getDeclTy newDecls
+            in newDecls ++ dependencyClosure allDts newAddedDts theirDts
+        else []
+
 -- entryDependencies will look for the missing type declarations in `ourEntries`
 -- by first checking `allEntries`, then looking at `dpDecls`
 entryDependencies :: Map Id [Entry] -> [Entry] -> [Entry] -> [Entry]
 entryDependencies allEntries ourEntries dpDecls = let
     myDtDefs = (dtDefsIn . concat . Map.elems) allEntries
     closedDecls = dependencyClosure myDefinedDts myDts (theirDts ++ myDtDefs)
-    allDecls = closedDecls -- ++ (snd $ unzip myDtDefs)
+    allDecls = closedDecls
     sortedIds = topoSort $ dependencyGraph allDecls
     in
-    matchDtWithCons $ map (\id -> case Map.lookup id $ declMap allDecls of
-                                             Nothing -> error $ "cannot find " ++ id
-                                             Just v -> v) $ nub $ sortedIds >.> ["List", "Pair"]
+    matchDtWithCons $ map (\id -> fromMaybe (error $ "cannot find " ++ id) (Map.lookup id $ declMap allDecls))
+                    $ nub $ sortedIds >.> ["List", "Pair"]
   where
     myDts = dtNamesIn ourEntries
     myDefinedDts = definedDtsIn ourEntries
-    theirDts = dtDefsIn dpDecls
-    dependencyClosure definedDts allDts theirDts = let
-        undefinedDts = allDts >.> definedDts
-        in if length undefinedDts /= 0
-            then let
-                foreignDts = filter ((flip elem undefinedDts) . fst) theirDts
-                newDecls = nub $ snd $ unzip foreignDts
-                newAddedDts = Set.toList $ Set.unions $ map getDeclTy newDecls
-                in newDecls ++ dependencyClosure allDts newAddedDts theirDts
-            else []
-    declMap decls = foldr (\d -> Map.insert (getDeclName d) d) Map.empty $ filter isDataDecl decls
-    dependsOn decl = case decl of
-        EDecl (DataDecl _ _ _ head conDecls _) -> (declHeadName head, datatypeOfCon conDecls)
-        EDecl (TypeDecl _ head ty) -> (declHeadName head, datatypeOf ty)
-        _ -> error "[In `dependsOn`] Please filter before calling this function"
-    dependencyGraph decls = foldr (uncurry Map.insert) Map.empty $ map dependsOn $ filter isDataDecl decls
-    nodesOf graph = nub $ (Map.keys graph) ++ (Set.toList $ Set.unions $ Map.elems graph)
-    topoSort graph = reverse $ topoSortHelper (nodesOf graph) Set.empty graph
-    topoSortHelper [] _ graph = []
-    topoSortHelper (v:vs) visited graph = if Set.member v visited
-        then topoSortHelper vs visited graph
-        else topoSortHelper vs (Set.insert v visited) graph ++ v:(topoSortHelper (Set.toList (Map.findWithDefault Set.empty v graph)) visited graph)
+    theirDts = dtDefsIn dpDecls    
 
 declDependencies :: Id -> [Entry] -> [Entry] -> IO [Entry]
 declDependencies pkgName decls dpDecls = do
-    myDtDefs <- dtDefsIn . concat . Map.elems <$> readDeclarations pkgName Nothing
-    let closedDecls = dependencyClosure myDefinedDts myDts (theirDts ++ myDtDefs)
-    let allDecls = closedDecls -- ++ (snd $ unzip myDtDefs)
-    let sortedIds = topoSort $ dependencyGraph allDecls
-    return $ matchDtWithCons $ map (\id -> case Map.lookup id $ declMap allDecls of
-                                             Nothing -> error $ "cannot find " ++ id
-                                             Just v -> v) $ nub $ sortedIds >.> ["List", "Pair"]
-  where
-    myDts = dtNamesIn decls
-    myDefinedDts = definedDtsIn decls
-    theirDts = dtDefsIn dpDecls
-    dependencyClosure definedDts allDts theirDts = let
-        undefinedDts = allDts >.> definedDts
-        in if length undefinedDts /= 0
-            then let
-                foreignDts = filter ((flip elem undefinedDts) . fst) theirDts
-                newDecls = nub $ snd $ unzip foreignDts
-                newAddedDts = Set.toList $ Set.unions $ map getDeclTy newDecls
-                in newDecls ++ dependencyClosure allDts newAddedDts theirDts
-            else []
-    declMap decls = foldr (\d -> Map.insert (getDeclName d) d) Map.empty $ filter isDataDecl decls
-    dependsOn decl = case decl of
-        EDecl (DataDecl _ _ _ head conDecls _) -> (declHeadName head, datatypeOfCon conDecls)
-        EDecl (TypeDecl _ head ty) -> (declHeadName head, datatypeOf ty)
-        _ -> error "[In `dependsOn`] Please filter before calling this function"
-    dependencyGraph decls = foldr (uncurry Map.insert) Map.empty $ map dependsOn $ filter isDataDecl decls
-    nodesOf graph = nub $ (Map.keys graph) ++ (Set.toList $ Set.unions $ Map.elems graph)
-    topoSort graph = reverse $ topoSortHelper (nodesOf graph) Set.empty graph
-    topoSortHelper [] _ graph = []
-    topoSortHelper (v:vs) visited graph = if Set.member v visited
-        then topoSortHelper vs visited graph
-        else topoSortHelper vs (Set.insert v visited) graph ++ v:(topoSortHelper (Set.toList (Map.findWithDefault Set.empty v graph)) visited graph)
+    entries <- readDeclarations pkgName Nothing
+    return $ entryDependencies entries decls dpDecls  
 
 isDataDecl :: Entry -> Bool
 isDataDecl decl = case decl of
-    EDecl (DataDecl {}) -> True
-    EDecl (TypeDecl {}) -> True
+    EDecl DataDecl {} -> True
+    EDecl TypeDecl {} -> True
     _ -> False
 
 isModule :: Entry -> Bool

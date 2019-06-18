@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE DeriveGeneric  #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 module PetriNet.AbstractType where
@@ -31,7 +29,7 @@ isBot ABottom = True
 isBot _ = False
 
 isAFunctionT :: AbstractSkeleton -> Bool
-isAFunctionT (AFunctionT {}) = True
+isAFunctionT AFunctionT {} = True
 isAFunctionT _ = False
 
 isAHigherOrder :: AbstractSkeleton -> Bool
@@ -49,7 +47,7 @@ absFunArgs _ t = []
 
 decompose :: AbstractSkeleton -> [AbstractSkeleton]
 decompose (AFunctionT tArg tRet) = decompose tArg ++ decompose tRet
-decompose t@(AScalar {}) = [t]
+decompose t@AScalar {} = [t]
 
 decomposeHo :: AbstractSkeleton -> [AbstractSkeleton]
 decomposeHo (AFunctionT tArg tRet) = tArg : decomposeHo tRet
@@ -83,7 +81,7 @@ checkUnification bound tass t@(AScalar (ATypeVarT id)) t'@(AScalar (ATypeVarT id
   | id `elem` bound && id' `notElem` bound = checkUnification bound tass t' t
   | id `notElem` bound = Just (Map.insert id t' tass)
 checkUnification bound tass (AScalar (ATypeVarT id)) t | id `elem` bound = Nothing
-checkUnification bound tass t@(AScalar (ADatatypeT {})) t'@(AScalar (ATypeVarT id)) = checkUnification bound tass t' t
+checkUnification bound tass t@(AScalar ADatatypeT {}) t'@(AScalar (ATypeVarT id)) = checkUnification bound tass t' t
 checkUnification bound tass (AScalar (ATypeVarT id)) t = Just (Map.insert id t tass)
 checkUnification bound tass (AScalar (ADatatypeT id tArgs)) (AScalar (ADatatypeT id' tArgs')) | id /= id' = Nothing
 checkUnification bound tass (AScalar (ADatatypeT id tArgs)) (AScalar (ADatatypeT id' tArgs')) | id == id' = checkArgs tass tArgs tArgs'
@@ -105,7 +103,7 @@ typeConstraints bound t1 t2 = do
     return [(t1, t2')]
 
 getUnifier :: [Id] -> [UnifConstraint] -> Maybe (Map Id AbstractSkeleton)
-getUnifier bound cs = getUnifier' bound (Just Map.empty) cs
+getUnifier bound = getUnifier' bound (Just Map.empty)
 
 getUnifier' :: [Id] -> Maybe (Map Id AbstractSkeleton) -> [UnifConstraint] -> Maybe (Map Id AbstractSkeleton)
 getUnifier' _ Nothing _ = Nothing
@@ -124,7 +122,7 @@ abstractSubstitute tass typ =
 
 abstractSubstitute' :: Id -> AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
 abstractSubstitute' id typ (AScalar (ATypeVarT id')) | id == id' = typ
-abstractSubstitute' id typ t@(AScalar (ATypeVarT {})) = t
+abstractSubstitute' id typ t@(AScalar ATypeVarT {}) = t
 abstractSubstitute' id typ (AScalar (ADatatypeT id' args)) = AScalar (ADatatypeT id' (map (abstractSubstitute' id typ) args))
 abstractSubstitute' id typ (AFunctionT tArg tRes) = AFunctionT tArg' tRes'
   where
@@ -146,7 +144,7 @@ equalSplit :: [Id] -> SplitMsg -> SplitMsg -> Bool
 equalSplit tvs s1 s2 = fst s1 == fst s2 && equalAbstract tvs (snd s1) (snd s2)
 
 existAbstract :: [Id] -> Set AbstractSkeleton -> AbstractSkeleton -> Bool
-existAbstract tvs cover t = or $ map (equalAbstract tvs t) (Set.toList cover)
+existAbstract tvs cover t = any (equalAbstract tvs t) (Set.toList cover)
 
 abstractIntersect :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Maybe AbstractSkeleton
 abstractIntersect bound t1 t2 = 
@@ -179,7 +177,7 @@ applySemantic :: MonadIO m => [Id] -> AbstractSkeleton -> [AbstractSkeleton] -> 
 applySemantic tvs fun args = do
     let cargs = init (decompose fun)
     let ret = last (decompose fun)
-    constraints <- mapM (uncurry $ typeConstraints tvs) (zip cargs args)
+    constraints <- zipWithM (typeConstraints tvs) cargs args
     let unifier = getUnifier tvs (concat constraints)
     case unifier of
         Nothing -> return ABottom
@@ -189,5 +187,6 @@ applySemantic tvs fun args = do
             currentAbst tvs cover substRes
 
 compareAbstract :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Ordering
-compareAbstract tvs t1 t2 = if isSubtypeOf tvs t1 t2 && isSubtypeOf tvs t2 t1 then EQ
-                            else if isSubtypeOf tvs t1 t2 then LT else GT
+compareAbstract tvs t1 t2 | isSubtypeOf tvs t1 t2 && isSubtypeOf tvs t2 t1 = EQ
+                          | isSubtypeOf tvs t1 t2 = LT
+                          | otherwise = GT

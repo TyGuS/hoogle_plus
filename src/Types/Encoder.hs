@@ -59,7 +59,8 @@ data EncodeState = EncodeState {
   returnTyps :: [Id],
   persistConstraints :: [Z3.AST],
   optionalConstraints :: [Z3.AST],
-  finalConstraints :: [Z3.AST]
+  finalConstraints :: [Z3.AST],
+  blockConstraints :: [Z3.AST]
 }
 
 newEnv :: Maybe Logic -> Opts -> IO Z3Env

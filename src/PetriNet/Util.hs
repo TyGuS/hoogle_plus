@@ -31,32 +31,32 @@ import Control.Concurrent.Chan
 -------------------------------------------------------------------------------
 writeLog :: MonadIO m => Int -> String -> Doc -> PNSolver m ()
 writeLog level tag msg = do
-    mesgChan <- view messageChan <$> get
+    mesgChan <- gets $ view messageChan
     liftIO $ writeChan mesgChan (MesgLog level tag $ show $ plain msg)
 
 multiPermutation len elmts | len == 0 = [[]]
 multiPermutation len elmts | len == 1 = [[e] | e <- elmts]
-multiPermutation len elmts            = nubOrd $ [ l:r | l <- elmts, r <- multiPermutation (len - 1) elmts]
+multiPermutation len elmts            = nubOrd [ l:r | l <- elmts, r <- multiPermutation (len - 1) elmts]
 
 
 replaceId a b = Text.unpack . Text.replace (Text.pack a) (Text.pack b) . Text.pack
 mkPairMatch (FunctionCode name _ params ret) = FunctionCode (replaceId "Pair" "Pair_match" name) [] ret params 
 
 var2any env t@(ScalarT (TypeVarT _ id) _) | isBound env id = t
-var2any env t@(ScalarT (TypeVarT _ id) _) | otherwise = AnyT
+var2any env t@(ScalarT (TypeVarT _ id) _) = AnyT
 var2any env (ScalarT (DatatypeT id args l) r) = ScalarT (DatatypeT id (map (var2any env) args) l) r
 var2any env (FunctionT x tArg tRet) = FunctionT x (var2any env tArg) (var2any env tRet)
 
 freshId :: MonadIO m => Id -> PNSolver m Id
 freshId prefix = do
-    indices <- flip (^.) nameCounter <$> get
+    indices <- gets (^. nameCounter)
     let idx = Map.findWithDefault 0 prefix indices
     modify (over nameCounter $ Map.insert prefix (idx+1))
     return $ prefix ++ show idx
 
 -- | Replace all bound type variables with fresh free variables
 freshType :: MonadIO m => RSchema -> PNSolver m RType
-freshType sch = freshType' Map.empty [] sch
+freshType = freshType' Map.empty []
   where
     freshType' subst constraints (ForallT a sch) = do
         a' <- freshId "A"
@@ -65,7 +65,7 @@ freshType sch = freshType' Map.empty [] sch
 
 freshAbstract :: MonadIO m => [Id] -> AbstractSkeleton -> PNSolver m AbstractSkeleton
 freshAbstract bound t = do
-    (_, t') <- freshAbstract' bound (Map.empty) t
+    (_, t') <- freshAbstract' bound Map.empty t
     return t'
   where
     freshAbstract' bound m t@(AScalar (ATypeVarT id)) | id `elem` bound = return (m, t)
@@ -76,7 +76,9 @@ freshAbstract bound t = do
         let t = AScalar (ATypeVarT v)
         return (Map.insert id t m, AScalar (ATypeVarT v))
     freshAbstract' bound m (AScalar (ADatatypeT id args)) = do
-        (m', args') <- foldM (\(accm, acct) t -> do (m', t') <- freshAbstract' bound accm t; return (m', acct++[t'])) (m,[]) args
+        (m', args') <- foldM (\(accm, acct) t -> do 
+            (m', t') <- freshAbstract' bound accm t
+            return (m', acct++[t'])) (m,[]) args
         return (m', AScalar (ADatatypeT id args'))
     freshAbstract' bound m (AFunctionT tArg tRes) = do
         (m', tArg') <- freshAbstract' bound m tArg

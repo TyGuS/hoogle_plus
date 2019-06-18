@@ -28,7 +28,6 @@ defaultArgs = Args {
   argsOutputFile=Nothing &= name "output" &= typFile,
   argsExperiment=defaultExperiment &= name "experiment"
   }
-  where
 
 main :: IO ()
 main = do
