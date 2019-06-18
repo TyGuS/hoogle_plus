@@ -21,7 +21,7 @@ import Synquid.Pretty as Pretty
 import Database.Util
 import qualified Database.Download as DD
 import qualified Database.Convert as DC
-import Types.Environment (Environment, symbols, _symbols, _included_modules)
+import Types.Environment (Environment, symbols, _symbols, _included_modules, _typClassInstances, _condTypClasses)
 import Types.Program (BareDeclaration(..), Declaration(..), ConstructorSig(..))
 import Types.Generate
 import Synquid.Resolver (resolveDecls)
@@ -64,18 +64,36 @@ generateEnv genOpts = do
     let allCompleteEntries = concat (Map.elems entriesByMdl)
     let allEntries = nubOrd allCompleteEntries
     ourDecls <- mapM (\entry -> evalStateT (DC.toSynquidDecl entry) 0) allEntries
+
+    -- Handling typeclasses
+    -- TODO: Why is this function filtering declarations? Will I have to re-run this code elsewhere?
+    let instanceDecls = filter (\entry -> DC.isInstance entry) allEntries
+    let instanceRules = map DC.getInstanceRule instanceDecls
+    let defTyclassInstaces = filter (\x -> not(DC.isCondTypeclass x)) instanceRules
+    let condTyclassInstances = filter (\x -> DC.isCondTypeclass x) instanceRules
+
+    let defTyclassTuples = map DC.getDefInstanceMapping defTyclassInstaces
+    let condTyclassTuples = map DC.getCondInstanceMapping condTyclassInstances
+
+    print defTyclassTuples
+    print condTyclassTuples
+
     let hooglePlusDecls = DC.reorderDecls $ nubOrd $ (ourDecls ++ dependencyEntries ++ defaultFuncs ++ defaultDts)
     case resolveDecls hooglePlusDecls moduleNames of
        Left errMessage -> error $ show errMessage
        Right env -> return env {
           _symbols = if useHO then env ^. symbols
                               else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols,
-         _included_modules = Set.fromList (moduleNames)
+         _included_modules = Set.fromList (moduleNames),
+         _typClassInstances = defTyclassTuples,
+         _condTypClasses = condTyclassTuples 
         }
 
    where
      filterEntries entries Nothing = entries
      filterEntries entries (Just mdls) = Map.filterWithKey (\m _-> m `elem` mdls) entries
+     isRight (Right _) = True
+     isRight _ = False
 
 -- filesToEntries reads each file into map of module -> declartions
 -- Filters for modules we care about. If none, use them all.

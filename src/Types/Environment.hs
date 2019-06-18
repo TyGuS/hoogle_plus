@@ -36,8 +36,10 @@ data Environment = Environment {
   _datatypes :: Map Id DatatypeDef,        -- ^ Datatype definitions
   _typeSynonyms :: Map Id ([Id], RType),   -- ^ Type synonym definitions
   _unresolvedConstants :: Map Id RSchema,  -- ^ Unresolved types of components (used for reporting specifications with macros)
-  _included_modules :: Set String          -- ^ The set of modules any solution would need to import
-} deriving(Generic)
+  _included_modules :: Set String,          -- ^ The set of modules any solution would need to import
+  _typClassInstances :: [(String, String)],
+  _condTypClasses :: [([(String, [Set String])], (String, String))]
+  } deriving(Generic)
 
 makeLenses ''Environment
 
@@ -60,5 +62,7 @@ emptyEnv = Environment {
   _datatypes = Map.empty,
   _typeSynonyms = Map.empty,
   _unresolvedConstants = Map.empty,
-  _included_modules = Set.empty
+  _included_modules = Set.empty,
+  _typClassInstances = [],
+  _condTypClasses = []
 }

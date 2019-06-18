@@ -139,9 +139,15 @@ toSynquidSchema (TyForall _ _ (Just ctx) typ) = do -- if this type has some cont
         Nothing -> return Nothing
         Just [] -> return Nothing
         Just (typ:_)  -> do
-            return (Just (Monotype typ))
-            -- classQuals <- resolveContext ctx
-            -- return $ Just $ foldr ForallT (Monotype typ') classQuals
+            -- TODO: why `typ:_` ?
+            classQuals <- resolveContext ctx
+            return $ Just $ (Monotype (foldr go (typ) classQuals))
+    where
+        go typClassArr acc = FunctionT "ATypeClassDict" (ScalarT (DatatypeT (toTCDictName typClassArr) [ScalarT (TypeVarT Map.empty (getTypeVar typClassArr)) ()] []) ()) acc
+        toTCDictName (_, [tyclassName]) = "__hplusTC__"++ tyclassName
+        toTCDictName _ = error "toTCDictName: Unhandled case"
+        getTypeVar (tyVar, _) = tyVar
+
 toSynquidSchema typ = do
     mbTyps <- toSynquidSkeleton typ
     case mbTyps of
@@ -272,8 +278,66 @@ toSynquidDecl (EDecl (TypeSig _ names typ)) = do
     case maybeSch of
         Nothing  -> return $ Pos (initialPos "") $ TP.QualifierDecl [] -- a fake conversion
         Just sch -> return $ Pos (initialPos (nameStr $ names !! 0)) $ TP.FuncDecl (nameStr $ head names) (toSynquidRSchema sch)
+toSynquidDecl (EDecl (ClassDecl _ _ head _ _)) = do
+    -- TODO: Is initialPos does not matter much, does it?
+    let name = "__hplusTC__"++ (declHeadName head)
+    let vars = declHeadVars head
+    return $ Pos (initialPos "") $ TP.DataDecl name vars [] []
 toSynquidDecl decl = return $ Pos (initialPos "") $ TP.QualifierDecl [] -- [TODO] a fake conversion
 
+isInstance :: Entry -> Bool
+isInstance (EDecl (InstDecl _ _ _ _)) = True
+isInstance _ = False
+
+instHeadName :: InstHead l -> [Char]
+instHeadName (IHCon _ name) = qnameStr name
+instHeadName (IHInfix _ bvar name) = qnameStr name
+instHeadName (IHParen _ head) = instHeadName head
+instHeadName (IHApp _ head _) = instHeadName head
+
+typeName :: Type l -> [Char]
+typeName (TyApp _ typeCon typeVar) = typeName typeCon
+typeName (TyCon _ name) = qnameStr name
+typeName (TyParen _ typ) = typeName typ
+typeName _ = error "typeName: case not handled"
+
+toInstanceTuple :: InstHead l -> (String, String)
+toInstanceTuple (IHApp _ typeclass typeVar) = 
+    let typeclassStr = instHeadName typeclass in
+    let typeVarStr = typeName typeVar in
+         (typeclassStr, typeVarStr)
+toInstanceTuple (IHParen _ head) = toInstanceTuple head
+toInstanceTuple _ = error "toInstanceTuple: case to be implemented"
+
+getInstanceConditions :: Asst l -> ([Char], [Set String])
+getInstanceConditions (ClassA _ declName typeArr) = (qnameStr declName, map allTypeVars typeArr)
+getInstanceConditions (ParenA _ asst) = getInstanceConditions asst
+getInstanceConditions _ = error "getInstanceConditions: unexpected case"
+
+-- TODO:
+-- 1. Its unclear if `Nothing` should be handled different from `CxEmpty`
+getDefInstanceMapping :: InstRule l -> (String, String)
+getDefInstanceMapping (IRule _ _ (Nothing) head) = toInstanceTuple head
+getDefInstanceMapping _ = error "getDefInstanceMapping: unexpected case"
+
+getCondInstanceMapping :: InstRule l -> ([([Char], [Set String])], (String, String))
+getCondInstanceMapping (IRule _ _ ctx head) =
+    case ctx of
+        Just (CxTuple _ tyclassConds) -> toCondInstanceTuple tyclassConds head 
+        Just (CxSingle _ tyclassCond) -> toCondInstanceTuple [tyclassCond] head
+        _ -> error "toTypeclassMapping: unexpected case in case analysis" 
+    where toCondInstanceTuple conditionsArr head = ((map (\condition-> getInstanceConditions condition) conditionsArr), toInstanceTuple head) 
+toTypeclassMapping _ = error "toTypeclassMapping: unexpected case"
+
+isCondTypeclass :: InstRule l -> Bool
+isCondTypeclass (IRule _ _ Nothing head) = False
+isCondTypeclass (IRule _ _ (Just (CxEmpty _)) head) = error "isCondTypeclass: unexpected case"
+isCondTypeclass _ = True
+
+getInstanceRule :: Entry -> InstRule ()
+getInstanceRule (EDecl (InstDecl x1 x2 (IParen _ instanceRule) x3)) = getInstanceRule (EDecl (InstDecl x1 x2 instanceRule x3))
+getInstanceRule (EDecl (InstDecl _ _ instanceRule@(IRule _ _ _ _) _)) = instanceRule 
+getInstanceRule _ =  error "getInstanceRule: unexpected case"
 
 reorderDecls :: [Declaration] -> [Declaration]
 reorderDecls decls = Sort.sortOn toInt decls
