@@ -1,1 +1,0 @@
-[data Char where,data Double where,type String = ([((Char))]),type FilePath = (String),data Float where,data Handle where,data IO a where,data Integer where,data ShortByteString where,data Word where,data Word16 where,data Word32 where,data Word64 where,data Word8 where]
