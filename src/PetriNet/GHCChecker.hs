@@ -10,7 +10,7 @@ import Types.Environment
 import Types.Program
 import Types.Type
 import Synquid.Type
-import Synquid.Util
+import Synquid.Util hiding (fromRight)
 import Synquid.Pretty as Pretty
 
 -- TODO: filter out unecessary imports
@@ -23,9 +23,11 @@ import CoreSyn
 import Outputable hiding (text, (<+>))
 import qualified CoreSyn as Syn
 import Control.Monad.Trans
+import Control.Exception
 import Var
 import IdInfo
 import Data.Typeable
+import Data.Either
 import Demand
 import Data.Data
 import FamInstEnv
@@ -38,8 +40,8 @@ import SimplCore (core2core)
 showGhc :: (Outputable a) => a -> String
 showGhc = showPpr unsafeGlobalDynFlags
 
-checkStrictness :: String -> [String] -> IO Bool
-checkStrictness lambdaExpr modules = GHC.runGhc (Just libdir) $ do
+checkStrictness' :: String -> [String] -> IO Bool
+checkStrictness' lambdaExpr modules = GHC.runGhc (Just libdir) $ do
     tmpDir <- liftIO $ getTmpDir
     -- TODO: can we use GHC to dynamically compile strings? I think not
     let toModuleImportStr = (printf "import qualified %s\n") :: String -> String
@@ -80,6 +82,9 @@ checkStrictness lambdaExpr modules = GHC.runGhc (Just libdir) $ do
 
     where getStrictnessSig x = showSDocUnsafe $ ppr $ strictnessInfo $ idInfo x
           isStrict x = not(isInfixOf "A" (getStrictnessSig x))
+
+checkStrictness :: String -> [String] -> IO Bool
+checkStrictness a b = handle (\(SomeException _) -> return False) (checkStrictness' a b)
 
 runGhcChecks :: Bool -> Environment -> RType -> UProgram -> IO Bool
 runGhcChecks disableDemand env goalType prog = let
