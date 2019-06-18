@@ -104,8 +104,8 @@ summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
       resTSolveFirstSoln = solverTime firstR,
       resLenFirstSoln = pathLength firstR,
       resRefinementSteps = iterations firstR,
-      resTransitions = [unsafeTransitions],
-      resTypes = [unsafeTypes]
+      resTransitions = unsafeTransitions,
+      resTypes = unsafeTypes
       }
 
   in ResultSummary {
