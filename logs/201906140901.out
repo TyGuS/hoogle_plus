@@ -1,0 +1,137 @@
+[data Char where,data Double where,type String = ([((Char))]),type FilePath = (String),data Float where,data Handle where,data IO a where,data Integer where,data ShortByteString where,data Word where,data Word16 where,data Word32 where,data Word64 where,data Word8 where]
+[data Char where,data Double where,type String = ([((Char))]),type FilePath = (String),data Float where,data Handle where,data IO a where,data Integer where,data ShortByteString where,data Word where,data Word16 where,data Word32 where,data Word64 where,data Word8 where]
+["void","Int64","ByteString","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64HexFixed arg0)
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Lazy.take arg0 Data.ByteString.Lazy.empty
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64LE arg0)
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64BE arg0)
+************************************************
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","Int","Double","Float","Int16","Builder","List _v1","Char","ByteString","Word16","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Lazy.take arg0 Data.ByteString.Lazy.empty
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64LE arg0)
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64Dec arg0)
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64HexFixed arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Lazy.take arg0 Data.ByteString.Lazy.empty
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64LE arg0)
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64Dec arg0)
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64BE arg0)
+************************************************
+["void","Int64","ByteString","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64HexFixed arg0)
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64LE arg0)
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64BE arg0)
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64Dec arg0)
+************************************************
+<<timeout>>
+["void","Int64","ByteString","_v"]
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Lazy.drop arg0 Data.ByteString.Lazy.empty
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Lazy.take arg0 Data.ByteString.Lazy.empty
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64LE arg0)
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64HexFixed arg0)
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64BE arg0)
+************************************************
+["void","Bool","List Maybe Bool","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+*******************SOLUTION*********************
+SOLUTION: GHC.List.elem arg0 []
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.Either.isLeft (Data.Either.Right arg0)
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.Either.isRight (Data.Either.Right arg0)
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.Either.isLeft (Data.Either.Left arg0)
+************************************************
+["void","Word","Word64","Bool","Integer","Word8","Maybe _v1","Int64","ShortByteString","Either _v1 _v2","Int8","Word32","Handle","Int32","Pair _v1 _v2","IO _v1","Unit","Int","Double","Float","Int16","Builder","List _v1","Char","ByteString","Word16","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+*******************SOLUTION*********************
+SOLUTION: GHC.List.elem Data.Maybe.Nothing arg0
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.Either.isLeft (Data.Either.Left arg0)
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.Either.isRight (Data.Either.Right arg0)
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.Either.isRight (Data.Either.Left arg0)
+************************************************
+["void","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.Either.isRight (Data.Either.Right arg0)
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.Either.isRight (Data.Either.Left arg0)
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.Either.isLeft (Data.Either.Right arg0)
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.Either.isLeft (Data.Either.Left arg0)
+************************************************
+["void","Bool","List Maybe Bool","_v"]
+*******************SOLUTION*********************
+SOLUTION: GHC.List.null arg0
+************************************************
+*******************SOLUTION*********************
+SOLUTION: Data.Maybe.isNothing (G

@@ -87,7 +87,10 @@ def plot(exps):
     for exp in exps:
         xs = [0] + sorted(exp['data'])
         ys = range(0, len(xs))
-        plt.plot(xs, ys, marker='.', label=exp['name'])
+        m = '.'
+        if exp['name'].find('TyGarQB'):
+            m = 'x'
+        plt.plot(xs, ys, marker=m, label=exp['name'])
     plt.gca().legend()
     plt.show()
 
