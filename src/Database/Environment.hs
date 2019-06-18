@@ -92,8 +92,6 @@ generateEnv genOpts = do
    where
      filterEntries entries Nothing = entries
      filterEntries entries (Just mdls) = Map.filterWithKey (\m _-> m `elem` mdls) entries
-     isRight (Right _) = True
-     isRight _ = False
 
 -- filesToEntries reads each file into map of module -> declartions
 -- Filters for modules we care about. If none, use them all.
