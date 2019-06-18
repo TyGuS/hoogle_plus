@@ -302,9 +302,9 @@ typeName _ = error "typeName: case not handled"
 
 toInstanceTuple :: InstHead l -> (String, String)
 toInstanceTuple (IHApp _ typeclass typeVar) = 
-    let typeclassStr = instHeadName typeclass in
-    let typeVarStr = typeName typeVar in
-         (typeclassStr, typeVarStr)
+    let typeclassStr = instHeadName typeclass
+        typeVarStr = typeName typeVar in
+            (typeclassStr, typeVarStr)
 toInstanceTuple (IHParen _ head) = toInstanceTuple head
 toInstanceTuple _ = error "toInstanceTuple: case to be implemented"
 
