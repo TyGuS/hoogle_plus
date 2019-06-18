@@ -1,8 +1,7 @@
 @package base
 @version 4.12.0.0
 
-module Data.Maybe
-data Maybe a
-listToMaybe :: [a] -> Maybe a
-fromMaybe :: a -> Maybe a -> a
-catMaybes :: [Maybe a] -> [a]
+module Data.List
+data List a
+(++) :: [a] -> [a] -> [a]
+length :: [a] -> Int

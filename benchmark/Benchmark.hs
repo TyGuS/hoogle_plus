@@ -28,7 +28,6 @@ defaultArgs = Args {
   argsOutputFile=Nothing &= name "output" &= typFile,
   argsExperiment=defaultExperiment &= name "experiment"
   }
-  where
 
 main :: IO ()
 main = do
@@ -37,9 +36,12 @@ main = do
     let setup = ExpSetup {expTimeout = argsTimeout args, expCourse = currentExperiment}
     (envs, params, exps) <- getSetup args
     resultSummaries <- runExperiments setup exps
+    {-
     let environmentStatsTable = outputSummary Table currentExperiment envs
     let resultTable = outputSummary Table currentExperiment resultSummaries
     outputResults (argsOutputFile args) (unlines [environmentStatsTable, resultTable])
+    -}
+    print resultSummaries 
 
 outputResults :: Maybe FilePath -> String -> IO ()
 outputResults Nothing res = putStrLn res
@@ -68,16 +70,29 @@ getSetup args = do
   let params =
         case currentExperiment of
           CompareInitialAbstractCovers -> [
-            (searchParams, expQueryRefinement),
-            (searchParamsHOF, expQueryRefinementHOF),
-            (searchParamsBaseline, expBaseline),
-            (searchParamsZeroStart, expZeroCoverStart)]
-          TrackTypesAndTransitions -> [(searchParams, expQueryRefinement)]
+            (searchParamsTyGarQ, expTyGarQ),
+            -- (searchParamsHOF, expQueryRefinementHOF),
+            (searchParamsSypetClone, expSypetClone),
+            (searchParamsTyGar0, expTyGar0),
+            (searchParamsTyGarQB, expTyGarQB),
+            (searchParamsTyGar0B, expTyGar0B),
+            (searchParamsNoGar, expNoGar)]
+          CompareFinalCovers -> [
+            (searchParamsNoGar, expNoGar),
+            (searchParamsNoGar0, expNoGar0),
+            (searchParamsNoGarTyGar0, expNoGarTyGar0),
+            (searchParamsNoGarTyGarQ, expNoGarTyGarQ),
+            (searchParamsNoGarTyGar0B, expNoGarTyGar0B),
+            (searchParamsNoGarTyGarQB, expNoGarTyGarQB)]
+          CompareThresholds -> 
+            map (\i -> (searchParamsTyGar0 {_stopRefine=True,_threshold=i}, "TyGar0B"++show i)) [1..10]
+            ++ map (\i -> (searchParamsTyGarQ {_stopRefine=True,_threshold=i}, "TyGarQB"++show i)) [1..10]
+          TrackTypesAndTransitions -> [(searchParamsTyGarQ, expTyGarQ)]
   let exps =
         case currentExperiment of
-          CompareInitialAbstractCovers -> let
+          TrackTypesAndTransitions -> mkExperiments envs queries params
+          _ -> let
             baseExps = mkExperiments envs queries params
             extraExps = mkExperiments [(tier2env, "Partial")] queries [(searchParamsHOF, expQueryRefinementHOF)]
-            in baseExps ++ extraExps
-          TrackTypesAndTransitions -> mkExperiments envs queries params
+            in baseExps -- ++ extraExps
   return (envs, params, exps)

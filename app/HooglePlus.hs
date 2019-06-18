@@ -72,15 +72,15 @@ releaseDate = fromGregorian 2019 3 10
 main = do
   res <- cmdArgsRun $ mode
   case res of
-    Synthesis file libs envPath appMax log_ sol_num path_search higher_order encoder refine remove_duplicates -> do
+    Synthesis file libs envPath appMax log_ solNum higher_order refine stopRefine threshold remove_duplicates -> do
       let searchParams = defaultSearchParams {
-        _eGuessDepth = appMax,
+        _maxApplicationDepth = appMax,
         _explorerLogLevel = log_,
-        _solutionCnt = sol_num,
-        _pathSearch = path_search,
+        _solutionCnt = solNum,
         _useHO = higher_order,
-        _encoderType = encoder,
         _refineStrategy = refine,
+        _stopRefine = stopRefine,
+        _threshold = threshold,
         _shouldRemoveDuplicates = remove_duplicates
         }
       let synquidParams = defaultSynquidParams {
@@ -125,10 +125,10 @@ data CommandLineArgs
         log_ :: Int,
         -- | Graph params
         sol_num :: Int,
-        path_search :: PathStrategy,
         higher_order :: Bool,
-        encoder :: EncoderType,
         use_refine :: RefineStrategy,
+        stop_refine :: Bool,
+        stop_threshold :: Int,
         remove_duplicates :: Bool
       }
       | Generate {
@@ -150,10 +150,10 @@ synt = Synthesis {
   app_max             = 6               &= help ("Maximum depth of an application term (default: 6)") &= groupname "Explorer parameters",
   log_                = 0               &= help ("Logger verboseness level (default: 0)") &= name "l",
   sol_num             = 1               &= help ("Number of solutions need to find (default: 1)") &= name "cnt",
-  path_search         = PetriNet     &= help ("Use path search algorithm to ensure the usage of provided parameters (default: PetriNet)") &= name "path",
   higher_order        = False           &= help ("Include higher order functions (default: False)"),
-  encoder             = Normal &= help ("Choose normal or refined arity encoder (default: Normal)"),
-  use_refine          = QueryRefinement    &= help ("Use abstract refinement or not (default: QueryRefinement)"),
+  use_refine          = TyGarQ          &= help ("Use abstract refinement or not (default: TyGarQ)"),
+  stop_refine         = False           &= help ("Stop refine the abstraction cover after some threshold (default: False)"),
+  stop_threshold      = 10              &= help ("Refinement stops when the number of places reaches the threshold, only when stop_refine is True"),
   remove_duplicates   = False &= help ("Remove duplicates while searching. Under development.")
   } &= auto &= help "Synthesize goals specified in the input file"
 

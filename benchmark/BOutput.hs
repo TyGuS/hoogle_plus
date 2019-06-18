@@ -52,11 +52,11 @@ toTable currentExperiment rsMap = let
 
 toLine :: ExperimentCourse -> String -> [ResultSummary] -> [Col String]
 toLine currentExperiment name rss = let
-  mbqr = findwhere expQueryRefinement rss
-  mbbaseline = findwhere expBaseline rss
+  mbqr = findwhere expTyGarQ rss
+  mbbaseline = findwhere expSypetClone rss
   mbqrhof = find (\x -> (paramName x == expQueryRefinementHOF) && (envName x == "Total")) rss
   mbPartialqrhof = find (\x -> (paramName x == expQueryRefinementHOF) && (envName x == "Partial"))  rss
-  mbzero = findwhere expZeroCoverStart rss
+  mbzero = findwhere expTyGar0 rss
   rest = case currentExperiment of
       CompareInitialAbstractCovers -> [
         (:[]) <$> (showFloat . resTFirstSoln) <$> result <$> mbqr,

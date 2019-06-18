@@ -16,7 +16,7 @@ import Synquid.Pretty
 import Synquid.Program
 import Synquid.Type
 import Synquid.Util
-import Types.Common
+import Types.Common hiding (varName)
 import Types.Generate
 import Types.Environment
 import Types.Program

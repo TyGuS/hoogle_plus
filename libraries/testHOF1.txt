@@ -41,10 +41,15 @@ data ByteString
 -- base
 module GHC.List
 and :: [Bool] -> Bool
+(||) :: Bool -> Bool -> Bool
+filter :: (a -> Bool) -> [a] -> [a]
+length :: [a] -> Int
 
 module Data.Tuple
 fst :: (a, b) -> a
 snd :: (a, b) -> b
 swap :: (a, b) -> (b, a)
 
-(||) :: Bool -> Bool -> Bool
+module Data.Either
+data Either a b
+either :: (a -> c) -> (b -> c) -> Either a b -> c
