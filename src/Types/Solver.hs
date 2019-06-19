@@ -66,7 +66,7 @@ emptySolverState = SolverState {
     _nameMapping = Map.empty,
     _instanceMapping = HashMap.empty,
     _toRemove = [],
-
+    _logLevel = 0,
     _messageChan = undefined
 }
 

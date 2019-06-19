@@ -1,4 +1,3 @@
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE FlexibleInstances, UndecidableInstances, FlexibleContexts #-}
 
 module Synquid.Pretty (
@@ -219,7 +218,7 @@ fmlDocAt n fml = condHlParens (n' <= n) (
     n' = power fml
     withSort s doc = doc -- <> text ":" <> pretty s
 
-instance Pretty Formula where pretty e = fmlDoc e
+instance Pretty Formula where pretty = fmlDoc
 
 instance Show Formula where
   show = show . plain . pretty
@@ -272,7 +271,7 @@ instance Show SType where
 
 -- | Pretty-printed refinement type
 prettyType :: RType -> Doc
-prettyType t = prettyTypeAt 0 t
+prettyType = prettyTypeAt 0
 
 -- | Binding power of a type
 typePower :: RType -> Int
@@ -374,7 +373,7 @@ prettyBindings env = commaSep (map pretty (Map.keys $ removeDomain (env ^. const
 -- prettyBindings env = empty
 
 instance Pretty Environment where
-  pretty env = prettyBindings env
+  pretty = prettyBindings
 
 prettySortConstraint :: SortConstraint -> Doc
 prettySortConstraint (SameSort sl sr) = pretty sl <+> text "=" <+> pretty sr
