@@ -47,14 +47,14 @@ updateEnvWithBoundTyVars (ForallT x ty) env = updateEnvWithBoundTyVars ty (addTy
 
 updateEnvWithSpecArgs :: RType -> Environment -> (Environment, RType)
 updateEnvWithSpecArgs ty@(ScalarT _ _) env = (env, ty)
-updateEnvWithSpecArgs (FunctionT x tArg tRes) env = updateEnvWithSpecArgs tRes $ unfoldAllVariables $ addVariable x tArg $ addArgument x tArg $ env
+updateEnvWithSpecArgs (FunctionT x tArg tRes) env = updateEnvWithSpecArgs tRes $ unfoldAllVariables $ addVariable x tArg $ addArgument x tArg env
 
 envToGoal :: Environment -> String -> IO Goal
 envToGoal env queryStr = do
   let transformedSig = "goal :: " ++ queryStr ++ "\ngoal = ??"
   let parseResult = flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" transformedSig
   case parseResult of
-    Left parseErr -> (putDoc $ pretty $ toErrorMessage parseErr) >> putDoc empty >> error "uh oh"
+    Left parseErr -> putDoc (pretty $ toErrorMessage parseErr) >> putDoc empty >> error "uh oh"
     Right (funcDecl:decl:_) -> case decl of
       Pos _ (SynthesisGoal id uprog) -> do
         let Pos _ (FuncDecl _ sch) = funcDecl
@@ -62,7 +62,7 @@ envToGoal env queryStr = do
         let spec = runExcept $ evalStateT (resolveSchema (gSpec goal)) (initResolverState { _environment = env })
         case spec of
           Right sp -> return $ goal { gEnvironment = env, gSpec = sp }
-          Left parseErr -> (putDoc $ pretty parseErr) >> putDoc empty >> exitFailure
+          Left parseErr -> putDoc (pretty parseErr) >> putDoc empty >> exitFailure
 
       _ -> error "parse a signature for a none goal declaration"
 
@@ -75,19 +75,22 @@ synthesize searchParams goal messageChan = do
   let useHO = _useHO searchParams
   let env = if useHO then env'
                       else env' { _symbols = Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env' ^. symbols }
-  let args = (Monotype destinationType):(Map.elems $ env ^. arguments)
+  let args = Monotype destinationType : Map.elems (env ^. arguments)
   -- start with all the datatypes defined in the components, first level abstraction
   let cnt = _solutionCnt searchParams
-  let maxLevel = _explorerLogLevel searchParams
   let rs = _refineStrategy searchParams
-  let maxDepth = _eGuessDepth searchParams
   let is = emptySolverState {
              _searchParams = searchParams
            , _abstractionTree = case rs of
-               NoRefine -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
-               AbstractRefinement -> emptySolverState ^. abstractionTree
-               Combination -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
-               QueryRefinement -> Abstraction.specificAbstractionFromTypes env (args)
+               SypetClone -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
+               TyGar0 -> emptySolverState ^. abstractionTree
+               TyGarQ -> Abstraction.specificAbstractionFromTypes env args
+               NoGar -> Abstraction.specificAbstractionFromTypes env args
+               NoGar0 -> emptySolverState ^. abstractionTree
+               NoGarTyGar0 -> emptySolverState ^. abstractionTree
+               NoGarTyGarQ -> Abstraction.specificAbstractionFromTypes env args
+               NoGarTyGar0B -> emptySolverState ^. abstractionTree
+               NoGarTyGarQB -> Abstraction.specificAbstractionFromTypes env args
            , _messageChan = messageChan
            }
   catch (evalStateT (runPNSolver env cnt destinationType) is)

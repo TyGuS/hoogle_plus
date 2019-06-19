@@ -3,14 +3,15 @@ module Types.Encoder where
 
 import Data.Maybe
 import Data.HashMap.Strict (HashMap)
+import Data.Map (Map)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Z3.Base as Z3
 import Z3.Monad hiding(Z3Env, newEnv)
 import Control.Monad.State
 import Data.Data
 import Data.Typeable
+import GHC.Generics
 
-import Types.PetriNet
 import Types.Common
 import Types.Abstract
 
@@ -19,6 +20,12 @@ data EncoderType = Normal | Arity
 
 data VarType = VarPlace | VarTransition | VarFlow | VarTimestamp
     deriving(Eq, Ord, Show)
+
+data FoldedFunction = FoldedFunction {
+  funId :: Int, -- for transition id
+  funPretokens :: [(Id, Int)], -- for construction of preconditions
+  funPostokens :: [(Id, Int)]  -- for construction of postconditions
+} deriving(Eq, Ord, Show)
 
 data Variable = Variable {
   varId :: Int,
@@ -36,21 +43,24 @@ data Z3Env = Z3Env {
 
 data EncodeState = EncodeState {
   z3env :: Z3Env,
+  counter :: Int,
   block :: Z3.AST,
-  petriNet :: PetriNet,
   loc :: Int,
-  abstractionLv :: Int,
   transitionNb :: Int,
   variableNb :: Int,
-  lv2range :: HashMap Int (Int, Int),
   place2variable :: HashMap (Id, Int) Variable, -- place name and timestamp
-  time2variable :: HashMap (Int, Int) Variable, -- timestamp and abstraction level
-  transition2id :: HashMap Int (HashMap Id Int), -- transition name and abstraction level
-  id2transition :: HashMap Int (Id, Int),
-  mustFirers :: [Id],
-  transitionChildren :: HashMap Id [Id],
-  transitionParents :: HashMap Id [Id],
-  prevChecked :: Bool
+  time2variable :: HashMap Int Variable, -- timestamp and abstraction level
+  transition2id :: HashMap Id Int, -- transition name and abstraction level
+  id2transition :: HashMap Int Id,
+  mustFirers :: HashMap Id [Id],
+  ty2tr :: HashMap Id [Id],
+  prevChecked :: Bool,
+  disabledTrans :: [Id],
+  returnTyps :: [Id],
+  persistConstraints :: [Z3.AST],
+  optionalConstraints :: [Z3.AST],
+  finalConstraints :: [Z3.AST],
+  blockConstraints :: [Z3.AST]
 }
 
 newEnv :: Maybe Logic -> Opts -> IO Z3Env
@@ -63,5 +73,13 @@ newEnv mbLogic opts =
     return $ Z3Env solver ctx opt
 
 initialZ3Env = newEnv Nothing stdOpts
+
+freshEnv :: Z3.Context -> IO Z3Env
+freshEnv ctx = 
+  Z3.withConfig $ \cfg -> do
+    setOpts cfg stdOpts
+    solver <- Z3.mkSolver ctx
+    opt <- Z3.mkOptimize ctx
+    return $ Z3Env solver ctx opt
 
 type Encoder = StateT EncodeState IO

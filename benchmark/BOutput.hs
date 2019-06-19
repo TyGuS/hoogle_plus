@@ -49,8 +49,6 @@ toTable currentExperiment rsMap = let
       CompareInitialAbstractCovers -> [
         "tS - QR", "tEnc - QR",
         "l", "r", "tr", "ty",
-        "tS - QRHOF", "tr - QRHOF",
-        "partial - tS - QRHOF", "partial - tr - QRHOF",
         "tS - B", "tr - B",
         "tS - Z", "tr - Z"
         ]
@@ -60,11 +58,9 @@ toTable currentExperiment rsMap = let
 
 toLine :: ExperimentCourse -> String -> [ResultSummary] -> [Col String]
 toLine currentExperiment name rss = let
-  mbqr = findwhere expQueryRefinement rss
-  mbbaseline = findwhere expBaseline rss
-  mbqrhof = find (\x -> (paramName x == expQueryRefinementHOF) && (envName x == "Total")) rss
-  mbPartialqrhof = find (\x -> (paramName x == expQueryRefinementHOF) && (envName x == "Partial"))  rss
-  mbzero = findwhere expZeroCoverStart rss
+  mbqr = findwhere expTyGarQ rss
+  mbbaseline = findwhere expSypetClone rss
+  mbzero = findwhere expTyGar0 rss
   rest = case currentExperiment of
       CompareInitialAbstractCovers -> [
         (:[]) <$> (showFloat . resTFirstSoln) <$> (head . results) <$> mbqr,
@@ -73,12 +69,6 @@ toLine currentExperiment name rss = let
         (:[]) <$> (show . resRefinementSteps) <$> (head . results) <$> mbqr,
         (:[]) <$> (show . resTransitions) <$> (head . results) <$> mbqr,
         (:[]) <$> (show . resTypes) <$> (head . results) <$> mbqr,
-
-        (:[]) <$> (showFloat . resTFirstSoln) <$> (head . results) <$> mbqrhof,
-        (:[]) <$> (show . resTransitions) <$> (head . results) <$> mbqrhof,
-
-        (:[]) <$> (showFloat . resTFirstSoln) <$> (head . results) <$> mbPartialqrhof,
-        (:[]) <$> (show . resTransitions) <$> (head . results) <$> mbPartialqrhof,
 
         (:[]) <$> (showFloat . resTFirstSoln) <$> (head . results) <$> mbbaseline,
         (:[]) <$> (show . resTransitions) <$> (head . results) <$> mbbaseline,
@@ -96,7 +86,7 @@ toLine currentExperiment name rss = let
         justifyText textWidth <$> either show show <$> resSolutionOrError <$> (head . results) <$> mbqr
         ]
       CompareSolutions -> let
-          mbQueryRefinementNoDmd = findwhere expQueryRefinementNoDemand rss
+          mbQueryRefinementNoDmd = findwhere expTyGarQNoDmd rss
           queryRefinementResults = (fromJust (results <$> mbqr)) :: [Result]
           queryRefinementResultsNoDmd = (fromJust (results <$> mbQueryRefinementNoDmd)) :: [Result]
           toSolution = (either show show . resSolutionOrError) :: Result -> String
@@ -126,9 +116,9 @@ toTabling CompareSolutions rsMap = let
 
 toRow :: ExperimentCourse -> (String, [ResultSummary]) -> [String]
 toRow currentExp (name, rss) = let
-  mbqr = findwhere expQueryRefinement rss
-  mbPartial = find (\x -> (paramName x == expQueryRefinement) && (envName x == "Partial"))  rss
-  mbPartialNoDmd = find (\x -> (paramName x == expQueryRefinementNoDemand) && (envName x == "Partial"))  rss
+  mbqr = findwhere expTyGarQ rss
+  mbPartial = find (\x -> (paramName x == expTyGarQ) && (envName x == "Partial"))  rss
+  mbPartialNoDmd = find (\x -> (paramName x == expTyGarQNoDmd) && (envName x == "Partial"))  rss
   rest = case currentExp of
     CompareSolutions -> let
         queryRefinementResults = (fromJust (results <$> mbPartial)) :: [Result]

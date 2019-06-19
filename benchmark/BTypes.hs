@@ -50,6 +50,7 @@ data Result = Result {
   resSolutionOrError :: Either EvaluationException String,
   resTFirstSoln :: Double,
   resTEncFirstSoln :: Double,
+  resTSolveFirstSoln :: Double,
   resLenFirstSoln :: Int,
   resRefinementSteps :: Int,
   resTransitions :: [Int],
@@ -57,7 +58,7 @@ data Result = Result {
   resDuplicateSymbols :: [(Int, Int, Int)]
   } deriving (Show)
 
-emptyResult = Result (Left NotImplementedException) 0 0 0 0 [] [] []
+emptyResult = Result (Left NotImplementedException) 0 0 0 0 0 [] [] []
 
 data EvaluationException =
   TimeoutException

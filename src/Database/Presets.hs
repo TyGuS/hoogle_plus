@@ -27,6 +27,7 @@ myModules = [
   "Data.Tuple",
   "GHC.Char",
   "Text.Show",
+  "GHC.List",
   -- ByteString
   "Data.ByteString.Lazy",
   "Data.ByteString.Builder"

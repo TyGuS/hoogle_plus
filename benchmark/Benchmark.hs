@@ -29,7 +29,6 @@ defaultArgs = Args {
   argsExperiment=defaultExperiment &= name "experiment",
   argsOutputFormat=Table &= name "format"
   }
-  where
 
 main :: IO ()
 main = do
@@ -70,21 +69,33 @@ getSetup args = do
   let currentExperiment = argsExperiment args
   let params =
         case currentExperiment of
-          CompareInitialAbstractCovers -> [
-            (searchParams, expQueryRefinement),
-            (searchParamsHOF, expQueryRefinementHOF),
-            (searchParamsBaseline, expBaseline),
-            (searchParamsZeroStart, expZeroCoverStart)]
-          TrackTypesAndTransitions -> [(searchParams, expQueryRefinement)]
           CompareSolutions -> let solnCount = 5 in
-              [ (searchParams{_solutionCnt=solnCount}, expQueryRefinement),
-                (searchParams{_disableDemand=True, _solutionCnt=solnCount}, expQueryRefinementNoDemand)]
+              [ (searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ),
+                (searchParamsTyGarQ{_disableDemand=True, _solutionCnt=solnCount}, expTyGarQNoDmd)]
+          CompareInitialAbstractCovers -> [
+            (searchParamsTyGarQ, expTyGarQ),
+            -- (searchParamsHOF, expQueryRefinementHOF),
+            (searchParamsSypetClone, expSypetClone),
+            (searchParamsTyGar0, expTyGar0),
+            (searchParamsTyGarQB, expTyGarQB),
+            (searchParamsTyGar0B, expTyGar0B),
+            (searchParamsNoGar, expNoGar)]
+          CompareFinalCovers -> [
+            (searchParamsNoGar, expNoGar),
+            (searchParamsNoGar0, expNoGar0),
+            (searchParamsNoGarTyGar0, expNoGarTyGar0),
+            (searchParamsNoGarTyGarQ, expNoGarTyGarQ),
+            (searchParamsNoGarTyGar0B, expNoGarTyGar0B),
+            (searchParamsNoGarTyGarQB, expNoGarTyGarQB)]
+          CompareThresholds -> 
+            map (\i -> (searchParamsTyGar0 {_stopRefine=True,_threshold=i}, "TyGar0B"++show i)) [1..10]
+            ++ map (\i -> (searchParamsTyGarQ {_stopRefine=True,_threshold=i}, "TyGarQB"++show i)) [1..10]
+          TrackTypesAndTransitions -> [(searchParamsTyGarQ, expTyGarQ)]
   let exps =
         case currentExperiment of
-          CompareInitialAbstractCovers -> let
-            baseExps = mkExperiments envs queries params
-            extraExps = mkExperiments [(tier2env, "Partial")] queries [(searchParamsHOF, expQueryRefinementHOF)]
-            in baseExps ++ extraExps
           TrackTypesAndTransitions -> mkExperiments envs queries params
           CompareSolutions -> mkExperiments envs queries params
+          _ -> let
+            baseExps = mkExperiments envs queries params
+            in baseExps -- ++ extraExps
   return (envs, params, exps)
