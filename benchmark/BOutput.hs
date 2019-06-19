@@ -16,8 +16,6 @@ import Data.Maybe
 import Text.Layout.Table
 import Control.Exception
 
-import System.IO.Unsafe
-
 textWidth = 50
 
 toGroup :: [ResultSummary] -> Map String [ResultSummary]
@@ -38,7 +36,7 @@ toTabling exp rsMap = let
 
 toAsciiTable :: [(String, [String])] -> String
 toAsciiTable table = let
-  columnStyles = foldr ((:) . addColumnStyle . fst) [] (unsafePerformIO $ ((putStrLn $ show table) >> return table))
+  columnStyles = foldr ((:) . addColumnStyle . fst) [] table
   addColumnStyle _ = column expand center noAlign (singleCutMark "...")
   headers = map fst table
   tableData = transpose $ map snd table
