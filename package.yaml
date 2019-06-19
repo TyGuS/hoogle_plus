@@ -42,6 +42,7 @@ dependencies:
 - parsec
 - pqueue
 - pretty-simple
+- pretty-tree
 - process
 - regex-compat
 - resourcet
@@ -57,6 +58,7 @@ dependencies:
 - vector
 - ghc
 - ghc-paths
+- split
 
 library:
   source-dirs:
@@ -101,3 +103,14 @@ executables:
       - HooglePlus
       - parallel-io
       - table-layout
+
+tests:
+  spec:
+    main: Spec.hs
+    source-dirs:
+      - test
+    dependencies:
+      - HooglePlus
+      - hspec
+      - hspec-discover
+    build-tools: hspec-discover

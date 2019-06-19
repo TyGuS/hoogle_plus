@@ -7,10 +7,20 @@ import BTypes
 
 
 defaultTimeout = 2 * 60 :: Int
-defaultQueryFile = "benchmark/suites/test.json"
+defaultQueryFile = "benchmark/suites/allQueries.json"
 defaultExperiment = TrackTypesAndTransitions
 
-searchParams = defaultSearchParams
+searchParamsTyGarQ = defaultSearchParams
 searchParamsHOF = defaultSearchParams{_useHO=True}
-searchParamsBaseline = defaultSearchParams{_useRefine=NoRefine}
-searchParamsZeroStart = defaultSearchParams{_useRefine=AbstractRefinement}
+searchParamsSypetClone = defaultSearchParams{_refineStrategy=SypetClone}
+searchParamsTyGar0 = defaultSearchParams{_refineStrategy=TyGar0}
+searchParamsTyGarQB = defaultSearchParams{_stopRefine=True,_threshold=5}
+searchParamsTyGar0B = searchParamsTyGarQB{_refineStrategy=TyGar0}
+searchParamsNoGar = defaultSearchParams{_refineStrategy=NoGar}
+searchParamsNoGar0 = defaultSearchParams{_refineStrategy=NoGar0}
+searchParamsNoGarTyGar0 = defaultSearchParams{_refineStrategy=NoGarTyGar0}
+searchParamsNoGarTyGarQ = defaultSearchParams{_refineStrategy=NoGarTyGarQ}
+searchParamsNoGarTyGar0B = defaultSearchParams{_refineStrategy=NoGarTyGar0B}
+searchParamsNoGarTyGarQB = defaultSearchParams{_refineStrategy=NoGarTyGarQB}
+searchParamsILP = defaultSearchParams
+searchParamsTyGars = map (\t -> searchParamsTyGar0{_stopRefine=True,_threshold=t}) [0..10]

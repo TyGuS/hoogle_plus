@@ -218,10 +218,11 @@ parseFunctionTypeMb = do
 
 parseTypeAtom :: Parser RType
 parseTypeAtom = choice [
-  parens parseType,
+  try $ parens parseType,
   parseScalarRefType,
   parseUnrefTypeNoArgs,
-  parseListType
+  parseListType,
+  parsePairType
   ]
 
 parseUnrefTypeNoArgs = do
@@ -253,6 +254,13 @@ parseScalarRefType = braces $ do
 parseListType = do
   elemType <- brackets parseType
   return $ ScalarT (DatatypeT "List" [elemType] []) ftrue
+
+parsePairType = do
+  elemType <- parens (commaSep1 parseType)
+  return $ foldr mkPair (initial elemType) (drop 2 elemType)
+  where
+    mkPair t p = ScalarT (DatatypeT "Pair" [p, t] []) ftrue
+    initial (x:y:_) = ScalarT (DatatypeT "Pair" [x, y] []) ftrue
 
 parseSort :: Parser Sort
 parseSort = withPos (parseSortWithArgs <|> parseSortAtom <?> "sort")
@@ -390,14 +398,14 @@ parseIf = do
   iElse <- parseImpl
   return $ untyped $ PIf iCond iThen iElse
 
-parseETerm = buildExpressionParser (exprTable mkUnary mkBinary False) parseAppTerm <?> "elimination term"
+parseETerm = buildExpressionParser (exprTable mkUnary mkBinary False) (choice [parseAppTerm, parseAtomTerm]) <?> "elimination term"
   where
-    mkUnary op = untyped . PApp (untyped $ PSymbol (unOpTokens Map.! op))
-    mkBinary op p1 p2 = untyped $ PApp (untyped $ PApp (untyped $ PSymbol (binOpTokens Map.! op)) p1) p2
+    mkUnary op p = untyped $ PApp (unOpTokens Map.! op) [p]
+    mkBinary op p1 p2 = untyped $ PApp (binOpTokens Map.! op) [p1, p2]
     parseAppTerm = do
-      head <- parseAtomTerm
+      f <- parseIdentifier
       args <- many (sameOrIndented >> (try parseAtomTerm <|> parens parseImpl))
-      return $ foldl (\e1 e2 -> untyped $ PApp e1 e2) head args
+      return $ untyped $ PApp f args
     parseAtomTerm = choice [
         parens (withOptionalType parseImpl)
       , parseHole
@@ -415,7 +423,7 @@ parseList = do
   elems <- brackets (commaSep parseImpl)
   return $ foldr cons nil elems
   where
-    cons x xs = untyped $ PApp (untyped $ PApp (untyped $ PSymbol "Cons") x) xs
+    cons x xs = untyped $ PApp "Cons" [x, xs]
     nil = untyped $ PSymbol "Nil"
 
 withOptionalType p = do

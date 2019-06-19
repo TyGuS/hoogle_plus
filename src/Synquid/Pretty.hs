@@ -1,3 +1,4 @@
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE FlexibleInstances, UndecidableInstances, FlexibleContexts #-}
 
 module Synquid.Pretty (
@@ -6,6 +7,7 @@ module Synquid.Pretty (
   Doc,
   renderPretty,
   putDoc,
+  prettyShow,
   -- * Basic documents
   empty,
   isEmpty,
@@ -65,7 +67,6 @@ import Synquid.Error
 import Synquid.Program
 import Synquid.Tokens
 import Synquid.Util
-import PetriNet.AbstractType
 
 import Text.PrettyPrint.ANSI.Leijen hiding ((<+>), (<$>), hsep, vsep)
 import qualified Text.PrettyPrint.ANSI.Leijen as L
@@ -75,11 +76,16 @@ import qualified Data.Map as Map
 import Data.Map (Map, (!))
 import Data.List
 import Data.Hashable
+import Data.Tree
+import Data.Tree.Pretty
 
 import Control.Lens
 
 infixr 5 $+$
 infixr 6 <+>
+
+prettyShow :: Pretty p => p -> String
+prettyShow p = displayS (renderCompact $ pretty p) ""
 
 tab = 2
 
@@ -328,17 +334,14 @@ prettyProgram (Program p typ) = case p of
         Program (PSymbol _) _ -> prettyProgram p
         Program PHole _ -> prettyProgram p
         _ -> hlParens (prettyProgram p)
-      prefix = hang tab $ prettyProgram f </> optParens x
-      in case content f of
-          PSymbol name -> if name `elem` Map.elems unOpTokens
-                            then hang tab $ operator name <+> optParens x
-                            else prefix
-          PApp g y -> case content g of
-            PSymbol name -> if name `elem` Map.elems binOpTokens
-                              then hang tab $ optParens y </> operator name </> optParens x -- Binary operator: use infix notation
-                              else prefix
-            _ -> prefix
-          _ -> prefix
+      funName = case f of
+                  "Cons" -> "(:)"
+                  "Pair" -> "(,)"
+                  _      -> f
+      prefix = hang tab $ text funName <+> hsep (map optParens x)
+      in if f `elem` Map.elems unOpTokens
+            then hang tab $ operator f <+> hsep (map optParens x)
+            else prefix
     PFun x e -> nest 2 $ operator "\\" <> text x <+> operator "->" </> prettyProgram e
     PIf c t e -> linebreak <> (hang tab $ keyword "if" <+> prettyProgram c $+$ (hang tab (keyword "then" </> prettyProgram t)) $+$ (hang tab (keyword "else" </> prettyProgram e)))
     PMatch l cases -> linebreak <> (hang tab $ keyword "match" <+> prettyProgram l <+> keyword "with" $+$ vsep (map prettyCase cases))
@@ -474,7 +477,7 @@ typeNodeCount (FunctionT _ tArg tRes) = typeNodeCount tArg + typeNodeCount tRes
 programNodeCount :: RProgram -> Int
 programNodeCount (Program p _) = case p of
   PSymbol _ -> 1
-  PApp e1 e2 -> 1 + programNodeCount e1 + programNodeCount e2
+  PApp e1 e2 -> 1 + sum (map programNodeCount e2)
   PFun _ e -> 1 + programNodeCount e
   PIf c e1 e2 -> 1 + programNodeCount c + programNodeCount e1 + programNodeCount e2
   PMatch e cases -> 1 + programNodeCount e + sum (map (\(Case _ _ e) -> programNodeCount e) cases)
@@ -511,12 +514,26 @@ lfill w d        = case renderCompact d of
   spaces n | n <= 0    = empty
            | otherwise = text $ replicate n ' '
 
-instance Pretty AbstractSkeleton where
-    pretty (ADatatypeT id args) = text id <+> hsep (map pretty args)
-    pretty (AExclusion ids) = text "-" <+> hlBraces (commaSep $ map pretty (Set.toList ids))
+instance Pretty AbstractBase where
     pretty (ATypeVarT id) = text id
-    pretty (AFunctionT tArg tRet) = pretty tArg <+> operator "->" <+> pretty tRet
+    pretty (ADatatypeT id args) = text id <+> hsep (map pretty args)
+
+instance Show AbstractBase where
+    show = show . plain . pretty
+
+instance Pretty AbstractSkeleton where
+    pretty (AScalar b) = pretty b
+    pretty (AFunctionT tArg tRet) = hlParens (pretty tArg <+> operator "→" <+> pretty tRet)
+    pretty ABottom = text "⊥"
+
+instance Show AbstractSkeleton where
+    show = show . plain . pretty
 
 instance Hashable AbstractSkeleton where
   hash typ = hash (show typ)
   hashWithSalt s typ = s + hash typ
+
+instance Pretty SplitInfo where
+    pretty (SplitInfo p r tr) = text "Split places:" <+> text (show p) 
+                             $+$ text "Removed transitions:" <+> text (show r)
+                             $+$ text "New transitions:" <+> text (show tr)

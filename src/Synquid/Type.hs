@@ -3,7 +3,7 @@
 -- | Refinement Types
 module Synquid.Type where
 
-import Types.Common
+import Types.Common hiding (varName)
 import Types.Type
 import Synquid.Logic
 import Synquid.Tokens
@@ -202,6 +202,7 @@ shape (ScalarT BoolT _) = ScalarT BoolT ()
 shape (ScalarT (TypeVarT _ a) _) = ScalarT (TypeVarT Map.empty a) ()
 shape (FunctionT x tArg tFun) = FunctionT x (shape tArg) (shape tFun)
 shape AnyT = AnyT
+shape BotT = BotT
 
 -- | Conjoin refinement to a type
 addRefinement (ScalarT base fml) fml' = if isVarRefinemnt fml'

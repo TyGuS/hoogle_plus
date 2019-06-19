@@ -4,3 +4,4 @@ resolver: lts-12.4
 extra-deps:
   - table-layout-0.8.0.3
   - data-default-instances-base-0.1.0.1
+  - pretty-tree-0.1.0.0

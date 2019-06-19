@@ -24,7 +24,8 @@ data BaseType r = BoolT | IntT | DatatypeT Id [TypeSkeleton r] [r] | TypeVarT Su
 data TypeSkeleton r =
   ScalarT (BaseType r) r |
   FunctionT Id (TypeSkeleton r) (TypeSkeleton r) |
-  AnyT
+  AnyT |
+  BotT 
   deriving (Eq, Ord, Generic)
 
 -- | Unrefined typed

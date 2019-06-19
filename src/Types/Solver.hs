@@ -12,17 +12,16 @@ import Control.Monad.State
 import Control.Concurrent.Chan
 
 import Types.Program
-import Types.PetriNet
 import Types.Abstract
 import Types.Experiments hiding (PetriNet)
 import Types.Type
 import Types.Common
 
 data SolverState = SolverState {
+    _searchParams :: SearchParams,
     _nameCounter :: Map Id Int,  -- name map for generating fresh names (type variables, parameters)
     _typeAssignment :: Map Id SType,  -- current type assignment for each type variable
-    _typingError :: (SType, SType), -- typing error message, represented by the expected type and actual type
-    _abstractionTree :: AbstractionTree,
+    _abstractionTree :: Set AbstractSkeleton,
     _isChecked :: Bool, -- is the current state check passed
     _currentSolutions :: [RProgram], -- type checked solutions
     _currentLoc :: Int, -- current solution depth
@@ -31,46 +30,44 @@ data SolverState = SolverState {
     _functionMap :: HashMap Id FunctionCode,
     _targetType :: AbstractSkeleton,
     _sourceTypes :: [AbstractSkeleton],
+    _mustFirers :: HashMap Id [Id],
     _paramNames :: [Id],
-    _refineStrategy :: RefineStrategy,
     _groupMap :: Map Id [Id], -- mapping from group id to list of function names
-    _type2transition :: Map AbstractSkeleton [Id], -- mapping from abstract type to group ids
-    _solverNet :: PetriNet,
+    _type2transition :: HashMap AbstractSkeleton [Id], -- mapping from abstract type to group ids
     _solverStats :: TimeStatistics,
-    _useGroup :: Bool,
-    _splitTypes :: [(AbstractSkeleton, AbstractSkeleton)],
+    _splitTypes :: Set AbstractSkeleton,
     _nameMapping :: Map Id Id, -- mapping from fake names to real names
-    _logLevel :: Int, -- temporary for log level
-    _maxApplicationDepth :: Int,
-
+    _instanceMapping :: HashMap (Id, [AbstractSkeleton]) (Id, AbstractSkeleton),
+    _toRemove :: [Id],
     _messageChan :: Chan Message
 } deriving(Eq)
 
 
 emptySolverState = SolverState {
+    _searchParams = defaultSearchParams,
     _nameCounter = Map.empty,
     _typeAssignment = Map.empty,
-    _typingError = (AnyT, AnyT),
-    _abstractionTree = ALeaf (AExclusion Set.empty),
+    _abstractionTree = Set.singleton (AScalar (ATypeVarT varName)),
     _isChecked = True,
     _currentSolutions = [],
     _currentLoc = 1,
     _currentSigs = Map.empty,
     _detailedSigs = Set.empty,
     _functionMap = HashMap.empty,
-    _targetType = AExclusion Set.empty,
+    _targetType = AScalar (ATypeVarT varName),
     _sourceTypes = [],
+    _mustFirers = HashMap.empty,
     _paramNames = [],
-    _refineStrategy = NoRefine,
     _groupMap = Map.empty,
-    _type2transition = Map.empty,
-    _solverNet = PetriNet HashMap.empty HashMap.empty HashMap.empty,
+    _type2transition = HashMap.empty,
     _solverStats = emptyTimeStats,
-    _useGroup = False,
-    _splitTypes = [],
+    _splitTypes = Set.empty,
     _nameMapping = Map.empty,
-    _logLevel = 0,
-    _maxApplicationDepth = 6
+    _instanceMapping = HashMap.empty,
+    _toRemove = [],
+
+
+    _messageChan = undefined
 }
 
 makeLenses ''SolverState

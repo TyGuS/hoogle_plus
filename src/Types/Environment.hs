@@ -4,7 +4,6 @@ module Types.Environment where
 import Types.Type
 import Types.Common
 import Types.Generate
-import PetriNet.AbstractType
 
 import GHC.Generics hiding (to)
 import qualified Data.Set as Set
