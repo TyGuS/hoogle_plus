@@ -57,8 +57,8 @@ data EncodeState = EncodeState {
   prevChecked :: Bool,
   disabledTrans :: [Id],
   returnTyps :: [Id],
-  persistConstraints :: [Z3.AST],
-  optionalConstraints :: [Z3.AST],
+  excludeConstraints :: [Z3.AST],
+  tmpConstraints :: [Z3.AST],
   finalConstraints :: [Z3.AST],
   blockConstraints :: [Z3.AST]
 }
