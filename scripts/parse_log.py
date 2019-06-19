@@ -84,24 +84,38 @@ def output_res(filename, json_obj):
     return plot_data
 
 def plot(exps):
+    
     for exp in exps:
+        if exp['name'].find('TYGAR-0') >= 0:
+            continue
         xs = [0] + sorted(exp['data'])
         ys = range(0, len(xs))
-        plt.plot(xs, ys, marker='.', label=exp['name'])
+        m = '.'
+        if exp['name'].find('incremental') >= 0:
+            m = 'x'
+        plt.plot(xs, ys, marker=m, label=exp['name'])
+        
+    plt.yticks(range(0, 21))
     plt.gca().legend()
     plt.show()
 
 def main():
     parser = argparse.ArgumentParser(description='Process log from hoogle plus evaluation')
     parser.add_argument('input', help='the log filename to be processed')
+    parser.add_argument('input2', help ='the second filename to be processed')
     parser.add_argument('--output', default='output.log',
                         help='the output filename')
 
     args = parser.parse_args()
     log = read_log(args.input)
+    log2 = read_log(args.input2)
     obj = read_object(log)
+    obj2 = read_object(log2)
     out = output_res(args.output, obj)
-    plot(out)
+    out2 = output_res(args.output, obj2)
+    for exp in out2:
+        exp['name'] = exp['name'] + " - incremental"
+    plot(out + out2)
 
 if __name__ == '__main__':
     main()
