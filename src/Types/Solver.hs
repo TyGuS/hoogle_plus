@@ -37,7 +37,6 @@ data SolverState = SolverState {
     _solverStats :: TimeStatistics,
     _splitTypes :: Set AbstractSkeleton,
     _nameMapping :: Map Id Id, -- mapping from fake names to real names
-    _logLevel :: Int, -- temporary for log level
     _instanceMapping :: HashMap (Id, [AbstractSkeleton]) (Id, AbstractSkeleton),
     _toRemove :: [Id],
     _messageChan :: Chan Message

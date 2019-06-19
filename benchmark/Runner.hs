@@ -93,27 +93,27 @@ summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
       resTransitions = safeTransitions,
       resTypes = safeTypes
       }]
+    (CompareSolutions, solns) -> let
+      toSolution (Right (Just soln), _) = emptyResult {resSolutionOrError = (Right $ show soln)}
+      toSolution (Right Nothing, _) = emptyResult {resSolutionOrError = Left NoSolutionException}
+      toSolution (Left err, _) = emptyResult {resSolutionOrError = Left err}
+      in map toSolution solns
     (_, (errOrMbSoln, firstR):_) -> let
       unsafeTransitions = map snd $ Map.toDescList $ numOfTransitions firstR
       unsafeTypes = map snd $ Map.toDescList $ numOfPlaces firstR
       safeTransitions = map snd (Map.toAscList (numOfTransitions firstR))
       safeTypes = map snd (Map.toAscList (numOfPlaces firstR))
       in [emptyResult {
-      resSolutionOrError = fmap (mkOneLine . show) errOrMbSoln,
-      resTFirstSoln = totalTime firstR,
-      resTEncFirstSoln = encodingTime firstR,
-      resTSolveFirstSoln = solverTime firstR,
-      resLenFirstSoln = pathLength firstR,
-      resRefinementSteps = iterations firstR,
-      resTransitions = safeTransitions,
-      resTypes = safeTypes,
-      resDuplicateSymbols = duplicateSymbols firstR
+        resSolutionOrError = fmap (mkOneLine . show) errOrMbSoln,
+        resTFirstSoln = totalTime firstR,
+        resTEncFirstSoln = encodingTime firstR,
+        resTSolveFirstSoln = solverTime firstR,
+        resLenFirstSoln = pathLength firstR,
+        resRefinementSteps = iterations firstR,
+        resTransitions = safeTransitions,
+        resTypes = safeTypes,
+        resDuplicateSymbols = duplicateSymbols firstR
       }]
-    (CompareSolutions, solns) -> let
-      toSolution (Right (Just soln), _) = emptyResult {resSolutionOrError = (Right $ show soln)}
-      toSolution (Right Nothing, _) = emptyResult {resSolutionOrError = Left NoSolutionException}
-      toSolution (Left err, _) = emptyResult {resSolutionOrError = Left err}
-      in map toSolution solns
 
   in ResultSummary {
     envName = envN,
