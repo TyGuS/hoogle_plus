@@ -32,3 +32,4 @@ tags
 .DS_Store
 HooglePlus.cabal
 webapp/static/tmp/*
+stack.yaml.lock

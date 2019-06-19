@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, StandaloneDeriving #-}
+{-# LANGUAGE DeriveDataTypeable, StandaloneDeriving, NamedFieldPuns #-}
 
 module Main (main) where
 
@@ -72,19 +72,22 @@ releaseDate = fromGregorian 2019 3 10
 main = do
   res <- cmdArgsRun $ mode
   case res of
-    Synthesis file libs envPath appMax log_ solNum higher_order refine stopRefine threshold remove_duplicates -> do
+    Synthesis {file, libs, env_file_path_in, app_max, log_, sol_num,
+      higher_order, use_refine, remove_duplicates, disable_demand,
+      stop_refine, stop_threshold} -> do
       let searchParams = defaultSearchParams {
-        _maxApplicationDepth = appMax,
+        _maxApplicationDepth = app_max,
         _explorerLogLevel = log_,
-        _solutionCnt = solNum,
+        _solutionCnt = sol_num,
         _useHO = higher_order,
-        _refineStrategy = refine,
-        _stopRefine = stopRefine,
-        _threshold = threshold,
-        _shouldRemoveDuplicates = remove_duplicates
+        _refineStrategy = use_refine,
+        _stopRefine = stop_refine,
+        _threshold = stop_threshold,
+        _shouldRemoveDuplicates = remove_duplicates,
+        _disableDemand = disable_demand
         }
       let synquidParams = defaultSynquidParams {
-        Main.envPath = envPath
+        Main.envPath = env_file_path_in
       }
       executeSearch synquidParams searchParams file
 
@@ -129,7 +132,8 @@ data CommandLineArgs
         use_refine :: RefineStrategy,
         stop_refine :: Bool,
         stop_threshold :: Int,
-        remove_duplicates :: Bool
+        remove_duplicates :: Bool,
+        disable_demand :: Bool
       }
       | Generate {
         -- | Input
@@ -154,7 +158,8 @@ synt = Synthesis {
   use_refine          = TyGarQ          &= help ("Use abstract refinement or not (default: TyGarQ)"),
   stop_refine         = False           &= help ("Stop refine the abstraction cover after some threshold (default: False)"),
   stop_threshold      = 10              &= help ("Refinement stops when the number of places reaches the threshold, only when stop_refine is True"),
-  remove_duplicates   = False &= help ("Remove duplicates while searching. Under development.")
+  remove_duplicates   = False &= help ("Remove duplicates while searching. Under development."),
+  disable_demand = False &= name "d" &= help ("Disable the demand analyzer (default: False)")
   } &= auto &= help "Synthesize goals specified in the input file"
 
 generate = Generate {

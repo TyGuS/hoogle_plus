@@ -27,10 +27,6 @@ import Data.List.Extra
 import Text.Pretty.Simple
 import Control.Concurrent.Chan
 
-
-shouldDedupe :: MonadIO m => PNSolver m Bool
-shouldDedupe = gets $ view (searchParams . shouldRemoveDuplicates)
-
 getExperiment exp = gets $ view (searchParams . exp)
 
 -------------------------------------------------------------------------------

@@ -38,7 +38,8 @@ data SearchParams = SearchParams {
   _refineStrategy :: RefineStrategy,
   _stopRefine :: Bool,
   _threshold :: Int,
-  _shouldRemoveDuplicates :: Bool
+  _shouldRemoveDuplicates :: Bool,
+  _disableDemand :: Bool
 } deriving (Eq, Show)
 
 makeLenses ''SearchParams
@@ -80,12 +81,14 @@ defaultSearchParams = SearchParams {
   _refineStrategy = TyGarQ,
   _stopRefine = False,
   _threshold = 10,
-  _shouldRemoveDuplicates = False
+  _shouldRemoveDuplicates = False,
+  _disableDemand = False
 }
 
 type ExperimentName = String
 expTyGarQ = "TYGAR-Q":: ExperimentName
-expQueryRefinementHOF = "Query Refinement - HOF" :: ExperimentName
+expTyGarQNoDmd = "Query Refinement - no demand" :: ExperimentName
+
 expSypetClone = "Sypet-Clone" :: ExperimentName
 expTyGar0 = "TYGAR-0" :: ExperimentName
 expTyGarQB = "TYGAR-QB" :: ExperimentName
@@ -103,6 +106,7 @@ data ExperimentCourse
   | TrackTypesAndTransitions --2019-05-06
   | CompareFinalCovers
   | CompareThresholds
+  | CompareSolutions -- 2019-06-12
   deriving (Show, Data, Typeable)
 
 data Message

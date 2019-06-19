@@ -405,8 +405,11 @@ findProgram env dst st = do
         solutions <- gets $ view currentSolutions
         mapping <- gets $ view nameMapping
         let code' = recoverNames mapping code
-        if code' `elem` solutions
-           then findProgram env dst st'
+        disableDemand <- getExperiment disableDemand
+        checkedSols <- withTime TypeCheckTime (filterM (\u -> liftIO (runGhcChecks disableDemand env dst u )) [code'])
+        if (code' `elem` solutions) || (null checkedSols)
+           then do
+               findProgram env dst st'
            else do
                modify $ over currentSolutions ((:) code')
                return (code', st')
