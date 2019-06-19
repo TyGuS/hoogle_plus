@@ -57,16 +57,21 @@ generateEnv genOpts = do
     pkgFiles <- getFiles pkgOpts
     allEntriesByMdl <- filesToEntries pkgFiles
     DD.cleanTmpFiles pkgOpts pkgFiles
+    --print allEntriesByMdl
     let entriesByMdl = filterEntries allEntriesByMdl mbModuleNames
+    --print "******************"
+    --print mbModuleNames--entriesByMdl
     let ourEntries = nubOrd $ concat $ Map.elems entriesByMdl
     dependencyEntries <- getDeps pkgOpts allEntriesByMdl ourEntries
     putStrLn $ show dependencyEntries
     let moduleNames = Map.keys entriesByMdl
     let allCompleteEntries = concat (Map.elems entriesByMdl)
     let allEntries = nubOrd allCompleteEntries
-    ourDecls <- mapM (\entry -> evalStateT (DC.toSynquidDecl entry) 0) allEntries
+    ourDecls <- mapM (\(entry) -> (evalStateT (DC.toSynquidDecl' entry) 0)) allEntries
+    print $ length ourDecls
+    print $ length allEntries
     print ourDecls
-
+    --print "\n\n\n"
     -- Handling typeclasses
     -- TODO: Why is this function filtering declarations? Will I have to re-run this code elsewhere?
     let instanceDecls = filter (\entry -> DC.isInstance entry) allEntries

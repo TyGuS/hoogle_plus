@@ -39,6 +39,7 @@ import Types.Environment
 import Types.Program (BareDeclaration, Declaration, BareProgram(..), UProgram, Program(..))
 import Types.Type
 import qualified Types.Program as TP
+import qualified Data.Text as Text
 
 prependName prefix name  = case name of
     Ident l var -> Ident l (prefix ++ "." ++ var)
@@ -262,6 +263,16 @@ datatypeOfCon (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
         InfixConDecl _ typl name typr -> datatypeOf typl `Set.union` datatypeOf typr
         RecDecl _ name fields -> error "record declaration is not supported"
 
+
+toSynquidDecl' :: (MonadIO m) => Entry -> StateT Int m Declaration
+toSynquidDecl' x = do
+    liftIO $ print "$$$$$$$$$$$$"
+    liftIO $ print x
+    liftIO $ print "$$$$$$$$$$$$"
+    toSynquidDecl x
+
+
+
 toSynquidDecl :: (MonadIO m) => Entry -> StateT Int m Declaration
 toSynquidDecl (EDecl (TypeDecl _ head typ)) = do
     typ' <- toSynquidRType typ
@@ -284,7 +295,8 @@ toSynquidDecl (EDecl (ClassDecl _ _ head _ _)) = do
     let name = "__hplusTC__"++ (declHeadName head)
     let vars = declHeadVars head
     return $ Pos (initialPos "") $ TP.DataDecl name vars [] []
-toSynquidDecl decl = return $ Pos (initialPos "") $ TP.QualifierDecl [] -- [TODO] a fake conversion
+toSynquidDecl decl = do
+    return $ Pos (initialPos "") $ TP.QualifierDecl [] -- [TODO] a fake conversion
 
 isInstance :: Entry -> Bool
 isInstance (EDecl (InstDecl _ _ _ _)) = True
@@ -331,12 +343,21 @@ toArg x = do
     return $ (ScalarT (DatatypeT (toTCDictName x) typeVars []) ())
 
 getTyclassDictName :: InstHead l -> String
-getTyclassDictName (IHApp _ typeclass _) = "__hplusTC__" ++ instHeadName typeclass
+getTyclassDictName (IHApp _ typeclass _) = fixTCName (instHeadName typeclass)
 getTyclassDictName (IHParen _ head) = getTyclassDictName head
 getTyclassDictName _ = error "getTyclassDictName: case to be implemented"
 
+fixTCName :: String -> String
+fixTCName str = 
+    let (start, end) = breakLast str
+        end' = "__hplusTC__" ++ end
+        in start ++ "." ++  end'
+    where 
+        breakLast :: String -> (String, String)
+        breakLast str = (reverse (drop 1 y), reverse x) where (x, y) = break (== '.') $ reverse str
+
 toTCDictName :: Asst l -> String
-toTCDictName (ClassA _ declName _) = "__hplusTC__"++ (qnameStr declName)
+toTCDictName (ClassA _ declName _) = fixTCName (qnameStr declName)
 toTCDictName (ParenA _ asst) = toTCDictName asst 
 toTCDictName _ = error "toTCDictName: Unhandled case"
 
