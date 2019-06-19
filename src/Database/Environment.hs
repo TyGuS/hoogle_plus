@@ -21,12 +21,13 @@ import Synquid.Pretty as Pretty
 import Database.Util
 import qualified Database.Download as DD
 import qualified Database.Convert as DC
-import Types.Environment (Environment, symbols, _symbols, _included_modules, _typClassInstances, _condTypClasses)
+import Types.Environment (Environment, symbols, _symbols, _included_modules, _typClassInstances, _condTypClasses, _datatypes)
 import Types.Program (BareDeclaration(..), Declaration(..), ConstructorSig(..))
 import Types.Generate
 import Synquid.Resolver (resolveDecls)
 
 import Synquid.Util
+import qualified Debug.Trace as D
 
 
 writeEnv :: FilePath -> Environment -> IO ()
@@ -64,29 +65,26 @@ generateEnv genOpts = do
     let allCompleteEntries = concat (Map.elems entriesByMdl)
     let allEntries = nubOrd allCompleteEntries
     ourDecls <- mapM (\entry -> evalStateT (DC.toSynquidDecl entry) 0) allEntries
+    print ourDecls
 
     -- Handling typeclasses
     -- TODO: Why is this function filtering declarations? Will I have to re-run this code elsewhere?
     let instanceDecls = filter (\entry -> DC.isInstance entry) allEntries
     let instanceRules = map DC.getInstanceRule instanceDecls
-    let defTyclassInstaces = filter (\x -> not(DC.isCondTypeclass x)) instanceRules
-    let condTyclassInstances = filter (\x -> DC.isCondTypeclass x) instanceRules
+    let transitionIds = [0 .. length instanceRules]
+    let instanceTuples = zip instanceRules transitionIds
+    instanceFunctions <- mapM (\(entry, id) -> evalStateT (DC.instanceToFunction entry id) 0) instanceTuples
 
-    let defTyclassTuples = map DC.getDefInstanceMapping defTyclassInstaces
-    let condTyclassTuples = map DC.getCondInstanceMapping condTyclassInstances
+    print "==================$$$"
+    print instanceFunctions
 
-    print defTyclassTuples
-    print condTyclassTuples
-
-    let hooglePlusDecls = DC.reorderDecls $ nubOrd $ (ourDecls ++ dependencyEntries ++ defaultFuncs ++ defaultDts)
+    let hooglePlusDecls = DC.reorderDecls $ nubOrd $ (ourDecls ++ dependencyEntries ++ defaultFuncs ++ defaultDts ++ instanceFunctions)
     case resolveDecls hooglePlusDecls moduleNames of
        Left errMessage -> error $ show errMessage
-       Right env -> return env {
+       Right env -> D.trace (show $ (_datatypes env)) $ return env {
           _symbols = if useHO then env ^. symbols
                               else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols,
-         _included_modules = Set.fromList (moduleNames),
-         _typClassInstances = defTyclassTuples,
-         _condTypClasses = condTyclassTuples 
+         _included_modules = Set.fromList (moduleNames)
         }
 
    where

@@ -19,7 +19,7 @@ data DatatypeDef = DatatypeDef {
   _typeParams :: [Id],              -- ^ Type parameters
   _predVariances :: [Bool],         -- ^ For each predicate parameter, whether it is contravariant
   _constructors :: [Id]            -- ^ Constructor names
-} deriving (Eq, Ord, Generic)
+} deriving (Eq, Ord, Generic, Show)
 
 makeLenses ''DatatypeDef
 
@@ -39,6 +39,7 @@ data Environment = Environment {
   _included_modules :: Set String,          -- ^ The set of modules any solution would need to import
   _typClassInstances :: [(String, String)],
   _condTypClasses :: [([(String, [Set String])], (String, String))]
+
   } deriving(Generic)
 
 makeLenses ''Environment

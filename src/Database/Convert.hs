@@ -279,6 +279,8 @@ toSynquidDecl (EDecl (TypeSig _ names typ)) = do
         Nothing  -> return $ Pos (initialPos "") $ TP.QualifierDecl [] -- a fake conversion
         Just sch -> return $ Pos (initialPos (nameStr $ names !! 0)) $ TP.FuncDecl (nameStr $ head names) (toSynquidRSchema sch)
 toSynquidDecl (EDecl (ClassDecl _ _ head _ _)) = do
+    -- TODO: need help getting `name` here to include the module as prefix
+    -- So it produces: `__hplusTC__Show (a)` instead of `__hplusTC__GHC.Show.Show (a)`
     let name = "__hplusTC__"++ (declHeadName head)
     let vars = declHeadVars head
     return $ Pos (initialPos "") $ TP.DataDecl name vars [] []
@@ -294,44 +296,54 @@ instHeadName (IHInfix _ bvar name) = qnameStr name
 instHeadName (IHParen _ head) = instHeadName head
 instHeadName (IHApp _ head _) = instHeadName head
 
-typeName :: Type l -> [Char]
-typeName (TyApp _ typeCon typeVar) = typeName typeCon
-typeName (TyCon _ name) = qnameStr name
-typeName (TyParen _ typ) = typeName typ
-typeName _ = error "typeName: case not handled"
 
-toInstanceTuple :: InstHead l -> (String, String)
-toInstanceTuple (IHApp _ typeclass typeVar) = 
-    let typeclassStr = instHeadName typeclass
-        typeVarStr = typeName typeVar in
-            (typeclassStr, typeVarStr)
-toInstanceTuple (IHParen _ head) = toInstanceTuple head
-toInstanceTuple _ = error "toInstanceTuple: case to be implemented"
+getTyclassVars :: (MonadIO m) => InstHead () -> StateT Int m [SType] 
+getTyclassVars (IHApp _ head typeVar) = do
+    typeSkeletonArr <- getTyclassVars head
+    typeSkeleton <- (Data.List.head . fromJust) <$> toSynquidSkeleton typeVar
+    return $ (typeSkeletonArr ++ [typeSkeleton])
+getTyclassVars (IHParen _ head) = getTyclassVars head
+getTyclassVars (IHCon _ _) = return []
+getTyclassVars _ = error "getTyclassDictName: case to be implemented"
 
-getInstanceConditions :: Asst l -> ([Char], [Set String])
-getInstanceConditions (ClassA _ declName typeArr) = (qnameStr declName, map allTypeVars typeArr)
-getInstanceConditions (ParenA _ asst) = getInstanceConditions asst
-getInstanceConditions _ = error "getInstanceConditions: unexpected case"
-
--- TODO:
--- 1. Its unclear if `Nothing` should be handled different from `CxEmpty`
-getDefInstanceMapping :: InstRule l -> (String, String)
-getDefInstanceMapping (IRule _ _ (Nothing) head) = toInstanceTuple head
-getDefInstanceMapping _ = error "getDefInstanceMapping: unexpected case"
-
-getCondInstanceMapping :: InstRule l -> ([([Char], [Set String])], (String, String))
-getCondInstanceMapping (IRule _ _ ctx head) =
+instanceToFunction :: (MonadIO m) => InstRule () -> Int -> StateT Int m Declaration
+instanceToFunction (IParen _ inst) n = instanceToFunction inst n
+instanceToFunction (IRule _ _ ctx head) n = do
+    let name = getTyclassDictName head
+    tyVars <- getTyclassVars head
+    let base = ScalarT (DatatypeT name tyVars []) ()
     case ctx of
-        Just (CxTuple _ tyclassConds) -> toCondInstanceTuple tyclassConds head 
-        Just (CxSingle _ tyclassCond) -> toCondInstanceTuple [tyclassCond] head
-        _ -> error "toTypeclassMapping: unexpected case in case analysis" 
-    where toCondInstanceTuple conditionsArr head = ((map (\condition-> getInstanceConditions condition) conditionsArr), toInstanceTuple head) 
-toTypeclassMapping _ = error "toTypeclassMapping: unexpected case"
+        Nothing -> toDecl =<< foldrM go base []
+        Just (CxTuple _ tyclassConds) -> toDecl =<< foldrM go base tyclassConds
+        Just (CxSingle _ tyclassCond) -> toDecl =<< foldrM go base [tyclassCond]
+        _ -> error "instanceToFunction: Unhandled case"
+    where 
+        go e acc = do
+            arg <- toArg e
+            return $ FunctionT "" arg acc
+        toDecl :: (MonadIO m) => SType -> StateT Int m Declaration  
+        toDecl x = return $ Pos (initialPos "") $ TP.FuncDecl ("__hplusTCTransition" ++ (show n)) $ toSynquidRSchema $ Monotype x
+            
 
-isCondTypeclass :: InstRule l -> Bool
-isCondTypeclass (IRule _ _ Nothing head) = False
-isCondTypeclass (IRule _ _ (Just (CxEmpty _)) head) = error "isCondTypeclass: unexpected case"
-isCondTypeclass _ = True
+toArg :: (MonadIO m) => Asst () -> StateT Int m SType     
+toArg x = do
+    typeVars <- getTypeVars x
+    return $ (ScalarT (DatatypeT (toTCDictName x) typeVars []) ())
+
+getTyclassDictName :: InstHead l -> String
+getTyclassDictName (IHApp _ typeclass _) = "__hplusTC__" ++ instHeadName typeclass
+getTyclassDictName (IHParen _ head) = getTyclassDictName head
+getTyclassDictName _ = error "getTyclassDictName: case to be implemented"
+
+toTCDictName :: Asst l -> String
+toTCDictName (ClassA _ declName _) = "__hplusTC__"++ (qnameStr declName)
+toTCDictName (ParenA _ asst) = toTCDictName asst 
+toTCDictName _ = error "toTCDictName: Unhandled case"
+
+getTypeVars :: (MonadIO m) => Asst () -> StateT Int m [SType] 
+getTypeVars (ClassA _ _ typeVars) = mapM (\x -> Data.List.head . fromJust <$> toSynquidSkeleton x) typeVars
+getTypeVars (ParenA _ asst) = getTypeVars asst
+getTypeVars _ = error "getTypeVars: Unhandled case"
 
 getInstanceRule :: Entry -> InstRule ()
 getInstanceRule (EDecl (InstDecl x1 x2 (IParen _ instanceRule) x3)) = getInstanceRule (EDecl (InstDecl x1 x2 instanceRule x3))
