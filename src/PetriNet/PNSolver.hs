@@ -122,12 +122,12 @@ instantiateWith env typs id t = do
 
     mkNewSig id ty = do
         instMap <- gets (view instanceMapping)
-        newId <- if "pair_match" `isPrefixOf` id then freshId (id ++ "_") 
+        newId <- if "pair_match" `isPrefixOf` id then freshId (id ++ "_")
                                                  else freshId "f"
         -- when same arguments exist for a function, replace it
         unless (noneInst instMap id ty) (excludeUseless id ty)
         -- add corresponding must firers, function code and type mapping
-        when (Map.member id (env ^. arguments)) 
+        when (Map.member id (env ^. arguments))
              (modify $ over mustFirers (HashMap.insertWith (++) id [newId]))
         modify $ over nameMapping (Map.insert newId id)
         modify $ over instanceMapping (HashMap.insert (id, absFunArgs id ty) (newId, ty))
@@ -144,7 +144,7 @@ instantiateWith env typs id t = do
         when (id `HashMap.member` musts)
              (modify $ over mustFirers (HashMap.insertWith (flip (\\)) id [tid]))
 
-addSignatures :: MonadIO m => Environment -> PNSolver m (Map Id AbstractSkeleton)
+addSignatures :: MonadIO m => Environment -> PNSolver m (Map Id AbstractSkeleton, [Id])
 addSignatures env = do
     let foArgs = foArgsOf env
     -- first abstraction all the symbols with fresh type variables and then instantiate them
@@ -154,9 +154,17 @@ addSignatures env = do
     let usefulSymbols = Map.filterWithKey usefulPipe envSymbols
     sigs <- instantiate env usefulSymbols
     writeLog 3 "addSignatures" $ text "instantiate new sigs" <+> pretty (Map.toList sigs)
-    modify $ over detailedSigs (Set.union (Map.keysSet sigs))
-    mapM_ addEncodedFunction (Map.toList sigs)
-    return sigs
+    sigGroups <- groupSignatures sigs
+    let sigs' = Map.restrictKeys sigs (Map.keysSet sigGroups)
+    let dupes = Set.toList $ foldr Set.union Set.empty $ Map.elems sigGroups
+    modify $ over groupMap (updateGroups sigGroups)
+    modify $ over detailedSigs (Set.union (Map.keysSet sigs'))
+    mapM_ addEncodedFunction (Map.toList sigs')
+    return (sigs', dupes)
+    where
+        updateGroups :: Map Id (Set Id) -> Map Id (Set Id) -> Map Id (Set Id)
+        updateGroups sigGroups gm = foldr updategm gm (Map.toList sigGroups)
+        updategm (groupName, groupMembers) = Map.insertWith Set.union groupName groupMembers
 
 -- | refine the current abstraction
 -- do the bidirectional type checking first, compare the two programs we get,
@@ -168,9 +176,12 @@ refineSemantic env prog at = do
     -- get the split pairs
     splits <- gets (view splitTypes)
     -- add new instantiated signatures into solver
-    sigs <- addSignatures env
+    (sigs, dupes) <- addSignatures env
     -- get removed transitions
-    useless <- gets (view toRemove)
+    useless' <- gets (view toRemove)
+    gm <- gets $ view groupMap
+    let useless = Set.toList $ (Set.fromList useless') `Set.intersection` (Map.keysSet gm)
+    writeLog 3 "refineSemantic" $ text "useless: " <+> pretty useless
     -- add clone functions and add them into new transition set
     cloneNames <- mapM addCloneFunction $ Set.toList splits
     -- call the refined encoder on these signatures and disabled signatures
@@ -187,10 +198,16 @@ initNet env = withTime ConstructionTime $ do
     modify $ set type2transition HashMap.empty
     modify $ set instanceMapping HashMap.empty
 
-    addSignatures env
+    (_, dupes) <- addSignatures env
+    modify $ over toRemove (\xs -> listDiff xs dupes)
     -- add clone functions for each type
     allTy <- gets (HashMap.keys . view type2transition)
-    mapM_ addCloneFunction (filter (not . isAFunctionT) allTy)  
+    transitions <- gets (HashMap.elems . view type2transition)
+    writeLog 3 "initNet" $ text "allTys: " <+> pretty allTy
+    mapM_ addCloneFunction (filter (not . isAFunctionT) allTy)
+    removable <- gets $ view toRemove
+    writeLog 3 "initNet" $ text "toRemove: " <+> pretty removable
+
   where
     abstractSymbol id sch = do
         t <- freshType sch
@@ -215,7 +232,7 @@ addEncodedFunction (id, f) = do
     modify $ over currentSigs (Map.insert id f)
     -- store the used abstract types and their groups into mapping
     updateTy2Tr id f
-    
+
 
 
 resetEncoder :: (MonadIO m) => Environment -> RType -> PNSolver m EncodeState
@@ -224,7 +241,7 @@ resetEncoder env dst = do
     writeLog 2 "resetEncoder" $ text "parameter types are" <+> pretty srcTypes
     writeLog 2 "resetEncoder" $ text "return type is" <+> pretty tgt
     (loc, musters, rets, funcs, tid2tr) <- prepEncoderArgs env tgt
-    let srcStr = map show srcTypes  
+    let srcStr = map show srcTypes
     liftIO $ encoderInit loc musters srcStr rets funcs tid2tr
 
 incEncoder :: MonadIO m => Environment -> EncodeState -> PNSolver m EncodeState
@@ -271,7 +288,7 @@ findPath env dst st = do
             Just g -> findFunction fm (head g)
             Nothing -> error $ "cannot find function group " ++ name
 
-    findFunction fm name = fromMaybe (error $ "cannot find function name " ++ name) 
+    findFunction fm name = fromMaybe (error $ "cannot find function name " ++ name)
                                      (HashMap.lookup name fm)
 
     combinations []    = []
@@ -325,7 +342,7 @@ findProgram env dst st = do
     if isLeft checkResult
        then let Left code = checkResult in checkSolution st' code
        else do
-         let Right err = checkResult 
+         let Right err = checkResult
          funcs <- gets (view detailedSigs)
          cover <- gets (view abstractionTree)
          modify $ over solverStats (\s -> s {
@@ -408,8 +425,7 @@ findProgram env dst st = do
         disableDemand <- getExperiment disableDemand
         checkedSols <- withTime TypeCheckTime (filterM (\u -> liftIO (runGhcChecks disableDemand env dst u )) [code'])
         if (code' `elem` solutions) || (null checkedSols)
-           then do
-               findProgram env dst st'
+           then findProgram env dst st'
            else do
                modify $ over currentSolutions ((:) code')
                return (code', st')
@@ -431,7 +447,7 @@ findFirstN env dst st cnt | cnt == 1  = do
     let stats' = stats{pathLength = depth}
     printSolution res
     writeLog 2 "findFirstN" $ text (show stats)
-    if noGarTyGarIdx strategy >= 0 
+    if noGarTyGarIdx strategy >= 0
       then do
         resetTiming
         modify $ set (searchParams . refineStrategy) NoGar
@@ -505,7 +521,7 @@ noGarTyGarIdx NoGarTyGar0 = 0
 noGarTyGarIdx NoGarTyGarQ = 1
 noGarTyGarIdx NoGarTyGar0B = 2
 noGarTyGarIdx NoGarTyGarQB = 3
-noGarTyGarIdx _ = -1 
+noGarTyGarIdx _ = -1
 
 doRefine :: RefineStrategy -> Bool
 doRefine NoGar = False
@@ -552,6 +568,6 @@ prepEncoderArgs env tgt = do
     let strRets = map show rets
     let sigs = HashMap.elems funcs
     return (loc, musters, strRets, sigs, tid2tr)
-    
+
 foArgsOf :: Environment -> Map Id RSchema
 foArgsOf = Map.filter (not . isFunctionType . toMonotype) . _arguments

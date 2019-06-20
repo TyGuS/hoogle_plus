@@ -32,7 +32,7 @@ data SolverState = SolverState {
     _sourceTypes :: [AbstractSkeleton],
     _mustFirers :: HashMap Id [Id],
     _paramNames :: [Id],
-    _groupMap :: Map Id [Id], -- mapping from group id to list of function names
+    _groupMap :: Map Id (Set Id), -- mapping from group id to list of function names
     _type2transition :: HashMap AbstractSkeleton [Id], -- mapping from abstract type to group ids
     _solverStats :: TimeStatistics,
     _splitTypes :: Set AbstractSkeleton,
