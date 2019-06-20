@@ -189,6 +189,7 @@ solveAndGetModel = do
                 when incremental $ do
                     cancelConstraints "exclude"
                     cancelConstraints "final"
+                    blocks <- gets blockConstraints
                     mapM_ (mkNot >=> assert) blocks
                 return []
               else do
