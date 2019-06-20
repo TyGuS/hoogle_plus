@@ -115,9 +115,6 @@ addAllConstraints = do
     mapM_ assert ocons
     mapM_ assert fcons
     mapM_ assert bcons
-
-solveAndGetModel :: Encoder [(Id, Int)]
-solveAndGetModel = do
     
 nonincrementalSolve :: Encoder Z3.Result
 nonincrementalSolve = do
