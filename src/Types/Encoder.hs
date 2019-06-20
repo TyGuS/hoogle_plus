@@ -55,10 +55,11 @@ data EncodeState = EncodeState {
   mustFirers :: HashMap Id [Id],
   ty2tr :: HashMap Id [Id],
   prevChecked :: Bool,
+  incrementalSolving :: Bool,
   disabledTrans :: [Id],
   returnTyps :: [Id],
-  excludeConstraints :: [Z3.AST],
-  tmpConstraints :: [Z3.AST],
+  persistConstraints :: [Z3.AST],
+  optionalConstraints :: [Z3.AST],
   finalConstraints :: [Z3.AST],
   blockConstraints :: [Z3.AST]
 }

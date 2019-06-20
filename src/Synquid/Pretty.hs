@@ -6,6 +6,7 @@ module Synquid.Pretty (
   Doc,
   renderPretty,
   putDoc,
+  prettyShow,
   -- * Basic documents
   empty,
   isEmpty,
@@ -74,11 +75,16 @@ import qualified Data.Map as Map
 import Data.Map (Map, (!))
 import Data.List
 import Data.Hashable
+import Data.Tree
+import Data.Tree.Pretty
 
 import Control.Lens
 
 infixr 5 $+$
 infixr 6 <+>
+
+prettyShow :: Pretty p => p -> String
+prettyShow p = displayS (renderCompact $ pretty p) ""
 
 tab = 2
 
@@ -212,7 +218,7 @@ fmlDocAt n fml = condHlParens (n' <= n) (
     n' = power fml
     withSort s doc = doc -- <> text ":" <> pretty s
 
-instance Pretty Formula where pretty e = fmlDoc e
+instance Pretty Formula where pretty = fmlDoc
 
 instance Show Formula where
   show = show . plain . pretty
@@ -265,7 +271,7 @@ instance Show SType where
 
 -- | Pretty-printed refinement type
 prettyType :: RType -> Doc
-prettyType t = prettyTypeAt 0 t
+prettyType = prettyTypeAt 0
 
 -- | Binding power of a type
 typePower :: RType -> Int
@@ -367,7 +373,7 @@ prettyBindings env = commaSep (map pretty (Map.keys $ removeDomain (env ^. const
 -- prettyBindings env = empty
 
 instance Pretty Environment where
-  pretty env = prettyBindings env
+  pretty = prettyBindings
 
 prettySortConstraint :: SortConstraint -> Doc
 prettySortConstraint (SameSort sl sr) = pretty sl <+> text "=" <+> pretty sr
@@ -516,8 +522,8 @@ instance Show AbstractBase where
 
 instance Pretty AbstractSkeleton where
     pretty (AScalar b) = pretty b
-    pretty (AFunctionT tArg tRet) = hlParens (pretty tArg <+> operator "->" <+> pretty tRet)
-    pretty ABottom = text "_|_"
+    pretty (AFunctionT tArg tRet) = hlParens (pretty tArg <+> operator "→" <+> pretty tRet)
+    pretty ABottom = text "⊥"
 
 instance Show AbstractSkeleton where
     show = show . plain . pretty
@@ -527,6 +533,4 @@ instance Hashable AbstractSkeleton where
   hashWithSalt s typ = s + hash typ
 
 instance Pretty SplitInfo where
-    pretty (SplitInfo p r tr) = text "Splitted places:" <+> text (show p) 
-                             $+$ text "Removed transitions:" <+> text (show r)
-                             $+$ text "New transitions:" <+> text (show tr)
+    pretty (SplitInfo p r tr) = text "Split places:" <+> text (show p) 

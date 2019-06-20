@@ -64,8 +64,7 @@ setInitialState inputs places = do
         placeMap <- gets place2variable
         tVar <- mkZ3IntVar $ findVariable (p, 0) placeMap
         eq <- mkIntNum v >>= mkEq tVar
-        -- assert eq
-        modify $ \st -> st { tmpConstraints = eq : tmpConstraints st }
+        modify $ \st -> st { optionalConstraints = eq : optionalConstraints st }
 
 -- | set the final solver state, we allow only one token in the return type
 -- and maybe several tokens in the "void" place
@@ -83,7 +82,6 @@ setFinalState ret places = do
         retVar <- mkZ3IntVar $ findVariable (ret, l) placeMap
         assrt <- mkIntNum 1 >>= mkEq retVar
         modify $ \st -> st { finalConstraints = assrt : finalConstraints st }
-        -- assert assrt
 
     excludeOther p = do
         l <- gets loc
@@ -107,12 +105,34 @@ cancelConstraints name = do
     cancelExp <- mkConst cancelSym boolS >>= mkNot
     assert cancelExp
 
+addAllConstraints :: Encoder ()
+addAllConstraints = do
+    pcons <- gets persistConstraints
+    ocons <- gets optionalConstraints
+    fcons <- gets finalConstraints
+    bcons <- gets blockConstraints
+    mapM_ assert pcons
+    mapM_ assert ocons
+    mapM_ assert fcons
+    mapM_ assert bcons
+
 solveAndGetModel :: Encoder [(Id, Int)]
 solveAndGetModel = do
-    modify $ \st -> st { counter = counter st + 1 }
-
+    
+nonincrementalSolve :: Encoder Z3.Result
+nonincrementalSolve = do
     prev <- gets prevChecked
-    l <- gets loc
+    when prev $ do
+        toBlock <- gets block
+        modify $ \st -> st { blockConstraints = toBlock : blockConstraints st}
+
+    addAllConstraints
+    check    
+
+incrementalSolve :: Encoder Z3.Result
+incrementalSolve = do
+    modify $ \st -> st { counter = counter st + 1 }
+    prev <- gets prevChecked
     (cnt, boolS) <- getParam
     blockSym <- mkStringSymbol $ "block" ++ show cnt
     blockE <- mkConst blockSym boolS
@@ -120,7 +140,7 @@ solveAndGetModel = do
                    (gets block >>= mkImplies blockE)
                    (mkTrue >>= mkImplies blockE)
     modify $ \st -> st { blockConstraints = blockE : blockConstraints st}
-    exclusions <- gets tmpConstraints
+    exclusions <- gets optionalConstraints
     excludeSym <- mkStringSymbol $ "exclude" ++ show cnt
     excludeE <- mkConst excludeSym boolS
     excluded <- mkAnd exclusions >>= mkImplies excludeE
@@ -134,18 +154,14 @@ solveAndGetModel = do
     assert blocked
 
     blocks <- gets blockConstraints
-    res <- checkAssumptions (excludeE : finalE : blocks)
+    checkAssumptions (excludeE : finalE : blocks)
 
-    -- when (l == 1) $ do
-    --     solverStr <- solverToString
-    --     liftIO $ putStrLn solverStr
-    --     transMap <- transition2id <$> get
-    --     liftIO $ print transMap
-    --     placeMap <- place2variable <$> get
-    --     liftIO $ print placeMap
-    --     transMap' <- id2transition <$> get
-    --     liftIO $ print transMap'
-    
+solveAndGetModel :: Encoder [(Id, Int)]
+solveAndGetModel = do
+    l <- gets loc
+    incremental <- gets incrementalSolving
+    res <- if incremental then incrementalSolve else nonincrementalSolve
+
     case res of
         Sat -> do
             -- liftIO $ print "sat"
@@ -157,27 +173,33 @@ solveAndGetModel = do
             blockTrs <- zipWithM blockTr [0..(l-1)] selected
             blockAss <- mkAnd (placed ++ blockTrs) >>= mkNot
             modify $ \st -> st { block = blockAss }
+            unless incremental $ do
+                currEnv <- gets z3env
+                env <- liftIO $ freshEnv $ envContext currEnv
+                modify $ \st -> st { z3env = env }
             selectedNames <- getTrNames selected
             cancelConstraints "exclude"
             cancelConstraints "final"
             return (zip selectedNames [0,1..])
         Unsat -> do
             rets <- gets returnTyps
+            unless incremental $ do
+                currEnv <- gets z3env
+                env <- liftIO $ freshEnv $ envContext currEnv
+                modify $ \st -> st { z3env = env }
             if length rets == 1
               then do
-                -- liftIO $ print "unsat for inc path"
-                cancelConstraints "exclude"
-                cancelConstraints "final"
-                mapM_ (mkNot >=> assert) blocks
-                modify $ \st -> st { blockConstraints = [] }
+                when incremental $ do
+                    cancelConstraints "exclude"
+                    cancelConstraints "final"
+                    mapM_ (mkNot >=> assert) blocks
                 return []
               else do
                 -- liftIO $ print "unsat for change goal"
                 -- try a more general return type
                 t2tr <- gets ty2tr
-                cancelConstraints "final"
+                when incremental $ cancelConstraints "final"
                 modify $ \st -> st { finalConstraints = []
-                                   , excludeConstraints = []
                                    , returnTyps = tail rets 
                                    , prevChecked = False }
                 setFinalState (rets !! 1) (HashMap.keys t2tr)
@@ -210,11 +232,11 @@ solveAndGetModel = do
         tsVar <- mkZ3IntVar (findVariable t tsMap)
         mkIntNum tr >>= mkEq tsVar
 
-encoderInit :: Int -> HashMap Id [Id] -> [Id] -> [Id] -> [FunctionCode] -> HashMap Id [Id] -> IO EncodeState
-encoderInit loc hoArgs inputs rets sigs t2tr = do
+encoderInit :: Int -> HashMap Id [Id] -> [Id] -> [Id] -> [FunctionCode] -> HashMap Id [Id] -> Bool -> IO EncodeState
+encoderInit loc hoArgs inputs rets sigs t2tr incr = do
     z3Env <- initialZ3Env
     false <- Z3.mkFalse (envContext z3Env)
-    let initialState = EncodeState z3Env 0 false loc 0 1 HashMap.empty HashMap.empty HashMap.empty HashMap.empty hoArgs t2tr False [] rets [] [] [] []
+    let initialState = EncodeState z3Env 0 false loc 0 1 HashMap.empty HashMap.empty HashMap.empty HashMap.empty hoArgs t2tr False incr [] rets [] [] [] []
     execStateT (createEncoder inputs (head rets) sigs) initialState
 
 encoderSolve :: EncodeState -> IO ([(Id, Int)], EncodeState)
@@ -224,7 +246,7 @@ encoderInc :: [FunctionCode] -> [Id] -> [Id] -> Encoder ()
 encoderInc sigs inputs rets = do
     modify $ \st -> st { loc = loc st + 1
                        , returnTyps = rets
-                       , tmpConstraints = []
+                       , optionalConstraints = []
                        , blockConstraints = []
                        , finalConstraints = [] }
     places <- gets ((:) "void" . HashMap.keys . ty2tr)
@@ -268,7 +290,7 @@ encoderRefine info musters inputs rets sigs t2tr = do
                        , mustFirers = musters
                        , disabledTrans = disabledTrans st ++ removedTrans info
                        , returnTyps = rets
-                       , tmpConstraints = []
+                       , optionalConstraints = []
                        , finalConstraints = []
                        }
 
@@ -314,7 +336,7 @@ disableTransitions trs t = mapM_ disableTrAt trs
         trVar <- mkIntNum (findVariable tr transMap)
         tsVar <- mkZ3IntVar (findVariable t tsMap)
         eq <- mkEq tsVar trVar >>= mkNot
-        -- modify $ \st -> st { persistConstraints = eq : persistConstraints st }
+        modify $ \st -> st { persistConstraints = eq : persistConstraints st }
         assert eq
 
 -- | add variables for each place:
@@ -414,7 +436,7 @@ nonnegativeTokens places = do
         pZ3Var <- mkZ3IntVar pVar
         zero <- mkIntNum 0
         geZero <- mkGe pZ3Var zero
-        -- modify $ \st -> st { persistConstraints = geZero : persistConstraints st }
+        modify $ \st -> st { persistConstraints = geZero : persistConstraints st }
         assert geZero
 
 -- | at each timestamp, only one transition can be fired, we restrict the
@@ -433,9 +455,7 @@ transitionRng = do
         geStart <- mkGe tsZ3Var start
         end <- mkIntNum transMax
         ltEnd <- mkLt tsZ3Var end
-        modify $ \st -> st { tmpConstraints = ltEnd : geStart : tmpConstraints st }
-        -- assert geStart
-        -- assert ltEnd
+        modify $ \st -> st { optionalConstraints = ltEnd : geStart : optionalConstraints st }
 
 -- | if this place has no connected transition fired,
 -- it has the same # of tokens
@@ -451,8 +471,7 @@ noTransitionTokens t p = do
     next <- mkZ3IntVar $ findVariable (p, t + 1) placeMap
     tokenSame <- mkEq curr next
     noChange <- mkImplies noFire tokenSame
-    modify $ \st -> st { tmpConstraints = noChange : tmpConstraints st }
-    -- assert noChange
+    modify $ \st -> st { optionalConstraints = noChange : optionalConstraints st }
   where
     noFireAt transitions p t = do
         idVars <- mapM mkIntNum transitions
@@ -485,7 +504,7 @@ fireTransitions t (FunctionCode name [] params rets) = do
     enoughTokens <- mapM getSatisfiedPlace pcnt
     postCond <- mkAnd (enoughTokens ++ changes)
     tokenChange <- mkImplies fire postCond
-    -- modify $ \st -> st { persistConstraints = tokenChange : persistConstraints st }
+    modify $ \st -> st { persistConstraints = tokenChange : persistConstraints st }
     assert tokenChange
   where
     mkChange t (p, diff) = do
@@ -520,5 +539,4 @@ mustFireTransitions = do
         let mustTrans = HashMap.filterWithKey (\k _ -> nameInMust tids k) transitions
         fires <- mapM fireTransition mustTrans
         toFire <- mkOr (concat fires)
-        modify $ \st -> st { tmpConstraints = toFire : tmpConstraints st }
-        -- assert toFire
+        modify $ \st -> st { optionalConstraints = toFire : optionalConstraints st }

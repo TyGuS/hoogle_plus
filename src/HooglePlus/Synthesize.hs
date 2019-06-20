@@ -33,6 +33,7 @@ import Control.Lens
 import Control.Applicative ((<$>))
 import Text.Parsec.Pos
 import Text.Parsec.Indent
+import Text.Printf (printf)
 import System.Exit
 import Control.Concurrent.Chan
 import Control.Exception
@@ -77,17 +78,9 @@ synthesize searchParams goal messageChan = do
   let args = Monotype destinationType : Map.elems (env ^. arguments)
   -- start with all the datatypes defined in the components, first level abstraction
   let cnt = _solutionCnt searchParams
-  let maxLevel = _explorerLogLevel searchParams
-  let rs = _useRefine searchParams
-  let maxDepth = _eGuessDepth searchParams
-  let toStop = _earlyCut searchParams
-  let threshold = _stopThresh searchParams
+  let rs = _refineStrategy searchParams
   let is = emptySolverState {
-             _logLevel = maxLevel
-           , _maxApplicationDepth = maxDepth
-           , _refineStrategy = rs
-           , _stopRefine = toStop
-           , _threshold = threshold
+             _searchParams = searchParams
            , _abstractionTree = case rs of
                SypetClone -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
                TyGar0 -> emptySolverState ^. abstractionTree
@@ -101,5 +94,5 @@ synthesize searchParams goal messageChan = do
            , _messageChan = messageChan
            }
   catch (evalStateT (runPNSolver env cnt destinationType) is)
-    (\e -> print e >> writeChan messageChan (MesgClose (CSError e)))
+    (\e -> (printf "[error]: %s \n" (show e)) >> writeChan messageChan (MesgClose (CSError e)))
   return ()

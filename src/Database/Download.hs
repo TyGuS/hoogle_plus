@@ -19,6 +19,7 @@ import System.IO
 
 import Types.Generate
 import Database.Util
+import Synquid.Util (getTmpDir)
 
 docVersionsUrl = "https://hackage.haskell.org/packages/docs"
 docDownloadUrl = "https://hackage.haskell.org/package/"
@@ -53,6 +54,7 @@ getPkg pkgName = do
 
 downloadFile :: PkgName -> Maybe Version -> IO (Maybe FilePath)
 downloadFile pkg version = do
+    downloadDir <- getTmpDir
     vpkg <- packageNameWithVersion pkg version
     let filepath = downloadDir ++ vpkg ++ ".txt"
     doesExist <- doesFileExist $ filepath
@@ -70,6 +72,7 @@ downloadFile pkg version = do
 
 downloadCabal :: PkgName -> Maybe Version -> IO (Maybe FilePath)
 downloadCabal pkg version = do
+    downloadDir <- getTmpDir
     vpkg <- packageNameWithVersion pkg version
     let filepath = downloadDir ++ pkg ++ ".cabal"
     doesExist <- doesFileExist $ filepath

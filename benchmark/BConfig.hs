@@ -12,15 +12,15 @@ defaultExperiment = TrackTypesAndTransitions
 
 searchParamsTyGarQ = defaultSearchParams
 searchParamsHOF = defaultSearchParams{_useHO=True}
-searchParamsSypetClone = defaultSearchParams{_useRefine=SypetClone}
-searchParamsTyGar0 = defaultSearchParams{_useRefine=TyGar0}
-searchParamsTyGarQB = defaultSearchParams{_earlyCut=True,_stopThresh=5}
-searchParamsTyGar0B = searchParamsTyGarQB{_useRefine=TyGar0}
-searchParamsNoGar = defaultSearchParams{_useRefine=NoGar}
-searchParamsNoGar0 = defaultSearchParams{_useRefine=NoGar0}
-searchParamsNoGarTyGar0 = defaultSearchParams{_useRefine=NoGarTyGar0}
-searchParamsNoGarTyGarQ = defaultSearchParams{_useRefine=NoGarTyGarQ}
-searchParamsNoGarTyGar0B = defaultSearchParams{_useRefine=NoGarTyGar0B}
-searchParamsNoGarTyGarQB = defaultSearchParams{_useRefine=NoGarTyGarQB}
+searchParamsSypetClone = defaultSearchParams{_refineStrategy=SypetClone}
+searchParamsTyGar0 = defaultSearchParams{_refineStrategy=TyGar0}
+searchParamsTyGarQB = defaultSearchParams{_stopRefine=True,_threshold=5}
+searchParamsTyGar0B = searchParamsTyGarQB{_refineStrategy=TyGar0}
+searchParamsNoGar = defaultSearchParams{_refineStrategy=NoGar}
+searchParamsNoGar0 = defaultSearchParams{_refineStrategy=NoGar0}
+searchParamsNoGarTyGar0 = defaultSearchParams{_refineStrategy=NoGarTyGar0}
+searchParamsNoGarTyGarQ = defaultSearchParams{_refineStrategy=NoGarTyGarQ}
+searchParamsNoGarTyGar0B = defaultSearchParams{_refineStrategy=NoGarTyGar0B}
+searchParamsNoGarTyGarQB = defaultSearchParams{_refineStrategy=NoGarTyGarQB}
 searchParamsILP = defaultSearchParams
-searchParamsTyGars = map (\t -> searchParamsTyGar0{_earlyCut=True,_stopThresh=t}) [0..10]
+searchParamsTyGars = map (\t -> searchParamsTyGar0{_stopRefine=True,_threshold=t}) [0..10]

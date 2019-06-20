@@ -220,15 +220,15 @@ resetEncoder env dst = do
     (srcTypes, tgt) <- updateSrcTgt env dst
     writeLog 2 "resetEncoder" $ text "parameter types are" <+> pretty srcTypes
     writeLog 2 "resetEncoder" $ text "return type is" <+> pretty tgt
-    (loc, musters, rets, funcs, tid2tr) <- prepEncoderArgs env tgt
+    (loc, musters, rets, funcs, tid2tr, incremental) <- prepEncoderArgs env tgt
     let srcStr = map show srcTypes  
-    liftIO $ encoderInit loc musters srcStr rets funcs tid2tr
+    liftIO $ encoderInit loc musters srcStr rets funcs tid2tr incremental
 
 incEncoder :: MonadIO m => Environment -> EncodeState -> PNSolver m EncodeState
 incEncoder env st = do
     tgt <- gets (view targetType)
     src <- gets (view sourceTypes)
-    (_, _, rets, funcs, _) <- prepEncoderArgs env tgt
+    (_, _, rets, funcs, _, _) <- prepEncoderArgs env tgt
     liftIO $ execStateT (encoderInc funcs (map show src) rets) st
 
 findPath :: (MonadIO m) => Environment -> RType -> EncodeState -> PNSolver m (CodePieces, EncodeState)
@@ -237,7 +237,7 @@ findPath env dst st = do
     case res of
         [] -> do
             currSt <- get
-            maxDepth <- gets $ view maxApplicationDepth
+            maxDepth <- getExperiment maxApplicationDepth
             when (currSt ^. currentLoc >= maxDepth) (
               do
                 mesgChan <- gets $ view messageChan
@@ -307,7 +307,7 @@ fixEncoder env dst st info = do
     mapM_ addCloneFunction (filter (not . isAFunctionT) newTyps)
     modify $ over type2transition (HashMap.filter (not . null))
 
-    (loc, musters, rets, funcs, tid2tr) <- prepEncoderArgs env tgt
+    (loc, musters, rets, funcs, tid2tr, _) <- prepEncoderArgs env tgt
     liftIO $ execStateT (encoderRefine info musters (map show srcTypes) rets funcs tid2tr) st
 
 findProgram :: MonadIO m => Environment -> RType -> EncodeState -> PNSolver m (RProgram, EncodeState)
@@ -318,7 +318,7 @@ findProgram env dst st = do
     (codeResult, st') <- findPath env dst st
     writeLog 2 "findProgram" $ pretty (Set.toList codeResult)
     checkResult <- withTime TypeCheckTime (firstCheckedOrError $ sortOn length (Set.toList codeResult))
-    rs <- gets (view refineStrategy)
+    rs <- getExperiment refineStrategy
     if isLeft checkResult
        then let Left code = checkResult in checkSolution st' code
        else do
@@ -376,8 +376,8 @@ findProgram env dst st = do
         let st' = st { prevChecked = True }
         findProgram env dst st'
     nextSolution st _ (prog, at) = do
-        stop <- gets (view stopRefine)
-        placeNum <- gets (view threshold)
+        stop <- getExperiment stopRefine
+        placeNum <- getExperiment threshold
         cover <- gets (view abstractionTree)
         if stop && Set.size cover >= placeNum
            then findProgram env dst (st {prevChecked=True})
@@ -420,7 +420,7 @@ findFirstN env dst st cnt | cnt == 1  = do
     stats <- gets $ view solverStats
     depth <- gets $ view currentLoc
     msgChan <- gets $ view messageChan
-    strategy <- gets $ view refineStrategy
+    strategy <- getExperiment refineStrategy
     writeLog 1 "findFirstN" $ text (show depth)
     let stats' = stats{pathLength = depth}
     printSolution res
@@ -428,8 +428,8 @@ findFirstN env dst st cnt | cnt == 1  = do
     if noGarTyGarIdx strategy >= 0 
       then do
         resetTiming
-        modify $ set refineStrategy NoGar
-        modify $ set stopRefine False
+        modify $ set (searchParams . refineStrategy) NoGar
+        modify $ set (searchParams . stopRefine) False
         modify $ set currentLoc 1
         modify $ set currentSolutions []
         runPNSolver env cnt dst
@@ -530,7 +530,7 @@ updateSrcTgt env dst = do
     modify $ set paramNames $ Map.keys foArgs
     return (srcTypes, tgt)
 
-type EncoderArgs = (Int, HashMap Id [Id], [Id], [FunctionCode], HashMap Id [Id])
+type EncoderArgs = (Int, HashMap Id [Id], [Id], [FunctionCode], HashMap Id [Id], Bool)
 
 prepEncoderArgs :: MonadIO m => Environment -> AbstractSkeleton -> PNSolver m EncoderArgs
 prepEncoderArgs env tgt = do
@@ -539,13 +539,14 @@ prepEncoderArgs env tgt = do
     funcs <- gets $ view functionMap
     t2tr <- gets $ view type2transition
     musters <- gets $ view mustFirers
+    incremental <- getExperiment incrementalSolving
     let bound = env ^. boundTypeVars
     let tid2tr = HashMap.foldrWithKey (\k v -> HashMap.insert (show k) v) HashMap.empty t2tr
     let accepts = filter (isSubtypeOf bound tgt) (Set.toList abstraction)
     let rets = sortBy (compareAbstract bound) accepts
     let strRets = map show rets
     let sigs = HashMap.elems funcs
-    return (loc, musters, strRets, sigs, tid2tr)
+    return (loc, musters, strRets, sigs, tid2tr, incremental)
     
 foArgsOf :: Environment -> Map Id RSchema
 foArgsOf = Map.filter (not . isFunctionType . toMonotype) . _arguments

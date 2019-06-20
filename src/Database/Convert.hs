@@ -295,6 +295,7 @@ renameSigs currModule (decl:decls) = case decl of
 
 readDeclarations :: PkgName -> Maybe Version -> IO (Map Id [Entry])
 readDeclarations pkg version = do
+    downloadDir <- getTmpDir
     vpkg <-
         case version of
             Nothing -> return pkg
@@ -314,6 +315,7 @@ readDeclarationsFromFile fp = do
 
 packageDependencies :: PkgName -> Bool -> IO [PkgName]
 packageDependencies pkg toDownload = do
+    downloadDir <- getTmpDir
     gPackageDesc <- readGenericPackageDescription silent $ downloadDir ++ pkg ++ ".cabal"
     case condLibrary gPackageDesc of
         Nothing -> return []

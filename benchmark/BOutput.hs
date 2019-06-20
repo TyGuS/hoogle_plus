@@ -82,9 +82,9 @@ toLine currentExperiment name rss = let
         justifyText textWidth <$> (showFloat . resTEncFirstSoln) <$> result <$> mbqr,
         justifyText textWidth <$> (show . resLenFirstSoln) <$> result <$> mbqr,
         justifyText textWidth <$> (show . resRefinementSteps) <$> result <$> mbqr,
-        justifyText textWidth <$> (spaceList . show . resTransitions . result) <$> mbqr,
-        justifyText textWidth <$> (spaceList . show . resTypes . result) <$> mbqr,
-        justifyText textWidth <$> (show . resDuplicateSymbols . result) <$> mbqr,
+        justifyText textWidth <$> (spaceList . resTransitions . result) <$> mbqr,
+        justifyText textWidth <$> (spaceList . resTypes . result) <$> mbqr,
+        justifyText textWidth <$> (spaceList . resDuplicateSymbols . result) <$> mbqr,
         justifyText textWidth <$> either show show <$> resSolutionOrError <$> result <$> mbqr
         ]
   in
@@ -95,7 +95,8 @@ toLine currentExperiment name rss = let
   where
     findwhere name xs = find ((==) name . paramName) xs
     dash = const "-"
-    spaceList xs = intercalate ", " $ splitBy ',' xs
+    spaceList :: Show a => [a] -> String
+    spaceList xs = intercalate ", " $ splitBy ',' $ show xs
 
 
 toEnvTable :: [(Environment, String)] -> String
