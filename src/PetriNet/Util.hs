@@ -98,25 +98,6 @@ mkConstraint bound v t = do
     t' <- freshAbstract bound t
     return (AScalar (ATypeVarT v), t')
 
-fullStats locationName = undefined {- do
-    sigs <- gets $ view currentSigs
-    fm <- view functionMap <$> get
-    namemapping <- view nameMapping <$> get
-    t2t <- view type2transition <$> get
-    writeLog 3 locationName $ text "current sigs:" <+> pretty (Map.toList sigs)
-    writeLog 3 locationName $ text "current fm:" <+> pretty (HashMap.toList $ HashMap.map funName fm)
-    writeLog 3 locationName $ text "current nameMapping:" <+> pretty (Map.toList namemapping)
-    writeLog 3 locationName $ text "current t2t:" <+> pretty (Map.toList t2t) -}
-
-partitionDuplicateFunctions :: MonadIO m => [FunctionCode] -> PNSolver m ([FunctionCode],[FunctionCode])
-partitionDuplicateFunctions symbols = undefined {-do
-    let groupedSymbols = groupSortBy compare symbols
-    let deduplicatedSymbols = map head $ groupedSymbols
-    let toBeRemoved = (concatMap tail $ groupedSymbols)
-    let newGroupMap = map (\(x:xs) -> (x, x:xs)) (map (map funName) groupedSymbols)
-    modify $ set groupMap (Map.fromList newGroupMap)
-    return (deduplicatedSymbols, toBeRemoved)-}
-
 groupSignatures :: MonadIO m => Map Id AbstractSkeleton -> PNSolver m (Map Id (Set Id))
 groupSignatures sigs = do
     let sigsByType = groupByMap sigs
@@ -127,26 +108,13 @@ groupSignatures sigs = do
     let allIds = [Set.size $ snd x | x <- signatureGroups]
     writeLog 3 "groupSignatures" $ text $ printf "%d class; %d equiv; %d total"
         (length sigLists) (sum dupes) (sum $ map length $ sigLists)
-    return $ Map.fromList signatureGroups
 
-countDuplicateSigs :: Map Id AbstractSkeleton -> String
-countDuplicateSigs sigs = undefined {-let
-    reversedSigs = groupByMap sigs
-    countList = Map.toList reversedSigs
-    dupes = [length (snd x) | x <- countList, length (snd x) > 1]
-    in
-        printf "%d classes; %d equiv; %d total" (length dupes) (sum dupes) (length (Map.toList sigs))
-        -}
-
-countDuplicates symbols = undefined {-do
+    -- write out the info.
     mesgChan <- view messageChan <$> get
-    let groupedSymbols = groupBySlow areEqFuncs symbols
-    let counts = [ (length ss, head ss) | ss <- groupedSymbols]
-    let dupes = [ (fst x) | x <- counts, (fst x) > 1]
     modify $ over solverStats (\s -> s {
-        duplicateSymbols = duplicateSymbols s ++ [(length dupes, sum dupes, length symbols)]
+        duplicateSymbols = duplicateSymbols s ++ [(length sigLists, sum dupes, sum $ map length $ sigLists)]
     })
-    -- when (length dupes > 0) (writeLog 2 "countDuplicates" $ pretty groupedSymbols)
     stats <- view solverStats <$> get
     liftIO $ writeChan mesgChan (MesgS stats)
-    return $ printf "%d classes; %d equiv; %d total" (length dupes) (sum dupes) (length symbols)-}
+
+    return $ Map.fromList signatureGroups

@@ -39,11 +39,26 @@ data SearchParams = SearchParams {
   _stopRefine :: Bool,
   _threshold :: Int,
   _shouldRemoveDuplicates :: Bool,
-  _disableDemand :: Bool
+  _disableDemand :: Bool,
+  _coalesceTypes :: Bool
 } deriving (Eq, Show)
 
 makeLenses ''SearchParams
 
+-- | Parameters for template exploration
+defaultSearchParams = SearchParams {
+  _maxApplicationDepth = 6,
+  _sourcePos = noPos,
+  _explorerLogLevel = 0,
+  _solutionCnt = 1,
+  _useHO = False,
+  _refineStrategy = TyGarQ,
+  _stopRefine = False,
+  _threshold = 10,
+  _shouldRemoveDuplicates = False,
+  _disableDemand = False,
+  _coalesceTypes = True
+}
 data TimeStatistics = TimeStatistics {
   encodingTime :: Double,
   constructionTime :: Double,
@@ -71,23 +86,10 @@ data TimeStatUpdate
   | TypeCheckTime
   | TotalSearch
 
--- | Parameters for template exploration
-defaultSearchParams = SearchParams {
-  _maxApplicationDepth = 6,
-  _sourcePos = noPos,
-  _explorerLogLevel = 0,
-  _solutionCnt = 1,
-  _useHO = False,
-  _refineStrategy = TyGarQ,
-  _stopRefine = False,
-  _threshold = 10,
-  _shouldRemoveDuplicates = False,
-  _disableDemand = False
-}
-
 type ExperimentName = String
 expTyGarQ = "TYGAR-Q":: ExperimentName
-expTyGarQNoDmd = "Query Refinement - no demand" :: ExperimentName
+expTyGarQNoDmd = expTyGarQ ++ "- no demand" :: ExperimentName
+expTyGarQNoCoalesce = expTyGarQ ++ "- no coalescing" :: ExperimentName
 
 expSypetClone = "Sypet-Clone" :: ExperimentName
 expTyGar0 = "TYGAR-0" :: ExperimentName

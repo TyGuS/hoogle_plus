@@ -144,7 +144,7 @@ instantiateWith env typs id t = do
         when (id `HashMap.member` musts)
              (modify $ over mustFirers (HashMap.insertWith (flip (\\)) id [tid]))
 
-addSignatures :: MonadIO m => Environment -> PNSolver m (Map Id AbstractSkeleton, [Id])
+addSignatures :: MonadIO m => Environment -> PNSolver m (Map Id AbstractSkeleton)
 addSignatures env = do
     let foArgs = foArgsOf env
     -- first abstraction all the symbols with fresh type variables and then instantiate them
@@ -154,13 +154,18 @@ addSignatures env = do
     let usefulSymbols = Map.filterWithKey usefulPipe envSymbols
     sigs <- instantiate env usefulSymbols
     writeLog 3 "addSignatures" $ text "instantiate new sigs" <+> pretty (Map.toList sigs)
-    sigGroups <- groupSignatures sigs
-    let sigs' = Map.restrictKeys sigs (Map.keysSet sigGroups)
-    let dupes = Set.toList $ foldr Set.union Set.empty $ Map.elems sigGroups
-    modify $ over groupMap (updateGroups sigGroups)
+
+    sigs' <- ifM (getExperiment coalesceTypes) (
+      do
+        sigGroups <- groupSignatures sigs
+        let sigs' = Map.restrictKeys sigs (Map.keysSet sigGroups)
+        modify $ over groupMap (updateGroups sigGroups)
+        return sigs'
+        )
+      (return sigs)
     modify $ over detailedSigs (Set.union (Map.keysSet sigs'))
     mapM_ addEncodedFunction (Map.toList sigs')
-    return (sigs', dupes)
+    return sigs'
     where
         updateGroups :: Map Id (Set Id) -> Map Id (Set Id) -> Map Id (Set Id)
         updateGroups sigGroups gm = foldr updategm gm (Map.toList sigGroups)
@@ -176,12 +181,15 @@ refineSemantic env prog at = do
     -- get the split pairs
     splits <- gets (view splitTypes)
     -- add new instantiated signatures into solver
-    (sigs, dupes) <- addSignatures env
+    sigs <- addSignatures env
     -- get removed transitions
-    useless' <- gets (view toRemove)
-    gm <- gets $ view groupMap
-    let useless = Set.toList $ (Set.fromList useless') `Set.intersection` (Map.keysSet gm)
-    writeLog 3 "refineSemantic" $ text "useless: " <+> pretty useless
+    useless <- ifM (getExperiment coalesceTypes) (
+      do
+        useless' <- gets (view toRemove)
+        gm <- gets $ view groupMap
+        return $ Set.toList $ (Set.fromList useless') `Set.intersection` (Map.keysSet gm)
+        )
+      (gets $ view toRemove)
     -- add clone functions and add them into new transition set
     cloneNames <- mapM addCloneFunction $ Set.toList splits
     -- call the refined encoder on these signatures and disabled signatures
@@ -198,16 +206,12 @@ initNet env = withTime ConstructionTime $ do
     modify $ set type2transition HashMap.empty
     modify $ set instanceMapping HashMap.empty
 
-    (_, dupes) <- addSignatures env
-    modify $ over toRemove (\xs -> listDiff xs dupes)
+    addSignatures env
     -- add clone functions for each type
     allTy <- gets (HashMap.keys . view type2transition)
     transitions <- gets (HashMap.elems . view type2transition)
     writeLog 3 "initNet" $ text "allTys: " <+> pretty allTy
     mapM_ addCloneFunction (filter (not . isAFunctionT) allTy)
-    removable <- gets $ view toRemove
-    writeLog 3 "initNet" $ text "toRemove: " <+> pretty removable
-
   where
     abstractSymbol id sch = do
         t <- freshType sch

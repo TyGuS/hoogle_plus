@@ -85,13 +85,14 @@ summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
       safeTransitions = map snd (Map.toAscList (numOfTransitions firstR))
       safeTypes = map snd (Map.toAscList (numOfPlaces firstR))
       in [emptyResult {
-      resSolutionOrError = fmap (mkOneLine . show) errOrMbSoln,
+      resSolutionOrError = fmap (\x -> (mkOneLine . fromMaybe "No Solution") (show <$> x)) errOrMbSoln,
       resTFirstSoln = totalTime firstR,
       resTEncFirstSoln = encodingTime firstR,
       resLenFirstSoln = pathLength firstR,
       resRefinementSteps = iterations firstR,
       resTransitions = safeTransitions,
-      resTypes = safeTypes
+      resTypes = safeTypes,
+      resDuplicateSymbols = duplicateSymbols firstR
       }]
     (CompareSolutions, solns) -> let
       toSolution (Right (Just soln), _) = emptyResult {resSolutionOrError = (Right $ show soln)}
