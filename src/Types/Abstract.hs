@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric  #-}
 module Types.Abstract where
 
 import Types.Common
