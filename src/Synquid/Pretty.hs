@@ -534,5 +534,3 @@ instance Hashable AbstractSkeleton where
 
 instance Pretty SplitInfo where
     pretty (SplitInfo p r tr) = text "Split places:" <+> text (show p) 
-                             $+$ text "Removed transitions:" <+> text (show r)
-                             $+$ text "New transitions:" <+> text (show tr)

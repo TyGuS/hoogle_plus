@@ -87,6 +87,15 @@ getSetup args = do
           CompareThresholds -> 
             map (\i -> (searchParamsTyGar0 {_stopRefine=True,_threshold=i}, "TyGar0B"++show i)) [1..10]
             ++ map (\i -> (searchParamsTyGarQ {_stopRefine=True,_threshold=i}, "TyGarQB"++show i)) [1..10]
+          CompareIncremental -> [
+            (searchParamsNoGar, expNoGar),
+            (searchParamsNoGarInc, expNoGarInc),
+            (searchParamsTyGarQ, expTyGarQ),
+            (searchParamsTyGarQInc, expTyGarQInc),
+            (searchParamsTyGarQB, expTyGarQB),
+            (searchParamsTyGarQBInc, expTyGarQBInc),
+            (searchParamsTyGar0B, expTyGar0B),
+            (searchParamsTyGar0BInc, expTyGar0BInc)]
           TrackTypesAndTransitions -> [(searchParamsTyGarQ, expTyGarQ)]
   let exps =
         case currentExperiment of

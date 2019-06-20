@@ -72,7 +72,7 @@ releaseDate = fromGregorian 2019 3 10
 main = do
   res <- cmdArgsRun $ mode
   case res of
-    Synthesis file libs envPath appMax log_ solNum higher_order refine stopRefine threshold remove_duplicates -> do
+    Synthesis file libs envPath appMax log_ solNum higher_order refine stopRefine threshold remove_duplicates incr -> do
       let searchParams = defaultSearchParams {
         _maxApplicationDepth = appMax,
         _explorerLogLevel = log_,
@@ -81,7 +81,8 @@ main = do
         _refineStrategy = refine,
         _stopRefine = stopRefine,
         _threshold = threshold,
-        _shouldRemoveDuplicates = remove_duplicates
+        _shouldRemoveDuplicates = remove_duplicates,
+        _incrementalSolving = incr
         }
       let synquidParams = defaultSynquidParams {
         Main.envPath = envPath
@@ -129,7 +130,8 @@ data CommandLineArgs
         use_refine :: RefineStrategy,
         stop_refine :: Bool,
         stop_threshold :: Int,
-        remove_duplicates :: Bool
+        remove_duplicates :: Bool,
+        incremental :: Bool
       }
       | Generate {
         -- | Input
@@ -154,7 +156,8 @@ synt = Synthesis {
   use_refine          = TyGarQ          &= help ("Use abstract refinement or not (default: TyGarQ)"),
   stop_refine         = False           &= help ("Stop refine the abstraction cover after some threshold (default: False)"),
   stop_threshold      = 10              &= help ("Refinement stops when the number of places reaches the threshold, only when stop_refine is True"),
-  remove_duplicates   = False &= help ("Remove duplicates while searching. Under development.")
+  remove_duplicates   = False           &= help ("Remove duplicates while searching. Under development."),
+  incremental         = False           &= help ("Enable the incremental solving in z3 (default: False)")
   } &= auto &= help "Synthesize goals specified in the input file"
 
 generate = Generate {
