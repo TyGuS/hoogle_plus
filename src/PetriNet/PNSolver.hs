@@ -31,7 +31,7 @@ import Types.Abstract
 import Types.Solver
 import Types.Program
 import Types.Experiments
-import Types.Encoder hiding (varName, mustFirers)
+import Types.Encoder hiding (varName, mustFirers, incrementalSolving)
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Program
 import Synquid.Type
