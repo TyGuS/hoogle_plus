@@ -86,25 +86,13 @@ defaultSearchParams = SearchParams {
 }
 
 type ExperimentName = String
-expTyGarQ = "TYGAR-Q":: ExperimentName
-expQueryRefinementHOF = "Query Refinement - HOF" :: ExperimentName
-expSypetClone = "Sypet-Clone" :: ExperimentName
-expTyGar0 = "TYGAR-0" :: ExperimentName
-expTyGarQB = "TYGAR-QB" :: ExperimentName
-expTyGar0B = "TYGAR-0B" :: ExperimentName
-expNoGar = "NoGar" :: ExperimentName
-expNoGar0 = "NoGar0" :: ExperimentName
-expNoGarTyGar0 = "NoGar with TyGar0's cover" :: ExperimentName
-expNoGarTyGarQ = "NoGar with TyGarQ's cover" :: ExperimentName
-expNoGarTyGar0B = "NoGar with TyGar0B's cover" :: ExperimentName
-expNoGarTyGarQB = "NoGar with TyGarQB's cover" :: ExperimentName
-expILP = "Integer Linear Programming" :: ExperimentName
 
 data ExperimentCourse
   = CompareInitialAbstractCovers
   | TrackTypesAndTransitions --2019-05-06
   | CompareFinalCovers
   | CompareThresholds
+  | CompareIncremental
   deriving (Show, Data, Typeable)
 
 data Message
