@@ -39,7 +39,7 @@ getDeps :: PackageFetchOpts -> Map MdlName [Entry] -> [Entry] -> IO [Declaration
 getDeps Local{files=f} allEntries ourEntries = do
   let dependentEntries = DC.entryDependencies allEntries ourEntries (concat $ Map.elems allEntries)
   nubOrd <$> mapM (flip evalStateT 0 . DC.toSynquidDecl) dependentEntries
-getDeps Hackage{packages=ps} allEntries ourEntries = do
+entryDependencies Hackage{packages=ps} allEntries ourEntries = do
   pkgsDeps <- mapM (\pkgName -> do
     pkgDeps <- nubOrd <$> DC.packageDependencies pkgName True
     entriesFromDeps <- concatMap (concat . Map.elems) <$> (mapM (flip DC.readDeclarations Nothing) pkgDeps)
@@ -67,10 +67,7 @@ generateEnv genOpts = do
     let moduleNames = Map.keys entriesByMdl
     let allCompleteEntries = concat (Map.elems entriesByMdl)
     let allEntries = nubOrd allCompleteEntries
-    ourDecls <- mapM (\(entry) -> (evalStateT (DC.toSynquidDecl' entry) 0)) allEntries
-    print $ length ourDecls
-    print $ length allEntries
-    print ourDecls
+    ourDecls <- mapM (\(entry) -> (evalStateT (DC.toSynquidDecl entry) 0)) allEntries
     --print "\n\n\n"
     -- Handling typeclasses
     -- TODO: Why is this function filtering declarations? Will I have to re-run this code elsewhere?
@@ -79,6 +76,12 @@ generateEnv genOpts = do
     let transitionIds = [0 .. length instanceRules]
     let instanceTuples = zip instanceRules transitionIds
     instanceFunctions <- mapM (\(entry, id) -> evalStateT (DC.instanceToFunction entry id) 0) instanceTuples
+
+  -- NEXT TASKS (MJ AND DAVID)
+  -- make array containing DATADECLS for all typeclass dictionary arguments. This should be added to `hooglePlusDecls` (below)
+  -- I think the easiest way to do this would be to cast instanceFunctions  and ourDecls to string and to detect all typeclass
+  -- names in there. Otherwise, it appears to me that we would need to write repetitive pattern-matching or, otherwise, generalize
+  -- / refactor some of the code in convert.hs and that would take quite a bit to get fully right. 
 
     print "==================$$$"
     print instanceFunctions

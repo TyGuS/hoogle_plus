@@ -265,9 +265,6 @@ datatypeOfCon (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
 
 toSynquidDecl' :: (MonadIO m) => Entry -> StateT Int m Declaration
 toSynquidDecl' x = do
-    liftIO $ print "$$$$$$$$$$$$"
-    liftIO $ print x
-    liftIO $ print "$$$$$$$$$$$$"
     toSynquidDecl x
 
 
@@ -317,7 +314,7 @@ getTyclassVars (IHParen _ head) = getTyclassVars head
 getTyclassVars (IHCon _ _) = return []
 getTyclassVars _ = error "getTyclassDictName: case to be implemented"
 
-instanceToFunction :: (MonadIO m) => InstRule () -> Int -> StateT Int m Declaration
+instanceToFunction :: (MonadIO m) => InstRule () -> Int -> StateT Int m (Declaration)
 instanceToFunction (IParen _ inst) n = instanceToFunction inst n
 instanceToFunction (IRule _ _ ctx head) n = do
     let name = getTyclassDictName head
@@ -334,7 +331,46 @@ instanceToFunction (IRule _ _ ctx head) n = do
             return $ FunctionT "" arg acc
         toDecl :: (MonadIO m) => SType -> StateT Int m Declaration  
         toDecl x = return $ Pos (initialPos "") $ TP.FuncDecl ("__hplusTCTransition" ++ (show n)) $ toSynquidRSchema $ Monotype x
-            
+
+getTyclassVars' :: (MonadIO m) => InstHead () -> StateT Int m [SType] 
+getTyclassVars' (IHApp _ head typeVar) = do
+    typeSkeletonArr <- getTyclassVars head
+    typeSkeleton <- (Data.List.head . fromJust) <$> toSynquidSkeleton typeVar
+    return $ (typeSkeletonArr ++ [typeSkeleton])
+getTyclassVars' (IHParen _ head) = getTyclassVars' head
+getTyclassVars' (IHCon _ _) = return []
+getTyclassVars' _ = error "getTyclassDictName: case to be implemented"
+
+
+instanceToFunction2 :: (MonadIO m) => InstRule () -> StateT Int m Declaration
+instanceToFunction2 (IParen _ inst) = instanceToFunction2 inst
+instanceToFunction2 (IRule _ _ ctx head) = do
+    let name = getTyclassDictName head
+    let base = TP.DataDecl name ["a"] [] []
+    case ctx of
+        Nothing -> toDecl' base
+        Just (CxTuple _ tyclassConds) -> toDecl' base --toDecl' =<< foldrM go base tyclassConds
+        Just (CxSingle _ tyclassCond) ->  toDecl' $ TP.DataDecl (toTCDictName tyclassCond) ["a"] [] []
+        _ -> error "instanceToFunction: Unhandled case"
+    where
+        toDecl' :: (MonadIO m) => BareDeclaration -> StateT Int m Declaration
+        toDecl' x = return $ Pos (initialPos "") $ x
+    --toDecl' base
+    --case ctx of
+    --    Nothing -> toDecl' =<< foldrM go base []
+    --    Just (CxTuple _ tyclassConds) -> toDecl' =<< foldrM go base tyclassConds
+    --    Just (CxSingle _ tyclassCond) -> toDecl' =<< foldrM go base [tyclassCond]
+     --   _ -> error "instanceToFunction: Unhandled case"
+
+        --go e acc = do
+        --    arg <- toArg' e
+        --    return $ arg:acc
+
+--toArg' :: (MonadIO m) => Asst () -> StateT Int m BareDeclaration     
+--toArg' x = do
+--    typeVars <- getTypeVars x
+--    --TP.DataDecl
+--    return $ TP.DataDecl (toTCDictName x) ["vars"] [] []
 
 toArg :: (MonadIO m) => Asst () -> StateT Int m SType     
 toArg x = do
