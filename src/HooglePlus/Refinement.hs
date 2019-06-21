@@ -112,12 +112,12 @@ propagate :: MonadIO m => Environment -> RProgram -> AbstractSkeleton -> PNSolve
 -- | base case, when we reach the leaf of the AST
 propagate env p@(Program (PSymbol sym) t) upstream = do
     writeLog 3 "propagate" $ text "propagate" <+> pretty upstream <+> text "into" <+> pretty p
-    cover <- gets (view abstractionTree)
+    cover <- gets (view abstractionCover)
     let bound = env ^. boundTypeVars
     unless (existAbstract bound cover upstream) 
            (do
                 let newCover = updateCover bound upstream cover
-                modify $ set abstractionTree newCover
+                modify $ set abstractionCover newCover
                 modify $ over splitTypes (Set.union (newCover `Set.difference` cover))
            )
 -- | starter case, when we start from a bottom type
@@ -246,13 +246,11 @@ solveTypeConstraint env t tv@(ScalarT (TypeVarT _ id) _) = solveTypeConstraint e
 solveTypeConstraint env (FunctionT _ tArg tRet) (FunctionT _ tArg' tRet') = do
     writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tArg <+> text "==" <+> pretty tArg'
     solveTypeConstraint env tArg tArg'
-    st <- get
-    when (st ^. isChecked) (do
-        writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tRet <+> text "==" <+> pretty tRet'
-        solveTypeConstraint env tRet tRet')
-solveTypeConstraint env t1@(ScalarT (DatatypeT id tArgs _) _) t2@(ScalarT (DatatypeT id' tArgs' _) _) | id /= id' =
+    writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tRet <+> text "==" <+> pretty tRet'
+    solveTypeConstraint env tRet tRet'
+solveTypeConstraint env (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT id' tArgs' _) _) | id /= id' =
     modify $ set isChecked False
-solveTypeConstraint env t1@(ScalarT (DatatypeT id tArgs _) _) t2@(ScalarT (DatatypeT id' tArgs' _) _) | id == id' =
+solveTypeConstraint env (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT id' tArgs' _) _) | id == id' =
     solveTypeConstraint' env tArgs tArgs'
   where
     solveTypeConstraint' _ []  [] = return ()
@@ -262,7 +260,9 @@ solveTypeConstraint env t1@(ScalarT (DatatypeT id tArgs _) _) t2@(ScalarT (Datat
         checked <- gets $ view isChecked
         -- if the checking between ty and ty' succeeds, proceed to others
         when checked $ solveTypeConstraint' env tys tys'
-solveTypeConstraint env t1 t2 = error $ "unknown types " ++ show t1 ++ " or " ++ show t2
+solveTypeConstraint env t1 t2 = do
+    writeLog 3 "solveTypeConstraint" $ text "unmatched types" <+> pretty t1 <+> text "and" <+> pretty t2
+    modify $ set isChecked False
 
 -- | unify the type variable with some given type
 -- add the type assignment to our state

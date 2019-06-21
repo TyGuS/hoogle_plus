@@ -62,28 +62,6 @@ applyFunction func = do
             []          -> return []
             codePieces  -> generateArgs codePieces tArgs
 
-    generateArg tArg | "AFunctionT" `isInfixOf` tArg = do
-        -- find the function first
-        let curr = case filter ((==) tArg . funName) $ hoParams func of
-                        []  -> error $ "cannot find higher order param " ++ tArg
-                        h:_ -> h
-        -- generate higher order argument header
-        vars <- mapM (\_ -> do
-                                v <- newVar
-                                st <- get
-                                put $ st { createdVars = v : createdVars st }
-                                return v) (funParams curr)
-        let hoHeader = "\\" ++ unwords vars ++ " -> "
-        -- find argument body
-        tterms <- gets typedTerms
-        oldSt <- get
-        let oldSigs = allSignatures oldSt
-        let sigsAvail = take (fromJust (elemIndex func oldSigs)) oldSigs
-        bodies <- generateProgram sigsAvail (funParams curr) vars (funReturn curr) False
-        put oldSt
-        case Set.toList bodies of
-            [] -> return []
-            _  -> return $ map (withParen . (++) hoHeader) (Set.toList bodies)
     generateArg tArg = do
         tterms <- gets typedTerms
         return $ Set.toList $ HashMap.lookupDefault Set.empty tArg tterms
@@ -91,18 +69,13 @@ applyFunction func = do
 -- | generate the program from the signatures appeared in selected transitions
 -- these signatures are sorted by their timestamps,
 -- i.e. they may only use symbols appearing before them
-generateProgram :: [FunctionCode] -> [Id] -> [Id] -> [Id] -> Bool -> CodeFormer CodePieces
-generateProgram signatures inputs argNames rets isFinal = do
+generateProgram :: [FunctionCode] -> [Id] -> CodeFormer CodePieces
+generateProgram signatures rets = do
     -- prepare scalar variables
     st <- get
     put $ st { varCounter = 0
              , allSignatures = signatures
              }
-    mapM_ (uncurry addTypedArg) $ zip inputs argNames
-    -- mapM_ addHOParams signatures
-    -- reset varCounter before filling sketch
-    st <- get
-    put $ st { varCounter = 0 }
     mapM_ applyFunction signatures
     termLib <- gets typedTerms
     let codePieces = map (\ret -> HashMap.lookupDefault Set.empty ret termLib) rets
@@ -128,6 +101,5 @@ generateProgram signatures inputs argNames rets isFinal = do
         let fold_fn f (b, c) = if b && f `elem` c then (True, f `delete` c) else (False, c)
             base             = (True, code)
             funcNames        = map funName signatures
-            (res, c)         = foldr fold_fn base (argNames ++ if isFinal then funcNames else []) -- vars exists after slash and the function body, at least twice
-            -- eachOnce         = foldr (\n acc -> isInfixOf n c || acc) False (if isFinal then funcNames else []) -- each function should be used only once according to our design of petri net
-        in res -- && (not eachOnce)
+            (res, c)         = foldr fold_fn base funcNames
+        in res

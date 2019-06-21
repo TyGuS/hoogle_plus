@@ -21,7 +21,7 @@ data SolverState = SolverState {
     _searchParams :: SearchParams,
     _nameCounter :: Map Id Int,  -- name map for generating fresh names (type variables, parameters)
     _typeAssignment :: Map Id SType,  -- current type assignment for each type variable
-    _abstractionTree :: Set AbstractSkeleton,
+    _abstractionCover :: Set AbstractSkeleton,
     _isChecked :: Bool, -- is the current state check passed
     _currentSolutions :: [RProgram], -- type checked solutions
     _currentLoc :: Int, -- current solution depth
@@ -30,8 +30,7 @@ data SolverState = SolverState {
     _functionMap :: HashMap Id FunctionCode,
     _targetType :: AbstractSkeleton,
     _sourceTypes :: [AbstractSkeleton],
-    _mustFirers :: HashMap Id [Id],
-    _paramNames :: [Id],
+    _mustFirers :: HashMap Id [(Id, Id)],
     _groupMap :: Map Id [Id], -- mapping from group id to list of function names
     _type2transition :: HashMap AbstractSkeleton [Id], -- mapping from abstract type to group ids
     _solverStats :: TimeStatistics,
@@ -40,6 +39,7 @@ data SolverState = SolverState {
     _logLevel :: Int, -- temporary for log level
     _instanceMapping :: HashMap (Id, [AbstractSkeleton]) (Id, AbstractSkeleton),
     _toRemove :: [Id],
+    _initialMap :: HashMap Id [Id],
     _messageChan :: Chan Message
 } deriving(Eq)
 
@@ -48,7 +48,7 @@ emptySolverState = SolverState {
     _searchParams = defaultSearchParams,
     _nameCounter = Map.empty,
     _typeAssignment = Map.empty,
-    _abstractionTree = Set.singleton (AScalar (ATypeVarT varName)),
+    _abstractionCover = Set.singleton (AScalar (ATypeVarT varName)),
     _isChecked = True,
     _currentSolutions = [],
     _currentLoc = 1,
@@ -58,7 +58,6 @@ emptySolverState = SolverState {
     _targetType = AScalar (ATypeVarT varName),
     _sourceTypes = [],
     _mustFirers = HashMap.empty,
-    _paramNames = [],
     _groupMap = Map.empty,
     _type2transition = HashMap.empty,
     _solverStats = emptyTimeStats,
@@ -67,6 +66,7 @@ emptySolverState = SolverState {
     _instanceMapping = HashMap.empty,
     _toRemove = [],
     _logLevel = 0,
+    _initialMap = HashMap.empty,
     _messageChan = undefined
 }
 

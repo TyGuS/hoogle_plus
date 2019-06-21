@@ -81,15 +81,15 @@ synthesize searchParams goal messageChan = do
   let rs = _refineStrategy searchParams
   let is = emptySolverState {
              _searchParams = searchParams
-           , _abstractionTree = case rs of
+           , _abstractionCover = case rs of
                SypetClone -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
-               TyGar0 -> emptySolverState ^. abstractionTree
+               TyGar0 -> emptySolverState ^. abstractionCover
                TyGarQ -> Abstraction.specificAbstractionFromTypes env args
                NoGar -> Abstraction.specificAbstractionFromTypes env args
-               NoGar0 -> emptySolverState ^. abstractionTree
-               NoGarTyGar0 -> emptySolverState ^. abstractionTree
+               NoGar0 -> emptySolverState ^. abstractionCover
+               NoGarTyGar0 -> emptySolverState ^. abstractionCover
                NoGarTyGarQ -> Abstraction.specificAbstractionFromTypes env args
-               NoGarTyGar0B -> emptySolverState ^. abstractionTree
+               NoGarTyGar0B -> emptySolverState ^. abstractionCover
                NoGarTyGarQB -> Abstraction.specificAbstractionFromTypes env args
            , _messageChan = messageChan
            }

@@ -56,9 +56,17 @@ decomposeHo t = [t]
 toAbstractType :: SType -> AbstractSkeleton
 toAbstractType (ScalarT (TypeVarT _ id) _) = AScalar (ATypeVarT id)
 toAbstractType (ScalarT (DatatypeT id args _) _) = AScalar (ADatatypeT id (map toAbstractType args))
-toAbstractType (FunctionT x tArg tRet) = AFunctionT (toAbstractType tArg) (toAbstractType tRet)
+toAbstractType (FunctionT _ tArg tRet) = AFunctionT (toAbstractFun tArg) (toAbstractType tRet)
 toAbstractType AnyT = AScalar (ATypeVarT varName)
 toAbstractType BotT = ABottom
+
+toAbstractFun :: SType -> AbstractSkeleton
+toAbstractFun (FunctionT _ tArg tRes) = AScalar $ ADatatypeT "Fun" [toAbstractFun tArg, toAbstractFun tRes]
+toAbstractFun t = toAbstractType t
+
+compactAbstractType :: AbstractSkeleton -> AbstractSkeleton
+compactAbstractType (AFunctionT tArg tRes) = AScalar $ ADatatypeT "Fun" [compactAbstractType tArg, compactAbstractType tRes]
+compactAbstractType t = t
 
 -- this is not subtype relation!!!
 isSubtypeOf :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Bool
@@ -182,7 +190,7 @@ applySemantic tvs fun args = do
     case unifier of
         Nothing -> return ABottom
         Just m -> do
-            cover <- gets (view abstractionTree)
+            cover <- gets (view abstractionCover)
             let substRes = abstractSubstitute m ret
             currentAbst tvs cover substRes
 

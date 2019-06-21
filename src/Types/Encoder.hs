@@ -52,16 +52,41 @@ data EncodeState = EncodeState {
   time2variable :: HashMap Int Variable, -- timestamp and abstraction level
   transition2id :: HashMap Id Int, -- transition name and abstraction level
   id2transition :: HashMap Int Id,
-  mustFirers :: HashMap Id [Id],
+  mustFirers :: HashMap Id [(Id, Id)],
   ty2tr :: HashMap Id [Id],
   prevChecked :: Bool,
   incrementalSolving :: Bool,
   disabledTrans :: [Id],
   returnTyps :: [Id],
+  initTokens :: [(Id, Id)],
   persistConstraints :: [Z3.AST],
   optionalConstraints :: [Z3.AST],
   finalConstraints :: [Z3.AST],
   blockConstraints :: [Z3.AST]
+}
+
+emptyEncodeState = EncodeState {
+  z3env = undefined,
+  counter = 0,
+  block = undefined,
+  loc = 0,
+  transitionNb = 0,
+  variableNb = 1,
+  place2variable = HashMap.empty,
+  time2variable = HashMap.empty,
+  transition2id = HashMap.empty,
+  id2transition = HashMap.empty,
+  mustFirers = HashMap.empty,
+  ty2tr = HashMap.empty,
+  prevChecked = False,
+  incrementalSolving = False,
+  disabledTrans = [],
+  returnTyps = [],
+  initTokens = [],
+  persistConstraints = [],
+  optionalConstraints = [],
+  finalConstraints = [],
+  blockConstraints = []
 }
 
 newEnv :: Maybe Logic -> Opts -> IO Z3Env
