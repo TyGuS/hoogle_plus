@@ -145,7 +145,7 @@ toSynquidSchema (TyForall _ _ (Just ctx) typ) = do -- if this type has some cont
             return $ Just $ (Monotype (foldr go (typ) classQuals))
     where
         go typClassArr acc = FunctionT "ATypeClassDict" (ScalarT (DatatypeT (toTCDictName typClassArr) [ScalarT (TypeVarT Map.empty (getTypeVar typClassArr)) ()] []) ()) acc
-        toTCDictName (_, [tyclassName]) = "__hplusTC__"++ tyclassName
+        toTCDictName (_, [tyclassName]) = fixTCName tyclassName
         toTCDictName _ = error "toTCDictName: Unhandled case"
         getTypeVar (tyVar, _) = tyVar
 
@@ -263,12 +263,6 @@ datatypeOfCon (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
         RecDecl _ name fields -> error "record declaration is not supported"
 
 
-toSynquidDecl' :: (MonadIO m) => Entry -> StateT Int m Declaration
-toSynquidDecl' x = do
-    toSynquidDecl x
-
-
-
 toSynquidDecl :: (MonadIO m) => Entry -> StateT Int m Declaration
 toSynquidDecl (EDecl (TypeDecl _ head typ)) = do
     typ' <- toSynquidRType typ
@@ -288,7 +282,7 @@ toSynquidDecl (EDecl (TypeSig _ names typ)) = do
 toSynquidDecl (EDecl (ClassDecl _ _ head _ _)) = do
     -- TODO: need help getting `name` here to include the module as prefix
     -- So it produces: `__hplusTC__Show (a)` instead of `__hplusTC__GHC.Show.Show (a)`
-    let name = "__hplusTC__"++ (declHeadName head)
+    let name = fixTCName (declHeadName head)
     let vars = declHeadVars head
     return $ Pos (initialPos "") $ TP.DataDecl name vars [] []
 toSynquidDecl decl = do
@@ -314,7 +308,7 @@ getTyclassVars (IHParen _ head) = getTyclassVars head
 getTyclassVars (IHCon _ _) = return []
 getTyclassVars _ = error "getTyclassDictName: case to be implemented"
 
-instanceToFunction :: (MonadIO m) => InstRule () -> Int -> StateT Int m (Declaration)
+instanceToFunction :: (MonadIO m) => InstRule () -> Int -> StateT Int m Declaration
 instanceToFunction (IParen _ inst) n = instanceToFunction inst n
 instanceToFunction (IRule _ _ ctx head) n = do
     let name = getTyclassDictName head
@@ -332,45 +326,6 @@ instanceToFunction (IRule _ _ ctx head) n = do
         toDecl :: (MonadIO m) => SType -> StateT Int m Declaration  
         toDecl x = return $ Pos (initialPos "") $ TP.FuncDecl ("__hplusTCTransition" ++ (show n)) $ toSynquidRSchema $ Monotype x
 
-getTyclassVars' :: (MonadIO m) => InstHead () -> StateT Int m [SType] 
-getTyclassVars' (IHApp _ head typeVar) = do
-    typeSkeletonArr <- getTyclassVars head
-    typeSkeleton <- (Data.List.head . fromJust) <$> toSynquidSkeleton typeVar
-    return $ (typeSkeletonArr ++ [typeSkeleton])
-getTyclassVars' (IHParen _ head) = getTyclassVars' head
-getTyclassVars' (IHCon _ _) = return []
-getTyclassVars' _ = error "getTyclassDictName: case to be implemented"
-
-
-instanceToFunction2 :: (MonadIO m) => InstRule () -> StateT Int m Declaration
-instanceToFunction2 (IParen _ inst) = instanceToFunction2 inst
-instanceToFunction2 (IRule _ _ ctx head) = do
-    let name = getTyclassDictName head
-    let base = TP.DataDecl name ["a"] [] []
-    case ctx of
-        Nothing -> toDecl' base
-        Just (CxTuple _ tyclassConds) -> toDecl' base --toDecl' =<< foldrM go base tyclassConds
-        Just (CxSingle _ tyclassCond) ->  toDecl' $ TP.DataDecl (toTCDictName tyclassCond) ["a"] [] []
-        _ -> error "instanceToFunction: Unhandled case"
-    where
-        toDecl' :: (MonadIO m) => BareDeclaration -> StateT Int m Declaration
-        toDecl' x = return $ Pos (initialPos "") $ x
-    --toDecl' base
-    --case ctx of
-    --    Nothing -> toDecl' =<< foldrM go base []
-    --    Just (CxTuple _ tyclassConds) -> toDecl' =<< foldrM go base tyclassConds
-    --    Just (CxSingle _ tyclassCond) -> toDecl' =<< foldrM go base [tyclassCond]
-     --   _ -> error "instanceToFunction: Unhandled case"
-
-        --go e acc = do
-        --    arg <- toArg' e
-        --    return $ arg:acc
-
---toArg' :: (MonadIO m) => Asst () -> StateT Int m BareDeclaration     
---toArg' x = do
---    typeVars <- getTypeVars x
---    --TP.DataDecl
---    return $ TP.DataDecl (toTCDictName x) ["vars"] [] []
 
 toArg :: (MonadIO m) => Asst () -> StateT Int m SType     
 toArg x = do
@@ -384,9 +339,9 @@ getTyclassDictName _ = error "getTyclassDictName: case to be implemented"
 
 fixTCName :: String -> String
 fixTCName str = 
-    let (start, end) = breakLast str
+    let (_, end) = breakLast str
         end' = "__hplusTC__" ++ end
-        in start ++ "." ++  end'
+        in end'
     where 
         breakLast :: String -> (String, String)
         breakLast str = (reverse (drop 1 y), reverse x) where (x, y) = break (== '.') $ reverse str

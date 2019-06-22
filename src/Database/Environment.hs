@@ -25,7 +25,8 @@ import Types.Environment (Environment, symbols, _symbols, _included_modules, _ty
 import Types.Program (BareDeclaration(..), Declaration(..), ConstructorSig(..))
 import Types.Generate
 import Synquid.Resolver (resolveDecls)
-
+import qualified Data.List.Utils as LUtils
+import qualified Types.Program as TP
 import Synquid.Util
 import qualified Debug.Trace as D
 
@@ -68,25 +69,20 @@ generateEnv genOpts = do
     let allCompleteEntries = concat (Map.elems entriesByMdl)
     let allEntries = nubOrd allCompleteEntries
     ourDecls <- mapM (\(entry) -> (evalStateT (DC.toSynquidDecl entry) 0)) allEntries
-    --print "\n\n\n"
-    -- Handling typeclasses
-    -- TODO: Why is this function filtering declarations? Will I have to re-run this code elsewhere?
+
     let instanceDecls = filter (\entry -> DC.isInstance entry) allEntries
     let instanceRules = map DC.getInstanceRule instanceDecls
     let transitionIds = [0 .. length instanceRules]
     let instanceTuples = zip instanceRules transitionIds
     instanceFunctions <- mapM (\(entry, id) -> evalStateT (DC.instanceToFunction entry id) 0) instanceTuples
 
-  -- NEXT TASKS (MJ AND DAVID)
-  -- make array containing DATADECLS for all typeclass dictionary arguments. This should be added to `hooglePlusDecls` (below)
-  -- I think the easiest way to do this would be to cast instanceFunctions  and ourDecls to string and to detect all typeclass
-  -- names in there. Otherwise, it appears to me that we would need to write repetitive pattern-matching or, otherwise, generalize
-  -- / refactor some of the code in convert.hs and that would take quite a bit to get fully right. 
-
-    print "==================$$$"
-    print instanceFunctions
-
-    let hooglePlusDecls = DC.reorderDecls $ nubOrd $ (ourDecls ++ dependencyEntries ++ defaultFuncs ++ defaultDts ++ instanceFunctions)
+    let declStrs = show (instanceFunctions ++ ourDecls)
+    let removeParentheses = (\x -> LUtils.replace ")" "" $ LUtils.replace "(" "" x)
+    let tcNames = nub $ map removeParentheses $ filter (\x -> isInfixOf "__hplusTC__" x) (splitOn " " declStrs)
+    let tcDecls = map (\x -> Pos (initialPos "") $ TP.DataDecl x ["a"] [] []) tcNames
+    print ourDecls
+ 
+    let hooglePlusDecls = DC.reorderDecls $ nubOrd $ (ourDecls ++ dependencyEntries ++ defaultFuncs ++ defaultDts ++ instanceFunctions ++ tcDecls)
     case resolveDecls hooglePlusDecls moduleNames of
        Left errMessage -> error $ show errMessage
        Right env -> D.trace (show $ (_datatypes env)) $ return env {
