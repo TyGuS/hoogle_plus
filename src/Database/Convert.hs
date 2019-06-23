@@ -188,7 +188,7 @@ toSynquidSkeleton (TyApp _ fun arg)
         let idTys = toTys <$> mbdt
         args <- toSynquidSkeleton arg
         return $ liftA2 (\(id,t) a -> [ScalarT (DatatypeT id (t ++ a) []) ()]) idTys args
-toSynquidSkeleton (TyVar _ name) = return $ Just [ScalarT (TypeVarT Map.empty $ nameStr name) ()]
+toSynquidSkeleton (TyVar _ name) = return $ Just [ScalarT (TypeVarT Map.empty (nameStr name)) ()]
 toSynquidSkeleton (TyList _ typ) = do
     typ' <- toSynquidSkeleton typ
     return $ (\ty -> [ScalarT (DatatypeT "List" ty []) ()]) <$> typ'
@@ -308,12 +308,19 @@ getTyclassVars (IHParen _ head) = getTyclassVars head
 getTyclassVars (IHCon _ _) = return []
 getTyclassVars _ = error "getTyclassDictName: case to be implemented"
 
+
+fixDataType (ScalarT (DatatypeT name vars refs) ref) = 
+    let (_, name') = breakLast name
+        in (ScalarT (DatatypeT name' vars refs) ref) 
+fixDataType x = x 
+
 instanceToFunction :: (MonadIO m) => InstRule () -> Int -> StateT Int m Declaration
 instanceToFunction (IParen _ inst) n = instanceToFunction inst n
 instanceToFunction (IRule _ _ ctx head) n = do
     let name = getTyclassDictName head
     tyVars <- getTyclassVars head
-    let base = ScalarT (DatatypeT name tyVars []) ()
+    let tyVars' = map (\x -> fixDataType x) tyVars
+    let base = ScalarT (DatatypeT name tyVars' []) ()
     case ctx of
         Nothing -> toDecl =<< foldrM go base []
         Just (CxTuple _ tyclassConds) -> toDecl =<< foldrM go base tyclassConds
@@ -330,7 +337,8 @@ instanceToFunction (IRule _ _ ctx head) n = do
 toArg :: (MonadIO m) => Asst () -> StateT Int m SType     
 toArg x = do
     typeVars <- getTypeVars x
-    return $ (ScalarT (DatatypeT (toTCDictName x) typeVars []) ())
+    let tyVars' = map (\x -> fixDataType x) typeVars
+    return $ (ScalarT (DatatypeT (toTCDictName x) tyVars' []) ())
 
 getTyclassDictName :: InstHead l -> String
 getTyclassDictName (IHApp _ typeclass _) = fixTCName (instHeadName typeclass)
@@ -342,9 +350,9 @@ fixTCName str =
     let (_, end) = breakLast str
         end' = "__hplusTC__" ++ end
         in end'
-    where 
-        breakLast :: String -> (String, String)
-        breakLast str = (reverse (drop 1 y), reverse x) where (x, y) = break (== '.') $ reverse str
+        
+breakLast :: String -> (String, String)
+breakLast str = (reverse (drop 1 y), reverse x) where (x, y) = break (== '.') $ reverse str
 
 toTCDictName :: Asst l -> String
 toTCDictName (ClassA _ declName _) = fixTCName (qnameStr declName)

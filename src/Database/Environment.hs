@@ -75,14 +75,19 @@ generateEnv genOpts = do
     let transitionIds = [0 .. length instanceRules]
     let instanceTuples = zip instanceRules transitionIds
     instanceFunctions <- mapM (\(entry, id) -> evalStateT (DC.instanceToFunction entry id) 0) instanceTuples
+    let instanceFunctions' = filter (\x -> not(or [(isInfixOf "Applicative" $ show x),(isInfixOf "Functor" $ show x),(isInfixOf "Monad" $ show x)])) instanceFunctions
 
-    let declStrs = show (instanceFunctions ++ ourDecls)
+    let declStrs = show (instanceFunctions' ++ ourDecls)
     let removeParentheses = (\x -> LUtils.replace ")" "" $ LUtils.replace "(" "" x)
     let tcNames = nub $ map removeParentheses $ filter (\x -> isInfixOf "__hplusTC__" x) (splitOn " " declStrs)
     let tcDecls = map (\x -> Pos (initialPos "") $ TP.DataDecl x ["a"] [] []) tcNames
-    print ourDecls
- 
-    let hooglePlusDecls = DC.reorderDecls $ nubOrd $ (ourDecls ++ dependencyEntries ++ defaultFuncs ++ defaultDts ++ instanceFunctions ++ tcDecls)
+
+    let hooglePlusDecls = DC.reorderDecls $ nubOrd $ (ourDecls ++ dependencyEntries ++ defaultFuncs ++ defaultDts ++ instanceFunctions' ++ tcDecls)
+
+    print "typeclass transitions: "
+    print instanceFunctions'
+    print "typeclass constructors: "
+    print tcDecls
     case resolveDecls hooglePlusDecls moduleNames of
        Left errMessage -> error $ show errMessage
        Right env -> D.trace (show $ (_datatypes env)) $ return env {
