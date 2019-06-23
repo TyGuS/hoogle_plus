@@ -20,6 +20,7 @@ xs >.> ys = let ys' = Set.fromList ys in filter (flip Set.notMember ys') xs
 -- Default Library
 defaultFuncs = [ Pos (initialPos "fst") $ FuncDecl "fst" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) (ScalarT (TypeVarT Map.empty "a") ftrue)))
                 , Pos (initialPos "snd") $ FuncDecl "snd" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) (ScalarT (TypeVarT Map.empty "b") ftrue)))
+                , Pos (initialPos "tcBuiltIn") $ FuncDecl "test" (Monotype (FunctionT "p" (ScalarT (IntT) ftrue) (ScalarT (DatatypeT "__hplusTC__Show" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)))
                 ]
 
 defaultDts = [defaultList, defaultPair, defaultUnit, defaultInt, defaultBool]
@@ -43,3 +44,4 @@ defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [] [
   ]
 
 defaultUnit = Pos (initialPos "Unit") $ DataDecl "Unit" [] [] []
+
