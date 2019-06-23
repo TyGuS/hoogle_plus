@@ -98,23 +98,25 @@ mkConstraint bound v t = do
     t' <- freshAbstract bound t
     return (AScalar (ATypeVarT v), t')
 
-groupSignatures :: MonadIO m => Map Id AbstractSkeleton -> PNSolver m (Map Id (Set Id))
+groupSignatures :: MonadIO m => Map Id AbstractSkeleton -> PNSolver m (Map AbstractSkeleton GroupId, Map GroupId (Set Id))
 groupSignatures sigs = do
-    let sigsByType = groupByMap sigs
-    writeLog 3 "groupSignatures" $ pretty $ Map.toList sigsByType
-    let sigLists = Map.elems sigsByType
-    let signatureGroups = map (\xs -> (head xs, Set.fromList $ tail xs)) $ sigLists
-    let dupes = [Set.size $ snd x | x <- signatureGroups, Set.size (snd x) > 0]
-    let allIds = [Set.size $ snd x | x <- signatureGroups]
+    let sigsByType = Map.map Set.fromList $ groupByMap sigs
+    writeLog 3 "groupSignatures" $ pretty sigsByType
+    let sigLists = Map.toList sigsByType
+    signatureGroups <- flip zip sigLists <$> mapM (\_ -> freshId "gm") [() | _ <- sigLists]
+    let dupes = [Set.size $ snd $ snd x | x <- signatureGroups, Set.size (snd $ snd x) > 1]
+    let allIds = [Set.size $ snd $ snd x | x <- signatureGroups]
     writeLog 3 "groupSignatures" $ text $ printf "%d class; %d equiv; %d total"
-        (length sigLists) (sum dupes) (sum $ map length $ sigLists)
-
-    -- write out the info.
-    mesgChan <- view messageChan <$> get
-    modify $ over solverStats (\s -> s {
-        duplicateSymbols = duplicateSymbols s ++ [(length sigLists, sum dupes, sum $ map length $ sigLists)]
-    })
-    stats <- view solverStats <$> get
-    liftIO $ writeChan mesgChan (MesgS stats)
-
-    return $ Map.fromList signatureGroups
+        (length sigLists) (sum dupes) (Map.size sigs)
+    let groupMap = Map.fromList $ map (\(gid, (_, ids)) -> (gid, ids)) signatureGroups
+    let t2g = Map.fromList $ map (\(gid, (aty, _)) -> (aty, gid)) signatureGroups
+    return (t2g, groupMap)
+    -- -- write out the info.
+    -- mesgChan <- view messageChan <$> get
+    -- modify $ over solverStats (\s -> s {
+    --     duplicateSymbols = duplicateSymbols s ++ [(length sigLists, sum dupes, sum $ map length $ sigLists)]
+    -- })
+    -- stats <- view solverStats <$> get
+    -- liftIO $ writeChan mesgChan (MesgS stats)
+    -- return undefined
+    -- return $ Map.fromList signatureGroups

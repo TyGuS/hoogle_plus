@@ -8,6 +8,7 @@ This should have no dependencies on any other files in this project. This should
 the Top Level module.
 -}
 type Id = String
+type GroupId = String
 
 -- for encoding abstractions into JSON string
 type Param = String -- parameter type

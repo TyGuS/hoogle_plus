@@ -231,10 +231,10 @@ mkOneLine = unwords . (map trim) . lines
 getTmpDir :: IO String
 getTmpDir = (fromMaybe "/tmp" <$> lookupEnv "TMPDIR") >>= (\x -> return $ x ++ "/")
 
-lookupWithError :: (Ord k, Show k) => k -> Map k v -> v
-lookupWithError k mp = case Map.lookup k mp of
+lookupWithError :: (Ord k, Show k) => String -> k -> Map k v -> v
+lookupWithError blame k mp = case Map.lookup k mp of
   Just v -> v
-  Nothing -> error $ "Failed to find " ++ show k
+  Nothing -> error $ "Failed to find in " ++ blame ++ ": " ++ show k
 
 groupByMap :: (Ord k, Ord v) => Map k v -> Map v [k]
 groupByMap mp = foldr (\(k, v) newMap -> Map.insertWith (++) v [k] newMap) Map.empty (Map.toList mp)

@@ -22,9 +22,10 @@ import Data.Data (Data)
 import qualified Data.Char as Char
 import Data.Either hiding (fromLeft, fromRight)
 import Data.List.Extra
-import Debug.Trace
 import Language.Haskell.Exts.Parser (parseExp, ParseResult(..))
 import Control.Concurrent.Chan
+import Data.Tuple
+import Text.Printf
 
 import Types.Common
 import Types.Type
@@ -69,7 +70,6 @@ instantiate env sigs = do
     instantiate' sigs = do
         tree <- gets (view abstractionTree)
         let typs = Set.toList tree
-        -- to test first level abstraction, please disable the complement type here
         writeLog 3 "instantiate" $ text "Current abstract types:" <+> pretty typs
         sigs' <- Map.toList <$> mapM freshType sigs
         foldM (\acc -> (<$>) (acc ++) . uncurry (instantiateWith env typs)) [] sigs'
@@ -134,15 +134,21 @@ instantiateWith env typs id t = do
         writeLog 4 "instantiateWith" $ text id <+> text "==>"  <+> text newId <+> text "::" <+> pretty ty
         return (newId, ty)
 
+    -- We have refined the real function behind id and now th current instantiations aren't needed
     excludeUseless id ty = do
         instMap <- gets (view instanceMapping)
         let (tid, _) = fromJust (HashMap.lookup (id, absFunArgs id ty) instMap)
         -- writeLog 3 $ text tid <+> text "exists in the instance map for" <+> text id
+
         modify $ over toRemove ((:) tid)
+        -- TODO: check if tid in groupElems: then remove from groupElems, do not add to toremove; else, add to toremove
+        -- modify $ over toRemove ((:) tid)
         modify $ over detailedSigs (Set.delete tid)
         musts <- gets (view mustFirers)
         when (id `HashMap.member` musts)
              (modify $ over mustFirers (HashMap.insertWith (flip (\\)) id [tid]))
+
+
 
 addSignatures :: MonadIO m => Environment -> PNSolver m (Map Id AbstractSkeleton)
 addSignatures env = do
@@ -153,13 +159,16 @@ addSignatures env = do
     let usefulPipe k _ = k `notElem` Map.keys foArgs
     let usefulSymbols = Map.filterWithKey usefulPipe envSymbols
     sigs <- instantiate env usefulSymbols
-    writeLog 3 "addSignatures" $ text "instantiate new sigs" <+> pretty (Map.toList sigs)
 
     sigs' <- ifM (getExperiment coalesceTypes) (
       do
-        sigGroups <- groupSignatures sigs
-        let sigs' = Map.restrictKeys sigs (Map.keysSet sigGroups)
+        (t2g, sigGroups) <- groupSignatures sigs
+        -- Do I want to take the sigs here?
+        let representatives = Map.map selectRepresentative sigGroups
+        let sigs' = Map.restrictKeys sigs (Set.fromList $ Map.elems representatives)
+        modify $ over groupRepresentative $ Map.union representatives
         modify $ over groupMap (updateGroups sigGroups)
+        modify $ over typeToGroup (Map.union t2g)
         return sigs'
         )
       (return sigs)
@@ -167,9 +176,14 @@ addSignatures env = do
     mapM_ addEncodedFunction (Map.toList sigs')
     return sigs'
     where
+        -- Given the new set of groups, update the current group mapping
         updateGroups :: Map Id (Set Id) -> Map Id (Set Id) -> Map Id (Set Id)
         updateGroups sigGroups gm = foldr updategm gm (Map.toList sigGroups)
         updategm (groupName, groupMembers) = Map.insertWith Set.union groupName groupMembers
+
+
+selectRepresentative = Set.elemAt 0
+
 
 -- | refine the current abstraction
 -- do the bidirectional type checking first, compare the two programs we get,
@@ -180,23 +194,86 @@ refineSemantic env prog at = do
     propagate env prog at
     -- get the split pairs
     splits <- gets (view splitTypes)
+    writeLog 3 "refineSemantic splitTypes" $ pretty splits
     -- add new instantiated signatures into solver
     sigs <- addSignatures env
     -- get removed transitions
-    useless <- ifM (getExperiment coalesceTypes) (
+    (toAdd, removables) <- ifM (getExperiment coalesceTypes) (
       do
-        useless' <- gets (view toRemove)
+        removables' <- gets $ view toRemove
+        writeLog 3 "refineSemantic toRemove" $ pretty removables'
+
+        nm <- gets $ view nameMapping
+        imap <- gets $ view instanceMapping
+        sigs <- gets $ view currentSigs
+        t2t <- gets $ view type2transition
+        fm <- gets $ view functionMap
         gm <- gets $ view groupMap
-        return $ Set.toList $ (Set.fromList useless') `Set.intersection` (Map.keysSet gm)
+        grs <- gets $ view groupRepresentative
+        t2g <- gets $ view typeToGroup
+        dsigs <- gets $ view detailedSigs
+        writeLog 3 "refineSemantic groupMap" $ pretty gm
+        writeLog 3 "refineSemantic groupRepresentative" $ pretty grs
+        writeLog 3 "refineSemantic t2g" $ pretty t2g
+        writeLog 3 "refineSemantic t2t" $ pretty t2t
+
+        res <- foldM updateRemovable ([], []) removables'
+        t2t <- gets $ view type2transition
+        writeLog 3 "refineSemantic t2t -- updated" $ pretty t2t
+        return res
+        -- return removables'
         )
-      (gets $ view toRemove)
+      ((gets $ view toRemove) >>= return . (,) [])
     -- add clone functions and add them into new transition set
     cloneNames <- mapM addCloneFunction $ Set.toList splits
     -- call the refined encoder on these signatures and disabled signatures
     return SplitInfo { newPlaces = Set.toList splits
-                     , removedTrans = useless
-                     , newTrans = Map.keys sigs ++ cloneNames
+                     , removedTrans = removables
+                     , newTrans = Map.keys sigs ++ cloneNames ++ toAdd
                      }
+    where
+
+        updateRemovable :: MonadIO m => ([Id], [Id]) -> Id -> PNSolver m ([Id], [Id])
+        updateRemovable (toAdd, removables) tid = do
+            nm <- gets $ view nameMapping
+            imap <- gets $ view instanceMapping
+            sigs <- gets $ view currentSigs
+            t2t <- gets $ view type2transition
+            fm <- gets $ view functionMap
+            gm <- gets $ view groupMap
+            grs <- gets $ view groupRepresentative
+            t2g <- gets $ view typeToGroup
+            writeLog 3 "updateRemovable" $ text "tid:" <+> text tid
+            writeLog 3 "updateRemovable" $ text "tid in sig:" <+> (pretty $ Map.lookup tid sigs)
+            writeLog 3 "updateRemovable" $ text "aty in groups:" <+> (pretty ((\k -> Map.lookup k t2g) <$> (Map.lookup tid sigs)))
+            let Just (groupId, _) = find (\(_, ids) -> Set.member tid ids) $ Map.toList gm
+            let isRepresentative = (lookupWithError "groupRepresentative" groupId grs) == tid
+            -- let (groupId, mbRepresentative) = (\k -> (k, Map.lookup k grs)) ((tid `lookupWithError` sigs) `lookupWithError` t2g)
+            writeLog 3 "updateRemovable" $ pretty (groupId, isRepresentative)
+            let groupSize = Set.size $ lookupWithError "groupMap" groupId gm
+            when (groupSize <= 1 && not isRepresentative) (error "the impossible has happened")
+            if isRepresentative
+                then do
+                    let newgm = Map.update (removeFromSet tid) groupId gm
+                    modify $ set groupMap newgm
+                    -- Select representative here
+                    let newRepresentative = selectRepresentative $ lookupWithError "newgm" groupId newgm
+                    let newgrs = Map.adjust (const newRepresentative) groupId grs
+                    writeLog 3 "updateRemovable isRepresentative" $ text $ printf "Replacing representative for %s: %s -> %s" groupId tid newRepresentative
+                    modify $ set groupRepresentative newgrs
+                    -- using the abstract type of tid, since both tid and the new representative should
+                    -- have the same abstract type.
+                    let abstractType = lookupWithError "currentSigs" tid sigs
+                    addEncodedFunction (newRepresentative, abstractType)
+                    return $ (newRepresentative:toAdd, tid:removables)
+                else do
+                    modify $ over groupMap $ Map.update (removeFromSet tid) groupId
+                    return (toAdd, removables)
+
+        removeFromSet :: Id -> Set Id -> Maybe (Set Id)
+        removeFromSet tid ids = let
+            ids' = Set.delete tid ids
+            in if (Set.size ids' == 0) then Nothing else Just ids'
 
 initNet :: MonadIO m => Environment -> PNSolver m ()
 initNet env = withTime ConstructionTime $ do
@@ -326,7 +403,7 @@ fixEncoder env dst st info = do
     (srcTypes, tgt) <- updateSrcTgt env dst
     writeLog 2 "fixEncoder" $ text "fixed parameter types are" <+> pretty srcTypes
     writeLog 2 "fixEncoder" $ text "fixed return type is" <+> pretty tgt
-    writeLog 3 "fixEncoder" $ text "get split information" <+> pretty info
+    writeLog 3 "fixEncoder" $ text "get split information:" </> pretty info
     let newTyps = newPlaces info
     mapM_ addCloneFunction (filter (not . isAFunctionT) newTyps)
     modify $ over type2transition (HashMap.filter (not . null))
@@ -537,7 +614,9 @@ updateTy2Tr :: MonadIO m => Id -> AbstractSkeleton -> PNSolver m ()
 updateTy2Tr id f = do
     let addTransition k tid = HashMap.insertWith (\[x] y -> nubOrd $ x:y) k [tid]
     let includedTyps = nub (decompose f)
-    mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
+    mapM_ (\t -> do
+        writeLog 4 "updateTy2Tr" $ pretty t <+> text "to" <+> text id
+        modify $ over type2transition (addTransition t id)) includedTyps
 
 updateSrcTgt :: MonadIO m => Environment -> RType -> PNSolver m ([AbstractSkeleton], AbstractSkeleton)
 updateSrcTgt env dst = do
