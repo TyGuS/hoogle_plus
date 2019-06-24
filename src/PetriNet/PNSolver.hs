@@ -256,15 +256,18 @@ refineSemantic env prog at = do
                     let newgm = Map.update (removeFromSet tid) groupId gm
                     modify $ set groupMap newgm
                     -- Select representative here
-                    let newRepresentative = selectRepresentative $ lookupWithError "newgm" groupId newgm
-                    let newgrs = Map.adjust (const newRepresentative) groupId grs
-                    writeLog 3 "updateRemovable isRepresentative" $ text $ printf "Replacing representative for %s: %s -> %s" groupId tid newRepresentative
+                    let mbNewRepresentative = selectRepresentative <$> Map.lookup groupId newgm
+                    let newgrs = Map.update (const mbNewRepresentative) groupId grs
+                    writeLog 3 "updateRemovable isRepresentative" $ text $ printf "Replacing representative for %s: %s -> %s" groupId tid (show mbNewRepresentative)
                     modify $ set groupRepresentative newgrs
-                    -- using the abstract type of tid, since both tid and the new representative should
-                    -- have the same abstract type.
-                    let abstractType = lookupWithError "currentSigs" tid sigs
-                    addEncodedFunction (newRepresentative, abstractType)
-                    return $ (newRepresentative:toAdd, tid:removables)
+                    case mbNewRepresentative of
+                        Nothing -> return (toAdd, tid:removables)
+                        Just (newRep) -> do
+                            -- using the abstract type of tid, since both tid and the new representative should
+                            -- have the same abstract type.
+                            let abstractType = lookupWithError "currentSigs" tid sigs
+                            addEncodedFunction (newRep, abstractType)
+                            return $ (newRep:toAdd, tid:removables)
                 else do
                     modify $ over groupMap $ Map.update (removeFromSet tid) groupId
                     return (toAdd, removables)
