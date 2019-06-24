@@ -97,8 +97,8 @@ runGhcChecks disableDemand env goalType prog = let
     funcSig = mkFunctionSigStr (map toMonotype argTypes) goalType
     body = mkLambdaStr argNames prog
     expr = body ++ " :: " ++ funcSig
-
     in do
+        print expr
         typeCheckResult <- runInterpreter $ checkType expr modules
         strictCheckResult <- if disableDemand then return True else checkStrictness body modules
         case typeCheckResult of

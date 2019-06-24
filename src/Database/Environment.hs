@@ -89,7 +89,7 @@ generateEnv genOpts = do
     print "typeclass constructors: "
     print tcDecls
     print "decls"
-    print ourDecls
+    print hooglePlusDecls
     case resolveDecls hooglePlusDecls moduleNames of
        Left errMessage -> error $ show errMessage
        Right env -> D.trace (show $ (_datatypes env)) $ return env {
