@@ -245,6 +245,7 @@ refineSemantic env prog at = do
             sigs <- gets $ view currentSigs
             let mbCurrentGroup = Map.lookup gid gm
             case mbCurrentGroup of
+                -- The group was eliminated entirely by the removables
                 Nothing -> return (addables, rep:removables, newReps)
                 Just currentGroup ->
                     if rep `Set.notMember` currentGroup
@@ -252,10 +253,12 @@ refineSemantic env prog at = do
                             let removables' = rep:removables
                             if not (null currentGroup)
                                 then do
+                                    -- We need to elect a new leader for the group!
                                     let newRep = selectRepresentative currentGroup
                                     let abstractType = lookupWithError "currentSigs" rep sigs
                                     let addables' = (newRep, abstractType):addables
                                     return (addables', removables', Map.insert gid newRep newReps)
+                                -- There was only that one element in the group, so with the leader gone, the group goes away.
                                 else return (addables, removables', newReps)
                         -- after all the removals, the current representative is still in its original group
                         else return (addables, removables, Map.insert gid rep newReps)
