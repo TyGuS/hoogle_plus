@@ -110,13 +110,11 @@ groupSignatures sigs = do
         (length sigLists) (sum dupes) (Map.size sigs)
     let groupMap = Map.fromList $ map (\(gid, (_, ids)) -> (gid, ids)) signatureGroups
     let t2g = Map.fromList $ map (\(gid, (aty, _)) -> (aty, gid)) signatureGroups
+    -- write out the info.
+    mesgChan <- view messageChan <$> get
+    modify $ over solverStats (\s -> s {
+        duplicateSymbols = duplicateSymbols s ++ [(length sigLists, sum dupes, sum $ map length $ sigLists)]
+    })
+    stats <- view solverStats <$> get
+    liftIO $ writeChan mesgChan (MesgS stats)
     return (t2g, groupMap)
-    -- -- write out the info.
-    -- mesgChan <- view messageChan <$> get
-    -- modify $ over solverStats (\s -> s {
-    --     duplicateSymbols = duplicateSymbols s ++ [(length sigLists, sum dupes, sum $ map length $ sigLists)]
-    -- })
-    -- stats <- view solverStats <$> get
-    -- liftIO $ writeChan mesgChan (MesgS stats)
-    -- return undefined
-    -- return $ Map.fromList signatureGroups

@@ -200,7 +200,6 @@ refineSemantic env prog at = do
     (toAdd, removables) <- ifM (getExperiment coalesceTypes) (
       do
         removables' <- gets $ view toRemove
-        -- foldM updateRemovable ([], []) removables'
         splitGroups removables'
         )
       ((gets $ view toRemove) >>= return . (,) [])
