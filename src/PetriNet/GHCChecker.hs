@@ -38,6 +38,8 @@ import Text.Printf
 import SimplCore (core2core)
 import Text.Regex.PCRE
 import Data.List (intercalate)
+import qualified Data.Text as Text
+import Data.Maybe (fromJust)
 
 showGhc :: (Outputable a) => a -> String
 showGhc = showPpr unsafeGlobalDynFlags
@@ -96,13 +98,15 @@ runGhcChecks disableDemand env goalType prog = let
     argList = Map.toList args
     argNames = map fst argList
     argTypes = map snd argList
-    funcSig = mkFunctionSigStr (map toMonotype argTypes) goalType
+    monoGoals = (map toMonotype argTypes) 
+    funcSig = mkFunctionSigStr monoGoals goalType 
+    argTypesMap = fromList $ zip (argNames) (map show monoGoals)
     body = mkLambdaStr argNames prog
     expr = body ++ " :: " ++ funcSig
     in do
         print expr
-        print argList
-        let b = foo body env (map (\x -> show x) (map toMonotype argTypes))
+        print  argList
+        let b = foo body env argTypesMap
         print b
         typeCheckResult <- runInterpreter $ checkType expr modules
         strictCheckResult <- if disableDemand then return True else checkStrictness body modules
@@ -137,21 +141,20 @@ mkLambdaStr args body = let
         show $ foldr addFuncArg (text oneLineBody) args
 
 -- TODO: if list is empty, then return empty!!
-foo :: String -> Environment -> [String] -> String
-foo x env types = let
-    stringResults = "__hplusTC__queso arg1" =~ x :: AllTextMatches [] String
+foo :: String -> Environment -> Map String String -> String
+foo x env typesMap = let
+    stringResults = "__hplusTCTransition[0-9]*__[a-ZA-Z]* arg[0-9]+" =~ x :: AllTextMatches [] String
     matches = (getAllTextMatches stringResults)
     bar = map (\x -> x) matches
     typeclassesStr =  "(" ++ (intercalate ", " bar) ++ ")" ++ " => "
-    in typeclassesStr
+    in if (length bar) == 0 then "" else typeclassesStr
     where
-        argNameToType name types = ""
-        funNameToTypeclass name = ""
+        -- TODO: just do a map lookup!
+        argNameToType name typesMap = fromJust $ Map.lookup name typesMap
+        funNameToTypeclass :: String -> String
+        funNameToTypeclass name = Text.unpack $ (Text.splitOn (Text.pack "__") (Text.pack name)) !! 0
         mapMe x = 
-            let (funName, argName) = break (== " ") x
-                argType = argNameToType argName types
+            let (funName, argName) = break (== ' ') x
+                argType = argNameToType argName typesMap
                 typeclass = funNameToTypeclass funName
                 in typeclass ++ " " ++ argType
-
-    --in
-    --in "1"

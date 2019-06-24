@@ -321,17 +321,18 @@ instanceToFunction (IRule _ _ ctx head) n = do
     tyVars <- getTyclassVars head
     let tyVars' = map (\x -> fixDataType x) tyVars
     let base = ScalarT (DatatypeT name tyVars' []) ()
+    let toDecl' = toDecl (Text.unpack $ Text.replace (Text.pack("__hplusTC__")) (Text.pack ("__")) $ Text.pack name)
     case ctx of
-        Nothing -> toDecl =<< foldrM go base []
-        Just (CxTuple _ tyclassConds) -> toDecl =<< foldrM go base tyclassConds
-        Just (CxSingle _ tyclassCond) -> toDecl =<< foldrM go base [tyclassCond]
+        Nothing -> toDecl' =<< foldrM go base []
+        Just (CxTuple _ tyclassConds) -> toDecl' =<< foldrM go base tyclassConds
+        Just (CxSingle _ tyclassCond) -> toDecl' =<< foldrM go base [tyclassCond]
         _ -> error "instanceToFunction: Unhandled case"
     where 
         go e acc = do
             arg <- toArg e
             return $ FunctionT "" arg acc
-        toDecl :: (MonadIO m) => SType -> StateT Int m Declaration  
-        toDecl x = return $ Pos (initialPos "") $ TP.FuncDecl ("__hplusTCTransition" ++ (show n)) $ toSynquidRSchema $ Monotype x
+        toDecl :: (MonadIO m) => String -> SType -> StateT Int m Declaration  
+        toDecl y x = return $ Pos (initialPos "") $ TP.FuncDecl ("__hplusTCTransition" ++ (show n) ++ (y)) $ toSynquidRSchema $ Monotype x
 
 
 toArg :: (MonadIO m) => Asst () -> StateT Int m SType     
