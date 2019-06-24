@@ -200,65 +200,76 @@ refineSemantic env prog at = do
     (toAdd, removables) <- ifM (getExperiment coalesceTypes) (
       do
         removables' <- gets $ view toRemove
-        foldM updateRemovable ([], []) removables'
+        -- foldM updateRemovable ([], []) removables'
+        splitGroups removables'
         )
       ((gets $ view toRemove) >>= return . (,) [])
-    writeLog 3 "refineSemantic (toAdd, removables)" $ pretty (toAdd, removables)
-    if any (\x -> x `elem` removables) toAdd then error "trying to add and remove at the same time" else return ()
-    modify $ over activeSigs (\as -> Set.union (Set.fromList toAdd) $ Set.difference as (Set.fromList removables))
+    let addedSigs = map fst toAdd
+    writeLog 3 "refineSemantic (toAdd, removables)" $ pretty (addedSigs, removables)
+    if any (\x -> (fst x) `elem` removables) toAdd then error "trying to add and remove at the same time" else return ()
+    sigs <- gets $ view currentSigs
+    mapM addEncodedFunction toAdd
+
+    modify $ over activeSigs (\as -> Set.union (Set.fromList addedSigs) $ Set.difference as (Set.fromList removables))
     -- add clone functions and add them into new transition set
     cloneNames <- mapM addCloneFunction $ Set.toList splits
     -- call the refined encoder on these signatures and disabled signatures
     return SplitInfo { newPlaces = Set.toList splits
                      , removedTrans = removables
-                     , newTrans = Map.keys sigs ++ cloneNames ++ toAdd
+                     , newTrans = Map.keys sigs ++ cloneNames ++ addedSigs
                      }
     where
 
-        updateRemovable :: MonadIO m => ([Id], [Id]) -> Id -> PNSolver m ([Id], [Id])
-        updateRemovable (toAdd, removables) tid = do
-            nm <- gets $ view nameMapping
-            imap <- gets $ view instanceMapping
-            sigs <- gets $ view currentSigs
-            t2t <- gets $ view type2transition
-            fm <- gets $ view functionMap
+        splitGroups :: MonadIO m => [Id] -> PNSolver m ([(Id, AbstractSkeleton)], [Id])
+        splitGroups removables = do
+            -- Step 1: modify groupmap to exclude all those in removables
+            -- Some groups may no longer exist as a result of this operation.
+            -- Some groups representative may not longer be valid.
+            -- TODO: This operation could be slow. find a way to go from id -> groupId (or id -> abstrTy)
             gm <- gets $ view groupMap
+            let gm' = Map.fromList  $ map (\(a,b) -> (a, fromJust b))
+                                    $ filter (isJust . snd)
+                                    $ map (\(k, vs) -> (k, shrinkSet (Set.fromList removables) vs))
+                                    $ Map.toList gm
+            modify $ set groupMap gm'
             grs <- gets $ view groupRepresentative
-            t2g <- gets $ view typeToGroup
-            writeLog 3 "updateRemovable" $ text "tid:" <+> text tid
-            writeLog 3 "updateRemovable" $ text "tid in sig:" <+> (pretty $ Map.lookup tid sigs)
-            writeLog 3 "updateRemovable" $ text "aty in groups:" <+> (pretty ((\k -> Map.lookup k t2g) <$> (Map.lookup tid sigs)))
-            let Just (groupId, _) = find (\(_, ids) -> Set.member tid ids) $ Map.toList gm
-            let isRepresentative = (lookupWithError "groupRepresentative" groupId grs) == tid
-            -- let (groupId, mbRepresentative) = (\k -> (k, Map.lookup k grs)) ((tid `lookupWithError` sigs) `lookupWithError` t2g)
-            writeLog 3 "updateRemovable" $ pretty (groupId, isRepresentative)
-            let groupSize = Set.size $ lookupWithError "groupMap" groupId gm
-            when (groupSize <= 1 && not isRepresentative) (error "the impossible has happened")
-            if isRepresentative
-                then do
-                    let newgm = Map.update (removeFromSet tid) groupId gm
-                    modify $ set groupMap newgm
-                    -- Select representative here
-                    let mbNewRepresentative = selectRepresentative <$> Map.lookup groupId newgm
-                    let newgrs = Map.update (const mbNewRepresentative) groupId grs
-                    writeLog 3 "updateRemovable isRepresentative" $ text $ printf "Replacing representative for %s: %s -> %s" groupId tid (show mbNewRepresentative)
-                    modify $ set groupRepresentative newgrs
-                    case mbNewRepresentative of
-                        Nothing -> return (toAdd, tid:removables)
-                        Just (newRep) -> do
-                            -- using the abstract type of tid, since both tid and the new representative should
-                            -- have the same abstract type.
-                            let abstractType = lookupWithError "currentSigs" tid sigs
-                            addEncodedFunction (newRep, abstractType)
-                            return $ (newRep:toAdd, tid:removables)
-                else do
-                    modify $ over groupMap $ Map.update (removeFromSet tid) groupId
-                    return (toAdd, removables)
+            -- Step 2: fixup the group representatives, while also deciding what we can safely remove,
+            -- and what we need to add (new representatives).
+            (toAdd, toRemove, grs') <- foldM (updateRepresentatives) ([], [], Map.empty) (Map.toList grs)
+            modify $ set groupRepresentative grs'
+            return (toAdd, toRemove)
+
+        updateRepresentatives :: MonadIO m => ([(Id, AbstractSkeleton)], [Id], Map GroupId Id) -> (GroupId, Id) -> PNSolver m ([(Id, AbstractSkeleton)], [Id], Map GroupId Id)
+        updateRepresentatives (addables, removables, newReps) (gid, rep)= do
+            gm <- gets $ view groupMap
+            sigs <- gets $ view currentSigs
+            let mbCurrentGroup = Map.lookup gid gm
+            case mbCurrentGroup of
+                Nothing -> return (addables, rep:removables, newReps)
+                Just currentGroup ->
+                    if rep `Set.notMember` currentGroup
+                        then do
+                            let removables' = rep:removables
+                            if not (null currentGroup)
+                                then do
+                                    let newRep = selectRepresentative currentGroup
+                                    let abstractType = lookupWithError "currentSigs" rep sigs
+                                    let addables' = (newRep, abstractType):addables
+                                    return (addables', removables', Map.insert gid newRep newReps)
+                                else return (addables, removables', newReps)
+                        -- after all the removals, the current representative is still in its original group
+                        else return (addables, removables, Map.insert gid rep newReps)
 
         removeFromSet :: Id -> Set Id -> Maybe (Set Id)
         removeFromSet tid ids = let
             ids' = Set.delete tid ids
             in if (Set.size ids' == 0) then Nothing else Just ids'
+
+        shrinkSet :: Set Id -> Set Id -> Maybe (Set Id)
+        shrinkSet toRemove ids = let
+            ids' = Set.difference ids toRemove
+            in if (Set.size ids' == 0) then Nothing else Just ids'
+
 
 initNet :: MonadIO m => Environment -> PNSolver m ()
 initNet env = withTime ConstructionTime $ do
