@@ -38,7 +38,6 @@ data SearchParams = SearchParams {
   _refineStrategy :: RefineStrategy,
   _stopRefine :: Bool,
   _threshold :: Int,
-  _shouldRemoveDuplicates :: Bool,
   _disableDemand :: Bool,
   _coalesceTypes :: Bool
 } deriving (Eq, Show)
@@ -55,7 +54,6 @@ defaultSearchParams = SearchParams {
   _refineStrategy = TyGarQ,
   _stopRefine = False,
   _threshold = 10,
-  _shouldRemoveDuplicates = False,
   _disableDemand = False,
   _coalesceTypes = True
 }

@@ -143,7 +143,6 @@ instantiateWith env typs id t = do
         modify $ over toRemove ((:) tid)
         -- TODO: check if tid in groupElems: then remove from groupElems, do not add to toremove; else, add to toremove
         -- modify $ over toRemove ((:) tid)
-        modify $ over detailedSigs (Set.delete tid)
         musts <- gets (view mustFirers)
         when (id `HashMap.member` musts)
              (modify $ over mustFirers (HashMap.insertWith (flip (\\)) id [tid]))
@@ -172,7 +171,7 @@ addSignatures env = do
         return sigs'
         )
       (return sigs)
-    modify $ over detailedSigs (Set.union (Map.keysSet sigs'))
+    modify $ over activeSigs (Set.union (Map.keysSet sigs'))
     mapM_ addEncodedFunction (Map.toList sigs')
     return sigs'
     where
@@ -201,31 +200,12 @@ refineSemantic env prog at = do
     (toAdd, removables) <- ifM (getExperiment coalesceTypes) (
       do
         removables' <- gets $ view toRemove
-        writeLog 3 "refineSemantic toRemove" $ pretty removables'
-
-        nm <- gets $ view nameMapping
-        imap <- gets $ view instanceMapping
-        sigs <- gets $ view currentSigs
-        t2t <- gets $ view type2transition
-        fm <- gets $ view functionMap
-        gm <- gets $ view groupMap
-        grs <- gets $ view groupRepresentative
-        t2g <- gets $ view typeToGroup
-        dsigs <- gets $ view detailedSigs
-        writeLog 3 "refineSemantic groupMap" $ pretty gm
-        writeLog 3 "refineSemantic groupRepresentative" $ pretty grs
-        writeLog 3 "refineSemantic t2g" $ pretty t2g
-        writeLog 3 "refineSemantic t2t" $ pretty t2t
-
-        res <- foldM updateRemovable ([], []) removables'
-        t2t <- gets $ view type2transition
-        writeLog 3 "refineSemantic t2t -- updated" $ pretty t2t
-        return res
-        -- return removables'
+        foldM updateRemovable ([], []) removables'
         )
       ((gets $ view toRemove) >>= return . (,) [])
     writeLog 3 "refineSemantic (toAdd, removables)" $ pretty (toAdd, removables)
     if any (\x -> x `elem` removables) toAdd then error "trying to add and remove at the same time" else return ()
+    modify $ over activeSigs (\as -> Set.union (Set.fromList toAdd) $ Set.difference as (Set.fromList removables))
     -- add clone functions and add them into new transition set
     cloneNames <- mapM addCloneFunction $ Set.toList splits
     -- call the refined encoder on these signatures and disabled signatures
@@ -361,9 +341,7 @@ findPath env dst st = do
             writeLog 2 "findPath" $ text "found path" <+> pretty transNames
             let usefulTrans = filter skipClone transNames
             let sigNames = map removeSuffix usefulTrans
-            dsigs <- gets $ view detailedSigs
-            let sigNames' = filter (\name -> Set.member name dsigs || "pair_match" `isPrefixOf` name) sigNames
-            let sigs = substPair (map (findFunction fm) sigNames')
+            let sigs = substPair (map (findFunction fm) sigNames)
             writeLog 2 "findPath" $ text "found filtered sigs" <+> text (show sigs)
             let initialFormer = FormerState 0 HashMap.empty [] []
             code <- generateCode initialFormer (map show src) args sigs
@@ -429,7 +407,7 @@ findProgram env dst st = do
        then let Left code = checkResult in checkSolution st' code
        else do
          let Right err = checkResult
-         funcs <- gets (view detailedSigs)
+         funcs <- gets (view activeSigs)
          cover <- gets (view abstractionTree)
          modify $ over solverStats (\s -> s {
             iterations = iterations s + 1
@@ -492,7 +470,7 @@ findProgram env dst st = do
              -- add new places and transitions into the petri net
              res <- refine st splitInfo
              cover <- gets (view abstractionTree)
-             funcs <- gets (view detailedSigs)
+             funcs <- gets (view activeSigs)
              modify $ over solverStats (\s -> s {
                 numOfPlaces = Map.insert (iterations s) (Set.size cover) (numOfPlaces s)
               , numOfTransitions = Map.insert (iterations s) (Set.size funcs) (numOfTransitions s)
@@ -619,9 +597,7 @@ updateTy2Tr :: MonadIO m => Id -> AbstractSkeleton -> PNSolver m ()
 updateTy2Tr id f = do
     let addTransition k tid = HashMap.insertWith (\[x] y -> nubOrd $ x:y) k [tid]
     let includedTyps = nub (decompose f)
-    mapM_ (\t -> do
-        writeLog 4 "updateTy2Tr" $ pretty t <+> text "to" <+> text id
-        modify $ over type2transition (addTransition t id)) includedTyps
+    mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
 
 updateSrcTgt :: MonadIO m => Environment -> RType -> PNSolver m ([AbstractSkeleton], AbstractSkeleton)
 updateSrcTgt env dst = do
