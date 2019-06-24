@@ -36,6 +36,8 @@ import Data.List (isInfixOf)
 import System.Directory (removeFile)
 import Text.Printf
 import SimplCore (core2core)
+import Text.Regex.PCRE
+import Data.List (intercalate)
 
 showGhc :: (Outputable a) => a -> String
 showGhc = showPpr unsafeGlobalDynFlags
@@ -99,6 +101,9 @@ runGhcChecks disableDemand env goalType prog = let
     expr = body ++ " :: " ++ funcSig
     in do
         print expr
+        print argList
+        let b = foo body env (map (\x -> show x) (map toMonotype argTypes))
+        print b
         typeCheckResult <- runInterpreter $ checkType expr modules
         strictCheckResult <- if disableDemand then return True else checkStrictness body modules
         case typeCheckResult of
@@ -130,3 +135,23 @@ mkLambdaStr args body = let
     addFuncArg arg rest = Pretty.parens $ text ("\\" ++ arg ++ " -> ") <+> rest
     in
         show $ foldr addFuncArg (text oneLineBody) args
+
+-- TODO: if list is empty, then return empty!!
+foo :: String -> Environment -> [String] -> String
+foo x env types = let
+    stringResults = "__hplusTC__queso arg1" =~ x :: AllTextMatches [] String
+    matches = (getAllTextMatches stringResults)
+    bar = map (\x -> x) matches
+    typeclassesStr =  "(" ++ (intercalate ", " bar) ++ ")" ++ " => "
+    in typeclassesStr
+    where
+        argNameToType name types = ""
+        funNameToTypeclass name = ""
+        mapMe x = 
+            let (funName, argName) = break (== " ") x
+                argType = argNameToType argName types
+                typeclass = funNameToTypeclass funName
+                in typeclass ++ " " ++ argType
+
+    --in
+    --in "1"

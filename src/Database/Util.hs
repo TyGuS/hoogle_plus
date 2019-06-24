@@ -20,8 +20,8 @@ xs >.> ys = let ys' = Set.fromList ys in filter (flip Set.notMember ys') xs
 -- Default Library
 defaultFuncs = [ Pos (initialPos "fst") $ FuncDecl "fst" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) (ScalarT (TypeVarT Map.empty "a") ftrue)))
                 , Pos (initialPos "snd") $ FuncDecl "snd" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) (ScalarT (TypeVarT Map.empty "b") ftrue)))
-                , Pos (initialPos "tcBuiltIn") $ FuncDecl "test1" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Int" [] []) ftrue) (ScalarT (DatatypeT "__hplusTC__Show" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)))
-                , Pos (initialPos "tcBuiltIn") $ FuncDecl "test2" (Monotype (FunctionT "p" (ScalarT (TypeVarT Map.empty "a") ftrue) (ScalarT (DatatypeT "__hplusTC__Show" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)))
+                , Pos (initialPos "tcBuiltIn") $ FuncDecl "__hplusTCTransition__99" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Int" [] []) ftrue) (ScalarT (DatatypeT "__hplusTC__Show" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)))
+                , Pos (initialPos "tcBuiltIn") $ FuncDecl "__hplusTCTransition__100" (Monotype (FunctionT "p" (ScalarT (TypeVarT Map.empty "a") ftrue) (ScalarT (DatatypeT "__hplusTC__Show" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)))
 
                 ]
 -- TODO: Should be Int -> ShowD Int!

@@ -59,6 +59,7 @@ dependencies:
 - ghc
 - ghc-paths
 - split
+- regex-pcre
 
 library:
   source-dirs:
