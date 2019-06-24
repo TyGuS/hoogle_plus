@@ -143,7 +143,6 @@ instantiateWith env typs id t = do
         modify $ over toRemove ((:) tid)
         -- TODO: check if tid in groupElems: then remove from groupElems, do not add to toremove; else, add to toremove
         -- modify $ over toRemove ((:) tid)
-        modify $ over detailedSigs (Set.delete tid)
         musts <- gets (view mustFirers)
         when (id `HashMap.member` musts)
              (modify $ over mustFirers (HashMap.insertWith (flip (\\)) id [tid]))
@@ -172,7 +171,6 @@ addSignatures env = do
         return sigs'
         )
       (return sigs)
-    modify $ over detailedSigs (Set.union (Map.keysSet sigs'))
     mapM_ addEncodedFunction (Map.toList sigs')
     return sigs'
     where
@@ -211,7 +209,6 @@ refineSemantic env prog at = do
         gm <- gets $ view groupMap
         grs <- gets $ view groupRepresentative
         t2g <- gets $ view typeToGroup
-        dsigs <- gets $ view detailedSigs
         writeLog 3 "refineSemantic groupMap" $ pretty gm
         writeLog 3 "refineSemantic groupRepresentative" $ pretty grs
         writeLog 3 "refineSemantic t2g" $ pretty t2g
@@ -358,8 +355,7 @@ findPath env dst st = do
             writeLog 2 "findPath" $ text "found path" <+> pretty transNames
             let usefulTrans = filter skipClone transNames
             let sigNames = map removeSuffix usefulTrans
-            dsigs <- gets $ view detailedSigs
-            let sigNames' = filter (\name -> Set.member name dsigs || "pair_match" `isPrefixOf` name) sigNames
+            let sigNames' = sigNames -- filter (\name -> Set.member name dsigs || "pair_match" `isPrefixOf` name) sigNames
             let sigs = substPair (map (findFunction fm) sigNames')
             writeLog 2 "findPath" $ text "found filtered sigs" <+> text (show sigs)
             let initialFormer = FormerState 0 HashMap.empty [] []
@@ -426,12 +422,11 @@ findProgram env dst st = do
        then let Left code = checkResult in checkSolution st' code
        else do
          let Right err = checkResult
-         funcs <- gets (view detailedSigs)
          cover <- gets (view abstractionTree)
          modify $ over solverStats (\s -> s {
             iterations = iterations s + 1
           , numOfPlaces = Map.insert (iterations s + 1) (Set.size cover) (numOfPlaces s)
-          , numOfTransitions = Map.insert (iterations s + 1) (Set.size funcs) (numOfTransitions s)
+          , numOfTransitions = Map.insert (iterations s + 1) (-1) (numOfTransitions s)
          })
          nextSolution st' rs err
   where
@@ -489,10 +484,9 @@ findProgram env dst st = do
              -- add new places and transitions into the petri net
              res <- refine st splitInfo
              cover <- gets (view abstractionTree)
-             funcs <- gets (view detailedSigs)
              modify $ over solverStats (\s -> s {
                 numOfPlaces = Map.insert (iterations s) (Set.size cover) (numOfPlaces s)
-              , numOfTransitions = Map.insert (iterations s) (Set.size funcs) (numOfTransitions s)
+              , numOfTransitions = Map.insert (iterations s) (-1) (numOfTransitions s)
              })
              return res
 

@@ -26,7 +26,6 @@ data SolverState = SolverState {
     _currentSolutions :: [RProgram], -- type checked solutions
     _currentLoc :: Int, -- current solution depth
     _currentSigs :: Map Id AbstractSkeleton, -- current type signature groups
-    _detailedSigs :: Set Id,
     _functionMap :: HashMap Id FunctionCode,
     _targetType :: AbstractSkeleton,
     _sourceTypes :: [AbstractSkeleton],
@@ -54,7 +53,6 @@ emptySolverState = SolverState {
     _currentSolutions = [],
     _currentLoc = 1,
     _currentSigs = Map.empty,
-    _detailedSigs = Set.empty,
     _functionMap = HashMap.empty,
     _targetType = AScalar (ATypeVarT varName),
     _sourceTypes = [],
