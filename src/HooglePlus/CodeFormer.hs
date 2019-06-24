@@ -69,13 +69,14 @@ applyFunction func = do
 -- | generate the program from the signatures appeared in selected transitions
 -- these signatures are sorted by their timestamps,
 -- i.e. they may only use symbols appearing before them
-generateProgram :: [FunctionCode] -> [Id] -> CodeFormer CodePieces
-generateProgram signatures rets = do
+generateProgram :: [FunctionCode] -> [Id] -> [Id] -> [Id] -> CodeFormer CodePieces
+generateProgram signatures srcs argNames rets = do
     -- prepare scalar variables
     st <- get
     put $ st { varCounter = 0
              , allSignatures = signatures
              }
+    mapM_ (uncurry addTypedArg) $ zip srcs argNames
     mapM_ applyFunction signatures
     termLib <- gets typedTerms
     let codePieces = map (\ret -> HashMap.lookupDefault Set.empty ret termLib) rets

@@ -53,28 +53,16 @@ createEncoder inputs ret sigs = do
 -- the tokens in the other places should be zero
 setInitialState :: [Id] -> [Id] -> Encoder ()
 setInitialState inputs places = do
-    inits <- gets initTokens
-    liftIO $ print inits
-    let initTyps = map snd inits
     let nonInputs = filter (`notElem` inputs) places
-    let nonInits = filter (`notElem` initTyps) places
     let inputCounts = map (\t -> (head t, length t)) (group (sort inputs))
-    let nonInitCounts = map (, 0) nonInits
-    -- assign tokens to each types
-    mapM_ (uncurry assignToken) nonInitCounts
-    mapM_ (uncurry assignSr) inputCounts
+    let nonInputCounts = map (, 0) nonInputs
+    mapM_ (uncurry assignToken) (inputCounts ++ nonInputCounts)
   where
     assignToken p v = do
         placeMap <- gets place2variable
         tVar <- mkZ3IntVar $ findVariable (p, 0) placeMap
         eq <- mkIntNum v >>= mkEq tVar
         modify $ \st -> st { optionalConstraints = eq : optionalConstraints st }
-
-    assignSr p v = do
-        placeMap <- gets place2variable
-        tVar <- mkZ3IntVar $ findVariable (p, 0) placeMap
-        ge <- mkIntNum v >>= mkGe tVar
-        modify $ \st -> st { optionalConstraints = ge : optionalConstraints st }
 
 -- | set the final solver state, we allow only one token in the return type
 -- and maybe several tokens in the "void" place
@@ -137,6 +125,10 @@ nonincrementalSolve = do
 
     -- str <- solverToString
     -- liftIO $ putStrLn str
+    -- placeMap <- gets place2variable
+    -- liftIO $ print placeMap
+    -- transMap <- gets transition2id
+    -- liftIO $ print transMap
     -- error "stop"
     
     check    
@@ -168,7 +160,7 @@ incrementalSolve = do
     blocks <- gets blockConstraints
     checkAssumptions (excludeE : finalE : blocks)
 
-solveAndGetModel :: Encoder ([Id], [Id])
+solveAndGetModel :: Encoder [Id]
 solveAndGetModel = do
     l <- gets loc
     incremental <- gets incrementalSolving
@@ -180,7 +172,6 @@ solveAndGetModel = do
             places <- gets (HashMap.keys . ty2tr)
             -- evaluate what transitions are fired
             selected <- mapM (checkLit model) [0..(l-1)]
-            selectedPlaces <- filterM (checkInitialPlace model) places
             placed <- mapM (uncurry $ checkPlace model) [(p, t) | p <- places
                                                                 , t <- [0..l]]
             blockTrs <- zipWithM blockTr [0..(l-1)] selected
@@ -194,7 +185,7 @@ solveAndGetModel = do
             when incremental $ do
                 cancelConstraints "exclude"
                 cancelConstraints "final"
-            return (selectedNames, selectedPlaces)
+            return selectedNames
         Unsat -> do
             rets <- gets returnTyps
             unless incremental $ do
@@ -208,7 +199,7 @@ solveAndGetModel = do
                     cancelConstraints "final"
                     blocks <- gets blockConstraints
                     mapM_ (mkNot >=> assert) blocks
-                return ([], [])
+                return []
               else do
                 -- liftIO $ print "unsat for change goal"
                 -- try a more general return type
@@ -219,20 +210,12 @@ solveAndGetModel = do
                                    , prevChecked = False }
                 setFinalState (rets !! 1) (HashMap.keys t2tr)
                 solveAndGetModel
-        Undef -> return ([], [])
+        Undef -> return []
   where
     getTrNames selected = do
         transMap <- gets id2transition
         let transNames = map (\id -> findVariable (fromIntegral id) transMap) selected
         return transNames
-
-    checkInitialPlace model p = do
-        placeMap <- gets place2variable
-        pVar <- mkZ3IntVar (findVariable (p, 0) placeMap)
-        maybeInt <- evalInt model pVar
-        case maybeInt of
-          Just i -> return $ i > 0
-          Nothing -> error $ "cannot eval the variable" ++ show (p, 0)
 
     checkPlace model p t = do
         placeMap <- gets place2variable
@@ -255,7 +238,7 @@ solveAndGetModel = do
         tsVar <- mkZ3IntVar (findVariable t tsMap)
         mkIntNum tr >>= mkEq tsVar
 
-encoderInit :: Int -> HashMap Id [(Id, Id)] -> [Id] -> [Id] -> [FunctionCode] -> HashMap Id [Id] -> Bool -> IO EncodeState
+encoderInit :: Int -> HashMap Id [Id] -> [Id] -> [Id] -> [FunctionCode] -> HashMap Id [Id] -> Bool -> IO EncodeState
 encoderInit len hoArgs inputs rets sigs t2tr incr = do
     z3Env <- initialZ3Env
     false <- Z3.mkFalse (envContext z3Env)
@@ -269,9 +252,11 @@ encoderInit len hoArgs inputs rets sigs t2tr incr = do
         }
     execStateT (createEncoder inputs (head rets) sigs) initialState
 
-encoderSolve :: EncodeState -> IO (([Id], [Id]), EncodeState)
+encoderSolve :: EncodeState -> IO ([Id], EncodeState)
 encoderSolve = runStateT solveAndGetModel
 
+-- optimize the optional constraints here:
+-- we only need to change the must firers and noTransitionTokens and final states
 encoderInc :: [FunctionCode] -> [Id] -> [Id] -> Encoder ()
 encoderInc sigs inputs rets = do
     modify $ \st -> st { loc = loc st + 1
@@ -312,17 +297,16 @@ encoderInc sigs inputs rets = do
     
     setFinalState (head rets) places
 
-encoderRefine :: SplitInfo -> HashMap Id [(Id, Id)] -> [Id] -> [Id] -> [FunctionCode] -> HashMap Id [Id] -> Encoder ()
+encoderRefine :: SplitInfo -> HashMap Id [Id] -> [Id] -> [Id] -> [FunctionCode] -> HashMap Id [Id] -> Encoder ()
 encoderRefine info musters inputs rets sigs t2tr = do
     {- update the abstraction level -}
-    let getInitTokens = filter ((`notElem` (removedTrans info)) . fst)
+    let getInitTokens = filter ((`notElem` removedTrans info) . fst)
     modify $ \st -> st { ty2tr = t2tr 
                        , mustFirers = musters
                        , disabledTrans = disabledTrans st ++ removedTrans info
                        , returnTyps = rets
                        , optionalConstraints = []
                        , finalConstraints = []
-                       , initTokens = getInitTokens (initTokens st) 
                        }
 
     {- operation on places -}
@@ -371,12 +355,7 @@ disableTransitions trs t = mapM_ disableTrAt $ nub trs
         incremental <- gets incrementalSolving
         when incremental $ assert eq
 
--- | add variables for each place:
--- 1) an integer variable for number of default tokens
--- 2) an integer variable for number of colored tokens
--- 3) an integer variable for color index
--- in this design, we allow only one color existing in the petri net
--- so there is no nested higher order functions
+-- | add variables for each place
 addPlaceVar ::  Id -> Int -> Encoder ()
 addPlaceVar p t = do
     st <- get
@@ -388,8 +367,7 @@ addPlaceVar p t = do
                         })
 
 -- | add transition mapping from (tr, lv) to integer id
--- 1) an integer variable for each transition
--- 2) an fresh integer variable for each higher-order argument
+-- an integer variable for each transition
 addTransitionVar :: [Id] -> Encoder ()
 addTransitionVar = mapM_ addTransitionVarFor
   where
@@ -453,8 +431,8 @@ mkZ3IntVar var = do
     intS <- mkIntSort
     mkConst varSymbol intS
 
-findVariable :: (Eq k, Hashable k, Show k) => k -> HashMap k v -> v
-findVariable k m = fromMaybe (error $ "cannot find variable for " ++ show k)
+findVariable :: (Eq k, Hashable k, Show k, Show v) => k -> HashMap k v -> v
+findVariable k m = fromMaybe (error $ "cannot find variable for " ++ show k ++ " in " ++ show m)
                              (HashMap.lookup k m)
 
 nonnegativeTokens :: [Id] -> Encoder ()
@@ -514,11 +492,6 @@ noTransitionTokens t p = do
         mapM (mkEq tsZ3Var) idVars
 
 fireTransitions :: Int -> FunctionCode -> Encoder ()
-fireTransitions t (FunctionCode name [] [] rets) = do
-    modify $ \st -> st { initTokens = (map (name,) rets) ++ initTokens st 
-                       , disabledTrans = name : disabledTrans st
-                       }
-    disableTransitions [name] t
 fireTransitions t (FunctionCode name [] params rets) = do
     transMap <- gets transition2id
     placeMap <- gets place2variable
@@ -558,6 +531,7 @@ fireTransitions t (FunctionCode name [] params rets) = do
         placeMap <- gets place2variable
         pVar <- mkZ3IntVar (findVariable (p, t) placeMap)
         mkGe pVar w
+fireTransitions t fc = error $ "unhandled " ++ show fc
 
 mustFireTransitions ::  Encoder ()
 mustFireTransitions = do
@@ -572,17 +546,9 @@ mustFireTransitions = do
         tsVars <- mapM (\t -> mkZ3IntVar (findVariable t tsMap)) [0..(l-1)]
         mapM (mkEq trId) tsVars
 
-    initialized p = do
-        placeMap <- gets place2variable
-        pVar <- mkZ3IntVar $ findVariable (p, 0) placeMap
-        mkIntNum 1 >>= mkGe pVar
-
-    fireTransitionFor (_, trs) = do
+    fireTransitionFor (_, tids) = do
         transitions <- gets transition2id
-        let tids = map fst trs
-        let typs = map snd trs
         let mustTrans = HashMap.filterWithKey (\k _ -> nameInMust tids k) transitions
         fires <- mapM fireTransition mustTrans
-        initPlaces <- mapM initialized typs
-        toFire <- mkOr (initPlaces ++ concat fires)
+        toFire <- mkOr (concat fires)
         modify $ \st -> st { optionalConstraints = toFire : optionalConstraints st }

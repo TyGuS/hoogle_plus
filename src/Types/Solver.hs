@@ -30,7 +30,7 @@ data SolverState = SolverState {
     _functionMap :: HashMap Id FunctionCode,
     _targetType :: AbstractSkeleton,
     _sourceTypes :: [AbstractSkeleton],
-    _mustFirers :: HashMap Id [(Id, Id)],
+    _mustFirers :: HashMap Id [Id],
     _groupMap :: Map Id [Id], -- mapping from group id to list of function names
     _type2transition :: HashMap AbstractSkeleton [Id], -- mapping from abstract type to group ids
     _solverStats :: TimeStatistics,
@@ -39,7 +39,6 @@ data SolverState = SolverState {
     _logLevel :: Int, -- temporary for log level
     _instanceMapping :: HashMap (Id, [AbstractSkeleton]) (Id, AbstractSkeleton),
     _toRemove :: [Id],
-    _initialMap :: HashMap Id [Id],
     _messageChan :: Chan Message
 } deriving(Eq)
 
@@ -66,7 +65,6 @@ emptySolverState = SolverState {
     _instanceMapping = HashMap.empty,
     _toRemove = [],
     _logLevel = 0,
-    _initialMap = HashMap.empty,
     _messageChan = undefined
 }
 

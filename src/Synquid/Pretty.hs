@@ -533,4 +533,6 @@ instance Hashable AbstractSkeleton where
   hashWithSalt s typ = s + hash typ
 
 instance Pretty SplitInfo where
-    pretty (SplitInfo p r tr) = text "Split places:" <+> text (show p) 
+    pretty (SplitInfo p r tr) = text "Split places:" <+> text (show p)
+                              <+> text "To remove:" <+> text (show r)
+                              <+> text "New transitions:" <+> text (show tr)

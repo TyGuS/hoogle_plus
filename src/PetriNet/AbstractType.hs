@@ -66,6 +66,7 @@ toAbstractFun t = toAbstractType t
 
 compactAbstractType :: AbstractSkeleton -> AbstractSkeleton
 compactAbstractType (AFunctionT tArg tRes) = AScalar $ ADatatypeT "Fun" [compactAbstractType tArg, compactAbstractType tRes]
+compactAbstractType (AScalar (ADatatypeT dt args)) = AScalar (ADatatypeT dt $ map compactAbstractType args)
 compactAbstractType t = t
 
 -- this is not subtype relation!!!
@@ -185,7 +186,8 @@ applySemantic :: MonadIO m => [Id] -> AbstractSkeleton -> [AbstractSkeleton] -> 
 applySemantic tvs fun args = do
     let cargs = init (decompose fun)
     let ret = last (decompose fun)
-    constraints <- zipWithM (typeConstraints tvs) cargs args
+    let args' = map compactAbstractType args
+    constraints <- zipWithM (typeConstraints tvs) cargs args'
     let unifier = getUnifier tvs (concat constraints)
     case unifier of
         Nothing -> return ABottom

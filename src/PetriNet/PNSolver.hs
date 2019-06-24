@@ -99,9 +99,6 @@ instantiateWith env typs id t = do
            let sigs = filter (\t -> noneInst instMap id t || diffInst instMap id t) rawSigs
            mapM (mkNewSig id) sigs
   where
-    noneInst instMap id t = not (HashMap.member (id, absFunArgs id t) instMap)
-
-    diffInst instMap id t = snd (fromJust $ HashMap.lookup (id, absFunArgs id t) instMap) /= t
 
     assemblePair first secod | absFunArgs "fst" first == absFunArgs "snd" secod =
         let AFunctionT p f = first
@@ -124,36 +121,24 @@ instantiateWith env typs id t = do
         -- when same arguments exist for a function, replace it
         unless (noneInst instMap id ty) (excludeUseless id ty)
         -- add corresponding must firers, function code and type mapping
-        let compactedTyp = show $ compactAbstractType ty
         let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
         when (Map.member id hoArgs) 
-             (modify $ over mustFirers (HashMap.insertWith (++) id [(newId, compactedTyp)]))
+             (modify $ over mustFirers (HashMap.insertWith (++) id [newId]))
         modify $ over nameMapping (Map.insert newId id)
-        modify $ over initialMap (HashMap.insertWith (\[x] y -> x:y) compactedTyp [newId])
         modify $ over instanceMapping (HashMap.insert (id, absFunArgs id ty) (newId, ty))
-        writeLog 4 "instantiateWith" $ text id <+> text "==>"  <+> text newId <+> text "::" <+> pretty ty
+        writeLog 3 "instantiateWith" $ text id <+> text "==>"  <+> text newId <+> text "::" <+> pretty ty
         return (newId, ty)
 
-    excludeUseless id ty = do
-        instMap <- gets (view instanceMapping)
-        let (tid, ty') = fromJust (HashMap.lookup (id, absFunArgs id ty) instMap)
-        let compactedTy = show $ compactAbstractType ty'
-        -- writeLog 3 $ text tid <+> text "exists in the instance map for" <+> text id
-        modify $ over toRemove ((:) tid)
-        modify $ over detailedSigs (Set.delete tid)
-        modify $ over functionMap (HashMap.delete tid)
-        modify $ over initialMap (HashMap.insertWith (flip (\\)) compactedTy [tid])
-        musts <- gets (view mustFirers)
-        when (id `HashMap.member` musts)
-             (modify $ over mustFirers (HashMap.insertWith (flip (\\)) id [(tid, compactedTy)]))
 
 addSignatures :: MonadIO m => Environment -> PNSolver m (Map Id AbstractSkeleton)
 addSignatures env = do
-    let foArgs = foArgsOf env
+    let foArgs = Map.keys $ foArgsOf env
     -- first abstraction all the symbols with fresh type variables and then instantiate them
     let envSymbols = allSymbols env
-    sigs <- instantiate env envSymbols
-    writeLog 3 "addSignatures" $ text "instantiate new sigs" <+> pretty (Map.toList sigs)
+    let usefulPipe k _ = k `notElem` foArgs
+    let usefulSymbols = Map.filterWithKey usefulPipe envSymbols
+    sigs <- instantiate env usefulSymbols
+    -- writeLog 3 "addSignatures" $ text "instantiate new sigs" <+> pretty (Map.toList sigs)
     modify $ over detailedSigs (Set.union (Map.keysSet sigs))
     mapM_ addEncodedFunction (Map.toList sigs)
     return sigs
@@ -164,19 +149,23 @@ addSignatures env = do
 refineSemantic :: MonadIO m => Environment -> RProgram -> AbstractSkeleton -> PNSolver m SplitInfo
 refineSemantic env prog at = do
     -- back propagation of the error types to get all split information
-    propagate env prog at
+    propagate env prog $ compactAbstractType at
     -- get the split pairs
     splits <- gets (view splitTypes)
     -- add new instantiated signatures into solver
     sigs <- addSignatures env
-    -- get removed transitions
-    useless <- gets (view toRemove)
     -- add clone functions and add them into new transition set
     cloneNames <- mapM addCloneFunction $ Set.toList splits
+    -- add higher order functions
+    let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+    let binds = env ^. boundTypeVars
+    hoNames <- mapM (addHoArg binds) $ Map.keys hoArgs
+    -- get removed transitions
+    useless <- gets (view toRemove)
     -- call the refined encoder on these signatures and disabled signatures
     return SplitInfo { newPlaces = Set.toList splits
                      , removedTrans = useless
-                     , newTrans = Map.keys sigs ++ cloneNames
+                     , newTrans = Map.keys sigs ++ cloneNames ++ concat hoNames
                      }
 
 initNet :: MonadIO m => Environment -> PNSolver m ()
@@ -192,7 +181,7 @@ initNet env = withTime ConstructionTime $ do
     allTy <- gets (HashMap.keys . view type2transition)
     mapM_ addCloneFunction (filter (not . isAFunctionT) allTy)
     let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    mapM_ addHoArg $ Map.keys hoArgs
+    mapM_ (addHoArg $ env ^. boundTypeVars) $ Map.keys hoArgs
   where
     abstractSymbol id sch = do
         t <- freshType sch
@@ -238,7 +227,7 @@ findPath :: (MonadIO m) => Environment -> RType -> EncodeState -> PNSolver m (Co
 findPath env dst st = do
     (res, st') <- withTime SolverTime (liftIO (encoderSolve st))
     case res of
-        ([], []) -> do
+        [] -> do
             currSt <- get
             maxDepth <- getExperiment maxApplicationDepth
             when (currSt ^. currentLoc >= maxDepth) (
@@ -252,27 +241,16 @@ findPath env dst st = do
         _  -> withTime FormerTime $ do
             fm <- gets $ view functionMap
             src <- gets $ view sourceTypes
-            initMap <- gets $ view initialMap
-            let args = Map.keys $ env ^. arguments
-            let (transNames, initPlaces) = res
-            let initTrans = map (\name -> HashMap.lookupDefault [] name initMap) initPlaces
-            let preferArg l = if null (intersect args l) then l 
-                                                         else intersect args l
-            let initTransNames = map (head . preferArg) initTrans
-            let firedTrans = initTransNames ++ transNames
-            -- writeLog 2 "findPath" $ text "current initMap:" <+> pretty (HashMap.toList initMap)
-            writeLog 2 "findPath" $ text "assigned init places:" <+> pretty initPlaces
-            writeLog 2 "findPath" $ text "selected transitions:" <+> pretty transNames
-            writeLog 2 "findPath" $ text "selected init trans:" <+> pretty initTrans
+            let args = Map.keys $ foArgsOf env
+            let firedTrans = res
             writeLog 2 "findPath" $ text "found path" <+> pretty firedTrans
-            let usefulTrans = filter skipClone firedTrans
-            let sigNames = map removeSuffix usefulTrans
-            dsigs <- gets $ view detailedSigs
-            let sigNames' = filter (\name -> Set.member name dsigs || "pair_match" `isPrefixOf` name) sigNames
-            let sigs = substPair (map (findFunction fm) sigNames')
+            let sigNames = filter skipClone firedTrans
+            -- dsigs <- gets $ view detailedSigs
+            -- let sigNames' = filter (\name -> Set.member name dsigs || "pair_match" `isPrefixOf` name) sigNames
+            let sigs = substPair (map (findFunction fm) sigNames)
             writeLog 2 "findPath" $ text "found filtered sigs" <+> text (show sigs)
             let initialFormer = FormerState 0 HashMap.empty [] []
-            code <- generateCode initialFormer sigs
+            code <- generateCode initialFormer (map show src) args sigs
             return (code, st')
   where
     findFunctions fm groups name =
@@ -287,12 +265,12 @@ findPath env dst st = do
     combinations [x]   = [x]
     combinations (h:t) = [ hh:tt | hh <- h, tt <- combinations t ]
 
-    generateCode initialFormer sigs = do
+    generateCode initialFormer src args sigs = do
         tgt <- gets (view targetType)
         cover <- gets (view abstractionCover)
         let bound = env ^. boundTypeVars
         let rets = filter (isSubtypeOf bound tgt) (Set.toList cover)
-        liftIO (evalStateT (generateProgram sigs $ map show rets) initialFormer)
+        liftIO (evalStateT (generateProgram sigs src args (map show rets)) initialFormer)
 
     skipClone = not . isInfixOf "|clone"
     removeSuffix = removeLast '|'
@@ -313,10 +291,6 @@ fixEncoder env dst st info = do
     writeLog 2 "fixEncoder" $ text "fixed parameter types are" <+> pretty srcTypes
     writeLog 2 "fixEncoder" $ text "fixed return type is" <+> pretty tgt
     writeLog 3 "fixEncoder" $ text "get split information" <+> pretty info
-    let newTyps = newPlaces info
-    mapM_ addCloneFunction (filter (not . isAFunctionT) newTyps)
-    let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    mapM_ addHoArg $ Map.keys hoArgs
     modify $ over type2transition (HashMap.filter (not . null))
     (loc, musters, rets, funcs, tid2tr, _) <- prepEncoderArgs env tgt
     liftIO $ execStateT (encoderRefine info musters (map show srcTypes) rets funcs tid2tr) st
@@ -492,14 +466,38 @@ addCloneFunction ty = do
     modify $ over type2transition (addTransition ty fname)
     return fname
 
-addHoArg :: MonadIO m => Id -> PNSolver m ()
-addHoArg id = do
+addHoArg :: MonadIO m => [Id] -> Id -> PNSolver m [Id]
+addHoArg tvs id = do
     nameMap <- gets $ view nameMapping
-    sigsMap <- gets $ view currentSigs
-    let names = Map.keys $ Map.filter ((==) id) nameMap
-    let mkCompact = compactAbstractType . fromJust
-    let sigs = map (\n -> (n, mkCompact $ Map.lookup n sigsMap)) names
+    let isHoInstance k n = id == n && not ("ho" `isPrefixOf` k)
+    let names = Map.keys $ Map.filterWithKey isHoInstance nameMap
+    sigMbs <- mapM addOrRemoveHo names
+    let sigs = map fromJust $ filter isJust sigMbs
+    let fcs = map (uncurry encodeFunction) sigs
+    let hoNames = map fst sigs
+    modify $ over mustFirers $ HashMap.insertWith union id hoNames
+    modify $ over detailedSigs $ Set.union $ Set.fromList hoNames
+    mapM_ (\n -> modify $ over nameMapping $ Map.insert n id) hoNames
     mapM_ (uncurry updateTy2Tr) sigs
+    mapM_ (\fc -> modify $ over functionMap $ HashMap.insert (funName fc) fc) fcs
+    mapM_ (\(n, t) -> modify $ over currentSigs $ Map.insert n t) sigs
+    return hoNames
+  where
+    addOrRemoveHo name = do
+      sigsMap <- gets $ view currentSigs
+      instMap <- gets $ view instanceMapping
+      cover <- gets $ view abstractionCover
+      let mkCompact = currentAbst tvs cover . compactAbstractType . fromJust
+      t <- mkCompact (Map.lookup name sigsMap)
+      writeLog 3 "addHoArg" $ text "checking" <+> text name <+> text "::" <+> pretty t
+      if noneInst instMap id t || diffInst instMap id t
+        then do
+          unless (noneInst instMap id t) (excludeUseless id t)
+          f <- freshId "ho"
+          let args = absFunArgs id t
+          modify $ over instanceMapping (HashMap.insert (id, args) (f, t))
+          return $ Just (f, t)
+        else return Nothing
 
 attachLast :: AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
 attachLast t (AFunctionT tArg tRes) | isAFunctionT tRes = AFunctionT tArg (attachLast t tRes)
@@ -541,7 +539,7 @@ updateSrcTgt env dst = do
     modify $ set sourceTypes srcTypes
     return (srcTypes, tgt)
 
-type EncoderArgs = (Int, HashMap Id [(Id, Id)], [Id], [FunctionCode], HashMap Id [Id], Bool)
+type EncoderArgs = (Int, HashMap Id [Id], [Id], [FunctionCode], HashMap Id [Id], Bool)
 
 prepEncoderArgs :: MonadIO m => Environment -> AbstractSkeleton -> PNSolver m EncoderArgs
 prepEncoderArgs env tgt = do
@@ -561,3 +559,21 @@ prepEncoderArgs env tgt = do
     
 foArgsOf :: Environment -> Map Id RSchema
 foArgsOf = Map.filter (not . isFunctionType . toMonotype) . _arguments
+
+noneInst instMap id t = not (HashMap.member (id, absFunArgs id t) instMap)
+
+diffInst instMap id t = snd (fromJust $ HashMap.lookup (id, absFunArgs id t) instMap) /= t
+
+excludeUseless :: MonadIO m => Id -> AbstractSkeleton -> PNSolver m ()
+excludeUseless id ty = do
+    instMap <- gets (view instanceMapping)
+    dsigs <- gets (view detailedSigs)
+    let (tid, _) = fromJust (HashMap.lookup (id, absFunArgs id ty) instMap)
+    writeLog 3 "excludeUseless" $ text tid <+> text "exists in the instance map for" <+> text id
+    modify $ over toRemove ((:) tid)
+    modify $ over detailedSigs (Set.delete tid)
+    modify $ over functionMap (HashMap.delete tid)
+    modify $ over type2transition (HashMap.map (delete tid))
+    musts <- gets (view mustFirers)
+    when (id `HashMap.member` musts)
+         (modify $ over mustFirers (HashMap.insertWith (flip (\\)) id [tid]))
