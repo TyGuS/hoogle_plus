@@ -224,6 +224,8 @@ refineSemantic env prog at = do
         -- return removables'
         )
       ((gets $ view toRemove) >>= return . (,) [])
+    writeLog 3 "refineSemantic (toAdd, removables)" $ pretty (toAdd, removables)
+    if any (\x -> x `elem` removables) toAdd then error "trying to add and remove at the same time" else return ()
     -- add clone functions and add them into new transition set
     cloneNames <- mapM addCloneFunction $ Set.toList splits
     -- call the refined encoder on these signatures and disabled signatures
