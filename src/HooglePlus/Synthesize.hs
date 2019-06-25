@@ -75,6 +75,7 @@ synthesize searchParams goal messageChan = do
   let useHO = _useHO searchParams
   let env = if useHO then env'
                       else env' { _symbols = Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env' ^. symbols }
+  putStrLn $ "Component number: " ++ show (Map.size $ allSymbols env)
   let args = Monotype destinationType : Map.elems (env ^. arguments)
   -- start with all the datatypes defined in the components, first level abstraction
   let cnt = _solutionCnt searchParams
@@ -94,5 +95,5 @@ synthesize searchParams goal messageChan = do
            , _messageChan = messageChan
            }
   catch (evalStateT (runPNSolver env cnt destinationType) is)
-    (\e -> (printf "[error]: %s \n" (show e)) >> writeChan messageChan (MesgClose (CSError e)))
+    (\e -> printf "[error]: %s \n" (show e) >> writeChan messageChan (MesgClose (CSError e)))
   return ()

@@ -39,7 +39,8 @@ data SearchParams = SearchParams {
   _stopRefine :: Bool,
   _threshold :: Int,
   _shouldRemoveDuplicates :: Bool,
-  _incrementalSolving :: Bool
+  _incrementalSolving :: Bool,
+  _hoCandidates :: [String]
 } deriving (Eq, Show)
 
 makeLenses ''SearchParams
@@ -82,7 +83,8 @@ defaultSearchParams = SearchParams {
   _stopRefine = False,
   _threshold = 10,
   _shouldRemoveDuplicates = False,
-  _incrementalSolving = False
+  _incrementalSolving = False,
+  _hoCandidates = []
 }
 
 type ExperimentName = String

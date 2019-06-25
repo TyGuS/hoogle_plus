@@ -72,7 +72,7 @@ releaseDate = fromGregorian 2019 3 10
 main = do
   res <- cmdArgsRun $ mode
   case res of
-    Synthesis file libs envPath appMax log_ solNum higher_order refine stopRefine threshold remove_duplicates incr -> do
+    Synthesis file libs envPath appMax log_ solNum higher_order refine stopRefine threshold remove_duplicates incr ho_path -> do
       let searchParams = defaultSearchParams {
         _maxApplicationDepth = appMax,
         _explorerLogLevel = log_,
@@ -87,7 +87,7 @@ main = do
       let synquidParams = defaultSynquidParams {
         Main.envPath = envPath
       }
-      executeSearch synquidParams searchParams file
+      executeSearch synquidParams searchParams file ho_path
 
     Generate {preset=(Just preset)} -> do
       let opts = case preset of
@@ -131,7 +131,8 @@ data CommandLineArgs
         stop_refine :: Bool,
         stop_threshold :: Int,
         remove_duplicates :: Bool,
-        incremental :: Bool
+        incremental :: Bool,
+        higher_order_components :: String
       }
       | Generate {
         -- | Input
@@ -157,7 +158,8 @@ synt = Synthesis {
   stop_refine         = False           &= help ("Stop refine the abstraction cover after some threshold (default: False)"),
   stop_threshold      = 10              &= help ("Refinement stops when the number of places reaches the threshold, only when stop_refine is True"),
   remove_duplicates   = False           &= help ("Remove duplicates while searching. Under development."),
-  incremental         = False           &= help ("Enable the incremental solving in z3 (default: False)")
+  incremental         = False           &= help ("Enable the incremental solving in z3 (default: False)"),
+  higher_order_components = "ho.txt"    &= typFile &= help ("Filename of components to be used as higher order arguments")
   } &= auto &= help "Synthesize goals specified in the input file"
 
 generate = Generate {
@@ -201,17 +203,19 @@ precomputeGraph opts = generateEnv opts >>= writeEnv (Types.Generate.envPath opt
 
 
 -- | Parse and resolve file, then synthesize the specified goals
-executeSearch :: SynquidParams -> SearchParams  -> String -> IO ()
-executeSearch synquidParams searchParams query = do
+executeSearch :: SynquidParams -> SearchParams  -> String -> String -> IO ()
+executeSearch synquidParams initSearchParams query hoPath = do
   env <- readEnv
   goal <- envToGoal env query
   messageChan <- newChan
+  hofStr <- readFile hoPath
+  let searchParams = initSearchParams { _hoCandidates = words hofStr }
   worker <- forkIO $ synthesize searchParams goal messageChan
   readChan messageChan >>= (handleMessages messageChan)
   -- when (_explorerLogLevel searchParams > 0) (mapM_ (printTime . snd) results)
   return ()
   where
-    logLevel = searchParams ^. explorerLogLevel
+    logLevel = initSearchParams ^. explorerLogLevel
     readEnv = do
       let envPathIn = Main.envPath synquidParams
       doesExist <- doesFileExist envPathIn

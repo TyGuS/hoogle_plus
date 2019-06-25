@@ -55,7 +55,7 @@ decomposeHo t = [t]
 
 toAbstractType :: SType -> AbstractSkeleton
 toAbstractType (ScalarT (TypeVarT _ id) _) = AScalar (ATypeVarT id)
-toAbstractType (ScalarT (DatatypeT id args _) _) = AScalar (ADatatypeT id (map toAbstractType args))
+toAbstractType (ScalarT (DatatypeT id args _) _) = AScalar (ADatatypeT id (map (compactAbstractType . toAbstractType) args))
 toAbstractType (FunctionT _ tArg tRet) = AFunctionT (toAbstractFun tArg) (toAbstractType tRet)
 toAbstractType AnyT = AScalar (ATypeVarT varName)
 toAbstractType BotT = ABottom
@@ -69,11 +69,20 @@ compactAbstractType (AFunctionT tArg tRes) = AScalar $ ADatatypeT "Fun" [compact
 compactAbstractType (AScalar (ADatatypeT dt args)) = AScalar (ADatatypeT dt $ map compactAbstractType args)
 compactAbstractType t = t
 
+abstractTvs :: AbstractSkeleton -> [Id]
+abstractTvs (AScalar (ATypeVarT id)) = [id]
+abstractTvs (AScalar (ADatatypeT _ args)) = concatMap abstractTvs args
+abstractTvs (AFunctionT tArg tRes) = abstractTvs tArg ++ abstractTvs tRes
+abstractTvs ABottom = []
+
 -- this is not subtype relation!!!
 isSubtypeOf :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Bool
 isSubtypeOf bound t1 t2 = isJust unifier
   where
     unifier = getUnifier (bound ++ abstractTypeVars bound t1) [(t2, t1)]
+
+isValidSubst :: Map Id AbstractSkeleton -> Bool
+isValidSubst m = all (\(id, t) -> id `notElem` abstractTvs t) (Map.toList m)
 
 checkUnification :: [Id] -> Map Id AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton -> Maybe (Map Id AbstractSkeleton)
 checkUnification bound tass t1 t2 | t1 == t2 = Just tass
@@ -81,17 +90,27 @@ checkUnification bound tass (AScalar (ATypeVarT id)) t | id `Map.member` tass =
     -- keep the most informative substitution, eagerly substitute into the final result
     case checkUnification bound tass assigned t of
         Nothing -> Nothing
-        Just u -> Just (Map.insert id (substed u) tass)
+        Just u | isValidSubst (updatedTass u) -> Just (updatedTass u)
+               | otherwise -> Nothing
   where
     substed m = abstractSubstitute m assigned
     assigned = fromJust (Map.lookup id tass)
+    unboundTv = case assigned of
+                  AScalar (ATypeVarT v) | v `notElem` bound -> Just v
+                  _ -> Nothing
+    substedTass u = Map.map (abstractSubstitute (Map.singleton id (substed u))) u
+    updatedTass u = Map.insert id (substed u) (substedTass u)
 checkUnification bound tass t@(AScalar (ATypeVarT id)) t'@(AScalar (ATypeVarT id')) 
   | id `elem` bound && id' `elem` bound = Nothing
   | id `elem` bound && id' `notElem` bound = checkUnification bound tass t' t
+  | id `notElem` bound && id `elem` abstractTvs t' = Nothing
   | id `notElem` bound = Just (Map.insert id t' tass)
 checkUnification bound tass (AScalar (ATypeVarT id)) t | id `elem` bound = Nothing
 checkUnification bound tass t@(AScalar ADatatypeT {}) t'@(AScalar (ATypeVarT id)) = checkUnification bound tass t' t
-checkUnification bound tass (AScalar (ATypeVarT id)) t = Just (Map.insert id t tass)
+checkUnification bound tass (AScalar (ATypeVarT id)) t = let
+    tass' = Map.map (abstractSubstitute (Map.singleton id t)) tass
+    tass'' = Map.insert id t tass'
+    in if isValidSubst tass'' then Just tass'' else Nothing
 checkUnification bound tass (AScalar (ADatatypeT id tArgs)) (AScalar (ADatatypeT id' tArgs')) | id /= id' = Nothing
 checkUnification bound tass (AScalar (ADatatypeT id tArgs)) (AScalar (ADatatypeT id' tArgs')) | id == id' = checkArgs tass tArgs tArgs'
   where
@@ -188,10 +207,12 @@ applySemantic tvs fun args = do
     let ret = last (decompose fun)
     let args' = map compactAbstractType args
     constraints <- zipWithM (typeConstraints tvs) cargs args'
+    -- writeLog 3 "applySemantic" $ text "solving constraints" <+> pretty constraints
     let unifier = getUnifier tvs (concat constraints)
     case unifier of
         Nothing -> return ABottom
         Just m -> do
+            -- writeLog 3 "applySemantic" $ text "get unifier" <+> pretty (Map.toList m)
             cover <- gets (view abstractionCover)
             let substRes = abstractSubstitute m ret
             currentAbst tvs cover substRes

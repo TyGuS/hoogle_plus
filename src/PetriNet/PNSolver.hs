@@ -159,13 +159,15 @@ refineSemantic env prog at = do
     -- add higher order functions
     let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
     let binds = env ^. boundTypeVars
-    hoNames <- mapM (addHoArg binds) $ Map.keys hoArgs
+    cands <- getExperiment hoCandidates
+    hoNames <- mapM (addHoArg binds False) cands
+    hoNames' <- mapM (addHoArg binds True) $ Map.keys hoArgs
     -- get removed transitions
     useless <- gets (view toRemove)
     -- call the refined encoder on these signatures and disabled signatures
     return SplitInfo { newPlaces = Set.toList splits
                      , removedTrans = useless
-                     , newTrans = Map.keys sigs ++ cloneNames ++ concat hoNames
+                     , newTrans = Map.keys sigs ++ cloneNames ++ concat hoNames ++ concat hoNames'
                      }
 
 initNet :: MonadIO m => Environment -> PNSolver m ()
@@ -181,7 +183,9 @@ initNet env = withTime ConstructionTime $ do
     allTy <- gets (HashMap.keys . view type2transition)
     mapM_ addCloneFunction (filter (not . isAFunctionT) allTy)
     let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    mapM_ (addHoArg $ env ^. boundTypeVars) $ Map.keys hoArgs
+    cands <- getExperiment hoCandidates
+    mapM_ (addHoArg (env ^. boundTypeVars) False) cands
+    mapM_ (addHoArg (env ^. boundTypeVars) True) $ Map.keys hoArgs
   where
     abstractSymbol id sch = do
         t <- freshType sch
@@ -466,16 +470,16 @@ addCloneFunction ty = do
     modify $ over type2transition (addTransition ty fname)
     return fname
 
-addHoArg :: MonadIO m => [Id] -> Id -> PNSolver m [Id]
-addHoArg tvs id = do
+addHoArg :: MonadIO m => [Id] -> Bool -> Id -> PNSolver m [Id]
+addHoArg tvs queryArg id = do
     nameMap <- gets $ view nameMapping
-    let isHoInstance k n = id == n && not ("ho" `isPrefixOf` k)
+    let isHoInstance k n = id == n && not ((id ++ "ho") `isPrefixOf` k)
     let names = Map.keys $ Map.filterWithKey isHoInstance nameMap
     sigMbs <- mapM addOrRemoveHo names
     let sigs = map fromJust $ filter isJust sigMbs
     let fcs = map (uncurry encodeFunction) sigs
     let hoNames = map fst sigs
-    modify $ over mustFirers $ HashMap.insertWith union id hoNames
+    when queryArg $ modify $ over mustFirers $ HashMap.insertWith union id hoNames
     modify $ over detailedSigs $ Set.union $ Set.fromList hoNames
     mapM_ (\n -> modify $ over nameMapping $ Map.insert n id) hoNames
     mapM_ (uncurry updateTy2Tr) sigs
@@ -493,7 +497,7 @@ addHoArg tvs id = do
       if noneInst instMap id t || diffInst instMap id t
         then do
           unless (noneInst instMap id t) (excludeUseless id t)
-          f <- freshId "ho"
+          f <- freshId $ id ++ "ho"
           let args = absFunArgs id t
           modify $ over instanceMapping (HashMap.insert (id, args) (f, t))
           return $ Just (f, t)
@@ -555,6 +559,7 @@ prepEncoderArgs env tgt = do
     let rets = sortBy (compareAbstract bound) accepts
     let strRets = map show rets
     let sigs = HashMap.elems funcs
+    writeLog 3 "prepEncoderArgs" $ text "current must firers" <+> pretty (HashMap.toList musters)
     return (loc, musters, strRets, sigs, tid2tr, incremental)
     
 foArgsOf :: Environment -> Map Id RSchema

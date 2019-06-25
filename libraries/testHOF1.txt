@@ -3,3 +3,10 @@
 
 module GHC.List
 map :: (a->b)->[a]->[b]
+zip :: [a] -> [b] -> [(a,b)]
+foldr :: (a -> b -> b) -> b -> [a] -> b
+replicate :: Int -> a -> [a]
+
+module Prelude
+app :: (a -> b) -> a -> b
+

@@ -68,6 +68,8 @@ maybeToList :: Maybe a -> [a]
 catMaybes :: [Maybe a] -> [a]
 mapMaybe :: (a -> Maybe b) -> [a] -> [b]
 module GHC.List
+id :: a -> a
+app :: (a -> b) -> a -> b
 map :: (a -> b) -> [a] -> [b]
 (++) :: [a] -> [a] -> [a]
 infixr 5 ++
@@ -77,35 +79,21 @@ uncons :: [a] -> Maybe (a, [a])
 null :: [a] -> Bool
 length :: [a] -> Int
 foldl :: forall a b. (b -> a -> b) -> b -> [a] -> b
-foldl' :: forall a b. (b -> a -> b) -> b -> [a] -> b
-foldl1 :: (a -> a -> a) -> [a] -> a
-foldl1' :: (a -> a -> a) -> [a] -> a
 scanl :: (b -> a -> b) -> b -> [a] -> [b]
-scanl1 :: (a -> a -> a) -> [a] -> [a]
-scanl' :: (b -> a -> b) -> b -> [a] -> [b]
 foldr :: (a -> b -> b) -> b -> [a] -> b
-foldr1 :: (a -> a -> a) -> [a] -> a
 scanr :: (a -> b -> b) -> b -> [a] -> [b]
-scanr1 :: (a -> a -> a) -> [a] -> [a]
 iterate :: (a -> a) -> a -> [a]
-iterate' :: (a -> a) -> a -> [a]
 replicate :: Int -> a -> [a]
 take :: Int -> [a] -> [a]
 drop :: Int -> [a] -> [a]
 splitAt :: Int -> [a] -> ([a], [a])
 takeWhile :: (a -> Bool) -> [a] -> [a]
-dropWhile :: (a -> Bool) -> [a] -> [a]
-span :: (a -> Bool) -> [a] -> ([a], [a])
 break :: (a -> Bool) -> [a] -> ([a], [a])
 reverse :: [a] -> [a]
 and :: [Bool] -> Bool
 or :: [Bool] -> Bool
-any :: (a -> Bool) -> [a] -> Bool
 all :: (a -> Bool) -> [a] -> Bool
 elem :: Eq a => a -> [a] -> Bool
-infix 4 `elem`
-notElem :: Eq a => a -> [a] -> Bool
-infix 4 `notElem`
 lookup :: Eq a => a -> [(a, b)] -> Maybe b
 concatMap :: (a -> [b]) -> [a] -> [b]
 zip :: [a] -> [b] -> [(a, b)]
