@@ -528,11 +528,11 @@ instance Pretty AbstractSkeleton where
 instance Show AbstractSkeleton where
     show = show . plain . pretty
 
-instance Hashable AbstractSkeleton where
-  hash typ = hash (show typ)
-  hashWithSalt s typ = s + hash typ
+-- instance Hashable AbstractSkeleton where
+--   hash typ = hash (show typ)
+--   hashWithSalt s typ = s + hash typ
 
 instance Pretty SplitInfo where
-    pretty (SplitInfo p r tr) = text "Split places:" <+> text (show p) 
+    pretty (SplitInfo p r tr) = text "Split places:" <+> text (show p)
                              $+$ text "Removed transitions:" <+> text (show r)
                              $+$ text "New transitions:" <+> text (show tr)
