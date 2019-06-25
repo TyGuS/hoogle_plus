@@ -63,7 +63,7 @@ setInitialState inputs places = do
   where
     assignToken p v = do
         placeMap <- gets place2variable
-        tVar <- mkZ3IntVar $ findVariable (p, 0) placeMap
+        tVar <- mkZ3IntVar $ findVariable "place2variable" (p, 0) placeMap
         eq <- mkIntNum v >>= mkEq tVar
         modify $ \st -> st { optionalConstraints = eq : optionalConstraints st }
 
@@ -80,7 +80,7 @@ setFinalState ret places = do
     includeRet = do
         placeMap <- gets place2variable
         l <- gets loc
-        retVar <- mkZ3IntVar $ findVariable (ret, l) placeMap
+        retVar <- mkZ3IntVar $ findVariable "place2variable" (ret, l) placeMap
         assrt <- mkIntNum 1 >>= mkEq retVar
         modify $ \st -> st { finalConstraints = assrt : finalConstraints st }
 
@@ -88,7 +88,7 @@ setFinalState ret places = do
         l <- gets loc
         placeMap <- gets place2variable
         when (p /= "void") $ do
-            tVar <- mkZ3IntVar $ findVariable (p, l) placeMap
+            tVar <- mkZ3IntVar $ findVariable "place2variable" (p, l) placeMap
             eq <- mkIntNum 0 >>= mkEq tVar
             modify $ \st -> st { finalConstraints = eq : finalConstraints st }
 
@@ -170,12 +170,12 @@ solveAndGetModel = do
   where
     getTrNames selected = do
         transMap <- gets id2transition
-        let transNames = map (\id -> findVariable (fromIntegral id) transMap) selected
+        let transNames = map (\id -> findVariable "id2transition" (fromIntegral id) transMap) selected
         return transNames
 
     checkPlace model p t = do
         placeMap <- gets place2variable
-        pVar <- mkZ3IntVar (findVariable (p, t) placeMap)
+        pVar <- mkZ3IntVar (findVariable "placemap" (p, t) placeMap)
         maybeInt <- evalInt model pVar
         case maybeInt of
           Just i -> mkIntNum i >>= mkEq pVar
@@ -183,7 +183,7 @@ solveAndGetModel = do
 
     checkLit model t = do
         tsMap <- gets time2variable
-        tsVar <- mkZ3IntVar (findVariable t tsMap)
+        tsVar <- mkZ3IntVar (findVariable "time2variable" t tsMap)
         bMay <- evalInt model tsVar
         case bMay of
             Just b -> return b
@@ -191,7 +191,7 @@ solveAndGetModel = do
 
     blockTr t tr = do
         tsMap <- gets time2variable
-        tsVar <- mkZ3IntVar (findVariable t tsMap)
+        tsVar <- mkZ3IntVar (findVariable "time2variable" t tsMap)
         mkIntNum tr >>= mkEq tsVar
 
     checkIntLit model (k, v) = do
@@ -301,8 +301,8 @@ disableTransitions trs t = mapM_ disableTrAt trs
     disableTrAt tr = do
         transMap <- gets transition2id
         tsMap <- gets time2variable
-        trVar <- mkIntNum (findVariable tr transMap)
-        tsVar <- mkZ3IntVar (findVariable t tsMap)
+        trVar <- mkIntNum (findVariable "transition2id" tr transMap)
+        tsVar <- mkZ3IntVar (findVariable "time2variable" t tsMap)
         eq <- mkEq tsVar trVar >>= mkNot
         modify $ \st -> st { persistConstraints = eq : persistConstraints st }
 
@@ -388,8 +388,8 @@ mkZ3IntVar var = do
     intS <- mkIntSort
     mkConst varSymbol intS
 
-findVariable :: (Eq k, Hashable k, Show k) => k -> HashMap k v -> v
-findVariable k m = fromMaybe (error $ "cannot find variable for " ++ show k)
+findVariable :: (Eq k, Hashable k, Show k) => String -> k -> HashMap k v -> v
+findVariable blame k m = fromMaybe (error $ "cannot find in " ++ blame ++ " variable for " ++ show k)
                              (HashMap.lookup k m)
 
 
@@ -400,7 +400,7 @@ nonnegativeTokens places = do
   where
     nonnegAt p t = do
         placeMap <- gets place2variable
-        let pVar = findVariable (p, t) placeMap
+        let pVar = findVariable "placemap" (p, t) placeMap
         pZ3Var <- mkZ3IntVar pVar
         zero <- mkIntNum 0
         geZero <- mkGe pZ3Var zero
@@ -416,7 +416,7 @@ transitionRng = do
     fireAt t = do
         tsMap <- gets time2variable
         transMax <- gets transitionNb
-        let tsVar = findVariable t tsMap
+        let tsVar = findVariable "time2variable" t tsMap
         tsZ3Var <- mkZ3IntVar tsVar
         start <- mkIntNum 0
         geStart <- mkGe tsZ3Var start
@@ -430,12 +430,12 @@ noTransitionTokens :: Int -> Id -> Encoder ()
 noTransitionTokens t p = do
     trans <- gets transition2id
     t2tr <- gets ty2tr
-    let transitions = map (`findVariable` trans) (HashMap.lookupDefault [] p t2tr)
+    let transitions = map (\x -> findVariable "transition2id" x trans) (HashMap.lookupDefault [] p t2tr)
     noFireLvs <- noFireAt transitions p t
     noFire <- mkOr noFireLvs >>= mkNot
     placeMap <- gets place2variable
-    curr <- mkZ3IntVar $ findVariable (p, t) placeMap
-    next <- mkZ3IntVar $ findVariable (p, t + 1) placeMap
+    curr <- mkZ3IntVar $ findVariable "placemap" (p, t) placeMap
+    next <- mkZ3IntVar $ findVariable "placemap" (p, t + 1) placeMap
     tokenSame <- mkEq curr next
     noChange <- mkImplies noFire tokenSame
     modify $ \st -> st { optionalConstraints = noChange : optionalConstraints st }
@@ -443,7 +443,7 @@ noTransitionTokens t p = do
     noFireAt transitions p t = do
         idVars <- mapM mkIntNum transitions
         tsMap <- gets time2variable
-        let tsVar = findVariable t tsMap
+        let tsVar = findVariable "time2variable" t tsMap
         tsZ3Var <- mkZ3IntVar tsVar
         mapM (mkEq tsZ3Var) idVars
 
@@ -453,13 +453,13 @@ fireTransitions t (FunctionCode name [] params rets) = do
     placeMap <- gets place2variable
     tsMap <- gets time2variable
     -- accumulate counting for parameters and return types
-    let tid = findVariable name transMap
+    let tid = findVariable "transition2id" name transMap
     let pcnt = if null params then [("void", 1)] 
                               else map (\l -> (head l, length l)) (group (sort params))
     let pmap = HashMap.fromList pcnt
     let rmap = foldl' (\acc t -> HashMap.insertWith (+) t (-1) acc) pmap rets
     let rcnt = HashMap.toList rmap
-    let tsVar = findVariable t tsMap
+    let tsVar = findVariable "time2variable" t tsMap
     tsZ3Var <- mkZ3IntVar tsVar
     trVar <- mkIntNum tid
     changes <- mapM (mkChange t) rcnt
@@ -476,15 +476,15 @@ fireTransitions t (FunctionCode name [] params rets) = do
     mkChange t (p, diff) = do
         let d = if p == "void" then 0 else -diff
         placeMap <- gets place2variable
-        before <- mkZ3IntVar $ findVariable (p, t) placeMap
-        after <- mkZ3IntVar $ findVariable (p, t + 1) placeMap
+        before <- mkZ3IntVar $ findVariable "placemap" (p, t) placeMap
+        after <- mkZ3IntVar $ findVariable "placemap" (p, t + 1) placeMap
         diffw <- mkIntNum d
         mkAdd [before, diffw] >>= mkEq after
 
     getSatisfiedPlace (p, cnt) = do
         w <- mkIntNum cnt
         placeMap <- gets place2variable
-        pVar <- mkZ3IntVar (findVariable (p, t) placeMap)
+        pVar <- mkZ3IntVar (findVariable "placemap" (p, t) placeMap)
         mkGe pVar w
 
 mustFireTransitions ::  Encoder ()
@@ -497,7 +497,7 @@ mustFireTransitions = do
         l <- gets loc
         tsMap <- gets time2variable
         trId <- mkIntNum tid
-        tsVars <- mapM (\t -> mkZ3IntVar (findVariable t tsMap)) [0..(l-1)]
+        tsVars <- mapM (\t -> mkZ3IntVar (findVariable "time2variable" t tsMap)) [0..(l-1)]
         mapM (mkEq trId) tsVars
 
     fireTransitionFor (id, tids) = do

@@ -22,9 +22,10 @@ import Data.Data (Data)
 import qualified Data.Char as Char
 import Data.Either hiding (fromLeft, fromRight)
 import Data.List.Extra
-import Debug.Trace
 import Language.Haskell.Exts.Parser (parseExp, ParseResult(..))
 import Control.Concurrent.Chan
+import Data.Tuple
+import Text.Printf
 
 import Types.Common
 import Types.Type
@@ -69,7 +70,6 @@ instantiate env sigs = do
     instantiate' sigs = do
         tree <- gets (view abstractionTree)
         let typs = Set.toList tree
-        -- to test first level abstraction, please disable the complement type here
         writeLog 3 "instantiate" $ text "Current abstract types:" <+> pretty typs
         sigs' <- Map.toList <$> mapM freshType sigs
         foldM (\acc -> (<$>) (acc ++) . uncurry (instantiateWith env typs)) [] sigs'
@@ -122,24 +122,25 @@ instantiateWith env typs id t = do
 
     mkNewSig id ty = do
         instMap <- gets (view instanceMapping)
-        newId <- if "pair_match" `isPrefixOf` id then freshId (id ++ "_") 
+        newId <- if "pair_match" `isPrefixOf` id then freshId (id ++ "_")
                                                  else freshId "f"
         -- when same arguments exist for a function, replace it
         unless (noneInst instMap id ty) (excludeUseless id ty)
         -- add corresponding must firers, function code and type mapping
-        when (Map.member id (env ^. arguments)) 
+        when (Map.member id (env ^. arguments))
              (modify $ over mustFirers (HashMap.insertWith (++) id [newId]))
         modify $ over nameMapping (Map.insert newId id)
         modify $ over instanceMapping (HashMap.insert (id, absFunArgs id ty) (newId, ty))
         writeLog 4 "instantiateWith" $ text id <+> text "==>"  <+> text newId <+> text "::" <+> pretty ty
         return (newId, ty)
 
+    -- We have refined the real function behind id and now th current instantiations aren't needed
     excludeUseless id ty = do
         instMap <- gets (view instanceMapping)
         let (tid, _) = fromJust (HashMap.lookup (id, absFunArgs id ty) instMap)
         -- writeLog 3 $ text tid <+> text "exists in the instance map for" <+> text id
+
         modify $ over toRemove ((:) tid)
-        modify $ over detailedSigs (Set.delete tid)
         musts <- gets (view mustFirers)
         when (id `HashMap.member` musts)
              (modify $ over mustFirers (HashMap.insertWith (flip (\\)) id [tid]))
@@ -153,10 +154,31 @@ addSignatures env = do
     let usefulPipe k _ = k `notElem` Map.keys foArgs
     let usefulSymbols = Map.filterWithKey usefulPipe envSymbols
     sigs <- instantiate env usefulSymbols
-    writeLog 3 "addSignatures" $ text "instantiate new sigs" <+> pretty (Map.toList sigs)
-    modify $ over detailedSigs (Set.union (Map.keysSet sigs))
-    mapM_ addEncodedFunction (Map.toList sigs)
-    return sigs
+
+    sigs' <- ifM (getExperiment coalesceTypes) (
+      do
+        (t2g, sigGroups) <- groupSignatures sigs
+        -- Do I want to take the sigs here?
+        let representatives = Map.map selectRepresentative sigGroups
+        let sigs' = Map.restrictKeys sigs (Set.fromList $ Map.elems representatives)
+        modify $ over groupRepresentative $ Map.union representatives
+        modify $ over groupMap (updateGroups sigGroups)
+        modify $ over typeToGroup (Map.union t2g)
+        return sigs'
+        )
+      (return sigs)
+    modify $ over activeSigs (Set.union (Map.keysSet sigs'))
+    mapM_ addEncodedFunction (Map.toList sigs')
+    return sigs'
+    where
+        -- Given the new set of groups, update the current group mapping
+        updateGroups :: Map Id (Set Id) -> Map Id (Set Id) -> Map Id (Set Id)
+        updateGroups sigGroups gm = foldr updategm gm (Map.toList sigGroups)
+        updategm (groupName, groupMembers) = Map.insertWith Set.union groupName groupMembers
+
+
+selectRepresentative = Set.elemAt 0
+
 
 -- | refine the current abstraction
 -- do the bidirectional type checking first, compare the two programs we get,
@@ -167,17 +189,85 @@ refineSemantic env prog at = do
     propagate env prog at
     -- get the split pairs
     splits <- gets (view splitTypes)
+    writeLog 3 "refineSemantic splitTypes" $ pretty splits
     -- add new instantiated signatures into solver
     sigs <- addSignatures env
     -- get removed transitions
-    useless <- gets (view toRemove)
+    (toAdd, removables) <- ifM (getExperiment coalesceTypes) (
+      do
+        removables' <- gets $ view toRemove
+        splitGroups removables'
+        )
+      ((gets $ view toRemove) >>= return . (,) [])
+    let addedSigs = map fst toAdd
+    writeLog 3 "refineSemantic (toAdd, removables)" $ pretty (addedSigs, removables)
+    if any (\x -> (fst x) `elem` removables) toAdd then error "trying to add and remove at the same time" else return ()
+    sigs <- gets $ view currentSigs
+    mapM addEncodedFunction toAdd
+
+    modify $ over activeSigs (\as -> Set.union (Set.fromList addedSigs) $ Set.difference as (Set.fromList removables))
     -- add clone functions and add them into new transition set
     cloneNames <- mapM addCloneFunction $ Set.toList splits
     -- call the refined encoder on these signatures and disabled signatures
     return SplitInfo { newPlaces = Set.toList splits
-                     , removedTrans = useless
-                     , newTrans = Map.keys sigs ++ cloneNames
+                     , removedTrans = removables
+                     , newTrans = Map.keys sigs ++ cloneNames ++ addedSigs
                      }
+    where
+
+        splitGroups :: MonadIO m => [Id] -> PNSolver m ([(Id, AbstractSkeleton)], [Id])
+        splitGroups removables = do
+            -- Step 1: modify groupmap to exclude all those in removables
+            -- Some groups may no longer exist as a result of this operation.
+            -- Some groups representative may not longer be valid.
+            -- TODO: This operation could be slow. find a way to go from id -> groupId (or id -> abstrTy)
+            gm <- gets $ view groupMap
+            let gm' = Map.fromList  $ map (\(a,b) -> (a, fromJust b))
+                                    $ filter (isJust . snd)
+                                    $ map (\(k, vs) -> (k, shrinkSet (Set.fromList removables) vs))
+                                    $ Map.toList gm
+            modify $ set groupMap gm'
+            grs <- gets $ view groupRepresentative
+            -- Step 2: fixup the group representatives, while also deciding what we can safely remove,
+            -- and what we need to add (new representatives).
+            (toAdd, toRemove, grs') <- foldM (updateRepresentatives) ([], [], Map.empty) (Map.toList grs)
+            modify $ set groupRepresentative grs'
+            return (toAdd, toRemove)
+
+        updateRepresentatives :: MonadIO m => ([(Id, AbstractSkeleton)], [Id], Map GroupId Id) -> (GroupId, Id) -> PNSolver m ([(Id, AbstractSkeleton)], [Id], Map GroupId Id)
+        updateRepresentatives (addables, removables, newReps) (gid, rep)= do
+            gm <- gets $ view groupMap
+            sigs <- gets $ view currentSigs
+            let mbCurrentGroup = Map.lookup gid gm
+            case mbCurrentGroup of
+                -- The group was eliminated entirely by the removables
+                Nothing -> return (addables, rep:removables, newReps)
+                Just currentGroup ->
+                    if rep `Set.notMember` currentGroup
+                        then do
+                            let removables' = rep:removables
+                            if not (null currentGroup)
+                                then do
+                                    -- We need to elect a new leader for the group!
+                                    let newRep = selectRepresentative currentGroup
+                                    let abstractType = lookupWithError "currentSigs" rep sigs
+                                    let addables' = (newRep, abstractType):addables
+                                    return (addables', removables', Map.insert gid newRep newReps)
+                                -- There was only that one element in the group, so with the leader gone, the group goes away.
+                                else return (addables, removables', newReps)
+                        -- after all the removals, the current representative is still in its original group
+                        else return (addables, removables, Map.insert gid rep newReps)
+
+        removeFromSet :: Id -> Set Id -> Maybe (Set Id)
+        removeFromSet tid ids = let
+            ids' = Set.delete tid ids
+            in if (Set.size ids' == 0) then Nothing else Just ids'
+
+        shrinkSet :: Set Id -> Set Id -> Maybe (Set Id)
+        shrinkSet toRemove ids = let
+            ids' = Set.difference ids toRemove
+            in if (Set.size ids' == 0) then Nothing else Just ids'
+
 
 initNet :: MonadIO m => Environment -> PNSolver m ()
 initNet env = withTime ConstructionTime $ do
@@ -190,7 +280,9 @@ initNet env = withTime ConstructionTime $ do
     addSignatures env
     -- add clone functions for each type
     allTy <- gets (HashMap.keys . view type2transition)
-    mapM_ addCloneFunction (filter (not . isAFunctionT) allTy)  
+    transitions <- gets (HashMap.elems . view type2transition)
+    writeLog 3 "initNet" $ text "allTys: " <+> pretty allTy
+    mapM_ addCloneFunction (filter (not . isAFunctionT) allTy)
   where
     abstractSymbol id sch = do
         t <- freshType sch
@@ -215,7 +307,7 @@ addEncodedFunction (id, f) = do
     modify $ over currentSigs (Map.insert id f)
     -- store the used abstract types and their groups into mapping
     updateTy2Tr id f
-    
+
 
 
 resetEncoder :: (MonadIO m) => Environment -> RType -> PNSolver m EncodeState
@@ -224,7 +316,7 @@ resetEncoder env dst = do
     writeLog 2 "resetEncoder" $ text "parameter types are" <+> pretty srcTypes
     writeLog 2 "resetEncoder" $ text "return type is" <+> pretty tgt
     (loc, musters, rets, funcs, tid2tr) <- prepEncoderArgs env tgt
-    let srcStr = map show srcTypes  
+    let srcStr = map show srcTypes
     liftIO $ encoderInit loc musters srcStr rets funcs tid2tr
 
 incEncoder :: MonadIO m => Environment -> EncodeState -> PNSolver m EncodeState
@@ -258,9 +350,7 @@ findPath env dst st = do
             writeLog 2 "findPath" $ text "found path" <+> pretty transNames
             let usefulTrans = filter skipClone transNames
             let sigNames = map removeSuffix usefulTrans
-            dsigs <- gets $ view detailedSigs
-            let sigNames' = filter (\name -> Set.member name dsigs || "pair_match" `isPrefixOf` name) sigNames
-            let sigs = substPair (map (findFunction fm) sigNames')
+            let sigs = substPair (map (findFunction fm) sigNames)
             writeLog 2 "findPath" $ text "found filtered sigs" <+> text (show sigs)
             let initialFormer = FormerState 0 HashMap.empty [] []
             code <- generateCode initialFormer (map show src) args sigs
@@ -271,7 +361,7 @@ findPath env dst st = do
             Just g -> findFunction fm (head g)
             Nothing -> error $ "cannot find function group " ++ name
 
-    findFunction fm name = fromMaybe (error $ "cannot find function name " ++ name) 
+    findFunction fm name = fromMaybe (error $ "cannot find function name " ++ name)
                                      (HashMap.lookup name fm)
 
     combinations []    = []
@@ -305,7 +395,7 @@ fixEncoder env dst st info = do
     (srcTypes, tgt) <- updateSrcTgt env dst
     writeLog 2 "fixEncoder" $ text "fixed parameter types are" <+> pretty srcTypes
     writeLog 2 "fixEncoder" $ text "fixed return type is" <+> pretty tgt
-    writeLog 3 "fixEncoder" $ text "get split information" <+> pretty info
+    writeLog 3 "fixEncoder" $ text "get split information:" </> pretty info
     let newTyps = newPlaces info
     mapM_ addCloneFunction (filter (not . isAFunctionT) newTyps)
     modify $ over type2transition (HashMap.filter (not . null))
@@ -325,8 +415,8 @@ findProgram env dst st = do
     if isLeft checkResult
        then let Left code = checkResult in checkSolution st' code
        else do
-         let Right err = checkResult 
-         funcs <- gets (view detailedSigs)
+         let Right err = checkResult
+         funcs <- gets (view activeSigs)
          cover <- gets (view abstractionTree)
          modify $ over solverStats (\s -> s {
             iterations = iterations s + 1
@@ -389,7 +479,7 @@ findProgram env dst st = do
              -- add new places and transitions into the petri net
              res <- refine st splitInfo
              cover <- gets (view abstractionTree)
-             funcs <- gets (view detailedSigs)
+             funcs <- gets (view activeSigs)
              modify $ over solverStats (\s -> s {
                 numOfPlaces = Map.insert (iterations s) (Set.size cover) (numOfPlaces s)
               , numOfTransitions = Map.insert (iterations s) (Set.size funcs) (numOfTransitions s)
@@ -408,8 +498,7 @@ findProgram env dst st = do
         disableDemand <- getExperiment disableDemand
         checkedSols <- withTime TypeCheckTime (filterM (\u -> liftIO (runGhcChecks disableDemand env dst u )) [code'])
         if (code' `elem` solutions) || (null checkedSols)
-           then do
-               findProgram env dst st'
+           then findProgram env dst st'
            else do
                modify $ over currentSolutions ((:) code')
                return (code', st')
@@ -431,7 +520,7 @@ findFirstN env dst st cnt | cnt == 1  = do
     let stats' = stats{pathLength = depth}
     printSolution res
     writeLog 2 "findFirstN" $ text (show stats)
-    if noGarTyGarIdx strategy >= 0 
+    if noGarTyGarIdx strategy >= 0
       then do
         resetTiming
         modify $ set (searchParams . refineStrategy) NoGar
@@ -505,7 +594,7 @@ noGarTyGarIdx NoGarTyGar0 = 0
 noGarTyGarIdx NoGarTyGarQ = 1
 noGarTyGarIdx NoGarTyGar0B = 2
 noGarTyGarIdx NoGarTyGarQB = 3
-noGarTyGarIdx _ = -1 
+noGarTyGarIdx _ = -1
 
 doRefine :: RefineStrategy -> Bool
 doRefine NoGar = False
@@ -552,6 +641,6 @@ prepEncoderArgs env tgt = do
     let strRets = map show rets
     let sigs = HashMap.elems funcs
     return (loc, musters, strRets, sigs, tid2tr)
-    
+
 foArgsOf :: Environment -> Map Id RSchema
 foArgsOf = Map.filter (not . isFunctionType . toMonotype) . _arguments

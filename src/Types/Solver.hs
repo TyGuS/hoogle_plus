@@ -26,13 +26,15 @@ data SolverState = SolverState {
     _currentSolutions :: [RProgram], -- type checked solutions
     _currentLoc :: Int, -- current solution depth
     _currentSigs :: Map Id AbstractSkeleton, -- current type signature groups
-    _detailedSigs :: Set Id,
+    _activeSigs :: Set Id,
     _functionMap :: HashMap Id FunctionCode,
     _targetType :: AbstractSkeleton,
     _sourceTypes :: [AbstractSkeleton],
     _mustFirers :: HashMap Id [Id],
     _paramNames :: [Id],
-    _groupMap :: Map Id [Id], -- mapping from group id to list of function names
+    _groupMap :: Map GroupId (Set Id), -- mapping from group id to Skel and list of function names with the same skel
+    _groupRepresentative :: Map GroupId Id, -- mapping of current representative for group.
+    _typeToGroup :: Map AbstractSkeleton GroupId,
     _type2transition :: HashMap AbstractSkeleton [Id], -- mapping from abstract type to group ids
     _solverStats :: TimeStatistics,
     _splitTypes :: Set AbstractSkeleton,
@@ -52,13 +54,15 @@ emptySolverState = SolverState {
     _currentSolutions = [],
     _currentLoc = 1,
     _currentSigs = Map.empty,
-    _detailedSigs = Set.empty,
+    _activeSigs = Set.empty,
     _functionMap = HashMap.empty,
     _targetType = AScalar (ATypeVarT varName),
     _sourceTypes = [],
     _mustFirers = HashMap.empty,
     _paramNames = [],
     _groupMap = Map.empty,
+    _groupRepresentative = Map.empty,
+    _typeToGroup = Map.empty,
     _type2transition = HashMap.empty,
     _solverStats = emptyTimeStats,
     _splitTypes = Set.empty,
