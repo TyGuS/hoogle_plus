@@ -75,12 +75,15 @@ generateEnv genOpts = do
     let transitionIds = [0 .. length instanceRules]
     let instanceTuples = zip instanceRules transitionIds
     instanceFunctions <- mapM (\(entry, id) -> evalStateT (DC.instanceToFunction entry id) 0) instanceTuples
+
+    -- TODO: remove all higher kinded types
     let instanceFunctions' = filter (\x -> not(or [(isInfixOf "Applicative" $ show x),(isInfixOf "Functor" $ show x),(isInfixOf "Monad" $ show x)])) instanceFunctions
 
     let declStrs = show (instanceFunctions' ++ ourDecls)
     let removeParentheses = (\x -> LUtils.replace ")" "" $ LUtils.replace "(" "" x)
     let tcNames = nub $ map removeParentheses $ filter (\x -> isInfixOf "__hplusTC__" x) (splitOn " " declStrs)
     let tcDecls = map (\x -> Pos (initialPos "") $ TP.DataDecl x ["a"] [] []) tcNames
+
 
     let hooglePlusDecls = DC.reorderDecls $ nubOrd $ (ourDecls ++ dependencyEntries ++ defaultFuncs ++ defaultDts ++ instanceFunctions' ++ tcDecls)
 

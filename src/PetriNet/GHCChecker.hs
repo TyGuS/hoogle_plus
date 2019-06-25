@@ -104,6 +104,7 @@ runGhcChecks disableDemand env goalType prog = let
     body = mkLambdaStr argNames prog
     expr = body ++ " :: " ++ funcSig
     in do
+        print prog
         print expr
         print  argList
         let b = foo body env argTypesMap
@@ -152,7 +153,7 @@ foo x env typesMap = let
         -- TODO: just do a map lookup!
         argNameToType name typesMap = fromJust $ Map.lookup name typesMap
         funNameToTypeclass :: String -> String
-        funNameToTypeclass name = Text.unpack $ (Text.splitOn (Text.pack "__") (Text.pack name)) !! 0
+        funNameToTypeclass name = Text.unpack $ (reverse $ (Text.splitOn (Text.pack "__") (Text.pack name))) !! 0
         mapMe x = 
             let (funName, argName) = break (== ' ') x
                 argType = argNameToType argName typesMap

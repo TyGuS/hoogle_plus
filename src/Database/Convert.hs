@@ -314,6 +314,10 @@ fixDataType (ScalarT (DatatypeT name vars refs) ref) =
         in (ScalarT (DatatypeT name' vars refs) ref) 
 fixDataType x = x 
 
+-- FIRST KIND: instance Show Int              >>> __hplusTCTransition__Show Int
+-- SECOND KIND: instance (Show a) => Show [a] >> __hplusTCTrransition__Show a -> __hplusTCTransition__Show (List a) -> ... 
+-- THIRD KIND: instance (Show a, Show b) => Show (Either a b) >> ......
+--
 instanceToFunction :: (MonadIO m) => InstRule () -> Int -> StateT Int m Declaration
 instanceToFunction (IParen _ inst) n = instanceToFunction inst n
 instanceToFunction (IRule _ _ ctx head) n = do
@@ -332,7 +336,7 @@ instanceToFunction (IRule _ _ ctx head) n = do
             arg <- toArg e
             return $ FunctionT "" arg acc
         toDecl :: (MonadIO m) => String -> SType -> StateT Int m Declaration  
-        toDecl y x = return $ Pos (initialPos "") $ TP.FuncDecl ("__hplusTCTransition" ++ (show n) ++ (y)) $ toSynquidRSchema $ Monotype x
+        toDecl y x = return $ Pos (initialPos "") $ TP.FuncDecl ("__hplusTCTransition__" ++ (show n) ++ (y)) $ toSynquidRSchema $ Monotype x
 
 
 toArg :: (MonadIO m) => Asst () -> StateT Int m SType     
