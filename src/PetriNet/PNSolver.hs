@@ -141,13 +141,9 @@ instantiateWith env typs id t = do
         -- writeLog 3 $ text tid <+> text "exists in the instance map for" <+> text id
 
         modify $ over toRemove ((:) tid)
-        -- TODO: check if tid in groupElems: then remove from groupElems, do not add to toremove; else, add to toremove
-        -- modify $ over toRemove ((:) tid)
         musts <- gets (view mustFirers)
         when (id `HashMap.member` musts)
              (modify $ over mustFirers (HashMap.insertWith (flip (\\)) id [tid]))
-
-
 
 addSignatures :: MonadIO m => Environment -> PNSolver m (Map Id AbstractSkeleton)
 addSignatures env = do
