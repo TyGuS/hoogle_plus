@@ -29,6 +29,9 @@ import Data.List.Extra
 import Text.Pretty.Simple
 import Text.Printf
 import Control.Concurrent.Chan
+import Data.Hashable
+import Control.Monad.ST (runST, ST)
+import Data.Array.ST (STArray, readArray, writeArray, newListArray, getElems)
 
 getExperiment exp = gets $ view (searchParams . exp)
 
@@ -42,8 +45,22 @@ writeLog level tag msg = do
 
 multiPermutation len elmts | len == 0 = [[]]
 multiPermutation len elmts | len == 1 = [[e] | e <- elmts]
-multiPermutation len elmts            = nubOrd [ l:r | l <- elmts, r <- multiPermutation (len - 1) elmts]
+multiPermutation len elmts            = nubSpence [ l:r | l <- elmts, r <- multiPermutation (len - 1) elmts]
 
+-- Thanks, this only helps when you get >100 elements, otherwise, use nubOrd:
+-- https://github.com/AndreasPK/nubBench/blob/038bc644f32aaa47035484b4384a4aaf5b78320c/app/Main.hs
+nubSpence :: (Hashable a, Eq a) => [a] -> [a]
+nubSpence l = runST $ do
+  arr <- mr
+  forM_ l $ \j -> do
+    let index = (hash j) `mod` 255
+    current <- readArray arr index
+    let new = if j `elem` current then current else j : current
+    writeArray arr index new
+  join <$> getElems arr
+    where
+      mr :: ST s (STArray s Int [a])
+      mr = newListArray (0, 255) (replicate 256 [])
 
 listDiff left right = Set.toList $ (Set.fromList left) `Set.difference` (Set.fromList right)
 
