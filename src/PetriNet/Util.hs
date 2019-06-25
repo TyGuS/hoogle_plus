@@ -64,8 +64,6 @@ nubSpence l = runST $ do
 
 listDiff left right = Set.toList $ (Set.fromList left) `Set.difference` (Set.fromList right)
 
-listDiff left right = Set.toList $ (Set.fromList left) `Set.difference` (Set.fromList right)
-
 replaceId a b = Text.unpack . Text.replace (Text.pack a) (Text.pack b) . Text.pack
 mkPairMatch (FunctionCode name _ params ret) = FunctionCode (replaceId "Pair" "Pair_match" name) [] ret params
 
