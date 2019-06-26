@@ -11,6 +11,8 @@ defaultQueryFile = "benchmark/suites/allQueries.json"
 defaultExperiment = TrackTypesAndTransitions
 
 expTyGarQ = "TYGAR-Q"
+expTyGarQNoDmd = expTyGarQ ++ "- no demand"
+expTyGarQNoCoalesce = expTyGarQ ++ "- no coalescing"
 expQueryRefinementHOF = "Query Refinement - HOF"
 expSypetClone = "Sypet-Clone"
 expTyGar0 = "TYGAR-0"

@@ -17,7 +17,8 @@ data Args = Args {
   argsQueryFile :: String,
   argsTimeout :: Int, -- Timeout in seconds
   argsOutputFile :: Maybe FilePath,
-  argsExperiment :: ExperimentCourse
+  argsExperiment :: ExperimentCourse,
+  argsOutputFormat :: ResultFormat
   } deriving (Show, Data, Typeable)
 
 data ExperimentSetup = ExpSetup {
@@ -42,7 +43,7 @@ data ResultSummary = ResultSummary {
   paramName :: String,
   queryName :: String,
   queryStr :: String,
-  result :: Result
+  results :: [Result]
   } deriving (Show)
 
 data Result = Result {
@@ -65,7 +66,7 @@ data EvaluationException =
   | RuntimeException SomeException
   | NotImplementedException
 
-data ResultFormat = Table
+data ResultFormat = Table | TSV deriving (Show, Data, Typeable)
 
 instance Show EvaluationException where
   show (TimeoutException) = "Timeout"

@@ -73,6 +73,8 @@ import qualified Data.Set as Set
 import Data.Set (Set)
 import qualified Data.Map as Map
 import Data.Map (Map, (!))
+import qualified Data.HashMap.Strict as HashMap
+import Data.HashMap.Strict (HashMap)
 import Data.List
 import Data.Hashable
 import Data.Tree
@@ -223,20 +225,20 @@ instance Pretty Formula where pretty = fmlDoc
 instance Show Formula where
   show = show . plain . pretty
 
-instance Pretty Valuation where
-  pretty val = braces $ commaSep $ map pretty $ Set.toList val
+instance Pretty a => Pretty (Set a) where
+  pretty = pretty . Set.toList
 
-instance Pretty Solution where
-  pretty = hMapDoc text pretty
+instance (Pretty k, Pretty v) => Pretty (Map k v) where
+  pretty = pretty . Map.toList
+
+instance (Pretty k, Pretty v) => Pretty (HashMap k v) where
+  pretty = pretty . HashMap.toList
 
 instance Pretty QSpace where
   pretty space = braces $ commaSep $ map pretty $ view qualifiers space
 
 instance Show QSpace where
   show = show . plain . pretty
-
-instance Pretty QMap where
-  pretty = vMapDoc text pretty
 
 {- Types -}
 
@@ -356,9 +358,6 @@ instance (Pretty t) => Pretty (Program t) where
 
 instance (Pretty t) => Show (Program t) where
   show = show . plain . pretty
-
-instance Pretty TypeSubstitution where
-  pretty = hMapDoc text pretty
 
 instance Pretty MeasureCase where
   pretty (MeasureCase cons args def) = text cons <+> hsep (map text args) <+> text "->" <+> pretty def
@@ -533,6 +532,6 @@ instance Hashable AbstractSkeleton where
   hashWithSalt s typ = s + hash typ
 
 instance Pretty SplitInfo where
-    pretty (SplitInfo p r tr) = text "Split places:" <+> text (show p)
-                              <+> text "To remove:" <+> text (show r)
-                              <+> text "New transitions:" <+> text (show tr)
+    pretty (SplitInfo p r tr) = text "Split places:" <+> text (show p) 
+                             $+$ text "Removed transitions:" <+> text (show r)
+                             $+$ text "New transitions:" <+> text (show tr)

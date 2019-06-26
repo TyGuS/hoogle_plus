@@ -38,9 +38,10 @@ data SearchParams = SearchParams {
   _refineStrategy :: RefineStrategy,
   _stopRefine :: Bool,
   _threshold :: Int,
-  _shouldRemoveDuplicates :: Bool,
   _incrementalSolving :: Bool,
-  _hoCandidates :: [String]
+  _hoCandidates :: [String],
+  _disableDemand :: Bool,
+  _coalesceTypes :: Bool
 } deriving (Eq, Show)
 
 makeLenses ''SearchParams
@@ -82,9 +83,10 @@ defaultSearchParams = SearchParams {
   _refineStrategy = TyGarQ,
   _stopRefine = False,
   _threshold = 10,
-  _shouldRemoveDuplicates = False,
   _incrementalSolving = False,
-  _hoCandidates = []
+  _hoCandidates = [],
+  _disableDemand = False,
+  _coalesceTypes = True
 }
 
 type ExperimentName = String
@@ -95,6 +97,7 @@ data ExperimentCourse
   | CompareFinalCovers
   | CompareThresholds
   | CompareIncremental
+  | CompareSolutions -- 2019-06-12
   deriving (Show, Data, Typeable)
 
 data Message
