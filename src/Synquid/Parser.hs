@@ -12,6 +12,7 @@ import Synquid.Program
 import Synquid.Error
 import Synquid.Tokens
 import Synquid.Util
+import Database.Util
 
 import Data.List
 import qualified Data.Map as Map
@@ -183,7 +184,7 @@ parseFuncDeclOrGoal = do
 {- Types -}
 
 parseSchema :: Parser RSchema
-parseSchema = parseForall <|> (Monotype <$> parseType)
+parseSchema = parseForall <|> (Monotype <$> parseTypeMbTypeclasses)
 
 parseForall :: Parser RSchema
 parseForall = do
@@ -192,8 +193,30 @@ parseForall = do
   sch <- parseSchema
   return $ ForallP sig sch
 
+parseTypeMbTypeclasses :: Parser RType
+parseTypeMbTypeclasses = do
+  tcs <- parseTypeclasses <|> (pure id)
+  plainTypes <- parseType
+  return (tcs plainTypes)
+
+parseTCName :: Parser RType
+parseTCName = do
+  name <- parseTypeName
+  typeArgs <- many (sameOrIndented >> parseTypeAtom)
+  let typeName = typeclassPrefix ++ name
+  return $ ScalarT (DatatypeT typeName typeArgs []) ftrue
+
+parseTypeclasses :: Parser (RType -> RType)
+parseTypeclasses = do
+  tcs <- parens (commaSep1 parseTCName) <|> (parseTCName >>= (\x -> return [x]))
+  let tcsAndNumbers = zip tcs [0 .. (length tcs)]
+  reservedOp "=>"
+  let combineTypeclasses (tc, num) next rest = FunctionT ("tcarg" ++ (show num)) tc (next rest)
+  return $ foldr combineTypeclasses id tcsAndNumbers
+
 parseType :: Parser RType
-parseType = withPos (choice [try parseFunctionTypeWithArg, parseFunctionTypeMb] <?> "type")
+parseType = do
+  withPos (choice [try parseFunctionTypeWithArg, parseFunctionTypeMb] <?> "type")
 
 -- | Parse top-level type that starts with an argument name, and thus must be a function type
 parseFunctionTypeWithArg = do
@@ -230,8 +253,6 @@ parseUnrefTypeNoArgs = do
   return $ ScalarT baseType ftrue
   where
     parseBaseType = choice [
-      -- (DatatypeT "Bool" [] []) <$ reserved "Bool",
-      -- (DatatypeT "Int"  [] []) <$ reserved "Int",
       (\name -> DatatypeT name [][]) <$> parseTypeName,
       TypeVarT Map.empty <$> parseIdentifier]
 

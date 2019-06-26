@@ -288,6 +288,7 @@ prettyTypeAt n t = hlParens ( -- condHlParens (n' <= n) (
     ScalarT base fml -> hlBraces (pretty base <> operator "|" <> pretty fml)
     AnyT -> text "_"
     FunctionT x t1 t2 -> prettyTypeAt n' t1 <+> operator "->" <+> prettyTypeAt 0 t2
+    BotT -> text "⊥"
   )
   where
     n' = typePower t
@@ -393,7 +394,7 @@ instance Show Candidate where
   show = show . plain . pretty
 
 instance Pretty Goal where
-  pretty (Goal name env spec impl depth _) = pretty env <+> operator "|-" <+> text name <+> operator "::" <+> pretty spec $+$ text name <+> operator "=" <+> pretty impl $+$ parens (text "depth:" <+> pretty depth)
+  pretty (Goal name env spec impl depth _) = pretty env <+> operator "⊢" <+> text name <+> operator "::" <+> pretty spec $+$ text name <+> operator "=" <+> pretty impl $+$ parens (text "depth:" <+> pretty depth)
 
 instance Show Goal where
   show = show. plain . pretty
@@ -534,6 +535,6 @@ instance Hashable AbstractSkeleton where
   hashWithSalt s typ = s + hash typ
 
 instance Pretty SplitInfo where
-    pretty (SplitInfo p r tr) = text "Split places:" <+> text (show p) 
+    pretty (SplitInfo p r tr) = text "Split places:" <+> text (show p)
                              $+$ text "Removed transitions:" <+> text (show r)
                              $+$ text "New transitions:" <+> text (show tr)

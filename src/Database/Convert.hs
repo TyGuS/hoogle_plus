@@ -299,7 +299,7 @@ instHeadName (IHParen _ head) = instHeadName head
 instHeadName (IHApp _ head _) = instHeadName head
 
 
-getTyclassVars :: (MonadIO m) => InstHead () -> StateT Int m [SType] 
+getTyclassVars :: (MonadIO m) => InstHead () -> StateT Int m [SType]
 getTyclassVars (IHApp _ head typeVar) = do
     typeSkeletonArr <- getTyclassVars head
     typeSkeleton <- (Data.List.head . fromJust) <$> toSynquidSkeleton typeVar
@@ -309,10 +309,10 @@ getTyclassVars (IHCon _ _) = return []
 getTyclassVars _ = error "getTyclassDictName: case to be implemented"
 
 
-fixDataType (ScalarT (DatatypeT name vars refs) ref) = 
+fixDataType (ScalarT (DatatypeT name vars refs) ref) =
     let (_, name') = breakLast name
-        in (ScalarT (DatatypeT name' vars refs) ref) 
-fixDataType x = x 
+        in (ScalarT (DatatypeT name' vars refs) ref)
+fixDataType x = x
 
 -- FIRST KIND: instance Show Int              >>> __hplusTCTransition__Show Int
 -- SECOND KIND: instance (Show a) => Show [a] >> __hplusTCTrransition__Show a -> __hplusTCTransition__Show (List a) -> ... 
@@ -325,13 +325,13 @@ instanceToFunction (IRule _ _ ctx head) n = do
     tyVars <- getTyclassVars head
     let tyVars' = map (\x -> fixDataType x) tyVars
     let base = ScalarT (DatatypeT name tyVars' []) ()
-    let toDecl' = toDecl (Text.unpack $ Text.replace (Text.pack("__hplusTC__")) (Text.pack ("__")) $ Text.pack name)
+    let toDecl' = toDecl (Text.unpack $ Text.replace (Text.pack(typeclassPrefix)) (Text.pack ("__")) $ Text.pack name)
     case ctx of
         Nothing -> toDecl' =<< foldrM go base []
         Just (CxTuple _ tyclassConds) -> toDecl' =<< foldrM go base tyclassConds
         Just (CxSingle _ tyclassCond) -> toDecl' =<< foldrM go base [tyclassCond]
         _ -> error "instanceToFunction: Unhandled case"
-    where 
+    where
         go e acc = do
             arg <- toArg e
             return $ FunctionT "" arg acc
@@ -339,7 +339,7 @@ instanceToFunction (IRule _ _ ctx head) n = do
         toDecl y x = return $ Pos (initialPos "") $ TP.FuncDecl ("__hplusTCTransition__" ++ (show n) ++ (y)) $ toSynquidRSchema $ Monotype x
 
 
-toArg :: (MonadIO m) => Asst () -> StateT Int m SType     
+toArg :: (MonadIO m) => Asst () -> StateT Int m SType
 toArg x = do
     typeVars <- getTypeVars x
     let tyVars' = map (\x -> fixDataType x) typeVars
@@ -351,27 +351,27 @@ getTyclassDictName (IHParen _ head) = getTyclassDictName head
 getTyclassDictName _ = error "getTyclassDictName: case to be implemented"
 
 fixTCName :: String -> String
-fixTCName str = 
+fixTCName str =
     let (_, end) = breakLast str
-        end' = "__hplusTC__" ++ end
+        end' = typeclassPrefix ++ end
         in end'
-        
+
 breakLast :: String -> (String, String)
 breakLast str = (reverse (drop 1 y), reverse x) where (x, y) = break (== '.') $ reverse str
 
 toTCDictName :: Asst l -> String
 toTCDictName (ClassA _ declName _) = fixTCName (qnameStr declName)
-toTCDictName (ParenA _ asst) = toTCDictName asst 
+toTCDictName (ParenA _ asst) = toTCDictName asst
 toTCDictName _ = error "toTCDictName: Unhandled case"
 
-getTypeVars :: (MonadIO m) => Asst () -> StateT Int m [SType] 
+getTypeVars :: (MonadIO m) => Asst () -> StateT Int m [SType]
 getTypeVars (ClassA _ _ typeVars) = mapM (\x -> Data.List.head . fromJust <$> toSynquidSkeleton x) typeVars
 getTypeVars (ParenA _ asst) = getTypeVars asst
 getTypeVars _ = error "getTypeVars: Unhandled case"
 
 getInstanceRule :: Entry -> InstRule ()
 getInstanceRule (EDecl (InstDecl x1 x2 (IParen _ instanceRule) x3)) = getInstanceRule (EDecl (InstDecl x1 x2 instanceRule x3))
-getInstanceRule (EDecl (InstDecl _ _ instanceRule@(IRule _ _ _ _) _)) = instanceRule 
+getInstanceRule (EDecl (InstDecl _ _ instanceRule@(IRule _ _ _ _) _)) = instanceRule
 getInstanceRule _ =  error "getInstanceRule: unexpected case"
 
 reorderDecls :: [Declaration] -> [Declaration]
@@ -447,7 +447,7 @@ dependsOn decl = case decl of
     _ -> error "[In `dependsOn`] Please filter before calling this function"
 
 dependencyGraph :: [Entry] -> Map Id (Set Id)
-dependencyGraph = foldr (uncurry Map.insert . dependsOn) Map.empty . filter isDataDecl 
+dependencyGraph = foldr (uncurry Map.insert . dependsOn) Map.empty . filter isDataDecl
 
 nodesOf :: Map Id (Set Id) -> [Id]
 nodesOf graph = nub $ Map.keys graph ++ Set.toList (Set.unions $ Map.elems graph)
@@ -458,7 +458,7 @@ topoSort graph = reverse $ topoSortHelper (nodesOf graph) Set.empty graph
     topoSortHelper [] _ graph = []
     topoSortHelper (v:vs) visited graph = if Set.member v visited
         then topoSortHelper vs visited graph
-        else topoSortHelper vs (Set.insert v visited) graph ++ 
+        else topoSortHelper vs (Set.insert v visited) graph ++
                 v:topoSortHelper (Set.toList (Map.findWithDefault Set.empty v graph)) visited graph
 
 dependencyClosure :: [Id] -> [Id] -> [(Id, Entry)] -> [Entry]
@@ -486,12 +486,12 @@ entryDependencies allEntries ourEntries dpDecls = let
   where
     myDts = dtNamesIn ourEntries
     myDefinedDts = definedDtsIn ourEntries
-    theirDts = dtDefsIn dpDecls    
+    theirDts = dtDefsIn dpDecls
 
 declDependencies :: Id -> [Entry] -> [Entry] -> IO [Entry]
 declDependencies pkgName decls dpDecls = do
     entries <- readDeclarations pkgName Nothing
-    return $ entryDependencies entries decls dpDecls  
+    return $ entryDependencies entries decls dpDecls
 
 isDataDecl :: Entry -> Bool
 isDataDecl decl = case decl of
@@ -545,8 +545,8 @@ toSynquidProgram :: Exp SrcSpanInfo -> UProgram
 toSynquidProgram (Lambda _ pats body) =
     foldr (\(PVar _ name) p -> Program (PFun (nameStr name) p) AnyT) (toSynquidProgram body) pats
 toSynquidProgram (Var _ qname) = Program (PSymbol (qnameStr qname)) AnyT
-toSynquidProgram (App _ fun arg) = 
-    let synFun = toSynquidProgram fun 
+toSynquidProgram (App _ fun arg) =
+    let synFun = toSynquidProgram fun
      in case content synFun of
           PSymbol f -> Program (PApp f [toSynquidProgram arg]) AnyT
           PApp f args -> Program (PApp f (args ++ [toSynquidProgram arg])) AnyT
