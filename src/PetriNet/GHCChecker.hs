@@ -1,4 +1,4 @@
-module PetriNet.GHCChecker (runGhcChecks) where
+module PetriNet.GHCChecker (runGhcChecks, mkFunctionSigStr, mkLambdaStr) where
 
 import Language.Haskell.Interpreter
 
@@ -98,14 +98,14 @@ runGhcChecks disableDemand env goalType prog = let
     argList = Map.toList args
     argNames = map fst argList
     argTypes = map snd argList
-    monoGoals = (map toMonotype argTypes) 
-    funcSig = mkFunctionSigStr monoGoals goalType 
+    monoGoals = (map toMonotype argTypes)
+    funcSig = mkFunctionSigStr monoGoals goalType
     argTypesMap = fromList $ zip (argNames) (map show monoGoals)
     body = mkLambdaStr argNames prog
     expr = body ++ " :: " ++ funcSig
     in do
         print prog
-        print expr
+        printf "GHCChecker expr: %s\n" expr
         print  argList
         let b = foo body env argTypesMap
         print b
@@ -139,7 +139,7 @@ mkLambdaStr args body = let
     oneLineBody = unwords $ lines bodyStr
     addFuncArg arg rest = Pretty.parens $ text ("\\" ++ arg ++ " -> ") <+> rest
     in
-        show $ foldr addFuncArg (text oneLineBody) args
+        unwords . words . show $ foldr addFuncArg (text oneLineBody) args
 
 -- TODO: if list is empty, then return empty!!
 foo :: String -> Environment -> Map String String -> String
@@ -154,7 +154,7 @@ foo x env typesMap = let
         argNameToType name typesMap = fromJust $ Map.lookup name typesMap
         funNameToTypeclass :: String -> String
         funNameToTypeclass name = Text.unpack $ (reverse $ (Text.splitOn (Text.pack "__") (Text.pack name))) !! 0
-        mapMe x = 
+        mapMe x =
             let (funName, argName) = break (== ' ') x
                 argType = argNameToType argName typesMap
                 typeclass = funNameToTypeclass funName

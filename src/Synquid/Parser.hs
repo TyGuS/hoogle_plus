@@ -195,7 +195,7 @@ parseForall = do
 
 parseTypeMbTypeclasses :: Parser RType
 parseTypeMbTypeclasses = do
-  tcs <- parseTypeclasses <|> (pure id)
+  tcs <- try parseTypeclasses <|> (pure id)
   plainTypes <- parseType
   return (tcs plainTypes)
 
