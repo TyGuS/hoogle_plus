@@ -8,6 +8,7 @@ import Types.Solver
 import Types.Abstract
 import Types.Experiments
 import Types.Program
+import Types.Encoder
 import Synquid.Program
 import Synquid.Logic hiding (varName)
 import Synquid.Type
@@ -65,7 +66,6 @@ nubSpence l = runST $ do
 listDiff left right = Set.toList $ (Set.fromList left) `Set.difference` (Set.fromList right)
 
 replaceId a b = Text.unpack . Text.replace (Text.pack a) (Text.pack b) . Text.pack
-mkPairMatch (FunctionCode name _ params ret) = FunctionCode (replaceId "Pair" "Pair_match" name) [] ret params
 
 var2any env t@(ScalarT (TypeVarT _ id) _) | isBound env id = t
 var2any env t@(ScalarT (TypeVarT _ id) _) = AnyT

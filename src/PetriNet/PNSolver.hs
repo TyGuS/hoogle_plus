@@ -57,13 +57,13 @@ encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
 encodeFunction id t | "pair_match" `isPrefixOf` id = 
     let toMatch (FunctionCode name ho [p1,p2] ret) = FunctionCode id ho [p1] (p2:ret)
      in toMatch $ encodeFunction "__f" t
-encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [show $ lastAbstractType t]
+encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [lastAbstractType t]
   where
     base = (0, [])
     hoFun x = encodeFunction (show x) x
     hoParams = map hoFun $ filter isAFunctionT (abstractParamList t)
-    params = map show (abstractParamList t)
-encodeFunction id t@AScalar {} = FunctionCode id [] [] [show t]
+    params = abstractParamList t
+encodeFunction id t@AScalar {} = FunctionCode id [] [] [t]
 
 instantiate :: MonadIO m => Environment -> Map Id RSchema -> PNSolver m (Map Id AbstractSkeleton)
 instantiate env sigs = do
@@ -353,9 +353,9 @@ findPath env dst st = do
             let usefulTrans = filter skipClone transNames
             let sigNames = map removeSuffix usefulTrans
             let sigs = substPair (map (findFunction fm) sigNames)
-            writeLog 2 "findPath" $ text "found filtered sigs" <+> text (show sigs)
+            writeLog 2 "findPath" $ text "found filtered sigs" <+> pretty sigs
             let initialFormer = FormerState 0 HashMap.empty [] []
-            code <- generateCode initialFormer (map show src) args sigs
+            code <- generateCode initialFormer src args sigs
             return (code, st')
   where
     findFunctions fm groups name =
@@ -375,7 +375,7 @@ findPath env dst st = do
         cover <- gets (view abstractionTree)
         let bound = env ^. boundTypeVars
         let rets = filter (isSubtypeOf bound tgt) (Set.toList cover)
-        liftIO (evalStateT (generateProgram sigs src args (map show rets) True) initialFormer)
+        liftIO (evalStateT (generateProgram sigs src args rets) initialFormer)
 
     skipUncolor = not . isInfixOf "|uncolor"
     skipClone = not . isInfixOf "|clone"
@@ -569,9 +569,8 @@ recoverNames mapping (Program (PFun x body) t) = Program (PFun x body') t
 
 {- helper functions -}
 addCloneFunction ty = do
-    let tyStr = show ty
-    let fname = tyStr ++ "|clone"
-    let fc = FunctionCode fname [] [tyStr] [tyStr, tyStr]
+    let fname = show ty ++ "|clone"
+    let fc = FunctionCode fname [] [ty] [ty, ty]
     let addTransition k tid = HashMap.insertWith (\[x] y -> nubOrd $ x:y) k [tid]
     modify $ over functionMap (HashMap.insert fname fc)
     -- modify $ over currentSigs (Map.insert fname fc)

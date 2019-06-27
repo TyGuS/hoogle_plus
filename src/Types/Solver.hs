@@ -16,6 +16,7 @@ import Types.Abstract
 import Types.Experiments hiding (PetriNet)
 import Types.Type
 import Types.Common
+import Types.Encoder
 
 data SolverState = SolverState {
     _searchParams :: SearchParams,
@@ -69,8 +70,6 @@ emptySolverState = SolverState {
     _nameMapping = Map.empty,
     _instanceMapping = HashMap.empty,
     _toRemove = [],
-
-
     _messageChan = undefined
 }
 
