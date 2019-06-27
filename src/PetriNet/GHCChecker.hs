@@ -45,13 +45,13 @@ import Data.Maybe (fromJust)
 showGhc :: (Outputable a) => a -> String
 showGhc = showPpr unsafeGlobalDynFlags
 
-checkStrictness' :: String -> [String] -> IO Bool
-checkStrictness' lambdaExpr modules = GHC.runGhc (Just libdir) $ do
+checkStrictness' :: String -> String -> [String] -> IO Bool
+checkStrictness' lambdaExpr typeExpr modules = GHC.runGhc (Just libdir) $ do
     tmpDir <- liftIO $ getTmpDir
     -- TODO: can we use GHC to dynamically compile strings? I think not
     let toModuleImportStr = (printf "import qualified %s\n") :: String -> String
     let moduleImports = concatMap toModuleImportStr modules
-    let sourceCode = printf "module Temp where\n%s\nfoo = %s\n" moduleImports lambdaExpr
+    let sourceCode = printf "module Temp where\n%s\nfoo :: %s\nfoo = %s\n" moduleImports typeExpr lambdaExpr
     let fileName = tmpDir ++ "/Temp.hs"
     liftIO $ writeFile fileName sourceCode
 
@@ -77,7 +77,7 @@ checkStrictness' lambdaExpr modules = GHC.runGhc (Just libdir) $ do
     core' <- liftIO $ core2core env core
     prog <- liftIO $ (dmdAnalProgram dflags emptyFamInstEnvs $ mg_binds core')
     let decl = prog !! 0 -- only one method
-    liftIO $ removeFile fileName
+    -- liftIO $ removeFile fileName
 
     -- TODO: I'm thinking of simply checking for the presence of `L` (lazy) or `A` (absent)
     -- on the singatures. That would be enough to show that the relevancy requirement is not met.
@@ -88,8 +88,8 @@ checkStrictness' lambdaExpr modules = GHC.runGhc (Just libdir) $ do
     where getStrictnessSig x = showSDocUnsafe $ ppr $ strictnessInfo $ idInfo x
           isStrict x = not(isInfixOf "A" (getStrictnessSig x))
 
-checkStrictness :: String -> [String] -> IO Bool
-checkStrictness a b = handle (\(SomeException _) -> return False) (checkStrictness' a b)
+checkStrictness :: String -> String -> [String] -> IO Bool
+checkStrictness body sig modules = handle (\(SomeException _) -> return False) (checkStrictness' body sig modules)
 
 runGhcChecks :: Bool -> Environment -> RType -> UProgram -> IO Bool
 runGhcChecks disableDemand env goalType prog = let
@@ -107,9 +107,11 @@ runGhcChecks disableDemand env goalType prog = let
     in do
         print prog
         printf "GHCChecker expr: %s\n" expr
-        print  argList
+        -- print  argList
         typeCheckResult <- runInterpreter $ checkType expr modules
-        strictCheckResult <- if disableDemand then return True else checkStrictness body modules
+        printf "GHCChecker typechecks: %s\n" (show typeCheckResult)
+        strictCheckResult <- if disableDemand then return True else checkStrictness body funcSig modules
+        printf "GHCChecker strictness result: %s\n" (show strictCheckResult)
         case typeCheckResult of
             Left err -> (putStrLn $ displayException err) >> return False
             Right False -> (putStrLn "Program does not typecheck") >> return False
