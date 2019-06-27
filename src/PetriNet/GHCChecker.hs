@@ -53,7 +53,7 @@ checkStrictness' :: Int -> String -> String -> [String] -> IO Bool
 checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just libdir) $ do
     tmpDir <- liftIO $ getTmpDir
     -- TODO: can we use GHC to dynamically compile strings? I think not
-    let toModuleImportStr = (printf "import qualified %s\n") :: String -> String
+    let toModuleImportStr = (printf "import %s\n") :: String -> String
     let moduleImports = concatMap toModuleImportStr modules
     let sourceCode = printf "module Temp where\n%s\nfoo :: %s\nfoo = %s\n" moduleImports typeExpr lambdaExpr
     let fileName = tmpDir ++ "/Temp.hs"
