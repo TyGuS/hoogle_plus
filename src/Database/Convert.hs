@@ -373,7 +373,7 @@ reorderDecls = Sort.sortOn toInt
   where
     toInt (Pos _ (TP.TypeDecl "String" _ _)) = 1
     toInt (Pos _ (TP.TypeDecl _ [] _)) = 2
-    toInt (Pos _ TP.TypeDecl {}) = 4
+    toInt (Pos _ TP.TypeDecl {}) = 3
     toInt (Pos _ (TP.DataDecl "List" _ _ _)) = 0
     toInt (Pos _ (TP.DataDecl "Char" _ _ _)) = 0
     toInt (Pos _ (TP.DataDecl _ [] _ _)) = 2
