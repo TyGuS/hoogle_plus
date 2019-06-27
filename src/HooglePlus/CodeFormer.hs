@@ -7,6 +7,8 @@ module HooglePlus.CodeFormer(
     ) where
 
 import Types.Common
+import Types.Encoder
+import Types.Abstract
 import Synquid.Util
 
 import Control.Monad.State
@@ -24,7 +26,7 @@ type Code = String
 type CodePieces = Set Code
 data FormerState = FormerState {
     varCounter :: Int,
-    typedTerms :: HashMap String CodePieces,
+    typedTerms :: HashMap AbstractSkeleton CodePieces,
     createdVars :: [Code],
     allSignatures :: [FunctionCode]
 }
@@ -69,14 +71,14 @@ applyFunction func = do
 -- | generate the program from the signatures appeared in selected transitions
 -- these signatures are sorted by their timestamps,
 -- i.e. they may only use symbols appearing before them
-generateProgram :: [FunctionCode] -> [Id] -> [Id] -> [Id] -> CodeFormer CodePieces
-generateProgram signatures srcs argNames rets = do
+generateProgram :: [FunctionCode] -> [AbstractSkeleton] -> [Id] -> [AbstractSkeleton] -> CodeFormer CodePieces
+generateProgram signatures inputs argNames rets = do
     -- prepare scalar variables
     st <- get
     put $ st { varCounter = 0
              , allSignatures = signatures
              }
-    mapM_ (uncurry addTypedArg) $ zip srcs argNames
+    mapM_ (uncurry addTypedArg) $ zip inputs argNames
     mapM_ applyFunction signatures
     termLib <- gets typedTerms
     let codePieces = map (\ret -> HashMap.lookupDefault Set.empty ret termLib) rets
@@ -102,5 +104,5 @@ generateProgram signatures srcs argNames rets = do
         let fold_fn f (b, c) = if b && f `elem` c then (True, f `delete` c) else (False, c)
             base             = (True, code)
             funcNames        = map funName signatures
-            (res, c)         = foldr fold_fn base funcNames
+            (res, c)         = foldr fold_fn base (argNames ++ funcNames)
         in res

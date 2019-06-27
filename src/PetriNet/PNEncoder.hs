@@ -361,12 +361,12 @@ disableTransitions trs t = mapM_ disableTrAt $ nub trs
 addPlaceVar ::  Id -> Int -> Encoder ()
 addPlaceVar p t = do
     st <- get
-    let placeVar = Variable (variableNb st) (p ++ "_" ++ show t) t 0 VarPlace
+    let placeVar = variableNb st
     let p2v = HashMap.insert (p, t) placeVar $ place2variable st
     unless (HashMap.member (p, t) (place2variable st))
             (put $ st { place2variable = p2v
-                        , variableNb = variableNb st + 1
-                        })
+                      , variableNb = variableNb st + 1
+                      })
 
 -- | add transition mapping from (tr, lv) to integer id
 -- an integer variable for each transition
@@ -385,7 +385,7 @@ addTransitionVar = mapM_ addTransitionVarFor
 addTimestampVar :: Int -> Encoder ()
 addTimestampVar t = do
     st <- get
-    let tsVar = Variable (variableNb st) ("ts_" ++ show t) t 0 VarTimestamp
+    let tsVar = variableNb st
     unless (HashMap.member t (time2variable st))
            (put $ st { time2variable = HashMap.insert t tsVar $ time2variable st
                      , variableNb = variableNb st + 1
@@ -420,16 +420,9 @@ createConstraints places transitions = do
 
     mustFireTransitions
 
-
-mkZ3BoolVar ::  Variable -> Encoder AST
-mkZ3BoolVar var = do
-    varSymbol <- mkIntSymbol (varId var)
-    boolS <- mkBoolSort
-    mkConst varSymbol boolS
-
-mkZ3IntVar :: Variable -> Encoder AST
+mkZ3IntVar :: Int -> Encoder AST
 mkZ3IntVar var = do
-    varSymbol <- mkIntSymbol (varId var)
+    varSymbol <- mkIntSymbol var
     intS <- mkIntSort
     mkConst varSymbol intS
 
@@ -500,9 +493,9 @@ fireTransitions t (FunctionCode name [] params rets) = do
     tsMap <- gets time2variable
     -- accumulate counting for parameters and return types
     let tid = findVariable "transition2id" name transMap
-    let pcnt = map (\l -> (head l, length l)) (group (sort params))
+    let pcnt = map (\l -> (show (head l), length l)) (group (sort params))
     let pmap = HashMap.fromList pcnt
-    let rmap = foldl' (\acc t -> HashMap.insertWith (+) t (-1) acc) pmap rets
+    let rmap = foldl' (\acc t -> HashMap.insertWith (+) (show t) (-1) acc) pmap rets
     let rcnt = HashMap.toList rmap
     let tsVar = findVariable "time2variable" t tsMap
     tsZ3Var <- mkZ3IntVar tsVar

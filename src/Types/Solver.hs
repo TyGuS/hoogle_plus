@@ -16,6 +16,7 @@ import Types.Abstract
 import Types.Experiments hiding (PetriNet)
 import Types.Type
 import Types.Common
+import Types.Encoder
 
 data SolverState = SolverState {
     _searchParams :: SearchParams,

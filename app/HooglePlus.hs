@@ -215,7 +215,7 @@ executeSearch synquidParams initSearchParams query hoPath = do
   goal <- envToGoal env query
   messageChan <- newChan
   hofStr <- readFile hoPath
-  let searchParams = initSearchParams { _hoCandidates = words hofStr }
+  let searchParams = initSearchParams { _hoCandidates = if initSearchParams ^. useHO then words hofStr else [] }
   worker <- forkIO $ synthesize searchParams goal messageChan
   readChan messageChan >>= (handleMessages messageChan)
   -- when (_explorerLogLevel searchParams > 0) (mapM_ (printTime . snd) results)

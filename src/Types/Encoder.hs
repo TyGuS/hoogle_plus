@@ -4,6 +4,7 @@ module Types.Encoder where
 import Data.Maybe
 import Data.HashMap.Strict (HashMap)
 import Data.Map (Map)
+import qualified Data.Set as Set
 import qualified Data.HashMap.Strict as HashMap
 import qualified Z3.Base as Z3
 import Z3.Monad hiding(Z3Env, newEnv)
@@ -11,6 +12,8 @@ import Control.Monad.State
 import Data.Data
 import Data.Typeable
 import GHC.Generics
+import qualified Language.Haskell.Exts.Syntax as HSE
+import Data.Function
 
 import Types.Common
 import Types.Abstract
@@ -21,19 +24,24 @@ data EncoderType = Normal | Arity
 data VarType = VarPlace | VarTransition | VarFlow | VarTimestamp
     deriving(Eq, Ord, Show)
 
-data FoldedFunction = FoldedFunction {
-  funId :: Int, -- for transition id
-  funPretokens :: [(Id, Int)], -- for construction of preconditions
-  funPostokens :: [(Id, Int)]  -- for construction of postconditions
-} deriving(Eq, Ord, Show)
+data FunctionCode = FunctionCode {
+  funName   :: String,  -- function name
+  hoParams  :: [FunctionCode],
+  funParams :: [AbstractSkeleton], -- function parameter types and their count
+  funReturn :: [AbstractSkeleton]   -- function return type
+}
 
-data Variable = Variable {
-  varId :: Int,
-  varName :: String,
-  varTimestamp :: Int,
-  varValue :: Int,
-  varType :: VarType
-} deriving(Eq, Ord, Show)
+instance Eq FunctionCode where
+  fc1 == fc2 = let
+    areEq arg = on (==) (Set.fromList . arg) fc1 fc2
+    in areEq hoParams && areEq funParams && areEq funReturn
+
+instance Ord FunctionCode where
+  compare fc1 fc2 = let
+    thenCmp EQ       ordering = ordering
+    thenCmp ordering _        = ordering
+    cmp arg = on compare arg fc1 fc2
+    in foldr1 thenCmp [cmp hoParams, cmp funParams, cmp funReturn]
 
 data Z3Env = Z3Env {
   envSolver  :: Z3.Solver,
@@ -48,8 +56,8 @@ data EncodeState = EncodeState {
   loc :: Int,
   transitionNb :: Int,
   variableNb :: Int,
-  place2variable :: HashMap (Id, Int) Variable, -- place name and timestamp
-  time2variable :: HashMap Int Variable, -- timestamp and abstraction level
+  place2variable :: HashMap (Id, Int) Int, -- place name and timestamp
+  time2variable :: HashMap Int Int, -- timestamp and abstraction level
   transition2id :: HashMap Id Int, -- transition name and abstraction level
   id2transition :: HashMap Int Id,
   mustFirers :: HashMap Id [Id],
