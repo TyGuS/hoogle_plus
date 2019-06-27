@@ -40,7 +40,7 @@ getDeps :: PackageFetchOpts -> Map MdlName [Entry] -> [Entry] -> IO [Declaration
 getDeps Local{files=f} allEntries ourEntries = do
   let dependentEntries = DC.entryDependencies allEntries ourEntries (concat $ Map.elems allEntries)
   nubOrd <$> mapM (flip evalStateT 0 . DC.toSynquidDecl) dependentEntries
-entryDependencies Hackage{packages=ps} allEntries ourEntries = do
+getDeps Hackage{packages=ps} allEntries ourEntries = do
   pkgsDeps <- mapM (\pkgName -> do
     pkgDeps <- nubOrd <$> DC.packageDependencies pkgName True
     entriesFromDeps <- concatMap (concat . Map.elems) <$> (mapM (flip DC.readDeclarations Nothing) pkgDeps)
