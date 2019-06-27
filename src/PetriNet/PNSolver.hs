@@ -54,6 +54,9 @@ import Database.Convert
 import Database.Generate
 
 encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
+encodeFunction id t | "pair_match" `isPrefixOf` id = 
+    let toMatch (FunctionCode name ho [p1,p2] ret) = FunctionCode id ho [p1] (p2:ret)
+     in toMatch $ encodeFunction "__f" t
 encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [show $ lastAbstractType t]
   where
     base = (0, [])
@@ -157,7 +160,8 @@ addSignatures env = do
 
     sigs' <- ifM (getExperiment coalesceTypes) (
       do
-        (t2g, sigGroups) <- groupSignatures sigs
+        let encodedSigs = Map.mapWithKey encodeFunction sigs
+        (t2g, sigGroups) <- groupSignatures encodedSigs
         -- Do I want to take the sigs here?
         let representatives = Map.map selectRepresentative sigGroups
         let sigs' = Map.restrictKeys sigs (Set.fromList $ Map.elems representatives)
@@ -176,9 +180,14 @@ addSignatures env = do
         updateGroups sigGroups gm = foldr updategm gm (Map.toList sigGroups)
         updategm (groupName, groupMembers) = Map.insertWith Set.union groupName groupMembers
 
-
 selectRepresentative = Set.elemAt 0
 
+addMusters :: MonadIO m => Id -> PNSolver m ()
+addMusters arg = do
+    nameMap <- gets $ view nameMapping
+    let argFuncs = Map.keys $ Map.filter (arg ==) nameMap
+    argRps <- mapM getGroupRep argFuncs
+    modify $ over mustFirers (HashMap.insert arg $ concat argRps)
 
 -- | refine the current abstraction
 -- do the bidirectional type checking first, compare the two programs we get,
@@ -202,12 +211,14 @@ refineSemantic env prog at = do
     let addedSigs = map fst toAdd
     writeLog 3 "refineSemantic (toAdd, removables)" $ pretty (addedSigs, removables)
     if any (\x -> (fst x) `elem` removables) toAdd then error "trying to add and remove at the same time" else return ()
-    sigs <- gets $ view currentSigs
     mapM addEncodedFunction toAdd
 
     modify $ over activeSigs (\as -> Set.union (Set.fromList addedSigs) $ Set.difference as (Set.fromList removables))
     -- add clone functions and add them into new transition set
     cloneNames <- mapM addCloneFunction $ Set.toList splits
+    -- update the higer order query arguments
+    let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+    mapM_ addMusters (Map.keys hoArgs)
     -- call the refined encoder on these signatures and disabled signatures
     return SplitInfo { newPlaces = Set.toList splits
                      , removedTrans = removables
@@ -252,6 +263,7 @@ refineSemantic env prog at = do
                                     let newRep = selectRepresentative currentGroup
                                     let abstractType = lookupWithError "currentSigs" rep sigs
                                     let addables' = (newRep, abstractType):addables
+                                    modify $ over currentSigs (Map.delete rep)
                                     return (addables', removables', Map.insert gid newRep newReps)
                                 -- There was only that one element in the group, so with the leader gone, the group goes away.
                                 else return (addables, removables', newReps)
@@ -283,6 +295,9 @@ initNet env = withTime ConstructionTime $ do
     transitions <- gets (HashMap.elems . view type2transition)
     writeLog 3 "initNet" $ text "allTys: " <+> pretty allTy
     mapM_ addCloneFunction (filter (not . isAFunctionT) allTy)
+    -- add higher order query arguments
+    let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+    mapM_ addMusters (Map.keys hoArgs)
   where
     abstractSymbol id sch = do
         t <- freshType sch
@@ -290,25 +305,12 @@ initNet env = withTime ConstructionTime $ do
         return (id, absTy)
 
 addEncodedFunction :: MonadIO m => (Id, AbstractSkeleton) -> PNSolver m ()
-addEncodedFunction (id, f) | "pair_match" `isPrefixOf` id = do
-    let toMatch (FunctionCode name ho [p1,p2] ret) = FunctionCode name ho [p1] (p2:ret)
-    let ef = toMatch $ encodeFunction id f
-    modify $ over functionMap (HashMap.insert id ef)
-    modify $ over currentSigs (Map.insert id f)
-    let AFunctionT ret (AFunctionT arg0 arg1) = f
-    -- add fst and snd sigs
-    modify $ over currentSigs (Map.insert (replaceId "pair_match" "fst" id) (AFunctionT ret arg0))
-    modify $ over currentSigs (Map.insert (replaceId "pair_match" "snd" id) (AFunctionT ret arg1))
-    -- store the used abstract types and their groups into mapping
-    updateTy2Tr id f
 addEncodedFunction (id, f) = do
     let ef = encodeFunction id f
     modify $ over functionMap (HashMap.insert id ef)
     modify $ over currentSigs (Map.insert id f)
     -- store the used abstract types and their groups into mapping
     updateTy2Tr id f
-
-
 
 resetEncoder :: (MonadIO m) => Environment -> RType -> PNSolver m EncodeState
 resetEncoder env dst = do
@@ -644,3 +646,13 @@ prepEncoderArgs env tgt = do
 
 foArgsOf :: Environment -> Map Id RSchema
 foArgsOf = Map.filter (not . isFunctionType . toMonotype) . _arguments
+
+getGroupRep :: MonadIO m => Id -> PNSolver m [Id]
+getGroupRep name = do
+    gm <- gets $ view groupMap
+    gr <- gets $ view groupRepresentative
+    let withinGroup = Set.member name
+    let argGps = Map.keys $ Map.filter withinGroup gm
+    writeLog 3 "getGroupRep" $ text name <+> text "is contained in group" <+> pretty argGps
+    let argRp = map fromJust $ filter isJust $ map (`Map.lookup` gr) argGps
+    return argRp

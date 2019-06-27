@@ -115,7 +115,7 @@ mkConstraint bound v t = do
     t' <- freshAbstract bound t
     return (AScalar (ATypeVarT v), t')
 
-groupSignatures :: MonadIO m => Map Id AbstractSkeleton -> PNSolver m (Map AbstractSkeleton GroupId, Map GroupId (Set Id))
+groupSignatures :: MonadIO m => Map Id FunctionCode -> PNSolver m (Map FunctionCode GroupId, Map GroupId (Set Id))
 groupSignatures sigs = do
     let sigsByType = Map.map Set.fromList $ groupByMap sigs
     writeLog 3 "groupSignatures" $ pretty sigsByType

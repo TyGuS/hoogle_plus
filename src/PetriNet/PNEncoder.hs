@@ -131,9 +131,10 @@ solveAndGetModel = do
     transMap' <- id2transition <$> get
     liftIO $ print transMap'
     -}
+
     case res of
         Sat -> do
-            -- liftIO $ print "sat"
+            liftIO $ print "sat"
             model <- solverGetModel
             places <- gets (HashMap.keys . ty2tr)
             selected <- mapM (checkLit model) [0..(l-1)]
@@ -148,6 +149,7 @@ solveAndGetModel = do
             selectedNames <- getTrNames selected
             return (zip selectedNames [0,1..])
         Unsat -> do
+            liftIO $ print "unsat"
             rets <- gets returnTyps
             currEnv <- gets z3env
             env <- liftIO $ freshEnv $ envContext currEnv
