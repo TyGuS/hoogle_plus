@@ -58,10 +58,7 @@ generateEnv genOpts = do
     pkgFiles <- getFiles pkgOpts
     allEntriesByMdl <- filesToEntries pkgFiles
     DD.cleanTmpFiles pkgOpts pkgFiles
-    --print allEntriesByMdl
     let entriesByMdl = filterEntries allEntriesByMdl mbModuleNames
-    --print "******************"
-    --print mbModuleNames--entriesByMdl
     let ourEntries = nubOrd $ concat $ Map.elems entriesByMdl
     dependencyEntries <- getDeps pkgOpts allEntriesByMdl ourEntries
     putStrLn $ show dependencyEntries

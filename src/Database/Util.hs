@@ -26,9 +26,6 @@ defaultFuncs = [ Pos (initialPos "fst") $ FuncDecl "fst" (Monotype (FunctionT "p
                 , Pos (initialPos "tcBuiltIn") $ FuncDecl (tyclassInstancePrefix ++ "99Show") (Monotype (FunctionT "p" (ScalarT (DatatypeT "Int" [] []) ftrue) (ScalarT (DatatypeT (tyclassPrefix++"Show") [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)))
                 , Pos (initialPos "tcBuiltIn") $ FuncDecl (tyclassInstancePrefix ++ "100Show")(Monotype (FunctionT "p" (ScalarT (TypeVarT Map.empty "a") ftrue) (ScalarT (DatatypeT (tyclassPrefix++"Show") [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)))
                 ]
--- TODO: Should be Int -> ShowD Int!
--- TODO: is the second underscore screwing me up?
--- TODO: the ## works!!!!!!
 
 defaultDts = [defaultList, defaultPair, defaultUnit, defaultInt, defaultBool]
 
