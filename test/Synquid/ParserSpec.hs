@@ -30,7 +30,7 @@ spec = do
 
         it "handles a single typeclass constraint" $ do
             let input = "Show a => a"
-            let typeclassName = typeclassPrefix ++ "Show"
+            let typeclassName = tyclassPrefix ++ "Show"
             let result = doParseType input
             let expected = Right (
                     FunctionT "tcarg0" (ScalarT (DatatypeT typeclassName [mkTyVar "a"] []) ftrue) (
@@ -40,8 +40,8 @@ spec = do
 
         it "handles multiple typeclass constraints" $ do
             let input = "(Show a, Ord b) => a -> b"
-            let showable = typeclassPrefix ++ "Show"
-            let ord = typeclassPrefix ++ "Ord"
+            let showable = tyclassPrefix ++ "Show"
+            let ord = tyclassPrefix ++ "Ord"
             let result = doParseType input
             let expected = Right (
                     FunctionT "tcarg0" (ScalarT (DatatypeT showable [mkTyVar "a"] []) ftrue) $

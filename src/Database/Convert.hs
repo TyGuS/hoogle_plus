@@ -315,7 +315,7 @@ fixDataType (ScalarT (DatatypeT name vars refs) ref) =
 fixDataType x = x
 
 -- FIRST KIND: instance Show Int              >>> __hplusTCTransition__Show Int
--- SECOND KIND: instance (Show a) => Show [a] >> __hplusTCTrransition__Show a -> __hplusTCTransition__Show (List a) -> ... 
+-- SECOND KIND: instance (Show a) => Show [a] >> __hplusTCTrransition__Show a -> __hplusTCTransition__Show (List a) -> ...
 -- THIRD KIND: instance (Show a, Show b) => Show (Either a b) >> ......
 --
 instanceToFunction :: (MonadIO m) => InstRule () -> Int -> StateT Int m Declaration
@@ -325,7 +325,7 @@ instanceToFunction (IRule _ _ ctx head) n = do
     tyVars <- getTyclassVars head
     let tyVars' = map (\x -> fixDataType x) tyVars
     let base = ScalarT (DatatypeT name tyVars' []) ()
-    let toDecl' = toDecl (Text.unpack $ Text.replace (Text.pack(typeclassPrefix)) (Text.pack ("__")) $ Text.pack name)
+    let toDecl' = toDecl (Text.unpack $ Text.replace (Text.pack(tyclassPrefix)) (Text.pack ("@@")) $ Text.pack name)
     case ctx of
         Nothing -> toDecl' =<< foldrM go base []
         Just (CxTuple _ tyclassConds) -> toDecl' =<< foldrM go base tyclassConds
@@ -335,8 +335,8 @@ instanceToFunction (IRule _ _ ctx head) n = do
         go e acc = do
             arg <- toArg e
             return $ FunctionT "" arg acc
-        toDecl :: (MonadIO m) => String -> SType -> StateT Int m Declaration  
-        toDecl y x = return $ Pos (initialPos "") $ TP.FuncDecl ("__hplusTCTransition__" ++ (show n) ++ (y)) $ toSynquidRSchema $ Monotype x
+        toDecl :: (MonadIO m) => String -> SType -> StateT Int m Declaration
+        toDecl y x = return $ Pos (initialPos "") $ TP.FuncDecl (tyclassInstancePrefix ++ (show n) ++ (y)) $ toSynquidRSchema $ Monotype x
 
 
 toArg :: (MonadIO m) => Asst () -> StateT Int m SType
@@ -353,7 +353,7 @@ getTyclassDictName _ = error "getTyclassDictName: case to be implemented"
 fixTCName :: String -> String
 fixTCName str =
     let (_, end) = breakLast str
-        end' = typeclassPrefix ++ end
+        end' = tyclassPrefix ++ end
         in end'
 
 breakLast :: String -> (String, String)

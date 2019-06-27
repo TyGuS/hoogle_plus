@@ -9,7 +9,9 @@ import Text.Parsec.Pos (initialPos)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 
-typeclassPrefix = "@@hplusTC@@"
+tyclassPrefix = "@@hplusTC@@"
+tyclassInstancePrefix = "@@hplusTCInstance@@"
+tyclassArgBase = "tcarg"
 
 (>.<) :: Ord a => [a] -> [a] -> [a]
 xs >.< ys = let ys' = Set.fromList ys in filter (flip Set.member ys') xs
@@ -21,8 +23,8 @@ xs >.> ys = let ys' = Set.fromList ys in filter (flip Set.notMember ys') xs
 -- Default Library
 defaultFuncs = [ Pos (initialPos "fst") $ FuncDecl "fst" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) (ScalarT (TypeVarT Map.empty "a") ftrue)))
                 , Pos (initialPos "snd") $ FuncDecl "snd" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) (ScalarT (TypeVarT Map.empty "b") ftrue)))
-                , Pos (initialPos "tcBuiltIn") $ FuncDecl "@@hplusTCTransition@@99Show" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Int" [] []) ftrue) (ScalarT (DatatypeT (typeclassPrefix++"Show") [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)))
-                , Pos (initialPos "tcBuiltIn") $ FuncDecl "@@hplusTCTransition@@100Show" (Monotype (FunctionT "p" (ScalarT (TypeVarT Map.empty "a") ftrue) (ScalarT (DatatypeT (typeclassPrefix++"Show") [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)))
+                , Pos (initialPos "tcBuiltIn") $ FuncDecl (tyclassInstancePrefix ++ "99Show") (Monotype (FunctionT "p" (ScalarT (DatatypeT "Int" [] []) ftrue) (ScalarT (DatatypeT (tyclassPrefix++"Show") [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)))
+                , Pos (initialPos "tcBuiltIn") $ FuncDecl (tyclassInstancePrefix ++ "100Show")(Monotype (FunctionT "p" (ScalarT (TypeVarT Map.empty "a") ftrue) (ScalarT (DatatypeT (tyclassPrefix++"Show") [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)))
                 ]
 -- TODO: Should be Int -> ShowD Int!
 -- TODO: is the second underscore screwing me up?

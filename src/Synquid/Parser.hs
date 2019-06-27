@@ -203,7 +203,7 @@ parseTCName :: Parser RType
 parseTCName = do
   name <- parseTypeName
   typeArgs <- many (sameOrIndented >> parseTypeAtom)
-  let typeName = typeclassPrefix ++ name
+  let typeName = tyclassPrefix ++ name
   return $ ScalarT (DatatypeT typeName typeArgs []) ftrue
 
 parseTypeclasses :: Parser (RType -> RType)
@@ -211,7 +211,7 @@ parseTypeclasses = do
   tcs <- parens (commaSep1 parseTCName) <|> (parseTCName >>= (\x -> return [x]))
   let tcsAndNumbers = zip tcs [0 .. (length tcs)]
   reservedOp "=>"
-  let combineTypeclasses (tc, num) next rest = FunctionT ("tcarg" ++ (show num)) tc (next rest)
+  let combineTypeclasses (tc, num) next rest = FunctionT (tyclassArgBase ++ (show num)) tc (next rest)
   return $ foldr combineTypeclasses id tcsAndNumbers
 
 parseType :: Parser RType

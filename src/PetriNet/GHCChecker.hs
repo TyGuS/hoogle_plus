@@ -1,4 +1,4 @@
-module PetriNet.GHCChecker (runGhcChecks, mkFunctionSigStr, mkLambdaStr) where
+module PetriNet.GHCChecker (runGhcChecks, mkFunctionSigStr, mkLambdaStr, removeTypeclassInstances) where
 
 import Language.Haskell.Interpreter
 
@@ -12,6 +12,7 @@ import Types.Type
 import Synquid.Type
 import Synquid.Util hiding (fromRight)
 import Synquid.Pretty as Pretty
+import Database.Util
 
 -- TODO: filter out unecessary imports
 import GHC
@@ -32,11 +33,11 @@ import Demand
 import Data.Data
 import FamInstEnv
 import DmdAnal
-import Data.List (isInfixOf)
+import Data.List (isInfixOf, isPrefixOf)
 import System.Directory (removeFile)
 import Text.Printf
 import SimplCore (core2core)
-import Text.Regex.PCRE
+import Text.Regex
 import Data.List (intercalate)
 import qualified Data.Text as Text
 import Data.Maybe (fromJust)
@@ -99,7 +100,7 @@ runGhcChecks disableDemand env goalType prog = let
     argNames = map fst argList
     argTypes = map snd argList
     monoGoals = (map toMonotype argTypes)
-    funcSig = mkFunctionSigStr monoGoals goalType
+    funcSig = mkFunctionSigStr (monoGoals ++ [goalType])
     argTypesMap = fromList $ zip (argNames) (map show monoGoals)
     body = mkLambdaStr argNames prog
     expr = body ++ " :: " ++ funcSig
@@ -107,8 +108,6 @@ runGhcChecks disableDemand env goalType prog = let
         print prog
         printf "GHCChecker expr: %s\n" expr
         print  argList
-        let b = foo body env argTypesMap
-        print b
         typeCheckResult <- runInterpreter $ checkType expr modules
         strictCheckResult <- if disableDemand then return True else checkStrictness body modules
         case typeCheckResult of
@@ -124,12 +123,25 @@ checkType expr modules = do
     Language.Haskell.Interpreter.typeOf expr
     typeChecks expr
 
--- mkFunctionSigStr generates a function's type signature:
--- Int -> Data.Foo.Foo -> Bar
-mkFunctionSigStr :: [RType] -> RType -> String
-mkFunctionSigStr [] tyRet = show tyRet
-mkFunctionSigStr (argTy:argTys) tyRet
-    = show argTy ++ " -> " ++ mkFunctionSigStr argTys tyRet
+-- Converts the list of param types into a haskell function signature.
+-- Moves typeclass-looking things to the front in a context.
+mkFunctionSigStr :: [RType] -> String
+mkFunctionSigStr args = addConstraints $ Prelude.foldr accumConstraints ([],[]) args
+    where
+        showSigs sigs = intercalate " -> " sigs
+        addConstraints ([], baseSigs) = showSigs baseSigs
+        addConstraints (constraints, baseSigs) = "(" ++ (intercalate ", " constraints) ++ ") => " ++ showSigs baseSigs
+
+        accumConstraints :: RType -> ([String], [String]) -> ([String], [String])
+        accumConstraints (ScalarT (DatatypeT id [ScalarT (TypeVarT _ tyvarName) _] _) _) (constraints, baseSigs)
+            | tyclassPrefix `isPrefixOf` id = let
+                classNameRegex = mkRegex $ tyclassPrefix ++ "([a-zA-Z]*)"
+                className = subRegex classNameRegex id "\\1"
+                constraint = className ++ " " ++ tyvarName
+                -- \(@@hplusTC@@([a-zA-Z]*) \(([a-z]*)\)\)
+                in
+                    (constraint:constraints, baseSigs)
+        accumConstraints otherTy (constraints, baseSigs) = (constraints, show otherTy:baseSigs)
 
 -- mkLambdaStr produces a oneline lambda expr str:
 -- (\x -> \y -> body))
@@ -137,25 +149,20 @@ mkLambdaStr :: [String] -> UProgram -> String
 mkLambdaStr args body = let
     bodyStr = show body
     oneLineBody = unwords $ lines bodyStr
-    addFuncArg arg rest = Pretty.parens $ text ("\\" ++ arg ++ " -> ") <+> rest
+    noInstances = removeTypeclassInstances oneLineBody
+    unTypeclassed = removeTcArgs noInstances
     in
-        unwords . words . show $ foldr addFuncArg (text oneLineBody) args
-
--- TODO: if list is empty, then return empty!!
-foo :: String -> Environment -> Map String String -> String
-foo x env typesMap = let
-    stringResults = "__hplusTCTransition[0-9]*__[a-ZA-Z]* arg[0-9]+" =~ x :: AllTextMatches [] String
-    matches = (getAllTextMatches stringResults)
-    bar = map (\x -> x) matches
-    typeclassesStr =  "(" ++ (intercalate ", " bar) ++ ")" ++ " => "
-    in if (length bar) == 0 then "" else typeclassesStr
+        unwords . words . show $ foldr addFuncArg (text unTypeclassed) args
     where
-        -- TODO: just do a map lookup!
-        argNameToType name typesMap = fromJust $ Map.lookup name typesMap
-        funNameToTypeclass :: String -> String
-        funNameToTypeclass name = Text.unpack $ (reverse $ (Text.splitOn (Text.pack "__") (Text.pack name))) !! 0
-        mapMe x =
-            let (funName, argName) = break (== ' ') x
-                argType = argNameToType argName typesMap
-                typeclass = funNameToTypeclass funName
-                in typeclass ++ " " ++ argType
+        addFuncArg arg rest
+            | "arg" `isPrefixOf` arg = Pretty.parens $ text ("\\" ++ arg ++ " -> ") <+> rest
+            | otherwise = rest
+        removeTcArgs str = let
+            regex = mkRegex $ tyclassArgBase++"[0-9]+\\s?"
+            in subRegex regex str ""
+
+removeTypeclassInstances :: String -> String
+removeTypeclassInstances x = let
+    regex = mkRegex $ "\\(" ++ tyclassInstancePrefix ++ "[0-9]*@@[a-zA-Z]* ("++tyclassArgBase++"[0-9]+\\s?)*\\)"
+    in
+        unwords . words $ subRegex regex x ""

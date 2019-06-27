@@ -22,31 +22,34 @@ doParseType tyStr = flip evalState (initialPos "goal") $ runIndentParserT parseT
 
 anyTy program = Program{typeOf=AnyT, content=program}
 
-separateFunctions :: String -> ([RType], RType)
+-- separateFunctions :: String -> ([RType], RType)
 separateFunctions query = let
     res = either (\left -> error $ show left) id $ doParseType query
-    args = allArgTypes res
-    retType = lastType res
-    in (args, retType)
+    in allBaseTypes res
 
 spec :: Spec
 spec = do
-    describe "GHCChecker to haskell type writer" $ do
+    describe "mkFunctionSigStr" $ do
         it "Handles no typeclasses" $ do
             let input = "Int -> a"
-            let (args, retType) = separateFunctions input
-            let result = mkFunctionSigStr args retType
+            let baseTys = separateFunctions input
+            let result = mkFunctionSigStr baseTys
             let expected = "(Int) -> (a)"
             result `shouldBe` expected
 
         it "Handles a single typeclasses" $ do
             let input = "Show a => a -> String"
-            let (args, retType) = separateFunctions input
-            let result = mkFunctionSigStr args retType
+            let result = mkFunctionSigStr (separateFunctions input)
             let expected = "(Show a) => (a) -> (String)"
             result `shouldBe` expected
 
-    describe "GHCChecker to haskell lambda writer" $ do
+        it "Handles multiple typeclasses on the same variable" $ do
+            let input = "(Show a, Ord a) => a -> String"
+            let result = mkFunctionSigStr (separateFunctions input)
+            let expected = "(Show a, Ord a) => (a) -> (String)"
+            result `shouldBe` expected
+
+    describe "mkLambdaStr" $ do
         it "outputs the body of simple function" $ do
             let inputProgram = Program {
                 typeOf=AnyT,
@@ -56,12 +59,19 @@ spec = do
             let expected = "(\\arg0 -> arg0 0)"
             result `shouldBe` expected
 
-        it "upgrades a typeclass" $ do
-            let tcFunc = typeclassPrefix ++ "Show"
+        it "upgrades a typeclass used as a param" $ do
+            let tcFunc = "show"
             let inputProgram = anyTy (PApp tcFunc [
                     anyTy (PSymbol "tcarg0"),
                     anyTy (PSymbol "arg0")
                     ])
             let result = mkLambdaStr ["tcarg0", "arg0"] inputProgram
-            let expected = "(\\arg0 -> Show arg0)"
+            let expected = "(\\arg0 -> show arg0)"
+            result `shouldBe` expected
+
+    describe "removeTypeclassInstances" $ do
+        it "removes a simple typeclass" $ do
+            let input = "Text.Show.show (@@hplusTCInstance@@1@@Show tcarg0 tcarg1) arg0"
+            let expected = "Text.Show.show arg0"
+            let result = removeTypeclassInstances input
             result `shouldBe` expected

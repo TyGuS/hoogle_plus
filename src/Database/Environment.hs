@@ -81,7 +81,7 @@ generateEnv genOpts = do
 
     let declStrs = show (instanceFunctions' ++ ourDecls)
     let removeParentheses = (\x -> LUtils.replace ")" "" $ LUtils.replace "(" "" x)
-    let tcNames = nub $ map removeParentheses $ filter (\x -> isInfixOf typeclassPrefix x) (splitOn " " declStrs)
+    let tcNames = nub $ map removeParentheses $ filter (\x -> isInfixOf tyclassPrefix x) (splitOn " " declStrs)
     let tcDecls = map (\x -> Pos (initialPos "") $ TP.DataDecl x ["a"] [] []) tcNames
 
 
