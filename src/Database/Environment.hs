@@ -84,15 +84,8 @@ generateEnv genOpts = do
     let tcNames = nub $ map removeParentheses $ filter (\x -> isInfixOf tyclassPrefix x) (splitOn " " declStrs)
     let tcDecls = map (\x -> Pos (initialPos "") $ TP.DataDecl x ["a"] [] []) tcNames
 
-
     let hooglePlusDecls = DC.reorderDecls $ nubOrd $ (ourDecls ++ dependencyEntries ++ defaultFuncs ++ defaultDts ++ instanceFunctions' ++ tcDecls)
 
-    print "typeclass transitions: "
-    print instanceFunctions'
-    print "typeclass constructors: "
-    print tcDecls
-    print "decls"
-    print hooglePlusDecls
     case resolveDecls hooglePlusDecls moduleNames of
        Left errMessage -> error $ show errMessage
        Right env -> D.trace (show $ (_datatypes env)) $ return env {

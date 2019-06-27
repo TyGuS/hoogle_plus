@@ -206,12 +206,6 @@ toSynquidSkeleton t = do
 varsFromBind (KindedVar _ name _) = nameStr name
 varsFromBind (UnkindedVar _ name) = nameStr name
 
--- decomposeDH :: DeclHead () -> (Maybe String, [String])
--- decomposeDH (DHead _ name) = (Just $ nameStr name, [])
--- decomposeDH (DHInfix _ varBind name) = (Nothing, [varsFromBind varBind]++(if isIdentity name then [nameStr name] else []))
--- decomposeDH (DHParen _ dh) = decomposeDH dh
--- decomposeDH (DHApp _ funHead varBind) = let (name, vars) = decomposeDH funHead in (name, (varsFromBind varBind):vars)
-
 -- | Add true as the refinement to convert all types into RType
 addTrue (ScalarT (DatatypeT name tArgs pArgs) _) = ScalarT (DatatypeT name (map addTrue tArgs) []) ftrue
 addTrue (ScalarT IntT _) = ScalarT IntT ftrue
@@ -379,7 +373,7 @@ reorderDecls = Sort.sortOn toInt
   where
     toInt (Pos _ (TP.TypeDecl "String" _ _)) = 1
     toInt (Pos _ (TP.TypeDecl _ [] _)) = 2
-    toInt (Pos _ TP.TypeDecl {}) = 3
+    toInt (Pos _ TP.TypeDecl {}) = 4
     toInt (Pos _ (TP.DataDecl "List" _ _ _)) = 0
     toInt (Pos _ (TP.DataDecl "Char" _ _ _)) = 0
     toInt (Pos _ (TP.DataDecl _ [] _ _)) = 2
