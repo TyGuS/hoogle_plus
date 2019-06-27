@@ -33,7 +33,7 @@ data SolverState = SolverState {
     _mustFirers :: HashMap Id [Id],
     _groupMap :: Map GroupId (Set Id), -- mapping from group id to Skel and list of function names with the same skel
     _groupRepresentative :: Map GroupId Id, -- mapping of current representative for group.
-    _typeToGroup :: Map AbstractSkeleton GroupId,
+    _typeToGroup :: Map FunctionCode GroupId,
     _type2transition :: HashMap AbstractSkeleton [Id], -- mapping from abstract type to group ids
     _solverStats :: TimeStatistics,
     _splitTypes :: Set AbstractSkeleton,

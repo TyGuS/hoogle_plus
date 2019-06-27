@@ -52,6 +52,9 @@ import Database.Convert
 import Database.Generate
 
 encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
+encodeFunction id t | "pair_match" `isPrefixOf` id = 
+    let toMatch (FunctionCode name ho [p1,p2] ret) = FunctionCode id ho [p1] (p2:ret)
+     in toMatch $ encodeFunction "__f" t
 encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [show $ lastAbstractType t]
   where
     base = (0, [])
@@ -174,7 +177,8 @@ addSignatures env = do
 
     sigs' <- ifM (getExperiment coalesceTypes) (
       do
-        (t2g, sigGroups) <- groupSignatures sigs
+        let encodedSigs = Map.mapWithKey encodeFunction sigs
+        (t2g, sigGroups) <- groupSignatures encodedSigs
         -- Do I want to take the sigs here?
         let representatives = Map.map selectRepresentative sigGroups
         let sigs' = Map.restrictKeys sigs (Set.fromList $ Map.elems representatives)
@@ -200,7 +204,7 @@ addMusters arg = do
     nameMap <- gets $ view nameMapping
     let argFuncs = Map.keys $ Map.filter (arg ==) nameMap
     argRps <- mapM getGroupRep argFuncs
-    modify $ over mustFirers (HashMap.insertWith union arg $ concat argRps)
+    modify $ over mustFirers (HashMap.insert arg $ concat argRps)
 
 -- | refine the current abstraction
 -- do the bidirectional type checking first, compare the two programs we get,
@@ -277,6 +281,7 @@ refineSemantic env prog at = do
                                     let newRep = selectRepresentative currentGroup
                                     let abstractType = lookupWithError "currentSigs" rep sigs
                                     let addables' = (newRep, abstractType):addables
+                                    modify $ over currentSigs (Map.delete rep)
                                     return (addables', removables', Map.insert gid newRep newReps)
                                 -- There was only that one element in the group, so with the leader gone, the group goes away.
                                 else return (addables, removables', newReps)
@@ -316,13 +321,6 @@ initNet env = withTime ConstructionTime $ do
         return (id, absTy)
 
 addEncodedFunction :: MonadIO m => (Id, AbstractSkeleton) -> PNSolver m ()
-addEncodedFunction (id, f) | "pair_match" `isPrefixOf` id = do
-    let toMatch (FunctionCode name ho [p1,p2] ret) = FunctionCode name ho [p1] (p2:ret)
-    let ef = toMatch $ encodeFunction id f
-    modify $ over functionMap (HashMap.insert id ef)
-    modify $ over currentSigs (Map.insert id f)
-    -- store the used abstract types and their groups into mapping
-    updateTy2Tr id f
 addEncodedFunction (id, f) = do
     let ef = encodeFunction id f
     modify $ over functionMap (HashMap.insert id ef)

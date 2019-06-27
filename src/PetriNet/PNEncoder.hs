@@ -168,6 +168,7 @@ solveAndGetModel = do
 
     case res of
         Sat -> do
+            liftIO $ print "sat"
             model <- solverGetModel
             places <- gets (HashMap.keys . ty2tr)
             -- evaluate what transitions are fired

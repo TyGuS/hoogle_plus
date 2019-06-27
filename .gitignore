@@ -34,3 +34,4 @@ HooglePlus.cabal
 webapp/static/tmp/*
 logs/
 stack.yaml.lock
+logs/
