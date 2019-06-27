@@ -3,8 +3,9 @@ module PetriNet.GHCChecker (runGhcChecks, mkFunctionSigStr, mkLambdaStr, removeT
 import Language.Haskell.Interpreter
 
 import qualified Data.Set as Set hiding (map)
-import Data.Map as Map hiding (map, foldr)
+import qualified Data.Map as Map hiding (map, foldr)
 import Control.Exception
+import Data.Maybe
 
 import Types.Environment
 import Types.Program
@@ -15,6 +16,7 @@ import Synquid.Pretty as Pretty
 import Database.Util
 
 -- TODO: filter out unecessary imports
+import Data.List.Split (splitOn)
 import GHC
 import GHC.Paths ( libdir )
 import HscTypes
@@ -45,8 +47,8 @@ import Data.Maybe (fromJust)
 showGhc :: (Outputable a) => a -> String
 showGhc = showPpr unsafeGlobalDynFlags
 
-checkStrictness' :: String -> String -> [String] -> IO Bool
-checkStrictness' lambdaExpr typeExpr modules = GHC.runGhc (Just libdir) $ do
+checkStrictness' :: Int -> String -> String -> [String] -> IO Bool
+checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just libdir) $ do
     tmpDir <- liftIO $ getTmpDir
     -- TODO: can we use GHC to dynamically compile strings? I think not
     let toModuleImportStr = (printf "import qualified %s\n") :: String -> String
@@ -82,14 +84,31 @@ checkStrictness' lambdaExpr typeExpr modules = GHC.runGhc (Just libdir) $ do
     -- TODO: I'm thinking of simply checking for the presence of `L` (lazy) or `A` (absent)
     -- on the singatures. That would be enough to show that the relevancy requirement is not met.
     case decl of
-        NonRec id _  -> do return $ isStrict id --liftIO $ putStrLn $ getStrictnessSig id
+        NonRec id _  -> do
+            return $ isStrict tyclassCount id --liftIO $ putStrLn $ getStrictnessSig id
         _ -> error "checkStrictness: recursive expression found"
 
-    where getStrictnessSig x = showSDocUnsafe $ ppr $ strictnessInfo $ idInfo x
-          isStrict x = not(isInfixOf "A" (getStrictnessSig x))
+    where 
+        getStrictnessSig x = showSDocUnsafe $ ppr $ strictnessInfo $ idInfo x
+        isStrict n x = let
+            strictnessSig = getStrictnessSig x
+            argStrictness = splitByArg strictnessSig
+            typeclassSigs = take n argStrictness
+            restSigs = drop n argStrictness
+            allTypeclassesUsed = all isTypeclassUsed typeclassSigs
+            restSigsUsed = all (not . elem 'A') restSigs
+            in allTypeclassesUsed && restSigsUsed
+        splitByArg :: String -> [String]
+        splitByArg str = let
+            regex = mkRegex "<[^>]*>"
+            matches = matchRegex regex str
+            in fromMaybe [] matches
+        -- Ensure we use SOME part of the typeclass
+        isTypeclassUsed :: String -> Bool
+        isTypeclassUsed str = not $ all ('A' `elem`) $ splitOn "," str
 
-checkStrictness :: String -> String -> [String] -> IO Bool
-checkStrictness body sig modules = handle (\(SomeException _) -> return False) (checkStrictness' body sig modules)
+checkStrictness :: Int -> String -> String -> [String] -> IO Bool
+checkStrictness tyclassCount body sig modules = handle (\(SomeException _) -> return False) (checkStrictness' tyclassCount body sig modules)
 
 runGhcChecks :: Bool -> Environment -> RType -> UProgram -> IO Bool
 runGhcChecks disableDemand env goalType prog = let
@@ -97,20 +116,21 @@ runGhcChecks disableDemand env goalType prog = let
     args = _arguments env
     modules = Set.toList $ _included_modules env
     argList = Map.toList args
+    tyclassCount = length $ Prelude.filter (\(id, _) -> tyclassArgBase `isPrefixOf` id) argList
     argNames = map fst argList
     argTypes = map snd argList
     monoGoals = (map toMonotype argTypes)
     funcSig = mkFunctionSigStr (monoGoals ++ [goalType])
-    argTypesMap = fromList $ zip (argNames) (map show monoGoals)
+    argTypesMap = Map.fromList $ zip (argNames) (map show monoGoals)
     body = mkLambdaStr argNames prog
     expr = body ++ " :: " ++ funcSig
     in do
         print prog
         printf "GHCChecker expr: %s\n" expr
-        -- print  argList
+        print  argList
         typeCheckResult <- runInterpreter $ checkType expr modules
         printf "GHCChecker typechecks: %s\n" (show typeCheckResult)
-        strictCheckResult <- if disableDemand then return True else checkStrictness body funcSig modules
+        strictCheckResult <- if disableDemand then return True else checkStrictness tyclassCount body funcSig modules
         printf "GHCChecker strictness result: %s\n" (show strictCheckResult)
         case typeCheckResult of
             Left err -> (putStrLn $ displayException err) >> return False
