@@ -91,8 +91,10 @@ headersList CompareInitialAbstractCovers = [
     "tS - Z", "tr - Z"
     ]
 headersList TrackTypesAndTransitions = [
-  "time", "encoding - s",
-  "l", "r", "transitions", "types", "duplicate symbols", "status"
+  "time - no coalescing", "time - coalescing", "nc: length", "c: length",
+  "nc: refinement steps", "c: refinement steps",
+  "nc: transitions", "c: transitions",
+  "duplicate symbols", "nc: status", "c: status"
   ]
 
 toRow :: ExperimentCourse -> (String, [ResultSummary]) -> [String]
@@ -110,6 +112,7 @@ toRow currentExp (name, rss) =
     mbbaseline = findwhere expSypetClone rss
     mbPartial = find (\x -> (paramName x == expTyGarQ) && (envName x == "Partial"))  rss
     mbPartialNoDmd = find (\x -> (paramName x == expTyGarQNoDmd) && (envName x == "Partial"))  rss
+    mbNoCoalescing = findwhere expTyGarQNoCoalesce rss
 
     rowForExp :: ExperimentCourse -> [Maybe String]
     rowForExp CompareSolutions = let
@@ -135,12 +138,15 @@ toRow currentExp (name, rss) =
       ]
 
     rowForExp TrackTypesAndTransitions = [
+      (showFloat . resTFirstSoln) <$> (head . results) <$> mbNoCoalescing,
       (showFloat . resTFirstSoln) <$> (head . results) <$> mbqr,
-      (showFloat . resTEncFirstSoln) <$> (head . results) <$> mbqr,
+      (show . resLenFirstSoln) <$> (head . results) <$> mbNoCoalescing,
       (show . resLenFirstSoln) <$> (head . results) <$> mbqr,
+      (show . resRefinementSteps) <$> (head . results) <$> mbNoCoalescing,
       (show . resRefinementSteps) <$> (head . results) <$> mbqr,
-      (spaceList . resTransitions . (head . results)) <$> mbqr,
-      (spaceList . resTypes . (head . results)) <$> mbqr,
+      (show . resTransitions) <$> (head . results) <$> mbNoCoalescing,
+      (show . resTransitions) <$> (head . results) <$> mbqr,
       (spaceList . resDuplicateSymbols . (head . results)) <$> mbqr,
-      either show show <$> resSolutionOrError <$> (head . results) <$> mbqr
+      either show id <$> resSolutionOrError <$> (head . results) <$> mbNoCoalescing,
+      either show id <$> resSolutionOrError <$> (head . results) <$> mbqr
       ]

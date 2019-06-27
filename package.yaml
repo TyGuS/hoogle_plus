@@ -14,6 +14,7 @@ dependencies:
 - aeson
 - ansi-terminal
 - ansi-wl-pprint
+- array
 - base
 - bimap
 - bytestring
@@ -46,7 +47,6 @@ dependencies:
 - pretty-simple
 - pretty-tree
 - process
-- regex-compat
 - regex-compat
 - resourcet
 - safe
