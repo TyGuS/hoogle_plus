@@ -21,7 +21,7 @@ import Synquid.Pretty as Pretty
 import Database.Util
 import qualified Database.Download as DD
 import qualified Database.Convert as DC
-import Types.Environment (Environment, symbols, _symbols, _included_modules, _typClassInstances, _condTypClasses, _datatypes)
+import Types.Environment (Environment, symbols, _symbols, _included_modules)
 import Types.Program (BareDeclaration(..), Declaration(..), ConstructorSig(..))
 import Types.Generate
 import Synquid.Resolver (resolveDecls)
@@ -73,7 +73,7 @@ generateEnv genOpts = do
     let instanceTuples = zip instanceRules transitionIds
     instanceFunctions <- mapM (\(entry, id) -> evalStateT (DC.instanceToFunction entry id) 0) instanceTuples
 
-    -- TODO: remove all higher kinded types
+    -- TODO: remove all higher kinded type instances
     let instanceFunctions' = filter (\x -> not(or [(isInfixOf "Applicative" $ show x),(isInfixOf "Functor" $ show x),(isInfixOf "Monad" $ show x)])) instanceFunctions
 
     let declStrs = show (instanceFunctions' ++ ourDecls)
@@ -85,7 +85,7 @@ generateEnv genOpts = do
 
     case resolveDecls hooglePlusDecls moduleNames of
        Left errMessage -> error $ show errMessage
-       Right env -> D.trace (show $ (_datatypes env)) $ return env {
+       Right env -> return env {
           _symbols = if useHO then env ^. symbols
                               else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols,
          _included_modules = Set.fromList (moduleNames)

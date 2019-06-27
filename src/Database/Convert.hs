@@ -140,7 +140,6 @@ toSynquidSchema (TyForall _ _ (Just ctx) typ) = do -- if this type has some cont
         Nothing -> return Nothing
         Just [] -> return Nothing
         Just (typ:_)  -> do
-            -- TODO: why `typ:_` ?
             classQuals <- resolveContext ctx
             return $ Just $ (Monotype (foldr go (typ) classQuals))
     where
@@ -193,12 +192,15 @@ toSynquidSkeleton (TyList _ typ) = do
     typ' <- toSynquidSkeleton typ
     return $ (\ty -> [ScalarT (DatatypeT "List" ty []) ()]) <$> typ'
 toSynquidSkeleton (TyTuple _ _ (f:s:ts)) = do
-    Just fst <- toSynquidSkeleton f
-    Just snd <- toSynquidSkeleton s
+    mbfst <- toSynquidSkeleton f
+    mbsnd <- toSynquidSkeleton s
     pts <- mapM toSynquidSkeleton ts
-    let base = ScalarT (DatatypeT "Pair" (fst ++ snd) []) ()
-    let res = foldl' (\a (Just t) -> ScalarT (DatatypeT "Pair" (a:t) []) ()) base pts
-    return $ Just [res]
+    case (mbfst, mbsnd) of
+        (Just fst, Just snd) -> do
+            let base = ScalarT (DatatypeT "Pair" (fst ++ snd) []) ()
+            let res = foldl' (\a (Just t) -> ScalarT (DatatypeT "Pair" (a:t) []) ()) base pts
+            return $ Just [res]
+        _ -> return Nothing
 toSynquidSkeleton t = do
     liftIO $ print $ "[toSynquidSkeleton] unhandled case, ignoring: " ++ show t
     return Nothing -- error $ "Unhandled case " ++ show t
@@ -274,8 +276,6 @@ toSynquidDecl (EDecl (TypeSig _ names typ)) = do
         Nothing  -> return $ Pos (initialPos "") $ TP.QualifierDecl [] -- a fake conversion
         Just sch -> return $ Pos (initialPos (nameStr $ names !! 0)) $ TP.FuncDecl (nameStr $ head names) (toSynquidRSchema sch)
 toSynquidDecl (EDecl (ClassDecl _ _ head _ _)) = do
-    -- TODO: need help getting `name` here to include the module as prefix
-    -- So it produces: `__hplusTC__Show (a)` instead of `__hplusTC__GHC.Show.Show (a)`
     let name = fixTCName (declHeadName head)
     let vars = declHeadVars head
     return $ Pos (initialPos "") $ TP.DataDecl name vars [] []

@@ -4,11 +4,6 @@ module PetriNet.GHCChecker (
 
 import Language.Haskell.Interpreter
 
-import qualified Data.Set as Set hiding (map)
-import qualified Data.Map as Map hiding (map, foldr)
-import Control.Exception
-import Data.Maybe
-
 import Types.Environment
 import Types.Program
 import Types.Type
@@ -17,34 +12,34 @@ import Synquid.Util hiding (fromRight)
 import Synquid.Pretty as Pretty
 import Database.Util
 
--- TODO: filter out unecessary imports
+import Control.Exception
+import Control.Monad.Trans
+import CorePrep
+import CoreSyn
+import Data.Data
+import Data.Either
+import Data.List (isInfixOf, isPrefixOf, intercalate)
 import Data.List.Split (splitOn)
+import Data.Maybe
+import Data.Typeable
+import Demand
+import DmdAnal
+import DynFlags
+import FamInstEnv
 import GHC
 import GHC.Paths ( libdir )
 import HscTypes
-import CorePrep
-import DynFlags
-import CoreSyn
+import IdInfo
 import Outputable hiding (text, (<+>))
 import qualified CoreSyn as Syn
-import Control.Monad.Trans
-import Control.Exception
-import Var
-import IdInfo
-import Data.Typeable
-import Data.Either
-import Demand
-import Data.Data
-import FamInstEnv
-import DmdAnal
-import Data.List (isInfixOf, isPrefixOf)
+import qualified Data.Map as Map hiding (map, foldr)
+import qualified Data.Set as Set hiding (map)
+import qualified Data.Text as Text
+import SimplCore (core2core)
 import System.Directory (removeFile)
 import Text.Printf
-import SimplCore (core2core)
 import Text.Regex
-import Data.List (intercalate)
-import qualified Data.Text as Text
-import Data.Maybe (fromJust)
+import Var
 
 showGhc :: (Outputable a) => a -> String
 showGhc = showPpr unsafeGlobalDynFlags
@@ -90,7 +85,7 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just lib
             return $ isStrict tyclassCount id --liftIO $ putStrLn $ getStrictnessSig id
         _ -> error "checkStrictness: recursive expression found"
 
-    where 
+    where
         getStrictnessSig x = showSDocUnsafe $ ppr $ strictnessInfo $ idInfo x
         isStrict n x = let
             strictnessSig = getStrictnessSig x
