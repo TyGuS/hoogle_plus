@@ -1,4 +1,6 @@
-module PetriNet.GHCChecker (runGhcChecks, mkFunctionSigStr, mkLambdaStr, removeTypeclassInstances) where
+module PetriNet.GHCChecker (
+    runGhcChecks, mkFunctionSigStr, mkLambdaStr,
+    removeTypeclassInstances, toHaskellSolution) where
 
 import Language.Haskell.Interpreter
 
@@ -125,13 +127,8 @@ runGhcChecks disableDemand env goalType prog = let
     body = mkLambdaStr argNames prog
     expr = body ++ " :: " ++ funcSig
     in do
-        print prog
-        printf "GHCChecker expr: %s\n" expr
-        print  argList
         typeCheckResult <- runInterpreter $ checkType expr modules
-        printf "GHCChecker typechecks: %s\n" (show typeCheckResult)
         strictCheckResult <- if disableDemand then return True else checkStrictness tyclassCount body funcSig modules
-        printf "GHCChecker strictness result: %s\n" (show strictCheckResult)
         case typeCheckResult of
             Left err -> (putStrLn $ displayException err) >> return False
             Right False -> (putStrLn "Program does not typecheck") >> return False
@@ -169,22 +166,29 @@ mkFunctionSigStr args = addConstraints $ Prelude.foldr accumConstraints ([],[]) 
 -- (\x -> \y -> body))
 mkLambdaStr :: [String] -> UProgram -> String
 mkLambdaStr args body = let
-    bodyStr = show body
-    oneLineBody = unwords $ lines bodyStr
-    noInstances = removeTypeclassInstances oneLineBody
-    unTypeclassed = removeTcArgs noInstances
+    unTypeclassed = toHaskellSolution body
     in
         unwords . words . show $ foldr addFuncArg (text unTypeclassed) args
     where
         addFuncArg arg rest
             | "arg" `isPrefixOf` arg = Pretty.parens $ text ("\\" ++ arg ++ " -> ") <+> rest
             | otherwise = rest
-        removeTcArgs str = let
-            regex = mkRegex $ tyclassArgBase++"[0-9]+\\s?"
-            in subRegex regex str ""
 
 removeTypeclassInstances :: String -> String
 removeTypeclassInstances x = let
     regex = mkRegex $ "\\(" ++ tyclassInstancePrefix ++ "[0-9]*@@[a-zA-Z]* ("++tyclassArgBase++"[0-9]+\\s?)*\\)"
     in
         unwords . words $ subRegex regex x ""
+
+toHaskellSolution :: UProgram -> String
+toHaskellSolution body = let
+    bodyStr = show body
+    oneLineBody = unwords $ lines bodyStr
+    noInstances = removeTypeclassInstances oneLineBody
+    unTypeclassed = removeTcArgs noInstances
+    in
+        unwords $ words $ unTypeclassed
+    where
+        removeTcArgs str = let
+            regex = mkRegex $ tyclassArgBase++"[0-9]+\\s?"
+            in subRegex regex str ""
