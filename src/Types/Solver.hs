@@ -16,6 +16,7 @@ import Types.Abstract
 import Types.Experiments hiding (PetriNet)
 import Types.Type
 import Types.Common
+import Types.Encoder
 
 data SolverState = SolverState {
     _searchParams :: SearchParams,
@@ -34,7 +35,7 @@ data SolverState = SolverState {
     _paramNames :: [Id],
     _groupMap :: Map GroupId (Set Id), -- mapping from group id to Skel and list of function names with the same skel
     _groupRepresentative :: Map GroupId Id, -- mapping of current representative for group.
-    _typeToGroup :: Map AbstractSkeleton GroupId,
+    _typeToGroup :: Map FunctionCode GroupId,
     _type2transition :: HashMap AbstractSkeleton [Id], -- mapping from abstract type to group ids
     _solverStats :: TimeStatistics,
     _splitTypes :: Set AbstractSkeleton,
@@ -69,8 +70,6 @@ emptySolverState = SolverState {
     _nameMapping = Map.empty,
     _instanceMapping = HashMap.empty,
     _toRemove = [],
-
-
     _messageChan = undefined
 }
 

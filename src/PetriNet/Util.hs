@@ -8,6 +8,7 @@ import Types.Solver
 import Types.Abstract
 import Types.Experiments
 import Types.Program
+import Types.Encoder
 import Synquid.Program
 import Synquid.Logic hiding (varName)
 import Synquid.Type
@@ -65,7 +66,6 @@ nubSpence l = runST $ do
 listDiff left right = Set.toList $ (Set.fromList left) `Set.difference` (Set.fromList right)
 
 replaceId a b = Text.unpack . Text.replace (Text.pack a) (Text.pack b) . Text.pack
-mkPairMatch (FunctionCode name _ params ret) = FunctionCode (replaceId "Pair" "Pair_match" name) [] ret params
 
 var2any env t@(ScalarT (TypeVarT _ id) _) | isBound env id = t
 var2any env t@(ScalarT (TypeVarT _ id) _) = AnyT
@@ -115,7 +115,7 @@ mkConstraint bound v t = do
     t' <- freshAbstract bound t
     return (AScalar (ATypeVarT v), t')
 
-groupSignatures :: MonadIO m => Map Id AbstractSkeleton -> PNSolver m (Map AbstractSkeleton GroupId, Map GroupId (Set Id))
+groupSignatures :: MonadIO m => Map Id FunctionCode -> PNSolver m (Map FunctionCode GroupId, Map GroupId (Set Id))
 groupSignatures sigs = do
     let sigsByType = Map.map Set.fromList $ groupByMap sigs
     writeLog 3 "groupSignatures" $ pretty sigsByType

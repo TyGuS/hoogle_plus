@@ -60,6 +60,7 @@ import Types.Abstract
 import Types.Common
 import Types.Type
 import Types.Program
+import Types.Encoder
 
 import Synquid.Logic
 import Synquid.Type
@@ -533,3 +534,11 @@ instance Pretty SplitInfo where
     pretty (SplitInfo p r tr) = text "Split places:" <+> text (show p)
                              $+$ text "Removed transitions:" <+> text (show r)
                              $+$ text "New transitions:" <+> text (show tr)
+
+instance Pretty FunctionCode where
+    pretty (FunctionCode name hop params rets) = 
+        text "function code:" <+> hlBraces
+      ( text "function name:" <+> text name
+        $+$ text "HO parameters:" <+> hlBrackets (commaSep (map pretty hop))
+        $+$ text "paramters:" <+> hlBrackets (commaSep (map pretty params))
+        $+$ text "return types:" <+> hlBrackets (commaSep (map pretty rets)))  
