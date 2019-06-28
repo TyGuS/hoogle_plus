@@ -83,7 +83,7 @@ instance Summary [ResultSummary] where
 
 
 headersList :: ExperimentCourse -> [String]
-headersList CompareSolutions = ["With demand", "No demand"]
+headersList CompareSolutions = ["With demand"]
 headersList CompareInitialAbstractCovers = [
     "tS - QR", "tEnc - QR",
     "l", "r", "tr", "ty",
@@ -119,7 +119,7 @@ toRow currentExp (name, rss) =
         queryRefinementResults = (fromJust (results <$> mbPartial)) :: [Result]
         queryRefinementResultsNoDmd = (fromJust (results <$> mbPartialNoDmd)) :: [Result]
         toSolution = (either show id . resSolutionOrError) :: Result -> String
-        myResults = [queryRefinementResults, queryRefinementResultsNoDmd]
+        myResults = [queryRefinementResults]
       in
         map (\x -> Just $ unlines (map (mkOneLine . toSolution) (reverse x))) myResults
 

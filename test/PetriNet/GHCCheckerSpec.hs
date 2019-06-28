@@ -75,3 +75,24 @@ spec = do
             let expected = "Text.Show.show arg0"
             let result = removeTypeclassInstances input
             result `shouldBe` expected
+
+    describe "parseStrictnessSig" $ do
+        it "plucks out the strictness signatures" $ do
+            let sig = unlines [ "foo :: forall a b. a -> a -> (a -> b) -> a"
+                                , "[LclIdX,"
+                                , "Arity=3,"
+                                , "Str=<S,1*U><L,A><L,A>,"
+                                , "Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,"
+                                , "    WorkFree=True, Expandable=True,"
+                                , "    Guidance=ALWAYS_IF(arity=3,unsat_ok=True,boring_ok=True)}]"
+                                , "foo"
+                                , "  = \\ (@ a)"
+                                , "      (@ b)"
+                                , "      (arg0 [Dmd=<S,1*U>] :: a)"
+                                , "      _ [Occ=Dead, Dmd=<L,A>]"
+                                , "      _ [Occ=Dead, Dmd=<L,A>] ->"
+                                , "      arg0"
+                                ]
+            let expected = "<S,1*U><L,A><L,A>"
+            let result = parseStrictnessSig sig
+            result `shouldBe` expected

@@ -1,6 +1,7 @@
 module PetriNet.GHCChecker (
     runGhcChecks, mkFunctionSigStr, mkLambdaStr,
-    removeTypeclassInstances, toHaskellSolution) where
+    removeTypeclassInstances, toHaskellSolution,
+    parseStrictnessSig) where
 
 import Language.Haskell.Interpreter
 
@@ -86,7 +87,7 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just lib
         _ -> error "checkStrictness: recursive expression found"
 
     where
-        getStrictnessSig x = showSDocUnsafe $ ppr $ strictnessInfo $ idInfo x
+        getStrictnessSig x = parseStrictnessSig $ showSDocUnsafe $ ppr $ x
         isStrict n x = let
             strictnessSig = getStrictnessSig x
             argStrictness = splitByArg strictnessSig
@@ -94,7 +95,7 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just lib
             restSigs = drop n argStrictness
             allTypeclassesUsed = all isTypeclassUsed typeclassSigs
             restSigsUsed = all (not . elem 'A') restSigs
-            in allTypeclassesUsed && restSigsUsed
+            in restSigsUsed
         splitByArg :: String -> [String]
         splitByArg str = let
             regex = mkRegex "<[^>]*>"
@@ -103,6 +104,11 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just lib
         -- Ensure we use SOME part of the typeclass
         isTypeclassUsed :: String -> Bool
         isTypeclassUsed str = not $ all ('A' `elem`) $ splitOn "," str
+
+parseStrictnessSig :: String -> String
+parseStrictnessSig result = let
+    regex = mkRegex "Str=(<.*>),"
+    in head $ fromJust (matchRegex regex result)
 
 checkStrictness :: Int -> String -> String -> [String] -> IO Bool
 checkStrictness tyclassCount body sig modules = handle (\(SomeException _) -> return False) (checkStrictness' tyclassCount body sig modules)

@@ -70,8 +70,8 @@ getSetup args = do
   let params =
         case currentExperiment of
           CompareSolutions -> let solnCount = 5 in
-              [ (searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ),
-                (searchParamsTyGarQ{_disableDemand=True, _solutionCnt=solnCount}, expTyGarQNoDmd)]
+              [ (searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ)]
+                -- (searchParamsTyGarQ{_disableDemand=True, _solutionCnt=solnCount}, expTyGarQNoDmd)]
           CompareInitialAbstractCovers -> [
             (searchParamsTyGarQ, expTyGarQ),
             -- (searchParamsHOF, expQueryRefinementHOF),
