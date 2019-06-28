@@ -3,7 +3,6 @@ module HooglePlus.Refinement where
 
 import Types.Abstract
 import Types.Common
-import HooglePlus.Abstraction
 import PetriNet.AbstractType
 import Types.Environment
 import Types.Type
@@ -21,6 +20,7 @@ import Control.Monad.Logic
 import Text.Printf
 import Data.Map (Map)
 import qualified Data.Map as Map
+import qualified Data.HashMap.Strict as HashMap
 import Control.Lens
 import Data.List
 import Data.Tuple (swap)
@@ -99,14 +99,28 @@ findSymbol env sym = do
         Just sch -> freshType sch
 
 -- | add a new type into our cover and ensure all of them have proper lower bound
-updateCover :: [Id] -> AbstractSkeleton -> Set AbstractSkeleton -> Set AbstractSkeleton
-updateCover bound t cover = newCover
-    where
-        candidates = Set.map (abstractIntersect bound t) cover
-        intersections = Set.map fromJust $ Set.filter isJust candidates
-        addNewType t acc | existAbstract bound acc t = acc 
-                         | otherwise =  t `Set.insert` acc
-        newCover = Set.foldr addNewType cover (t `Set.insert` intersections)
+updateCover :: [Id] -> AbstractSkeleton -> AbstractCover -> AbstractCover
+updateCover tvs t cover = updateCover' tvs cover t rootNode
+
+updateCover' :: [Id] -> AbstractCover -> AbstractSkeleton -> AbstractSkeleton -> AbstractCover
+updateCover' bound cover t paren | equalAbstract bound t paren = cover
+updateCover' bound cover t paren | isSubtypeOf bound t paren = 
+    let children = HashMap.lookupDefault Set.empty paren cover
+        updatedCover = Set.foldr (\c acc -> updateCover' bound acc t c) cover children
+        lower c = isSubtypeOf bound t c || isSubtypeOf bound c t
+        inSubtree = any lower (Set.toList children)
+     in if inSubtree then updatedCover
+                     else HashMap.insertWith Set.union paren (Set.singleton t) updatedCover
+updateCover' bound cover t paren | isSubtypeOf bound paren t =
+    let parents = HashMap.keys $ HashMap.filter (Set.member paren) cover
+        rmParen = HashMap.map (Set.delete paren) cover
+        addCurr p = HashMap.insertWith Set.union p $ Set.singleton t
+        addedCurr = foldr addCurr rmParen parents
+     in HashMap.insertWith Set.union t (Set.singleton paren) addedCurr
+updateCover' bound cover t paren = 
+    let intsctMb = abstractIntersect bound t paren
+     in if isJust intsctMb then updateCover' bound cover (fromJust intsctMb) paren
+                           else cover
 
 propagate :: MonadIO m => Environment -> RProgram -> AbstractSkeleton -> PNSolver m ()
 -- | base case, when we reach the leaf of the AST
@@ -118,7 +132,8 @@ propagate env p@(Program (PSymbol sym) t) upstream = do
            (do
                 let newCover = updateCover bound upstream cover
                 modify $ set abstractionCover newCover
-                modify $ over splitTypes (Set.union (newCover `Set.difference` cover))
+                let newTyps = allTypesOf newCover \\ allTypesOf cover
+                modify $ over splitTypes (Set.union $ Set.fromList newTyps)
            )
 -- | starter case, when we start from a bottom type
 -- find the most general abstraction that unifies with the concrete types

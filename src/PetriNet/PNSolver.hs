@@ -55,7 +55,7 @@ encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
 encodeFunction id t | "pair_match" `isPrefixOf` id = 
     let toMatch (FunctionCode name ho [p1,p2] ret) = FunctionCode id ho [p1] (p2:ret)
      in toMatch $ encodeFunction "__f" t
-encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [lastAbstractType t]
+encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [lastAbstract t]
   where
     base = (0, [])
     hoFun x = encodeFunction (show x) x
@@ -70,8 +70,8 @@ instantiate env sigs = do
   where
     instantiate' sigs = do
         tree <- gets (view abstractionCover)
-        let typs = Set.toList tree
-        writeLog 3 "instantiate" $ text "Current abstract types:" <+> pretty typs
+        let typs = allTypesOf tree
+        writeLog 3 "instantiate" $ text "Current abstract types:" <+> text (show tree)
         sigs' <- Map.toList <$> mapM freshType sigs
         foldM (\acc -> (<$>) (acc ++) . uncurry (instantiateWith env typs)) [] sigs'
 
@@ -80,7 +80,6 @@ instantiateWith :: MonadIO m => Environment -> [AbstractSkeleton] -> Id -> RType
 -- skip "snd" function, it would be handled together with "fst"
 instantiateWith env typs id t | id == "snd" = return []
 instantiateWith env typs id t = do
-    abstraction <- gets (view abstractionCover)
     instMap <- gets (view instanceMapping)
     let bound = env ^. boundTypeVars
     if id == "fst"
@@ -390,7 +389,7 @@ findPath env dst st = do
         tgt <- gets (view targetType)
         cover <- gets (view abstractionCover)
         let bound = env ^. boundTypeVars
-        let rets = filter (isSubtypeOf bound tgt) (Set.toList cover)
+        let rets = filter (isSubtypeOf bound tgt) (allTypesOf cover)
         liftIO (evalStateT (generateProgram sigs src args rets) initialFormer)
 
     skipClone = not . isInfixOf "|clone"
@@ -406,11 +405,11 @@ findPath env dst st = do
 fixEncoder :: MonadIO m => Environment -> RType -> EncodeState -> SplitInfo -> PNSolver m EncodeState
 fixEncoder env dst st info = do
     let binds = env ^. boundTypeVars
-    abstraction <- gets (view abstractionCover)
-    writeLog 2 "fixEncoder" $ text "new abstraction cover is" <+> pretty (Set.toList abstraction)
+    cover <- gets (view abstractionCover)
+    writeLog 2 "fixEncoder" $ text "new abstraction cover:" <+> pretty (allTypesOf cover)
     (srcTypes, tgt) <- updateSrcTgt env dst
-    writeLog 2 "fixEncoder" $ text "fixed parameter types are" <+> pretty srcTypes
-    writeLog 2 "fixEncoder" $ text "fixed return type is" <+> pretty tgt
+    writeLog 2 "fixEncoder" $ text "fixed parameter types:" <+> pretty srcTypes
+    writeLog 2 "fixEncoder" $ text "fixed return type:" <+> pretty tgt
     writeLog 3 "fixEncoder" $ text "get split information" </> pretty info
     modify $ over type2transition (HashMap.filter (not . null))
     (loc, musters, rets, funcs, tid2tr, _) <- prepEncoderArgs env tgt
@@ -433,7 +432,7 @@ findProgram env dst st = do
          funcs <- gets (view activeSigs)
          modify $ over solverStats (\s -> s {
             iterations = iterations s + 1
-          , numOfPlaces = Map.insert (iterations s + 1) (Set.size cover) (numOfPlaces s)
+          , numOfPlaces = Map.insert (iterations s + 1) (coverSize cover) (numOfPlaces s)
           , numOfTransitions = Map.insert (iterations s + 1) (Set.size funcs) (numOfTransitions s)
          })
          nextSolution st' rs err
@@ -485,7 +484,7 @@ findProgram env dst st = do
         stop <- getExperiment stopRefine
         placeNum <- getExperiment threshold
         cover <- gets (view abstractionCover)
-        if stop && Set.size cover >= placeNum
+        if stop && coverSize cover >= placeNum
            then findProgram env dst (st {prevChecked=True})
            else do
              splitInfo <- withTime RefinementTime (refineSemantic env prog at)
@@ -494,7 +493,7 @@ findProgram env dst st = do
              cover <- gets (view abstractionCover)
              funcs <- gets (view activeSigs)
              modify $ over solverStats (\s -> s {
-                numOfPlaces = Map.insert (iterations s) (Set.size cover) (numOfPlaces s)
+                numOfPlaces = Map.insert (iterations s) (coverSize cover) (numOfPlaces s)
               , numOfTransitions = Map.insert (iterations s) (Set.size funcs) (numOfTransitions s)
              })
              return res
@@ -632,7 +631,7 @@ type EncoderArgs = (Int, HashMap Id [Id], [Id], [FunctionCode], HashMap Id [Id],
 
 prepEncoderArgs :: MonadIO m => Environment -> AbstractSkeleton -> PNSolver m EncoderArgs
 prepEncoderArgs env tgt = do
-    abstraction <- gets (view abstractionCover)
+    cover <- gets $ view abstractionCover
     loc <- gets $ view currentLoc
     funcs <- gets $ view functionMap
     t2tr <- gets $ view type2transition
@@ -640,7 +639,7 @@ prepEncoderArgs env tgt = do
     incremental <- getExperiment incrementalSolving
     let bound = env ^. boundTypeVars
     let tid2tr = HashMap.foldrWithKey (\k v -> HashMap.insert (show k) v) HashMap.empty t2tr
-    let accepts = filter (isSubtypeOf bound tgt) (Set.toList abstraction)
+    let accepts = superTypeOf bound cover tgt
     let rets = sortBy (compareAbstract bound) accepts
     let strRets = map show rets
     let sigs = HashMap.elems funcs

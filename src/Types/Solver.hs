@@ -18,11 +18,15 @@ import Types.Type
 import Types.Common
 import Types.Encoder
 
+rootNode = AScalar (ATypeVarT varName)
+
+type AbstractCover = HashMap AbstractSkeleton (Set AbstractSkeleton)
+
 data SolverState = SolverState {
     _searchParams :: SearchParams,
     _nameCounter :: Map Id Int,  -- name map for generating fresh names (type variables, parameters)
     _typeAssignment :: Map Id SType,  -- current type assignment for each type variable
-    _abstractionCover :: Set AbstractSkeleton,
+    _abstractionCover :: AbstractCover,
     _isChecked :: Bool, -- is the current state check passed
     _currentSolutions :: [RProgram], -- type checked solutions
     _currentLoc :: Int, -- current solution depth
@@ -49,7 +53,7 @@ emptySolverState = SolverState {
     _searchParams = defaultSearchParams,
     _nameCounter = Map.empty,
     _typeAssignment = Map.empty,
-    _abstractionCover = Set.singleton (AScalar (ATypeVarT varName)),
+    _abstractionCover = HashMap.singleton rootNode Set.empty,
     _isChecked = True,
     _currentSolutions = [],
     _currentLoc = 1,

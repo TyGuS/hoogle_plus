@@ -16,6 +16,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
+import qualified Data.HashMap.Strict as HashMap
 import Data.Aeson
 import Data.Maybe
 import Data.Either (isLeft)
@@ -23,6 +24,20 @@ import Data.List
 import Text.Printf
 import Control.Monad.State
 import Debug.Trace
+
+allTypesOf :: AbstractCover -> [AbstractSkeleton]
+allTypesOf cover = nub $ HashMap.keys cover ++ (Set.toList . Set.unions $ HashMap.elems cover)
+
+coverSize :: AbstractCover -> Int
+coverSize = length . allTypesOf
+
+superTypeOf :: [Id] -> AbstractCover -> AbstractSkeleton -> [AbstractSkeleton]
+superTypeOf tvs cover at = superTypeOf' tvs rootNode
+  where
+    superTypeOf' tvs paren = let
+        children = Set.toList $ HashMap.lookupDefault Set.empty paren cover
+        in if isSubtypeOf tvs at paren then paren : concatMap (superTypeOf' tvs) children
+                                       else []
 
 isBot :: AbstractSkeleton -> Bool
 isBot ABottom = True
@@ -39,6 +54,13 @@ isAHigherOrder _ = False
 lastAbstract :: AbstractSkeleton -> AbstractSkeleton
 lastAbstract (AFunctionT _ tRet) = lastAbstract tRet
 lastAbstract t = t
+
+abstractParamList :: AbstractSkeleton -> [AbstractSkeleton]
+abstractParamList t@AScalar {} = [t]
+abstractParamList (AFunctionT tArg tFun) =
+    case tFun of
+        AScalar _  -> [tArg]
+        _          -> tArg : abstractParamList tFun
 
 absFunArgs :: Id -> AbstractSkeleton -> [AbstractSkeleton]
 absFunArgs id (AFunctionT tArg tRes) | id == "pair_match" = [tArg]
@@ -171,8 +193,12 @@ equalAbstract tvs t1 t2 = isSubtypeOf tvs t1 t2 && isSubtypeOf tvs t2 t1
 equalSplit :: [Id] -> SplitMsg -> SplitMsg -> Bool
 equalSplit tvs s1 s2 = fst s1 == fst s2 && equalAbstract tvs (snd s1) (snd s2)
 
-existAbstract :: [Id] -> Set AbstractSkeleton -> AbstractSkeleton -> Bool
-existAbstract tvs cover t = any (equalAbstract tvs t) (Set.toList cover)
+existAbstract :: [Id] -> AbstractCover -> AbstractSkeleton -> Bool
+existAbstract tvs cover t = existAbstract' rootNode
+  where
+    existAbstract' paren | equalAbstract tvs paren t = True
+    existAbstract' paren | isSubtypeOf tvs t paren = any existAbstract' (Set.toList $ HashMap.lookupDefault Set.empty paren cover)
+    existAbstract' paren = False
 
 abstractIntersect :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Maybe AbstractSkeleton
 abstractIntersect bound t1 t2 = 
@@ -183,23 +209,23 @@ abstractIntersect bound t1 t2 =
     unifier = getUnifier bound [(t1, t2)]
 
 -- | find the current most restrictive abstraction for a given type
-currentAbst :: MonadIO m => [Id] -> Set AbstractSkeleton -> AbstractSkeleton -> PNSolver m AbstractSkeleton
+currentAbst :: MonadIO m => [Id] -> AbstractCover -> AbstractSkeleton -> PNSolver m AbstractSkeleton
 currentAbst tvs cover (AFunctionT tArg tRes) = do
     tArg' <- currentAbst tvs cover tArg
     tRes' <- currentAbst tvs cover tRes
     return $ AFunctionT tArg' tRes'
-currentAbst tvs cover at = currentAbst' tvs (Set.toList cover) at (AScalar (ATypeVarT varName))
-
-currentAbst' :: MonadIO m => [Id] -> [AbstractSkeleton] -> AbstractSkeleton -> AbstractSkeleton -> PNSolver m AbstractSkeleton
-currentAbst' _ [] _ sofar = return sofar
-currentAbst' tvs (t:ts) at sofar = do
-  freshT <- freshAbstract tvs t
-  freshSofar <- freshAbstract tvs sofar
-  -- writeLog 3 $ pretty at <+> text "<:" <+> pretty freshT
-  -- writeLog 3 $ pretty t <+> text "<:" <+> pretty freshSofar
-  if isSubtypeOf tvs at freshT && isSubtypeOf tvs t freshSofar
-     then currentAbst' tvs ts at t
-     else currentAbst' tvs ts at sofar
+currentAbst tvs cover at = do
+    freshAt <- freshAbstract tvs at
+    case currentAbst' freshAt rootNode of
+        Nothing -> error $ "cannot find current abstraction for type " ++ show at
+        Just t -> return t
+  where
+    currentAbst' at paren | isSubtypeOf tvs at paren =
+      let children = Set.toList $ HashMap.lookupDefault Set.empty paren cover
+          inSubtree = any (isSubtypeOf tvs at) children
+       in if inSubtree then head $ filter isJust $ map (currentAbst' at) children
+                       else Just paren
+    currentAbst' at paren = Nothing
 
 applySemantic :: MonadIO m => [Id] -> AbstractSkeleton -> [AbstractSkeleton] -> PNSolver m AbstractSkeleton
 applySemantic tvs fun args = do
