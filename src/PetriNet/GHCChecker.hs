@@ -1,7 +1,7 @@
 module PetriNet.GHCChecker (
     runGhcChecks, mkFunctionSigStr, mkLambdaStr,
     removeTypeclassInstances, toHaskellSolution,
-    parseStrictnessSig) where
+    parseStrictnessSig, checkStrictness') where
 
 import Language.Haskell.Interpreter
 
@@ -82,8 +82,8 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just lib
     -- TODO: I'm thinking of simply checking for the presence of `L` (lazy) or `A` (absent)
     -- on the singatures. That would be enough to show that the relevancy requirement is not met.
     case decl of
-        NonRec id _  -> do
-            return $ isStrict tyclassCount id --liftIO $ putStrLn $ getStrictnessSig id
+        NonRec id rest -> do
+            return $ isStrict tyclassCount decl --liftIO $ putStrLn $ getStrictnessSig id
         _ -> error "checkStrictness: recursive expression found"
 
     where
@@ -91,24 +91,19 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just lib
         isStrict n x = let
             strictnessSig = getStrictnessSig x
             argStrictness = splitByArg strictnessSig
-            typeclassSigs = take n argStrictness
             restSigs = drop n argStrictness
-            allTypeclassesUsed = all isTypeclassUsed typeclassSigs
-            restSigsUsed = all (not . elem 'A') restSigs
-            in restSigsUsed
+            in not $ any (elem 'A') restSigs
         splitByArg :: String -> [String]
         splitByArg str = let
-            regex = mkRegex "<[^>]*>"
-            matches = matchRegex regex str
-            in fromMaybe [] matches
-        -- Ensure we use SOME part of the typeclass
-        isTypeclassUsed :: String -> Bool
-        isTypeclassUsed str = not $ all ('A' `elem`) $ splitOn "," str
+            regex = mkRegex "><"
+            in splitRegex regex str
 
 parseStrictnessSig :: String -> String
 parseStrictnessSig result = let
-    regex = mkRegex "Str=(<.*>),"
-    in head $ fromJust (matchRegex regex result)
+    regex = mkRegex "Str=(<.*>)"
+    in case (matchRegex regex result) of
+        Just (match:_) -> match
+        _ -> error $ "unable to find strictness in: " ++ result
 
 checkStrictness :: Int -> String -> String -> [String] -> IO Bool
 checkStrictness tyclassCount body sig modules = handle (\(SomeException _) -> return False) (checkStrictness' tyclassCount body sig modules)
@@ -178,8 +173,11 @@ mkLambdaStr args body = let
 removeTypeclassInstances :: String -> String
 removeTypeclassInstances x = let
     regex = mkRegex $ "\\(" ++ tyclassInstancePrefix ++ "[0-9]*@@[a-zA-Z]* ("++tyclassArgBase++"[0-9]+\\s?)*\\)"
+    containsMatch = isJust $ matchRegex regex x
     in
-        unwords . words $ subRegex regex x ""
+        if containsMatch
+            then  removeTypeclassInstances $ unwords . words $ subRegex regex x ""
+            else x
 
 toHaskellSolution :: UProgram -> String
 toHaskellSolution body = let
