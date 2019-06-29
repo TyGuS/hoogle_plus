@@ -319,7 +319,7 @@ instanceToFunction (IRule _ _ ctx head) n = do
     tyVars <- getTyclassVars head
     let tyVars' = map (\x -> fixDataType x) tyVars
     let base = ScalarT (DatatypeT name tyVars' []) ()
-    let toDecl' = toDecl (Text.unpack $ Text.replace (Text.pack(tyclassPrefix)) (Text.pack ("@@")) $ Text.pack name)
+    let toDecl' = toDecl (Text.unpack $ Text.replace (Text.pack(tyclassPrefix)) (Text.pack ("")) $ Text.pack name)
     case ctx of
         Nothing -> toDecl' =<< foldrM go base []
         Just (CxTuple _ tyclassConds) -> toDecl' =<< foldrM go base tyclassConds
