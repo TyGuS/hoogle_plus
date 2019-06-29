@@ -19,12 +19,16 @@ xs >.< ys = let ys' = Set.fromList ys in filter (flip Set.member ys') xs
 (>.>) :: Ord a => [a] -> [a] -> [a]
 xs >.> ys = let ys' = Set.fromList ys in filter (flip Set.notMember ys') xs
 
+defaultLibrary = concat [
+  defaultFuncs,
+  defaultDts,
+  defaultTypeclassInstances
+  ]
 
 -- Default Library
 defaultFuncs = [ Pos (initialPos "fst") $ FuncDecl "fst" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) (ScalarT (TypeVarT Map.empty "a") ftrue)))
                 , Pos (initialPos "snd") $ FuncDecl "snd" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) (ScalarT (TypeVarT Map.empty "b") ftrue)))
-                , Pos (initialPos "tcBuiltIn") $ FuncDecl (tyclassInstancePrefix ++ "99Show") (Monotype (FunctionT "p" (ScalarT (DatatypeT "Int" [] []) ftrue) (ScalarT (DatatypeT (tyclassPrefix++"Show") [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)))
-                , Pos (initialPos "tcBuiltIn") $ FuncDecl (tyclassInstancePrefix ++ "100Show")(Monotype (FunctionT "p" (ScalarT (TypeVarT Map.empty "a") ftrue) (ScalarT (DatatypeT (tyclassPrefix++"Show") [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)))
+
                 ]
 
 defaultDts = [defaultList, defaultPair, defaultUnit, defaultInt, defaultBool]
@@ -49,3 +53,16 @@ defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [] [
 
 defaultUnit = Pos (initialPos "Unit") $ DataDecl "Unit" [] [] []
 
+defaultTypeclassInstances = [
+  Pos (initialPos "tcBuiltin") $
+    FuncDecl (tyclassInstancePrefix ++ "01ShowInt") $ Monotype $
+      -- Monotype (FunctionT "p" (ScalarT (DatatypeT "Int" [] []) ftrue) $
+      ScalarT (DatatypeT (tyclassPrefix ++ "Show") [mkTyVar "a"] []) ftrue
+  -- , Pos (initialPos "tcBuiltIn") $ FuncDecl (tyclassInstancePrefix ++ "99Show") (
+  --       Monotype (FunctionT "p" (ScalarT (DatatypeT "Int" [] []) ftrue)
+  --                   (ScalarT (DatatypeT (tyclassPrefix++"Show") [
+  --                     ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)))
+  -- , Pos (initialPos "tcBuiltIn") $ FuncDecl (tyclassInstancePrefix ++ "100Show")(Monotype (FunctionT "p" (ScalarT (TypeVarT Map.empty "a") ftrue) (ScalarT (DatatypeT (tyclassPrefix++"Show") [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)))
+  ]
+
+mkTyVar str = ScalarT (TypeVarT (Map.empty) str) ftrue

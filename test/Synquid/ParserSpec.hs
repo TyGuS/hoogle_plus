@@ -15,7 +15,6 @@ import qualified Data.Map as Map
 
 
 doParseType tyStr = flip evalState (initialPos "goal") $ runIndentParserT parseTypeMbTypeclasses () "" tyStr
-mkTyVar str = ScalarT (TypeVarT (Map.empty) str) ftrue
 
 spec :: Spec
 spec = do

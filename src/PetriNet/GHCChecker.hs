@@ -1,6 +1,6 @@
 module PetriNet.GHCChecker (
     runGhcChecks, mkFunctionSigStr, mkLambdaStr,
-    removeTypeclassInstances, toHaskellSolution,
+    removeTypeclasses, toHaskellSolution,
     parseStrictnessSig, checkStrictness') where
 
 import Language.Haskell.Interpreter
@@ -45,13 +45,15 @@ import Var
 showGhc :: (Outputable a) => a -> String
 showGhc = showPpr unsafeGlobalDynFlags
 
+ourFunctionName = "ghcCheckedFunction"
+
 checkStrictness' :: Int -> String -> String -> [String] -> IO Bool
 checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just libdir) $ do
     tmpDir <- liftIO $ getTmpDir
     -- TODO: can we use GHC to dynamically compile strings? I think not
     let toModuleImportStr = (printf "import %s\n") :: String -> String
     let moduleImports = concatMap toModuleImportStr modules
-    let sourceCode = printf "module Temp where\n%s\nfoo :: %s\nfoo = %s\n" moduleImports typeExpr lambdaExpr
+    let sourceCode = printf "module Temp where\n%s\n%s :: %s\n%s = %s\n" moduleImports ourFunctionName typeExpr ourFunctionName lambdaExpr
     let fileName = tmpDir ++ "/Temp.hs"
     liftIO $ writeFile fileName sourceCode
 
@@ -76,17 +78,20 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just lib
     -- prog is [<fooBinding>, <moduleBinding>]
     core' <- liftIO $ core2core env core
     prog <- liftIO $ (dmdAnalProgram dflags emptyFamInstEnvs $ mg_binds core')
-    let decl = prog !! 0 -- only one method
+    let decl = findOurBinding (prog :: [CoreBind]) -- only one method
     -- liftIO $ removeFile fileName
-
+    -- liftIO $ printf "whole program: %s\n" $ showSDocUnsafe $ ppr $ prog
     -- TODO: I'm thinking of simply checking for the presence of `L` (lazy) or `A` (absent)
     -- on the singatures. That would be enough to show that the relevancy requirement is not met.
+
     case decl of
         NonRec id rest -> do
-            return $ isStrict tyclassCount decl --liftIO $ putStrLn $ getStrictnessSig id
+            -- liftIO $ printf "\nourDecl: %s\n" (showSDocUnsafe $ ppr decl)
+            return $ isStrict tyclassCount decl
         _ -> error "checkStrictness: recursive expression found"
 
     where
+        findOurBinding bs = head $ filter (\x-> ourFunctionName `isInfixOf` (showSDocUnsafe $ ppr x)) bs
         getStrictnessSig x = parseStrictnessSig $ showSDocUnsafe $ ppr $ x
         isStrict n x = let
             strictnessSig = getStrictnessSig x
@@ -170,24 +175,28 @@ mkLambdaStr args body = let
             | "arg" `isPrefixOf` arg = Pretty.parens $ text ("\\" ++ arg ++ " -> ") <+> rest
             | otherwise = rest
 
+removeAll :: Regex -> String -> String
+removeAll a b = unwords $ words $ go a b
+    where
+        go regex input =
+            if (isJust $ matchRegex regex input)
+            then (go regex $ subRegex regex input "")
+            else input
+
+removeTypeclassArgs :: String -> String
+removeTypeclassArgs = removeAll (mkRegex (tyclassArgBase++"[0-9]+\\s?"))
+
 removeTypeclassInstances :: String -> String
-removeTypeclassInstances x = let
-    regex = mkRegex $ "\\(" ++ tyclassInstancePrefix ++ "[0-9]*@@[a-zA-Z]* ("++tyclassArgBase++"[0-9]+\\s?)*\\)"
-    containsMatch = isJust $ matchRegex regex x
-    in
-        if containsMatch
-            then  removeTypeclassInstances $ unwords . words $ subRegex regex x ""
-            else x
+removeTypeclassInstances = removeAll (mkRegex (tyclassInstancePrefix ++ "[0-9]*[a-zA-Z]*"))
+
+removeTypeclasses = removeEmptyParens . removeTypeclassArgs . removeTypeclassInstances
+    where
+        removeEmptyParens = removeAll (mkRegex "\\(\\s+\\)")
 
 toHaskellSolution :: UProgram -> String
 toHaskellSolution body = let
     bodyStr = show body
     oneLineBody = unwords $ lines bodyStr
-    noInstances = removeTypeclassInstances oneLineBody
-    unTypeclassed = removeTcArgs noInstances
+    noTypeclasses = (removeTypeclasses) oneLineBody
     in
-        unwords $ words $ unTypeclassed
-    where
-        removeTcArgs str = let
-            regex = mkRegex $ tyclassArgBase++"[0-9]+\\s?"
-            in subRegex regex str ""
+        noTypeclasses

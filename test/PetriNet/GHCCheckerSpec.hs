@@ -71,9 +71,15 @@ spec = do
 
     describe "removeTypeclassInstances" $ do
         it "removes a simple typeclass" $ do
-            let input = "Text.Show.show (@@hplusTCInstance@@1@@Show tcarg0 tcarg1) arg0"
+            let input = "Text.Show.show (@@hplusTCInstance@@01Show tcarg0 tcarg1) arg0"
             let expected = "Text.Show.show arg0"
-            let result = removeTypeclassInstances input
+            let result = removeTypeclasses input
+            result `shouldBe` expected
+
+        it "removes a prelude typeclass usage" $ do
+            let input = "Prelude.show @@hplusTCInstance@@01Show arg0"
+            let expected = "Prelude.show arg0"
+            let result = removeTypeclasses input
             result `shouldBe` expected
 
     describe "parseStrictnessSig" $ do

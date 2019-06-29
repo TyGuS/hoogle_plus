@@ -81,7 +81,8 @@ generateEnv genOpts = do
     let tcNames = nub $ map removeParentheses $ filter (\x -> isInfixOf tyclassPrefix x) (splitOn " " declStrs)
     let tcDecls = map (\x -> Pos (initialPos "") $ TP.DataDecl x ["a"] [] []) tcNames
 
-    let hooglePlusDecls = DC.reorderDecls $ nubOrd $ (ourDecls ++ dependencyEntries ++ defaultFuncs ++ defaultDts ++ instanceFunctions' ++ tcDecls)
+    let library = concat [ourDecls, dependencyEntries, instanceFunctions', tcDecls, defaultLibrary]
+    let hooglePlusDecls = DC.reorderDecls $ nubOrd $ library
 
     case resolveDecls hooglePlusDecls moduleNames of
        Left errMessage -> error $ show errMessage
