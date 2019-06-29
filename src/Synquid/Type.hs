@@ -58,11 +58,12 @@ fromSort (VarS name) = ScalarT (TypeVarT Map.empty name) ftrue
 fromSort (DataS name sArgs) = ScalarT (DatatypeT name (map fromSort sArgs) []) ftrue -- TODO: what to do with pArgs?
 fromSort AnyS = AnyT
 
+scalarName :: RType -> String
 scalarName (ScalarT (DatatypeT name _ _) _) = name
 scalarName (ScalarT IntT _) = "Int"
 scalarName (ScalarT BoolT _) = "Bool"
 scalarName (ScalarT (TypeVarT _ name) _) = name
-scalarName t = error $ "scalarName error: cannot be applied to " ++ show t
+scalarName t = error $ "scalarName error: cannot be applied to nonscalar type "
 
 allDatatypes (FunctionT _ tArg tRet) = allDatatypes tArg `Set.union` allDatatypes tRet
 allDatatypes (ScalarT (DatatypeT id tArgs _) _) = id `Set.insert` foldr (Set.union . allDatatypes) Set.empty tArgs

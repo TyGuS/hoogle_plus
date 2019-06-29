@@ -311,7 +311,6 @@ fixDataType x = x
 -- FIRST KIND: instance Show Int              >>> __hplusTCTransition__Show Int
 -- SECOND KIND: instance (Show a) => Show [a] >> __hplusTCTrransition__Show a -> __hplusTCTransition__Show (List a) -> ...
 -- THIRD KIND: instance (Show a, Show b) => Show (Either a b) >> ......
---
 instanceToFunction :: (MonadIO m) => InstRule () -> Int -> StateT Int m Declaration
 instanceToFunction (IParen _ inst) n = instanceToFunction inst n
 instanceToFunction (IRule _ _ ctx head) n = do
