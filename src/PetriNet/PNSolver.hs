@@ -282,15 +282,13 @@ refineSemantic env prog at = do
     let removables = removedSigs \\ addedSigs
     writeLog 3 "refineSemantic (toAdd, removables)" $ pretty (toAdd, removables)
 
-    -- add clone functions and add them into new transition set
-    cloneNames <- mapM addCloneFunction $ Set.toList splits
     -- update the higer order query arguments
     let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
     mapM_ addMusters (Map.keys hoArgs)
     -- call the refined encoder on these signatures and disabled signatures
     return SplitInfo { newPlaces = Set.toList splits
                      , removedTrans = removables
-                     , newTrans = cloneNames ++ addedSigs
+                     , newTrans = addedSigs
                      }
   where
     splitTransitions at = do
@@ -304,8 +302,7 @@ refineSemantic env prog at = do
         let pids = concatMap (\p -> HashMap.lookupDefault [] p t2tr) parents
         let gids = Map.keys $ Map.filter (`elem` pids) gr
         let fids = concatMap (\gid -> Set.toList $ Map.findWithDefault Set.empty gid gm) gids
-        let fids' = filter (not . ("|clone" `isSuffixOf`)) fids
-        sigs <- mapM (splitTransition env at) fids'
+        sigs <- mapM (splitTransition env at) fids
         let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
         let tvs = env ^. boundTypeVars
         let envSigs = Map.fromList (concat sigs)
@@ -398,9 +395,6 @@ initNet env = withTime ConstructionTime $ do
     modify $ set instanceMapping HashMap.empty
 
     addSignatures env
-    -- add clone functions for each type
-    allTy <- gets (HashMap.keys . view type2transition)
-    mapM_ addCloneFunction (filter (not . isAFunctionT) allTy)
     -- add higher order query arguments
     let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
     mapM_ addMusters (Map.keys hoArgs)
@@ -455,7 +449,7 @@ findPath env dst st = do
             let args = Map.keys $ foArgsOf env
             let firedTrans = res
             writeLog 2 "findPath" $ text "found path" <+> pretty firedTrans
-            let sigNames = filter skipClone firedTrans
+            let sigNames = firedTrans
             -- dsigs <- gets $ view detailedSigs
             -- let sigNames' = filter (\name -> Set.member name dsigs || pairProj `isPrefixOf` name) sigNames
             let sigs = substPair (map (findFunction fm) sigNames)
@@ -483,7 +477,6 @@ findPath env dst st = do
         let rets = filter (isSubtypeOf bound tgt) (allTypesOf cover)
         liftIO (evalStateT (generateProgram sigs src args rets) initialFormer)
 
-    skipClone = not . isInfixOf "|clone"
     removeSuffix = removeLast '|'
 
     substPair [] = []
@@ -669,14 +662,6 @@ recoverNames mapping (Program (PFun x body) t) = Program (PFun x body') t
     body' = recoverNames mapping body
 
 {- helper functions -}
-addCloneFunction ty = do
-    let fname = show ty ++ "|clone"
-    let fc = FunctionCode fname [] [ty] [ty, ty]
-    let addTransition k tid = HashMap.insertWith (\[x] y -> nubOrd $ x:y) k [tid]
-    modify $ over functionMap (HashMap.insert fname fc)
-    -- modify $ over currentSigs (Map.insert fname fc)
-    modify $ over type2transition (addTransition ty fname)
-    return fname
 
 attachLast :: AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
 attachLast t (AFunctionT tArg tRes) | isAFunctionT tRes = AFunctionT tArg (attachLast t tRes)

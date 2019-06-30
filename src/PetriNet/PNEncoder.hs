@@ -56,13 +56,20 @@ setInitialState inputs places = do
     let nonInputs = filter (`notElem` inputs) places
     let inputCounts = map (\t -> (head t, length t)) (group (sort inputs))
     let nonInputCounts = map (, 0) nonInputs
-    mapM_ (uncurry assignToken) (inputCounts ++ nonInputCounts)
+    mapM_ (uncurry assignToken) nonInputCounts
+    mapM_ (uncurry assignInput) inputCounts
   where
     assignToken p v = do
         placeMap <- gets place2variable
         tVar <- mkZ3IntVar $ findVariable "place2variable" (p, 0) placeMap
         eq <- mkIntNum v >>= mkEq tVar
         modify $ \st -> st { optionalConstraints = eq : optionalConstraints st }
+
+    assignInput p v = do
+        placeMap <- gets place2variable
+        tVar <- mkZ3IntVar $ findVariable "place2variable" (p, 0) placeMap
+        ge <- mkIntNum v >>= mkGe tVar
+        modify $ \st -> st { optionalConstraints = ge : optionalConstraints st }
 
 -- | set the final solver state, we allow only one token in the return type
 -- and maybe several tokens in the "void" place
