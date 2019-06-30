@@ -33,7 +33,7 @@ data FunctionCode = FunctionCode {
 
 instance Eq FunctionCode where
   fc1 == fc2 = let
-    areEq arg = on (==) (Set.fromList . arg) fc1 fc2
+    areEq arg = on (==) arg fc1 fc2
     in areEq hoParams && areEq funParams && areEq funReturn
 
 instance Ord FunctionCode where

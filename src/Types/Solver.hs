@@ -19,6 +19,7 @@ import Types.Common
 import Types.Encoder
 
 rootNode = AScalar (ATypeVarT varName)
+pairProj = "pair_match"
 
 type AbstractCover = HashMap AbstractSkeleton (Set AbstractSkeleton)
 
