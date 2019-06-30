@@ -56,9 +56,9 @@ data EncodeState = EncodeState {
   loc :: Int,
   transitionNb :: Int,
   variableNb :: Int,
-  place2variable :: HashMap (Id, Int) Int, -- place name and timestamp
-  time2variable :: HashMap Int Int, -- timestamp and abstraction level
-  transition2id :: HashMap Id Int, -- transition name and abstraction level
+  place2variable :: HashMap (Id, Int) Z3.AST, -- place name and timestamp
+  time2variable :: HashMap Int Z3.AST, -- timestamp and abstraction level
+  transition2id :: HashMap Id Z3.AST, -- transition name and abstraction level
   id2transition :: HashMap Int Id,
   mustFirers :: HashMap Id [Id],
   ty2tr :: HashMap Id [Id],
@@ -66,7 +66,7 @@ data EncodeState = EncodeState {
   incrementalSolving :: Bool,
   disabledTrans :: [Id],
   returnTyps :: [Id],
-  persistConstraints :: [Z3.AST],
+  persistConstraints :: HashMap Id Z3.AST,
   optionalConstraints :: [Z3.AST],
   finalConstraints :: [Z3.AST],
   blockConstraints :: [Z3.AST]
@@ -89,7 +89,7 @@ emptyEncodeState = EncodeState {
   incrementalSolving = False,
   disabledTrans = [],
   returnTyps = [],
-  persistConstraints = [],
+  persistConstraints = HashMap.empty,
   optionalConstraints = [],
   finalConstraints = [],
   blockConstraints = []

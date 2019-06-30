@@ -61,13 +61,13 @@ setInitialState inputs places = do
   where
     assignToken p v = do
         placeMap <- gets place2variable
-        tVar <- mkZ3IntVar $ findVariable "place2variable" (p, 0) placeMap
+        let tVar = findVariable "place2variable" (p, 0) placeMap
         eq <- mkIntNum v >>= mkEq tVar
         modify $ \st -> st { optionalConstraints = eq : optionalConstraints st }
 
     assignInput p v = do
         placeMap <- gets place2variable
-        tVar <- mkZ3IntVar $ findVariable "place2variable" (p, 0) placeMap
+        let tVar = findVariable "place2variable" (p, 0) placeMap
         ge <- mkIntNum v >>= mkGe tVar
         modify $ \st -> st { optionalConstraints = ge : optionalConstraints st }
 
@@ -84,7 +84,7 @@ setFinalState ret places = do
     includeRet = do
         placeMap <- gets place2variable
         l <- gets loc
-        retVar <- mkZ3IntVar $ findVariable "place2variable" (ret, l) placeMap
+        let retVar = findVariable "place2variable" (ret, l) placeMap
         assrt <- mkIntNum 1 >>= mkEq retVar
         modify $ \st -> st { finalConstraints = assrt : finalConstraints st }
 
@@ -92,7 +92,7 @@ setFinalState ret places = do
         l <- gets loc
         placeMap <- gets place2variable
         when (p /= "void") $ do
-            tVar <- mkZ3IntVar $ findVariable "place2variable" (p, l) placeMap
+            let tVar = findVariable "place2variable" (p, l) placeMap
             eq <- mkIntNum 0 >>= mkEq tVar
             modify $ \st -> st { finalConstraints = eq : finalConstraints st }
             -- assert eq
@@ -116,7 +116,7 @@ addAllConstraints = do
     ocons <- gets optionalConstraints
     fcons <- gets finalConstraints
     bcons <- gets blockConstraints
-    mapM_ assert pcons
+    mapM_ assert (HashMap.elems pcons)
     mapM_ assert ocons
     mapM_ assert fcons
     mapM_ assert bcons
@@ -228,7 +228,7 @@ solveAndGetModel = do
 
     checkPlace model p t = do
         placeMap <- gets place2variable
-        pVar <- mkZ3IntVar (findVariable "placemap" (p, t) placeMap)
+        let pVar = findVariable "placemap" (p, t) placeMap
         maybeInt <- evalInt model pVar
         case maybeInt of
           Just i -> mkIntNum i >>= mkEq pVar
@@ -236,7 +236,7 @@ solveAndGetModel = do
 
     checkLit model t = do
         tsMap <- gets time2variable
-        tsVar <- mkZ3IntVar (findVariable "time2variable" t tsMap)
+        let tsVar = findVariable "time2variable" t tsMap
         bMay <- evalInt model tsVar
         case bMay of
             Just b -> return b
@@ -244,7 +244,7 @@ solveAndGetModel = do
 
     blockTr t tr = do
         tsMap <- gets time2variable
-        tsVar <- mkZ3IntVar (findVariable "time2variable" t tsMap)
+        let tsVar = findVariable "time2variable" t tsMap
         mkIntNum tr >>= mkEq tsVar
 
 encoderInit :: Int -> HashMap Id [Id] -> [Id] -> [Id] -> [FunctionCode] -> HashMap Id [Id] -> Bool -> IO EncodeState
@@ -355,20 +355,22 @@ disableTransitions :: [Id] -> Int -> Encoder ()
 disableTransitions trs t = mapM_ disableTrAt $ nub trs
   where
     disableTrAt tr = do
-        transMap <- gets transition2id
-        tsMap <- gets time2variable
-        trVar <- mkIntNum (findVariable "transition2id" tr transMap)
-        tsVar <- mkZ3IntVar (findVariable "time2variable" t tsMap)
-        eq <- mkEq tsVar trVar >>= mkNot
-        modify $ \st -> st { persistConstraints = eq : persistConstraints st }
-        incremental <- gets incrementalSolving
-        when incremental $ assert eq
+        ifM (gets incrementalSolving)
+            (do
+                transMap <- gets transition2id
+                tsMap <- gets time2variable
+                let trVar = findVariable "transition2id" tr transMap
+                let tsVar = findVariable "time2variable" t tsMap
+                eq <- mkEq tsVar trVar >>= mkNot
+                assert eq
+                )
+            (modify $ \st -> st { persistConstraints = HashMap.delete (show (tr, t)) (persistConstraints st)})
 
 -- | add variables for each place
 addPlaceVar ::  Id -> Int -> Encoder ()
 addPlaceVar p t = do
     st <- get
-    let placeVar = variableNb st
+    placeVar <- mkZ3IntVar $ variableNb st
     let p2v = HashMap.insert (p, t) placeVar $ place2variable st
     unless (HashMap.member (p, t) (place2variable st))
             (put $ st { place2variable = p2v
@@ -383,16 +385,17 @@ addTransitionVar = mapM_ addTransitionVarFor
     addTransitionVarFor tr = do
         st <- get
         let tid = transitionNb st
+        trVar <- mkIntNum tid
         unless (HashMap.member tr (transition2id st))
                (put $ st { transitionNb = 1 + transitionNb st
-                         , transition2id = HashMap.insert tr tid $ transition2id st
+                         , transition2id = HashMap.insert tr trVar $ transition2id st
                          , id2transition = HashMap.insert tid tr $ id2transition st
                          })
 
 addTimestampVar :: Int -> Encoder ()
 addTimestampVar t = do
     st <- get
-    let tsVar = variableNb st
+    tsVar <- mkZ3IntVar $ variableNb st
     unless (HashMap.member t (time2variable st))
            (put $ st { time2variable = HashMap.insert t tsVar $ time2variable st
                      , variableNb = variableNb st + 1
@@ -445,10 +448,9 @@ nonnegativeTokens places = do
     nonnegAt p t = do
         placeMap <- gets place2variable
         let pVar = findVariable "placemap" (p, t) placeMap
-        pZ3Var <- mkZ3IntVar pVar
         zero <- mkIntNum 0
-        geZero <- mkGe pZ3Var zero
-        modify $ \st -> st { persistConstraints = geZero : persistConstraints st }
+        geZero <- mkGe pVar zero
+        modify $ \st -> st { persistConstraints = HashMap.insert (show (p,t)) geZero (persistConstraints st) }
         incremental <- gets incrementalSolving
         when incremental $ assert geZero
 
@@ -463,11 +465,10 @@ transitionRng = do
         tsMap <- gets time2variable
         transMax <- gets transitionNb
         let tsVar = findVariable "time2variable" t tsMap
-        tsZ3Var <- mkZ3IntVar tsVar
         start <- mkIntNum 0
-        geStart <- mkGe tsZ3Var start
+        geStart <- mkGe tsVar start
         end <- mkIntNum transMax
-        ltEnd <- mkLt tsZ3Var end
+        ltEnd <- mkLt tsVar end
         modify $ \st -> st { optionalConstraints = ltEnd : geStart : optionalConstraints st }
 
 -- | if this place has no connected transition fired,
@@ -480,58 +481,52 @@ noTransitionTokens t p = do
     noFireLvs <- noFireAt transitions p t
     noFire <- mkOr noFireLvs >>= mkNot
     placeMap <- gets place2variable
-    curr <- mkZ3IntVar $ findVariable "placemap" (p, t) placeMap
-    next <- mkZ3IntVar $ findVariable "placemap" (p, t + 1) placeMap
+    let curr = findVariable "placemap" (p, t) placeMap
+    let next = findVariable "placemap" (p, t + 1) placeMap
     tokenSame <- mkEq curr next
     noChange <- mkImplies noFire tokenSame
     modify $ \st -> st { optionalConstraints = noChange : optionalConstraints st }
   where
     noFireAt transitions p t = do
-        idVars <- mapM mkIntNum transitions
         tsMap <- gets time2variable
         let tsVar = findVariable "time2variable" t tsMap
-        tsZ3Var <- mkZ3IntVar tsVar
-        mapM (mkEq tsZ3Var) idVars
+        mapM (mkEq tsVar) transitions
 
 fireTransitions :: Int -> FunctionCode -> Encoder ()
 fireTransitions t (FunctionCode name [] params rets) = do
     transMap <- gets transition2id
     placeMap <- gets place2variable
     tsMap <- gets time2variable
+
     -- accumulate counting for parameters and return types
-    let tid = findVariable "transition2id" name transMap
     let pcnt = map (\l -> (show (head l), length l)) (group (sort params))
     let pmap = HashMap.fromList pcnt
     let rmap = foldl' (\acc t -> HashMap.insertWith (+) (show t) (-1) acc) pmap rets
     let rcnt = HashMap.toList rmap
-    let tsVar = findVariable "time2variable" t tsMap
-    tsZ3Var <- mkZ3IntVar tsVar
-    trVar <- mkIntNum tid
     changes <- mapM (mkChange t) rcnt
-    -- all parameter tokens must have the same color
-    -- if one place has the id of p, then p + 1 indicates its colorful token number
-    -- p + 2 indicates its color index
-    let places = map fst pcnt
-    fire <- mkEq tsZ3Var trVar
+
+    let tsVar = findVariable "time2variable" t tsMap
+    let trVar = findVariable "transition2id" name transMap
+    fire <- mkEq tsVar trVar
     enoughTokens <- mapM getSatisfiedPlace pcnt
     postCond <- mkAnd (enoughTokens ++ changes)
     tokenChange <- mkImplies fire postCond
-    modify $ \st -> st { persistConstraints = tokenChange : persistConstraints st }
+    modify $ \st -> st { persistConstraints = HashMap.insert (show (name, t)) tokenChange (persistConstraints st) }
     incremental <- gets incrementalSolving
     when incremental $ assert tokenChange
   where
     mkChange t (p, diff) = do
         let d = -diff
         placeMap <- gets place2variable
-        before <- mkZ3IntVar $ findVariable "placemap" (p, t) placeMap
-        after <- mkZ3IntVar $ findVariable "placemap" (p, t + 1) placeMap
+        let before = findVariable "placemap" (p, t) placeMap
+        let after = findVariable "placemap" (p, t + 1) placeMap
         diffw <- mkIntNum d
         mkAdd [before, diffw] >>= mkEq after
 
     getSatisfiedPlace (p, cnt) = do
         w <- mkIntNum cnt
         placeMap <- gets place2variable
-        pVar <- mkZ3IntVar (findVariable "placemap" (p, t) placeMap)
+        let pVar = findVariable "placemap" (p, t) placeMap
         mkGe pVar w
 fireTransitions t fc = error $ "unhandled " ++ show fc
 
@@ -544,9 +539,8 @@ mustFireTransitions = do
     fireTransition tid = do
         l <- gets loc
         tsMap <- gets time2variable
-        trId <- mkIntNum tid
-        tsVars <- mapM (\t -> mkZ3IntVar (findVariable "time2variable" t tsMap)) [0..(l-1)]
-        mapM (mkEq trId) tsVars
+        let tsVars = map (\t -> findVariable "time2variable" t tsMap) [0..(l-1)]
+        mapM (mkEq tid) tsVars
 
     fireTransitionFor (_, tids) = do
         transitions <- gets transition2id
