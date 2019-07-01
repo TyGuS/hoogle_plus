@@ -6,6 +6,7 @@ import BConfig
 import Synquid.Util
 import Types.Experiments
 import Types.Environment
+import PetriNet.GHCChecker (toHaskellSolution)
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -61,19 +62,25 @@ toLaTeX table = let
   headers = map fst table
   body = map snd table
   bodyT = transpose body -- row-major order
-  bodyTWithIndex = zip [1..] bodyT
+  bodyTMultiLined = map (map mkMultiLined) bodyT
+  bodyTWithIndex = zip [1..] bodyTMultiLined
   bodyTable = map toLatexLine bodyTWithIndex
-  headerAlignment = intercalate "r" (replicate (length headers + 2) "|")
+  headerAlignment = intercalate "c" (replicate (length headers + 2) "|")
   headerLine = intercalate " & " ("Num" : headers) ++ "\\\\ \n\\hline"
   coredata = unlines (headerLine:bodyTable)
   in printf "\\begin{figure}\n\\resizebox{\\textwidth}{!}{ \\begin{tabular}{%s}\\hline\n%s\n\\hline \\end{tabular}} <yourcaptionhere> \\end{figure}" headerAlignment coredata
   where
     toLatexLine (idx, cells) = (replaceWithLatex $ intercalate " & " (show idx : cells)) ++ " \\\\"
-
     replaceWithLatex str = let
-      regex = mkRegex "->"
-      sub = "$\\rightarrow$"
-      in subRegex regex str sub
+      replaceWith (match, sub) str = subRegex (mkRegex match) str sub
+      replacements = [("->", "$\\rightarrow$"), ("=>", "$\\Rightarrow$")]
+      in foldr replaceWith str replacements
+    mkMultiLined str | length (lines str) == 0 = str
+    mkMultiLined str | otherwise = let
+      eachLine = lines str
+      lineContent = intercalate " \\\\ " $ map replaceWithLatex eachLine
+      tableWrapper = "\\begin{tabular}{@{}c@{}} %s \\end{tabular}"
+      in printf tableWrapper lineContent
 
 toEnvTable :: [(Environment, String)] -> String
 toEnvTable envAndNames = let
@@ -140,7 +147,7 @@ toRow currentExp (name, rss) =
     rowForExp CompareSolutions = let
         -- come in reverse order, so we must flip it.
         queryRefinementResults = reverse (fromJust (results <$> mbqr)) :: [Result]
-        toSolution = (either show id . resSolutionOrError) :: Result -> String
+        toSolution = (either show toHaskellSolution . resSolutionOrError) :: Result -> String
         timeToAll = sum $ map resTFirstSoln queryRefinementResults
       in
         [
