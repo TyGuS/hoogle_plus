@@ -38,15 +38,15 @@ runPool setup exps pool = do
   return $ map mergeEithers nestedEithers
   where
     listOfExpsToDo :: [Experiment] -> [IO [(Either EvaluationException (Maybe RProgram), TimeStatistics)]]
-    listOfExpsToDo = map (runExperiment setup)
+    listOfExpsToDo xs = map (runExperiment setup) (zip xs $ zip [1..] $ repeat (length xs))
     mergeEithers :: Either SomeException [(Either EvaluationException b, TimeStatistics)] -> [(Either EvaluationException b, TimeStatistics)]
     mergeEithers (Left err) = [(Left (RuntimeException err), emptyTimeStats)]
     mergeEithers (Right rest) = rest
 
-runExperiment :: ExperimentSetup -> Experiment -> IO [(Either EvaluationException (Maybe RProgram), TimeStatistics)]
-runExperiment setup (env, envName, q, params, paramName) = do
+runExperiment :: ExperimentSetup -> (Experiment,(Int, Int)) -> IO [(Either EvaluationException (Maybe RProgram), TimeStatistics)]
+runExperiment setup ((env, envName, q, params, paramName), (n, total)) = do
   let queryStr = query q
-  printf "Running: %s\n" queryStr
+  printf "Running[%d/%d]: %s\n" n total queryStr
   let timeoutUs = expTimeout setup * 10^6 -- Timeout in microseconds
   goal <- envToGoal env queryStr
   messageChan <- newChan
@@ -54,7 +54,6 @@ runExperiment setup (env, envName, q, params, paramName) = do
     timeout timeoutUs $ synthesize params goal messageChan
     writeChan messageChan (MesgClose CSTimeout) -- could possibly be putting a second close on the channel.
   readChan messageChan >>= collectResults messageChan []
-
 
 -- collectResults will listen to a channel until it closes. Intermediate results are put on top
 -- and replace existing intermediate results. Once a program/stats pair comes in, that will replace
@@ -84,41 +83,10 @@ summarizeResult :: ExperimentCourse
 summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
   results = case (currentExperiment, r) of
     (_, []) -> [emptyResult {resSolutionOrError = Left TimeoutException}]
-    (TrackTypesAndTransitions, (errOrMbSoln, firstR):_) -> let
-      safeTransitions = map snd (Map.toAscList (numOfTransitions firstR))
-      safeTypes = map snd (Map.toAscList (numOfPlaces firstR))
-      in [emptyResult {
-      resSolutionOrError = fmap (\x -> (mkOneLine . fromMaybe "No Solution") (show <$> x)) errOrMbSoln,
-      resTFirstSoln = totalTime firstR,
-      resTEncFirstSoln = encodingTime firstR,
-      resLenFirstSoln = pathLength firstR,
-      resRefinementSteps = iterations firstR,
-      resTransitions = safeTransitions,
-      resTypes = safeTypes,
-      resDuplicateSymbols = duplicateSymbols firstR
-      }]
-    (CompareSolutions, solns) -> let
-      -- toSolution (Right (Just soln), _) = emptyResult {resSolutionOrError = (Right $ show soln)}
-      -- toSolution (Right Nothing, _) = emptyResult {resSolutionOrError = Left NoSolutionException}
-      -- toSolution (Left err, _) = emptyResult {resSolutionOrError = Left err}
-      toSolution (soln, timeStats) = outputToResult soln timeStats
-      in map toSolution solns
-    (_, (errOrMbSoln, firstR):_) -> let
-      unsafeTransitions = map snd $ Map.toDescList $ numOfTransitions firstR
-      unsafeTypes = map snd $ Map.toDescList $ numOfPlaces firstR
-      safeTransitions = map snd (Map.toAscList (numOfTransitions firstR))
-      safeTypes = map snd (Map.toAscList (numOfPlaces firstR))
-      in [emptyResult {
-        resSolutionOrError = fmap (mkOneLine . show) errOrMbSoln,
-        resTFirstSoln = totalTime firstR,
-        resTEncFirstSoln = encodingTime firstR,
-        resTSolveFirstSoln = solverTime firstR,
-        resLenFirstSoln = pathLength firstR,
-        resRefinementSteps = iterations firstR,
-        resTransitions = safeTransitions,
-        resTypes = safeTypes,
-        resDuplicateSymbols = duplicateSymbols firstR
-      }]
+    -- We want all the solutions
+    (CompareSolutions, solns) -> map outputToResult solns
+    -- We only want one solution
+    (_, solns) -> [outputToResult $ head solns]
 
   in ResultSummary {
     envName = envN,
@@ -130,8 +98,8 @@ summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
   where
     errorhead msg xs = fromMaybe (error msg) $ listToMaybe xs
 
-    outputToResult :: Either EvaluationException (Maybe RProgram) -> TimeStatistics -> Result
-    outputToResult soln stats = let
+    outputToResult :: (Either EvaluationException (Maybe RProgram), TimeStatistics) -> Result
+    outputToResult (soln,stats) = let
       safeTransitions = map snd (Map.toAscList (numOfTransitions stats))
       safeTypes = map snd (Map.toAscList (numOfPlaces stats))
       solution = either Left (maybe (Left NoSolutionException) (Right . mkOneLine . show)) soln

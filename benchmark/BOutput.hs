@@ -14,6 +14,8 @@ import Data.List
 import Data.List.Extra
 import Data.Bool (bool)
 import Data.Maybe
+import Text.Regex
+import Text.Printf
 import Text.Layout.Table
 import Control.Exception
 
@@ -54,6 +56,25 @@ toTSV table = let
   in
     intercalate "\r\n" rows
 
+toLaTeX :: [(String, [String])] -> String
+toLaTeX table = let
+  headers = map fst table
+  body = map snd table
+  bodyT = transpose body -- row-major order
+  bodyTWithIndex = zip [1..] bodyT
+  bodyTable = map toLatexLine bodyTWithIndex
+  headerAlignment = intercalate "r" (replicate (length headers + 2) "|")
+  headerLine = intercalate " & " ("Num" : headers) ++ "\\\\ \n\\hline"
+  coredata = unlines (headerLine:bodyTable)
+  in printf "\\begin{figure}\n\\resizebox{\\textwidth}{!}{ \\begin{tabular}{%s}\\hline\n%s\n\\hline \\end{tabular}} <yourcaptionhere> \\end{figure}" headerAlignment coredata
+  where
+    toLatexLine (idx, cells) = (replaceWithLatex $ intercalate " & " (show idx : cells)) ++ " \\\\"
+
+    replaceWithLatex str = let
+      regex = mkRegex "->"
+      sub = "$\\rightarrow$"
+      in subRegex regex str sub
+
 toEnvTable :: [(Environment, String)] -> String
 toEnvTable envAndNames = let
   body = map toEnvLine envAndNames
@@ -81,6 +102,7 @@ instance Summary [ResultSummary] where
   outputSummary Table CompareSolutions = error "Use TSV; theres a library bug here."
   outputSummary Table exp = toAsciiTable . (toTabling exp) . toGroup
   outputSummary TSV exp = toTSV . (toTabling exp) . toGroup
+  outputSummary Latex exp = toLaTeX . (toTabling exp) . toGroup
 
 
 headersList :: ExperimentCourse -> [String]
@@ -123,7 +145,7 @@ toRow currentExp (name, rss) =
       in
         [
           (showFloat . resTFirstSoln) <$> listToMaybe queryRefinementResults, -- First
-          bool Nothing (Just (show timeToAll)) (timeToAll /= 0), -- All
+          bool Nothing (Just (showFloat timeToAll)) (timeToAll /= 0), -- All
           Just $ unlines (map (mkOneLine . toSolution) queryRefinementResults)
         ]
 
