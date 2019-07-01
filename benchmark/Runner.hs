@@ -60,7 +60,7 @@ runExperiment setup (env, envName, q, params, paramName) = do
 -- and replace existing intermediate results. Once a program/stats pair comes in, that will replace
 -- any such intermediate results.
 collectResults :: Chan Message -> [(Either EvaluationException (Maybe RProgram), TimeStatistics)] -> Message
-                            -> IO [(Either EvaluationException (Maybe RProgram), TimeStatistics)]
+               -> IO [(Either EvaluationException (Maybe RProgram), TimeStatistics)]
 collectResults ch res (MesgClose CSNormal) = return res
 collectResults ch ((_,stats):xs) (MesgClose CSTimeout) = return ((Left TimeoutException, stats):xs)
 collectResults ch ((_,stats):xs) (MesgClose CSNoSolution) = return ((Left NoSolutionException, stats):xs)
@@ -78,7 +78,9 @@ collectResults ch ((Right Nothing, _):xs) (MesgS ts) = readChan ch >>= collectRe
 collectResults ch xs (MesgS ts) = readChan ch >>= collectResults ch ((Right Nothing, ts):xs)
 collectResults ch xs _ = readChan ch >>= collectResults ch xs
 
-summarizeResult :: ExperimentCourse -> (Experiment, [(Either EvaluationException (Maybe RProgram), TimeStatistics)]) -> ResultSummary
+summarizeResult :: ExperimentCourse
+                -> (Experiment, [(Either EvaluationException (Maybe RProgram), TimeStatistics)])
+                -> ResultSummary
 summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
   results = case (currentExperiment, r) of
     (_, []) -> [emptyResult {resSolutionOrError = Left TimeoutException}]
@@ -96,9 +98,10 @@ summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
       resDuplicateSymbols = duplicateSymbols firstR
       }]
     (CompareSolutions, solns) -> let
-      toSolution (Right (Just soln), _) = emptyResult {resSolutionOrError = (Right $ show soln)}
-      toSolution (Right Nothing, _) = emptyResult {resSolutionOrError = Left NoSolutionException}
-      toSolution (Left err, _) = emptyResult {resSolutionOrError = Left err}
+      -- toSolution (Right (Just soln), _) = emptyResult {resSolutionOrError = (Right $ show soln)}
+      -- toSolution (Right Nothing, _) = emptyResult {resSolutionOrError = Left NoSolutionException}
+      -- toSolution (Left err, _) = emptyResult {resSolutionOrError = Left err}
+      toSolution (soln, timeStats) = outputToResult soln timeStats
       in map toSolution solns
     (_, (errOrMbSoln, firstR):_) -> let
       unsafeTransitions = map snd $ Map.toDescList $ numOfTransitions firstR
@@ -126,3 +129,20 @@ summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
     }
   where
     errorhead msg xs = fromMaybe (error msg) $ listToMaybe xs
+
+    outputToResult :: Either EvaluationException (Maybe RProgram) -> TimeStatistics -> Result
+    outputToResult soln stats = let
+      safeTransitions = map snd (Map.toAscList (numOfTransitions stats))
+      safeTypes = map snd (Map.toAscList (numOfPlaces stats))
+      solution = either Left (maybe (Left NoSolutionException) (Right . mkOneLine . show)) soln
+      in emptyResult {
+        resSolutionOrError = solution,
+        resTFirstSoln = totalTime stats,
+        resTEncFirstSoln = encodingTime stats,
+        resLenFirstSoln = pathLength stats,
+        resRefinementSteps = iterations stats,
+        resTransitions = safeTransitions,
+        resTypes = safeTypes,
+        resDuplicateSymbols = duplicateSymbols stats
+        }
+

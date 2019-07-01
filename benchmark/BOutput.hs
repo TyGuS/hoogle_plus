@@ -102,7 +102,7 @@ toRow :: ExperimentCourse -> (String, [ResultSummary]) -> [String]
 toRow currentExp (name, rss) =
     map (fromMaybe "-") ([
       Just name,
-      queryStr <$> mbExp
+      queryStr <$> mbqr
       ] ++ (rowForExp currentExp))
   where
     findwhere name = find ((==) name . paramName)
@@ -111,20 +111,19 @@ toRow currentExp (name, rss) =
     mbqr = findwhere expTyGarQ rss
     mbzero = findwhere expTyGar0 rss
     mbbaseline = findwhere expSypetClone rss
-    mbExp = find (\x -> (paramName x == expTyGarQ))  rss
     mbExpNoDmd = find (\x -> (paramName x == expTyGarQNoDmd))  rss
     mbNoCoalescing = findwhere expTyGarQNoCoalesce rss
 
     rowForExp :: ExperimentCourse -> [Maybe String]
     rowForExp CompareSolutions = let
         -- come in reverse order, so we must flip it.
-        queryRefinementResults = reverse (fromJust (results <$> mbExp)) :: [Result]
+        queryRefinementResults = reverse (fromJust (results <$> mbqr)) :: [Result]
         toSolution = (either show id . resSolutionOrError) :: Result -> String
         timeToAll = sum $ map resTFirstSoln queryRefinementResults
       in
         [
-          (show . resTFirstSoln) <$> listToMaybe queryRefinementResults, -- First
-          bool Nothing (Just (show timeToAll)) (timeToAll /= 0), -- All
+          (showFloat . resTFirstSoln) <$> listToMaybe queryRefinementResults, -- First
+          bool (Just (show timeToAll)) Nothing (timeToAll /= 0), -- All
           Just $ unlines (map (mkOneLine . toSolution) queryRefinementResults)
         ]
 

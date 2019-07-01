@@ -1,8 +1,3 @@
 [
-    {"name": "sum lists", "query": "Ord a => [a] -> [a] -> a"},
-    {"name": "sum ints", "query": "[Int] -> [Int] -> Int"},
-    {"name": "conjunctMaybe", "query": "List (Maybe Bool) -> Bool"},
-    {"name": "firstMaybe", "query": "a -> List (Maybe a) -> a"},
-    {"name": "both", "query": "Pair a a -> (a -> b) -> Pair b b"},
-    {"name": "firstJust", "query": "(a -> Maybe b) -> List a -> Maybe b", "note": "Partial Required"}
+    {"name": "conjunctMaybe", "query": "List (Maybe Bool) -> Bool"}
 ]

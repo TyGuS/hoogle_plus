@@ -26,8 +26,8 @@ defaultArgs = Args {
   argsQueryFile=defaultQueryFile &= name "queries" &= typFile,
   argsTimeout=defaultTimeout &= name "timeout" &= help "Each experiment will have N seconds to complete" ,
   argsOutputFile=Nothing &= name "output" &= typFile,
-  argsExperiment=defaultExperiment &= name "experiment",
-  argsOutputFormat=Table &= name "format",
+  argsExperiment=defaultExperiment &= argPos 0,
+  argsOutputFormat=TSV &= name "format",
   argsPreset=POPL &= name "preset" &= help "Component set preset"
   }
 
