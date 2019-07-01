@@ -4,6 +4,7 @@ module BTypes where
 
 import Types.Environment
 import Types.Experiments
+import Types.Generate
 
 import GHC.Generics
 import GHC.Exception
@@ -18,7 +19,8 @@ data Args = Args {
   argsTimeout :: Int, -- Timeout in seconds
   argsOutputFile :: Maybe FilePath,
   argsExperiment :: ExperimentCourse,
-  argsOutputFormat :: ResultFormat
+  argsOutputFormat :: ResultFormat,
+  argsPreset :: Preset
   } deriving (Show, Data, Typeable)
 
 data ExperimentSetup = ExpSetup {
