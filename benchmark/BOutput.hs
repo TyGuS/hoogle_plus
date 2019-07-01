@@ -123,7 +123,7 @@ toRow currentExp (name, rss) =
       in
         [
           (showFloat . resTFirstSoln) <$> listToMaybe queryRefinementResults, -- First
-          bool (Just (show timeToAll)) Nothing (timeToAll /= 0), -- All
+          bool Nothing (Just (show timeToAll)) (timeToAll /= 0), -- All
           Just $ unlines (map (mkOneLine . toSolution) queryRefinementResults)
         ]
 
