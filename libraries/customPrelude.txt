@@ -1,0 +1,229 @@
+@package base
+@version 4.12.0.0
+
+module Data.Either
+data Either a b
+Left :: a -> Either a b
+Right :: b -> Either a b
+either :: (a -> c) -> (b -> c) -> Either a b -> c
+lefts :: [Either a b] -> [a]
+rights :: [Either a b] -> [b]
+isLeft :: Either a b -> Bool
+isRight :: Either a b -> Bool
+fromLeft :: a -> Either a b -> a
+fromRight :: b -> Either a b -> b
+partitionEithers :: [Either a b] -> ([a], [b])
+instance (GHC.Show.Show a, GHC.Show.Show b) => GHC.Show.Show (Data.Either.Either a b)
+instance (GHC.Read.Read a, GHC.Read.Read b) => GHC.Read.Read (Data.Either.Either a b)
+instance (GHC.Classes.Ord a, GHC.Classes.Ord b) => GHC.Classes.Ord (Data.Either.Either a b)
+instance (GHC.Classes.Eq a, GHC.Classes.Eq b) => GHC.Classes.Eq (Data.Either.Either a b)
+
+module Data.Maybe
+data Maybe a
+Nothing :: Maybe a
+Just :: a -> Maybe a
+maybe :: b -> (a -> b) -> Maybe a -> b
+isJust :: Maybe a -> Bool
+isNothing :: Maybe a -> Bool
+fromJust :: Maybe a -> a
+fromMaybe :: a -> Maybe a -> a
+listToMaybe :: [a] -> Maybe a
+maybeToList :: Maybe a -> [a]
+catMaybes :: [Maybe a] -> [a]
+mapMaybe :: (a -> Maybe b) -> [a] -> [b]
+
+module Prelude
+data Bool
+False :: Bool
+True :: Bool
+(&&) :: Bool -> Bool -> Bool
+infixr 3 &&
+(||) :: Bool -> Bool -> Bool
+infixr 2 ||
+not :: Bool -> Bool
+otherwise :: Bool
+data Maybe a
+Nothing :: Maybe a
+Just :: a -> Maybe a
+maybe :: b -> (a -> b) -> Maybe a -> b
+data Either a b
+Left :: a -> Either a b
+Right :: b -> Either a b
+either :: (a -> c) -> (b -> c) -> Either a b -> c
+data Ordering
+LT :: Ordering
+EQ :: Ordering
+GT :: Ordering
+data Char
+type String = [Char]
+curry :: ((a, b) -> c) -> a -> b -> c
+uncurry :: (a -> b -> c) -> (a, b) -> c
+class Eq a
+(==) :: Eq a => a -> a -> Bool
+(/=) :: Eq a => a -> a -> Bool
+infix 4 ==
+infix 4 /=
+class Eq a => Ord a
+compare :: Ord a => a -> a -> Ordering
+(<) :: Ord a => a -> a -> Bool
+(<=) :: Ord a => a -> a -> Bool
+(>) :: Ord a => a -> a -> Bool
+(>=) :: Ord a => a -> a -> Bool
+max :: Ord a => a -> a -> a
+min :: Ord a => a -> a -> a
+infix 4 <
+infix 4 <=
+infix 4 >=
+infix 4 >
+class Enum a
+succ :: Enum a => a -> a
+pred :: Enum a => a -> a
+toEnum :: Enum a => Int -> a
+fromEnum :: Enum a => a -> Int
+enumFrom :: Enum a => a -> [a]
+enumFromThen :: Enum a => a -> a -> [a]
+enumFromTo :: Enum a => a -> a -> [a]
+enumFromThenTo :: Enum a => a -> a -> a -> [a]
+class Bounded a
+minBound :: Bounded a => a
+maxBound :: Bounded a => a
+data Int
+data Integer
+data Float
+data Double
+data Word
+class Num a
+(+) :: Num a => a -> a -> a
+(-) :: Num a => a -> a -> a
+(*) :: Num a => a -> a -> a
+negate :: Num a => a -> a
+abs :: Num a => a -> a
+signum :: Num a => a -> a
+fromInteger :: Num a => Integer -> a
+infixl 6 +
+infixl 6 -
+infixl 7 *
+
+id :: a -> a
+(.) :: (b -> c) -> (a -> b) -> a -> c
+infixr 9 .
+($) :: forall r a (b :: TYPE r). (a -> b) -> a -> b
+infixr 0 $
+until :: (a -> Bool) -> (a -> a) -> a -> a
+asTypeOf :: a -> a -> a
+
+type ShowS = String -> String
+class Show a
+showsPrec :: Show a => Int -> a -> ShowS
+show :: Show a => a -> String
+showList :: Show a => [a] -> ShowS
+shows :: Show a => a -> ShowS
+showChar :: Char -> ShowS
+showString :: String -> ShowS
+showParen :: Bool -> ShowS -> ShowS
+
+
+module Data.List
+(++) :: [a] -> [a] -> [a]
+infixr 5 ++
+head :: [a] -> a
+last :: [a] -> a
+tail :: [a] -> [a]
+init :: [a] -> [a]
+uncons :: [a] -> Maybe (a, [a])
+null :: [a] -> Bool
+length :: [a] -> Int
+map :: (a -> b) -> [a] -> [b]
+reverse :: [a] -> [a]
+intersperse :: a -> [a] -> [a]
+intercalate :: [a] -> [[a]] -> [a]
+transpose :: [[a]] -> [[a]]
+subsequences :: [a] -> [[a]]
+permutations :: [a] -> [[a]]
+foldl :: forall a b. (b -> a -> b) -> b -> [a] -> b
+foldl' :: forall a b. (b -> a -> b) -> b -> [a] -> b
+foldl1 :: (a -> a -> a) -> [a] -> a
+foldl1' :: (a -> a -> a) -> [a] -> a
+foldr :: (a -> b -> b) -> b -> [a] -> b
+foldr1 :: (a -> a -> a) -> [a] -> a
+concat :: [[a]] -> [a]
+concatMap :: (a -> [b]) -> [a] -> [b]
+and :: [Bool] -> Bool
+or :: [Bool] -> Bool
+any :: (a -> Bool) -> [a] -> Bool
+all :: (a -> Bool) -> [a] -> Bool
+sum :: Num a => [a] -> a
+product :: Num a => [a] -> a
+maximum :: Ord a => [a] -> a
+minimum :: Ord a => [a] -> a
+scanl :: (b -> a -> b) -> b -> [a] -> [b]
+scanl' :: (b -> a -> b) -> b -> [a] -> [b]
+scanl1 :: (a -> a -> a) -> [a] -> [a]
+scanr :: (a -> b -> b) -> b -> [a] -> [b]
+scanr1 :: (a -> a -> a) -> [a] -> [a]
+mapAccumL :: (acc -> x -> (acc, y)) -> acc -> [x] -> (acc, [y])
+mapAccumR :: (acc -> x -> (acc, y)) -> acc -> [x] -> (acc, [y])
+iterate :: (a -> a) -> a -> [a]
+iterate' :: (a -> a) -> a -> [a]
+repeat :: a -> [a]
+replicate :: Int -> a -> [a]
+cycle :: [a] -> [a]
+unfoldr :: (b -> Maybe (a, b)) -> b -> [a]
+take :: Int -> [a] -> [a]
+drop :: Int -> [a] -> [a]
+splitAt :: Int -> [a] -> ([a], [a])
+takeWhile :: (a -> Bool) -> [a] -> [a]
+dropWhile :: (a -> Bool) -> [a] -> [a]
+dropWhileEnd :: (a -> Bool) -> [a] -> [a]
+span :: (a -> Bool) -> [a] -> ([a], [a])
+break :: (a -> Bool) -> [a] -> ([a], [a])
+stripPrefix :: Eq a => [a] -> [a] -> Maybe [a]
+group :: Eq a => [a] -> [[a]]
+inits :: [a] -> [[a]]
+tails :: [a] -> [[a]]
+isPrefixOf :: Eq a => [a] -> [a] -> Bool
+isSuffixOf :: Eq a => [a] -> [a] -> Bool
+isInfixOf :: Eq a => [a] -> [a] -> Bool
+elem :: Eq a => a -> [a] -> Bool
+infix 4 `elem`
+notElem :: Eq a => a -> [a] -> Bool
+infix 4 `notElem`
+lookup :: Eq a => a -> [(a, b)] -> Maybe b
+find :: (a -> Bool) -> [a] -> Maybe a
+filter :: (a -> Bool) -> [a] -> [a]
+partition :: (a -> Bool) -> [a] -> ([a], [a])
+(!!) :: [a] -> Int -> a
+infixl 9 !!
+elemIndex :: Eq a => a -> [a] -> Maybe Int
+elemIndices :: Eq a => a -> [a] -> [Int]
+findIndex :: (a -> Bool) -> [a] -> Maybe Int
+findIndices :: (a -> Bool) -> [a] -> [Int]
+
+-- removed zip family >=3
+zip :: [a] -> [b] -> [(a, b)]
+zipWith :: (a -> b -> c) -> [a] -> [b] -> [c]
+unzip :: [(a, b)] -> ([a], [b])
+
+lines :: String -> [String]
+words :: String -> [String]
+unlines :: [String] -> String
+unwords :: [String] -> String
+nub :: Eq a => [a] -> [a]
+delete :: Eq a => a -> [a] -> [a]
+(\\) :: Eq a => [a] -> [a] -> [a]
+infix 5 \\
+union :: Eq a => [a] -> [a] -> [a]
+intersect :: Eq a => [a] -> [a] -> [a]
+sort :: Ord a => [a] -> [a]
+sortOn :: Ord b => (a -> b) -> [a] -> [a]
+insert :: Ord a => a -> [a] -> [a]
+nubBy :: (a -> a -> Bool) -> [a] -> [a]
+deleteBy :: (a -> a -> Bool) -> a -> [a] -> [a]
+deleteFirstsBy :: (a -> a -> Bool) -> [a] -> [a] -> [a]
+unionBy :: (a -> a -> Bool) -> [a] -> [a] -> [a]
+intersectBy :: (a -> a -> Bool) -> [a] -> [a] -> [a]
+groupBy :: (a -> a -> Bool) -> [a] -> [[a]]
+sortBy :: (a -> a -> Ordering) -> [a] -> [a]
+insertBy :: (a -> a -> Ordering) -> a -> [a] -> [a]
+maximumBy :: (a -> a -> Ordering) -> [a] -> a
+minimumBy :: (a -> a -> Ordering) -> [a] -> a

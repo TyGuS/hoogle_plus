@@ -1,10 +1,9 @@
-module PetriNet.GHCChecker (runGhcChecks) where
+module PetriNet.GHCChecker (
+    runGhcChecks, mkFunctionSigStr, mkLambdaStr,
+    removeTypeclasses, toHaskellSolution,
+    parseStrictnessSig, checkStrictness') where
 
 import Language.Haskell.Interpreter
-
-import qualified Data.Set as Set hiding (map)
-import Data.Map as Map hiding (map, foldr)
-import Control.Exception
 
 import Types.Environment
 import Types.Program
@@ -12,41 +11,49 @@ import Types.Type
 import Synquid.Type
 import Synquid.Util hiding (fromRight)
 import Synquid.Pretty as Pretty
+import Database.Util
 
--- TODO: filter out unecessary imports
+import Control.Exception
+import Control.Monad.Trans
+import CorePrep
+import CoreSyn
+import Data.Data
+import Data.Either
+import Data.List (isInfixOf, isPrefixOf, intercalate)
+import Data.List.Split (splitOn)
+import Data.Maybe
+import Data.Typeable
+import Demand
+import DmdAnal
+import DynFlags
+import FamInstEnv
 import GHC
 import GHC.Paths ( libdir )
 import HscTypes
-import CorePrep
-import DynFlags
-import CoreSyn
+import IdInfo
 import Outputable hiding (text, (<+>))
 import qualified CoreSyn as Syn
-import Control.Monad.Trans
-import Control.Exception
-import Var
-import IdInfo
-import Data.Typeable
-import Data.Either
-import Demand
-import Data.Data
-import FamInstEnv
-import DmdAnal
-import Data.List (isInfixOf)
+import qualified Data.Map as Map hiding (map, foldr)
+import qualified Data.Set as Set hiding (map)
+import qualified Data.Text as Text
+import SimplCore (core2core)
 import System.Directory (removeFile)
 import Text.Printf
-import SimplCore (core2core)
+import Text.Regex
+import Var
 
 showGhc :: (Outputable a) => a -> String
 showGhc = showPpr unsafeGlobalDynFlags
 
-checkStrictness' :: String -> [String] -> IO Bool
-checkStrictness' lambdaExpr modules = GHC.runGhc (Just libdir) $ do
+ourFunctionName = "ghcCheckedFunction"
+
+checkStrictness' :: Int -> String -> String -> [String] -> IO Bool
+checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just libdir) $ do
     tmpDir <- liftIO $ getTmpDir
     -- TODO: can we use GHC to dynamically compile strings? I think not
-    let toModuleImportStr = (printf "import qualified %s\n") :: String -> String
+    let toModuleImportStr = (printf "import %s\n") :: String -> String
     let moduleImports = concatMap toModuleImportStr modules
-    let sourceCode = printf "module Temp where\n%s\nfoo = %s\n" moduleImports lambdaExpr
+    let sourceCode = printf "module Temp where\n%s\n%s :: %s\n%s = %s\n" moduleImports ourFunctionName typeExpr ourFunctionName lambdaExpr
     let fileName = tmpDir ++ "/Temp.hs"
     liftIO $ writeFile fileName sourceCode
 
@@ -71,20 +78,40 @@ checkStrictness' lambdaExpr modules = GHC.runGhc (Just libdir) $ do
     -- prog is [<fooBinding>, <moduleBinding>]
     core' <- liftIO $ core2core env core
     prog <- liftIO $ (dmdAnalProgram dflags emptyFamInstEnvs $ mg_binds core')
-    let decl = prog !! 0 -- only one method
-    liftIO $ removeFile fileName
-
+    let decl = findOurBinding (prog :: [CoreBind]) -- only one method
+    -- liftIO $ removeFile fileName
+    -- liftIO $ printf "whole program: %s\n" $ showSDocUnsafe $ ppr $ prog
     -- TODO: I'm thinking of simply checking for the presence of `L` (lazy) or `A` (absent)
     -- on the singatures. That would be enough to show that the relevancy requirement is not met.
+
     case decl of
-        NonRec id _  -> do return $ isStrict id --liftIO $ putStrLn $ getStrictnessSig id
+        NonRec id rest -> do
+            -- liftIO $ printf "\nourDecl: %s\n" (showSDocUnsafe $ ppr decl)
+            return $ isStrict tyclassCount decl
         _ -> error "checkStrictness: recursive expression found"
 
-    where getStrictnessSig x = showSDocUnsafe $ ppr $ strictnessInfo $ idInfo x
-          isStrict x = not(isInfixOf "A" (getStrictnessSig x))
+    where
+        findOurBinding bs = head $ filter (\x-> ourFunctionName `isInfixOf` (showSDocUnsafe $ ppr x)) bs
+        getStrictnessSig x = parseStrictnessSig $ showSDocUnsafe $ ppr $ x
+        isStrict n x = let
+            strictnessSig = getStrictnessSig x
+            argStrictness = splitByArg strictnessSig
+            restSigs = drop n argStrictness
+            in not $ any (elem 'A') restSigs
+        splitByArg :: String -> [String]
+        splitByArg str = let
+            regex = mkRegex "><"
+            in splitRegex regex str
 
-checkStrictness :: String -> [String] -> IO Bool
-checkStrictness a b = handle (\(SomeException _) -> return False) (checkStrictness' a b)
+parseStrictnessSig :: String -> String
+parseStrictnessSig result = let
+    regex = mkRegex "Str=(<.*>)"
+    in case (matchRegex regex result) of
+        Just (match:_) -> match
+        _ -> error $ "unable to find strictness in: " ++ result
+
+checkStrictness :: Int -> String -> String -> [String] -> IO Bool
+checkStrictness tyclassCount body sig modules = handle (\(SomeException _) -> return False) (checkStrictness' tyclassCount body sig modules)
 
 runGhcChecks :: Bool -> Environment -> RType -> UProgram -> IO Bool
 runGhcChecks disableDemand env goalType prog = let
@@ -92,15 +119,17 @@ runGhcChecks disableDemand env goalType prog = let
     args = _arguments env
     modules = Set.toList $ _included_modules env
     argList = Map.toList args
+    tyclassCount = length $ Prelude.filter (\(id, _) -> tyclassArgBase `isPrefixOf` id) argList
     argNames = map fst argList
     argTypes = map snd argList
-    funcSig = mkFunctionSigStr (map toMonotype argTypes) goalType
+    monoGoals = (map toMonotype argTypes)
+    funcSig = mkFunctionSigStr (monoGoals ++ [goalType])
+    argTypesMap = Map.fromList $ zip (argNames) (map show monoGoals)
     body = mkLambdaStr argNames prog
     expr = body ++ " :: " ++ funcSig
-
     in do
         typeCheckResult <- runInterpreter $ checkType expr modules
-        strictCheckResult <- if disableDemand then return True else checkStrictness body modules
+        strictCheckResult <- if disableDemand then return True else checkStrictness tyclassCount body funcSig modules
         case typeCheckResult of
             Left err -> (putStrLn $ displayException err) >> return False
             Right False -> (putStrLn "Program does not typecheck") >> return False
@@ -114,19 +143,60 @@ checkType expr modules = do
     Language.Haskell.Interpreter.typeOf expr
     typeChecks expr
 
--- mkFunctionSigStr generates a function's type signature:
--- Int -> Data.Foo.Foo -> Bar
-mkFunctionSigStr :: [RType] -> RType -> String
-mkFunctionSigStr [] tyRet = show tyRet
-mkFunctionSigStr (argTy:argTys) tyRet
-    = show argTy ++ " -> " ++ mkFunctionSigStr argTys tyRet
+-- Converts the list of param types into a haskell function signature.
+-- Moves typeclass-looking things to the front in a context.
+mkFunctionSigStr :: [RType] -> String
+mkFunctionSigStr args = addConstraints $ Prelude.foldr accumConstraints ([],[]) args
+    where
+        showSigs sigs = intercalate " -> " sigs
+        addConstraints ([], baseSigs) = showSigs baseSigs
+        addConstraints (constraints, baseSigs) = "(" ++ (intercalate ", " constraints) ++ ") => " ++ showSigs baseSigs
+
+        accumConstraints :: RType -> ([String], [String]) -> ([String], [String])
+        accumConstraints (ScalarT (DatatypeT id [ScalarT (TypeVarT _ tyvarName) _] _) _) (constraints, baseSigs)
+            | tyclassPrefix `isPrefixOf` id = let
+                classNameRegex = mkRegex $ tyclassPrefix ++ "([a-zA-Z]*)"
+                className = subRegex classNameRegex id "\\1"
+                constraint = className ++ " " ++ tyvarName
+                -- \(@@hplusTC@@([a-zA-Z]*) \(([a-z]*)\)\)
+                in
+                    (constraint:constraints, baseSigs)
+        accumConstraints otherTy (constraints, baseSigs) = (constraints, show otherTy:baseSigs)
 
 -- mkLambdaStr produces a oneline lambda expr str:
 -- (\x -> \y -> body))
 mkLambdaStr :: [String] -> UProgram -> String
 mkLambdaStr args body = let
+    unTypeclassed = toHaskellSolution body
+    in
+        unwords . words . show $ foldr addFuncArg (text unTypeclassed) args
+    where
+        addFuncArg arg rest
+            | "arg" `isPrefixOf` arg = Pretty.parens $ text ("\\" ++ arg ++ " -> ") <+> rest
+            | otherwise = rest
+
+removeAll :: Regex -> String -> String
+removeAll a b = unwords $ words $ go a b
+    where
+        go regex input =
+            if (isJust $ matchRegex regex input)
+            then (go regex $ subRegex regex input "")
+            else input
+
+removeTypeclassArgs :: String -> String
+removeTypeclassArgs = removeAll (mkRegex (tyclassArgBase++"[0-9]+\\s?"))
+
+removeTypeclassInstances :: String -> String
+removeTypeclassInstances = removeAll (mkRegex (tyclassInstancePrefix ++ "[0-9]*[a-zA-Z]*"))
+
+removeTypeclasses = removeEmptyParens . removeTypeclassArgs . removeTypeclassInstances
+    where
+        removeEmptyParens = removeAll (mkRegex "\\(\\s+\\)")
+
+toHaskellSolution :: UProgram -> String
+toHaskellSolution body = let
     bodyStr = show body
     oneLineBody = unwords $ lines bodyStr
-    addFuncArg arg rest = Pretty.parens $ text ("\\" ++ arg ++ " -> ") <+> rest
+    noTypeclasses = (removeTypeclasses) oneLineBody
     in
-        show $ foldr addFuncArg (text oneLineBody) args
+        noTypeclasses

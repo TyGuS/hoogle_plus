@@ -59,6 +59,7 @@ toAbstractType (ScalarT (DatatypeT id args _) _) = AScalar (ADatatypeT id (map t
 toAbstractType (FunctionT x tArg tRet) = AFunctionT (toAbstractType tArg) (toAbstractType tRet)
 toAbstractType AnyT = AScalar (ATypeVarT varName)
 toAbstractType BotT = ABottom
+toAbstractType x = error $ "unhandled case: " ++ show x
 
 -- this is not subtype relation!!!
 isSubtypeOf :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Bool

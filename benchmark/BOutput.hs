@@ -12,6 +12,7 @@ import qualified Data.Set as Set
 import Data.Map (Map)
 import Data.List
 import Data.List.Extra
+import Data.Bool (bool)
 import Data.Maybe
 import Text.Layout.Table
 import Control.Exception
@@ -83,7 +84,7 @@ instance Summary [ResultSummary] where
 
 
 headersList :: ExperimentCourse -> [String]
-headersList CompareSolutions = ["With demand", "No demand"]
+headersList CompareSolutions = ["Time to First", "Time to all", "Solutions"]
 headersList CompareInitialAbstractCovers = [
     "tS - QR", "tEnc - QR",
     "l", "r", "tr", "ty",
@@ -101,7 +102,7 @@ toRow :: ExperimentCourse -> (String, [ResultSummary]) -> [String]
 toRow currentExp (name, rss) =
     map (fromMaybe "-") ([
       Just name,
-      queryStr <$> mbPartial
+      queryStr <$> mbExp
       ] ++ (rowForExp currentExp))
   where
     findwhere name = find ((==) name . paramName)
@@ -110,18 +111,23 @@ toRow currentExp (name, rss) =
     mbqr = findwhere expTyGarQ rss
     mbzero = findwhere expTyGar0 rss
     mbbaseline = findwhere expSypetClone rss
-    mbPartial = find (\x -> (paramName x == expTyGarQ) && (envName x == "Partial"))  rss
-    mbPartialNoDmd = find (\x -> (paramName x == expTyGarQNoDmd) && (envName x == "Partial"))  rss
+    mbExp = find (\x -> (paramName x == expTyGarQ))  rss
+    mbExpNoDmd = find (\x -> (paramName x == expTyGarQNoDmd))  rss
     mbNoCoalescing = findwhere expTyGarQNoCoalesce rss
 
     rowForExp :: ExperimentCourse -> [Maybe String]
     rowForExp CompareSolutions = let
-        queryRefinementResults = (fromJust (results <$> mbPartial)) :: [Result]
-        queryRefinementResultsNoDmd = (fromJust (results <$> mbPartialNoDmd)) :: [Result]
+        -- come in reverse order, so we must flip it.
+        queryRefinementResults = reverse (fromJust (results <$> mbExp)) :: [Result]
         toSolution = (either show id . resSolutionOrError) :: Result -> String
-        myResults = [queryRefinementResults, queryRefinementResultsNoDmd]
+        timeToAll = sum $ map resTFirstSoln queryRefinementResults
       in
-        map (\x -> Just $ unlines (map (mkOneLine . toSolution) (reverse x))) myResults
+        [
+          (show . resTFirstSoln) <$> listToMaybe queryRefinementResults, -- First
+          bool Nothing (Just (show timeToAll)) (timeToAll /= 0), -- All
+          Just $ unlines (map (mkOneLine . toSolution) queryRefinementResults)
+        ]
+
 
     rowForExp CompareInitialAbstractCovers = [
       (showFloat . resTFirstSoln) <$> (head . results) <$> mbqr,

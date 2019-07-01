@@ -134,7 +134,6 @@ solveAndGetModel = do
 
     case res of
         Sat -> do
-            liftIO $ print "sat"
             model <- solverGetModel
             places <- gets (HashMap.keys . ty2tr)
             selected <- mapM (checkLit model) [0..(l-1)]
@@ -144,12 +143,11 @@ solveAndGetModel = do
             blockAss <- mkAnd (placed ++ blockTrs) >>= mkNot
             currEnv <- gets z3env
             env <- liftIO $ freshEnv $ envContext currEnv
-            modify $ \st -> st { block = blockAss 
+            modify $ \st -> st { block = blockAss
                                , z3env = env }
             selectedNames <- getTrNames selected
             return (zip selectedNames [0,1..])
         Unsat -> do
-            liftIO $ print "unsat"
             rets <- gets returnTyps
             currEnv <- gets z3env
             env <- liftIO $ freshEnv $ envContext currEnv
@@ -164,7 +162,7 @@ solveAndGetModel = do
                 -- try a more general return type
                 t2tr <- gets ty2tr
                 modify $ \st -> st { finalConstraints = []
-                                   , returnTyps = tail rets 
+                                   , returnTyps = tail rets
                                    , prevChecked = False }
                 setFinalState (rets !! 1) (HashMap.keys t2tr)
                 solveAndGetModel
@@ -250,13 +248,13 @@ encoderInc sigs inputs rets = do
 
     -- set new initial and final state
     setInitialState inputs places
-    
+
     setFinalState (head rets) places
 
 encoderRefine :: SplitInfo -> HashMap Id [Id] -> [Id] -> [Id] -> [FunctionCode] -> HashMap Id [Id] -> Encoder ()
 encoderRefine info musters inputs rets sigs t2tr = do
     {- update the abstraction level -}
-    modify $ \st -> st { ty2tr = t2tr 
+    modify $ \st -> st { ty2tr = t2tr
                        , mustFirers = musters
                        , disabledTrans = disabledTrans st ++ removedTrans info
                        , returnTyps = rets
@@ -274,7 +272,7 @@ encoderRefine info musters inputs rets sigs t2tr = do
 
     -- add new place, transition and timestamp variables
     mapM_ (uncurry addPlaceVar) [(a, i) | a <- newPlaceIds, i <- [0..l]]
-    addTransitionVar newTransIds    
+    addTransitionVar newTransIds
 
     -- all places have non-negative number of tokens
     nonnegativeTokens newPlaceIds
@@ -294,7 +292,7 @@ encoderRefine info musters inputs rets sigs t2tr = do
 
     -- set new initial and final state
     setInitialState inputs currPlaces
-    
+
     setFinalState (head rets) currPlaces
 
 disableTransitions :: [Id] -> Int -> Encoder ()
@@ -449,7 +447,7 @@ fireTransitions t (FunctionCode name [] params rets) = do
     tsMap <- gets time2variable
     -- accumulate counting for parameters and return types
     let tid = findVariable "transition2id" name transMap
-    let pcnt = if null params then [("void", 1)] 
+    let pcnt = if null params then [("void", 1)]
                               else map (\l -> (show (head l), length l)) (group (sort params))
     let pmap = HashMap.fromList pcnt
     let rmap = foldl' (\acc t -> HashMap.insertWith (+) (show t) (-1) acc) pmap rets
