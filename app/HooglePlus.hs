@@ -95,6 +95,7 @@ main = do
       let opts = case preset of
                     ICFPTotal -> genOptsTier1
                     ICFPPartial -> genOptsTier2
+                    POPL -> poplWithTypeclasses
       precomputeGraph opts
 
     Generate Nothing files pkgs mdls d ho pathToEnv -> do
