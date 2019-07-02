@@ -74,24 +74,23 @@ readQueryFile fp = do
     decodeYaml = do
       eErrOrQs <- decodeFileEither fp
       case eErrOrQs of
-        Left _ ->  error "Unable to read query file. Is the YAML poorly formatted?"
-        Right r -> do
-          print r
-          return r
+        Left err ->  print err >> error "Unable to read query file. Is the YAML poorly formatted?"
+        Right r -> return r
 
 getSetup args = do
   let preset = argsPreset args
   componentSet <- generateEnv $ getOptsFromPreset preset
   componentOldSet <- generateEnv $ getOptsFromPreset ICFPPartial
   queries <- readQueryFile (argsQueryFile args)
-  let envs = [(componentSet, show preset), (componentOldSet, show ICFPPartial)]
+  let envs = [(componentSet, show preset)]
   let currentExperiment = argsExperiment args
   let params =
         case currentExperiment of
-          CompareEnvironments -> let solnCount = 5 in
+          CompareEnvironments -> let solnCount = 5  in
               [(searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ)]
           CompareSolutions -> let solnCount = 5 in
-              [(searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ)]
+              [(searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ),
+               (searchParamsSypetClone{_solutionCnt=solnCount}, expSypetClone)]
           CompareInitialAbstractCovers -> [
             (searchParamsTyGarQ, expTyGarQ),
             -- (searchParamsHOF, expQueryRefinementHOF),

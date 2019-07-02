@@ -107,14 +107,21 @@ instance Summary [(Environment, String)] where
   outputSummary Table _ = toEnvTable
 
 instance Summary [ResultSummary] where
-  outputSummary Table CompareSolutions = error "Use TSV; theres a library bug here."
+  outputSummary Table CompareSolutions = outputSummary TSV CompareSolutions -- Table is broken due to library bug here.
   outputSummary Table exp = toAsciiTable . (toTabling exp) . toGroup
   outputSummary TSV exp = toTSV . (toTabling exp) . toGroup
   outputSummary Latex exp = toLaTeX . (toTabling exp) . toGroup
 
 
 headersList :: ExperimentCourse -> [String]
-headersList CompareSolutions = ["Time to First", "Time to all", "Solutions"]
+headersList CompareSolutions = [
+  "T - first - Old", "T - all - New",
+  "total - old", "total - new",
+  "length - 1old", "length - 1new",
+  "refinement steps - 1old", "refinement steps -1new",
+  "transitions - 1old", "transitions - 1new",
+  "Solutions - Old", "Solutions - New"
+  ]
 headersList CompareInitialAbstractCovers = [
     "tS - QR", "tEnc - QR",
     "l", "r", "tr", "ty",
@@ -126,9 +133,6 @@ headersList TrackTypesAndTransitions = [
   "nc: refinement steps", "c: refinement steps",
   "nc: transitions", "c: transitions",
   "duplicate symbols", "nc: status", "c: status"
-  ]
-headersList CompareEnvironments = [
-  "T - first - Old", "T - all - New", "total - old", "total - new", "Solutions - Old", "Solutions - New"
   ]
 
 toRow :: ExperimentCourse -> (String, [ResultSummary]) -> [String]
@@ -150,19 +154,6 @@ toRow currentExp (name, rss) =
     mbNoCoalescing = findwhere expTyGarQNoCoalesce rss
 
     rowForExp :: ExperimentCourse -> [Maybe String]
-    rowForExp CompareSolutions = let
-        -- come in reverse order, so we must flip it.
-        queryRefinementResults = reverse (fromJust (results <$> mbqr)) :: [Result]
-        toSolution = (either show toHaskellSolution . resSolutionOrError) :: Result -> String
-        timeToAll = sum $ map resTFirstSoln queryRefinementResults
-      in
-        [
-          (showFloat . resTFirstSoln) <$> listToMaybe queryRefinementResults, -- First
-          bool Nothing (Just (showFloat timeToAll)) (timeToAll /= 0), -- All
-          Just $ unlines (map (mkOneLine . toSolution) queryRefinementResults)
-        ]
-
-
     rowForExp CompareInitialAbstractCovers = [
       (showFloat . resTFirstSoln) <$> (head . results) <$> mbqr,
       (showFloat . resTEncFirstSoln) <$> (head . results) <$> mbqr,
@@ -191,11 +182,11 @@ toRow currentExp (name, rss) =
       either show id <$> resSolutionOrError <$> (head . results) <$> mbqr
       ]
 
-    rowForExp CompareEnvironments = let
+    rowForExp CompareSolutions = let
         -- come in reverse order, so we must flip it.
         queryRefinementResults = reverse (fromJust (results <$> mbqrNew)) :: [Result]
-        queryRefinementResultsOld = reverse (fromJust (results <$> mbqrOld)) :: [Result]
-        toSolution = (either show toHaskellSolution . resSolutionOrError) :: Result -> String
+        queryRefinementResultsOld = reverse (fromJust (results <$> mbbaseline)) :: [Result]
+        toSolution = (either show id . resSolutionOrError) :: Result -> String
         timeToAll = sum $ map resTFirstSoln queryRefinementResults
         timeToAllOld = sum $ map resTFirstSoln queryRefinementResultsOld
       in
@@ -204,6 +195,14 @@ toRow currentExp (name, rss) =
           (showFloat . resTFirstSoln) <$> listToMaybe queryRefinementResults, -- First
           bool Nothing (Just (showFloat timeToAllOld)) (timeToAllOld /= 0), -- All
           bool Nothing (Just (showFloat timeToAll)) (timeToAll /= 0), -- All
+
+          (show . resLenFirstSoln) <$> (head . results) <$> mbbaseline,
+          (show . resLenFirstSoln) <$> (head . results) <$> mbqrNew,
+          (show . resRefinementSteps) <$> (head . results) <$> mbbaseline,
+          (show . resRefinementSteps) <$> (head . results) <$> mbqrNew,
+          (show . resTransitions) <$> (head . results) <$> mbbaseline,
+          (show . resTransitions) <$> (head . results) <$> mbqrNew,
+
           Just $ unlines (map (mkOneLine . toSolution) queryRefinementResultsOld),
           Just $ unlines (map (mkOneLine . toSolution) queryRefinementResults)
         ]

@@ -8,6 +8,7 @@ import Types.Experiments
 import Synquid.Util
 import HooglePlus.Synthesize
 import Database.Environment
+import PetriNet.GHCChecker (toHaskellSolution)
 
 import System.Timeout
 import Control.Exception
@@ -100,7 +101,7 @@ summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
     outputToResult (soln,stats) = let
       safeTransitions = map snd (Map.toAscList (numOfTransitions stats))
       safeTypes = map snd (Map.toAscList (numOfPlaces stats))
-      solution = either Left (maybe (Left NoSolutionException) (Right . mkOneLine . show)) soln
+      solution = either Left (maybe (Left NoSolutionException) (Right . toHaskellSolution . show)) soln
       in emptyResult {
         resSolutionOrError = solution,
         resTFirstSoln = totalTime stats,

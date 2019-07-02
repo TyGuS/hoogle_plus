@@ -1,5 +1,6 @@
 - name: numElem
   query: Eq a => [a] -> a -> Int
+  solution: length (elemIndices x xs)
 
 - name: lookup
   query: Eq a => [(a,b)] -> a -> b
