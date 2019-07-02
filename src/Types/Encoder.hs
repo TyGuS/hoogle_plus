@@ -66,7 +66,7 @@ data EncodeState = EncodeState {
   incrementalSolving :: Bool,
   disabledTrans :: [Id],
   returnTyps :: [Id],
-  persistConstraints :: HashMap Id Z3.AST,
+  persistConstraints :: [Z3.AST],
   optionalConstraints :: [Z3.AST],
   finalConstraints :: [Z3.AST],
   blockConstraints :: [Z3.AST]
@@ -89,7 +89,7 @@ emptyEncodeState = EncodeState {
   incrementalSolving = False,
   disabledTrans = [],
   returnTyps = [],
-  persistConstraints = HashMap.empty,
+  persistConstraints = [],
   optionalConstraints = [],
   finalConstraints = [],
   blockConstraints = []

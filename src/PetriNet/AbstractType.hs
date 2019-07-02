@@ -91,20 +91,14 @@ compactAbstractType (AFunctionT tArg tRes) = AScalar $ ADatatypeT "Fun" [compact
 compactAbstractType (AScalar (ADatatypeT dt args)) = AScalar (ADatatypeT dt $ map compactAbstractType args)
 compactAbstractType t = t
 
-abstractTvs :: AbstractSkeleton -> [Id]
-abstractTvs (AScalar (ATypeVarT id)) = [id]
-abstractTvs (AScalar (ADatatypeT _ args)) = concatMap abstractTvs args
-abstractTvs (AFunctionT tArg tRes) = abstractTvs tArg ++ abstractTvs tRes
-abstractTvs ABottom = []
-
 -- this is not subtype relation!!!
 isSubtypeOf :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Bool
 isSubtypeOf bound t1 t2 = isJust unifier
   where
-    unifier = getUnifier (bound ++ abstractTypeVars bound t1) [(t2, t1)]
+    unifier = getUnifier (bound ++ abstractTypeVars t1) [(t2, t1)]
 
 isValidSubst :: Map Id AbstractSkeleton -> Bool
-isValidSubst m = all (\(id, t) -> id `notElem` abstractTvs t) (Map.toList m)
+isValidSubst m = all (\(id, t) -> id `notElem` abstractTypeVars t) (Map.toList m)
 
 checkUnification :: [Id] -> Map Id AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton -> Maybe (Map Id AbstractSkeleton)
 checkUnification bound tass t1 t2 | t1 == t2 = Just tass
@@ -112,7 +106,7 @@ checkUnification bound tass (AScalar (ATypeVarT id)) t | id `Map.member` tass =
     -- keep the most informative substitution, eagerly substitute into the final result
     case checkUnification bound tass assigned t of
         Nothing -> Nothing
-        Just u | isValidSubst (updatedTass u) -> Just (updatedTass u)
+        Just u | isValidSubst u && isValidSubst (updatedTass u) -> Just (updatedTass u)
                | otherwise -> Nothing
   where
     substed m = abstractSubstitute m assigned
@@ -125,10 +119,11 @@ checkUnification bound tass (AScalar (ATypeVarT id)) t | id `Map.member` tass =
 checkUnification bound tass t@(AScalar (ATypeVarT id)) t'@(AScalar (ATypeVarT id')) 
   | id `elem` bound && id' `elem` bound = Nothing
   | id `elem` bound && id' `notElem` bound = checkUnification bound tass t' t
-  | id `notElem` bound && id `elem` abstractTvs t' = Nothing
+  | id `notElem` bound && id `elem` abstractTypeVars t' = Nothing
   | id `notElem` bound = Just (Map.insert id t' tass)
 checkUnification bound tass (AScalar (ATypeVarT id)) t | id `elem` bound = Nothing
 checkUnification bound tass t@(AScalar ADatatypeT {}) t'@(AScalar (ATypeVarT id)) = checkUnification bound tass t' t
+checkUnification bound tass (AScalar (ATypeVarT id)) t | id `elem` abstractTypeVars t = Nothing
 checkUnification bound tass (AScalar (ATypeVarT id)) t = let
     tass' = Map.map (abstractSubstitute (Map.singleton id t)) tass
     tass'' = Map.insert id t tass'
@@ -179,13 +174,11 @@ abstractSubstitute' id typ (AFunctionT tArg tRes) = AFunctionT tArg' tRes'
     tArg' = abstractSubstitute' id typ tArg
     tRes' = abstractSubstitute' id typ tRes
 
-abstractTypeVars :: [Id] -> AbstractSkeleton -> [Id]
-abstractTypeVars bound (AScalar (ATypeVarT id)) 
-  | id `elem` bound = []
-  | otherwise = [id]
-abstractTypeVars bound (AScalar (ADatatypeT id args)) = concatMap (abstractTypeVars bound) args 
-abstractTypeVars bound (AFunctionT tArg tRes) = abstractTypeVars bound tArg ++ abstractTypeVars bound tRes
-abstractTypeVars bound _ = []
+abstractTypeVars :: AbstractSkeleton -> [Id]
+abstractTypeVars (AScalar (ATypeVarT id)) = [id]
+abstractTypeVars (AScalar (ADatatypeT id args)) = concatMap abstractTypeVars args 
+abstractTypeVars (AFunctionT tArg tRes) = abstractTypeVars tArg ++ abstractTypeVars tRes
+abstractTypeVars _ = []
 
 equalAbstract :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Bool
 equalAbstract tvs t1 t2 = isSubtypeOf tvs t1 t2 && isSubtypeOf tvs t2 t1
@@ -241,6 +234,7 @@ applySemantic tvs fun args = do
             -- writeLog 3 "applySemantic" $ text "get unifier" <+> pretty (Map.toList m)
             cover <- gets (view abstractionCover)
             let substRes = abstractSubstitute m ret
+            -- writeLog 3 "applySemantic" $ text "current cover" <+> text (show cover)
             currentAbst tvs cover substRes
 
 compareAbstract :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Ordering

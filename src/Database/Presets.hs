@@ -28,6 +28,7 @@ myModules = [
   "GHC.Char",
   "Text.Show",
   "GHC.List",
+  "Data.Function",
   -- ByteString
   "Data.ByteString.Lazy",
   "Data.ByteString.Builder"

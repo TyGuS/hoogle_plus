@@ -46,6 +46,7 @@ data SolverState = SolverState {
     _nameMapping :: Map Id Id, -- mapping from fake names to real names
     _instanceMapping :: HashMap (Id, [AbstractSkeleton]) (Id, AbstractSkeleton),
     _toRemove :: [Id],
+    _funTypes :: Set Id,
     _messageChan :: Chan Message
 } deriving(Eq)
 
@@ -73,6 +74,7 @@ emptySolverState = SolverState {
     _nameMapping = Map.empty,
     _instanceMapping = HashMap.empty,
     _toRemove = [],
+    _funTypes = Set.empty,
     _messageChan = undefined
 }
 

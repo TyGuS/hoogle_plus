@@ -23,11 +23,13 @@ import System.CPUTime
 import Text.Printf
 import Data.Text (pack, unpack, replace)
 import System.IO
+import System.Process
 
 import Types.Common
 import Types.Encoder
 import Types.Abstract
 import PetriNet.AbstractType
+import PetriNet.Util
 import Synquid.Util
 import Synquid.Pretty
 
@@ -116,7 +118,7 @@ addAllConstraints = do
     ocons <- gets optionalConstraints
     fcons <- gets finalConstraints
     bcons <- gets blockConstraints
-    mapM_ assert (HashMap.elems pcons)
+    mapM_ assert pcons
     mapM_ assert ocons
     mapM_ assert fcons
     mapM_ assert bcons
@@ -129,16 +131,7 @@ nonincrementalSolve = do
         modify $ \st -> st { blockConstraints = toBlock : blockConstraints st}
 
     addAllConstraints
-
-    -- str <- solverToString
-    -- liftIO $ putStrLn str
-    -- placeMap <- gets place2variable
-    -- liftIO $ print placeMap
-    -- transMap <- gets transition2id
-    -- liftIO $ print transMap
-    -- error "stop"
-    
-    check    
+    check
 
 incrementalSolve :: Encoder Z3.Result
 incrementalSolve = do
@@ -355,16 +348,14 @@ disableTransitions :: [Id] -> Int -> Encoder ()
 disableTransitions trs t = mapM_ disableTrAt $ nub trs
   where
     disableTrAt tr = do
-        ifM (gets incrementalSolving)
-            (do
-                transMap <- gets transition2id
-                tsMap <- gets time2variable
-                let trVar = findVariable "transition2id" tr transMap
-                let tsVar = findVariable "time2variable" t tsMap
-                eq <- mkEq tsVar trVar >>= mkNot
-                assert eq
-                )
-            (modify $ \st -> st { persistConstraints = HashMap.delete (show (tr, t)) (persistConstraints st)})
+        transMap <- gets transition2id
+        tsMap <- gets time2variable
+        let trVar = findVariable "transition2id" tr transMap
+        let tsVar = findVariable "time2variable" t tsMap
+        eq <- mkEq tsVar trVar >>= mkNot
+        modify $ \st -> st { persistConstraints = eq : persistConstraints st }
+        incremental <- gets incrementalSolving
+        when incremental $ assert eq
 
 -- | add variables for each place
 addPlaceVar ::  Id -> Int -> Encoder ()
@@ -450,7 +441,7 @@ nonnegativeTokens places = do
         let pVar = findVariable "placemap" (p, t) placeMap
         zero <- mkIntNum 0
         geZero <- mkGe pVar zero
-        modify $ \st -> st { persistConstraints = HashMap.insert (show (p,t)) geZero (persistConstraints st) }
+        modify $ \st -> st { persistConstraints = geZero : persistConstraints st }
         incremental <- gets incrementalSolving
         when incremental $ assert geZero
 
@@ -511,7 +502,7 @@ fireTransitions t (FunctionCode name [] params rets) = do
     enoughTokens <- mapM getSatisfiedPlace pcnt
     postCond <- mkAnd (enoughTokens ++ changes)
     tokenChange <- mkImplies fire postCond
-    modify $ \st -> st { persistConstraints = HashMap.insert (show (name, t)) tokenChange (persistConstraints st) }
+    modify $ \st -> st { persistConstraints = tokenChange : persistConstraints st }
     incremental <- gets incrementalSolving
     when incremental $ assert tokenChange
   where

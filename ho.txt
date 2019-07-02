@@ -1,1 +1,2 @@
-GHC.List.id
+(Data.Function.$)
+Data.Function.id

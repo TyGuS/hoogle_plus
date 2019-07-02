@@ -68,8 +68,6 @@ maybeToList :: Maybe a -> [a]
 catMaybes :: [Maybe a] -> [a]
 mapMaybe :: (a -> Maybe b) -> [a] -> [b]
 module GHC.List
-id :: a -> a
-app :: (a -> b) -> a -> b
 map :: (a -> b) -> [a] -> [b]
 (++) :: [a] -> [a] -> [a]
 infixr 5 ++
@@ -121,17 +119,7 @@ infixl 1 <&>
 void :: Functor f => f a -> f ()
 module Data.Function
 id :: a -> a
-const :: a -> b -> a
-(.) :: (b -> c) -> (a -> b) -> a -> c
-infixr 9 .
-flip :: (a -> b -> c) -> b -> a -> c
 ($) :: forall r a (b :: TYPE r). (a -> b) -> a -> b
-infixr 0 $
-(&) :: a -> (a -> b) -> b
-infixl 1 &
-fix :: (a -> a) -> a
-on :: (b -> b -> c) -> (a -> b) -> a -> a -> c
-infixl 0 `on`
 module Data.Eq
 class Eq a
 (==) :: Eq a => a -> a -> Bool

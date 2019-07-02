@@ -8,5 +8,5 @@ foldr :: (a -> b -> b) -> b -> [a] -> b
 replicate :: Int -> a -> [a]
 
 module Prelude
-app :: (a -> b) -> a -> b
+($) :: (a -> b) -> a -> b
 
