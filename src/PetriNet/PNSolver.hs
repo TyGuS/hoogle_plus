@@ -321,8 +321,8 @@ refineSemantic env prog at = do
         gm <- gets $ view groupMap
         gr <- gets $ view groupRepresentative
         let parents = HashMap.keys $ HashMap.filter (Set.member at) cover
-        let pids = concatMap (\p -> HashMap.lookupDefault [] p t2tr) parents
-        let gids = Map.keys $ Map.filter (`elem` pids) gr
+        let pids = Set.unions $ map (\p -> HashMap.lookupDefault Set.empty p t2tr) parents
+        let gids = Map.keys $ Map.filter (`Set.member` pids) gr
         let fids = concatMap (\gid -> Set.toList $ Map.findWithDefault Set.empty gid gm) gids
         sigs <- mapM (splitTransition env at) fids
         let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
@@ -374,7 +374,7 @@ refineSemantic env prog at = do
         -- and what we need to add (new representatives).
         (toAdd, toRemove, grs') <- foldM updateRepresentatives ([], [], Map.empty) (Map.toList grs)
         modify $ set groupRepresentative grs'
-        mapM_ (\t -> modify $ over type2transition (HashMap.map $ delete t)) removables
+        mapM_ (\t -> modify $ over type2transition (HashMap.map $ Set.delete t)) removables
         let removeSet = Set.fromList removables
         modify $ over nameMapping (`Map.withoutKeys` removeSet)
         modify $ over currentSigs (`Map.withoutKeys` removeSet)
@@ -447,15 +447,14 @@ resetEncoder env dst = do
     writeLog 2 "resetEncoder" $ text "parameter types are" <+> pretty srcTypes
     writeLog 2 "resetEncoder" $ text "return type is" <+> pretty tgt
     (loc, musters, rets, funcs, tid2tr, incremental) <- prepEncoderArgs env tgt
-    let srcStr = map show srcTypes  
-    liftIO $ encoderInit loc musters srcStr rets funcs tid2tr incremental
+    liftIO $ encoderInit loc musters srcTypes rets funcs tid2tr incremental
 
 incEncoder :: MonadIO m => Environment -> EncodeState -> PNSolver m EncodeState
 incEncoder env st = do
     tgt <- gets (view targetType)
     src <- gets (view sourceTypes)
     (_, _, rets, funcs, _, _) <- prepEncoderArgs env tgt
-    liftIO $ execStateT (encoderInc funcs (map show src) rets) st
+    liftIO $ execStateT (encoderInc funcs src rets) st
 
 findPath :: (MonadIO m) => Environment -> RType -> EncodeState -> PNSolver m (CodePieces, EncodeState)
 findPath env dst st = do
@@ -526,7 +525,7 @@ fixEncoder env dst st info = do
     writeLog 3 "fixEncoder" $ text "get split information" </> pretty info
     modify $ over type2transition (HashMap.filter (not . null))
     (loc, musters, rets, funcs, tid2tr, _) <- prepEncoderArgs env tgt
-    liftIO $ execStateT (encoderRefine info musters (map show srcTypes) rets funcs tid2tr) st
+    liftIO $ execStateT (encoderRefine info musters srcTypes rets funcs tid2tr) st
 
 findProgram :: MonadIO m => Environment -> RType -> EncodeState -> PNSolver m (RProgram, EncodeState)
 findProgram env dst st = do
@@ -714,7 +713,7 @@ doRefine _ = True
 
 updateTy2Tr :: MonadIO m => Id -> AbstractSkeleton -> PNSolver m ()
 updateTy2Tr id f = do
-    let addTransition k tid = HashMap.insertWith (\[x] y -> nubOrd $ x:y) k [tid]
+    let addTransition k tid = HashMap.insertWith Set.union k (Set.singleton tid)
     let includedTyps = nub (decompose f)
     mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
 
@@ -734,7 +733,7 @@ updateSrcTgt env dst = do
     modify $ set sourceTypes srcTypes
     return (srcTypes, tgt)
 
-type EncoderArgs = (Int, HashMap Id [Id], [Id], [FunctionCode], HashMap Id [Id], Bool)
+type EncoderArgs = (Int, HashMap Id [Id], [AbstractSkeleton], [FunctionCode], HashMap AbstractSkeleton (Set Id), Bool)
 
 prepEncoderArgs :: MonadIO m => Environment -> AbstractSkeleton -> PNSolver m EncoderArgs
 prepEncoderArgs env tgt = do
@@ -745,13 +744,12 @@ prepEncoderArgs env tgt = do
     musters <- gets $ view mustFirers
     incremental <- getExperiment incrementalSolving
     let bound = env ^. boundTypeVars
-    let tid2tr = HashMap.foldrWithKey (\k v -> HashMap.insert (show k) v) HashMap.empty t2tr
+    -- let tid2tr = HashMap.foldrWithKey (\k v -> HashMap.insert (show k) v) HashMap.empty t2tr
     let accepts = superTypeOf bound cover tgt
     let rets = sortBy (compareAbstract bound) accepts
-    let strRets = map show rets
     let sigs = HashMap.elems funcs
     writeLog 3 "prepEncoderArgs" $ text "current must firers" <+> pretty (HashMap.toList musters)
-    return (loc, musters, strRets, sigs, tid2tr, incremental)
+    return (loc, musters, rets, sigs, t2tr, incremental)
     
 foArgsOf :: Environment -> Map Id RSchema
 foArgsOf = Map.filter (not . isFunctionType . toMonotype) . _arguments

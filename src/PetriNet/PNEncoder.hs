@@ -15,6 +15,7 @@ import Data.List.Extra
 import Data.Hashable
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import Data.Set (Set)
 import qualified Data.Set as Set
 import Z3.Monad hiding(Z3Env, newEnv)
 import qualified Z3.Base as Z3
@@ -39,10 +40,10 @@ instance MonadZ3 Encoder where
     getOptimize = gets (envOptimize . z3env)
 
 -- | create a new encoder in z3
-createEncoder :: [Id] -> Id -> [FunctionCode] -> Encoder ()
+createEncoder :: [AbstractSkeleton] -> AbstractSkeleton -> [FunctionCode] -> Encoder ()
 createEncoder inputs ret sigs = do
     places <- gets (HashMap.keys . ty2tr)
-    transIds <- gets (nubOrd . concat . HashMap.elems . ty2tr)
+    transIds <- gets (Set.toList . Set.unions . HashMap.elems . ty2tr)
     -- create all the type variables for encoding
     createVariables places transIds
     -- add all the constraints for the solver
@@ -53,7 +54,7 @@ createEncoder inputs ret sigs = do
 
 -- | set the initial state for the solver, where we have tokens only in void or inputs
 -- the tokens in the other places should be zero
-setInitialState :: [Id] -> [Id] -> Encoder ()
+setInitialState :: [AbstractSkeleton] -> [AbstractSkeleton] -> Encoder ()
 setInitialState inputs places = do
     let nonInputs = filter (`notElem` inputs) places
     let inputCounts = map (\t -> (head t, length t)) (group (sort inputs))
@@ -75,7 +76,7 @@ setInitialState inputs places = do
 
 -- | set the final solver state, we allow only one token in the return type
 -- and maybe several tokens in the "void" place
-setFinalState :: Id -> [Id] -> Encoder ()
+setFinalState :: AbstractSkeleton -> [AbstractSkeleton] -> Encoder ()
 setFinalState ret places = do
     -- the return value should have only one token
     includeRet
@@ -93,11 +94,9 @@ setFinalState ret places = do
     excludeOther p = do
         l <- gets loc
         placeMap <- gets place2variable
-        when (p /= "void") $ do
-            let tVar = findVariable "place2variable" (p, l) placeMap
-            eq <- mkIntNum 0 >>= mkEq tVar
-            modify $ \st -> st { finalConstraints = eq : finalConstraints st }
-            -- assert eq
+        let tVar = findVariable "place2variable" (p, l) placeMap
+        eq <- mkIntNum 0 >>= mkEq tVar
+        modify $ \st -> st { finalConstraints = eq : finalConstraints st }
 
 getParam :: Encoder (Int, Z3.Sort)
 getParam = do
@@ -238,7 +237,7 @@ solveAndGetModel = do
         let tsVar = findVariable "time2variable" t tsMap
         mkIntNum tr >>= mkEq tsVar
 
-encoderInit :: Int -> HashMap Id [Id] -> [Id] -> [Id] -> [FunctionCode] -> HashMap Id [Id] -> Bool -> IO EncodeState
+encoderInit :: Int -> HashMap Id [Id] -> [AbstractSkeleton] -> [AbstractSkeleton] -> [FunctionCode] -> HashMap AbstractSkeleton (Set Id) -> Bool -> IO EncodeState
 encoderInit len hoArgs inputs rets sigs t2tr incr = do
     z3Env <- initialZ3Env
     false <- Z3.mkFalse (envContext z3Env)
@@ -257,7 +256,7 @@ encoderSolve = runStateT solveAndGetModel
 
 -- optimize the optional constraints here:
 -- we only need to change the must firers and noTransitionTokens and final states
-encoderInc :: [FunctionCode] -> [Id] -> [Id] -> Encoder ()
+encoderInc :: [FunctionCode] -> [AbstractSkeleton] -> [AbstractSkeleton] -> Encoder ()
 encoderInc sigs inputs rets = do
     modify $ \st -> st { loc = loc st + 1
                        , returnTyps = rets
@@ -265,7 +264,7 @@ encoderInc sigs inputs rets = do
                        , blockConstraints = []
                        , finalConstraints = [] }
     places <- gets (HashMap.keys . ty2tr)
-    transitions <- gets (nubOrd . concat . HashMap.elems . ty2tr)
+    transitions <- gets (Set.toList . Set.unions . HashMap.elems . ty2tr)
     l <- gets loc
 
     -- add new place, transition and timestamp variables
@@ -297,7 +296,7 @@ encoderInc sigs inputs rets = do
 
     setFinalState (head rets) places
 
-encoderRefine :: SplitInfo -> HashMap Id [Id] -> [Id] -> [Id] -> [FunctionCode] -> HashMap Id [Id] -> Encoder ()
+encoderRefine :: SplitInfo -> HashMap Id [Id] -> [AbstractSkeleton] -> [AbstractSkeleton] -> [FunctionCode] -> HashMap AbstractSkeleton (Set Id) -> Encoder ()
 encoderRefine info musters inputs rets sigs t2tr = do
     {- update the abstraction level -}
     modify $ \st -> st { ty2tr = t2tr
@@ -310,7 +309,7 @@ encoderRefine info musters inputs rets sigs t2tr = do
 
     {- operation on places -}
     l <- gets loc
-    let newPlaceIds = map show (newPlaces info)
+    let newPlaceIds = newPlaces info
     let newTransIds = newTrans info
     let currPlaces = HashMap.keys t2tr
     let newSigs = filter ((`elem` newTransIds) . funName) sigs
@@ -342,7 +341,7 @@ encoderRefine info musters inputs rets sigs t2tr = do
     setFinalState (head rets) currPlaces
 
 disableTransitions :: [Id] -> Int -> Encoder ()
-disableTransitions trs t = mapM_ disableTrAt $ nub trs
+disableTransitions trs t = mapM_ disableTrAt trs
   where
     disableTrAt tr = do
         transMap <- gets transition2id
@@ -355,7 +354,7 @@ disableTransitions trs t = mapM_ disableTrAt $ nub trs
         when incremental $ assert eq
 
 -- | add variables for each place
-addPlaceVar ::  Id -> Int -> Encoder ()
+addPlaceVar ::  AbstractSkeleton -> Int -> Encoder ()
 addPlaceVar p t = do
     st <- get
     placeVar <- mkZ3IntVar $ variableNb st
@@ -390,7 +389,7 @@ addTimestampVar t = do
                      })
 
 -- | map each place and transition to a variable in z3
-createVariables :: [Id] -> [Id] -> Encoder ()
+createVariables :: [AbstractSkeleton] -> [Id] -> Encoder ()
 createVariables places transitions = do
     l <- gets loc
     -- add place variables
@@ -400,7 +399,7 @@ createVariables places transitions = do
     -- add timestamp variables
     mapM_ addTimestampVar [0..(l-1)]
 
-createConstraints :: [Id] -> [FunctionCode] -> Encoder ()
+createConstraints :: [AbstractSkeleton] -> [FunctionCode] -> Encoder ()
 createConstraints places transitions = do
     -- prepare constraint parameters
     liftIO $ print places
@@ -428,7 +427,7 @@ findVariable :: (Eq k, Hashable k, Show k) => String -> k -> HashMap k v -> v
 findVariable blame k m = fromMaybe (error $ "cannot find in " ++ blame ++ " variable for " ++ show k)
                              (HashMap.lookup k m)
 
-nonnegativeTokens :: [Id] -> Encoder ()
+nonnegativeTokens :: [AbstractSkeleton] -> Encoder ()
 nonnegativeTokens places = do
     l <- gets loc
     mapM_ (uncurry nonnegAt) [(p, t) | p <- places, t <- [0..l]]
@@ -461,12 +460,13 @@ transitionRng = do
 
 -- | if this place has no connected transition fired,
 -- it has the same # of tokens
-noTransitionTokens :: Int -> Id -> Encoder ()
+noTransitionTokens :: Int -> AbstractSkeleton -> Encoder ()
 noTransitionTokens t p = do
     trans <- gets transition2id
     t2tr <- gets ty2tr
-    let transitions = map (\x -> findVariable "transition2id" x trans) (HashMap.lookupDefault [] p t2tr)
-    noFireLvs <- noFireAt transitions p t
+    let transSet = Set.toList $ HashMap.lookupDefault Set.empty p t2tr
+    let transitions = map (\x -> findVariable "transition2id" x trans) transSet
+    noFireLvs <- noFireAt transitions t
     noFire <- mkOr noFireLvs >>= mkNot
     placeMap <- gets place2variable
     let curr = findVariable "placemap" (p, t) placeMap
@@ -475,7 +475,7 @@ noTransitionTokens t p = do
     noChange <- mkImplies noFire tokenSame
     modify $ \st -> st { optionalConstraints = noChange : optionalConstraints st }
   where
-    noFireAt transitions p t = do
+    noFireAt transitions t = do
         tsMap <- gets time2variable
         let tsVar = findVariable "time2variable" t tsMap
         mapM (mkEq tsVar) transitions
@@ -487,9 +487,9 @@ fireTransitions t (FunctionCode name [] params rets) = do
     tsMap <- gets time2variable
 
     -- accumulate counting for parameters and return types
-    let pcnt = map (\l -> (show (head l), length l)) (group (sort params))
+    let pcnt = map (\l -> (head l, length l)) (group (sort params))
     let pmap = HashMap.fromList pcnt
-    let rmap = foldl' (\acc t -> HashMap.insertWith (+) (show t) (-1) acc) pmap rets
+    let rmap = foldl' (\acc t -> HashMap.insertWith (+) t (-1) acc) pmap rets
     let rcnt = HashMap.toList rmap
     changes <- mapM (mkChange t) rcnt
 

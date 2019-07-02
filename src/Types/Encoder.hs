@@ -4,6 +4,7 @@ module Types.Encoder where
 import Data.Maybe
 import Data.HashMap.Strict (HashMap)
 import Data.Map (Map)
+import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.HashMap.Strict as HashMap
 import qualified Z3.Base as Z3
@@ -56,16 +57,16 @@ data EncodeState = EncodeState {
   loc :: Int,
   transitionNb :: Int,
   variableNb :: Int,
-  place2variable :: HashMap (Id, Int) Z3.AST, -- place name and timestamp
+  place2variable :: HashMap (AbstractSkeleton, Int) Z3.AST, -- place name and timestamp
   time2variable :: HashMap Int Z3.AST, -- timestamp and abstraction level
   transition2id :: HashMap Id Z3.AST, -- transition name and abstraction level
   id2transition :: HashMap Int Id,
   mustFirers :: HashMap Id [Id],
-  ty2tr :: HashMap Id [Id],
+  ty2tr :: HashMap AbstractSkeleton (Set Id),
   prevChecked :: Bool,
   incrementalSolving :: Bool,
   disabledTrans :: [Id],
-  returnTyps :: [Id],
+  returnTyps :: [AbstractSkeleton],
   persistConstraints :: [Z3.AST],
   optionalConstraints :: [Z3.AST],
   finalConstraints :: [Z3.AST],

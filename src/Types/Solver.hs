@@ -41,7 +41,7 @@ data SolverState = SolverState {
     _groupRepresentative :: Map GroupId Id, -- mapping of current representative for group.
     _typeToGroup :: Map FunctionCode GroupId,
     _nameToGroup :: Map Id GroupId,
-    _type2transition :: HashMap AbstractSkeleton [Id], -- mapping from abstract type to group ids
+    _type2transition :: HashMap AbstractSkeleton (Set Id), -- mapping from abstract type to group ids
     _solverStats :: TimeStatistics,
     _splitTypes :: Set AbstractSkeleton,
     _nameMapping :: Map Id Id, -- mapping from fake names to real names
