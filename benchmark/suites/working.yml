@@ -10,8 +10,9 @@
 - name: fromFirstMaybes
   query: "a -> [Maybe a] -> a"
 
-- name: groupList
-  query: "[(k, v)] -> Map k [v]"
+- name: removeListFromSet
+  query: Ord k => [k] -> Set k -> Set k
+  solution: (\\) arg0 (fromList arg1)
 
 - name: mapEither
   query: "(a -> Either b c) -> [a] -> ([b], [c])"

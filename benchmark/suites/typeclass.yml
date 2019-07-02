@@ -20,8 +20,8 @@
 - name: a2i
   query: Num a => a -> Int
 
-- name: reverseMap
-  query: Ord k, Ord v => Map k v -> Map v [k]
+# - name: reverseMap
+#   query: Ord k, Ord v => Map k v -> Map v [k]
 
 - name: overlapCount
   query: Eq a => [a] -> [a] -> Int
@@ -37,3 +37,15 @@
 
 - name: d2i
   query: Double -> Integer
+
+- name: keyOverlap
+  query: Ord k => Map k v -> Set k -> Set k
+  solution: Set.intersection arg0 (keySet arg1)
+
+# - name: justMap
+#   query: Ord k => [Maybe (k, v)] -> Map k v
+#   solution: Map.fromList (catMaybe arg0)
+
+- name: removeListFromSet
+  query: Ord k => [k] -> Set k -> Set k
+  solution: (\\) arg0 (fromList arg1)

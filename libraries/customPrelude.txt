@@ -32,6 +32,18 @@ maybeToList :: Maybe a -> [a]
 catMaybes :: [Maybe a] -> [a]
 mapMaybe :: (a -> Maybe b) -> [a] -> [b]
 
+module Data.Bool
+data Bool
+False :: Bool
+True :: Bool
+(&&) :: Bool -> Bool -> Bool
+infixr 3 &&
+(||) :: Bool -> Bool -> Bool
+infixr 2 ||
+not :: Bool -> Bool
+otherwise :: Bool
+bool :: a -> a -> Bool -> a
+
 module Prelude
 data Bool
 False :: Bool
