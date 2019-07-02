@@ -134,6 +134,7 @@ headersList TrackTypesAndTransitions = [
   "nc: transitions", "c: transitions",
   "duplicate symbols", "nc: status", "c: status"
   ]
+headersList err = error $ "Missing case for: " ++ show err
 
 toRow :: ExperimentCourse -> (String, [ResultSummary]) -> [String]
 toRow currentExp (name, rss) =
