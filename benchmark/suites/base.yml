@@ -89,3 +89,7 @@
 
 - name: app3
   query: (a -> b -> c -> d) -> a -> c -> b -> d
+
+- name: appendN
+  query: Int -> [a] -> [a]
+  solution: concat (replicate n xs)
