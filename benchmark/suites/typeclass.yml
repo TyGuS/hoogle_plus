@@ -1,0 +1,23 @@
+- name: numElem
+  query: Eq a => [a] -> a -> Int
+- name: lookup
+  query: Eq a => [(a,b)] -> a -> b
+- name: convertToInt
+  query: Double -> Int
+- name: toText
+  query: a -> Text
+- name: toFloat
+  query: Float -> Int
+- name: c2i
+  query: Char -> Integer
+- name: a2i
+  query: Num a => a -> Int
+
+- name: reverseMap
+  query: Ord k, Ord v => Map k v -> Map v [k]
+
+- name: overlapCount
+  query: Eq a => [a] -> [a] -> Int
+
+- name: mbElem
+  query: Eq a => a -> [a] -> Maybe a

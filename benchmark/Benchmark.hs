@@ -14,11 +14,13 @@ import BTypes hiding (name)
 import BOutput
 
 import Data.Aeson
+import Data.Yaml
 import Data.Maybe
 import Text.Pretty.Simple
 import System.Console.CmdArgs.Implicit
 import System.Timeout
 import System.Exit
+import System.FilePath.Posix
 import qualified Data.Map as Map
 
 
@@ -57,10 +59,25 @@ mkExperiments envs qs params = [
 
 readQueryFile :: FilePath -> IO [Query]
 readQueryFile fp = do
-  mbQs <- decodeFileStrict' fp
-  case mbQs of
-    Nothing -> error "Unable to read query file. Is the JSON poorly formatted?"
-    Just qs -> return qs
+  let extension = takeExtension fp
+  case extension of
+    ".yaml" -> decodeYaml
+    ".yml" -> decodeYaml
+    ".json" -> decodeJson
+    _ -> error "Unable to read query file. Must be .json or .yaml"
+  where
+    decodeJson = do
+      mbQs <- decodeFileStrict' fp
+      case mbQs of
+        Nothing -> error "Unable to read query file. Is the JSON poorly formatted?"
+        Just qs -> return qs
+    decodeYaml = do
+      eErrOrQs <- decodeFileEither fp
+      case eErrOrQs of
+        Left _ ->  error "Unable to read query file. Is the YAML poorly formatted?"
+        Right r -> do
+          print r
+          return r
 
 getSetup args = do
   let preset = argsPreset args

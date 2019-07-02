@@ -101,9 +101,10 @@ executables:
     main: Benchmark.hs
     source-dirs: benchmark
     dependencies:
-      - HooglePlus
-      - parallel-io
-      - table-layout
+    - HooglePlus
+    - parallel-io
+    - table-layout
+    - yaml
 
 tests:
   spec:
