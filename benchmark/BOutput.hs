@@ -114,7 +114,7 @@ instance Summary [ResultSummary] where
 
 
 headersList :: ExperimentCourse -> [String]
-headersList CompareSolutions = [
+headersList CompareEnvironments = [
   "T - first - Old", "T - all - New",
   "total - old", "total - new",
   "length - 1old", "length - 1new",
@@ -182,10 +182,10 @@ toRow currentExp (name, rss) =
       either show id <$> resSolutionOrError <$> (head . results) <$> mbqr
       ]
 
-    rowForExp CompareSolutions = let
+    rowForExp CompareEnvironments = let
         -- come in reverse order, so we must flip it.
         queryRefinementResults = reverse (fromJust (results <$> mbqrNew)) :: [Result]
-        queryRefinementResultsOld = reverse (fromJust (results <$> mbbaseline)) :: [Result]
+        queryRefinementResultsOld = reverse (fromJust (results <$> mbqrOld)) :: [Result]
         toSolution = (either show id . resSolutionOrError) :: Result -> String
         timeToAll = sum $ map resTFirstSoln queryRefinementResults
         timeToAllOld = sum $ map resTFirstSoln queryRefinementResultsOld
@@ -196,11 +196,11 @@ toRow currentExp (name, rss) =
           bool Nothing (Just (showFloat timeToAllOld)) (timeToAllOld /= 0), -- All
           bool Nothing (Just (showFloat timeToAll)) (timeToAll /= 0), -- All
 
-          (show . resLenFirstSoln) <$> (head . results) <$> mbbaseline,
+          (show . resLenFirstSoln) <$> (head . results) <$> mbqrOld,
           (show . resLenFirstSoln) <$> (head . results) <$> mbqrNew,
-          (show . resRefinementSteps) <$> (head . results) <$> mbbaseline,
+          (show . resRefinementSteps) <$> (head . results) <$> mbqrOld,
           (show . resRefinementSteps) <$> (head . results) <$> mbqrNew,
-          (show . resTransitions) <$> (head . results) <$> mbbaseline,
+          (show . resTransitions) <$> (head . results) <$> mbqrOld,
           (show . resTransitions) <$> (head . results) <$> mbqrNew,
 
           Just $ unlines (map (mkOneLine . toSolution) queryRefinementResultsOld),

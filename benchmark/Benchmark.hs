@@ -82,7 +82,7 @@ getSetup args = do
   componentSet <- generateEnv $ getOptsFromPreset preset
   componentOldSet <- generateEnv $ getOptsFromPreset ICFPPartial
   queries <- readQueryFile (argsQueryFile args)
-  let envs = [(componentSet, show preset)]
+  let envs = [(componentSet, show preset), (componentOldSet, show ICFPPartial)]
   let currentExperiment = argsExperiment args
   let params =
         case currentExperiment of
