@@ -33,3 +33,11 @@
 - name: applyNtimes
   query: (a->a) -> a -> Int -> a
   solution: GHC.List.foldr Prelude.app x (GHC.List.replicate n f)
+
+- name: eitherTriple
+  query: Either a b -> Either a b -> Either a b
+  solution: \x y -> either Left (const (either Left Right y)) x
+
+- name: pipe
+  query: [(a -> a)] -> (a -> a)
+  solution: foldr ($) id xs

@@ -1,15 +1,21 @@
 - name: numElem
   query: Eq a => [a] -> a -> Int
+
 - name: lookup
   query: Eq a => [(a,b)] -> a -> b
+
 - name: convertToInt
   query: Double -> Int
+
 - name: toText
   query: a -> Text
+
 - name: toFloat
   query: Float -> Int
+
 - name: c2i
   query: Char -> Integer
+
 - name: a2i
   query: Num a => a -> Int
 
@@ -21,3 +27,12 @@
 
 - name: mbElem
   query: Eq a => a -> [a] -> Maybe a
+
+- name: convert
+  query: Int -> Int -> Float
+
+- name: areEq
+  query: Eq a => a -> a -> Maybe a
+
+- name: d2i
+  query: Double -> Integer

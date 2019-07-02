@@ -88,7 +88,7 @@ getSetup args = do
   let currentExperiment = argsExperiment args
   let params =
         case currentExperiment of
-          CompareEnvironments -> let solnCount = 2 in
+          CompareEnvironments -> let solnCount = 5 in
               [(searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ)]
           CompareSolutions -> let solnCount = 5 in
               [(searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ)]
