@@ -6,6 +6,7 @@ import BConfig
 import Synquid.Util
 import Types.Experiments
 import Types.Environment
+import Types.Generate
 import PetriNet.GHCChecker (toHaskellSolution)
 
 import qualified Data.Map as Map
@@ -126,6 +127,9 @@ headersList TrackTypesAndTransitions = [
   "nc: transitions", "c: transitions",
   "duplicate symbols", "nc: status", "c: status"
   ]
+headersList CompareEnvironments = [
+  "T - first - Old", "T - all - New", "total - old", "total - new", "Solutions - Old", "Solutions - New"
+  ]
 
 toRow :: ExperimentCourse -> (String, [ResultSummary]) -> [String]
 toRow currentExp (name, rss) =
@@ -138,6 +142,8 @@ toRow currentExp (name, rss) =
     spaceList xs = intercalate ", " $ splitBy ',' $ show xs
 
     mbqr = findwhere expTyGarQ rss
+    mbqrOld = find (\x -> (paramName x == expTyGarQ && envName x == (show ICFPPartial))) rss
+    mbqrNew = find (\x -> (paramName x == expTyGarQ && envName x == (show POPL))) rss
     mbzero = findwhere expTyGar0 rss
     mbbaseline = findwhere expSypetClone rss
     mbExpNoDmd = find (\x -> (paramName x == expTyGarQNoDmd))  rss
@@ -184,3 +190,20 @@ toRow currentExp (name, rss) =
       either show id <$> resSolutionOrError <$> (head . results) <$> mbNoCoalescing,
       either show id <$> resSolutionOrError <$> (head . results) <$> mbqr
       ]
+
+    rowForExp CompareEnvironments = let
+        -- come in reverse order, so we must flip it.
+        queryRefinementResults = reverse (fromJust (results <$> mbqrNew)) :: [Result]
+        queryRefinementResultsOld = reverse (fromJust (results <$> mbqrOld)) :: [Result]
+        toSolution = (either show toHaskellSolution . resSolutionOrError) :: Result -> String
+        timeToAll = sum $ map resTFirstSoln queryRefinementResults
+        timeToAllOld = sum $ map resTFirstSoln queryRefinementResultsOld
+      in
+        [
+          (showFloat . resTFirstSoln) <$> listToMaybe queryRefinementResultsOld, -- First
+          (showFloat . resTFirstSoln) <$> listToMaybe queryRefinementResults, -- First
+          bool Nothing (Just (showFloat timeToAllOld)) (timeToAllOld /= 0), -- All
+          bool Nothing (Just (showFloat timeToAll)) (timeToAll /= 0), -- All
+          Just $ unlines (map (mkOneLine . toSolution) queryRefinementResultsOld),
+          Just $ unlines (map (mkOneLine . toSolution) queryRefinementResults)
+        ]

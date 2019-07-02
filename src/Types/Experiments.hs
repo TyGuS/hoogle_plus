@@ -106,6 +106,7 @@ data ExperimentCourse
   | CompareFinalCovers
   | CompareThresholds
   | CompareSolutions -- 2019-06-12
+  | CompareEnvironments
   deriving (Show, Data, Typeable)
 
 data Message

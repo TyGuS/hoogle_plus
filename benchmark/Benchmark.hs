@@ -48,7 +48,6 @@ main = do
 outputResults :: Maybe FilePath -> String -> IO ()
 outputResults Nothing res = putStrLn res
 outputResults (Just fp) res = putStrLn res >> writeFile fp res
-
 mkExperiments :: [(Environment, String)] -> [Query] -> [(SearchParams, String)] -> [Experiment]
 mkExperiments envs qs params = [
   (env, envN, q, param, paramN) |
@@ -66,11 +65,14 @@ readQueryFile fp = do
 getSetup args = do
   let preset = argsPreset args
   componentSet <- generateEnv $ getOptsFromPreset preset
+  componentOldSet <- generateEnv $ getOptsFromPreset ICFPPartial
   queries <- readQueryFile (argsQueryFile args)
-  let envs = [(componentSet, show preset)]
+  let envs = [(componentSet, show preset), (componentOldSet, show ICFPPartial)]
   let currentExperiment = argsExperiment args
   let params =
         case currentExperiment of
+          CompareEnvironments -> let solnCount = 2 in
+              [(searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ)]
           CompareSolutions -> let solnCount = 5 in
               [(searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ)]
           CompareInitialAbstractCovers -> [

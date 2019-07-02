@@ -84,9 +84,7 @@ summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
   results = case (currentExperiment, r) of
     (_, []) -> [emptyResult {resSolutionOrError = Left TimeoutException}]
     -- We want all the solutions
-    (CompareSolutions, solns) -> map outputToResult solns
-    -- We only want one solution
-    (_, solns) -> [outputToResult $ head solns]
+    (_, solns) -> map outputToResult solns
 
   in ResultSummary {
     envName = envN,
