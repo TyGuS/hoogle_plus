@@ -88,7 +88,7 @@ generateEnv genOpts = do
        Left errMessage -> error $ show errMessage
        Right env -> return env {
           _symbols = if useHO then env ^. symbols
-                              else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols,
+                              else Map.filter (not . isHigherOrder . toMonotype) $ env ^. symbols,
          _included_modules = Set.fromList (moduleNames)
         }
 

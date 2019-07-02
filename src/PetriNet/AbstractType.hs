@@ -21,12 +21,13 @@ import Data.Aeson
 import Data.Maybe
 import Data.Either (isLeft)
 import Data.List
+import Data.List.Extra
 import Text.Printf
 import Control.Monad.State
 import Debug.Trace
 
 allTypesOf :: AbstractCover -> [AbstractSkeleton]
-allTypesOf cover = nub $ HashMap.keys cover ++ (Set.toList . Set.unions $ HashMap.elems cover)
+allTypesOf cover = nubOrd $ HashMap.keys cover ++ (Set.toList . Set.unions $ HashMap.elems cover)
 
 coverSize :: AbstractCover -> Int
 coverSize = length . allTypesOf

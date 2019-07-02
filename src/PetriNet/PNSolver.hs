@@ -257,14 +257,17 @@ mkGroups env sigs = do
     let representatives = Map.map (selectRepresentative hoAlias) sigGroups
     let sigs' = Map.restrictKeys sigs (Set.fromList $ Map.elems representatives)
     modify $ over groupRepresentative $ Map.union representatives
-    modify $ over groupMap (updateGroups sigGroups)
     modify $ over typeToGroup (Map.union t2g)
+    mapM_ updateGroups (Map.toList sigGroups)
     return sigs'
   where
     -- Given the new set of groups, update the current group mapping
-    updateGroups :: Map Id (Set Id) -> Map Id (Set Id) -> Map Id (Set Id)
-    updateGroups sigGroups gm = foldr updategm gm (Map.toList sigGroups)
-    updategm (groupName, groupMembers) = Map.insertWith Set.union groupName groupMembers
+    -- updateGroups :: Map Id (Set Id) -> Map Id (Set Id) -> Map Id (Set Id)
+    -- updateGroups sigGroups gm = foldr updategm gm (Map.toList sigGroups)
+    -- updategm (groupName, groupMembers) = Map.insertWith Set.union groupName groupMembers
+    updateGroups (gid, fids) = do
+        modify $ over groupMap (Map.insertWith Set.union gid fids)
+        mapM_ (\fid -> modify $ over nameToGroup (Map.insert fid gid)) fids 
 
 selectRepresentative hoArgs s = 
     let intsct = s `Set.intersection` hoArgs
@@ -372,8 +375,10 @@ refineSemantic env prog at = do
         (toAdd, toRemove, grs') <- foldM updateRepresentatives ([], [], Map.empty) (Map.toList grs)
         modify $ set groupRepresentative grs'
         mapM_ (\t -> modify $ over type2transition (HashMap.map $ delete t)) removables
-        mapM_ (\t -> modify $ over nameMapping (Map.delete t)) removables
-        mapM_ (\t -> modify $ over currentSigs (Map.delete t)) removables
+        let removeSet = Set.fromList removables
+        modify $ over nameMapping (`Map.withoutKeys` removeSet)
+        modify $ over currentSigs (`Map.withoutKeys` removeSet)
+        modify $ over nameToGroup (`Map.withoutKeys` removeSet)
         return (toAdd, toRemove)
 
     updateRepresentatives :: MonadIO m => ([(Id, AbstractSkeleton)], [Id], Map GroupId Id) -> (GroupId, Id) -> PNSolver m ([(Id, AbstractSkeleton)], [Id], Map GroupId Id)
@@ -767,12 +772,11 @@ excludeUseless id ty = do
 
 getGroupRep :: MonadIO m => Id -> PNSolver m [Id]
 getGroupRep name = do
-    gm <- gets $ view groupMap
     gr <- gets $ view groupRepresentative
-    let withinGroup = Set.member name
-    let argGps = Map.keys $ Map.filter withinGroup gm
+    ngm <- gets $ view nameToGroup
+    let argGps = maybeToList $ Map.lookup name ngm
     writeLog 3 "getGroupRep" $ text name <+> text "is contained in group" <+> pretty argGps
-    let argRp = map fromJust $ filter isJust $ map (`Map.lookup` gr) argGps
+    let argRp = catMaybes $ map (`Map.lookup` gr) argGps
     return argRp
 
 assemblePair :: AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton

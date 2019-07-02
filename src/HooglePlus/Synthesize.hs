@@ -47,7 +47,7 @@ updateEnvWithBoundTyVars (ForallT x ty) env = updateEnvWithBoundTyVars ty (addTy
 
 updateEnvWithSpecArgs :: RType -> Environment -> (Environment, RType)
 updateEnvWithSpecArgs ty@(ScalarT _ _) env = (env, ty)
-updateEnvWithSpecArgs (FunctionT x tArg tRes) env = updateEnvWithSpecArgs tRes $ unfoldAllVariables $ addVariable x tArg $ addArgument x tArg env
+updateEnvWithSpecArgs (FunctionT x tArg tRes) env = updateEnvWithSpecArgs tRes $ addVariable x tArg $ addArgument x tArg env
 
 envToGoal :: Environment -> String -> IO Goal
 envToGoal env queryStr = do
@@ -74,7 +74,7 @@ synthesize searchParams goal messageChan = do
   let (env', destinationType) = updateEnvWithSpecArgs monospec env''
   let useHO = _useHO searchParams
   let env = if useHO then env'
-                      else env' { _symbols = Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env' ^. symbols }
+                      else env' { _symbols = Map.filter (not . isHigherOrder . toMonotype) $ env' ^. symbols }
   putStrLn $ "Component number: " ++ show (Map.size $ allSymbols env)
   let args = Monotype destinationType : Map.elems (env ^. arguments)
   -- start with all the datatypes defined in the components, first level abstraction

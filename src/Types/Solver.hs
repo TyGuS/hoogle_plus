@@ -40,6 +40,7 @@ data SolverState = SolverState {
     _groupMap :: Map GroupId (Set Id), -- mapping from group id to Skel and list of function names with the same skel
     _groupRepresentative :: Map GroupId Id, -- mapping of current representative for group.
     _typeToGroup :: Map FunctionCode GroupId,
+    _nameToGroup :: Map Id GroupId,
     _type2transition :: HashMap AbstractSkeleton [Id], -- mapping from abstract type to group ids
     _solverStats :: TimeStatistics,
     _splitTypes :: Set AbstractSkeleton,
@@ -69,6 +70,7 @@ emptySolverState = SolverState {
     _groupMap = Map.empty,
     _groupRepresentative = Map.empty,
     _typeToGroup = Map.empty,
+    _nameToGroup = Map.empty,
     _type2transition = HashMap.empty,
     _solverStats = emptyTimeStats,
     _splitTypes = Set.empty,
