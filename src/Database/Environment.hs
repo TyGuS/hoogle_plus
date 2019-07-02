@@ -25,8 +25,10 @@ import Types.Environment (Environment, symbols, _symbols, _included_modules)
 import Types.Program (BareDeclaration(..), Declaration(..), ConstructorSig(..))
 import Types.Generate
 import Synquid.Resolver (resolveDecls)
-
+import qualified Data.List.Utils as LUtils
+import qualified Types.Program as TP
 import Synquid.Util
+import qualified Debug.Trace as D
 
 
 writeEnv :: FilePath -> Environment -> IO ()
@@ -63,8 +65,25 @@ generateEnv genOpts = do
     let moduleNames = Map.keys entriesByMdl
     let allCompleteEntries = concat (Map.elems entriesByMdl)
     let allEntries = nubOrd allCompleteEntries
-    ourDecls <- mapM (\entry -> evalStateT (DC.toSynquidDecl entry) 0) allEntries
-    let hooglePlusDecls = DC.reorderDecls $ nubOrd $ (ourDecls ++ dependencyEntries ++ defaultFuncs ++ defaultDts)
+    ourDecls <- mapM (\(entry) -> (evalStateT (DC.toSynquidDecl entry) 0)) allEntries
+
+    let instanceDecls = filter (\entry -> DC.isInstance entry) allEntries
+    let instanceRules = map DC.getInstanceRule instanceDecls
+    let transitionIds = [0 .. length instanceRules]
+    let instanceTuples = zip instanceRules transitionIds
+    instanceFunctions <- mapM (\(entry, id) -> evalStateT (DC.instanceToFunction entry id) 0) instanceTuples
+
+    -- TODO: remove all higher kinded type instances
+    let instanceFunctions' = filter (\x -> not(or [(isInfixOf "Applicative" $ show x),(isInfixOf "Functor" $ show x),(isInfixOf "Monad" $ show x)])) instanceFunctions
+
+    let declStrs = show (instanceFunctions' ++ ourDecls)
+    let removeParentheses = (\x -> LUtils.replace ")" "" $ LUtils.replace "(" "" x)
+    let tcNames = nub $ map removeParentheses $ filter (\x -> isInfixOf tyclassPrefix x) (splitOn " " declStrs)
+    let tcDecls = map (\x -> Pos (initialPos "") $ TP.DataDecl x ["a"] [] []) tcNames
+
+    let library = concat [ourDecls, dependencyEntries, instanceFunctions', tcDecls, defaultLibrary]
+    let hooglePlusDecls = DC.reorderDecls $ nubOrd $ library
+
     case resolveDecls hooglePlusDecls moduleNames of
        Left errMessage -> error $ show errMessage
        Right env -> return env {

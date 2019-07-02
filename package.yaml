@@ -11,15 +11,14 @@ extra-source-files:
 description: Please see the README
 
 dependencies:
-- base
-- Cabal
-- MissingH
-- array
 - aeson
 - ansi-terminal
 - ansi-wl-pprint
+- array
+- base
 - bimap
 - bytestring
+- Cabal
 - cereal
 - cmdargs
 - conduit
@@ -28,6 +27,8 @@ dependencies:
 - directory
 - extra
 - filepath
+- ghc
+- ghc-paths
 - hashable
 - haskell-src-exts
 - heap
@@ -38,6 +39,7 @@ dependencies:
 - indents
 - lens
 - logict
+- MissingH
 - mtl
 - packdeps
 - parsec
@@ -50,6 +52,7 @@ dependencies:
 - safe
 - sort
 - split
+- split
 - stm
 - text
 - time
@@ -57,9 +60,6 @@ dependencies:
 - transformers-compat
 - unordered-containers
 - vector
-- ghc
-- ghc-paths
-- split
 
 library:
   source-dirs:

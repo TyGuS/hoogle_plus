@@ -168,7 +168,6 @@ solveAndGetModel = do
 
     case res of
         Sat -> do
-            liftIO $ print "sat"
             model <- solverGetModel
             places <- gets (HashMap.keys . ty2tr)
             -- evaluate what transitions are fired
@@ -188,7 +187,6 @@ solveAndGetModel = do
                 cancelConstraints "final"
             return selectedNames
         Unsat -> do
-            liftIO $ print "unsat"
             rets <- gets returnTyps
             unless incremental $ do
                 currEnv <- gets z3env
@@ -208,7 +206,7 @@ solveAndGetModel = do
                 t2tr <- gets ty2tr
                 when incremental $ cancelConstraints "final"
                 modify $ \st -> st { finalConstraints = []
-                                   , returnTyps = tail rets 
+                                   , returnTyps = tail rets
                                    , prevChecked = False }
                 setFinalState (rets !! 1) (HashMap.keys t2tr)
                 solveAndGetModel
@@ -296,14 +294,13 @@ encoderInc sigs inputs rets = do
 
     -- set new initial and final state
     setInitialState inputs places
-    
+
     setFinalState (head rets) places
 
 encoderRefine :: SplitInfo -> HashMap Id [Id] -> [Id] -> [Id] -> [FunctionCode] -> HashMap Id [Id] -> Encoder ()
 encoderRefine info musters inputs rets sigs t2tr = do
     {- update the abstraction level -}
-    let getInitTokens = filter ((`notElem` removedTrans info) . fst)
-    modify $ \st -> st { ty2tr = t2tr 
+    modify $ \st -> st { ty2tr = t2tr
                        , mustFirers = musters
                        , disabledTrans = disabledTrans st ++ removedTrans info
                        , returnTyps = rets
@@ -321,7 +318,7 @@ encoderRefine info musters inputs rets sigs t2tr = do
 
     -- add new place, transition and timestamp variables
     mapM_ (uncurry addPlaceVar) [(a, i) | a <- newPlaceIds, i <- [0..l]]
-    addTransitionVar newTransIds    
+    addTransitionVar newTransIds
 
     -- all places have non-negative number of tokens
     nonnegativeTokens newPlaceIds
@@ -341,7 +338,7 @@ encoderRefine info musters inputs rets sigs t2tr = do
 
     -- set new initial and final state
     setInitialState inputs currPlaces
-    
+
     setFinalState (head rets) currPlaces
 
 disableTransitions :: [Id] -> Int -> Encoder ()

@@ -47,6 +47,7 @@ data SolverState = SolverState {
     _instanceMapping :: HashMap (Id, [AbstractSkeleton]) (Id, AbstractSkeleton),
     _toRemove :: [Id],
     _funTypes :: Set Id,
+    _slnCounter :: Int,
     _messageChan :: Chan Message
 } deriving(Eq)
 
@@ -75,6 +76,7 @@ emptySolverState = SolverState {
     _instanceMapping = HashMap.empty,
     _toRemove = [],
     _funTypes = Set.empty,
+    _slnCounter = 0,
     _messageChan = undefined
 }
 

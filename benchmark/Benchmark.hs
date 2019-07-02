@@ -27,7 +27,8 @@ defaultArgs = Args {
   argsTimeout=defaultTimeout &= name "timeout" &= help "Each experiment will have N seconds to complete" ,
   argsOutputFile=Nothing &= name "output" &= typFile,
   argsExperiment=defaultExperiment &= name "experiment",
-  argsOutputFormat=Table &= name "format"
+  argsOutputFormat=Table &= name "format",
+  argsPreset=POPL &= name "preset" &= help "Component set preset"
   }
 
 main :: IO ()
@@ -36,11 +37,12 @@ main = do
     let currentExperiment = argsExperiment args
     let setup = ExpSetup {expTimeout = argsTimeout args, expCourse = currentExperiment}
     (envs, params, exps) <- getSetup args
-    resultSummaries <- runExperiments setup exps
     let outputFormat = argsOutputFormat args
     let environmentStatsTable = outputSummary Table currentExperiment envs
-    let resultTable = outputSummary outputFormat currentExperiment resultSummaries
     putStrLn environmentStatsTable
+
+    resultSummaries <- runExperiments setup exps
+    let resultTable = outputSummary outputFormat currentExperiment resultSummaries
     outputResults (argsOutputFile args) (resultTable)
 
 outputResults :: Maybe FilePath -> String -> IO ()
@@ -62,16 +64,15 @@ readQueryFile fp = do
     Just qs -> return qs
 
 getSetup args = do
-  tier1env <- generateEnv genOptsTier1
-  tier2env <- generateEnv genOptsTier2
+  let preset = argsPreset args
+  componentSet <- generateEnv $ getOptsFromPreset preset
   queries <- readQueryFile (argsQueryFile args)
-  let envs = [(tier2env, "Partial")]
+  let envs = [(componentSet, show preset)]
   let currentExperiment = argsExperiment args
   let params =
         case currentExperiment of
           CompareSolutions -> let solnCount = 5 in
-              [ (searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ),
-                (searchParamsTyGarQ{_disableDemand=True, _solutionCnt=solnCount}, expTyGarQNoDmd)]
+              [(searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ)]
           CompareInitialAbstractCovers -> [
             (searchParamsTyGarQ, expTyGarQ),
             -- (searchParamsHOF, expQueryRefinementHOF),
@@ -102,11 +103,5 @@ getSetup args = do
           TrackTypesAndTransitions -> [
             (searchParamsTyGarQ{_coalesceTypes=True}, expTyGarQ),
             (searchParamsTyGarQ{_coalesceTypes=False}, expTyGarQNoCoalesce)]
-  let exps =
-        case currentExperiment of
-          TrackTypesAndTransitions -> mkExperiments envs queries params
-          CompareSolutions -> mkExperiments envs queries params
-          _ -> let
-            baseExps = mkExperiments envs queries params
-            in baseExps -- ++ extraExps
+  let exps = mkExperiments envs queries params
   return (envs, params, exps)

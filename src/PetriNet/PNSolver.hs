@@ -625,7 +625,7 @@ findProgram env dst st = do
 
 printSolution solution = do
     liftIO $ putStrLn "*******************SOLUTION*********************"
-    liftIO $ putStrLn $ "SOLUTION: " ++ mkOneLine (show solution)
+    liftIO $ putStrLn $ "SOLUTION: " ++ solution
     liftIO $ putStrLn "************************************************"
 
 
@@ -638,7 +638,8 @@ findFirstN env dst st cnt | cnt == 1  = do
     strategy <- getExperiment refineStrategy
     writeLog 1 "findFirstN" $ text (show depth)
     let stats' = stats{pathLength = depth}
-    printSolution res
+    let haskellSolution = toHaskellSolution res
+    printSolution haskellSolution
     writeLog 1 "findFirstN" $ text (show stats)
     if noGarTyGarIdx strategy >= 0
       then do
@@ -655,7 +656,8 @@ findFirstN env dst st cnt = do
     stats <- gets $ view solverStats
     loc <- gets $ view currentLoc
     let stats' = stats{pathLength = loc}
-    printSolution res
+    let haskellSolution = toHaskellSolution res
+    printSolution haskellSolution
     liftIO $ writeChan msgChan (MesgP (res, stats'))
     resetTiming
     findFirstN env dst st' (cnt-1)

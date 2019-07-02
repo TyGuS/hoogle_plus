@@ -81,6 +81,7 @@ toAbstractType (ScalarT (DatatypeT id args _) _) = AScalar (ADatatypeT id (map (
 toAbstractType (FunctionT _ tArg tRet) = AFunctionT (toAbstractFun tArg) (toAbstractType tRet)
 toAbstractType AnyT = AScalar (ATypeVarT varName)
 toAbstractType BotT = ABottom
+toAbstractType x = error $ "unhandled case: " ++ show x
 
 toAbstractFun :: SType -> AbstractSkeleton
 toAbstractFun (FunctionT _ tArg tRes) = AScalar $ ADatatypeT "Fun" [toAbstractFun tArg, toAbstractFun tRes]

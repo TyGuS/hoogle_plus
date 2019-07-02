@@ -21,7 +21,7 @@ import GHC.Conc (getNumCapabilities)
 import GHC.Exception
 import Data.Ratio ((%))
 import Data.List
-
+import Text.Printf
 import System.IO.Unsafe
 
 runExperiments :: ExperimentSetup -> [Experiment] -> IO [ResultSummary]
@@ -46,6 +46,7 @@ runPool setup exps pool = do
 runExperiment :: ExperimentSetup -> Experiment -> IO [(Either EvaluationException (Maybe RProgram), TimeStatistics)]
 runExperiment setup (env, envName, q, params, paramName) = do
   let queryStr = query q
+  printf "Running: %s\n" queryStr
   let timeoutUs = expTimeout setup * 10^6 -- Timeout in microseconds
   goal <- envToGoal env queryStr
   messageChan <- newChan
