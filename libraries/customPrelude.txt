@@ -105,12 +105,12 @@ infixl 6 -
 infixl 7 *
 
 -- id :: a -> a
-(.) :: (b -> c) -> (a -> b) -> a -> c
-infixr 9 .
-($) :: forall r a (b :: TYPE r). (a -> b) -> a -> b
-infixr 0 $
+--(.) :: (b -> c) -> (a -> b) -> a -> c
+--infixr 9 .
+--($) :: forall r a (b :: TYPE r). (a -> b) -> a -> b
+--infixr 0 $
 until :: (a -> Bool) -> (a -> a) -> a -> a
-asTypeOf :: a -> a -> a
+--asTypeOf :: a -> a -> a
 
 type ShowS = String -> String
 class Show a

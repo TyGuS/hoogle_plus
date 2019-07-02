@@ -30,6 +30,7 @@
 
 - name: headTail
   query: "[a] -> (a, a)"
+  solution: (,) (head arg0) (tail arg0)
 
 - name: headRest
   query: "[a] -> (a, [a])"
