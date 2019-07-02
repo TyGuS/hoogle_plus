@@ -34,3 +34,5 @@ HooglePlus.cabal
 webapp/static/tmp/*
 stack.yaml.lock
 logs/
+hplus.code-workspace
+.vscode
