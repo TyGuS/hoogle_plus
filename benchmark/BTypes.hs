@@ -68,7 +68,7 @@ data EvaluationException =
   | RuntimeException SomeException
   | NotImplementedException
 
-data ResultFormat = Table | TSV deriving (Show, Data, Typeable)
+data ResultFormat = Table | TSV | Latex deriving (Show, Data, Typeable)
 
 instance Show EvaluationException where
   show (TimeoutException) = "Timeout"

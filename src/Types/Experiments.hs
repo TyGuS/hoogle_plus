@@ -64,7 +64,6 @@ data TimeStatistics = TimeStatistics {
   codeFormerTime :: Double,
   refineTime :: Double,
   typeCheckerTime :: Double,
-  otherTime :: Double,
   totalTime :: Double,
   iterations :: Int,
   pathLength :: Int,
@@ -73,7 +72,7 @@ data TimeStatistics = TimeStatistics {
   duplicateSymbols :: [(Int, Int, Int)]
 } deriving(Show, Eq)
 
-emptyTimeStats = TimeStatistics 0 0 0 0 0 0 0 0 0 0 Map.empty Map.empty []
+emptyTimeStats = TimeStatistics 0 0 0 0 0 0 0 0 0 Map.empty Map.empty []
 
 data TimeStatUpdate
   = ConstructionTime
@@ -107,6 +106,7 @@ data ExperimentCourse
   | CompareFinalCovers
   | CompareThresholds
   | CompareSolutions -- 2019-06-12
+  | CompareEnvironments
   deriving (Show, Data, Typeable)
 
 data Message

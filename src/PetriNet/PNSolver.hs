@@ -54,7 +54,7 @@ import Database.Convert
 import Database.Generate
 
 encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
-encodeFunction id t | "pair_match" `isPrefixOf` id = 
+encodeFunction id t | "pair_match" `isPrefixOf` id =
     let toMatch (FunctionCode name ho [p1,p2] ret) = FunctionCode id ho [p1] (p2:ret)
      in toMatch $ encodeFunction "__f" t
 encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [lastAbstractType t]
@@ -520,7 +520,7 @@ findFirstN env dst st cnt | cnt == 1  = do
     strategy <- getExperiment refineStrategy
     writeLog 1 "findFirstN" $ text (show depth)
     let stats' = stats{pathLength = depth}
-    let haskellSolution = toHaskellSolution res
+    let haskellSolution = toHaskellSolution (show res)
     printSolution haskellSolution
     writeLog 2 "findFirstN" $ text (show stats)
     if noGarTyGarIdx strategy >= 0
@@ -538,7 +538,7 @@ findFirstN env dst st cnt = do
     stats <- gets $ view solverStats
     loc <- gets $ view currentLoc
     let stats' = stats{pathLength = loc}
-    let haskellSolution = toHaskellSolution res
+    let haskellSolution = toHaskellSolution (show res)
     printSolution haskellSolution
     liftIO $ writeChan msgChan (MesgP (res, stats'))
     resetTiming

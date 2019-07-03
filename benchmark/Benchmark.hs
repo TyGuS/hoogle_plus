@@ -14,11 +14,13 @@ import BTypes hiding (name)
 import BOutput
 
 import Data.Aeson
+import Data.Yaml
 import Data.Maybe
 import Text.Pretty.Simple
 import System.Console.CmdArgs.Implicit
 import System.Timeout
 import System.Exit
+import System.FilePath.Posix
 import qualified Data.Map as Map
 
 
@@ -26,8 +28,8 @@ defaultArgs = Args {
   argsQueryFile=defaultQueryFile &= name "queries" &= typFile,
   argsTimeout=defaultTimeout &= name "timeout" &= help "Each experiment will have N seconds to complete" ,
   argsOutputFile=Nothing &= name "output" &= typFile,
-  argsExperiment=defaultExperiment &= name "experiment",
-  argsOutputFormat=Table &= name "format",
+  argsExperiment=defaultExperiment &= argPos 0,
+  argsOutputFormat=TSV &= name "format",
   argsPreset=POPL &= name "preset" &= help "Component set preset"
   }
 
@@ -48,7 +50,6 @@ main = do
 outputResults :: Maybe FilePath -> String -> IO ()
 outputResults Nothing res = putStrLn res
 outputResults (Just fp) res = putStrLn res >> writeFile fp res
-
 mkExperiments :: [(Environment, String)] -> [Query] -> [(SearchParams, String)] -> [Experiment]
 mkExperiments envs qs params = [
   (env, envN, q, param, paramN) |
@@ -58,21 +59,38 @@ mkExperiments envs qs params = [
 
 readQueryFile :: FilePath -> IO [Query]
 readQueryFile fp = do
-  mbQs <- decodeFileStrict' fp
-  case mbQs of
-    Nothing -> error "Unable to read query file. Is the JSON poorly formatted?"
-    Just qs -> return qs
+  let extension = takeExtension fp
+  case extension of
+    ".yaml" -> decodeYaml
+    ".yml" -> decodeYaml
+    ".json" -> decodeJson
+    _ -> error "Unable to read query file. Must be .json or .yaml"
+  where
+    decodeJson = do
+      mbQs <- decodeFileStrict' fp
+      case mbQs of
+        Nothing -> error "Unable to read query file. Is the JSON poorly formatted?"
+        Just qs -> return qs
+    decodeYaml = do
+      eErrOrQs <- decodeFileEither fp
+      case eErrOrQs of
+        Left err ->  print err >> error "Unable to read query file. Is the YAML poorly formatted?"
+        Right r -> return r
 
 getSetup args = do
   let preset = argsPreset args
   componentSet <- generateEnv $ getOptsFromPreset preset
+  componentOldSet <- generateEnv $ getOptsFromPreset ICFPPartial
   queries <- readQueryFile (argsQueryFile args)
   let envs = [(componentSet, show preset)]
   let currentExperiment = argsExperiment args
   let params =
         case currentExperiment of
-          CompareSolutions -> let solnCount = 5 in
+          CompareEnvironments -> let solnCount = 2  in
               [(searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ)]
+          CompareSolutions -> let solnCount = 5 in
+              [(searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ),
+               (searchParamsSypetClone{_solutionCnt=solnCount}, expSypetClone)]
           CompareInitialAbstractCovers -> [
             (searchParamsTyGarQ, expTyGarQ),
             -- (searchParamsHOF, expQueryRefinementHOF),
@@ -94,5 +112,8 @@ getSetup args = do
           TrackTypesAndTransitions -> [
             (searchParamsTyGarQ{_coalesceTypes=True}, expTyGarQ),
             (searchParamsTyGarQ{_coalesceTypes=False}, expTyGarQNoCoalesce)]
-  let exps = mkExperiments envs queries params
+  let exps =
+        case currentExperiment of
+          CompareEnvironments -> mkExperiments ((componentOldSet, show ICFPPartial):envs) queries params
+          _ ->  mkExperiments envs queries params
   return (envs, params, exps)
