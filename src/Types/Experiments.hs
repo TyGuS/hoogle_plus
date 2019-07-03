@@ -28,6 +28,11 @@ data RefineStrategy =
   | NoGarTyGarQB -- start from the final cover of TyGarQB, no refinement
   deriving(Data, Show, Eq)
 
+data CoalesceStrategy =
+    First -- First in the group set: naive
+  | LeastInstantiated -- Least instantiated element in group set.
+  deriving (Data, Show, Eq)
+
 -- | Parameters of program exploration
 data SearchParams = SearchParams {
   _maxApplicationDepth :: Int,                    -- ^ Maximum depth of application trees
@@ -39,7 +44,8 @@ data SearchParams = SearchParams {
   _stopRefine :: Bool,
   _threshold :: Int,
   _disableDemand :: Bool,
-  _coalesceTypes :: Bool
+  _coalesceTypes :: Bool,
+  _coalesceStrategy :: CoalesceStrategy
 } deriving (Eq, Show)
 
 makeLenses ''SearchParams
@@ -55,7 +61,8 @@ defaultSearchParams = SearchParams {
   _stopRefine = False,
   _threshold = 10,
   _disableDemand = False,
-  _coalesceTypes = True
+  _coalesceTypes = True,
+  _coalesceStrategy = First
 }
 data TimeStatistics = TimeStatistics {
   encodingTime :: Double,

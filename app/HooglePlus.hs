@@ -130,7 +130,8 @@ data CommandLineArgs
         stop_refine :: Bool,
         stop_threshold :: Int,
         disable_demand :: Bool,
-        disable_coalescing :: Bool
+        disable_coalescing :: Bool,
+        coalescing_strategy :: CoalesceStrategy
       }
       | Generate {
         -- | Input
@@ -156,7 +157,8 @@ synt = Synthesis {
   stop_refine         = False           &= help ("Stop refine the abstraction cover after some threshold (default: False)"),
   stop_threshold      = 10              &= help ("Refinement stops when the number of places reaches the threshold, only when stop_refine is True"),
   disable_demand = False &= name "d" &= help ("Disable the demand analyzer (default: False)"),
-  disable_coalescing = False &= name "xc" &= help ("Do not coalesce transitions in the net with the same abstract type")
+  disable_coalescing = False &= name "xc" &= help ("Do not coalesce transitions in the net with the same abstract type"),
+  coalescing_strategy = First &= help ("Choose how type coalescing works. Default: Pick first element of each group set.")
   } &= auto &= help "Synthesize goals specified in the input file"
 
 generate = Generate {

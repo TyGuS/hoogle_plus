@@ -162,8 +162,10 @@ addSignatures env = do
       do
         let encodedSigs = Map.mapWithKey encodeFunction sigs
         (t2g, sigGroups) <- groupSignatures encodedSigs
+        instances <- gets $ view instanceMapping
+        writeLog 1 "addSignatures" $ pretty instances
         -- Do I want to take the sigs here?
-        let representatives = Map.map selectRepresentative sigGroups
+        representatives <- Map.fromList <$> (mapM selectOurRep $ Map.toList sigGroups)
         let sigs' = Map.restrictKeys sigs (Set.fromList $ Map.elems representatives)
         modify $ over groupRepresentative $ Map.union representatives
         modify $ over groupMap (updateGroups sigGroups)
@@ -175,12 +177,20 @@ addSignatures env = do
     mapM_ addEncodedFunction (Map.toList sigs')
     return sigs'
     where
+        selectOurRep (gid, group) = (,) gid <$> selectRepresentative gid group
         -- Given the new set of groups, update the current group mapping
         updateGroups :: Map Id (Set Id) -> Map Id (Set Id) -> Map Id (Set Id)
         updateGroups sigGroups gm = foldr updategm gm (Map.toList sigGroups)
         updategm (groupName, groupMembers) = Map.insertWith Set.union groupName groupMembers
 
-selectRepresentative = Set.elemAt 0
+selectRepresentative :: MonadIO m => GroupId -> Set Id -> PNSolver m Id
+selectRepresentative gid sigGroup = do
+    strat <- getExperiment coalesceStrategy
+    case strat of
+        First -> return $ Set.elemAt 0 sigGroup
+        LeastInstantiated -> do
+            writeLog 1 "selectRepresentative" $ undefined
+            undefined
 
 addMusters :: MonadIO m => Id -> PNSolver m ()
 addMusters arg = do
@@ -260,7 +270,7 @@ refineSemantic env prog at = do
                             if not (null currentGroup)
                                 then do
                                     -- We need to elect a new leader for the group!
-                                    let newRep = selectRepresentative currentGroup
+                                    newRep <- selectRepresentative gid currentGroup
                                     let abstractType = lookupWithError "currentSigs" rep sigs
                                     let addables' = (newRep, abstractType):addables
                                     modify $ over currentSigs (Map.delete rep)
