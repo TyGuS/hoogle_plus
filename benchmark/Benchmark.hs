@@ -82,7 +82,7 @@ getSetup args = do
   componentSet <- generateEnv $ getOptsFromPreset preset
   componentOldSet <- generateEnv $ getOptsFromPreset ICFPPartial
   queries <- readQueryFile (argsQueryFile args)
-  let envs = [(componentSet, show preset), (componentOldSet, show ICFPPartial)]
+  let envs = [(componentSet, show preset)]
   let currentExperiment = argsExperiment args
   let params =
         case currentExperiment of
@@ -112,5 +112,8 @@ getSetup args = do
           TrackTypesAndTransitions -> [
             (searchParamsTyGarQ{_coalesceTypes=True}, expTyGarQ),
             (searchParamsTyGarQ{_coalesceTypes=False}, expTyGarQNoCoalesce)]
-  let exps = mkExperiments envs queries params
+  let exps =
+        case currentExperiment of
+          CompareEnvironments -> mkExperiments ((componentOldSet, show ICFPPartial):envs) queries params
+          _ ->  mkExperiments envs queries params
   return (envs, params, exps)
