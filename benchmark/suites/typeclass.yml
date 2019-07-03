@@ -49,3 +49,6 @@
 - name: removeListFromSet
   query: Ord k => [k] -> Set k -> Set k
   solution: (\\) arg0 (fromList arg1)
+
+# - name: updateAllInMap
+#   query: (v -> Maybe v) -> Map k v -> Map k v
