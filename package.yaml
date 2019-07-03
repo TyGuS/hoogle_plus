@@ -105,6 +105,7 @@ executables:
     - parallel-io
     - table-layout
     - yaml
+    - easyplot
 
 tests:
   spec:
