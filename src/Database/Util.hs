@@ -93,10 +93,7 @@ defaultTypeclassInstances = [
   mkInstance "Ord" charType,
   mkInstance "Ord" intType,
   mkInstance "Ord" floatType,
-  mkInstance "Ord" doubleType,
-  mkInstance "Num" intType,
-  mkInstance "Num" floatType,
-  mkInstance "Num" doubleType
+  mkInstance "Ord" doubleType
   ]
 
 mkInstance :: String -> RType -> Declaration

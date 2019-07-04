@@ -22,6 +22,7 @@ import System.Console.CmdArgs.Implicit
 import System.Timeout
 import System.Exit
 import System.FilePath.Posix
+import Text.Printf
 import qualified Data.Map as Map
 
 
@@ -64,11 +65,13 @@ mkExperiments envs qs params = [
 readQueryFile :: FilePath -> IO [Query]
 readQueryFile fp = do
   let extension = takeExtension fp
-  case extension of
-    ".yaml" -> decodeYaml
-    ".yml" -> decodeYaml
-    ".json" -> decodeJson
-    _ -> error "Unable to read query file. Must be .json or .yaml"
+  queries <- case extension of
+                ".yaml" -> decodeYaml
+                ".yml" -> decodeYaml
+                ".json" -> decodeJson
+                _ -> error "Unable to read query file. Must be .json or .yaml"
+  printf "Number of queries: %d\n" (length queries)
+  return queries
   where
     decodeJson = do
       mbQs <- decodeFileStrict' fp

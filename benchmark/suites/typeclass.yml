@@ -5,6 +5,10 @@
 - name: lookup
   query: Eq a => [(a,b)] -> a -> b
 
+- name: intersperse
+  query: Show a => a -> [String] -> String
+  solution: intersperse (show arg1) arg0
+
 - name: convertToInt
   query: Double -> Int
 
