@@ -47,7 +47,7 @@ runPool setup exps pool = do
 runExperiment :: ExperimentSetup -> (Experiment,(Int, Int)) -> IO [(Either EvaluationException (Maybe RProgram), TimeStatistics)]
 runExperiment setup ((env, envName, q, params, paramName), (n, total)) = do
   let queryStr = query q
-  printf "Running[%d/%d]: %s\n" n total queryStr
+  printf "Running [%d/%d]: (%s-%s): %s\n" n total envName paramName queryStr
   let timeoutUs = expTimeout setup * 10^6 -- Timeout in microseconds
   goal <- envToGoal env queryStr
   messageChan <- newChan
