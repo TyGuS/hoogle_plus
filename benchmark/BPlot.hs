@@ -12,6 +12,7 @@ import Types.Generate
 import BOutput
 
 import Graphics.EasyPlot
+import qualified Graphics.EasyPlot as EP
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Map (Map)
@@ -23,6 +24,8 @@ import Text.Printf
 import Data.Either
 import Data.Tuple
 import Text.Printf
+import System.FilePath.Posix
+import Data.Char (toLower)
 
 deriving instance Eq Color
 
@@ -39,18 +42,28 @@ table = zip [
 -- X axis: number of benchmarks
 -- Y axis: time solved
 -- Sorts benchmarks per setup and plots as lines.
-mkPlot :: ExperimentSetup -> [ResultSummary] -> IO ()
-mkPlot setup results = do
+mkPlot :: Maybe FilePath -> ExperimentSetup -> [ResultSummary] -> IO ()
+mkPlot outputFile setup results = do
     let options = [Title "test title", Color Red, Style Lines]
     let groupedResults = groupMapBy (\rs -> (envName rs, paramName rs)) results
     let plotDataWithTitle = getPlotData setup groupedResults
     let plotOptions = getPlotOptions plotDataWithTitle
     let plotData = map snd plotDataWithTitle
-    print (map length plotOptions)
     let options2d = []
     let plots = zipWith (\pd opts -> Data2D opts options2d pd) plotData plotOptions
-    plot (PDF "plot.pdf") plots
+    let outputFormat = getOutputFormat outputFile
+    plot' [Debug] outputFormat plots
     return ()
+
+getOutputFormat :: Maybe FilePath -> TerminalType
+getOutputFormat Nothing = PDF "plot.pdf"
+getOutputFormat (Just file) = case (map toLower $ takeExtension file) of
+    ".pdf" -> PDF file
+    ".tex" -> EP.Latex file
+    ".gif" -> GIF file
+    ".svg" -> SVG file
+    ".png" -> PNG file
+    _ -> PDF file
 
 getPlotOptions :: [(String, a)] -> [[Option]]
 getPlotOptions = foldr addPlot []

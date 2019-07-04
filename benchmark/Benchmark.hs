@@ -46,7 +46,7 @@ main = do
 
     resultSummaries <- runExperiments setup exps
     case argsOutputFormat args of
-      Plot -> mkPlot setup resultSummaries
+      Plot -> mkPlot (argsOutputFile args) setup resultSummaries
       _ -> do
         let resultTable = outputSummary outputFormat currentExperiment resultSummaries
         outputResults (argsOutputFile args) (resultTable)
