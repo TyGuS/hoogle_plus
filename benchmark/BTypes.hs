@@ -52,7 +52,6 @@ data Result = Result {
   resSolutionOrError :: Either EvaluationException String,
   resTFirstSoln :: Double,
   resTEncFirstSoln :: Double,
-  resTSolveFirstSoln :: Double,
   resLenFirstSoln :: Int,
   resRefinementSteps :: Int,
   resTransitions :: [Int],
@@ -60,7 +59,7 @@ data Result = Result {
   resDuplicateSymbols :: [(Int, Int, Int)]
   } deriving (Show)
 
-emptyResult = Result (Left NotImplementedException) 0 0 0 0 0 [] [] []
+emptyResult = Result (Left NotImplementedException) 0 0 0 0 [] [] []
 
 data EvaluationException =
   TimeoutException
@@ -68,7 +67,7 @@ data EvaluationException =
   | RuntimeException SomeException
   | NotImplementedException
 
-data ResultFormat = Table | TSV | Latex deriving (Show, Data, Typeable)
+data ResultFormat = Table | TSV | Latex | Plot deriving (Show, Data, Typeable)
 
 instance Show EvaluationException where
   show (TimeoutException) = "Timeout"

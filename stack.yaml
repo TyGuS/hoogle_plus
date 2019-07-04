@@ -5,3 +5,4 @@ extra-deps:
   - table-layout-0.8.0.3
   - data-default-instances-base-0.1.0.1
   - pretty-tree-0.1.0.0
+  - easyplot-1.0@sha256:3fec6ccf425b370ab668eb342bc4cd92777880653e27a982db7b225fd007cb2b,1936

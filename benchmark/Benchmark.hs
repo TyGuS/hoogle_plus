@@ -12,6 +12,7 @@ import Runner
 import BConfig
 import BTypes hiding (name)
 import BOutput
+import BPlot
 
 import Data.Aeson
 import Data.Yaml
@@ -44,8 +45,11 @@ main = do
     putStrLn environmentStatsTable
 
     resultSummaries <- runExperiments setup exps
-    let resultTable = outputSummary outputFormat currentExperiment resultSummaries
-    outputResults (argsOutputFile args) (resultTable)
+    case argsOutputFormat args of
+      Plot -> mkPlot (argsOutputFile args) setup resultSummaries
+      _ -> do
+        let resultTable = outputSummary outputFormat currentExperiment resultSummaries
+        outputResults (argsOutputFile args) (resultTable)
 
 outputResults :: Maybe FilePath -> String -> IO ()
 outputResults Nothing res = putStrLn res
@@ -86,7 +90,7 @@ getSetup args = do
   let currentExperiment = argsExperiment args
   let params =
         case currentExperiment of
-          CompareEnvironments -> let solnCount = 2  in
+          CompareEnvironments -> let solnCount = 1  in
               [(searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ)]
           CompareSolutions -> let solnCount = 5 in
               [(searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ),

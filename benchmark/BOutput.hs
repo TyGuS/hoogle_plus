@@ -24,12 +24,12 @@ import Control.Exception
 textWidth = 50
 
 toGroup :: [ResultSummary] -> Map String [ResultSummary]
-toGroup rss = let
-  updateMap rs qsMap = Map.alter (\mbQs -> Just ((updateRs rs) mbQs)) (queryName rs) qsMap
-  updateRs rs Nothing = [rs]
-  updateRs rs (Just others) = rs:others
-  in
-    foldr updateMap Map.empty rss
+toGroup rss = groupMapBy queryName rss
+
+groupMapBy :: Ord k => (ResultSummary -> k) -> [ResultSummary] -> Map k [ResultSummary]
+groupMapBy f results = foldr updateMap Map.empty results
+    where
+      updateMap result currentMap = Map.insertWith (++) (f result) [result] currentMap
 
 toTabling :: ExperimentCourse -> Map String [ResultSummary] -> [(String, [String])]
 toTabling exp rsMap = let
