@@ -78,7 +78,6 @@ synthesize searchParams goal messageChan = do
   putStrLn $ "Component number: " ++ show (Map.size $ allSymbols env)
   let args = Monotype destinationType : Map.elems (env ^. arguments)
   -- start with all the datatypes defined in the components, first level abstraction
-  let cnt = _solutionCnt searchParams
   let rs = _refineStrategy searchParams
   let is = emptySolverState {
              _searchParams = searchParams
@@ -94,6 +93,6 @@ synthesize searchParams goal messageChan = do
                NoGarTyGarQB -> Abstraction.specificAbstractionFromTypes env args
            , _messageChan = messageChan
            }
-  catch (evalStateT (runPNSolver env cnt destinationType) is)
+  catch (evalStateT (runPNSolver env destinationType) is)
     (\e -> writeChan messageChan (MesgLog 0 "error" (show e)) >> writeChan messageChan (MesgClose (CSError e)))
   return ()

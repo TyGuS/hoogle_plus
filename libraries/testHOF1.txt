@@ -1,6 +1,12 @@
 @package base
 @version 4.12.0.0
 
+class Show
+class Eq
+class Ord
+
+data Char
+
 module GHC.List
 map :: (a->b)->[a]->[b]
 zip :: [a] -> [b] -> [(a,b)]

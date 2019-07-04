@@ -456,7 +456,11 @@ incEncoder env st = do
     (_, _, rets, funcs, _, _) <- prepEncoderArgs env tgt
     liftIO $ execStateT (encoderInc funcs src rets) st
 
-findPath :: (MonadIO m) => Environment -> RType -> EncodeState -> PNSolver m (CodePieces, EncodeState)
+findPath :: MonadIO m 
+         => Environment 
+         -> RType 
+         -> EncodeState 
+         -> PNSolver m ([Id], EncodeState)
 findPath env dst st = do
     (res, st') <- withTime SolverTime (liftIO (encoderSolve st))
     case res of
@@ -471,32 +475,57 @@ findPath env dst st = do
             modify $ set currentLoc ((currSt ^. currentLoc) + 1)
             st'' <- withTime EncodingTime (incEncoder env st')
             findPath env dst st''
-        _  -> withTime FormerTime $ do
-            fm <- gets $ view functionMap
-            src <- gets $ view sourceTypes
-            let args = Map.keys $ foArgsOf env
-            let firedTrans = res
-            writeLog 2 "findPath" $ text "found path" <+> pretty firedTrans
-            let sigNames = firedTrans
-            -- dsigs <- gets $ view detailedSigs
-            -- let sigNames' = filter (\name -> Set.member name dsigs || pairProj `isPrefixOf` name) sigNames
-            let sigs = substPair (map (findFunction fm) sigNames)
-            writeLog 2 "findPath" $ text "found filtered sigs" <+> pretty sigs
-            let initialFormer = FormerState 0 HashMap.empty [] []
-            code <- generateCode initialFormer src args sigs
-            return (code, st')
+        _  -> return (res, st')
+
+fixEncoder :: MonadIO m 
+           => Environment 
+           -> RType 
+           -> EncodeState 
+           -> SplitInfo 
+           -> PNSolver m EncodeState
+fixEncoder env dst st info = do
+    let binds = env ^. boundTypeVars
+    cover <- gets (view abstractionCover)
+    writeLog 2 "fixEncoder" $ text "new abstraction cover:" <+> pretty (allTypesOf cover)
+    (srcTypes, tgt) <- updateSrcTgt env dst
+    writeLog 2 "fixEncoder" $ text "fixed parameter types:" <+> pretty srcTypes
+    writeLog 2 "fixEncoder" $ text "fixed return type:" <+> pretty tgt
+    writeLog 3 "fixEncoder" $ text "get split information" </> pretty info
+    modify $ over type2transition (HashMap.filter (not . null))
+    (loc, musters, rets, funcs, tid2tr, _) <- prepEncoderArgs env tgt
+    liftIO $ execStateT (encoderRefine info musters srcTypes rets funcs tid2tr) st
+
+findProgram :: MonadIO m 
+            => Environment -- the search environment
+            -> RType       -- the goal type
+            -> EncodeState -- intermediate encoding state
+            -> PNSolver m RProgram
+findProgram env dst st = do
+    modify $ set splitTypes Set.empty
+    modify $ set typeAssignment Map.empty
+    writeLog 2 "findProgram" $ text "calling findProgram"
+    (path, st') <- findPath env dst st
+    ngm <- gets $ view nameToGroup
+    gm <- gets $ view groupMap
+    nameMap <- gets $ view nameMapping
+    let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+    let hoAlias = Map.keysSet $ Map.filter (`elem` hoArgs) nameMap
+    paths <- enumeratePath ngm gm hoAlias path
+    checkUntilFail st' path paths
   where
-    findFunctions fm groups name =
-        case Map.lookup name groups of
-            Just g -> findFunction fm (head g)
-            Nothing -> error $ "cannot find function group " ++ name
-
-    findFunction fm name = fromMaybe (error $ "cannot find function name " ++ name)
-                                     (HashMap.lookup name fm)
-
-    combinations []    = []
-    combinations [x]   = [x]
-    combinations (h:t) = [ hh:tt | hh <- h, tt <- combinations t ]
+    enumeratePath :: MonadIO m 
+                  => Map Id Id 
+                  -> Map Id (Set Id) 
+                  -> Set Id
+                  -> [Id]
+                  -> PNSolver m [[Id]]
+    enumeratePath ngm gm hoArgs path = do
+        let getGroup p = fromJust $ Map.lookup p ngm
+        let getFuncs p = Map.findWithDefault Set.empty (getGroup p) gm
+        let filterFuncs p = let intsct = Set.intersection hoArgs p
+                             in if Set.null intsct then p else intsct
+        let allPaths = map (Set.toList . filterFuncs . getFuncs) path
+        return $ crossProduct allPaths
 
     generateCode initialFormer src args sigs = do
         tgt <- gets (view targetType)
@@ -514,41 +543,57 @@ findPath env dst st = do
                                : substPair xs
                           else x : substPair xs
 
-fixEncoder :: MonadIO m => Environment -> RType -> EncodeState -> SplitInfo -> PNSolver m EncodeState
-fixEncoder env dst st info = do
-    let binds = env ^. boundTypeVars
-    cover <- gets (view abstractionCover)
-    writeLog 2 "fixEncoder" $ text "new abstraction cover:" <+> pretty (allTypesOf cover)
-    (srcTypes, tgt) <- updateSrcTgt env dst
-    writeLog 2 "fixEncoder" $ text "fixed parameter types:" <+> pretty srcTypes
-    writeLog 2 "fixEncoder" $ text "fixed return type:" <+> pretty tgt
-    writeLog 3 "fixEncoder" $ text "get split information" </> pretty info
-    modify $ over type2transition (HashMap.filter (not . null))
-    (loc, musters, rets, funcs, tid2tr, _) <- prepEncoderArgs env tgt
-    liftIO $ execStateT (encoderRefine info musters srcTypes rets funcs tid2tr) st
+    substName [] [] = []
+    substName (n:ns) (fc:fcs) = fc { funName = n } : substName ns fcs
 
-findProgram :: MonadIO m => Environment -> RType -> EncodeState -> PNSolver m (RProgram, EncodeState)
-findProgram env dst st = do
-    modify $ set splitTypes Set.empty
-    modify $ set typeAssignment Map.empty
-    writeLog 2 "findProgram" $ text "calling findProgram"
-    (codeResult, st') <- findPath env dst st
-    writeLog 2 "findProgram" $ pretty (Set.toList codeResult)
-    checkResult <- withTime TypeCheckTime (firstCheckedOrError $ sortOn length (Set.toList codeResult))
-    rs <- getExperiment refineStrategy
-    if isLeft checkResult
-       then let Left code = checkResult in checkSolution st' code
-       else do
-         let Right err = checkResult 
-         cover <- gets (view abstractionCover)
-         funcs <- gets (view activeSigs)
-         modify $ over solverStats (\s -> s {
-            iterations = iterations s + 1
-          , numOfPlaces = Map.insert (iterations s + 1) (coverSize cover) (numOfPlaces s)
-          -- , numOfTransitions = Map.insert (iterations s + 1) (Set.size funcs) (numOfTransitions s)
-         })
-         nextSolution st' rs err
-  where
+    findFunction fm name = fromMaybe (error $ "cannot find function name " ++ name)
+                                     (HashMap.lookup name fm)
+
+    fillSketch reps firedTrans = do
+        fm <- gets $ view functionMap
+        src <- gets $ view sourceTypes
+        let args = Map.keys $ foArgsOf env
+        writeLog 2 "findPath" $ text "found path" <+> pretty firedTrans
+        let sigs = substPair $ substName firedTrans $ map (findFunction fm) reps
+        writeLog 2 "findPath" $ text "found filtered sigs" <+> pretty sigs
+        let initialFormer = FormerState 0 HashMap.empty [] []
+        code <- withTime FormerTime $ generateCode initialFormer src args sigs
+        return code
+
+    checkUntilFail st' _ [] = findProgram env dst st'
+    checkUntilFail st' reps (path:ps) = do
+        writeLog 1 "findPath" $ pretty path
+        codeResult <- fillSketch reps path
+        checkResult <- withTime TypeCheckTime $ 
+                        firstCheckedOrError $ 
+                        sortOn length $ Set.toList codeResult
+        rs <- getExperiment refineStrategy
+        stop <- getExperiment stopRefine
+        placeNum <- getExperiment threshold
+        cover <- gets $ view abstractionCover
+        case checkResult of
+            Left code -> do
+                mbSln <- checkSolution st' code
+                case mbSln of
+                    Nothing -> checkUntilFail (st' {prevChecked=True}) reps ps
+                    Just p -> do
+                        cnt <- getExperiment solutionCnt
+                        modify $ set (searchParams . solutionCnt) (cnt-1)
+                        if cnt > 1 then checkUntilFail (st' {prevChecked=True}) reps ps
+                                   else return p
+            Right err 
+                | not (doRefine rs) || (stop && coverSize cover >= placeNum) -> 
+                    checkUntilFail st' reps ps
+                | otherwise -> do
+                    cover <- gets $ view abstractionCover
+                    funcs <- gets $ view activeSigs
+                    modify $ over solverStats (\s -> s {
+                    iterations = iterations s + 1
+                        , numOfPlaces = Map.insert (iterations s + 1) (coverSize cover) (numOfPlaces s)
+                        , numOfTransitions = Map.insert (iterations s + 1) (Set.size funcs) (numOfTransitions s)
+                        })
+                    nextSolution st' err      
+
     firstCheckedOrError [] = return (Right (uHole, AScalar (ATypeVarT varName)))
     firstCheckedOrError (x:xs) = do
         res <- parseAndCheck x
@@ -589,89 +634,64 @@ findProgram env dst st = do
                 absBtm <- observeT $ pickGeneralization tyBtm' absDst
                 return (Right (btm, absBtm)))
 
-    nextSolution st rs (prog, at) | not (doRefine rs) = do
-        let st' = st { prevChecked = True }
-        findProgram env dst st'
-    nextSolution st _ (prog, at) = do
-        stop <- getExperiment stopRefine
-        placeNum <- getExperiment threshold
-        cover <- gets (view abstractionCover)
-        if stop && coverSize cover >= placeNum
-           then findProgram env dst (st {prevChecked=True})
-           else do
-             splitInfo <- withTime RefinementTime (refineSemantic env prog at)
-             -- add new places and transitions into the petri net
-             res <- refine st splitInfo
-             cover <- gets (view abstractionCover)
-             t2tr <- gets (view type2transition)
-             modify $ over solverStats (\s -> s {
-                numOfPlaces = Map.insert (iterations s) (coverSize cover) (numOfPlaces s)
-              , numOfTransitions = Map.insert (iterations s) (transitionNb st) (numOfTransitions s)
-             })
-             return res
-
-    refine st info = do
-        st' <- withTime EncodingTime (fixEncoder env dst st info)
+    nextSolution st (prog, at) = do
+        cover <- gets $ view abstractionCover
+        splitInfo <- withTime RefinementTime (refineSemantic env prog at)
+        -- add new places and transitions into the petri net
+        cover <- gets $ view abstractionCover
+        t2tr <- gets $ view type2transition
+        modify $ over solverStats (\s -> s {
+            numOfPlaces = Map.insert (iterations s) (coverSize cover) (numOfPlaces s)
+            , numOfTransitions = Map.insert (iterations s) (transitionNb st) (numOfTransitions s)
+        })
+        st' <- withTime EncodingTime (fixEncoder env dst st splitInfo)
         findProgram env dst st'
 
     checkSolution st code = do
-        let st' = st { prevChecked = True }
         solutions <- gets $ view currentSolutions
         mapping <- gets $ view nameMapping
         let code' = recoverNames mapping code
         disableDemand <- getExperiment disableDemand
         checkedSols <- withTime TypeCheckTime (filterM (liftIO . runGhcChecks disableDemand env dst) [code'])
         if (code' `elem` solutions) || null checkedSols
-           then findProgram env dst st'
-           else do
-               modify $ over currentSolutions ((:) code')
-               return (code', st')
+            then return Nothing
+            else do
+                msgChan <- gets $ view messageChan
+                modify $ over currentSolutions ((:) code')
+                let haskellSolution = toHaskellSolution code'
+                printSolution haskellSolution
+                stats <- gets $ view solverStats
+                loc <- gets $ view currentLoc
+                let stats' = stats{pathLength = loc}
+                liftIO $ writeChan msgChan (MesgP (code', stats'))
+                writeLog 1 "findFirstN" $ text (show stats')
+                resetTiming
+                return $ Just code'
 
 printSolution solution = do
     liftIO $ putStrLn "*******************SOLUTION*********************"
     liftIO $ putStrLn $ "SOLUTION: " ++ solution
     liftIO $ putStrLn "************************************************"
 
-
-findFirstN :: (MonadIO m) => Environment -> RType -> EncodeState -> Int -> PNSolver m ()
-findFirstN env dst st cnt | cnt == 1  = do
-    (res, _) <- withTime TotalSearch $ findProgram env dst st
-    stats <- gets $ view solverStats
-    depth <- gets $ view currentLoc
-    msgChan <- gets $ view messageChan
+findFirstN :: MonadIO m => Environment -> RType -> EncodeState -> PNSolver m ()
+findFirstN env dst st = do
+    cnt <- getExperiment solutionCnt
     strategy <- getExperiment refineStrategy
-    writeLog 1 "findFirstN" $ text (show depth)
-    let stats' = stats{pathLength = depth}
-    let haskellSolution = toHaskellSolution res
-    printSolution haskellSolution
-    writeLog 1 "findFirstN" $ text (show stats)
-    if noGarTyGarIdx strategy >= 0
-      then do
+    withTime TotalSearch $ findProgram env dst st
+    when (noGarTyGarIdx strategy >= 0) $ do
         resetTiming
         modify $ set (searchParams . refineStrategy) NoGar
         modify $ set (searchParams . stopRefine) False
         modify $ set currentLoc 1
         modify $ set currentSolutions []
-        runPNSolver env cnt dst
-      else liftIO $ writeChan msgChan (MesgP (res, stats'))
-findFirstN env dst st cnt = do
-    (res, st') <- withTime TotalSearch $ findProgram env dst st
-    msgChan <- gets $ view messageChan
-    stats <- gets $ view solverStats
-    loc <- gets $ view currentLoc
-    let stats' = stats{pathLength = loc}
-    let haskellSolution = toHaskellSolution res
-    printSolution haskellSolution
-    liftIO $ writeChan msgChan (MesgP (res, stats'))
-    resetTiming
-    findFirstN env dst st' (cnt-1)
+        runPNSolver env dst
 
-runPNSolver :: MonadIO m => Environment -> Int -> RType -> PNSolver m ()
-runPNSolver env cnt t = do
+runPNSolver :: MonadIO m => Environment -> RType -> PNSolver m ()
+runPNSolver env t = do
     writeLog 3 "runPNSolver" $ text $ show (allSymbols env)
     initNet env
     st <- withTime TotalSearch $ withTime EncodingTime (resetEncoder env t)
-    findFirstN env t st cnt
+    findFirstN env t st
     msgChan <- gets $ view messageChan
     liftIO $ writeChan msgChan (MesgClose CSNormal)
     return ()
@@ -748,15 +768,18 @@ prepEncoderArgs env tgt = do
     let accepts = superTypeOf bound cover tgt
     let rets = sortBy (compareAbstract bound) accepts
     let sigs = HashMap.elems funcs
+    let musters' = HashMap.fromList $ removeDups [] $ HashMap.toList musters
     writeLog 3 "prepEncoderArgs" $ text "current must firers" <+> pretty (HashMap.toList musters)
-    return (loc, musters, rets, sigs, t2tr, incremental)
+    return (loc, musters', rets, sigs, t2tr, incremental)
+  where
+    removeDups _ [] = []
+    removeDups acc ((x, y):xs) = (x, y \\ acc):(removeDups (acc++y) xs)
     
 foArgsOf :: Environment -> Map Id RSchema
 foArgsOf = Map.filter (not . isFunctionType . toMonotype) . _arguments
 
 noneInst instMap id t = not (HashMap.member (id, absFunArgs id t) instMap)
 
--- TODO: this may underapproximate the behavior in some cases, fix it
 diffInst tvs instMap id t = let oldt = snd (fromJust $ HashMap.lookup (id, absFunArgs id t) instMap)
                              in t /= oldt && isSubtypeOf tvs (lastAbstract t) (lastAbstract oldt)
 
