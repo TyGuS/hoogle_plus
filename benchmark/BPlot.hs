@@ -68,7 +68,9 @@ getPlotData setup groupedResults = let
     where
         orderResults (l,r) = (l, sortOn (resTFirstSoln . head) r)
 
-        addStyle name = defaultStyle {lineSpec = CustomStyle [LineTitle name]}
+        addStyle name = defaultStyle {
+            lineSpec = CustomStyle [LineTitle name],
+            plotType = LinesPoints}
 
         toOutput ((envName, paramName), results) = let
             keyName = (printf "%s-%s" envName paramName)::String
