@@ -36,3 +36,4 @@ stack.yaml.lock
 logs/
 hplus.code-workspace
 .vscode
+benchmark/suites/working.yml
