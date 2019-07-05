@@ -29,10 +29,10 @@ import qualified Data.Map as Map
 defaultArgs = Args {
   argsQueryFile=defaultQueryFile &= name "queries" &= typFile,
   argsTimeout=defaultTimeout &= name "timeout" &= help "Each experiment will have N seconds to complete" ,
-  argsOutputFile=Nothing &= name "output" &= typFile,
+  argsOutputFile=[] &= name "output" &= typFile,
   argsExperiment=defaultExperiment &= argPos 0,
-  argsOutputFormat=TSV &= name "format",
-  argsPreset=POPL &= name "preset" &= help "Component set preset"
+  argsOutputFormat=[Plot, TSV] &= name "format",
+  argsPreset=ICFPPartial &= name "preset" &= help "Component set preset"
   }
 
 main :: IO ()
@@ -41,20 +41,24 @@ main = do
     let currentExperiment = argsExperiment args
     let setup = ExpSetup {expTimeout = argsTimeout args, expCourse = currentExperiment}
     (envs, params, exps) <- getSetup args
-    let outputFormat = argsOutputFormat args
+    let outputFormats = argsOutputFormat args
+    let outputFormatFiles = zip outputFormats (repeat Nothing)
     let environmentStatsTable = outputSummary Table currentExperiment envs
     putStrLn environmentStatsTable
 
     resultSummaries <- runExperiments setup exps
-    case argsOutputFormat args of
-      Plot -> mkPlot (argsOutputFile args) setup resultSummaries
-      _ -> do
-        let resultTable = outputSummary outputFormat currentExperiment resultSummaries
-        outputResults (argsOutputFile args) (resultTable)
+    flip mapM_ (outputFormatFiles) (\(format, mbFile) -> do
+      case format of
+        Plot -> mkPlot mbFile setup resultSummaries
+        _ -> do
+          let resultTable = outputSummary format currentExperiment resultSummaries
+          outputResults mbFile resultTable
+      )
 
 outputResults :: Maybe FilePath -> String -> IO ()
-outputResults Nothing res = putStrLn res
+outputResults Nothing res = outputResults (Just "results.out") res
 outputResults (Just fp) res = putStrLn res >> writeFile fp res
+
 mkExperiments :: [(Environment, String)] -> [Query] -> [(SearchParams, String)] -> [Experiment]
 mkExperiments envs qs params = [
   (env, envN, q, param, paramN) |
@@ -93,6 +97,18 @@ getSetup args = do
   let currentExperiment = argsExperiment args
   let params =
         case currentExperiment of
+          CoalescingStrategies -> [
+            (searchParamsTyGarQ{_coalesceTypes=False}, expTyGarQNoCoalesce),
+            (searchParamsTyGarQ{_coalesceTypes=True,
+                                _coalesceStrategy=First},
+              expTyGarQCoalesceFirst),
+            (searchParamsTyGarQ{_coalesceTypes=True,
+                                _coalesceStrategy=LeastInstantiated},
+              expTyGarQCoalesceLeast),
+            (searchParamsTyGarQ{_coalesceTypes=True,
+                                _coalesceStrategy=MostInstantiated},
+              expTyGarQCoalesceMost)
+            ]
           CompareEnvironments -> let solnCount = 1  in
               [(searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ)]
           CompareSolutions -> let solnCount = 5 in

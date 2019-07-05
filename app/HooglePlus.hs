@@ -74,7 +74,8 @@ main = do
   case res of
     Synthesis {file, libs, env_file_path_in, app_max, log_, sol_num,
       higher_order, use_refine, disable_demand,
-      stop_refine, stop_threshold, disable_coalescing} -> do
+      stop_refine, stop_threshold, disable_coalescing,
+      coalescing_strategy} -> do
       let searchParams = defaultSearchParams {
         _maxApplicationDepth = app_max,
         _explorerLogLevel = log_,
@@ -84,7 +85,8 @@ main = do
         _stopRefine = stop_refine,
         _threshold = stop_threshold,
         _disableDemand = disable_demand,
-        _coalesceTypes = not disable_coalescing
+        _coalesceTypes = not disable_coalescing,
+        _coalesceStrategy = coalescing_strategy
         }
       let synquidParams = defaultSynquidParams {
         Main.envPath = env_file_path_in

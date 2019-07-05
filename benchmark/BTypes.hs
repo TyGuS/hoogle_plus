@@ -17,9 +17,9 @@ import Control.Exception
 data Args = Args {
   argsQueryFile :: String,
   argsTimeout :: Int, -- Timeout in seconds
-  argsOutputFile :: Maybe FilePath,
+  argsOutputFile :: [FilePath],
   argsExperiment :: ExperimentCourse,
-  argsOutputFormat :: ResultFormat,
+  argsOutputFormat :: [ResultFormat],
   argsPreset :: Preset
   } deriving (Show, Data, Typeable)
 

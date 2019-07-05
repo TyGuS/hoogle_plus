@@ -122,6 +122,11 @@ headersList CompareEnvironments = [
   "transitions - 1old", "transitions - 1new",
   "Solutions - Old", "Solutions - New"
   ]
+headersList CoalescingStrategies = [
+  "T-None", "T-Naive", "T-Least", "T-Most",
+  "Ref-None", "Ref-Naive", "Ref-Least", "Ref-Most",
+  "Soln-None", "Soln-Naive", "Soln-Least", "Soln-Most"
+  ]
 headersList CompareInitialAbstractCovers = [
     "tS - QR", "tEnc - QR",
     "l", "r", "tr", "ty",
@@ -182,6 +187,27 @@ toRow currentExp (name, rss) =
       either show id <$> resSolutionOrError <$> (head . results) <$> mbNoCoalescing,
       either show id <$> resSolutionOrError <$> (head . results) <$> mbqr
       ]
+
+    rowForExp CoalescingStrategies = let
+      nc = findwhere expTyGarQNoCoalesce rss
+      naive = findwhere expTyGarQCoalesceFirst rss
+      least = findwhere expTyGarQCoalesceLeast rss
+      most = findwhere expTyGarQCoalesceMost rss
+      in
+        [
+          (showFloat . resTFirstSoln) <$> (head . results) <$> nc,
+          (showFloat . resTFirstSoln) <$> (head . results) <$> naive,
+          (showFloat . resTFirstSoln) <$> (head . results) <$> least,
+          (showFloat . resTFirstSoln) <$> (head . results) <$> most,
+          (show . resRefinementSteps) <$> (head . results) <$> nc,
+          (show . resRefinementSteps) <$> (head . results) <$> naive,
+          (show . resRefinementSteps) <$> (head . results) <$> least,
+          (show . resRefinementSteps) <$> (head . results) <$> most,
+          either show id <$> resSolutionOrError <$> (head . results) <$> nc,
+          either show id <$> resSolutionOrError <$> (head . results) <$> naive,
+          either show id <$> resSolutionOrError <$> (head . results) <$> least,
+          either show id <$> resSolutionOrError <$> (head . results) <$> most
+        ]
 
     rowForExp CompareEnvironments = let
         -- come in reverse order, so we must flip it.

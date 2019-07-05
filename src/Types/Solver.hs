@@ -41,6 +41,7 @@ data SolverState = SolverState {
     _splitTypes :: Set AbstractSkeleton,
     _nameMapping :: Map Id Id, -- mapping from fake names to real names
     _instanceMapping :: HashMap (Id, [AbstractSkeleton]) (Id, AbstractSkeleton),
+    _instanceCounts :: HashMap Id Int, -- Number of instantiations for a real-name, used in selecting representative
     _toRemove :: [Id],
     _messageChan :: Chan Message
 } deriving(Eq)
@@ -69,6 +70,7 @@ emptySolverState = SolverState {
     _splitTypes = Set.empty,
     _nameMapping = Map.empty,
     _instanceMapping = HashMap.empty,
+    _instanceCounts = HashMap.empty,
     _toRemove = [],
     _messageChan = undefined
 }

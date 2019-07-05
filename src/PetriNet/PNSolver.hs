@@ -19,6 +19,7 @@ import Data.Foldable
 import Data.List
 import Data.Maybe
 import Data.Data (Data)
+import Data.Function (on)
 import qualified Data.Char as Char
 import Data.Either hiding (fromLeft, fromRight)
 import Data.List.Extra
@@ -133,6 +134,7 @@ instantiateWith env typs id t = do
         when (Map.member id (env ^. arguments))
              (modify $ over mustFirers (HashMap.insertWith (++) id [newId]))
         modify $ over nameMapping (Map.insert newId id)
+        modify $ over instanceCounts (HashMap.insertWith (+) id 1 )
         modify $ over instanceMapping (HashMap.insert (id, absFunArgs id ty) (newId, ty))
         writeLog 4 "instantiateWith" $ text id <+> text "==>"  <+> text newId <+> text "::" <+> pretty ty
         return (newId, ty)
@@ -188,9 +190,18 @@ selectRepresentative gid sigGroup = do
     strat <- getExperiment coalesceStrategy
     case strat of
         First -> return $ Set.elemAt 0 sigGroup
-        LeastInstantiated -> do
-            writeLog 1 "selectRepresentative" $ undefined
-            undefined
+        LeastInstantiated -> pickReprOrder sortOn
+        MostInstantiated -> pickReprOrder sortDesc
+    where
+        pickReprOrder sorting = do
+            nm <- gets $ view nameMapping
+            instCounts <- gets $ view instanceCounts
+            let idToCount id = instCounts HashMap.! (nm Map.! id)
+            let countMapping = sorting snd $ map (\x -> (x, idToCount x)) $ Set.toList sigGroup
+            writeLog 3 "SelectRepresentative" $ text gid <+> "needs to pick: " <+> pretty countMapping
+            return $ fst $ head countMapping
+
+        sortDesc f = sortBy (on (flip compare) f)
 
 addMusters :: MonadIO m => Id -> PNSolver m ()
 addMusters arg = do

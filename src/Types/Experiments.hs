@@ -31,6 +31,7 @@ data RefineStrategy =
 data CoalesceStrategy =
     First -- First in the group set: naive
   | LeastInstantiated -- Least instantiated element in group set.
+  | MostInstantiated
   deriving (Data, Show, Eq)
 
 -- | Parameters of program exploration
@@ -94,6 +95,9 @@ type ExperimentName = String
 expTyGarQ = "TYGAR-Q":: ExperimentName
 expTyGarQNoDmd = expTyGarQ ++ "- no demand" :: ExperimentName
 expTyGarQNoCoalesce = expTyGarQ ++ "- no coalescing" :: ExperimentName
+expTyGarQCoalesceFirst = expTyGarQ ++ "- coalesce naive" :: ExperimentName
+expTyGarQCoalesceLeast = expTyGarQ ++ "- coalesce least" :: ExperimentName
+expTyGarQCoalesceMost = expTyGarQ ++ "- coalesce most" :: ExperimentName
 
 expSypetClone = "Sypet-Clone" :: ExperimentName
 expTyGar0 = "TYGAR-0" :: ExperimentName
@@ -114,6 +118,7 @@ data ExperimentCourse
   | CompareThresholds
   | CompareSolutions -- 2019-06-12
   | CompareEnvironments
+  | CoalescingStrategies
   deriving (Show, Data, Typeable)
 
 data Message
