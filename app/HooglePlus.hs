@@ -17,7 +17,7 @@ import Types.Program
 import Types.Solver
 import Synquid.HtmlOutput
 import Database.Presets
-import Database.Environment (writeEnv, generateEnv)
+import Database.Environment
 import Database.Convert
 import Database.Generate
 import Database.Download
@@ -75,7 +75,7 @@ main = do
 
     Synthesis {file, libs, env_file_path_in, app_max, log_, sol_num,
       higher_order, use_refine, disable_demand,
-      stop_refine, stop_threshold, disable_coalescing, incremental, ho_path} -> do
+      stop_refine, stop_threshold, disable_coalescing, incremental} -> do
       let searchParams = defaultSearchParams {
         _maxApplicationDepth = app_max,
         _explorerLogLevel = log_,
@@ -91,12 +91,12 @@ main = do
       let synquidParams = defaultSynquidParams {
         Main.envPath = env_file_path_in
       }
-      executeSearch synquidParams searchParams file ho_path
+      executeSearch synquidParams searchParams file
 
     Generate {preset=(Just preset)} -> do
       precomputeGraph (getOptsFromPreset preset)
 
-    Generate Nothing files pkgs mdls d ho pathToEnv -> do
+    Generate Nothing files pkgs mdls d ho pathToEnv hoPath -> do
       let fetchOpts = if (length files > 0)
                         then Local files
                         else defaultHackageOpts {packages=pkgs}
@@ -105,7 +105,8 @@ main = do
         instantiationDepth = d,
         enableHOF = ho,
         pkgFetchOpts = fetchOpts,
-        Types.Generate.envPath = pathToEnv
+        Types.Generate.envPath = pathToEnv,
+        Types.Generate.hoPath = hoPath
       }
       precomputeGraph generationOpts
 
@@ -133,8 +134,7 @@ data CommandLineArgs
         stop_threshold :: Int,
         disable_demand :: Bool,
         disable_coalescing :: Bool,
-        incremental :: Bool,
-        ho_path :: String
+        incremental :: Bool
       }
       | Generate {
         -- | Input
@@ -144,7 +144,8 @@ data CommandLineArgs
         module_name :: [String],
         type_depth :: Int,
         higher_order :: Bool,
-        env_file_path_out :: String
+        env_file_path_out :: String,
+        ho_path :: String
       }
   deriving (Data, Typeable, Show, Eq)
 
@@ -160,7 +161,6 @@ synt = Synthesis {
   stop_refine         = False           &= help ("Stop refine the abstraction cover after some threshold (default: False)"),
   stop_threshold      = 10              &= help ("Refinement stops when the number of places reaches the threshold, only when stop_refine is True"),
   incremental         = False           &= help ("Enable the incremental solving in z3 (default: False)"),
-  ho_path = "ho.txt"    &= typFile &= help ("Filename of components to be used as higher order arguments"),
   disable_demand = False &= name "d" &= help ("Disable the demand analyzer (default: False)"),
   disable_coalescing = False &= name "xc" &= help ("Do not coalesce transitions in the net with the same abstract type")
   } &= auto &= help "Synthesize goals specified in the input file"
@@ -171,8 +171,9 @@ generate = Generate {
   pkg_name             = []              &= help ("Package names to be generated"),
   module_name          = []              &= help ("Module names to be generated in the given packages"),
   type_depth           = 2               &= help ("Depth of the types to be instantiated for polymorphic type constructors"),
-  higher_order         = True           &= help ("Include higher order functions (default: True)"),
-  env_file_path_out    = defaultEnvPath  &= help ("Environment file path (default:" ++ (show defaultEnvPath) ++ ")")
+  higher_order         = True            &= help ("Include higher order functions (default: True)"),
+  env_file_path_out    = defaultEnvPath  &= help ("Environment file path (default:" ++ (show defaultEnvPath) ++ ")"),
+  ho_path              = "ho.txt"        &= typFile &= help ("Filename of components to be used as higher order arguments")
 } &= help "Generate the type conversion database for synthesis"
 
 mode = cmdArgsMode $ modes [synt, generate] &=
@@ -206,19 +207,16 @@ precomputeGraph opts = generateEnv opts >>= writeEnv (Types.Generate.envPath opt
 
 
 -- | Parse and resolve file, then synthesize the specified goals
-executeSearch :: SynquidParams -> SearchParams  -> String -> String -> IO ()
-executeSearch synquidParams initSearchParams query hoPath = do
+executeSearch :: SynquidParams -> SearchParams  -> String -> IO ()
+executeSearch synquidParams searchParams query = do
   env <- readEnv
   goal <- envToGoal env query
   messageChan <- newChan
-  hofStr <- readFile hoPath
-  let searchParams = initSearchParams { _hoCandidates = if initSearchParams ^. useHO then words hofStr else [] }
   worker <- forkIO $ synthesize searchParams goal messageChan
   readChan messageChan >>= (handleMessages messageChan)
-  -- when (_explorerLogLevel searchParams > 0) (mapM_ (printTime . snd) results)
   return ()
   where
-    logLevel = initSearchParams ^. explorerLogLevel
+    logLevel = searchParams ^. explorerLogLevel
     readEnv = do
       let envPathIn = Main.envPath synquidParams
       doesExist <- doesFileExist envPathIn

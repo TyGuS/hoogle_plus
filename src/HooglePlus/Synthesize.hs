@@ -14,6 +14,7 @@ import Synquid.Program
 import Synquid.Pretty
 import Synquid.Parser
 import Synquid.Resolver
+import Database.Environment
 import PetriNet.PNSolver
 import qualified HooglePlus.Abstraction as Abstraction
 
@@ -73,8 +74,19 @@ synthesize searchParams goal messageChan = do
   let (env'', monospec) = updateEnvWithBoundTyVars (gSpec goal) env'''
   let (env', destinationType) = updateEnvWithSpecArgs monospec env''
   let useHO = _useHO searchParams
-  let env = if useHO then env'
-                      else env' { _symbols = Map.filter (not . isHigherOrder . toMonotype) $ env' ^. symbols }
+  let rawSyms = env' ^. symbols
+  let hoCands = env' ^. hoCandidates
+  env <- if useHO
+            then do -- add higher order query arguments
+                let args = env' ^. arguments
+                let hoArgs = Map.filter (isFunctionType . toMonotype) args
+                let hoFuns = map (\(k, v) -> (k ++ "'ho'", toFunType v)) (Map.toList hoArgs)
+                return $ env' { _symbols = rawSyms `Map.union` Map.fromList hoFuns
+                              , _hoCandidates = hoCands ++ map fst hoFuns }
+            else do-- filter out hoArgs in the environment
+                let syms = Map.filter (not . isHigherOrder . toMonotype) rawSyms
+                return $ env' { _symbols = Map.withoutKeys syms $ Set.fromList hoCands
+                              , _hoCandidates = [] }
   putStrLn $ "Component number: " ++ show (Map.size $ allSymbols env)
   let args = Monotype destinationType : Map.elems (env ^. arguments)
   -- start with all the datatypes defined in the components, first level abstraction

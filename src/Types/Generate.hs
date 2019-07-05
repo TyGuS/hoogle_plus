@@ -18,7 +18,8 @@ data GenerationOpts = GenerationOpts {
     enableHOF :: Bool,
     pkgFetchOpts :: PackageFetchOpts,
     modules :: [String],
-    envPath :: FilePath
+    envPath :: FilePath,
+    hoPath :: FilePath
     }
     deriving (Show, Typeable, Eq)
 
@@ -56,7 +57,8 @@ defaultGenerationOpts = GenerationOpts {
     enableHOF = True,
     pkgFetchOpts = defaultLocalOpts,
     modules = [],
-    envPath = defaultEnvPath
+    envPath = defaultEnvPath,
+    hoPath = "ho.txt"
     }
 
 defaultEnvPath = "data/env.db"

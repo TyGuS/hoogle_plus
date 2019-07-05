@@ -130,8 +130,6 @@ nonincrementalSolve = do
         modify $ \st -> st { blockConstraints = toBlock : blockConstraints st}
 
     addAllConstraints
-    str <- solverToString
-    liftIO $ writeFile "log" str
     check
 
 incrementalSolve :: Encoder Z3.Result

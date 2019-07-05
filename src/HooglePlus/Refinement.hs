@@ -177,7 +177,10 @@ bottomUpCheck :: MonadIO m => Environment -> RProgram -> PNSolver m RProgram
 bottomUpCheck env p@(Program (PSymbol sym) typ) = do
     -- lookup the symbol type in current scope
     writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
-    t <- findSymbol env (removeLast '_' sym)
+    nameMap <- gets $ view nameMapping
+    let sym' = removeLast '_' sym
+    let name = replaceId "'ho'" "" $ fromMaybe sym' (Map.lookup sym' nameMap)
+    t <- findSymbol env name
     return (Program (PSymbol sym) t)
 bottomUpCheck env (Program (PApp f args) typ) = do
   argResult <- checkArgs args

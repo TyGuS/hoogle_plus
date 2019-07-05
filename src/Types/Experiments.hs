@@ -39,7 +39,6 @@ data SearchParams = SearchParams {
   _stopRefine :: Bool,
   _threshold :: Int,
   _incrementalSolving :: Bool,
-  _hoCandidates :: [String],
   _disableDemand :: Bool,
   _coalesceTypes :: Bool
 } deriving (Eq, Show)
@@ -84,7 +83,6 @@ defaultSearchParams = SearchParams {
   _stopRefine = False,
   _threshold = 10,
   _incrementalSolving = False,
-  _hoCandidates = [],
   _disableDemand = False,
   _coalesceTypes = True
 }

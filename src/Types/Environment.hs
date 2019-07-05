@@ -36,8 +36,8 @@ data Environment = Environment {
   _unresolvedConstants :: Map Id RSchema,  -- ^ Unresolved types of components (used for reporting specifications with macros)
   _included_modules :: Set String,          -- ^ The set of modules any solution would need to import
   _typClassInstances :: [(String, String)],
-  _condTypClasses :: [([(String, [Set String])], (String, String))]
-
+  _condTypClasses :: [([(String, [Set String])], (String, String))],
+  _hoCandidates :: [Id]
   } deriving(Generic)
 
 makeLenses ''Environment
@@ -62,5 +62,6 @@ emptyEnv = Environment {
   _unresolvedConstants = Map.empty,
   _included_modules = Set.empty,
   _typClassInstances = [],
-  _condTypClasses = []
+  _condTypClasses = [],
+  _hoCandidates = []
 }
