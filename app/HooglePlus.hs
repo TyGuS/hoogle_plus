@@ -26,6 +26,7 @@ import Synquid.Util (showme)
 import HooglePlus.Synthesize
 import HooglePlus.Stats
 import Types.Encoder
+import PetriNet.GHCChecker
 
 import Control.Monad
 import Control.Lens ((^.))
@@ -245,7 +246,7 @@ executeSearch synquidParams searchParams query = do
     handleMessages ch (MesgClose _) = putStrLn "Search complete" >> return ()
     handleMessages ch (MesgP (program, stats)) = do
       when (logLevel > 2) (pPrint stats)
-      print program >> readChan ch >>= (handleMessages ch)
+      printSolution program >> readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgS debug) = do
       when (logLevel > 2) (pPrint debug)
       readChan ch >>= (handleMessages ch)
@@ -256,3 +257,8 @@ executeSearch synquidParams searchParams query = do
       readChan ch >>= (handleMessages ch)
 
 pdoc = printDoc Plain
+
+printSolution solution = do
+    putStrLn "*******************SOLUTION*********************"
+    putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
+    putStrLn "************************************************"
