@@ -28,6 +28,12 @@ data RefineStrategy =
   | NoGarTyGarQB -- start from the final cover of TyGarQB, no refinement
   deriving(Data, Show, Eq)
 
+data CoalesceStrategy =
+    First -- First in the group set: naive
+  | LeastInstantiated -- Least instantiated element in group set.
+  | MostInstantiated
+  deriving (Data, Show, Eq)
+
 -- | Parameters of program exploration
 data SearchParams = SearchParams {
   _maxApplicationDepth :: Int,                    -- ^ Maximum depth of application trees
@@ -40,7 +46,8 @@ data SearchParams = SearchParams {
   _threshold :: Int,
   _incrementalSolving :: Bool,
   _disableDemand :: Bool,
-  _coalesceTypes :: Bool
+  _coalesceTypes :: Bool,
+  _coalesceStrategy :: CoalesceStrategy
 } deriving (Eq, Show)
 
 makeLenses ''SearchParams
@@ -52,7 +59,6 @@ data TimeStatistics = TimeStatistics {
   codeFormerTime :: Double,
   refineTime :: Double,
   typeCheckerTime :: Double,
-  otherTime :: Double,
   totalTime :: Double,
   iterations :: Int,
   pathLength :: Int,
@@ -61,7 +67,7 @@ data TimeStatistics = TimeStatistics {
   duplicateSymbols :: [(Int, Int, Int)]
 } deriving(Show, Eq)
 
-emptyTimeStats = TimeStatistics 0 0 0 0 0 0 0 0 0 0 Map.empty Map.empty []
+emptyTimeStats = TimeStatistics 0 0 0 0 0 0 0 0 0 Map.empty Map.empty []
 
 data TimeStatUpdate
   = ConstructionTime
@@ -84,7 +90,8 @@ defaultSearchParams = SearchParams {
   _threshold = 10,
   _incrementalSolving = False,
   _disableDemand = False,
-  _coalesceTypes = True
+  _coalesceTypes = True,
+  _coalesceStrategy = First
 }
 
 type ExperimentName = String
@@ -96,6 +103,8 @@ data ExperimentCourse
   | CompareThresholds
   | CompareIncremental
   | CompareSolutions -- 2019-06-12
+  | CompareEnvironments
+  | CoalescingStrategies
   deriving (Show, Data, Typeable)
 
 data Message

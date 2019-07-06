@@ -167,7 +167,7 @@ mkFunctionSigStr args = addConstraints $ Prelude.foldr accumConstraints ([],[]) 
 -- (\x -> \y -> body))
 mkLambdaStr :: [String] -> UProgram -> String
 mkLambdaStr args body = let
-    unTypeclassed = toHaskellSolution body
+    unTypeclassed = toHaskellSolution (show body)
     in
         unwords . words . show $ foldr addFuncArg (text unTypeclassed) args
     where
@@ -193,9 +193,8 @@ removeTypeclasses = removeEmptyParens . removeTypeclassArgs . removeTypeclassIns
     where
         removeEmptyParens = removeAll (mkRegex "\\(\\s+\\)")
 
-toHaskellSolution :: UProgram -> String
-toHaskellSolution body = let
-    bodyStr = show body
+toHaskellSolution :: String -> String
+toHaskellSolution bodyStr = let
     oneLineBody = unwords $ lines bodyStr
     noTypeclasses = (removeTypeclasses) oneLineBody
     in

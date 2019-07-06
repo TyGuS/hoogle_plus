@@ -32,6 +32,18 @@ maybeToList :: Maybe a -> [a]
 catMaybes :: [Maybe a] -> [a]
 mapMaybe :: (a -> Maybe b) -> [a] -> [b]
 
+module Data.Bool
+data Bool
+False :: Bool
+True :: Bool
+(&&) :: Bool -> Bool -> Bool
+infixr 3 &&
+(||) :: Bool -> Bool -> Bool
+infixr 2 ||
+not :: Bool -> Bool
+otherwise :: Bool
+bool :: a -> a -> Bool -> a
+
 module Prelude
 data Bool
 False :: Bool
@@ -56,6 +68,8 @@ EQ :: Ordering
 GT :: Ordering
 data Char
 type String = [Char]
+fst :: (a, b) -> a
+snd :: (a, b) -> b
 curry :: ((a, b) -> c) -> a -> b -> c
 uncurry :: (a -> b -> c) -> (a, b) -> c
 class Eq a
@@ -104,13 +118,13 @@ infixl 6 +
 infixl 6 -
 infixl 7 *
 
-id :: a -> a
-(.) :: (b -> c) -> (a -> b) -> a -> c
-infixr 9 .
-($) :: forall r a (b :: TYPE r). (a -> b) -> a -> b
-infixr 0 $
+-- id :: a -> a
+--(.) :: (b -> c) -> (a -> b) -> a -> c
+--infixr 9 .
+--($) :: forall r a (b :: TYPE r). (a -> b) -> a -> b
+--infixr 0 $
 until :: (a -> Bool) -> (a -> a) -> a -> a
-asTypeOf :: a -> a -> a
+--asTypeOf :: a -> a -> a
 
 type ShowS = String -> String
 class Show a

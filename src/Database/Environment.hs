@@ -12,6 +12,7 @@ import qualified Data.Set as Set
 import Control.Monad.State (evalStateT)
 import System.Exit (exitFailure)
 import Text.Parsec.Pos (initialPos)
+import Text.Printf
 
 import Synquid.Error (Pos(Pos))
 import Synquid.Logic (ftrue)
@@ -21,7 +22,7 @@ import Synquid.Pretty as Pretty
 import Database.Util
 import qualified Database.Download as DD
 import qualified Database.Convert as DC
-import Types.Environment -- (Environment, symbols, _symbols, _included_modules)
+import Types.Environment
 import Types.Program (BareDeclaration(..), Declaration(..), ConstructorSig(..))
 import Types.Generate
 import Synquid.Resolver (resolveDecls)
@@ -62,7 +63,6 @@ generateEnv genOpts = do
     let entriesByMdl = filterEntries allEntriesByMdl mbModuleNames
     let ourEntries = nubOrd $ concat $ Map.elems entriesByMdl
     dependencyEntries <- getDeps pkgOpts allEntriesByMdl ourEntries
-    putStrLn $ show dependencyEntries
     let moduleNames = Map.keys entriesByMdl
     let allCompleteEntries = concat (Map.elems entriesByMdl)
     let allEntries = nubOrd allCompleteEntries
@@ -85,7 +85,7 @@ generateEnv genOpts = do
     let library = concat [ourDecls, dependencyEntries, instanceFunctions', tcDecls, defaultLibrary]
     let hooglePlusDecls = DC.reorderDecls $ nubOrd $ library
 
-    case resolveDecls hooglePlusDecls moduleNames of
+    result <- case resolveDecls hooglePlusDecls moduleNames of
        Left errMessage -> error $ show errMessage
        Right env -> do
             let env' = env { _symbols = if useHO then env ^. symbols
@@ -98,9 +98,11 @@ generateEnv genOpts = do
             let sigs = map (\f -> lookupWithError "env: symbols" f (env' ^. symbols)) hofNames
             -- transform into fun types and add into the environments
             let sigs' = zipWith (\n t -> (n ++ "'ho'", toFunType t)) hofNames sigs
-            let env'' = env' { _symbols = Map.union (env' ^. symbols) (Map.fromList sigs') 
+            let env'' = env' { _symbols = Map.union (env' ^. symbols) (Map.fromList sigs')
                              , _hoCandidates = map fst sigs' }
             return env''
+    printStats result
+    return result
    where
      filterEntries entries Nothing = entries
      filterEntries entries (Just mdls) = Map.filterWithKey (\m _-> m `elem` mdls) entries
@@ -124,3 +126,15 @@ filesToEntries fps = do
 getFiles :: PackageFetchOpts -> IO [FilePath]
 getFiles Hackage{packages=p} = mapM DD.getPkg p >>= (return . concat)
 getFiles Local{files=f} = return f
+
+printStats :: Environment -> IO ()
+printStats env = do
+  let typeMap = env ^. datatypes
+  let modules = _included_modules env
+  let typeclassInstances = _typClassInstances env
+  let symbols = _symbols env
+  let symbolsCount = Map.size symbols
+  let typeCount = Map.size typeMap
+  printf "types: %d; symbols: %d\n" typeCount symbolsCount
+  printf "included types: %s\n" $ show (Map.keys typeMap)
+  printf "included modules: %s\n" $ show (Set.elems modules)

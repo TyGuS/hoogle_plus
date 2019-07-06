@@ -48,10 +48,6 @@ multiPermutation len elmts | len == 0 = [[]]
 multiPermutation len elmts | len == 1 = [[e] | e <- elmts]
 multiPermutation len elmts            = nubSpence [ l:r | l <- elmts, r <- multiPermutation (len - 1) elmts]
 
-crossProduct :: [[a]] -> [[a]]
-crossProduct [] = [[]]
-crossProduct (x:xs) = [ e : l | e <- x , l <- crossProduct xs ] 
-
 -- Thanks, this only helps when you get >100 elements, otherwise, use nubOrd:
 -- https://github.com/AndreasPK/nubBench/blob/038bc644f32aaa47035484b4384a4aaf5b78320c/app/Main.hs
 nubSpence :: (Hashable a, Eq a) => [a] -> [a]

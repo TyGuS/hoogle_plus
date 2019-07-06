@@ -72,10 +72,10 @@ releaseDate = fromGregorian 2019 3 10
 main = do
   res <- cmdArgsRun $ mode
   case res of
-
     Synthesis {file, libs, env_file_path_in, app_max, log_, sol_num,
       higher_order, use_refine, disable_demand,
-      stop_refine, stop_threshold, disable_coalescing, incremental} -> do
+      stop_refine, stop_threshold, disable_coalescing,
+      coalescing_strategy, incremental} -> do
       let searchParams = defaultSearchParams {
         _maxApplicationDepth = app_max,
         _explorerLogLevel = log_,
@@ -86,7 +86,8 @@ main = do
         _incrementalSolving = incremental,
         _refineStrategy = use_refine,
         _disableDemand = disable_demand,
-        _coalesceTypes = not disable_coalescing
+        _coalesceTypes = not disable_coalescing,
+        _coalesceStrategy = coalescing_strategy
         }
       let synquidParams = defaultSynquidParams {
         Main.envPath = env_file_path_in
@@ -134,7 +135,8 @@ data CommandLineArgs
         stop_threshold :: Int,
         disable_demand :: Bool,
         disable_coalescing :: Bool,
-        incremental :: Bool
+        incremental :: Bool,
+        coalescing_strategy :: CoalesceStrategy
       }
       | Generate {
         -- | Input
@@ -162,7 +164,8 @@ synt = Synthesis {
   stop_threshold      = 10              &= help ("Refinement stops when the number of places reaches the threshold, only when stop_refine is True"),
   incremental         = False           &= help ("Enable the incremental solving in z3 (default: False)"),
   disable_demand = False &= name "d" &= help ("Disable the demand analyzer (default: False)"),
-  disable_coalescing = False &= name "xc" &= help ("Do not coalesce transitions in the net with the same abstract type")
+  disable_coalescing = False &= name "xc" &= help ("Do not coalesce transitions in the net with the same abstract type"),
+  coalescing_strategy = First &= help ("Choose how type coalescing works. Default: Pick first element of each group set.")
   } &= auto &= help "Synthesize goals specified in the input file"
 
 generate = Generate {

@@ -24,20 +24,30 @@ xs >.> ys = let ys' = Set.fromList ys in filter (flip Set.notMember ys') xs
 
 defaultLibrary = concat [
   defaultFuncs,
+  defaultFun,
   defaultDts,
   defaultTypeclassInstances
   ]
 
--- Default Library
-defaultFuncs = [ Pos (initialPos "fst") $ FuncDecl "fst" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) (ScalarT (TypeVarT Map.empty "a") ftrue)))
-                , Pos (initialPos "snd") $ FuncDecl "snd" (Monotype (FunctionT "p" (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) (ScalarT (TypeVarT Map.empty "b") ftrue)))
-                ]
+defaultFuncs = [
+    Pos (initialPos "fst") $ FuncDecl "fst" (Monotype $
+      (FunctionT "p" (ScalarT (
+        DatatypeT "Pair" [
+          ScalarT (TypeVarT Map.empty "a") ftrue,
+          ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) $
+        (ScalarT (TypeVarT Map.empty "a") ftrue)))
+  , Pos (initialPos "snd") $ FuncDecl "snd" (Monotype $
+      (FunctionT "p" (ScalarT (
+        DatatypeT "Pair" [
+          ScalarT (TypeVarT Map.empty "a") ftrue,
+          ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) $
+        (ScalarT (TypeVarT Map.empty "b") ftrue)))
+  ]
 
-defaultDts = [defaultList, defaultPair, defaultUnit, defaultInt, defaultBool, defaultFun]
-
-defaultInt = Pos (initialPos "Int") $ DataDecl "Int" [] [] []
-
-defaultBool = Pos (initialPos "Bool") $ DataDecl "Bool" [] [] []
+defaultDts = [
+  defaultList, defaultPair, defaultUnit,
+  defaultInt, defaultBool, defaultChar,
+  defaultFloat, defaultDouble]
 
 defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
     ConstructorSig "Nil"  $
@@ -50,12 +60,15 @@ defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
   ]
 
 defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [] [
-    ConstructorSig "Pair" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) (FunctionT "y" (ScalarT (TypeVarT Map.empty "b") ftrue) (ScalarT (DatatypeT "Pair" [ScalarT (TypeVarT Map.empty "a") ftrue, ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue))
+    ConstructorSig "Pair" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) $
+      (FunctionT "y" (ScalarT (TypeVarT Map.empty "b") ftrue) $
+        (ScalarT (DatatypeT "Pair" [
+          ScalarT (TypeVarT Map.empty "a") ftrue,
+          ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue))
   ]
 
-defaultUnit = Pos (initialPos "Unit") $ DataDecl "Unit" [] [] []
 
-defaultFun = Pos (initialPos "Fun") $ DataDecl "Fun" ["a", "b"] [] []
+defaultFun = [Pos (initialPos "Fun") $ DataDecl "Fun" ["a", "b"] [] []]
 
 -- This is only a subset of those predefinted in Haskell:
 -- Full report: https://www.haskell.org/onlinereport/basic.html
@@ -66,12 +79,23 @@ defaultTypeclassInstances = [
   mkInstance "Show" intType,
   mkInstance "Show" boolType,
   mkInstance "Show" charType,
+  mkInstance "Show" intType,
+  mkInstance "Show" floatType,
+  mkInstance "Show" doubleType,
+  mkInstance "Show" unitType,
   mkInstance "Eq" intType,
   mkInstance "Eq" boolType,
   mkInstance "Eq" charType,
+  mkInstance "Eq" intType,
+  mkInstance "Eq" floatType,
+  mkInstance "Eq" doubleType,
+  mkInstance "Eq" unitType,
   mkInstance "Ord" intType,
   mkInstance "Ord" boolType,
-  mkInstance "Ord" charType
+  mkInstance "Ord" charType,
+  mkInstance "Ord" intType,
+  mkInstance "Ord" floatType,
+  mkInstance "Ord" doubleType
   ]
 
 mkInstance :: String -> RType -> Declaration
@@ -82,6 +106,18 @@ mkInstance tyclassName instanceType = let
           ScalarT (DatatypeT (tyclassPrefix ++ tyclassName) [instanceType] []) ftrue
 
 mkTyVar str = ScalarT (TypeVarT (Map.empty) str) ftrue
+
 intType = ScalarT (DatatypeT "Int" [] []) ftrue
 boolType = ScalarT (DatatypeT "Bool" [] []) ftrue
 charType = ScalarT (DatatypeT "Char" [] []) ftrue
+
+floatType = ScalarT (DatatypeT "Float" [] []) ftrue
+doubleType = ScalarT (DatatypeT "Double" [] []) ftrue
+unitType = ScalarT (DatatypeT "Unit" [] []) ftrue
+
+defaultInt = Pos (initialPos "Int") $ DataDecl "Int" [] [] []
+defaultBool = Pos (initialPos "Bool") $ DataDecl "Bool" [] [] []
+defaultChar = Pos (initialPos "Char") $ DataDecl "Char" [] [] []
+defaultFloat = Pos (initialPos "Float") $ DataDecl "Float" [] [] []
+defaultDouble = Pos (initialPos "Double") $ DataDecl "Double" [] [] []
+defaultUnit = Pos (initialPos "Unit") $ DataDecl "Unit" [] [] []
