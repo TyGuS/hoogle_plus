@@ -97,7 +97,7 @@ generateEnv genOpts = do
             -- get signatures
             let sigs = map (\f -> lookupWithError "env: symbols" f (env' ^. symbols)) hofNames
             -- transform into fun types and add into the environments
-            let sigs' = zipWith (\n t -> (n ++ "'ho'", toFunType t)) hofNames sigs
+            let sigs' = zipWith (\n t -> (n ++ hoPostfix, toFunType t)) hofNames sigs
             let env'' = env' { _symbols = Map.union (env' ^. symbols) (Map.fromList sigs')
                              , _hoCandidates = map fst sigs' }
             return env''

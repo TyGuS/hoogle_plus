@@ -4,54 +4,56 @@
 
 module PetriNet.PNSolver (runPNSolver) where
 
-import Data.Map (Map)
-import qualified Data.Map as Map
-import Data.Set (Set)
-import qualified Data.Set as Set
+import Control.Concurrent.Chan
+import Control.Lens
+import Control.Monad.Logic
+import Control.Monad.State
+import qualified Data.Char as Char
+import Data.Data (Data)
+import Data.Either hiding (fromLeft, fromRight)
+import Data.Foldable
+import Data.Function (on)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import Control.Lens
-import Control.Monad.State
-import Control.Monad.Logic
-import Data.Foldable
 import Data.List
-import Data.Maybe
-import Data.Data (Data)
-import Data.Function (on)
-import qualified Data.Char as Char
-import Data.Either hiding (fromLeft, fromRight)
 import Data.List.Extra
-import Language.Haskell.Exts.Parser (parseExp, ParseResult(..))
-import Control.Concurrent.Chan
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Maybe
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Tuple
-import Text.Printf
 import Debug.Trace
+import Language.Haskell.Exts.Parser (ParseResult(..), parseExp)
+import Text.Printf
 
-import Types.Common
-import Types.Type
-import Types.Environment
-import Types.Abstract
-import Types.Solver
-import Types.Program
-import Types.Experiments
-import Types.Encoder hiding (varName, mustFirers, incrementalSolving)
-import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
-import Synquid.Program
-import Synquid.Type
-import Synquid.Logic hiding (varName)
-import Synquid.Util
-import Synquid.Error
-import Synquid.Pretty
-import PetriNet.AbstractType
-import PetriNet.PNEncoder
-import PetriNet.GHCChecker
-import PetriNet.Util
-import HooglePlus.Stats
-import HooglePlus.CodeFormer
-import HooglePlus.Abstraction
-import HooglePlus.Refinement
 import Database.Convert
 import Database.Generate
+import Database.Util
+import HooglePlus.Abstraction
+import HooglePlus.CodeFormer
+import HooglePlus.Refinement
+import HooglePlus.Stats
+import PetriNet.AbstractType
+import PetriNet.GHCChecker
+import PetriNet.PNEncoder
+import PetriNet.Util
+import Synquid.Error
+import Synquid.Logic hiding (varName)
+import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
+import Synquid.Pretty
+import Synquid.Program
+import Synquid.Type
+import Synquid.Util
+import Types.Abstract
+import Types.Common
+import Types.Encoder hiding (incrementalSolving, mustFirers, varName)
+import Types.Environment
+import Types.Experiments
+import Types.Program
+import Types.Solver
+import Types.Type
+
 
 encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
 encodeFunction id t | pairProj `isPrefixOf` id =
@@ -254,7 +256,7 @@ selectRepresentative hoArgs gid s = do
 addMusters :: MonadIO m => Id -> PNSolver m ()
 addMusters arg = do
     nameMap <- gets $ view nameMapping
-    let eqArg n = n == arg || n == arg ++ "'ho'"
+    let eqArg n = n == arg || n == arg ++ hoPostfix
     let argFuncs = Map.keys $ Map.filter eqArg nameMap
     argRps <- mapM getGroupRep argFuncs
     modify $ over mustFirers (HashMap.insert arg $ concat argRps)
@@ -501,7 +503,7 @@ findProgram env dst st = do
         let hoArgs =
                 Map.keys $
                 Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-        let hoArgs' = map (++ "'ho'") hoArgs ++ hoArgs
+        let hoArgs' = map (++ hoPostfix) hoArgs ++ hoArgs
         let hoAlias = Map.keysSet $ Map.filter (`elem` hoArgs') nameMap
         let getGroup p = fromJust $ Map.lookup p ngm
         let getFuncs p = Map.findWithDefault Set.empty (getGroup p) gm
@@ -521,7 +523,7 @@ findProgram env dst st = do
                 let p' =
                         map
                             (\x ->
-                                 replaceId "'ho'" "" $
+                                 replaceId hoPostfix "" $
                                  lookupWithError "nameMapping" x nameMap)
                             p
                  in all (`elem` p') hoArgs
@@ -689,7 +691,7 @@ findFirstN env dst st n = do
         runPNSolver env dst
     currentSols <- gets $ view currentSolutions
     writeLog 2 "findFirstN" $ text "Current Solutions:" <+> pretty currentSols
-    findFirstN env dst st' (n-1)
+    findFirstN env dst st' (n - 1)
 
 runPNSolver :: MonadIO m => Environment -> RType -> PNSolver m ()
 runPNSolver env t = do
@@ -713,13 +715,13 @@ writeSolution code = do
 recoverNames :: Map Id Id -> Program t -> Program t
 recoverNames mapping (Program (PSymbol sym) t) =
     case Map.lookup sym mapping of
-      Nothing -> Program (PSymbol (replaceId "'ho'" "" $ removeLast '_' sym)) t
-      Just name -> Program (PSymbol (replaceId "'ho'" "" $ removeLast '_' name)) t
+      Nothing -> Program (PSymbol (replaceId hoPostfix "" $ removeLast '_' sym)) t
+      Just name -> Program (PSymbol (replaceId hoPostfix "" $ removeLast '_' name)) t
 recoverNames mapping (Program (PApp fun pArg) t) = Program (PApp fun' pArg') t
   where
     fun' = case Map.lookup fun mapping of
-                Nothing -> replaceId "'ho'" "" $ removeLast '_' fun
-                Just name -> replaceId "'ho'" "" $ removeLast '_' name
+                Nothing -> replaceId hoPostfix "" $ removeLast '_' fun
+                Just name -> replaceId hoPostfix "" $ removeLast '_' name
     pArg' = map (recoverNames mapping) pArg
 recoverNames mapping (Program (PFun x body) t) = Program (PFun x body') t
   where

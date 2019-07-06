@@ -1,32 +1,33 @@
 {-# LANGUAGE FlexibleContexts #-}
 module HooglePlus.Refinement where
 
+import Database.Convert
+import Database.Util
+import PetriNet.AbstractType
+import PetriNet.Util
+import Synquid.Pretty
+import Synquid.Program
+import Synquid.Type
+import Synquid.Util
 import Types.Abstract
 import Types.Common
-import PetriNet.AbstractType
 import Types.Environment
-import Types.Type
-import Types.Solver
 import Types.Program
-import PetriNet.Util
-import Synquid.Type
-import Synquid.Program
-import Synquid.Pretty
-import Synquid.Util
-import Database.Convert
+import Types.Solver
+import Types.Type
 
-import Control.Monad.State
+import Control.Lens
 import Control.Monad.Logic
-import Text.Printf
+import Control.Monad.State
+import qualified Data.HashMap.Strict as HashMap
+import Data.List
 import Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Data.HashMap.Strict as HashMap
-import Control.Lens
-import Data.List
-import Data.Tuple (swap)
+import Data.Maybe
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Maybe
+import Data.Tuple (swap)
+import Text.Printf
 
 distinguish :: MonadIO m => Environment -> SType -> SType -> PNSolver m (Maybe (SType, SType))
 distinguish env AnyT _ = return Nothing
@@ -104,13 +105,13 @@ updateCover tvs t cover = let (_, cover') = updateCover' tvs cover [] t rootNode
 
 updateCover' :: [Id] -> AbstractCover -> [AbstractSkeleton] -> AbstractSkeleton -> AbstractSkeleton -> ([AbstractSkeleton], AbstractCover)
 updateCover' bound cover intscts t paren | equalAbstract bound t paren = (intscts, cover)
-updateCover' bound cover intscts t paren | isSubtypeOf bound t paren = 
+updateCover' bound cover intscts t paren | isSubtypeOf bound t paren =
     let children = HashMap.lookupDefault Set.empty paren cover
         child_fun c (ints, acc) = updateCover' bound acc ints t c
         (scts, updatedCover) = Set.foldr child_fun (intscts, cover) children
         lower c = isSubtypeOf bound t c || isSubtypeOf bound c t
         inSubtree = any lower (Set.toList children)
-        baseCover = if inSubtree 
+        baseCover = if inSubtree
                       then updatedCover
                       else HashMap.insertWith Set.union paren (Set.singleton t) updatedCover
         int_fun s (ints, acc) = updateCover' bound acc ints s rootNode
@@ -122,7 +123,7 @@ updateCover' bound cover intscts t paren | isSubtypeOf bound paren t =
         addedCurr = foldr addCurr rmParen parents
         cover' = HashMap.insertWith Set.union t (Set.singleton paren) addedCurr
      in (intscts, cover')
-updateCover' bound cover intscts t paren = 
+updateCover' bound cover intscts t paren =
     let intsctMb = abstractIntersect bound t paren
      in if isJust intsctMb then (fromJust intsctMb : intscts, cover)
                            else (intscts, cover)
@@ -133,7 +134,7 @@ propagate env p@(Program (PSymbol sym) t) upstream = do
     writeLog 3 "propagate" $ text "propagate" <+> pretty upstream <+> text "into" <+> pretty p
     cover <- gets (view abstractionCover)
     let bound = env ^. boundTypeVars
-    unless (existAbstract bound cover upstream) 
+    unless (existAbstract bound cover upstream)
            (do
                 let newCover = updateCover bound upstream cover
                 modify $ set abstractionCover newCover
@@ -163,7 +164,7 @@ propagate env p@(Program (PApp f args) _) upstream = do
         return $ map compactAbstractType absArgs
 -- | case for lambda functions
 propagate env (Program (PFun x body) (FunctionT _ tArg tRet))
-              (AFunctionT atArg atRet) = 
+              (AFunctionT atArg atRet) =
     propagate (addVariable x (addTrue tArg) env) body atRet
 propagate env (Program (PFun x body) t) (AFunctionT atArg atRet) = do
     id <- freshId "A"
@@ -179,7 +180,7 @@ bottomUpCheck env p@(Program (PSymbol sym) typ) = do
     writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
     nameMap <- gets $ view nameMapping
     let sym' = removeLast '_' sym
-    let name = replaceId "'ho'" "" $ fromMaybe sym' (Map.lookup sym' nameMap)
+    let name = replaceId hoPostfix "" $ fromMaybe sym' (Map.lookup sym' nameMap)
     t <- findSymbol env name
     return (Program (PSymbol sym) t)
 bottomUpCheck env (Program (PApp f args) typ) = do
@@ -195,7 +196,7 @@ bottomUpCheck env (Program (PApp f args) typ) = do
       -- we eagerly substitute the assignments into the return type of t
       tass <- gets (view typeAssignment)
       let ret = addTrue $ stypeSubstitute tass (shape $ lastType t)
-      -- if any of these checks returned false, this function application 
+      -- if any of these checks returned false, this function application
       -- would produce a bottom type
       ifM (gets $ view isChecked)
           (return $ Program (PApp f checkedArgs) ret)
@@ -227,13 +228,13 @@ bottomUpCheck env p@(Program (PFun x body) _) = do
     let tArg = addTrue (ScalarT (TypeVarT Map.empty id) ())
     let tRet = addTrue (ScalarT (TypeVarT Map.empty id') ())
     bottomUpCheck env (Program (PFun x body)(FunctionT x tArg tRet))
-bottomUpCheck _ p = error $ "unhandled case for checking " 
+bottomUpCheck _ p = error $ "unhandled case for checking "
                           ++ show p ++ "::" ++ show (typeOf p)
 
 solveTypeConstraint :: MonadIO m => Environment -> SType -> SType -> PNSolver m ()
 solveTypeConstraint _ AnyT _ = return ()
 solveTypeConstraint _ _ AnyT = return ()
-solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ id') _) 
+solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ id') _)
   | id == id' = return ()
   | isBound env id && isBound env id' = modify $ set isChecked False
   | isBound env id = do
@@ -298,7 +299,7 @@ unify env v t = do
 
 -- | generalize a closed concrete type into an abstract one
 generalize :: MonadIO m => [Id] -> AbstractSkeleton -> LogicT (PNSolver m) AbstractSkeleton
-generalize bound t@(AScalar (ATypeVarT id)) 
+generalize bound t@(AScalar (ATypeVarT id))
   | id `notElem` bound = return t
   | otherwise = do
     v <- lift $ freshId "T"
@@ -329,7 +330,7 @@ generalize bound t@(AScalar (ADatatypeT id args)) = do
         absTy <- lift $ freshAbstract bound (AScalar (ADatatypeT id args'))
         guard (isSubtypeOf bound t absTy)
         lift $ writeLog 3 "generalize" $ text "generalize" <+> pretty t <+> text "into" <+> pretty absTy
-        return absTy       
+        return absTy
 
     subsets [] = return []
     subsets (arg:args) = do

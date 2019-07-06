@@ -14,6 +14,7 @@ import qualified Data.Map as Map
 tyclassPrefix = "@@hplusTC@@"
 tyclassInstancePrefix = "@@hplusTCInstance@@"
 tyclassArgBase = "tcarg"
+hoPostfix = "'ho'"
 
 (>.<) :: Ord a => [a] -> [a] -> [a]
 xs >.< ys = let ys' = Set.fromList ys in filter (flip Set.member ys') xs
