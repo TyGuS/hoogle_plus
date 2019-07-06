@@ -132,8 +132,7 @@ splitTransition env newAt fid = do
     writeLog 3 "splitTransition" $ text "split transtion" <+> text fid <+> text "::" <+> pretty ty
     allSubsts ty
   where
-    allSubsts ty = do
-        allSubsts' (lastAbstract ty) (absFunArgs fid ty)
+    allSubsts ty = allSubsts' (lastAbstract ty) (absFunArgs fid ty)
 
     allSubsts' ret args | pairProj `isPrefixOf` fid = do
         cover <- gets $ view abstractionCover
@@ -215,7 +214,7 @@ mkGroups env sigs = do
     nameMap <- gets $ view nameMapping
     let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
     let hoAlias = Map.keysSet $ Map.filter (`elem` hoArgs) nameMap
-    representatives <- Map.fromList <$> (mapM (selectOurRep hoAlias) $ Map.toList sigGroups)
+    representatives <- Map.fromList <$> mapM (selectOurRep hoAlias) (Map.toList sigGroups)
     let sigs' = Map.restrictKeys sigs (Set.fromList $ Map.elems representatives)
     modify $ over groupRepresentative $ Map.union representatives
     modify $ over typeToGroup (Map.union t2g)
@@ -272,7 +271,7 @@ refineSemantic env prog at = do
     -- get the split pairs
     splits <- gets (view splitTypes)
     let tvs = env ^. boundTypeVars
-    let sortedSplits = reverse $ sortBy (compareAbstract tvs) (Set.toList splits)
+    let sortedSplits = sortBy (flip (compareAbstract tvs)) (Set.toList splits)
     writeLog 3 "refineSemantic splitTypes" $ pretty sortedSplits
     -- get removed transitions
     addsAndRemoves <- mapM splitTransitions sortedSplits
@@ -383,8 +382,7 @@ refineSemantic env prog at = do
                         let addables' = (newRep, abstractType):addables
                         return (addables', removables', Map.insert gid newRep newReps)
                       -- There was only that one element in the group, so with the leader gone, the group goes away.
-                      else do
-                        return (addables, removables', newReps)
+                      else return (addables, removables', newReps)
                 -- after all the removals, the current representative is still in its original group
                 else return (addables, removables, Map.insert gid rep newReps)
 
@@ -500,7 +498,7 @@ findProgram env dst st = do
                   -> PNSolver m [[Id]]
     enumeratePath ngm gm uc nameMap path = do
         let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-        let hoArgs' = map (flip (++) "'ho'") hoArgs ++ hoArgs
+        let hoArgs' = map (++ "'ho'") hoArgs ++ hoArgs
         let hoAlias = Map.keysSet $ Map.filter (`elem` hoArgs') nameMap
         let getGroup p = fromJust $ Map.lookup p ngm
         let getFuncs p = Map.findWithDefault Set.empty (getGroup p) gm
@@ -547,8 +545,7 @@ findProgram env dst st = do
         let sigs = substPair $ substName firedTrans $ map (findFunction fm) reps
         writeLog 2 "findPath" $ text "found filtered sigs" <+> pretty sigs
         let initialFormer = FormerState 0 HashMap.empty [] []
-        code <- withTime FormerTime $ generateCode initialFormer src args sigs
-        return code
+        withTime FormerTime $ generateCode initialFormer src args sigs
 
     checkUntilFail st' _ [] = findProgram env dst $ st' {prevChecked=True}
     checkUntilFail st' reps (path:ps) = do
@@ -630,10 +627,19 @@ findProgram env dst st = do
         -- add new places and transitions into the petri net
         cover <- gets $ view abstractionCover
         t2tr <- gets $ view type2transition
-        modify $ over solverStats (\s -> s {
-            numOfPlaces = Map.insert (iterations s) (coverSize cover) (numOfPlaces s)
-            , numOfTransitions = Map.insert (iterations s) (transitionNb st) (numOfTransitions s)
-        })
+        modify $ over solverStats (\s ->
+            s   { numOfPlaces =
+                       Map.insert
+                           (iterations s)
+                           (coverSize cover)
+                           (numOfPlaces s)
+                , numOfTransitions =
+                       Map.insert
+                           (iterations s)
+                           (transitionNb st)
+                           (numOfTransitions s)
+                })
+
         st' <- withTime EncodingTime (fixEncoder env dst st splitInfo)
         findProgram env dst st'
 
@@ -642,21 +648,14 @@ findProgram env dst st = do
         mapping <- gets $ view nameMapping
         let code' = recoverNames mapping code
         disableDemand <- getExperiment disableDemand
-        checkedSols <- withTime TypeCheckTime (filterM (liftIO . runGhcChecks disableDemand env dst) [code'])
+        checkedSols <-
+            withTime
+                TypeCheckTime
+                (filterM (liftIO . runGhcChecks disableDemand env dst) [code'])
         if (code' `elem` solutions) || null checkedSols
             then return Nothing
-            else do
-                msgChan <- gets $ view messageChan
-                modify $ over currentSolutions ((:) code')
-                let haskellSolution = toHaskellSolution (show code')
-                printSolution haskellSolution
-                stats <- gets $ view solverStats
-                loc <- gets $ view currentLoc
-                let stats' = stats{pathLength = loc}
-                liftIO $ writeChan msgChan (MesgP (code', stats'))
-                writeLog 1 "findFirstN" $ text (show stats')
-                resetTiming
-                return $ Just code'
+            else return $ Just code'
+
 
 printSolution solution = do
     liftIO $ putStrLn "*******************SOLUTION*********************"
@@ -665,10 +664,10 @@ printSolution solution = do
 
 findFirstN :: MonadIO m => Environment -> RType -> EncodeState -> PNSolver m ()
 findFirstN env dst st = do
-    cnt <- getExperiment solutionCnt
     strategy <- getExperiment refineStrategy
-    withTime TotalSearch $ findProgram env dst st
-    when (noGarTyGarIdx strategy >= 0) $ do
+    soln <- withTime TotalSearch $ findProgram env dst st
+    writeSolution soln
+    when (isNoGarTyGar strategy) $ do
         resetTiming
         modify $ set (searchParams . refineStrategy) NoGar
         modify $ set (searchParams . stopRefine) False
@@ -685,6 +684,17 @@ runPNSolver env t = do
     msgChan <- gets $ view messageChan
     liftIO $ writeChan msgChan (MesgClose CSNormal)
     return ()
+
+writeSolution :: MonadIO m => UProgram -> PNSolver m ()
+writeSolution code = do
+    let haskellSolution = toHaskellSolution (show code)
+    printSolution haskellSolution
+    stats <- gets $ view solverStats
+    loc <- gets $ view currentLoc
+    msgChan <- gets $ view messageChan
+    let stats' = stats {pathLength = loc}
+    liftIO $ writeChan msgChan (MesgP (code, stats'))
+    writeLog 1 "writeSolution" $ text (show stats')
 
 recoverNames :: Map Id Id -> Program t -> Program t
 recoverNames mapping (Program (PSymbol sym) t) =
@@ -708,12 +718,12 @@ attachLast t (AFunctionT tArg tRes) | isAFunctionT tRes = AFunctionT tArg (attac
 attachLast t (AFunctionT tArg _) = AFunctionT tArg t
 attachLast t _ = t
 
-noGarTyGarIdx :: RefineStrategy -> Int
-noGarTyGarIdx NoGarTyGar0 = 0
-noGarTyGarIdx NoGarTyGarQ = 1
-noGarTyGarIdx NoGarTyGar0B = 2
-noGarTyGarIdx NoGarTyGarQB = 3
-noGarTyGarIdx _ = -1
+isNoGarTyGar :: RefineStrategy -> Bool
+isNoGarTyGar NoGarTyGar0 = True
+isNoGarTyGar NoGarTyGarQ = True
+isNoGarTyGar NoGarTyGar0B = True
+isNoGarTyGar NoGarTyGarQB = True
+isNoGarTyGar _ = False
 
 doRefine :: RefineStrategy -> Bool
 doRefine NoGar = False
@@ -782,7 +792,7 @@ getGroupRep name = do
     ngm <- gets $ view nameToGroup
     let argGps = maybeToList $ Map.lookup name ngm
     writeLog 3 "getGroupRep" $ text name <+> text "is contained in group" <+> pretty argGps
-    let argRp = catMaybes $ map (`Map.lookup` gr) argGps
+    let argRp = mapMaybe (`Map.lookup` gr) argGps
     return argRp
 
 assemblePair :: AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton

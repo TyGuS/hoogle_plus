@@ -53,6 +53,7 @@ data SolverState = SolverState {
 } deriving(Eq)
 
 
+emptySolverState :: SolverState
 emptySolverState = SolverState {
     _searchParams = defaultSearchParams,
     _nameCounter = Map.empty,
