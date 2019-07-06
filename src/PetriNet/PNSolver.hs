@@ -662,8 +662,8 @@ printSolution solution = do
     liftIO $ putStrLn $ "SOLUTION: " ++ solution
     liftIO $ putStrLn "************************************************"
 
-findFirstN :: MonadIO m => Environment -> RType -> EncodeState -> PNSolver m ()
-findFirstN env dst st = do
+findFirstN :: MonadIO m => Environment -> RType -> EncodeState -> Int -> PNSolver m ()
+findFirstN env dst st n = do
     strategy <- getExperiment refineStrategy
     soln <- withTime TotalSearch $ findProgram env dst st
     writeSolution soln
@@ -680,10 +680,10 @@ runPNSolver env t = do
     writeLog 3 "runPNSolver" $ text $ show (allSymbols env)
     initNet env
     st <- withTime TotalSearch $ withTime EncodingTime (resetEncoder env t)
-    findFirstN env t st
+    cnt <- getExperiment solutionCnt
+    findFirstN env t st cnt
     msgChan <- gets $ view messageChan
     liftIO $ writeChan msgChan (MesgClose CSNormal)
-    return ()
 
 writeSolution :: MonadIO m => UProgram -> PNSolver m ()
 writeSolution code = do
