@@ -70,46 +70,58 @@ releaseDate = fromGregorian 2019 3 10
 
 -- | Type-check and synthesize a program, according to command-line arguments
 main = do
-  res <- cmdArgsRun $ mode
-  case res of
-    Synthesis {file, libs, env_file_path_in, app_max, log_, sol_num,
-      higher_order, use_refine, disable_demand,
-      stop_refine, stop_threshold, disable_coalescing,
-      coalescing_strategy, incremental} -> do
-      let searchParams = defaultSearchParams {
-        _maxApplicationDepth = app_max,
-        _explorerLogLevel = log_,
-        _solutionCnt = sol_num,
-        _useHO = higher_order,
-        _stopRefine = stop_refine,
-        _threshold = stop_threshold,
-        _incrementalSolving = incremental,
-        _refineStrategy = use_refine,
-        _disableDemand = disable_demand,
-        _coalesceTypes = not disable_coalescing,
-        _coalesceStrategy = coalescing_strategy
-        }
-      let synquidParams = defaultSynquidParams {
-        Main.envPath = env_file_path_in
-      }
-      executeSearch synquidParams searchParams file
-
-    Generate {preset=(Just preset)} -> do
-      precomputeGraph (getOptsFromPreset preset)
-
-    Generate Nothing files pkgs mdls d ho pathToEnv hoPath -> do
-      let fetchOpts = if (length files > 0)
+    res <- cmdArgsRun $ mode
+    case res of
+        Synthesis { file
+                  , libs
+                  , env_file_path_in
+                  , app_max
+                  , log_
+                  , sol_num
+                  , higher_order
+                  , use_refine
+                  , disable_demand
+                  , stop_refine
+                  , stop_threshold
+                  , disable_coalescing
+                  , coalescing_strategy
+                  , incremental
+                  } -> do
+            let searchParams =
+                    defaultSearchParams
+                        { _maxApplicationDepth = app_max
+                        , _explorerLogLevel = log_
+                        , _solutionCnt = sol_num
+                        , _useHO = higher_order
+                        , _stopRefine = stop_refine
+                        , _threshold = stop_threshold
+                        , _incrementalSolving = incremental
+                        , _refineStrategy = use_refine
+                        , _disableDemand = disable_demand
+                        , _coalesceTypes = not disable_coalescing
+                        , _coalesceStrategy = coalescing_strategy
+                        }
+            let synquidParams =
+                    defaultSynquidParams {Main.envPath = env_file_path_in}
+            executeSearch synquidParams searchParams file
+        Generate {preset = (Just preset)} -> do
+            precomputeGraph (getOptsFromPreset preset)
+        Generate Nothing files pkgs mdls d ho pathToEnv hoPath -> do
+            let fetchOpts =
+                    if (length files > 0)
                         then Local files
-                        else defaultHackageOpts {packages=pkgs}
-      let generationOpts = defaultGenerationOpts {
-        modules = mdls,
-        instantiationDepth = d,
-        enableHOF = ho,
-        pkgFetchOpts = fetchOpts,
-        Types.Generate.envPath = pathToEnv,
-        Types.Generate.hoPath = hoPath
-      }
-      precomputeGraph generationOpts
+                        else defaultHackageOpts {packages = pkgs}
+            let generationOpts =
+                    defaultGenerationOpts
+                        { modules = mdls
+                        , instantiationDepth = d
+                        , enableHOF = ho
+                        , pkgFetchOpts = fetchOpts
+                        , Types.Generate.envPath = pathToEnv
+                        , Types.Generate.hoPath = hoPath
+                        }
+            precomputeGraph generationOpts
+
 
 {- Command line arguments -}
 
