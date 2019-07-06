@@ -27,10 +27,6 @@ expNoGarInc = "NoGar-Incremental"
 expTyGar0BInc = "TyGar0B-Incremental"
 expTyGarQInc = "TyGarQ-Incremental"
 expTyGarQBInc = "TyGarQB-Incremental"
-expNoGarTyGar0 = "NoGar with TyGar0's cover"
-expNoGarTyGarQ = "NoGar with TyGarQ's cover"
-expNoGarTyGar0B = "NoGar with TyGar0B's cover"
-expNoGarTyGarQB = "NoGar with TyGarQB's cover"
 expILP = "Integer Linear Programming"
 
 searchParamsTyGarQ = defaultSearchParams
@@ -41,10 +37,6 @@ searchParamsTyGarQB = defaultSearchParams{_stopRefine=True,_threshold=5}
 searchParamsTyGar0B = searchParamsTyGarQB{_refineStrategy=TyGar0}
 searchParamsNoGar = defaultSearchParams{_refineStrategy=NoGar}
 searchParamsNoGar0 = defaultSearchParams{_refineStrategy=NoGar0}
-searchParamsNoGarTyGar0 = defaultSearchParams{_refineStrategy=NoGarTyGar0}
-searchParamsNoGarTyGarQ = defaultSearchParams{_refineStrategy=NoGarTyGarQ}
-searchParamsNoGarTyGar0B = defaultSearchParams{_refineStrategy=NoGarTyGar0B}
-searchParamsNoGarTyGarQB = defaultSearchParams{_refineStrategy=NoGarTyGarQB}
 searchParamsILP = defaultSearchParams
 searchParamsTyGar0BInc = searchParamsTyGar0B{_incrementalSolving=True}
 searchParamsNoGarInc = searchParamsNoGar{_incrementalSolving=True}

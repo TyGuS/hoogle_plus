@@ -1,7 +1,7 @@
 module PetriNet.GHCChecker (
     runGhcChecks, mkFunctionSigStr, mkLambdaStr,
     removeTypeclasses, toHaskellSolution,
-    parseStrictnessSig, checkStrictness') where
+    parseStrictnessSig, checkStrictness', printSolution) where
 
 import Language.Haskell.Interpreter
 
@@ -199,3 +199,8 @@ toHaskellSolution bodyStr = let
     noTypeclasses = (removeTypeclasses) oneLineBody
     in
         noTypeclasses
+
+printSolution solution = do
+    putStrLn "*******************SOLUTION*********************"
+    putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
+    putStrLn "************************************************"

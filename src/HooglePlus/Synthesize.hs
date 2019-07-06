@@ -106,10 +106,6 @@ synthesize searchParams goal messageChan = do
                           TyGarQ -> Abstraction.specificAbstractionFromTypes env args
                           NoGar -> Abstraction.specificAbstractionFromTypes env args
                           NoGar0 -> emptySolverState ^. abstractionCover
-                          NoGarTyGar0 -> emptySolverState ^. abstractionCover
-                          NoGarTyGarQ -> Abstraction.specificAbstractionFromTypes env args
-                          NoGarTyGar0B -> emptySolverState ^. abstractionCover
-                          NoGarTyGarQB -> Abstraction.specificAbstractionFromTypes env args
                 , _messageChan = messageChan
                 }
     catch

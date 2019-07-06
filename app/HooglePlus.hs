@@ -257,8 +257,3 @@ executeSearch synquidParams searchParams query = do
       readChan ch >>= (handleMessages ch)
 
 pdoc = printDoc Plain
-
-printSolution solution = do
-    putStrLn "*******************SOLUTION*********************"
-    putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
-    putStrLn "************************************************"

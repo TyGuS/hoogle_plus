@@ -22,10 +22,6 @@ data RefineStrategy =
   | TyGarQ -- start from query types, refinement
   | NoGar -- start from query types, no refinement
   | NoGar0 -- start from \nu, no refinement
-  | NoGarTyGar0 -- start from the final cover of TyGar0, no refinement
-  | NoGarTyGarQ -- start from the final cover of TyGarQ, no refinement
-  | NoGarTyGar0B -- start from the final cover of TyGar0B, no refinement
-  | NoGarTyGarQB -- start from the final cover of TyGarQB, no refinement
   deriving(Data, Show, Eq)
 
 data CoalesceStrategy =

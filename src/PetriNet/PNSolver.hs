@@ -682,13 +682,6 @@ findFirstN env dst st n = do
     (soln, st') <- withTime TotalSearch $ findProgram env dst st
     writeSolution soln
     modify $ over currentSolutions ((:) soln)
-    when (isNoGarTyGar strategy) $ do
-        resetTiming
-        modify $ set (searchParams . refineStrategy) NoGar
-        modify $ set (searchParams . stopRefine) False
-        modify $ set currentLoc 1
-        modify $ set currentSolutions []
-        runPNSolver env dst
     currentSols <- gets $ view currentSolutions
     writeLog 2 "findFirstN" $ text "Current Solutions:" <+> pretty currentSols
     findFirstN env dst st' (n - 1)
@@ -728,18 +721,6 @@ recoverNames mapping (Program (PFun x body) t) = Program (PFun x body') t
     body' = recoverNames mapping body
 
 {- helper functions -}
-
-attachLast :: AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
-attachLast t (AFunctionT tArg tRes) | isAFunctionT tRes = AFunctionT tArg (attachLast t tRes)
-attachLast t (AFunctionT tArg _) = AFunctionT tArg t
-attachLast t _ = t
-
-isNoGarTyGar :: RefineStrategy -> Bool
-isNoGarTyGar NoGarTyGar0 = True
-isNoGarTyGar NoGarTyGarQ = True
-isNoGarTyGar NoGarTyGar0B = True
-isNoGarTyGar NoGarTyGarQB = True
-isNoGarTyGar _ = False
 
 doRefine :: RefineStrategy -> Bool
 doRefine NoGar = False
