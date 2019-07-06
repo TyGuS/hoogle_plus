@@ -1,5 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module Database.Environment(writeEnv, generateEnv) where
+module Database.Environment(writeEnv, generateEnv, toFunType) where
 
 import Data.Either
 import Data.Serialize (encode)
@@ -16,7 +16,7 @@ import Text.Printf
 
 import Synquid.Error (Pos(Pos))
 import Synquid.Logic (ftrue)
-import Types.Type (BaseType(..), TypeSkeleton(..), SchemaSkeleton(..))
+import Types.Type -- (BaseType(..), TypeSkeleton(..), SchemaSkeleton(..))
 import Synquid.Type (isHigherOrder, toMonotype)
 import Synquid.Pretty as Pretty
 import Database.Util
@@ -55,6 +55,7 @@ generateEnv genOpts = do
     let useHO = enableHOF genOpts
     let pkgOpts = pkgFetchOpts genOpts
     let mdls = modules genOpts
+    let pathToHo = hoPath genOpts
     let mbModuleNames = if length mdls > 0 then Just mdls else Nothing
     pkgFiles <- getFiles pkgOpts
     allEntriesByMdl <- filesToEntries pkgFiles
@@ -86,17 +87,33 @@ generateEnv genOpts = do
 
     result <- case resolveDecls hooglePlusDecls moduleNames of
        Left errMessage -> error $ show errMessage
-       Right env -> return env {
-          _symbols = if useHO then env ^. symbols
-                              else Map.map (Map.filter (not . isHigherOrder . toMonotype)) $ env ^. symbols,
-         _included_modules = Set.fromList (moduleNames)
-        }
+       Right env -> do
+            let env' = env { _symbols = if useHO then env ^. symbols
+                                                else Map.filter (not . isHigherOrder . toMonotype) $ env ^. symbols,
+                           _included_modules = Set.fromList (moduleNames)
+                          }
+            hofStr <- readFile pathToHo
+            let hofNames = words hofStr
+            -- get signatures
+            let sigs = map (\f -> lookupWithError "env: symbols" f (env' ^. symbols)) hofNames
+            -- transform into fun types and add into the environments
+            let sigs' = zipWith (\n t -> (n ++ hoPostfix, toFunType t)) hofNames sigs
+            let env'' = env' { _symbols = Map.union (env' ^. symbols) (Map.fromList sigs')
+                             , _hoCandidates = map fst sigs' }
+            return env''
     printStats result
     return result
-
    where
      filterEntries entries Nothing = entries
      filterEntries entries (Just mdls) = Map.filterWithKey (\m _-> m `elem` mdls) entries
+
+toFunType :: RSchema -> RSchema
+toFunType (ForallT x t) = ForallT x (toFunType t)
+toFunType (Monotype (FunctionT x tArg tRes)) = let
+  tArg' = toMonotype $ toFunType $ Monotype tArg
+  tRes' = toMonotype $ toFunType $ Monotype tRes
+  in Monotype $ ScalarT (DatatypeT "Fun" [tArg', tRes'] []) ftrue
+toFunType t = t
 
 -- filesToEntries reads each file into map of module -> declartions
 -- Filters for modules we care about. If none, use them all.
@@ -116,7 +133,7 @@ printStats env = do
   let modules = _included_modules env
   let typeclassInstances = _typClassInstances env
   let symbols = _symbols env
-  let symbolsCount = sum (map (Map.size . snd) $ Map.toList symbols)
+  let symbolsCount = Map.size symbols
   let typeCount = Map.size typeMap
   printf "types: %d; symbols: %d\n" typeCount symbolsCount
   printf "included types: %s\n" $ show (Map.keys typeMap)

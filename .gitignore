@@ -32,6 +32,7 @@ tags
 .DS_Store
 HooglePlus.cabal
 webapp/static/tmp/*
+logs/
 stack.yaml.lock
 logs/
 hplus.code-workspace

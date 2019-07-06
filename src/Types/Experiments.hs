@@ -22,10 +22,6 @@ data RefineStrategy =
   | TyGarQ -- start from query types, refinement
   | NoGar -- start from query types, no refinement
   | NoGar0 -- start from \nu, no refinement
-  | NoGarTyGar0 -- start from the final cover of TyGar0, no refinement
-  | NoGarTyGarQ -- start from the final cover of TyGarQ, no refinement
-  | NoGarTyGar0B -- start from the final cover of TyGar0B, no refinement
-  | NoGarTyGarQB -- start from the final cover of TyGarQB, no refinement
   deriving(Data, Show, Eq)
 
 data CoalesceStrategy =
@@ -44,6 +40,7 @@ data SearchParams = SearchParams {
   _refineStrategy :: RefineStrategy,
   _stopRefine :: Bool,
   _threshold :: Int,
+  _incrementalSolving :: Bool,
   _disableDemand :: Bool,
   _coalesceTypes :: Bool,
   _coalesceStrategy :: CoalesceStrategy
@@ -51,20 +48,6 @@ data SearchParams = SearchParams {
 
 makeLenses ''SearchParams
 
--- | Parameters for template exploration
-defaultSearchParams = SearchParams {
-  _maxApplicationDepth = 6,
-  _sourcePos = noPos,
-  _explorerLogLevel = 0,
-  _solutionCnt = 1,
-  _useHO = False,
-  _refineStrategy = TyGarQ,
-  _stopRefine = False,
-  _threshold = 10,
-  _disableDemand = False,
-  _coalesceTypes = True,
-  _coalesceStrategy = First
-}
 data TimeStatistics = TimeStatistics {
   encodingTime :: Double,
   constructionTime :: Double,
@@ -91,31 +74,30 @@ data TimeStatUpdate
   | TypeCheckTime
   | TotalSearch
 
-type ExperimentName = String
-expTyGarQ = "TYGAR-Q":: ExperimentName
-expTyGarQNoDmd = expTyGarQ ++ "- no demand" :: ExperimentName
-expTyGarQNoCoalesce = expTyGarQ ++ "- no coalescing" :: ExperimentName
-expTyGarQCoalesceFirst = expTyGarQ ++ "- coalesce naive" :: ExperimentName
-expTyGarQCoalesceLeast = expTyGarQ ++ "- coalesce least" :: ExperimentName
-expTyGarQCoalesceMost = expTyGarQ ++ "- coalesce most" :: ExperimentName
+-- | Parameters for template exploration
+defaultSearchParams = SearchParams {
+  _maxApplicationDepth = 6,
+  _sourcePos = noPos,
+  _explorerLogLevel = 0,
+  _solutionCnt = 1,
+  _useHO = False,
+  _refineStrategy = TyGarQ,
+  _stopRefine = False,
+  _threshold = 10,
+  _incrementalSolving = False,
+  _disableDemand = False,
+  _coalesceTypes = True,
+  _coalesceStrategy = First
+}
 
-expSypetClone = "Sypet-Clone" :: ExperimentName
-expTyGar0 = "TYGAR-0" :: ExperimentName
-expTyGarQB = "TYGAR-QB" :: ExperimentName
-expTyGar0B = "TYGAR-0B" :: ExperimentName
-expNoGar = "NoGar" :: ExperimentName
-expNoGar0 = "NoGar0" :: ExperimentName
-expNoGarTyGar0 = "NoGar with TyGar0's cover" :: ExperimentName
-expNoGarTyGarQ = "NoGar with TyGarQ's cover" :: ExperimentName
-expNoGarTyGar0B = "NoGar with TyGar0B's cover" :: ExperimentName
-expNoGarTyGarQB = "NoGar with TyGarQB's cover" :: ExperimentName
-expILP = "Integer Linear Programming" :: ExperimentName
+type ExperimentName = String
 
 data ExperimentCourse
   = CompareInitialAbstractCovers
   | TrackTypesAndTransitions --2019-05-06
   | CompareFinalCovers
   | CompareThresholds
+  | CompareIncremental
   | CompareSolutions -- 2019-06-12
   | CompareEnvironments
   | CoalescingStrategies

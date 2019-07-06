@@ -1,55 +1,18 @@
 @package base
 @version 4.12.0.0
 
--- base
-module Data.Word
-data Word
-data {-# CTYPE "HsWord8" #-} Word8
+class Show
+class Eq
+class Ord
 
--- base
-module Data.Int
-data {-# CTYPE "HsInt64" #-} Int64
+data Char
 
--- base
-module Data.String
-type String = [Char]
-
--- base
-module Data.Maybe
-data Maybe a
-Nothing :: Maybe a
-Just :: a -> Maybe a
--- HOF: maybe :: b -> (a -> b) -> Maybe a -> b
--- isJust :: Maybe a -> Bool
--- isNothing :: Maybe a -> Bool
-fromMaybe :: a -> Maybe a -> a
-listToMaybe :: [a] -> Maybe a
-maybeToList :: Maybe a -> [a]
-catMaybes :: [Maybe a] -> [a]
-mapMaybe :: (a -> Maybe b) -> [a] -> [b]
-
--- bytestring
-module Data.ByteString.Builder
-data Builder
-toLazyByteString :: Builder -> ByteString
-int64BE :: Int64 -> Builder
-
--- bytestring
-module Data.ByteString.Lazy
-data ByteString
-
--- base
 module GHC.List
-and :: [Bool] -> Bool
-(||) :: Bool -> Bool -> Bool
-filter :: (a -> Bool) -> [a] -> [a]
-length :: [a] -> Int
+map :: (a->b)->[a]->[b]
+zip :: [a] -> [b] -> [(a,b)]
+foldr :: (a -> b -> b) -> b -> [a] -> b
+replicate :: Int -> a -> [a]
 
-module Data.Tuple
-fst :: (a, b) -> a
-snd :: (a, b) -> b
-swap :: (a, b) -> (b, a)
+module Prelude
+($) :: (a -> b) -> a -> b
 
-module Data.Either
-data Either a b
-either :: (a -> c) -> (b -> c) -> Either a b -> c

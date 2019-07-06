@@ -4,6 +4,7 @@ module Types.Encoder where
 import Data.Maybe
 import Data.HashMap.Strict (HashMap)
 import Data.Map (Map)
+import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.HashMap.Strict as HashMap
 import qualified Z3.Base as Z3
@@ -33,7 +34,7 @@ data FunctionCode = FunctionCode {
 
 instance Eq FunctionCode where
   fc1 == fc2 = let
-    areEq arg = on (==) (Set.fromList . arg) fc1 fc2
+    areEq arg = on (==) arg fc1 fc2
     in areEq hoParams && areEq funParams && areEq funReturn
 
 instance Ord FunctionCode where
@@ -56,19 +57,43 @@ data EncodeState = EncodeState {
   loc :: Int,
   transitionNb :: Int,
   variableNb :: Int,
-  place2variable :: HashMap (Id, Int) Int, -- place name and timestamp
-  time2variable :: HashMap Int Int, -- timestamp and abstraction level
-  transition2id :: HashMap Id Int, -- transition name and abstraction level
+  place2variable :: HashMap (AbstractSkeleton, Int) Z3.AST, -- place name and timestamp
+  time2variable :: HashMap Int Z3.AST, -- timestamp and abstraction level
+  transition2id :: HashMap Id Z3.AST, -- transition name and abstraction level
   id2transition :: HashMap Int Id,
   mustFirers :: HashMap Id [Id],
-  ty2tr :: HashMap Id [Id],
+  ty2tr :: HashMap AbstractSkeleton (Set Id),
   prevChecked :: Bool,
+  incrementalSolving :: Bool,
   disabledTrans :: [Id],
-  returnTyps :: [Id],
+  returnTyps :: [AbstractSkeleton],
   persistConstraints :: [Z3.AST],
   optionalConstraints :: [Z3.AST],
   finalConstraints :: [Z3.AST],
   blockConstraints :: [Z3.AST]
+}
+
+emptyEncodeState = EncodeState {
+  z3env = undefined,
+  counter = 0,
+  block = undefined,
+  loc = 0,
+  transitionNb = 0,
+  variableNb = 1,
+  place2variable = HashMap.empty,
+  time2variable = HashMap.empty,
+  transition2id = HashMap.empty,
+  id2transition = HashMap.empty,
+  mustFirers = HashMap.empty,
+  ty2tr = HashMap.empty,
+  prevChecked = False,
+  incrementalSolving = False,
+  disabledTrans = [],
+  returnTyps = [],
+  persistConstraints = [],
+  optionalConstraints = [],
+  finalConstraints = [],
+  blockConstraints = []
 }
 
 newEnv :: Maybe Logic -> Opts -> IO Z3Env

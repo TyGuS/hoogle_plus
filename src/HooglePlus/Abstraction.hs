@@ -12,6 +12,7 @@ import Synquid.Logic (ftrue)
 import Types.Solver
 import Synquid.Pretty
 import PetriNet.Util
+import HooglePlus.Refinement
 
 import Data.Maybe
 import Data.List
@@ -21,13 +22,16 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Control.Lens
 import qualified Data.Char as Char
+import qualified Data.HashMap.Strict as HashMap
 import Text.Printf
 import Control.Monad.State
 
-firstLvAbs :: Environment -> [RSchema] -> Set AbstractSkeleton
-firstLvAbs env schs = AScalar (ATypeVarT varName) `Set.insert` dts
+firstLvAbs :: Environment -> [RSchema] -> AbstractCover
+firstLvAbs env schs = Set.foldr (updateCover tvs) initCover dts
   where
+    tvs = env ^. boundTypeVars
     typs = map (shape . toMonotype) schs
+    initCover = HashMap.singleton rootNode Set.empty
     dts = Set.unions (map (allAbstractDts (env ^. boundTypeVars)) typs)
 
 allAbstractDts :: [Id] -> SType -> Set AbstractSkeleton
@@ -41,20 +45,10 @@ allAbstractDts bound (FunctionT _ tArg tRes) = allAbstractDts bound tArg `Set.un
 allAbstractDts _ _ = Set.empty
 
 -- Produce the most specific abstraction possible from the given types.
-specificAbstractionFromTypes :: Environment -> [RSchema] -> Set AbstractSkeleton
+specificAbstractionFromTypes :: Environment -> [RSchema] -> AbstractCover
 specificAbstractionFromTypes env schemas = let
     abstrSkels = map (toAbstractType . shape) (concatMap (allBaseTypes . toMonotype) schemas)
-    baseTree = Set.singleton (AScalar (ATypeVarT varName))
+    base = HashMap.singleton rootNode Set.empty
     in
-        foldr Set.insert baseTree abstrSkels
+        foldr (updateCover (env ^. boundTypeVars)) base abstrSkels
 
-abstractParamList :: AbstractSkeleton -> [AbstractSkeleton]
-abstractParamList t@AScalar {} = [t]
-abstractParamList (AFunctionT tArg tFun) =
-    case tFun of
-        AScalar _  -> [tArg]
-        _          -> tArg : abstractParamList tFun
-
-lastAbstractType :: AbstractSkeleton -> AbstractSkeleton
-lastAbstractType (AFunctionT tArg tFun) = lastAbstractType tFun
-lastAbstractType t                      = t

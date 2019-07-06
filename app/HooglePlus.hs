@@ -17,7 +17,7 @@ import Types.Program
 import Types.Solver
 import Synquid.HtmlOutput
 import Database.Presets
-import Database.Environment (writeEnv, generateEnv)
+import Database.Environment
 import Database.Convert
 import Database.Generate
 import Database.Download
@@ -26,6 +26,7 @@ import Synquid.Util (showme)
 import HooglePlus.Synthesize
 import HooglePlus.Stats
 import Types.Encoder
+import PetriNet.GHCChecker
 
 import Control.Monad
 import Control.Lens ((^.))
@@ -70,44 +71,58 @@ releaseDate = fromGregorian 2019 3 10
 
 -- | Type-check and synthesize a program, according to command-line arguments
 main = do
-  res <- cmdArgsRun $ mode
-  case res of
-    Synthesis {file, libs, env_file_path_in, app_max, log_, sol_num,
-      higher_order, use_refine, disable_demand,
-      stop_refine, stop_threshold, disable_coalescing,
-      coalescing_strategy} -> do
-      let searchParams = defaultSearchParams {
-        _maxApplicationDepth = app_max,
-        _explorerLogLevel = log_,
-        _solutionCnt = sol_num,
-        _useHO = higher_order,
-        _refineStrategy = use_refine,
-        _stopRefine = stop_refine,
-        _threshold = stop_threshold,
-        _disableDemand = disable_demand,
-        _coalesceTypes = not disable_coalescing,
-        _coalesceStrategy = coalescing_strategy
-        }
-      let synquidParams = defaultSynquidParams {
-        Main.envPath = env_file_path_in
-      }
-      executeSearch synquidParams searchParams file
-
-    Generate {preset=(Just preset)} -> do
-      precomputeGraph (getOptsFromPreset preset)
-
-    Generate Nothing files pkgs mdls d ho pathToEnv -> do
-      let fetchOpts = if (length files > 0)
+    res <- cmdArgsRun $ mode
+    case res of
+        Synthesis { file
+                  , libs
+                  , env_file_path_in
+                  , app_max
+                  , log_
+                  , sol_num
+                  , higher_order
+                  , use_refine
+                  , disable_demand
+                  , stop_refine
+                  , stop_threshold
+                  , disable_coalescing
+                  , coalescing_strategy
+                  , incremental
+                  } -> do
+            let searchParams =
+                    defaultSearchParams
+                        { _maxApplicationDepth = app_max
+                        , _explorerLogLevel = log_
+                        , _solutionCnt = sol_num
+                        , _useHO = higher_order
+                        , _stopRefine = stop_refine
+                        , _threshold = stop_threshold
+                        , _incrementalSolving = incremental
+                        , _refineStrategy = use_refine
+                        , _disableDemand = disable_demand
+                        , _coalesceTypes = not disable_coalescing
+                        , _coalesceStrategy = coalescing_strategy
+                        }
+            let synquidParams =
+                    defaultSynquidParams {Main.envPath = env_file_path_in}
+            executeSearch synquidParams searchParams file
+        Generate {preset = (Just preset)} -> do
+            precomputeGraph (getOptsFromPreset preset)
+        Generate Nothing files pkgs mdls d ho pathToEnv hoPath -> do
+            let fetchOpts =
+                    if (length files > 0)
                         then Local files
-                        else defaultHackageOpts {packages=pkgs}
-      let generationOpts = defaultGenerationOpts {
-        modules = mdls,
-        instantiationDepth = d,
-        enableHOF = ho,
-        pkgFetchOpts = fetchOpts,
-        Types.Generate.envPath = pathToEnv
-      }
-      precomputeGraph generationOpts
+                        else defaultHackageOpts {packages = pkgs}
+            let generationOpts =
+                    defaultGenerationOpts
+                        { modules = mdls
+                        , instantiationDepth = d
+                        , enableHOF = ho
+                        , pkgFetchOpts = fetchOpts
+                        , Types.Generate.envPath = pathToEnv
+                        , Types.Generate.hoPath = hoPath
+                        }
+            precomputeGraph generationOpts
+
 
 {- Command line arguments -}
 
@@ -133,6 +148,7 @@ data CommandLineArgs
         stop_threshold :: Int,
         disable_demand :: Bool,
         disable_coalescing :: Bool,
+        incremental :: Bool,
         coalescing_strategy :: CoalesceStrategy
       }
       | Generate {
@@ -143,7 +159,8 @@ data CommandLineArgs
         module_name :: [String],
         type_depth :: Int,
         higher_order :: Bool,
-        env_file_path_out :: String
+        env_file_path_out :: String,
+        ho_path :: String
       }
   deriving (Data, Typeable, Show, Eq)
 
@@ -158,6 +175,7 @@ synt = Synthesis {
   use_refine          = TyGarQ          &= help ("Use abstract refinement or not (default: TyGarQ)"),
   stop_refine         = False           &= help ("Stop refine the abstraction cover after some threshold (default: False)"),
   stop_threshold      = 10              &= help ("Refinement stops when the number of places reaches the threshold, only when stop_refine is True"),
+  incremental         = False           &= help ("Enable the incremental solving in z3 (default: False)"),
   disable_demand = False &= name "d" &= help ("Disable the demand analyzer (default: False)"),
   disable_coalescing = False &= name "xc" &= help ("Do not coalesce transitions in the net with the same abstract type"),
   coalescing_strategy = First &= help ("Choose how type coalescing works. Default: Pick first element of each group set.")
@@ -169,8 +187,9 @@ generate = Generate {
   pkg_name             = []              &= help ("Package names to be generated"),
   module_name          = []              &= help ("Module names to be generated in the given packages"),
   type_depth           = 2               &= help ("Depth of the types to be instantiated for polymorphic type constructors"),
-  higher_order         = True           &= help ("Include higher order functions (default: True)"),
-  env_file_path_out    = defaultEnvPath  &= help ("Environment file path (default:" ++ (show defaultEnvPath) ++ ")")
+  higher_order         = True            &= help ("Include higher order functions (default: True)"),
+  env_file_path_out    = defaultEnvPath  &= help ("Environment file path (default:" ++ (show defaultEnvPath) ++ ")"),
+  ho_path              = "ho.txt"        &= typFile &= help ("Filename of components to be used as higher order arguments")
 } &= help "Generate the type conversion database for synthesis"
 
 mode = cmdArgsMode $ modes [synt, generate] &=
@@ -211,7 +230,6 @@ executeSearch synquidParams searchParams query = do
   messageChan <- newChan
   worker <- forkIO $ synthesize searchParams goal messageChan
   readChan messageChan >>= (handleMessages messageChan)
-  -- when (_explorerLogLevel searchParams > 0) (mapM_ (printTime . snd) results)
   return ()
   where
     logLevel = searchParams ^. explorerLogLevel
@@ -228,7 +246,7 @@ executeSearch synquidParams searchParams query = do
     handleMessages ch (MesgClose _) = putStrLn "Search complete" >> return ()
     handleMessages ch (MesgP (program, stats)) = do
       when (logLevel > 2) (pPrint stats)
-      print program >> readChan ch >>= (handleMessages ch)
+      printSolution program >> readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgS debug) = do
       when (logLevel > 2) (pPrint debug)
       readChan ch >>= (handleMessages ch)

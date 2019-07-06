@@ -79,10 +79,6 @@ generateProgram signatures inputs argNames rets = do
              , allSignatures = signatures
              }
     mapM_ (uncurry addTypedArg) $ zip inputs argNames
-    -- mapM_ addHOParams signatures
-    -- reset varCounter before filling sketch
-    st <- get
-    put $ st { varCounter = 0 }
     mapM_ applyFunction signatures
     termLib <- gets typedTerms
     let codePieces = map (\ret -> HashMap.lookupDefault Set.empty ret termLib) rets

@@ -98,7 +98,7 @@ toEnvTable envAndNames = let
     toEnvLine (env, name) =
       colsAllG center [
         [name],
-        [show $ length $ concatMap Map.elems $ Map.elems $ _symbols env],
+        [show $ length $ Map.elems $ _symbols env],
         [show $ length $ Map.keys $ _datatypes env],
         justifyText textWidth $ (replace "," " " $ show $ Set.toList $ _included_modules env)
       ]

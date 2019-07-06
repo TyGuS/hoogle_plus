@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric  #-}
 {-# LANGUAGE FlexibleContexts #-}
 -- | Refinement Types
 module Synquid.Type where

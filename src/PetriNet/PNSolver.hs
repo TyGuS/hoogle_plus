@@ -1,64 +1,65 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE NamedFieldPuns #-}
 
 module PetriNet.PNSolver (runPNSolver) where
 
-import Data.Map (Map)
-import qualified Data.Map as Map
-import Data.Set (Set)
-import qualified Data.Set as Set
+import Control.Concurrent.Chan
+import Control.Lens
+import Control.Monad.Logic
+import Control.Monad.State
+import qualified Data.Char as Char
+import Data.Data (Data)
+import Data.Either hiding (fromLeft, fromRight)
+import Data.Foldable
+import Data.Function (on)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import Control.Lens
-import Control.Monad.State
-import Control.Monad.Logic
-import Data.Foldable
 import Data.List
-import Data.Maybe
-import Data.Data (Data)
-import Data.Function (on)
-import qualified Data.Char as Char
-import Data.Either hiding (fromLeft, fromRight)
 import Data.List.Extra
-import Language.Haskell.Exts.Parser (parseExp, ParseResult(..))
-import Control.Concurrent.Chan
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Maybe
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Tuple
+import Debug.Trace
+import Language.Haskell.Exts.Parser (ParseResult(..), parseExp)
 import Text.Printf
 
-import Types.Common
-import Types.Type
-import Types.Environment
-import Types.Abstract
-import Types.Solver
-import Types.Program
-import Types.Experiments
-import Types.Encoder hiding (varName, mustFirers)
-import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
-import Synquid.Program
-import Synquid.Type
-import Synquid.Logic hiding (varName)
-import Synquid.Util
-import Synquid.Error
-import Synquid.Pretty
-import PetriNet.AbstractType
-import PetriNet.PNEncoder
-import PetriNet.GHCChecker
-import PetriNet.Util
-import HooglePlus.Stats
-import HooglePlus.CodeFormer
-import HooglePlus.Abstraction
-import HooglePlus.Refinement
 import Database.Convert
 import Database.Generate
+import Database.Util
+import HooglePlus.Abstraction
+import HooglePlus.CodeFormer
+import HooglePlus.Refinement
+import HooglePlus.Stats
+import PetriNet.AbstractType
+import PetriNet.GHCChecker
+import PetriNet.PNEncoder
+import PetriNet.Util
+import Synquid.Error
+import Synquid.Logic hiding (varName)
+import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
+import Synquid.Pretty
+import Synquid.Program
+import Synquid.Type
+import Synquid.Util
+import Types.Abstract
+import Types.Common
+import Types.Encoder hiding (incrementalSolving, mustFirers, varName)
+import Types.Environment
+import Types.Experiments
+import Types.Program
+import Types.Solver
+import Types.Type
+
 
 encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
-encodeFunction id t | "pair_match" `isPrefixOf` id =
+encodeFunction id t | pairProj `isPrefixOf` id =
     let toMatch (FunctionCode name ho [p1,p2] ret) = FunctionCode id ho [p1] (p2:ret)
      in toMatch $ encodeFunction "__f" t
-encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [lastAbstractType t]
+encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [lastAbstract t]
   where
     base = (0, [])
     hoFun x = encodeFunction (show x) x
@@ -72,9 +73,9 @@ instantiate env sigs = do
     Map.fromList <$> instantiate' sigs
   where
     instantiate' sigs = do
-        tree <- gets (view abstractionTree)
-        let typs = Set.toList tree
-        writeLog 3 "instantiate" $ text "Current abstract types:" <+> pretty typs
+        tree <- gets (view abstractionCover)
+        let typs = allTypesOf tree
+        writeLog 2 "instantiate" $ text "Current abstract types:" <+> text (show tree)
         sigs' <- Map.toList <$> mapM freshType sigs
         foldM (\acc -> (<$>) (acc ++) . uncurry (instantiateWith env typs)) [] sigs'
 
@@ -83,7 +84,6 @@ instantiateWith :: MonadIO m => Environment -> [AbstractSkeleton] -> Id -> RType
 -- skip "snd" function, it would be handled together with "fst"
 instantiateWith env typs id t | id == "snd" = return []
 instantiateWith env typs id t = do
-    abstraction <- gets (view abstractionTree)
     instMap <- gets (view instanceMapping)
     let bound = env ^. boundTypeVars
     if id == "fst"
@@ -96,117 +96,168 @@ instantiateWith env typs id t = do
            when (length fstSigs /= length sndSigs)
                 (error "fst and snd have different number of instantiations")
            let matches = zipWith assemblePair fstSigs sndSigs
-           let matches' = filter (\t -> noneInst instMap "pair_match" t || diffInst instMap "pair_match" t) matches
-           mapM (mkNewSig "pair_match") matches'
+           let matches' = filter (\t -> noneInst instMap pairProj t || diffInst bound instMap pairProj t) matches
+           mapM (mkNewSig pairProj) matches'
        else do
            ft <- freshType (Monotype t)
            let t' = toAbstractType (shape ft)
            rawSigs <- enumSigs t'
-           let sigs = filter (\t -> noneInst instMap id t || diffInst instMap id t) rawSigs
+           let sigs = filter (\t -> noneInst instMap id t || diffInst bound instMap id t) rawSigs
            mapM (mkNewSig id) sigs
   where
-    noneInst instMap id t = not (HashMap.member (id, absFunArgs id t) instMap)
-
-    diffInst instMap id t = snd (fromJust $ HashMap.lookup (id, absFunArgs id t) instMap) /= t
-
-    assemblePair first secod | absFunArgs "fst" first == absFunArgs "snd" secod =
-        let AFunctionT p f = first
-            AFunctionT _ s = secod
-         in AFunctionT p (AFunctionT f s)
-    assemblePair first second = error "fst and snd have different arguments"
-
     enumSigs typ = do
         let bound = env ^. boundTypeVars
-        -- [TODO] to support higher order function, this is incorrect
         let argNum = length (decompose typ) - 1
         let allArgCombs = multiPermutation argNum typs
         applyRes <- mapM (applySemantic bound typ) allArgCombs
         let resSigs = filter (not . isBot . fst) (zip applyRes allArgCombs)
         return $ map (uncurry $ foldr AFunctionT) resSigs
 
-    mkNewSig id ty = do
-        instMap <- gets (view instanceMapping)
-        newId <- if "pair_match" `isPrefixOf` id then freshId (id ++ "_")
-                                                 else freshId "f"
-        -- when same arguments exist for a function, replace it
-        unless (noneInst instMap id ty) (excludeUseless id ty)
-        -- add corresponding must firers, function code and type mapping
-        when (Map.member id (env ^. arguments))
-             (modify $ over mustFirers (HashMap.insertWith (++) id [newId]))
-        modify $ over nameMapping (Map.insert newId id)
-        modify $ over instanceCounts (HashMap.insertWith (+) id 1 )
-        modify $ over instanceMapping (HashMap.insert (id, absFunArgs id ty) (newId, ty))
-        writeLog 4 "instantiateWith" $ text id <+> text "==>"  <+> text newId <+> text "::" <+> pretty ty
-        return (newId, ty)
+mkNewSig :: MonadIO m => Id -> AbstractSkeleton -> PNSolver m (Id, AbstractSkeleton)
+mkNewSig id ty = do
+    instMap <- gets (view instanceMapping)
+    newId <- if pairProj `isPrefixOf` id then freshId (id ++ "_")
+                                         else freshId "f"
+    -- when same arguments exist for a function, replace it
+    unless (noneInst instMap id ty) (excludeUseless id ty)
+    modify $ over nameMapping (Map.insert newId id)
+    modify $ over instanceCounts (HashMap.insertWith (+) id 1 )
+    modify $ over instanceMapping (HashMap.insert (id, absFunArgs id ty) (newId, ty))
+    writeLog 3 "mkNewSig" $ text id <+> text "==>"  <+> text newId <+> text "::" <+> pretty ty
+    return (newId, ty)
 
-    -- We have refined the real function behind id and now th current instantiations aren't needed
-    excludeUseless id ty = do
-        instMap <- gets (view instanceMapping)
-        let (tid, _) = fromJust (HashMap.lookup (id, absFunArgs id ty) instMap)
-        -- writeLog 3 $ text tid <+> text "exists in the instance map for" <+> text id
+splitTransition :: MonadIO m => Environment -> AbstractSkeleton -> Id -> PNSolver m [(Id, AbstractSkeleton)]
+splitTransition env newAt fid = do
+    rep <- head <$> getGroupRep fid
+    sigs <- gets $ view currentSigs
+    let ty = lookupWithError "currentSigs" rep sigs
+    writeLog 3 "splitTransition" $ text "split transtion" <+> text fid <+> text "::" <+> pretty ty
+    allSubsts ty
+  where
+    allSubsts ty = allSubsts' (lastAbstract ty) (absFunArgs fid ty)
 
-        modify $ over toRemove ((:) tid)
-        musts <- gets (view mustFirers)
-        when (id `HashMap.member` musts)
-             (modify $ over mustFirers (HashMap.insertWith (flip (\\)) id [tid]))
+    allSubsts' ret args | pairProj `isPrefixOf` fid = do
+        cover <- gets $ view abstractionCover
+        nameMap <- gets $ view nameMapping
+        let parents = HashMap.keys $ HashMap.filter (Set.member newAt) cover
+        let args' = enumArgs parents (take 1 args)
+        let fstRet = args !! 1
+        let sndRet = ret
+        fstType <- findSymbol env "fst"
+        sndType <- findSymbol env "snd"
+        let first = toAbstractType $ shape fstType
+        let secod = toAbstractType $ shape sndType
+        let tvs = env ^. boundTypeVars
+        fstRets <- mapM (applySemantic tvs first) args'
+        sndRets <- mapM (applySemantic tvs secod) args'
+        let sameFunc ([a], (fret, sret)) = equalAbstract tvs fret fstRet
+                                         && equalAbstract tvs sret sndRet
+                                         && a == head args
+        let validFunc (a, (fret, sret)) = not (sameFunc (a, (fret, sret)))
+                                      && not (isBot fret)
+                                      && not (isBot sret)
+        let funcs = filter validFunc (zip args' (zip fstRets sndRets))
+        let sigs = map (\([a], (ft, st)) -> assemblePair (AFunctionT a ft) (AFunctionT a st)) funcs
+        mapM (mkNewSig pairProj) sigs
+    allSubsts' ret args = do
+        cover <- gets $ view abstractionCover
+        nameMap <- gets $ view nameMapping
+        splits <- gets $ view splitTypes
+        let parents = HashMap.keys $ HashMap.filter (Set.member newAt) cover
+        -- let children = HashMap.lookupDefault Set.empty newAt cover `Set.difference` splits
+        -- let substedTyps = parents ++ Set.toList children
+        let args' = enumArgs parents args
+        writeLog 3 "allSubsts'" $ pretty args'
+        funType <- findSymbol env fid
+        writeLog 3 "allSubsts'" $ text fid <+> text "::" <+> pretty funType
+        let absFunType = toAbstractType (shape funType)
+        let tvs = env ^. boundTypeVars
+        rets <- mapM (applySemantic tvs absFunType) args'
+        writeLog 3 "allSubsts'" $ text fid <+> text "returns" <+> pretty rets
+        let validFunc (a, r) = not (equalAbstract tvs ret r && a == args) && not (isBot r)
+        let funcs = filter validFunc (zip args' rets)
+        let sigs = map (\f -> foldr AFunctionT (snd f) (fst f)) funcs
+        let funId = lookupWithError "nameMapping" fid nameMap
+        mapM (mkNewSig funId) sigs
+
+    enumArgs parents [] = [[]]
+    enumArgs parents (arg:args)
+      | arg `elem` parents = let args' = enumArgs parents args
+                              in [a:as | a <- [arg, newAt], as <- args']
+      | otherwise = map (arg:) (enumArgs parents args)
 
 addSignatures :: MonadIO m => Environment -> PNSolver m (Map Id AbstractSkeleton)
 addSignatures env = do
-    let foArgs = foArgsOf env
+    let foArgs = Map.keys $ foArgsOf env
     -- first abstraction all the symbols with fresh type variables and then instantiate them
     let envSymbols = allSymbols env
-    -- first order arguments are tokens but not transitions in petri net
-    let usefulPipe k _ = k `notElem` Map.keys foArgs
+    let usefulPipe k _ = k `notElem` foArgs
     let usefulSymbols = Map.filterWithKey usefulPipe envSymbols
-    sigs <- instantiate env usefulSymbols
+    let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+    let binds = env ^. boundTypeVars
+    -- cands <- getExperiment hoCandidates
+    envSigs <- instantiate env usefulSymbols
+    -- add higher order functions
+    -- hoSigs <- mapM (addHoArg env envSigs False) cands
+    -- hoSigs' <- mapM (addHoArg env envSigs True) $ Map.keys hoArgs
+    -- let sigs = Map.unions $ envSigs : hoSigs ++ hoSigs'
+    let sigs = envSigs
 
-    sigs' <- ifM (getExperiment coalesceTypes) (
-      do
-        let encodedSigs = Map.mapWithKey encodeFunction sigs
-        (t2g, sigGroups) <- groupSignatures encodedSigs
-        instances <- gets $ view instanceMapping
-        writeLog 1 "addSignatures" $ pretty instances
-        -- Do I want to take the sigs here?
-        representatives <- Map.fromList <$> (mapM selectOurRep $ Map.toList sigGroups)
-        let sigs' = Map.restrictKeys sigs (Set.fromList $ Map.elems representatives)
-        modify $ over groupRepresentative $ Map.union representatives
-        modify $ over groupMap (updateGroups sigGroups)
-        modify $ over typeToGroup (Map.union t2g)
-        return sigs'
-        )
-      (return sigs)
+    sigs' <- ifM (getExperiment coalesceTypes) (mkGroups env sigs) (return sigs)
     modify $ over activeSigs (Set.union (Map.keysSet sigs'))
     mapM_ addEncodedFunction (Map.toList sigs')
     return sigs'
-    where
-        selectOurRep (gid, group) = (,) gid <$> selectRepresentative gid group
-        -- Given the new set of groups, update the current group mapping
-        updateGroups :: Map Id (Set Id) -> Map Id (Set Id) -> Map Id (Set Id)
-        updateGroups sigGroups gm = foldr updategm gm (Map.toList sigGroups)
-        updategm (groupName, groupMembers) = Map.insertWith Set.union groupName groupMembers
 
-selectRepresentative :: MonadIO m => GroupId -> Set Id -> PNSolver m Id
-selectRepresentative gid sigGroup = do
+mkGroups :: MonadIO m => Environment -> Map Id AbstractSkeleton -> PNSolver m (Map Id AbstractSkeleton)
+mkGroups env sigs = do
+    let encodedSigs = Map.mapWithKey encodeFunction sigs
+    (t2g, sigGroups) <- groupSignatures encodedSigs
+    -- Do I want to take the sigs here?
+    nameMap <- gets $ view nameMapping
+    let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+    let hoAlias = Map.keysSet $ Map.filter (`elem` hoArgs) nameMap
+    representatives <- Map.fromList <$> mapM (selectOurRep hoAlias) (Map.toList sigGroups)
+    let sigs' = Map.restrictKeys sigs (Set.fromList $ Map.elems representatives)
+    modify $ over groupRepresentative $ Map.union representatives
+    modify $ over typeToGroup (Map.union t2g)
+    mapM_ updateGroups (Map.toList sigGroups)
+    return sigs'
+  where
+    selectOurRep hoAlias (gid, group) = (,) gid <$> selectRepresentative hoAlias gid group
+    -- Given the new set of groups, update the current group mapping
+    -- updateGroups :: Map Id (Set Id) -> Map Id (Set Id) -> Map Id (Set Id)
+    -- updateGroups sigGroups gm = foldr updategm gm (Map.toList sigGroups)
+    -- updategm (groupName, groupMembers) = Map.insertWith Set.union groupName groupMembers
+    updateGroups (gid, fids) = do
+        modify $ over groupMap (Map.insertWith Set.union gid fids)
+        mapM_ (\fid -> modify $ over nameToGroup (Map.insert fid gid)) fids
+
+selectRepresentative :: MonadIO m => Set Id -> GroupId -> Set Id -> PNSolver m Id
+selectRepresentative hoArgs gid s = do
+    let intsct = Set.intersection s hoArgs
+    let setToPickFrom = if not (null intsct) then intsct else s
     strat <- getExperiment coalesceStrategy
     case strat of
-        First -> return $ Set.elemAt 0 sigGroup
-        LeastInstantiated -> pickReprOrder sortOn
-        MostInstantiated -> pickReprOrder sortDesc
+        First -> return $ Set.elemAt 0 setToPickFrom
+        LeastInstantiated -> pickReprOrder sortOn setToPickFrom
+        MostInstantiated -> pickReprOrder sortDesc setToPickFrom
     where
-        pickReprOrder sorting = do
+        pickReprOrder sorting setToPickFrom = do
             nm <- gets $ view nameMapping
             instCounts <- gets $ view instanceCounts
             let idToCount id = instCounts HashMap.! (nm Map.! id)
-            let countMapping = sorting snd $ map (\x -> (x, idToCount x)) $ Set.toList sigGroup
+            let countMapping = sorting snd $ map (\x -> (x, idToCount x)) $ Set.toList setToPickFrom
             writeLog 3 "SelectRepresentative" $ text gid <+> "needs to pick: " <+> pretty countMapping
             return $ fst $ head countMapping
 
         sortDesc f = sortBy (on (flip compare) f)
 
+
 addMusters :: MonadIO m => Id -> PNSolver m ()
 addMusters arg = do
     nameMap <- gets $ view nameMapping
-    let argFuncs = Map.keys $ Map.filter (arg ==) nameMap
+    let eqArg n = n == arg || n == arg ++ hoPostfix
+    let argFuncs = Map.keys $ Map.filter eqArg nameMap
     argRps <- mapM getGroupRep argFuncs
     modify $ over mustFirers (HashMap.insert arg $ concat argRps)
 
@@ -215,91 +266,132 @@ addMusters arg = do
 -- with the type split information update the abstraction tree
 refineSemantic :: MonadIO m => Environment -> RProgram -> AbstractSkeleton -> PNSolver m SplitInfo
 refineSemantic env prog at = do
+    cover <- gets $ view abstractionCover
+    writeLog 2 "instantiate" $ text "Current abstract types:" <+> text (show cover)
     -- back propagation of the error types to get all split information
-    propagate env prog at
+    propagate env prog $ compactAbstractType at
     -- get the split pairs
     splits <- gets (view splitTypes)
-    writeLog 3 "refineSemantic splitTypes" $ pretty splits
-    -- add new instantiated signatures into solver
-    sigs <- addSignatures env
+    let tvs = env ^. boundTypeVars
+    let sortedSplits = sortBy (flip (compareAbstract tvs)) (Set.toList splits)
+    writeLog 3 "refineSemantic splitTypes" $ pretty sortedSplits
     -- get removed transitions
-    (toAdd, removables) <- ifM (getExperiment coalesceTypes) (
-      do
-        removables' <- gets $ view toRemove
-        splitGroups removables'
-        )
-      ((gets $ view toRemove) >>= return . (,) [])
-    let addedSigs = map fst toAdd
-    writeLog 3 "refineSemantic (toAdd, removables)" $ pretty (addedSigs, removables)
-    if any (\x -> (fst x) `elem` removables) toAdd then error "trying to add and remove at the same time" else return ()
-    mapM addEncodedFunction toAdd
+    addsAndRemoves <- mapM splitTransitions sortedSplits
+    let (adds, removes) = unzip addsAndRemoves
+    let addedSigs = map fst (concat adds)
+    let removedSigs = concat removes
+    let toAdd = addedSigs \\ removedSigs
+    let removables = removedSigs \\ addedSigs
+    writeLog 3 "refineSemantic (toAdd, removables)" $ pretty (toAdd, removables)
 
-    modify $ over activeSigs (\as -> Set.union (Set.fromList addedSigs) $ Set.difference as (Set.fromList removables))
-    -- add clone functions and add them into new transition set
-    cloneNames <- mapM addCloneFunction $ Set.toList splits
     -- update the higer order query arguments
     let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
     mapM_ addMusters (Map.keys hoArgs)
     -- call the refined encoder on these signatures and disabled signatures
     return SplitInfo { newPlaces = Set.toList splits
                      , removedTrans = removables
-                     , newTrans = Map.keys sigs ++ cloneNames ++ addedSigs
+                     , newTrans = addedSigs
                      }
-    where
+  where
+    splitTransitions at = do
+        modify $ set toRemove []
 
-        splitGroups :: MonadIO m => [Id] -> PNSolver m ([(Id, AbstractSkeleton)], [Id])
-        splitGroups removables = do
-            -- Step 1: modify groupmap to exclude all those in removables
-            -- Some groups may no longer exist as a result of this operation.
-            -- Some groups representative may not longer be valid.
-            -- TODO: This operation could be slow. find a way to go from id -> groupId (or id -> abstrTy)
-            gm <- gets $ view groupMap
-            let gm' = Map.fromList  $ map (\(a,b) -> (a, fromJust b))
-                                    $ filter (isJust . snd)
-                                    $ map (\(k, vs) -> (k, shrinkSet (Set.fromList removables) vs))
-                                    $ Map.toList gm
-            modify $ set groupMap gm'
-            grs <- gets $ view groupRepresentative
-            -- Step 2: fixup the group representatives, while also deciding what we can safely remove,
-            -- and what we need to add (new representatives).
-            (toAdd, toRemove, grs') <- foldM (updateRepresentatives) ([], [], Map.empty) (Map.toList grs)
-            modify $ set groupRepresentative grs'
-            return (toAdd, toRemove)
+        cover <- gets $ view abstractionCover
+        t2tr <- gets $ view type2transition
+        gm <- gets $ view groupMap
+        gr <- gets $ view groupRepresentative
+        let parents = HashMap.keys $ HashMap.filter (Set.member at) cover
+        let pids = Set.unions $ map (\p -> HashMap.lookupDefault Set.empty p t2tr) parents
+        let gids = Map.keys $ Map.filter (`Set.member` pids) gr
+        let fids = concatMap (\gid -> Set.toList $ Map.findWithDefault Set.empty gid gm) gids
+        sigs <- mapM (splitTransition env at) fids
+        let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+        let tvs = env ^. boundTypeVars
+        let envSigs = Map.fromList (concat sigs)
+        -- cands <- getExperiment hoCandidates
+        -- hoSigs <- mapM (addHoArg env envSigs False) cands
+        -- hoSigs' <- mapM (addHoArg env envSigs True) $ Map.keys hoArgs
+        -- let allSigs = concat $ sigs ++ map Map.toList (hoSigs ++ hoSigs')
+        let allSigs = concat sigs
+        sigs' <- mkGroups env $ Map.fromList allSigs
+        mapM_ addEncodedFunction (Map.toList sigs')
 
-        updateRepresentatives :: MonadIO m => ([(Id, AbstractSkeleton)], [Id], Map GroupId Id) -> (GroupId, Id) -> PNSolver m ([(Id, AbstractSkeleton)], [Id], Map GroupId Id)
-        updateRepresentatives (addables, removables, newReps) (gid, rep)= do
-            gm <- gets $ view groupMap
-            sigs <- gets $ view currentSigs
-            let mbCurrentGroup = Map.lookup gid gm
-            case mbCurrentGroup of
-                -- The group was eliminated entirely by the removables
-                Nothing -> return (addables, rep:removables, newReps)
-                Just currentGroup ->
-                    if rep `Set.notMember` currentGroup
-                        then do
-                            let removables' = rep:removables
-                            if not (null currentGroup)
-                                then do
-                                    -- We need to elect a new leader for the group!
-                                    newRep <- selectRepresentative gid currentGroup
-                                    let abstractType = lookupWithError "currentSigs" rep sigs
-                                    let addables' = (newRep, abstractType):addables
-                                    modify $ over currentSigs (Map.delete rep)
-                                    return (addables', removables', Map.insert gid newRep newReps)
-                                -- There was only that one element in the group, so with the leader gone, the group goes away.
-                                else return (addables, removables', newReps)
-                        -- after all the removals, the current representative is still in its original group
-                        else return (addables, removables, Map.insert gid rep newReps)
+        -- update the group information by the current toRemove
+        toCoalesce <- getExperiment coalesceTypes
+        (toAdd, removables) <- changeGroups toCoalesce
+        writeLog 3 "splitTransitions (toAdd, removables)" $ pretty (toAdd, removables)
+        mapM_ addEncodedFunction toAdd
 
-        removeFromSet :: Id -> Set Id -> Maybe (Set Id)
-        removeFromSet tid ids = let
-            ids' = Set.delete tid ids
-            in if (Set.size ids' == 0) then Nothing else Just ids'
+        let adds = Map.toList sigs' ++ toAdd
+        modify $ over activeSigs (Set.union $ Set.fromList $ map fst adds)
+        modify $ over activeSigs (`Set.difference` Set.fromList removables)
+        modify $ over mustFirers (HashMap.map (filter (`notElem` removables)))
+        modify $ over nameMapping (`Map.withoutKeys` Set.fromList removables)
+        return (adds, removables)
 
-        shrinkSet :: Set Id -> Set Id -> Maybe (Set Id)
-        shrinkSet toRemove ids = let
-            ids' = Set.difference ids toRemove
-            in if (Set.size ids' == 0) then Nothing else Just ids'
+    changeGroups True = do
+        removables' <- gets $ view toRemove
+        writeLog 3 "changeGroups" $ pretty removables'
+        splitGroups removables'
+    changeGroups False = do
+        removables <- gets $ view toRemove
+        return ([], removables)
+
+    splitGroups :: MonadIO m => [Id] -> PNSolver m ([(Id, AbstractSkeleton)], [Id])
+    splitGroups removables = do
+        -- Step 1: modify groupmap to exclude all those in removables
+        -- Some groups may no longer exist as a result of this operation.
+        -- Some groups representative may not longer be valid.
+        -- TODO: This operation could be slow. find a way to go from id -> groupId (or id -> abstrTy)
+        gm <- gets $ view groupMap
+        let gm' = Map.fromList  $ map (\(a,b) -> (a, fromJust b))
+                              $ filter (isJust . snd)
+                              $ map (\(k, vs) -> (k, shrinkSet (Set.fromList removables) vs))
+                              $ Map.toList gm
+        modify $ set groupMap gm'
+        grs <- gets $ view groupRepresentative
+        -- Step 2: fixup the group representatives, while also deciding what we can safely remove,
+        -- and what we need to add (new representatives).
+        (toAdd, toRemove, grs') <- foldM updateRepresentatives ([], [], Map.empty) (Map.toList grs)
+        modify $ set groupRepresentative grs'
+        mapM_ (\t -> modify $ over type2transition (HashMap.map $ Set.delete t)) removables
+        let removeSet = Set.fromList removables
+        modify $ over nameMapping (`Map.withoutKeys` removeSet)
+        modify $ over currentSigs (`Map.withoutKeys` removeSet)
+        modify $ over nameToGroup (`Map.withoutKeys` removeSet)
+        return (toAdd, toRemove)
+
+    updateRepresentatives :: MonadIO m => ([(Id, AbstractSkeleton)], [Id], Map GroupId Id) -> (GroupId, Id) -> PNSolver m ([(Id, AbstractSkeleton)], [Id], Map GroupId Id)
+    updateRepresentatives (addables, removables, newReps) (gid, rep)= do
+        gm <- gets $ view groupMap
+        sigs <- gets $ view currentSigs
+        nameMap <- gets $ view nameMapping
+        let mbCurrentGroup = Map.lookup gid gm
+        case mbCurrentGroup of
+          -- The group was eliminated entirely by the removables
+          Nothing -> return (addables, rep:removables, newReps)
+          Just currentGroup ->
+            if rep `Set.notMember` currentGroup
+                then do
+                    let removables' = rep:removables
+                    if not (null currentGroup)
+                      then do
+                        -- We need to elect a new leader for the group!
+                        let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+                        let hoAlias = Map.keysSet $ Map.filter (`elem` hoArgs) nameMap
+                        newRep <- selectRepresentative hoAlias gid currentGroup
+                        let abstractType = lookupWithError "currentSigs" rep sigs
+                        let addables' = (newRep, abstractType):addables
+                        return (addables', removables', Map.insert gid newRep newReps)
+                      -- There was only that one element in the group, so with the leader gone, the group goes away.
+                      else return (addables, removables', newReps)
+                -- after all the removals, the current representative is still in its original group
+                else return (addables, removables, Map.insert gid rep newReps)
+
+    shrinkSet :: Set Id -> Set Id -> Maybe (Set Id)
+    shrinkSet toRemove ids = let
+        ids' = Set.difference ids toRemove
+        in if Set.null ids' then Nothing else Just ids'
 
 
 initNet :: MonadIO m => Environment -> PNSolver m ()
@@ -311,11 +403,6 @@ initNet env = withTime ConstructionTime $ do
     modify $ set instanceMapping HashMap.empty
 
     addSignatures env
-    -- add clone functions for each type
-    allTy <- gets (HashMap.keys . view type2transition)
-    transitions <- gets (HashMap.elems . view type2transition)
-    writeLog 3 "initNet" $ text "allTys: " <+> pretty allTy
-    mapM_ addCloneFunction (filter (not . isAFunctionT) allTy)
     -- add higher order query arguments
     let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
     mapM_ addMusters (Map.keys hoArgs)
@@ -338,18 +425,21 @@ resetEncoder env dst = do
     (srcTypes, tgt) <- updateSrcTgt env dst
     writeLog 2 "resetEncoder" $ text "parameter types are" <+> pretty srcTypes
     writeLog 2 "resetEncoder" $ text "return type is" <+> pretty tgt
-    (loc, musters, rets, funcs, tid2tr) <- prepEncoderArgs env tgt
-    let srcStr = map show srcTypes
-    liftIO $ encoderInit loc musters srcStr rets funcs tid2tr
+    (loc, musters, rets, funcs, tid2tr, incremental) <- prepEncoderArgs env tgt
+    liftIO $ encoderInit loc musters srcTypes rets funcs tid2tr incremental
 
 incEncoder :: MonadIO m => Environment -> EncodeState -> PNSolver m EncodeState
 incEncoder env st = do
     tgt <- gets (view targetType)
     src <- gets (view sourceTypes)
-    (_, _, rets, funcs, _) <- prepEncoderArgs env tgt
-    liftIO $ execStateT (encoderInc funcs (map show src) rets) st
+    (_, _, rets, funcs, _, _) <- prepEncoderArgs env tgt
+    liftIO $ execStateT (encoderInc funcs src rets) st
 
-findPath :: (MonadIO m) => Environment -> RType -> EncodeState -> PNSolver m (CodePieces, EncodeState)
+findPath :: MonadIO m
+         => Environment
+         -> RType
+         -> EncodeState
+         -> PNSolver m ([Id], EncodeState)
 findPath env dst st = do
     (res, st') <- withTime SolverTime (liftIO (encoderSolve st))
     case res of
@@ -364,90 +454,153 @@ findPath env dst st = do
             modify $ set currentLoc ((currSt ^. currentLoc) + 1)
             st'' <- withTime EncodingTime (incEncoder env st')
             findPath env dst st''
-        _  -> withTime FormerTime $ do
-            fm <- gets $ view functionMap
-            src <- gets $ view sourceTypes
-            args <- gets $ view paramNames
-            let sortedRes = sortOn snd res
-            let transNames = map fst sortedRes
-            writeLog 2 "findPath" $ text "found path" <+> pretty transNames
-            let usefulTrans = filter skipClone transNames
-            let sigNames = map removeSuffix usefulTrans
-            let sigs = substPair (map (findFunction fm) sigNames)
-            writeLog 2 "findPath" $ text "found filtered sigs" <+> pretty sigs
-            let initialFormer = FormerState 0 HashMap.empty [] []
-            code <- generateCode initialFormer src args sigs
-            return (code, st')
-  where
-    findFunctions fm groups name =
-        case Map.lookup name groups of
-            Just g -> findFunction fm (head g)
-            Nothing -> error $ "cannot find function group " ++ name
+        _  -> return (res, st')
 
-    findFunction fm name = fromMaybe (error $ "cannot find function name " ++ name)
-                                     (HashMap.lookup name fm)
-
-    combinations []    = []
-    combinations [x]   = [x]
-    combinations (h:t) = [ hh:tt | hh <- h, tt <- combinations t ]
-
-    generateCode initialFormer src args sigs = do
-        tgt <- gets (view targetType)
-        cover <- gets (view abstractionTree)
-        let bound = env ^. boundTypeVars
-        let rets = filter (isSubtypeOf bound tgt) (Set.toList cover)
-        liftIO (evalStateT (generateProgram sigs src args rets) initialFormer)
-
-    skipUncolor = not . isInfixOf "|uncolor"
-    skipClone = not . isInfixOf "|clone"
-    skipDiscard = not . isInfixOf "|discard"
-    removeSuffix = removeLast '|'
-
-    substPair [] = []
-    substPair (x:xs) = if "pair_match" `isPrefixOf` funName x
-                          then   ( x { funName = replaceId "pair_match" "fst" (funName x), funReturn = [head (funReturn x)] } )
-                               : ( x { funName = replaceId "pair_match" "snd" (funName x), funReturn = [funReturn x !! 1] } )
-                               : substPair xs
-                          else x : substPair xs
-
-fixEncoder :: MonadIO m => Environment -> RType -> EncodeState -> SplitInfo -> PNSolver m EncodeState
+fixEncoder :: MonadIO m
+           => Environment
+           -> RType
+           -> EncodeState
+           -> SplitInfo
+           -> PNSolver m EncodeState
 fixEncoder env dst st info = do
     let binds = env ^. boundTypeVars
-    abstraction <- gets (view abstractionTree)
-    writeLog 2 "fixEncoder" $ text "new abstraction cover is" <+> pretty (Set.toList abstraction)
+    cover <- gets (view abstractionCover)
+    writeLog 2 "fixEncoder" $ text "new abstraction cover:" <+> pretty (allTypesOf cover)
     (srcTypes, tgt) <- updateSrcTgt env dst
-    writeLog 2 "fixEncoder" $ text "fixed parameter types are" <+> pretty srcTypes
-    writeLog 2 "fixEncoder" $ text "fixed return type is" <+> pretty tgt
-    writeLog 3 "fixEncoder" $ text "get split information:" </> pretty info
-    let newTyps = newPlaces info
-    mapM_ addCloneFunction (filter (not . isAFunctionT) newTyps)
+    writeLog 2 "fixEncoder" $ text "fixed parameter types:" <+> pretty srcTypes
+    writeLog 2 "fixEncoder" $ text "fixed return type:" <+> pretty tgt
+    writeLog 3 "fixEncoder" $ text "get split information" </> pretty info
     modify $ over type2transition (HashMap.filter (not . null))
+    (loc, musters, rets, funcs, tid2tr, _) <- prepEncoderArgs env tgt
+    liftIO $ execStateT (encoderRefine info musters srcTypes rets funcs tid2tr) st
 
-    (loc, musters, rets, funcs, tid2tr) <- prepEncoderArgs env tgt
-    liftIO $ execStateT (encoderRefine info musters (map show srcTypes) rets funcs tid2tr) st
-
-findProgram :: MonadIO m => Environment -> RType -> EncodeState -> PNSolver m (RProgram, EncodeState)
+findProgram :: MonadIO m
+            => Environment -- the search environment
+            -> RType       -- the goal type
+            -> EncodeState -- intermediate encoding state
+            -> PNSolver m (RProgram, EncodeState)
 findProgram env dst st = do
     modify $ set splitTypes Set.empty
     modify $ set typeAssignment Map.empty
     writeLog 2 "findProgram" $ text "calling findProgram"
-    (codeResult, st') <- findPath env dst st
-    writeLog 2 "findProgram" $ pretty (Set.toList codeResult)
-    checkResult <- withTime TypeCheckTime (firstCheckedOrError $ sortOn length (Set.toList codeResult))
-    rs <- getExperiment refineStrategy
-    if isLeft checkResult
-       then let Left code = checkResult in checkSolution st' code
-       else do
-         let Right err = checkResult
-         funcs <- gets (view activeSigs)
-         cover <- gets (view abstractionTree)
-         modify $ over solverStats (\s -> s {
-            iterations = iterations s + 1
-          , numOfPlaces = Map.insert (iterations s + 1) (Set.size cover) (numOfPlaces s)
-          , numOfTransitions = Map.insert (iterations s + 1) (Set.size funcs) (numOfTransitions s)
-         })
-         nextSolution st' rs err
+    (path, st') <- findPath env dst st
+    ngm <- gets $ view nameToGroup
+    gm <- gets $ view groupMap
+    uc <- gets $ view useCount
+    nameMap <- gets $ view nameMapping
+    paths <- enumeratePath ngm gm uc nameMap path
+    checkUntilFail st' path paths
   where
+    enumeratePath ::
+           MonadIO m
+        => Map Id Id
+        -> Map Id (Set Id)
+        -> Map Id Int
+        -> Map Id Id
+        -> [Id]
+        -> PNSolver m [[Id]]
+    enumeratePath ngm gm uc nameMap path = do
+        let hoArgs =
+                Map.keys $
+                Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+        let hoArgs' = map (++ hoPostfix) hoArgs ++ hoArgs
+        let hoAlias = Map.keysSet $ Map.filter (`elem` hoArgs') nameMap
+        let getGroup p = fromJust $ Map.lookup p ngm
+        let getFuncs p = Map.findWithDefault Set.empty (getGroup p) gm
+        let filterFuncs p =
+                let intsct = Set.intersection hoAlias p
+                 in if Set.null intsct
+                        then p
+                        else intsct
+        let sortFuncs p =
+                sortOn
+                    (\x ->
+                         let name = lookupWithError "nameMapping" x nameMap
+                          in Map.findWithDefault 0 name uc) $
+                Set.toList p
+        let allPaths = map (sortFuncs . filterFuncs . getFuncs) path
+        let filterPaths p =
+                let p' =
+                        map
+                            (\x ->
+                                 replaceId hoPostfix "" $
+                                 lookupWithError "nameMapping" x nameMap)
+                            p
+                 in all (`elem` p') hoArgs
+        return $ filter filterPaths (sequence allPaths)
+
+
+    generateCode initialFormer src args sigs = do
+        tgt <- gets (view targetType)
+        cover <- gets (view abstractionCover)
+        let bound = env ^. boundTypeVars
+        let rets = filter (isSubtypeOf bound tgt) (allTypesOf cover)
+        liftIO (evalStateT (generateProgram sigs src args rets) initialFormer)
+
+    removeSuffix = removeLast '|'
+
+    substPair [] = []
+    substPair (x:xs) = if pairProj `isPrefixOf` funName x
+                          then   ( x { funName = replaceId pairProj "fst" (funName x), funReturn = [head (funReturn x)] } )
+                               : ( x { funName = replaceId pairProj "snd" (funName x), funReturn = [funReturn x !! 1] } )
+                               : substPair xs
+                          else x : substPair xs
+
+    substName [] [] = []
+    substName (n:ns) (fc:fcs) = fc { funName = n } : substName ns fcs
+
+    findFunction fm name = fromMaybe (error $ "cannot find function name " ++ name)
+                                     (HashMap.lookup name fm)
+
+    fillSketch reps firedTrans = do
+        fm <- gets $ view functionMap
+        src <- gets $ view sourceTypes
+        nameMap <- gets $ view nameMapping
+        let args = Map.keys $ foArgsOf env
+        writeLog 2 "fillSketch" $ text "found path" <+> pretty firedTrans
+        mapM_ (\f -> do
+            let name = lookupWithError "nameMapping" f nameMap
+            modify $ over useCount $ Map.insertWith (+) name 1) firedTrans
+        let sigs = substPair $ substName firedTrans $ map (findFunction fm) reps
+        writeLog 2 "fillSketch" $ text "found filtered sigs" <+> pretty sigs
+        let initialFormer = FormerState 0 HashMap.empty [] []
+        withTime FormerTime $ generateCode initialFormer src args sigs
+
+    checkUntilFail :: MonadIO m => EncodeState -> [Id] -> [[Id]] -> PNSolver m (RProgram, EncodeState)
+    checkUntilFail st' _ [] = findProgram env dst $ st' {prevChecked=True}
+    checkUntilFail st' reps (path:ps) = do
+        writeLog 1 "findPath" $ pretty path
+        codeResult <- fillSketch reps path
+        checkResult <- withTime TypeCheckTime $
+                        firstCheckedOrError $
+                        sortOn length $ Set.toList codeResult
+        rs <- getExperiment refineStrategy
+        stop <- getExperiment stopRefine
+        placeNum <- getExperiment threshold
+        cover <- gets $ view abstractionCover
+        case checkResult of
+            Left code -> do
+                mbSln <- checkSolution st' code
+                case mbSln of
+                    Nothing -> checkUntilFail (st' {prevChecked=True}) reps ps
+                    Just p -> do
+                        cnt <- getExperiment solutionCnt
+                        modify $ set (searchParams . solutionCnt) (cnt-1)
+                        if cnt > 1 then checkUntilFail (st' {prevChecked=True}) reps ps
+                                   else return (p, st')
+            Right err
+                | not (doRefine rs) || (stop && coverSize cover >= placeNum) ->
+                    checkUntilFail st' reps ps
+                | otherwise -> do
+                    cover <- gets $ view abstractionCover
+                    funcs <- gets $ view activeSigs
+                    modify $ over solverStats (\s -> s {
+                    iterations = iterations s + 1
+                        , numOfPlaces = Map.insert (iterations s + 1) (coverSize cover) (numOfPlaces s)
+                        , numOfTransitions = Map.insert (iterations s + 1) (Set.size funcs) (numOfTransitions s)
+                        })
+                    nextSolution st' err
+
     firstCheckedOrError [] = return (Right (uHole, AScalar (ATypeVarT varName)))
     firstCheckedOrError (x:xs) = do
         res <- parseAndCheck x
@@ -488,137 +641,86 @@ findProgram env dst st = do
                 absBtm <- observeT $ pickGeneralization tyBtm' absDst
                 return (Right (btm, absBtm)))
 
-    nextSolution st rs (prog, at) | not (doRefine rs) = do
-        let st' = st { prevChecked = True }
-        findProgram env dst st'
-    nextSolution st _ (prog, at) = do
-        stop <- getExperiment stopRefine
-        placeNum <- getExperiment threshold
-        cover <- gets (view abstractionTree)
-        if stop && Set.size cover >= placeNum
-           then findProgram env dst (st {prevChecked=True})
-           else do
-             splitInfo <- withTime RefinementTime (refineSemantic env prog at)
-             -- add new places and transitions into the petri net
-             res <- refine st splitInfo
-             cover <- gets (view abstractionTree)
-             funcs <- gets (view activeSigs)
-             modify $ over solverStats (\s -> s {
-                numOfPlaces = Map.insert (iterations s) (Set.size cover) (numOfPlaces s)
-              , numOfTransitions = Map.insert (iterations s) (Set.size funcs) (numOfTransitions s)
-             })
-             return res
-
-    refine st info = do
-        st' <- withTime EncodingTime (fixEncoder env dst st info)
+    nextSolution st (prog, at) = do
+        cover <- gets $ view abstractionCover
+        splitInfo <- withTime RefinementTime (refineSemantic env prog at)
+        -- add new places and transitions into the petri net
+        cover <- gets $ view abstractionCover
+        t2tr <- gets $ view type2transition
+        modify $ over solverStats (\s ->
+            s   { numOfPlaces =
+                       Map.insert
+                           (iterations s)
+                           (coverSize cover)
+                           (numOfPlaces s)
+                , numOfTransitions =
+                       Map.insert
+                           (iterations s)
+                           (transitionNb st)
+                           (numOfTransitions s)
+                })
+        st' <- withTime EncodingTime (fixEncoder env dst st splitInfo)
         findProgram env dst st'
 
     checkSolution st code = do
-        let st' = st { prevChecked = True }
         solutions <- gets $ view currentSolutions
         mapping <- gets $ view nameMapping
         let code' = recoverNames mapping code
         disableDemand <- getExperiment disableDemand
-        checkedSols <- withTime TypeCheckTime (filterM (\u -> liftIO (runGhcChecks disableDemand env dst u )) [code'])
-        if (code' `elem` solutions) || (null checkedSols)
-           then findProgram env dst st'
-           else do
-               modify $ over currentSolutions ((:) code')
-               return (code', st')
+        checkedSols <-
+            withTime
+                TypeCheckTime
+                (filterM (liftIO . runGhcChecks disableDemand env dst) [code'])
+        if (code' `elem` solutions) || null checkedSols
+            then return Nothing
+            else return $ Just code'
 
-printSolution solution = do
-    liftIO $ putStrLn "*******************SOLUTION*********************"
-    liftIO $ putStrLn $ "SOLUTION: " ++ solution
-    liftIO $ putStrLn "************************************************"
-
-
-findFirstN :: (MonadIO m) => Environment -> RType -> EncodeState -> Int -> PNSolver m ()
-findFirstN env dst st cnt | cnt == 1  = do
-    (res, _) <- withTime TotalSearch $ findProgram env dst st
-    stats <- gets $ view solverStats
-    depth <- gets $ view currentLoc
-    msgChan <- gets $ view messageChan
+findFirstN :: MonadIO m => Environment -> RType -> EncodeState -> Int -> PNSolver m ()
+findFirstN env dst st 0 = return ()
+findFirstN env dst st n = do
     strategy <- getExperiment refineStrategy
-    writeLog 1 "findFirstN" $ text (show depth)
-    let stats' = stats{pathLength = depth}
-    let haskellSolution = toHaskellSolution (show res)
-    printSolution haskellSolution
-    writeLog 2 "findFirstN" $ text (show stats)
-    if noGarTyGarIdx strategy >= 0
-      then do
-        resetTiming
-        modify $ set (searchParams . refineStrategy) NoGar
-        modify $ set (searchParams . stopRefine) False
-        modify $ set currentLoc 1
-        modify $ set currentSolutions []
-        runPNSolver env cnt dst
-      else liftIO $ writeChan msgChan (MesgP (res, stats'))
-findFirstN env dst st cnt = do
-    (res, st') <- withTime TotalSearch $ findProgram env dst st
-    msgChan <- gets $ view messageChan
-    stats <- gets $ view solverStats
-    loc <- gets $ view currentLoc
-    let stats' = stats{pathLength = loc}
-    let haskellSolution = toHaskellSolution (show res)
-    printSolution haskellSolution
-    liftIO $ writeChan msgChan (MesgP (res, stats'))
-    resetTiming
-    findFirstN env dst st' (cnt-1)
+    (soln, st') <- withTime TotalSearch $ findProgram env dst st
+    writeSolution soln
+    modify $ over currentSolutions ((:) soln)
+    currentSols <- gets $ view currentSolutions
+    writeLog 2 "findFirstN" $ text "Current Solutions:" <+> pretty currentSols
+    findFirstN env dst st' (n - 1)
 
-runPNSolver :: MonadIO m => Environment -> Int -> RType -> PNSolver m ()
-runPNSolver env cnt t = do
+runPNSolver :: MonadIO m => Environment -> RType -> PNSolver m ()
+runPNSolver env t = do
     writeLog 3 "runPNSolver" $ text $ show (allSymbols env)
-    initNet env
+    withTime TotalSearch $ initNet env
     st <- withTime TotalSearch $ withTime EncodingTime (resetEncoder env t)
+    cnt <- getExperiment solutionCnt
     findFirstN env t st cnt
     msgChan <- gets $ view messageChan
     liftIO $ writeChan msgChan (MesgClose CSNormal)
-    return ()
+
+writeSolution :: MonadIO m => UProgram -> PNSolver m ()
+writeSolution code = do
+    stats <- gets $ view solverStats
+    loc <- gets $ view currentLoc
+    msgChan <- gets $ view messageChan
+    let stats' = stats {pathLength = loc}
+    liftIO $ writeChan msgChan (MesgP (code, stats'))
+    writeLog 1 "writeSolution" $ text (show stats')
 
 recoverNames :: Map Id Id -> Program t -> Program t
 recoverNames mapping (Program (PSymbol sym) t) =
     case Map.lookup sym mapping of
-      Nothing -> Program (PSymbol (removeLast '_' sym)) t
-      Just name -> Program (PSymbol (removeLast '_' name)) t
+      Nothing -> Program (PSymbol (replaceId hoPostfix "" $ removeLast '_' sym)) t
+      Just name -> Program (PSymbol (replaceId hoPostfix "" $ removeLast '_' name)) t
 recoverNames mapping (Program (PApp fun pArg) t) = Program (PApp fun' pArg') t
   where
     fun' = case Map.lookup fun mapping of
-                Nothing -> removeLast '_' fun
-                Just name -> removeLast '_' name
+                Nothing -> replaceId hoPostfix "" $ removeLast '_' fun
+                Just name -> replaceId hoPostfix "" $ removeLast '_' name
     pArg' = map (recoverNames mapping) pArg
 recoverNames mapping (Program (PFun x body) t) = Program (PFun x body') t
   where
     body' = recoverNames mapping body
 
 {- helper functions -}
-addCloneFunction ty = do
-    let fname = show ty ++ "|clone"
-    let fc = FunctionCode fname [] [ty] [ty, ty]
-    let addTransition k tid = HashMap.insertWith (\[x] y -> nubOrd $ x:y) k [tid]
-    modify $ over functionMap (HashMap.insert fname fc)
-    -- modify $ over currentSigs (Map.insert fname fc)
-    modify $ over type2transition (addTransition ty fname)
-    return fname
-
-addHoParam t = do
-    let addTransition k tid = HashMap.insertWith (\_ y -> nubOrd $ tid:y) k [tid]
-    let params = init (nub (decomposeHo t))
-    let ret = last (nub (decomposeHo t))
-    let uncolorTr = show t ++ "|uncolor"
-    modify $ over type2transition (addTransition ret uncolorTr)
-    modify $ over type2transition (addTransition t uncolorTr)
-
-attachLast :: AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
-attachLast t (AFunctionT tArg tRes) | isAFunctionT tRes = AFunctionT tArg (attachLast t tRes)
-attachLast t (AFunctionT tArg _) = AFunctionT tArg t
-attachLast t _ = t
-
-noGarTyGarIdx :: RefineStrategy -> Int
-noGarTyGarIdx NoGarTyGar0 = 0
-noGarTyGarIdx NoGarTyGarQ = 1
-noGarTyGarIdx NoGarTyGar0B = 2
-noGarTyGarIdx NoGarTyGarQB = 3
-noGarTyGarIdx _ = -1
 
 doRefine :: RefineStrategy -> Bool
 doRefine NoGar = False
@@ -628,7 +730,7 @@ doRefine _ = True
 
 updateTy2Tr :: MonadIO m => Id -> AbstractSkeleton -> PNSolver m ()
 updateTy2Tr id f = do
-    let addTransition k tid = HashMap.insertWith (\[x] y -> nubOrd $ x:y) k [tid]
+    let addTransition k tid = HashMap.insertWith Set.union k (Set.singleton tid)
     let includedTyps = nub (decompose f)
     mapM_ (\t -> modify $ over type2transition (addTransition t id)) includedTyps
 
@@ -636,7 +738,7 @@ updateSrcTgt :: MonadIO m => Environment -> RType -> PNSolver m ([AbstractSkelet
 updateSrcTgt env dst = do
     -- reset source and destination types
     let binds = env ^. boundTypeVars
-    abstraction <- gets (view abstractionTree)
+    abstraction <- gets (view abstractionCover)
     tgt <- currentAbst binds abstraction (toAbstractType (shape dst))
     modify $ set targetType tgt
 
@@ -646,35 +748,53 @@ updateSrcTgt env dst = do
                      . shape
                      . toMonotype) $ Map.elems foArgs
     modify $ set sourceTypes srcTypes
-    modify $ set paramNames $ Map.keys foArgs
     return (srcTypes, tgt)
 
-type EncoderArgs = (Int, HashMap Id [Id], [Id], [FunctionCode], HashMap Id [Id])
+type EncoderArgs = (Int, HashMap Id [Id], [AbstractSkeleton], [FunctionCode], HashMap AbstractSkeleton (Set Id), Bool)
 
 prepEncoderArgs :: MonadIO m => Environment -> AbstractSkeleton -> PNSolver m EncoderArgs
 prepEncoderArgs env tgt = do
-    abstraction <- gets (view abstractionTree)
+    cover <- gets $ view abstractionCover
     loc <- gets $ view currentLoc
     funcs <- gets $ view functionMap
     t2tr <- gets $ view type2transition
     musters <- gets $ view mustFirers
+    incremental <- getExperiment incrementalSolving
     let bound = env ^. boundTypeVars
-    let tid2tr = HashMap.foldrWithKey (\k v -> HashMap.insert (show k) v) HashMap.empty t2tr
-    let accepts = filter (isSubtypeOf bound tgt) (Set.toList abstraction)
+    -- let tid2tr = HashMap.foldrWithKey (\k v -> HashMap.insert (show k) v) HashMap.empty t2tr
+    let accepts = superTypeOf bound cover tgt
     let rets = sortBy (compareAbstract bound) accepts
-    let strRets = map show rets
     let sigs = HashMap.elems funcs
-    return (loc, musters, strRets, sigs, tid2tr)
+    writeLog 3 "prepEncoderArgs" $ text "current must firers" <+> pretty (HashMap.toList musters)
+    return (loc, musters, rets, sigs, t2tr, incremental)
 
 foArgsOf :: Environment -> Map Id RSchema
 foArgsOf = Map.filter (not . isFunctionType . toMonotype) . _arguments
 
+noneInst instMap id t = not (HashMap.member (id, absFunArgs id t) instMap)
+
+diffInst tvs instMap id t = let oldt = snd (fromJust $ HashMap.lookup (id, absFunArgs id t) instMap)
+                             in t /= oldt && isSubtypeOf tvs (lastAbstract t) (lastAbstract oldt)
+
+excludeUseless :: MonadIO m => Id -> AbstractSkeleton -> PNSolver m ()
+excludeUseless id ty = do
+    writeLog 3 "excludeUseless" $ text "delete" <+> pretty id <+> text "::" <+> pretty ty
+    instMap <- gets (view instanceMapping)
+    let (tid, _) = fromJust (HashMap.lookup (id, absFunArgs id ty) instMap)
+    modify $ over toRemove ((:) tid)
+
 getGroupRep :: MonadIO m => Id -> PNSolver m [Id]
 getGroupRep name = do
-    gm <- gets $ view groupMap
     gr <- gets $ view groupRepresentative
-    let withinGroup = Set.member name
-    let argGps = Map.keys $ Map.filter withinGroup gm
+    ngm <- gets $ view nameToGroup
+    let argGps = maybeToList $ Map.lookup name ngm
     writeLog 3 "getGroupRep" $ text name <+> text "is contained in group" <+> pretty argGps
-    let argRp = map fromJust $ filter isJust $ map (`Map.lookup` gr) argGps
+    let argRp = mapMaybe (`Map.lookup` gr) argGps
     return argRp
+
+assemblePair :: AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
+assemblePair first secod | absFunArgs "fst" first == absFunArgs "snd" secod =
+    let AFunctionT p f = first
+        AFunctionT _ s = secod
+     in AFunctionT p (AFunctionT f s)
+assemblePair first second = error "fst and snd have different arguments"

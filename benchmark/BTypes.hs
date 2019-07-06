@@ -70,8 +70,8 @@ data EvaluationException =
 data ResultFormat = Table | TSV | Latex | Plot deriving (Show, Data, Typeable)
 
 instance Show EvaluationException where
-  show (TimeoutException) = "Timeout"
-  show (NoSolutionException) = "No Solution"
-  show (NotImplementedException) = "Not Implemented"
+  show TimeoutException = "Timeout"
+  show NoSolutionException = "No Solution"
+  show NotImplementedException = "Not Implemented"
   show (RuntimeException _) = "Runtime error"
 instance Exception EvaluationException

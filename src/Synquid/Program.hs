@@ -115,25 +115,13 @@ renameAsImpl isBound = renameAsImpl' Map.empty
     renameAsImpl' subst  _ t = substituteInType isBound subst t
 
 {- Top-level definitions -}
-
--- | 'symbolsOfArity' @n env@: all symbols of arity @n@ in @env@
-symbolsOfArity n env = Map.findWithDefault Map.empty n (env ^. symbols)
-
 -- | All symbols in an environment
 allSymbols :: Environment -> Map Id RSchema
-allSymbols env = Map.unions $ Map.elems (env ^. symbols)
+allSymbols env = env ^. symbols
 
 -- | 'lookupSymbol' @name env@ : type of symbol @name@ in @env@, including built-in constants
 lookupSymbol :: Id -> Int -> Environment -> Maybe RSchema
-lookupSymbol name a env
-  | a == 0 && name == "True"                          = Just $ Monotype $ ScalarT BoolT valBool
-  | a == 0 && name == "False"                         = Just $ Monotype $ ScalarT BoolT (fnot valBool)
-  | a == 0 && isJust asInt                            = Just $ Monotype $ ScalarT IntT (valInt |=| IntLit (fromJust asInt))
-  | a == 1 && (name `elem` Map.elems unOpTokens)      = let op = head $ Map.keys $ Map.filter (== name) unOpTokens in Just $ unOpType op
-  | a == 2 && (name `elem` Map.elems binOpTokens)     = let op = head $ Map.keys $ Map.filter (== name) binOpTokens in Just $ binOpType op
-  | otherwise                                         = Map.lookup name (allSymbols env)
-  where
-    asInt = asInteger name
+lookupSymbol name a env = Map.lookup name (allSymbols env)
 
 symbolAsFormula :: Environment -> Id -> RType -> Formula
 symbolAsFormula _ name t | arity t > 0
@@ -183,7 +171,7 @@ addVariable :: Id -> RType -> Environment -> Environment
 addVariable name t = addPolyVariable name (Monotype t)
 
 addPolyVariable :: Id -> RSchema -> Environment -> Environment
-addPolyVariable name sch = let n = arity (toMonotype sch) in (symbols %~ Map.insertWith Map.union n (Map.singleton name sch))
+addPolyVariable name sch = symbols %~ Map.insert name sch
 
 -- | 'addConstant' @name t env@ : add type binding @name@ :: Monotype @t@ to @env@
 addConstant :: Id -> RType -> Environment -> Environment
@@ -199,10 +187,7 @@ addUnresolvedConstant name sch = unresolvedConstants %~ Map.insert name sch
 removeVariable :: Id -> Environment -> Environment
 removeVariable name env = case Map.lookup name (allSymbols env) of
   Nothing -> env
-  Just sch -> over symbols (Map.insertWith (flip Map.difference) (arity $ toMonotype sch) (Map.singleton name sch)) . over constants (Set.delete name) $ env
-
-
-unfoldAllVariables env = over unfoldedVars (Set.union (Map.keysSet (symbolsOfArity 0 env) Set.\\ (env ^. constants))) env
+  Just sch -> over symbols (Map.delete name) . over constants (Set.delete name) $ env
 
 addTypeSynonym :: Id -> [Id] -> RType -> Environment -> Environment
 addTypeSynonym name tvs t = over typeSynonyms (Map.insert name (tvs, t))
@@ -223,7 +208,7 @@ addTypeVar :: Id -> Environment -> Environment
 addTypeVar a = over boundTypeVars (a :)
 
 typeSubstituteEnv :: TypeSubstitution -> Environment -> Environment
-typeSubstituteEnv tass = over symbols (Map.map (Map.map (schemaSubstitute tass)))
+typeSubstituteEnv tass = over symbols (Map.map (schemaSubstitute tass))
 
 -- | Insert weakest refinement
 refineTop :: Environment -> SType -> RType

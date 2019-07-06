@@ -14,6 +14,7 @@ import qualified Data.Map as Map
 tyclassPrefix = "@@hplusTC@@"
 tyclassInstancePrefix = "@@hplusTCInstance@@"
 tyclassArgBase = "tcarg"
+hoPostfix = "'ho'"
 
 (>.<) :: Ord a => [a] -> [a] -> [a]
 xs >.< ys = let ys' = Set.fromList ys in filter (flip Set.member ys') xs
@@ -24,11 +25,11 @@ xs >.> ys = let ys' = Set.fromList ys in filter (flip Set.notMember ys') xs
 
 defaultLibrary = concat [
   defaultFuncs,
+  defaultFun,
   defaultDts,
   defaultTypeclassInstances
   ]
 
--- Default Library
 defaultFuncs = [
     Pos (initialPos "fst") $ FuncDecl "fst" (Monotype $
       (FunctionT "p" (ScalarT (
@@ -67,6 +68,8 @@ defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [] [
           ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue))
   ]
 
+
+defaultFun = [Pos (initialPos "Fun") $ DataDecl "Fun" ["a", "b"] [] []]
 
 -- This is only a subset of those predefinted in Haskell:
 -- Full report: https://www.haskell.org/onlinereport/basic.html
@@ -108,6 +111,7 @@ mkTyVar str = ScalarT (TypeVarT (Map.empty) str) ftrue
 intType = ScalarT (DatatypeT "Int" [] []) ftrue
 boolType = ScalarT (DatatypeT "Bool" [] []) ftrue
 charType = ScalarT (DatatypeT "Char" [] []) ftrue
+
 floatType = ScalarT (DatatypeT "Float" [] []) ftrue
 doubleType = ScalarT (DatatypeT "Double" [] []) ftrue
 unitType = ScalarT (DatatypeT "Unit" [] []) ftrue
