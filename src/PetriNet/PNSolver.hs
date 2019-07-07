@@ -583,11 +583,7 @@ findProgram env dst st = do
                 mbSln <- checkSolution st' code
                 case mbSln of
                     Nothing -> checkUntilFail (st' {prevChecked=True}) reps ps
-                    Just p -> do
-                        cnt <- getExperiment solutionCnt
-                        modify $ set (searchParams . solutionCnt) (cnt-1)
-                        if cnt > 1 then checkUntilFail (st' {prevChecked=True}) reps ps
-                                   else return (p, st')
+                    Just p -> return (p, st')
             Right err
                 | not (doRefine rs) || (stop && coverSize cover >= placeNum) ->
                     checkUntilFail st' reps ps
