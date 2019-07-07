@@ -101,6 +101,7 @@ data ExperimentCourse
   | CompareSolutions -- 2019-06-12
   | CompareEnvironments
   | CoalescingStrategies
+  | POPLQuality
   deriving (Show, Data, Typeable)
 
 data Message

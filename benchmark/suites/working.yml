@@ -1,62 +1,3 @@
-- name: numElem
-  query: Eq a => [a] -> a -> Int
-  solution: length (elemIndices x xs)
-
-- name: lookup
-  query: Eq a => [(a,b)] -> a -> b
-
-- name: intersperse
-  query: Show a => a -> [String] -> String
-  solution: intersperse (show arg1) arg0
-
-- name: convertToInt
-  query: Double -> Int
-
-- name: toText
-  query: a -> Text
-
-- name: toFloat
-  query: Float -> Int
-
-- name: c2i
-  query: Char -> Integer
-
-- name: a2i
-  query: Num a => a -> Int
-
-# - name: reverseMap
-#   query: Ord k, Ord v => Map k v -> Map v [k]
-
-- name: overlapCount
-  query: Eq a => [a] -> [a] -> Int
-
-- name: mbElem
-  query: Eq a => a -> [a] -> Maybe a
-
-- name: convert
-  query: Int -> Int -> Float
-
-- name: areEq
-  query: Eq a => a -> a -> Maybe a
-
-- name: d2i
-  query: Double -> Integer
-
-- name: keyOverlap
-  query: Ord k => Map k v -> Set k -> Set k
-  solution: Set.intersection arg0 (keySet arg1)
-
-# - name: justMap
-#   query: Ord k => [Maybe (k, v)] -> Map k v
-#   solution: Map.fromList (catMaybe arg0)
-
-- name: removeListFromSet
-  query: Ord k => [k] -> Set k -> Set k
-  solution: (\\) arg0 (fromList arg1)
-
-# - name: updateAllInMap
-#   query: (v -> Maybe v) -> Map k v -> Map k v
-
 - name: intToBS
   query: "Int64 -> ByteString"
 
@@ -152,3 +93,63 @@
 - name: appendN
   query: "Int -> [a] -> [a]"
   solution: concat (replicate n xs)
+
+- name: numElem
+  query: Eq a => [a] -> a -> Int
+  solution: length (elemIndices x xs)
+
+- name: lookup
+  query: Eq a => [(a,b)] -> a -> b
+  solution: Data.Maybe.fromJust (GHC.List.lookup arg0 arg1)
+
+- name: intersperse
+  query: Show a => a -> [String] -> String
+  solution: intersperse (show arg1) arg0
+
+- name: convertToInt
+  query: Double -> Int
+
+- name: toText
+  query: a -> Text
+
+- name: toFloat
+  query: Float -> Int
+
+- name: c2i
+  query: Char -> Integer
+
+- name: a2i
+  query: Num a => a -> Int
+
+# - name: reverseMap
+#   query: Ord k, Ord v => Map k v -> Map v [k]
+
+- name: overlapCount
+  query: Eq a => [a] -> [a] -> Int
+
+- name: mbElem
+  query: Eq a => a -> [a] -> Maybe a
+
+- name: convert
+  query: Int -> Int -> Float
+
+- name: areEq
+  query: Eq a => a -> a -> Maybe a
+
+- name: d2i
+  query: Double -> Integer
+
+- name: keyOverlap
+  query: Ord k => Map k v -> Set k -> Set k
+  solution: Set.intersection arg0 (keySet arg1)
+
+# - name: justMap
+#   query: Ord k => [Maybe (k, v)] -> Map k v
+#   solution: Map.fromList (catMaybe arg0)
+
+- name: removeListFromSet
+  query: Ord k => [k] -> Set k -> Set k
+  solution: (\\) arg0 (fromList arg1)
+
+# - name: updateAllInMap
+#   query: (v -> Maybe v) -> Map k v -> Map k v

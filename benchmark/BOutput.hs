@@ -114,6 +114,14 @@ instance Summary [ResultSummary] where
 
 
 headersList :: ExperimentCourse -> [String]
+headersList POPLQuality = [
+  "T - first - dmd", "T - first - nodmd",
+  "T - all - dmd", "T - all - nodmd",
+  "length - dmd", "length - nodmd",
+  "ref - dmd", "ref - nodmd",
+  "Transitons - dmd", "Transitions - nodmd",
+  "Solutions - dmd", "Solutions - nodmd"
+  ]
 headersList CompareEnvironments = [
   "T - first - Old", "T - all - New",
   "total - old", "total - new",
@@ -160,6 +168,30 @@ toRow currentExp (name, rss) =
     mbNoCoalescing = findwhere expTyGarQNoCoalesce rss
 
     rowForExp :: ExperimentCourse -> [Maybe String]
+    rowForExp POPLQuality = let
+      mbqr = findwhere expTyGarQ rss
+      mbqrNoDmd = findwhere expTyGarQNoDmd rss
+      toSolution = (either show id . resSolutionOrError) :: Result -> String
+      qrr = reverse (fromJust (results <$> mbqr)) :: [Result]
+      qrrNoDmd = reverse (fromJust (results <$> mbqrNoDmd)) :: [Result]
+      timeToAll = sum $ map resTFirstSoln qrr
+      timeToAllNoDmd = sum $ map resTFirstSoln qrrNoDmd
+      in [
+        (showFloat . resTFirstSoln) <$> listToMaybe qrr, -- First
+        (showFloat . resTFirstSoln) <$> listToMaybe qrrNoDmd, -- First
+        bool Nothing (Just (showFloat timeToAllNoDmd)) (timeToAllNoDmd /= 0), -- All
+        bool Nothing (Just (showFloat timeToAll)) (timeToAll /= 0), -- All
+
+        (show . resLenFirstSoln) <$> listToMaybe qrr,
+        (show . resLenFirstSoln) <$> listToMaybe qrrNoDmd,
+        (show . resRefinementSteps) <$> listToMaybe qrr,
+        (show . resRefinementSteps) <$> listToMaybe qrrNoDmd,
+        (show . resTransitions) <$> listToMaybe qrr,
+        (show . resTransitions) <$> listToMaybe qrrNoDmd,
+
+        Just $ unlines (map (mkOneLine . toSolution) qrr),
+        Just $ unlines (map (mkOneLine . toSolution) qrrNoDmd)
+      ]
     rowForExp CompareInitialAbstractCovers = [
       (showFloat . resTFirstSoln) <$> (head . results) <$> mbqr,
       (showFloat . resTEncFirstSoln) <$> (head . results) <$> mbqr,

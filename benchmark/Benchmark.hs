@@ -97,6 +97,10 @@ getSetup args = do
   let currentExperiment = argsExperiment args
   let params =
         case currentExperiment of
+          POPLQuality -> let solnCount = 5 in [
+            (searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ),
+            (searchParamsTyGarQNoDmd{_solutionCnt=solnCount}, expTyGarQNoDmd)
+            ]
           CoalescingStrategies -> [
             (searchParamsTyGarQ{_coalesceTypes=False}, expTyGarQNoCoalesce),
             (searchParamsTyGarQ{_coalesceTypes=True,

@@ -266,3 +266,10 @@ typeDepth (ScalarT (DatatypeT _ tys _) _) | otherwise       = 1 + (maximum $ map
 typeDepth (ScalarT _ _) = 0
 typeDepth (FunctionT _ tArg tRet) = max (typeDepth tArg) (typeDepth tRet)
 typeDepth t = error $ "typeDepth: I have no idea when I come across this type"
+
+longScalarName :: RType -> String
+longScalarName (ScalarT (DatatypeT name rs _) _) = name ++ (concatMap longScalarName rs)
+longScalarName (ScalarT IntT _) = "Int"
+longScalarName (ScalarT BoolT _) = "Bool"
+longScalarName (ScalarT (TypeVarT _ name) _) = name
+longScalarName t = error $ "longScalarName error: cannot be applied to nonscalar type "

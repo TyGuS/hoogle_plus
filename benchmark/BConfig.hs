@@ -7,7 +7,7 @@ import BTypes
 
 
 defaultTimeout = 2 * 60 :: Int
-defaultQueryFile = "benchmark/suites/allQueries.json"
+defaultQueryFile = "benchmark/suites/base.yml"
 defaultExperiment = TrackTypesAndTransitions
 
 expTyGarQ = "TYGAR-Q"
@@ -30,6 +30,7 @@ expTyGarQBInc = "TyGarQB-Incremental"
 expILP = "Integer Linear Programming"
 
 searchParamsTyGarQ = defaultSearchParams
+searchParamsTyGarQNoDmd = defaultSearchParams{_disableDemand = True}
 searchParamsHOF = defaultSearchParams{_useHO=True}
 searchParamsSypetClone = defaultSearchParams{_refineStrategy=SypetClone}
 searchParamsTyGar0 = defaultSearchParams{_refineStrategy=TyGar0}

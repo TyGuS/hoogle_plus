@@ -127,7 +127,6 @@ zipWith :: (a -> b -> c) -> [a] -> [b] -> [c]
 zipWith3 :: (a -> b -> c -> d) -> [a] -> [b] -> [c] -> [d]
 unzip :: [(a, b)] -> ([a], [b])
 unzip3 :: [(a, b, c)] -> ([a], [b], [c])
-errorEmptyList :: String -> a
 module GHC.Char
 chr :: Int -> Char
 eqChar :: Char -> Char -> Bool
@@ -163,6 +162,7 @@ class Eq a
 (/=) :: Eq a => a -> a -> Bool
 infix 4 ==
 infix 4 /=
+instance Eq a => Eq [a]
 module Data.Coerce
 coerce :: Coercible a b => a -> b
 class a ~R# b => Coercible (a :: k0) (b :: k0)
@@ -1371,13 +1371,13 @@ MetaData :: Symbol -> Symbol -> Symbol -> Bool -> Meta
 MetaCons :: Symbol -> FixityI -> Bool -> Meta
 MetaSel :: Maybe Symbol -> SourceUnpackedness -> SourceStrictness -> DecidedStrictness -> Meta
 class Generic a where {
-    
+
     type family Rep a :: Type -> Type;
 }
 from :: Generic a => a -> Rep a x
 to :: Generic a => Rep a x -> a
 class Generic1 (f :: k -> Type) where {
-    
+
     type family Rep1 f :: k -> Type;
 }
 from1 :: Generic1 f => f a -> Rep1 f a
@@ -6414,7 +6414,7 @@ currentCallStack :: IO [String]
 data Constraint
 type family Any :: k0
 class IsList l where {
-    
+
     type family Item l;
 }
 fromList :: IsList l => [Item l] -> l

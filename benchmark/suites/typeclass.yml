@@ -4,6 +4,7 @@
 
 - name: lookup
   query: Eq a => [(a,b)] -> a -> b
+  solution: Data.Maybe.fromJust (GHC.List.lookup arg0 arg1)
 
 - name: intersperse
   query: Show a => a -> [String] -> String

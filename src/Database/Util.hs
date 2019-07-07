@@ -76,28 +76,29 @@ defaultFun = [Pos (initialPos "Fun") $ DataDecl "Fun" ["a", "b"] [] []]
 -- In short: We also might want:
 -- Eq, Ord, Show, Read, Enum, Bounded, Num, Real, Floating,
 -- Integral, RealFloat, Fractional, RealFrac
-defaultTypeclassInstances = [
-  mkInstance "Show" intType,
-  mkInstance "Show" boolType,
-  mkInstance "Show" charType,
-  mkInstance "Show" intType,
-  mkInstance "Show" floatType,
-  mkInstance "Show" doubleType,
-  mkInstance "Show" unitType,
-  mkInstance "Eq" intType,
-  mkInstance "Eq" boolType,
-  mkInstance "Eq" charType,
-  mkInstance "Eq" intType,
-  mkInstance "Eq" floatType,
-  mkInstance "Eq" doubleType,
-  mkInstance "Eq" unitType,
-  mkInstance "Ord" intType,
-  mkInstance "Ord" boolType,
-  mkInstance "Ord" charType,
-  mkInstance "Ord" intType,
-  mkInstance "Ord" floatType,
-  mkInstance "Ord" doubleType
-  ]
+defaultTypeclassInstances =
+    [ mkInstance "Show" intType
+    , mkInstance "Show" boolType
+    , mkInstance "Show" charType
+    , mkInstance "Show" intType
+    , mkInstance "Show" floatType
+    , mkInstance "Show" doubleType
+    , mkInstance "Show" unitType
+    , mkInstance "Eq" intType
+    , mkInstance "Eq" boolType
+    , mkInstance "Eq" charType
+    , mkInstance "Eq" intType
+    , mkInstance "Eq" floatType
+    , mkInstance "Eq" doubleType
+    , mkInstance "Eq" unitType
+    , mkInstance "Ord" intType
+    , mkInstance "Ord" boolType
+    , mkInstance "Ord" charType
+    , mkInstance "Ord" intType
+    , mkInstance "Ord" floatType
+    , mkInstance "Ord" doubleType
+    ]
+
 
 mkInstance :: String -> RType -> Declaration
 mkInstance tyclassName instanceType = let
@@ -105,6 +106,17 @@ mkInstance tyclassName instanceType = let
     in Pos (initialPos "tcBuiltin") $
         FuncDecl (printf "%s0%s%s" tyclassInstancePrefix tyclassName instanceName) $ Monotype $
           ScalarT (DatatypeT (tyclassPrefix ++ tyclassName) [instanceType] []) ftrue
+
+listInstance :: String -> Declaration
+listInstance tyclassName = let
+    instanceType = mkTyVar "a"
+    listInstance = ScalarT (DatatypeT "List" [instanceType] []) ftrue
+    listInstanceName = longScalarName listInstance
+    instanceName = longScalarName instanceType
+    in Pos (initialPos "tcBuiltin") $
+        FuncDecl (printf "%s0%s%s" tyclassInstancePrefix tyclassName listInstanceName) $ Monotype $
+          FunctionT "tc" instanceType $
+            ScalarT (DatatypeT (tyclassPrefix ++ tyclassName) [listInstance] []) ftrue
 
 mkTyVar str = ScalarT (TypeVarT (Map.empty) str) ftrue
 
