@@ -52,12 +52,18 @@ main = do
         Plot -> mkPlot mbFile setup resultSummaries
         _ -> do
           let resultTable = outputSummary format currentExperiment resultSummaries
-          outputResults mbFile resultTable
+          outputResults format mbFile resultTable
       )
 
-outputResults :: Maybe FilePath -> String -> IO ()
-outputResults Nothing res = outputResults (Just "results.out") res
-outputResults (Just fp) res = putStrLn res >> writeFile fp res
+outputResults :: ResultFormat -> Maybe FilePath -> String -> IO ()
+outputResults format Nothing res = outputResults format (Just (defaultFormatFilename format)) res
+outputResults _ (Just fp) res = putStrLn res >> writeFile fp res
+
+defaultFormatFilename :: ResultFormat -> FilePath
+defaultFormatFilename TSV = "results.tsv"
+defaultFormatFilename Latex = "results.tex"
+defaultFormatFilename Table = "results.txt"
+defaultFormatFilename Plot = "results.plot"
 
 mkExperiments :: [(Environment, String)] -> [Query] -> [(SearchParams, String)] -> [Experiment]
 mkExperiments envs qs params = [
