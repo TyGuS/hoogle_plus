@@ -3,7 +3,7 @@
 #   solution: length (elemIndices x xs)
 
 - name: lookup
-  query: Eq a => [(a,b)] -> a -> b
+  query: "Eq a => [(a,b)] -> a -> b"
   solution: Data.Maybe.fromJust (GHC.List.lookup arg0 arg1)
 
 # - name: intersperse
@@ -29,16 +29,16 @@
 #   query: Ord k, Ord v => Map k v -> Map v [k]
 
 - name: overlapCount
-  query: Eq a => [a] -> [a] -> Int
+  query: "Eq a => [a] -> [a] -> Int"
 
 - name: mbElem
-  query: Eq a => a -> [a] -> Maybe a
+  query: "Eq a => a -> [a] -> Maybe a"
 
-- name: convert
-  query: Int -> Int -> Float
+# - name: convert
+#   query: Int -> Int -> Float
 
 - name: areEq
-  query: Eq a => a -> a -> Maybe a
+  query: "Eq a => a -> a -> Maybe a"
 
 # - name: d2i
 #   query: Double -> Integer
