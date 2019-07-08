@@ -1,2 +1,2 @@
-(Prelude.$)
-Prelude.id
+(Data.Function.$)
+Data.Function.id

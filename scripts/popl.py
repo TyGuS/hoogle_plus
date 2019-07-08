@@ -11,7 +11,8 @@ from multiprocessing import Pool
 
 HPLUS_CMD = "stack exec -- evaluation %s -q %s -f TSV -o %s"
 
-BMS_PER_GROUP = 4
+BMS_PER_GROUP = 1
+NUM_POOLS = 1
 OUTPUT_FILE = "results.tsv"
 
 def chunks(l, n):
@@ -38,7 +39,7 @@ def run_benchmarks(experiment, benchmarks):
     for p in run_pairs:
         cmd = HPLUS_CMD % (experiment, p["input_file"], p["output_file"])
         cmds.append(cmd)
-    # execute_bms(cmds)
+    execute_bms(cmds)
     # combine the results
     allResults = []
     headers = []
@@ -56,7 +57,7 @@ def run_benchmarks(experiment, benchmarks):
     print("wrote to %s" % OUTPUT_FILE)
 
 def execute_bms(cmds):
-    with Pool(processes=4) as pool:
+    with Pool(processes=NUM_POOLS) as pool:
         pool.map(os.system, cmds)
 
 def main ():

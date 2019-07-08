@@ -48,8 +48,9 @@ myModules = [
   "Data.ByteString.Builder"
   ]
 
-poplModules = [
-  "Prelude", -- This prelude in customPrelude is missing those with HK-tyvars and the zip >=3 family functions.
-  "Data.List", -- This is Data.OldList to avoid a Foldable fiasco. We don't support those higher-kinded tyvars yet.
-  "Data.Maybe", "Data.Either", "Data.Bool",
-  "Data.Set"]
+poplModules = error "use icfppartial for popl"
+  -- [
+  -- "Prelude", -- This prelude in customPrelude is missing those with HK-tyvars and the zip >=3 family functions.
+  -- "Data.List", -- This is Data.OldList to avoid a Foldable fiasco. We don't support those higher-kinded tyvars yet.
+  -- "Data.Maybe", "Data.Either", "Data.Bool",
+  -- "Data.Set"]

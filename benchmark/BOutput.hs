@@ -136,11 +136,11 @@ headersList CoalescingStrategies = [
   "Soln-None", "Soln-Naive", "Soln-Least", "Soln-Most"
   ]
 headersList CompareInitialAbstractCovers = [
-    "T-Q", "T-0", "T-HOF", "T-Sypet",
-    "Ref-Q", "Ref-0", "Ref-HOF", "Ref-Sypet",
-    "Transitions-Q", "Transitions-0", "Transitions-HOF", "Transitions-Sypet",
-    "Types-Q", "Types-0", "Types-HOF", "Types-Sypet",
-    "Solution-Q", "Solution-0", "Solution-HOF", "Solution-Sypet"
+    "T-Q", "T-0", "T-Sypet",
+    "Ref-Q", "Ref-0", "Ref-Sypet",
+    "Transitions-Q", "Transitions-0", "Transitions-Sypet",
+    "Types-Q", "Types-0", "Types-Sypet",
+    "Solution-Q", "Solution-0", "Solution-Sypet"
   ]
 headersList TrackTypesAndTransitions = [
   "time - no coalescing", "time - coalescing", "nc: length", "c: length",
@@ -196,7 +196,6 @@ toRow currentExp (name, rss) =
     rowForExp CompareInitialAbstractCovers = let
       tygar = fromJust (results <$> findwhere expTyGarQ rss)
       tygar0 = fromJust (results <$> findwhere expTyGar0 rss)
-      tygarhof = fromJust (results <$> findwhere expQueryRefinementHOF rss)
       sypet = fromJust (results <$> findwhere expSypetClone rss)
       getRows x = [
         (showFloat . resTFirstSoln) <$> listToMaybe x,
@@ -206,7 +205,7 @@ toRow currentExp (name, rss) =
         either show id <$> resSolutionOrError <$> listToMaybe x
         ]
       in
-        concat (transpose (map getRows [tygar, tygar0, tygarhof, sypet]))
+        concat (transpose (map getRows [tygar, tygar0, sypet]))
 
 
     rowForExp TrackTypesAndTransitions = [

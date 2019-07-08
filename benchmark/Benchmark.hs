@@ -128,7 +128,6 @@ getSetup args = do
                (searchParamsSypetClone{_solutionCnt=solnCount}, expSypetClone)]
           CompareInitialAbstractCovers -> [
             (searchParamsTyGarQ, expTyGarQ),
-            (searchParamsHOF, expQueryRefinementHOF),
             (searchParamsSypetClone, expSypetClone),
             (searchParamsTyGar0, expTyGar0)
             -- (searchParamsTyGarQB, expTyGarQB),
@@ -138,9 +137,11 @@ getSetup args = do
           CompareFinalCovers -> [
             (searchParamsNoGar, expNoGar),
             (searchParamsNoGar0, expNoGar0)]
-          CompareThresholds ->
-            map (\i -> (searchParamsTyGar0 {_stopRefine=True,_threshold=i}, "TyGar0B"++show i)) [1..10]
-            ++ map (\i -> (searchParamsTyGarQ {_stopRefine=True,_threshold=i}, "TyGarQB"++show i)) [1..10]
+          CompareThresholds -> let
+            bounds = 1:[5,10..25]
+            in
+            map (\i -> (searchParamsTyGar0 {_stopRefine=True,_threshold=i}, "TyGar0B"++show i)) bounds
+            ++ map (\i -> (searchParamsTyGarQ {_stopRefine=True,_threshold=i}, "TyGarQB"++show i)) bounds
           CompareIncremental -> [
             (searchParamsNoGar, expNoGar),
             (searchParamsNoGarInc, expNoGarInc),
