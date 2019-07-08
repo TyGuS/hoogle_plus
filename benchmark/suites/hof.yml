@@ -41,3 +41,15 @@
 - name: pipe
   query: "[(a -> a)] -> (a -> a)"
   solution: foldr ($) id xs
+
+- name: indexesOf
+  query: "([(a,Int)] -> [(a,Int)]) -> [a] -> [Int] -> [Int]"
+  solution: indexesOf f xs ys = map snd (f (zip xs ys))
+
+- name: dotProduct
+  query: "[Int] -> [Int] -> Int"
+  solution: \x y -> sum (zipWith (*) x y)
+
+- name: appTuple
+  query: "(a -> a') -> (b -> b') -> (a, b) -> (a', b')"
+  solution: appTuple f g t = (f (fst t), g (snd t))

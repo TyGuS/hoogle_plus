@@ -57,3 +57,7 @@
 
 # - name: updateAllInMap
 #   query: (v -> Maybe v) -> Map k v -> Map k v
+
+- name: containsEdge
+  query: "[Int] -> (Int,Int) -> Bool"
+  solution: containsEdge xs (a,b) = (a `elem` xs) && (b `elem` xs)

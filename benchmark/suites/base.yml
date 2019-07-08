@@ -95,3 +95,11 @@
 - name: appendN
   query: "Int -> [a] -> [a]"
   solution: concat (replicate n xs)
+
+- name: flatter
+  query: "[[[a]]] -> [a]"
+  solution: flatter xs = concat (concat xs)
+
+- name: takeNdropM
+  query: "Int -> Int -> [a] -> ([a], [a])"
+  solution: "takeNdropM n m l = (take n l, drop m l)"
