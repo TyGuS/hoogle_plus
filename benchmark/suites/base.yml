@@ -73,6 +73,7 @@
 
 - name: applyPair
   query: "(a -> b, a) -> b"
+  solution: (fst arg0) (snd arg0)
 
 # No solution?
 - name: cross
@@ -86,6 +87,7 @@
 
 - name: maybe
   query: "Maybe a -> a -> Maybe a"
+  solution: Just (maybe arg0 arg1)
 
 - name: app3
   query: "(a -> b -> c -> d) -> a -> c -> b -> d"

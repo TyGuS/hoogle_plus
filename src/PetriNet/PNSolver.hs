@@ -478,14 +478,17 @@ findProgram :: MonadIO m
             => Environment -- the search environment
             -> RType       -- the goal type
             -> EncodeState -- intermediate encoding state
-            -> PNSolver m (RProgram, EncodeState)
-findProgram env dst st = do
-    modify $ set splitTypes Set.empty
-    modify $ set typeAssignment Map.empty
-    writeLog 2 "findProgram" $ text "calling findProgram"
-    (path, st') <- findPath env dst st
-    paths <- enumeratePath path
-    checkUntilFail st' path paths
+            -> [[Id]]      -- remaining paths
+            -> PNSolver m (RProgram, EncodeState, [[Id]])
+findProgram env dst st ps
+    | not (null ps) = checkUntilFail st ps
+    | null ps = do
+        modify $ set splitTypes Set.empty
+        modify $ set typeAssignment Map.empty
+        writeLog 2 "findProgram" $ text "calling findProgram"
+        (path, st') <- findPath env dst st
+        paths <- enumeratePath path
+        checkUntilFail st' paths
   where
     enumeratePath :: MonadIO m => [Id] -> PNSolver m [[Id]]
     enumeratePath path = do
@@ -547,10 +550,12 @@ findProgram env dst st = do
     findFunction fm name = fromMaybe (error $ "cannot find function name " ++ name)
                                      (HashMap.lookup name fm)
 
-    fillSketch reps firedTrans = do
+    fillSketch firedTrans = do
         fm <- gets $ view functionMap
         src <- gets $ view sourceTypes
         nameMap <- gets $ view nameMapping
+        repLists <- mapM getGroupRep firedTrans
+        let reps = map head repLists
         let args = Map.keys $ foArgsOf env
         writeLog 2 "fillSketch" $ text "found path" <+> pretty firedTrans
         mapM_ (\f -> do
@@ -563,13 +568,12 @@ findProgram env dst st = do
 
     checkUntilFail :: MonadIO m
                     => EncodeState
-                    -> [Id]
                     -> [[Id]]
-                    -> PNSolver m (RProgram, EncodeState)
-    checkUntilFail st' _ [] = findProgram env dst $ st' {prevChecked=True}
-    checkUntilFail st' reps (path:ps) = do
+                    -> PNSolver m (RProgram, EncodeState, [[Id]])
+    checkUntilFail st' [] = findProgram env dst (st' {prevChecked=True}) []
+    checkUntilFail st' (path:ps) = do
         writeLog 1 "findPath" $ pretty path
-        codeResult <- fillSketch reps path
+        codeResult <- fillSketch path
         checkResult <- withTime TypeCheckTime $
                         firstCheckedOrError $
                         sortOn length $ Set.toList codeResult
@@ -578,19 +582,15 @@ findProgram env dst st = do
         placeNum <- getExperiment threshold
         cover <- gets $ view abstractionCover
         case checkResult of
-            Nothing -> findProgram env dst $ st' {prevChecked=True}
+            Nothing -> findProgram env dst st' ps
             Just (Left code) -> do
                 mbSln <- checkSolution st' code
                 case mbSln of
-                    Nothing -> checkUntilFail st' reps ps
-                    Just p -> do
-                        cnt <- getExperiment solutionCnt
-                        modify $ set (searchParams . solutionCnt) (cnt-1)
-                        if cnt > 1 then checkUntilFail st' reps ps
-                                   else return (p, st')
+                    Nothing -> checkUntilFail st' ps
+                    Just p -> return (p, st', ps)
             Just (Right err)
                 | not (doRefine rs) || (stop && coverSize cover >= placeNum) ->
-                    checkUntilFail st' reps ps
+                    checkUntilFail st' ps
                 | otherwise -> do
                     cover <- gets $ view abstractionCover
                     funcs <- gets $ view activeSigs
@@ -662,7 +662,7 @@ findProgram env dst st = do
                            (numOfTransitions s)
                 })
         st' <- withTime EncodingTime (fixEncoder env dst st splitInfo)
-        findProgram env dst st'
+        findProgram env dst st' []
 
     checkSolution st code = do
         solutions <- gets $ view currentSolutions
@@ -682,20 +682,27 @@ findFirstN :: MonadIO m
             => Environment
             -> RType
             -> EncodeState
+            -> [[Id]]
+            -> Int
             -> PNSolver m ()
-findFirstN env dst st = do
-    strategy <- getExperiment refineStrategy
-    (soln, st') <- withTime TotalSearch $ findProgram env dst st
-    writeSolution soln
-    currentSols <- gets $ view currentSolutions
-    writeLog 2 "findFirstN" $ text "Current Solutions:" <+> pretty currentSols
+findFirstN env dst st ps n
+    | n == 0 = return ()
+    | otherwise = do
+        strategy <- getExperiment refineStrategy
+        (soln, st', ps') <- withTime TotalSearch $ findProgram env dst st ps
+        writeSolution soln
+        modify $ over currentSolutions ((:) soln)
+        currentSols <- gets $ view currentSolutions
+        writeLog 2 "findFirstN" $ text "Current Solutions:" <+> pretty currentSols
+        findFirstN env dst (st' {prevChecked = True}) ps' (n - 1)
 
 runPNSolver :: MonadIO m => Environment -> RType -> PNSolver m ()
 runPNSolver env t = do
     writeLog 3 "runPNSolver" $ text $ show (allSymbols env)
     withTime TotalSearch $ initNet env
     st <- withTime TotalSearch $ withTime EncodingTime (resetEncoder env t)
-    findFirstN env t st
+    cnt <- getExperiment solutionCnt
+    findFirstN env t st [] cnt
     msgChan <- gets $ view messageChan
     liftIO $ writeChan msgChan (MesgClose CSNormal)
 

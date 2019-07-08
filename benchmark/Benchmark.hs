@@ -31,7 +31,7 @@ defaultArgs = Args {
   argsTimeout=defaultTimeout &= name "timeout" &= help "Each experiment will have N seconds to complete" ,
   argsOutputFile=[] &= name "output" &= typFile,
   argsExperiment=defaultExperiment &= argPos 0,
-  argsOutputFormat=[Plot, TSV] &= name "format",
+  argsOutputFormat=[] &= name "format",
   argsPreset=ICFPPartial &= name "preset" &= help "Component set preset"
   }
 
@@ -41,8 +41,10 @@ main = do
     let currentExperiment = argsExperiment args
     let setup = ExpSetup {expTimeout = argsTimeout args, expCourse = currentExperiment}
     (envs, params, exps) <- getSetup args
-    let outputFormats = argsOutputFormat args
-    let outputFormatFiles = zip outputFormats (repeat Nothing)
+    let outputFormats' = argsOutputFormat args
+    let outputFormats = if null outputFormats' then [Plot, TSV] else outputFormats'
+    let outputFiles = argsOutputFile args
+    let outputFormatFiles = zip outputFormats ((map Just outputFiles) ++ repeat Nothing)
     let environmentStatsTable = outputSummary Table currentExperiment envs
     putStrLn environmentStatsTable
 
@@ -103,7 +105,7 @@ getSetup args = do
   let currentExperiment = argsExperiment args
   let params =
         case currentExperiment of
-          POPLQuality -> let solnCount = 5 in [
+          POPLQuality -> let solnCount = 1 in [
             (searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ),
             (searchParamsTyGarQNoDmd{_solutionCnt=solnCount}, expTyGarQNoDmd)
             ]
