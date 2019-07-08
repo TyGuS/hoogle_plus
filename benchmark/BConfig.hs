@@ -12,6 +12,7 @@ defaultExperiment = TrackTypesAndTransitions
 
 expTyGarQ = "TYGAR-Q"
 expTyGarQNoDmd = expTyGarQ ++ "- no demand"
+expTyGarQNoRel = expTyGarQ ++ "- no relevancy"
 expTyGarQNoCoalesce = expTyGarQ ++ "- no coalescing"
 expTyGarQCoalesceFirst = expTyGarQ ++ "- coalesce naive"
 expTyGarQCoalesceLeast = expTyGarQ ++ "- coalesce least"
@@ -31,6 +32,7 @@ expILP = "Integer Linear Programming"
 
 searchParamsTyGarQ = defaultSearchParams
 searchParamsTyGarQNoDmd = defaultSearchParams{_disableDemand = True}
+searchParamsTyGarQNoRel = defaultSearchParams{_disableDemand = True, _disableRelevancy = True}
 searchParamsSypetClone = defaultSearchParams{_refineStrategy=SypetClone}
 searchParamsTyGar0 = defaultSearchParams{_refineStrategy=TyGar0}
 searchParamsTyGarQB = defaultSearchParams{_stopRefine=True,_threshold=5}
