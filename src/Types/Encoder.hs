@@ -70,7 +70,8 @@ data EncodeState = EncodeState {
   persistConstraints :: [Z3.AST],
   optionalConstraints :: [Z3.AST],
   finalConstraints :: [Z3.AST],
-  blockConstraints :: [Z3.AST]
+  blockConstraints :: [Z3.AST],
+  useArguments :: Bool
 }
 
 emptyEncodeState = EncodeState {
@@ -93,7 +94,8 @@ emptyEncodeState = EncodeState {
   persistConstraints = [],
   optionalConstraints = [],
   finalConstraints = [],
-  blockConstraints = []
+  blockConstraints = [],
+  useArguments = True
 }
 
 newEnv :: Maybe Logic -> Opts -> IO Z3Env

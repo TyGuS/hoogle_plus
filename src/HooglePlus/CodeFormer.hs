@@ -71,8 +71,13 @@ applyFunction func = do
 -- | generate the program from the signatures appeared in selected transitions
 -- these signatures are sorted by their timestamps,
 -- i.e. they may only use symbols appearing before them
-generateProgram :: [FunctionCode] -> [AbstractSkeleton] -> [Id] -> [AbstractSkeleton] -> CodeFormer CodePieces
-generateProgram signatures inputs argNames rets = do
+generateProgram :: [FunctionCode]      -- signatures used to generate program
+                -> [AbstractSkeleton]  -- argument types in the query
+                -> [Id]                -- argument names
+                -> [AbstractSkeleton]  -- return types
+                -> Bool                -- relevancy toggle
+                -> CodeFormer CodePieces
+generateProgram signatures inputs argNames rets disrel = do
     -- prepare scalar variables
     st <- get
     put $ st { varCounter = 0
@@ -104,5 +109,5 @@ generateProgram signatures inputs argNames rets = do
         let fold_fn f (b, c) = if b && f `elem` c then (True, f `delete` c) else (False, c)
             base             = (True, code)
             funcNames        = map funName signatures
-            (res, c)         = foldr fold_fn base (argNames ++ funcNames)
+            (res, c)         = foldr fold_fn base (funcNames ++ if disrel then [] else argNames)
         in res

@@ -60,7 +60,8 @@ setInitialState inputs places = do
     let inputCounts = map (\t -> (head t, length t)) (group (sort inputs))
     let nonInputCounts = map (, 0) nonInputs
     mapM_ (uncurry assignToken) nonInputCounts
-    mapM_ (uncurry assignInput) inputCounts
+    enforceArg <- gets useArguments
+    when enforceArg $ mapM_ (uncurry assignInput) inputCounts
   where
     assignToken p v = do
         placeMap <- gets place2variable
@@ -121,7 +122,7 @@ addAllConstraints = do
     mapM_ assert ocons
     mapM_ assert fcons
     mapM_ assert bcons
-    
+
 nonincrementalSolve :: Encoder Z3.Result
 nonincrementalSolve = do
     prev <- gets prevChecked
@@ -151,7 +152,7 @@ incrementalSolve = do
     finalSym <- mkStringSymbol $ "final" ++ show cnt
     finalE <- mkConst finalSym boolS
     finaled <- mkAnd finals >>= mkImplies finalE
-    
+
     assert excluded
     assert finaled
     assert blocked
@@ -237,8 +238,16 @@ solveAndGetModel = do
         let tsVar = findVariable "time2variable" t tsMap
         mkIntNum tr >>= mkEq tsVar
 
-encoderInit :: Int -> HashMap Id [Id] -> [AbstractSkeleton] -> [AbstractSkeleton] -> [FunctionCode] -> HashMap AbstractSkeleton (Set Id) -> Bool -> IO EncodeState
-encoderInit len hoArgs inputs rets sigs t2tr incr = do
+encoderInit :: Int
+            -> HashMap Id [Id]
+            -> [AbstractSkeleton]
+            -> [AbstractSkeleton]
+            -> [FunctionCode]
+            -> HashMap AbstractSkeleton (Set Id)
+            -> Bool
+            -> Bool
+            -> IO EncodeState
+encoderInit len hoArgs inputs rets sigs t2tr incr rele = do
     z3Env <- initialZ3Env
     false <- Z3.mkFalse (envContext z3Env)
     let initialState = emptyEncodeState {
@@ -248,6 +257,7 @@ encoderInit len hoArgs inputs rets sigs t2tr incr = do
         , ty2tr = t2tr
         , incrementalSolving = incr
         , returnTyps = rets
+        , useArguments = not rele
         }
     execStateT (createEncoder inputs (head rets) sigs) initialState
 
