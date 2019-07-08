@@ -488,6 +488,7 @@ findProgram env dst st ps
         writeLog 2 "findProgram" $ text "calling findProgram"
         (path, st') <- findPath env dst st
         paths <- enumeratePath path
+        writeLog 2 "findProgram" $ text "all possible paths" <+> pretty paths
         checkUntilFail st' paths
   where
     enumeratePath :: MonadIO m => [Id] -> PNSolver m [[Id]]
@@ -572,7 +573,7 @@ findProgram env dst st ps
                     -> PNSolver m (RProgram, EncodeState, [[Id]])
     checkUntilFail st' [] = findProgram env dst (st' {prevChecked=True}) []
     checkUntilFail st' (path:ps) = do
-        writeLog 1 "findPath" $ pretty path
+        writeLog 1 "checkUntilFail" $ pretty path
         codeResult <- fillSketch path
         checkResult <- withTime TypeCheckTime $
                         firstCheckedOrError $
@@ -582,12 +583,12 @@ findProgram env dst st ps
         placeNum <- getExperiment threshold
         cover <- gets $ view abstractionCover
         case checkResult of
-            Nothing -> findProgram env dst st' ps
+            Nothing -> checkUntilFail st' ps
             Just (Left code) -> do
                 mbSln <- checkSolution st' code
                 case mbSln of
                     Nothing -> checkUntilFail st' ps
-                    Just p -> return (p, st', ps)
+                    Just p -> return (p, st' {prevChecked = null ps}, ps)
             Just (Right err)
                 | not (doRefine rs) || (stop && coverSize cover >= placeNum) ->
                     checkUntilFail st' ps
@@ -606,13 +607,13 @@ findProgram env dst st ps
     firstCheckedOrError (x:xs) = do
         res <- parseAndCheck x
         case res of
-            Left prog -> return (Just $ Left prog)
+            Left prog -> return $ Just res
             Right err -> do
                 res' <- firstCheckedOrError xs
                 case res' of
-                    Nothing -> return Nothing
-                    Just (Left prog) -> return (Just $ Left prog)
-                    Just (Right _)  -> return (Just $ Right err)
+                    Nothing -> return $ Just res
+                    Just (Left prog) -> return res'
+                    Just (Right _)  -> return $ Just res
 
     pickGeneralization ABottom target = return ABottom
     pickGeneralization ty target = do
@@ -627,10 +628,10 @@ findProgram env dst st ps
                        ParseOk exp -> toSynquidProgram exp
                        ParseFailed loc err -> error err
         mapping <- gets $ view nameMapping
-        writeLog 1 "findProgram" $ text "Find program" <+> pretty (recoverNames mapping prog)
+        writeLog 1 "parseAndCheck" $ text "Find program" <+> pretty (recoverNames mapping prog)
         modify $ set isChecked True
         btm <- bottomUpCheck env prog
-        writeLog 3 "findProgram" $ text "bottom up checking get program" <+> pretty (recoverNames mapping btm)
+        writeLog 3 "parseAndCheck" $ text "bottom up checking get program" <+> pretty (recoverNames mapping btm)
         checkStatus <- gets (view isChecked)
         let tyBtm = typeOf btm
         when checkStatus (solveTypeConstraint env (shape tyBtm) (shape dst))
@@ -694,7 +695,7 @@ findFirstN env dst st ps n
         modify $ over currentSolutions ((:) soln)
         currentSols <- gets $ view currentSolutions
         writeLog 2 "findFirstN" $ text "Current Solutions:" <+> pretty currentSols
-        findFirstN env dst (st' {prevChecked = True}) ps' (n - 1)
+        findFirstN env dst st' ps' (n - 1)
 
 runPNSolver :: MonadIO m => Environment -> RType -> PNSolver m ()
 runPNSolver env t = do

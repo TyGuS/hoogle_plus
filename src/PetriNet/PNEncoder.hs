@@ -128,7 +128,8 @@ nonincrementalSolve = do
     prev <- gets prevChecked
     when prev $ do
         toBlock <- gets block
-        modify $ \st -> st { blockConstraints = toBlock : blockConstraints st}
+        modify $ \st -> st { blockConstraints = toBlock : blockConstraints st
+                            , prevChecked = False }
 
     addAllConstraints
     check
@@ -143,7 +144,8 @@ incrementalSolve = do
     blocked <- ifM (gets prevChecked)
                    (gets block >>= mkImplies blockE)
                    (mkTrue >>= mkImplies blockE)
-    modify $ \st -> st { blockConstraints = blockE : blockConstraints st}
+    modify $ \st -> st { blockConstraints = blockE : blockConstraints st
+                        , prevChecked = False }
     exclusions <- gets optionalConstraints
     excludeSym <- mkStringSymbol $ "exclude" ++ show cnt
     excludeE <- mkConst excludeSym boolS
