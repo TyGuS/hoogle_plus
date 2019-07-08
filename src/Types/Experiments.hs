@@ -43,7 +43,8 @@ data SearchParams = SearchParams {
   _incrementalSolving :: Bool,
   _disableDemand :: Bool,
   _coalesceTypes :: Bool,
-  _coalesceStrategy :: CoalesceStrategy
+  _coalesceStrategy :: CoalesceStrategy,
+  _disableRelevancy :: Bool
 } deriving (Eq, Show)
 
 makeLenses ''SearchParams
@@ -87,7 +88,8 @@ defaultSearchParams = SearchParams {
   _incrementalSolving = False,
   _disableDemand = False,
   _coalesceTypes = True,
-  _coalesceStrategy = First
+  _coalesceStrategy = First,
+  _disableRelevancy = False
 }
 
 type ExperimentName = String

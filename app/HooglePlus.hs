@@ -87,6 +87,7 @@ main = do
                   , disable_coalescing
                   , coalescing_strategy
                   , incremental
+                  , disable_relevancy
                   } -> do
             let searchParams =
                     defaultSearchParams
@@ -101,6 +102,7 @@ main = do
                         , _disableDemand = disable_demand
                         , _coalesceTypes = not disable_coalescing
                         , _coalesceStrategy = coalescing_strategy
+                        , _disableRelevancy = disable_relevancy
                         }
             let synquidParams =
                     defaultSynquidParams {Main.envPath = env_file_path_in}
@@ -149,7 +151,8 @@ data CommandLineArgs
         disable_demand :: Bool,
         disable_coalescing :: Bool,
         incremental :: Bool,
-        coalescing_strategy :: CoalesceStrategy
+        coalescing_strategy :: CoalesceStrategy,
+        disable_relevancy :: Bool
       }
       | Generate {
         -- | Input
@@ -178,7 +181,8 @@ synt = Synthesis {
   incremental         = False           &= help ("Enable the incremental solving in z3 (default: False)"),
   disable_demand = False &= name "d" &= help ("Disable the demand analyzer (default: False)"),
   disable_coalescing = False &= name "xc" &= help ("Do not coalesce transitions in the net with the same abstract type"),
-  coalescing_strategy = First &= help ("Choose how type coalescing works. Default: Pick first element of each group set.")
+  coalescing_strategy = First &= help ("Choose how type coalescing works. Default: Pick first element of each group set."),
+  disable_relevancy   = False           &= help ("Disable the relevancy requirement for argument types (default: False)")
   } &= auto &= help "Synthesize goals specified in the input file"
 
 generate = Generate {
