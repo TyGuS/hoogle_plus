@@ -105,9 +105,9 @@ getSetup args = do
   let currentExperiment = argsExperiment args
   let params =
         case currentExperiment of
-          POPLQuality -> let solnCount = 1 in [
-            (searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ),
-            (searchParamsTyGarQNoDmd{_solutionCnt=solnCount}, expTyGarQNoDmd)
+          POPLQuality -> let solnCount = 5 in [
+            (searchParamsTyGarQ{_useHO=True, _solutionCnt=solnCount}, expTyGarQ),
+            (searchParamsTyGarQNoDmd{_useHO=True, _solutionCnt=solnCount}, expTyGarQNoDmd)
             ]
           CoalescingStrategies -> [
             (searchParamsTyGarQ{_coalesceTypes=False}, expTyGarQNoCoalesce),
@@ -130,10 +130,11 @@ getSetup args = do
             (searchParamsTyGarQ, expTyGarQ),
             (searchParamsHOF, expQueryRefinementHOF),
             (searchParamsSypetClone, expSypetClone),
-            (searchParamsTyGar0, expTyGar0),
-            (searchParamsTyGarQB, expTyGarQB),
-            (searchParamsTyGar0B, expTyGar0B),
-            (searchParamsNoGar, expNoGar)]
+            (searchParamsTyGar0, expTyGar0)
+            -- (searchParamsTyGarQB, expTyGarQB),
+            -- (searchParamsTyGar0B, expTyGar0B),
+            -- (searchParamsNoGar, expNoGar)
+            ]
           CompareFinalCovers -> [
             (searchParamsNoGar, expNoGar),
             (searchParamsNoGar0, expNoGar0)]

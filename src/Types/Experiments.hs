@@ -78,7 +78,7 @@ data TimeStatUpdate
 defaultSearchParams = SearchParams {
   _maxApplicationDepth = 6,
   _sourcePos = noPos,
-  _explorerLogLevel = 1,
+  _explorerLogLevel = 0,
   _solutionCnt = 1,
   _useHO = False,
   _refineStrategy = TyGarQ,

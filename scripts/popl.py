@@ -38,7 +38,7 @@ def run_benchmarks(experiment, benchmarks):
     for p in run_pairs:
         cmd = HPLUS_CMD % (experiment, p["input_file"], p["output_file"])
         cmds.append(cmd)
-    execute_bms(cmds)
+    # execute_bms(cmds)
     # combine the results
     allResults = []
     headers = []
@@ -65,7 +65,6 @@ def main ():
     parser.add_argument("benchmarkfile", help="which benchmark file to run")
     args = parser.parse_args()
 
-    print(args)
     with open(args.benchmarkfile) as f:
         bms = yaml.load(f)
         print(bms)

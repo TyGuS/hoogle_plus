@@ -136,11 +136,12 @@ headersList CoalescingStrategies = [
   "Soln-None", "Soln-Naive", "Soln-Least", "Soln-Most"
   ]
 headersList CompareInitialAbstractCovers = [
-    "tS - QR", "tEnc - QR",
-    "l", "r", "tr", "ty",
-    "tS - B", "tr - B",
-    "tS - Z", "tr - Z"
-    ]
+    "T-Q", "T-0", "T-HOF", "T-Sypet",
+    "Ref-Q", "Ref-0", "Ref-HOF", "Ref-Sypet",
+    "Transitions-Q", "Transitions-0", "Transitions-HOF", "Transitions-Sypet",
+    "Types-Q", "Types-0", "Types-HOF", "Types-Sypet",
+    "Solution-Q", "Solution-0", "Solution-HOF", "Solution-Sypet"
+  ]
 headersList TrackTypesAndTransitions = [
   "time - no coalescing", "time - coalescing", "nc: length", "c: length",
   "nc: refinement steps", "c: refinement steps",
@@ -192,19 +193,21 @@ toRow currentExp (name, rss) =
         Just $ unlines (map (mkOneLine . toSolution) qrr),
         Just $ unlines (map (mkOneLine . toSolution) qrrNoDmd)
       ]
-    rowForExp CompareInitialAbstractCovers = [
-      (showFloat . resTFirstSoln) <$> (head . results) <$> mbqr,
-      (showFloat . resTEncFirstSoln) <$> (head . results) <$> mbqr,
-      (show . resLenFirstSoln) <$> (head . results) <$> mbqr,
-      (show . resRefinementSteps) <$> (head . results) <$> mbqr,
-      (show . resTransitions) <$> (head . results) <$> mbqr,
-      (show . resTypes) <$> (head . results) <$> mbqr,
+    rowForExp CompareInitialAbstractCovers = let
+      tygar = fromJust (results <$> findwhere expTyGarQ rss)
+      tygar0 = fromJust (results <$> findwhere expTyGar0 rss)
+      tygarhof = fromJust (results <$> findwhere expQueryRefinementHOF rss)
+      sypet = fromJust (results <$> findwhere expSypetClone rss)
+      getRows x = [
+        (showFloat . resTFirstSoln) <$> listToMaybe x,
+        (show . resRefinementSteps) <$> listToMaybe x,
+        (show . resTransitions) <$> listToMaybe x,
+        (show . resTypes) <$> listToMaybe x,
+        either show id <$> resSolutionOrError <$> listToMaybe x
+        ]
+      in
+        concat (transpose (map getRows [tygar, tygar0, tygarhof, sypet]))
 
-      (showFloat . resTFirstSoln) <$> (head . results) <$> mbbaseline,
-      (show . resTransitions) <$> (head . results) <$> mbbaseline,
-      (showFloat . resTFirstSoln) <$> (head . results) <$> mbzero,
-      (show . resTransitions) <$> (head . results) <$> mbzero
-      ]
 
     rowForExp TrackTypesAndTransitions = [
       (showFloat . resTFirstSoln) <$> (head . results) <$> mbNoCoalescing,

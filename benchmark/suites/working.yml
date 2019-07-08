@@ -1,2 +1,97 @@
+- name: intToBS
+  query: "Int64 -> ByteString"
+
+- name: test
+  query: "Bool -> a -> Maybe a"
+
 - name: both
   query: "(a -> b) -> (a, a) -> (b, b)"
+
+- name: fromFirstMaybes
+  query: "a -> [Maybe a] -> a"
+
+# - name: groupList
+#   query: "[(k, v)] -> Map k [v]"
+
+- name: mapEither
+  query: "(a -> Either b c) -> [a] -> ([b], [c])"
+
+- name: firstJust
+  query: "(a -> Maybe b) -> [a] -> Maybe b"
+
+- name: mergeEither
+  query: "Either a (Either a b) -> Either a b"
+
+- name: multiApp
+  query: "(a -> b -> c) -> (a -> b) -> a -> c"
+
+- name: singleList
+  query: "Int -> [Int]"
+
+- name: head-tail
+  query: "[a] -> (a,a)"
+
+- name: head-rest
+  query: "[a] -> (a, [a])"
+
+- name: pred-match
+  query: "[a] -> (a -> Bool) -> Int"
+
+- name: splitStr
+  query: "String -> Char -> [String]"
+
+- name: splitAtFirst
+  query: "a -> [a] -> ([a], [a])"
+
+- name: mbToEither
+  query: "Maybe a -> b -> Either a b"
+
+- name: cartProduct
+  query: "[a] -> [b] -> [[(a,b)]]"
+
+- name: multiAppPair
+  query: "(a -> b, a -> c) -> a -> (b, c)"
+
+# No useful solution. Head of map ?
+- name: hoogle01
+  query: "(a -> b) -> [a] -> b"
+
+- name: hoogle02
+  query: "b -> (a -> b) -> [a] -> b"
+
+- name: firstMatch
+  query: "[a] -> (a -> Bool) -> a"
+
+- name: firstMaybe
+  query: "[Maybe a] -> a"
+
+- name: rights
+  query: "[Either a b] -> Either a [b]"
+
+- name: firstKey
+  query: "[(a,b)] -> a"
+
+- name: applyPair
+  query: "(a -> b, a) -> b"
+  solution: (fst arg0) (snd arg0)
+
+# No solution?
+- name: cross
+  query: "(a, b) -> (a, b) -> (a, b)"
+
+- name: firstRight
+  query: "[Either a b] -> Either a b"
+
+- name: appPair
+  query: "(a, a) -> (a -> b) -> (b, b)"
+
+- name: maybe
+  query: "Maybe a -> a -> Maybe a"
+  solution: Just (maybe arg0 arg1)
+
+- name: app3
+  query: "(a -> b -> c -> d) -> a -> c -> b -> d"
+
+- name: appendN
+  query: "Int -> [a] -> [a]"
+  solution: concat (replicate n xs)

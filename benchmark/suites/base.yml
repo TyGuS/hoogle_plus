@@ -10,8 +10,8 @@
 - name: fromFirstMaybes
   query: "a -> [Maybe a] -> a"
 
-- name: groupList
-  query: "[(k, v)] -> Map k [v]"
+# - name: groupList
+#   query: "[(k, v)] -> Map k [v]"
 
 - name: mapEither
   query: "(a -> Either b c) -> [a] -> ([b], [c])"

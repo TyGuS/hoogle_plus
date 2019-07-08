@@ -6,7 +6,7 @@ import Types.Environment
 import BTypes
 
 
-defaultTimeout = 2 * 60 :: Int
+defaultTimeout = 60 :: Int
 defaultQueryFile = "benchmark/suites/base.yml"
 defaultExperiment = TrackTypesAndTransitions
 
