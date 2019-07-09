@@ -591,15 +591,14 @@ findProgram env dst st ps
                     Just p -> return (p, st' {prevChecked = null ps}, ps)
             Just (Right err)
                 | not (doRefine rs) || (stop && coverSize cover >= placeNum) ->
+                    modify $ over solverStats (\s -> s {
+                          numOfPlaces = Map.insert (iterations s + 1) (coverSize cover) (numOfPlaces s)
+                        , numOfTransitions = Map.insert (iterations s + 1) (Set.size funcs) (numOfTransitions s)
+                        })
                     checkUntilFail st' ps
                 | otherwise -> do
                     cover <- gets $ view abstractionCover
                     funcs <- gets $ view activeSigs
-                    modify $ over solverStats (\s -> s {
-                    iterations = iterations s + 1
-                        , numOfPlaces = Map.insert (iterations s + 1) (coverSize cover) (numOfPlaces s)
-                        , numOfTransitions = Map.insert (iterations s + 1) (Set.size funcs) (numOfTransitions s)
-                        })
                     nextSolution st' err
 
     firstCheckedOrError [] = return Nothing
@@ -651,7 +650,8 @@ findProgram env dst st ps
         cover <- gets $ view abstractionCover
         t2tr <- gets $ view type2transition
         modify $ over solverStats (\s ->
-            s   { numOfPlaces =
+            s   { iterations = iterations s + 1
+                , numOfPlaces =
                        Map.insert
                            (iterations s)
                            (coverSize cover)
