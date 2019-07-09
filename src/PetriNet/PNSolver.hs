@@ -139,6 +139,7 @@ splitTransition env newAt fid = do
     allSubsts' ret args | pairProj `isPrefixOf` fid = do
         cover <- gets $ view abstractionCover
         nameMap <- gets $ view nameMapping
+        instMap <- gets $ view instanceMapping
         let parents = HashMap.keys $ HashMap.filter (Set.member newAt) cover
         let args' = enumArgs parents (take 1 args)
         let fstRet = args !! 1
@@ -158,11 +159,13 @@ splitTransition env newAt fid = do
                                       && not (isBot sret)
         let funcs = filter validFunc (zip args' (zip fstRets sndRets))
         let sigs = map (\([a], (ft, st)) -> assemblePair (AFunctionT a ft) (AFunctionT a st)) funcs
-        mapM (mkNewSig pairProj) sigs
+        let sigs' = filter (\t -> noneInst instMap pairProj t || diffInst tvs instMap pairProj t) sigs
+        mapM (mkNewSig pairProj) sigs'
     allSubsts' ret args = do
         cover <- gets $ view abstractionCover
         nameMap <- gets $ view nameMapping
         splits <- gets $ view splitTypes
+        instMap <- gets $ view instanceMapping
         let parents = HashMap.keys $ HashMap.filter (Set.member newAt) cover
         -- let children = HashMap.lookupDefault Set.empty newAt cover `Set.difference` splits
         -- let substedTyps = parents ++ Set.toList children
@@ -178,7 +181,8 @@ splitTransition env newAt fid = do
         let funcs = filter validFunc (zip args' rets)
         let sigs = map (\f -> foldr AFunctionT (snd f) (fst f)) funcs
         let funId = lookupWithError "nameMapping" fid nameMap
-        mapM (mkNewSig funId) sigs
+        let sigs' = filter (\t -> noneInst instMap funId t || diffInst tvs instMap funId t) sigs
+        mapM (mkNewSig funId) sigs'
 
     enumArgs parents [] = [[]]
     enumArgs parents (arg:args)
@@ -503,7 +507,7 @@ findProgram env dst st ps
                 Map.filter (isFunctionType . toMonotype) (env ^. arguments)
         let hoArgs' = map (++ hoPostfix) hoArgs ++ hoArgs
         let hoAlias = Map.keysSet $ Map.filter (`elem` hoArgs') nameMap
-        let getGroup p = fromJust $ Map.lookup p ngm
+        let getGroup p = lookupWithError "nameToGroup" p ngm
         let getFuncs p = Map.findWithDefault Set.empty (getGroup p) gm
         let filterFuncs p =
                 let intsct = Set.intersection hoAlias p
@@ -801,9 +805,9 @@ diffInst tvs instMap id t = let oldt = snd (fromJust $ HashMap.lookup (id, absFu
 
 excludeUseless :: MonadIO m => Id -> AbstractSkeleton -> PNSolver m ()
 excludeUseless id ty = do
-    writeLog 3 "excludeUseless" $ text "delete" <+> pretty id <+> text "::" <+> pretty ty
     instMap <- gets (view instanceMapping)
-    let (tid, _) = fromJust (HashMap.lookup (id, absFunArgs id ty) instMap)
+    let (tid, ty') = fromJust (HashMap.lookup (id, absFunArgs id ty) instMap)
+    writeLog 3 "excludeUseless" $ text "delete" <+> pretty tid <+> text "==>" <+> pretty id <+> text "::" <+> pretty ty'
     modify $ over toRemove ((:) tid)
 
 getGroupRep :: MonadIO m => Id -> PNSolver m [Id]
