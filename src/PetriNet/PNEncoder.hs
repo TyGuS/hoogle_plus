@@ -132,7 +132,8 @@ nonincrementalSolve = do
                             , prevChecked = False }
 
     addAllConstraints
-
+    str <- solverToString
+    liftIO $ writeFile "constraint.z3" str
     check
 
 incrementalSolve :: Encoder Z3.Result
@@ -311,7 +312,7 @@ encoderInc sigs inputs rets = do
     setFinalState (head rets) places
 
 encoderRefine :: SplitInfo -> HashMap Id [Id] -> [AbstractSkeleton] -> [AbstractSkeleton] -> [FunctionCode] -> HashMap AbstractSkeleton (Set Id) -> Encoder ()
-encoderRefine info musters inputs rets sigs t2tr = do
+encoderRefine info musters inputs rets newSigs t2tr = do
     {- update the abstraction level -}
     modify $ \st -> st { ty2tr = t2tr
                        , mustFirers = musters
@@ -326,7 +327,7 @@ encoderRefine info musters inputs rets sigs t2tr = do
     let newPlaceIds = newPlaces info
     let newTransIds = newTrans info
     let currPlaces = HashMap.keys t2tr
-    let newSigs = filter ((`elem` newTransIds) . funName) sigs
+    -- let newSigs = filter ((`elem` newTransIds) . funName) sigs
     let allTrans = [(t, tr) | t <- [0..(l-1)], tr <- newSigs ]
 
     -- add new place, transition and timestamp variables

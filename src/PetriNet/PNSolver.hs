@@ -167,8 +167,6 @@ splitTransition env newAt fid = do
         splits <- gets $ view splitTypes
         instMap <- gets $ view instanceMapping
         let parents = HashMap.keys $ HashMap.filter (Set.member newAt) cover
-        -- let children = HashMap.lookupDefault Set.empty newAt cover `Set.difference` splits
-        -- let substedTyps = parents ++ Set.toList children
         let args' = enumArgs parents args
         writeLog 3 "allSubsts'" $ pretty args'
         funType <- findSymbol env fid
@@ -311,10 +309,6 @@ refineSemantic env prog at = do
         let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
         let tvs = env ^. boundTypeVars
         let envSigs = Map.fromList (concat sigs)
-        -- cands <- getExperiment hoCandidates
-        -- hoSigs <- mapM (addHoArg env envSigs False) cands
-        -- hoSigs' <- mapM (addHoArg env envSigs True) $ Map.keys hoArgs
-        -- let allSigs = concat $ sigs ++ map Map.toList (hoSigs ++ hoSigs')
         let allSigs = concat sigs
         sigs' <- mkGroups env $ Map.fromList allSigs
         mapM_ addEncodedFunction (Map.toList sigs')
@@ -466,7 +460,6 @@ fixEncoder :: MonadIO m
            -> SplitInfo
            -> PNSolver m EncodeState
 fixEncoder env dst st info = do
-    let binds = env ^. boundTypeVars
     cover <- gets (view abstractionCover)
     writeLog 2 "fixEncoder" $ text "new abstraction cover:" <+> pretty (allTypesOf cover)
     (srcTypes, tgt) <- updateSrcTgt env dst
@@ -474,7 +467,9 @@ fixEncoder env dst st info = do
     writeLog 2 "fixEncoder" $ text "fixed return type:" <+> pretty tgt
     writeLog 3 "fixEncoder" $ text "get split information" </> pretty info
     modify $ over type2transition (HashMap.filter (not . null))
-    (loc, musters, rets, funcs, tid2tr, _, _) <- prepEncoderArgs env tgt
+    (loc, musters, rets, _, tid2tr, _, _) <- prepEncoderArgs env tgt
+    fm <- gets $ view functionMap
+    let funcs = map (fromJust . (`HashMap.lookup` fm)) (newTrans info)
     liftIO $ execStateT (encoderRefine info musters srcTypes rets funcs tid2tr) st
 
 findProgram :: MonadIO m
