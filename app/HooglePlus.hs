@@ -107,9 +107,9 @@ main = do
             let synquidParams =
                     defaultSynquidParams {Main.envPath = env_file_path_in}
             executeSearch synquidParams searchParams file
-        Generate {preset = (Just preset)} -> do
-            precomputeGraph (getOptsFromPreset preset)
-        Generate Nothing files pkgs mdls d ho pathToEnv hoPath -> do
+        Generate {preset = (Just preset), precompute_graph = pg} -> do
+            precompute $ (getOptsFromPreset preset) { generateGraph = pg }
+        Generate Nothing files pkgs mdls d ho pathToEnv hoPath preGraph -> do
             let fetchOpts =
                     if (length files > 0)
                         then Local files
@@ -122,8 +122,9 @@ main = do
                         , pkgFetchOpts = fetchOpts
                         , Types.Generate.envPath = pathToEnv
                         , Types.Generate.hoPath = hoPath
+                        , generateGraph = preGraph
                         }
-            precomputeGraph generationOpts
+            precompute generationOpts
 
 
 {- Command line arguments -}
@@ -163,7 +164,8 @@ data CommandLineArgs
         type_depth :: Int,
         higher_order :: Bool,
         env_file_path_out :: String,
-        ho_path :: String
+        ho_path :: String,
+        precompute_graph :: Bool
       }
   deriving (Data, Typeable, Show, Eq)
 
@@ -193,7 +195,8 @@ generate = Generate {
   type_depth           = 2               &= help ("Depth of the types to be instantiated for polymorphic type constructors"),
   higher_order         = True            &= help ("Include higher order functions (default: True)"),
   env_file_path_out    = defaultEnvPath  &= help ("Environment file path (default:" ++ (show defaultEnvPath) ++ ")"),
-  ho_path              = "ho.txt"        &= typFile &= help ("Filename of components to be used as higher order arguments")
+  ho_path              = "ho.txt"        &= typFile &= help ("Filename of components to be used as higher order arguments"),
+  precompute_graph     = False           &= help ("Special option for SypetClone: precompute the graph for it")
 } &= help "Generate the type conversion database for synthesis"
 
 mode = cmdArgsMode $ modes [synt, generate] &=
@@ -222,9 +225,11 @@ defaultSynquidParams = SynquidParams {
     Main.envPath = defaultEnvPath
 }
 
-precomputeGraph :: GenerationOpts -> IO ()
-precomputeGraph opts = generateEnv opts >>= writeEnv (Types.Generate.envPath opts)
-
+precompute :: GenerationOpts -> IO ()
+precompute opts = do
+    env <- generateEnv opts
+    writeEnv (Types.Generate.envPath opts) env
+    when (generateGraph opts) $ writeGraph (Types.Generate.solverPath opts) env
 
 -- | Parse and resolve file, then synthesize the specified goals
 executeSearch :: SynquidParams -> SearchParams  -> String -> IO ()

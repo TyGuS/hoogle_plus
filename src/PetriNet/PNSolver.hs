@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module PetriNet.PNSolver (runPNSolver) where
+module PetriNet.PNSolver (runPNSolver, initNet) where
 
 import Control.Concurrent.Chan
 import Control.Lens
@@ -26,6 +26,9 @@ import Data.Tuple
 import Debug.Trace
 import Language.Haskell.Exts.Parser (ParseResult(..), parseExp)
 import Text.Printf
+import qualified Data.ByteString as B
+import Data.Serialize (decode)
+import System.Directory
 
 import Database.Convert
 import Database.Generate
@@ -53,7 +56,7 @@ import Types.Experiments
 import Types.Program
 import Types.Solver
 import Types.Type
-
+import Types.Generate (defaultSolverPath)
 
 encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
 encodeFunction id t | pairProj `isPrefixOf` id =
@@ -697,13 +700,44 @@ findFirstN env dst st ps n
         writeLog 2 "findFirstN" $ text "Current Solutions:" <+> pretty currentSols
         findFirstN env dst st' ps' (n - 1)
 
+initSolver :: MonadIO m => Environment -> PNSolver m ()
+initSolver env = do
+    strategy <- getExperiment refineStrategy
+    case strategy of
+        SypetClone -> readSolver
+        _ -> withTime TotalSearch $ initNet env
+
+readSolver :: MonadIO m => PNSolver m ()
+readSolver = do
+    st <- get
+    -- read the solver state from disk
+    doesExist <- liftIO $ doesFileExist defaultSolverPath
+    when (not doesExist) (error ("cannot find solver file"))
+    solverRes <- liftIO $ decode <$> B.readFile defaultSolverPath
+    case solverRes of
+        Left err -> error err
+        Right solverSt -> put $ st {
+              _nameCounter = _nc solverSt
+            , _currentSigs = _sigs solverSt
+            , _activeSigs = _as solverSt
+            , _functionMap = _fm solverSt
+            , _groupMap = _gm solverSt
+            , _groupRepresentative = _gr solverSt
+            , _typeToGroup = _t2g solverSt
+            , _nameToGroup = _n2g solverSt
+            , _type2transition = _t2tr solverSt
+            , _nameMapping = _nm solverSt
+            , _instanceMapping = _im solverSt
+            , _instanceCounts = _ic solverSt
+            }
+
 runPNSolver :: MonadIO m => Environment -> RType -> PNSolver m ()
 runPNSolver env t = do
     writeLog 3 "runPNSolver" $ text $ show (allSymbols env)
-    withTime TotalSearch $ initNet env
-    st <- withTime TotalSearch $ withTime EncodingTime (resetEncoder env t)
+    initSolver env
+    encoderSt <- withTime TotalSearch $ withTime EncodingTime (resetEncoder env t)
     cnt <- getExperiment solutionCnt
-    findFirstN env t st [] cnt
+    findFirstN env t encoderSt [] cnt
     msgChan <- gets $ view messageChan
     liftIO $ writeChan msgChan (MesgClose CSNormal)
 

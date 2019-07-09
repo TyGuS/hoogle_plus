@@ -1,5 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module Database.Environment(writeEnv, generateEnv, toFunType) where
+module Database.Environment(writeEnv, writeGraph, generateEnv, toFunType) where
 
 import Data.Either
 import Data.Serialize (encode)
@@ -9,10 +9,12 @@ import qualified Data.ByteString as B
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Control.Monad.State (evalStateT)
+import Control.Monad.State
 import System.Exit (exitFailure)
 import Text.Parsec.Pos (initialPos)
 import Text.Printf
+import qualified Debug.Trace as D
+import Control.Concurrent.Chan
 
 import Synquid.Error (Pos(Pos))
 import Synquid.Logic (ftrue)
@@ -23,14 +25,15 @@ import Database.Util
 import qualified Database.Download as DD
 import qualified Database.Convert as DC
 import Types.Environment
-import Types.Program (BareDeclaration(..), Declaration(..), ConstructorSig(..))
 import Types.Generate
+import PetriNet.PNSolver
+import Types.Solver
+import qualified HooglePlus.Abstraction as Abstraction
 import Synquid.Resolver (resolveDecls)
 import qualified Data.List.Utils as LUtils
-import qualified Types.Program as TP
+import Types.Program
 import Synquid.Util
-import qualified Debug.Trace as D
-
+import Synquid.Program
 
 writeEnv :: FilePath -> Environment -> IO ()
 writeEnv path env = B.writeFile path (encode env)
@@ -49,6 +52,32 @@ getDeps Hackage{packages=ps} allEntries ourEntries = do
     mapM (flip evalStateT 0 . DC.toSynquidDecl) dependentEntries
     ) ps
   return $ nubOrd $ concat pkgsDeps
+
+writeGraph :: FilePath -> Environment -> IO ()
+writeGraph solverPath env = do
+    messageChan <- newChan
+    let is = emptySolverState
+                { _abstractionCover = Abstraction.firstLvAbs env (Map.elems (allSymbols env))
+                , _messageChan = messageChan
+                }
+    solverState <- execStateT (initNet env) is
+    B.writeFile solverPath (encode $ toWritable solverState)
+    where
+        toWritable st = WritableSolverState
+            {
+                _nc = st ^. nameCounter,
+                _sigs = st ^. currentSigs,
+                _as = st ^. activeSigs,
+                _fm = st ^. functionMap,
+                _gm = st ^. groupMap,
+                _gr = st ^. groupRepresentative,
+                _t2g = st ^. typeToGroup,
+                _n2g = st ^. nameToGroup,
+                _t2tr = st ^. type2transition,
+                _nm = st ^. nameMapping,
+                _im = st ^. instanceMapping,
+                _ic = st ^. instanceCounts
+            }
 
 generateEnv :: GenerationOpts -> IO Environment
 generateEnv genOpts = do
@@ -80,7 +109,7 @@ generateEnv genOpts = do
     let declStrs = show (instanceFunctions' ++ ourDecls)
     let removeParentheses = (\x -> LUtils.replace ")" "" $ LUtils.replace "(" "" x)
     let tcNames = nub $ map removeParentheses $ filter (\x -> isInfixOf tyclassPrefix x) (splitOn " " declStrs)
-    let tcDecls = map (\x -> Pos (initialPos "") $ TP.DataDecl x ["a"] [] []) tcNames
+    let tcDecls = map (\x -> Pos (initialPos "") $ DataDecl x ["a"] [] []) tcNames
 
     let library = concat [ourDecls, dependencyEntries, instanceFunctions', tcDecls, defaultLibrary]
     let hooglePlusDecls = DC.reorderDecls $ nubOrd $ library

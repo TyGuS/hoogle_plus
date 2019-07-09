@@ -1,4 +1,5 @@
-{-# LANGUAGE DeriveDataTypeable#-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Types.Encoder where
 
 import Data.Maybe
@@ -12,6 +13,7 @@ import Z3.Monad hiding(Z3Env, newEnv)
 import Control.Monad.State
 import Data.Data
 import Data.Typeable
+import Data.Serialize
 import GHC.Generics
 import qualified Language.Haskell.Exts.Syntax as HSE
 import Data.Function
@@ -30,7 +32,7 @@ data FunctionCode = FunctionCode {
   hoParams  :: [FunctionCode],
   funParams :: [AbstractSkeleton], -- function parameter types and their count
   funReturn :: [AbstractSkeleton]   -- function return type
-}
+} deriving(Generic)
 
 instance Eq FunctionCode where
   fc1 == fc2 = let
@@ -43,6 +45,8 @@ instance Ord FunctionCode where
     thenCmp ordering _        = ordering
     cmp arg = on compare arg fc1 fc2
     in foldr1 thenCmp [cmp hoParams, cmp funParams, cmp funReturn]
+
+instance Serialize FunctionCode
 
 data Z3Env = Z3Env {
   envSolver  :: Z3.Solver,
@@ -110,7 +114,7 @@ newEnv mbLogic opts =
 initialZ3Env = newEnv Nothing stdOpts
 
 freshEnv :: Z3.Context -> IO Z3Env
-freshEnv ctx = 
+freshEnv ctx =
   Z3.withConfig $ \cfg -> do
     setOpts cfg stdOpts
     solver <- Z3.mkSolver ctx

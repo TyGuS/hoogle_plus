@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Types.Solver where
 
 import Data.Map (Map)
@@ -17,6 +18,10 @@ import Types.Experiments hiding (PetriNet)
 import Types.Type
 import Types.Common
 import Types.Encoder
+import GHC.Generics
+import Data.Serialize (Serialize)
+import Data.Serialize as S
+import Data.Hashable
 
 rootNode = AScalar (ATypeVarT varName)
 pairProj = "pair_match"
@@ -52,6 +57,33 @@ data SolverState = SolverState {
     _messageChan :: Chan Message
 } deriving(Eq)
 
+data WritableSolverState = WritableSolverState {
+    _nc :: Map Id Int,
+    _sigs :: Map Id AbstractSkeleton,
+    _as :: Set Id,
+    _fm :: HashMap Id FunctionCode,
+    _gm :: Map GroupId (Set Id),
+    _gr :: Map GroupId Id,
+    _t2g :: Map FunctionCode GroupId,
+    _n2g :: Map Id GroupId,
+    _t2tr :: HashMap AbstractSkeleton (Set Id),
+    _nm :: Map Id Id,
+    _im :: HashMap (Id, [AbstractSkeleton]) (Id, AbstractSkeleton),
+    _ic :: HashMap Id Int
+} deriving(Eq, Generic)
+
+-- | Store hashmap
+putHashMapOf :: Putter k -> Putter a -> Putter (HashMap k a)
+putHashMapOf pk pa = putListOf (putTwoOf pk pa) . HashMap.toList
+
+-- | Read as a list of pairs of key and element.
+getHashMapOf :: (Eq k, Hashable k) => Get k -> Get a -> Get (HashMap k a)
+getHashMapOf k m = HashMap.fromList `fmap` getListOf (getTwoOf k m)
+
+instance Serialize WritableSolverState
+instance (Eq k, Hashable k, Serialize k, Serialize v) => Serialize (HashMap k v) where
+    put = putHashMapOf S.put S.put
+    get = getHashMapOf S.get S.get
 
 emptySolverState :: SolverState
 emptySolverState = SolverState {

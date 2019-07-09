@@ -26,6 +26,8 @@ data AbstractSkeleton =
 
 instance Hashable AbstractBase
 instance Hashable AbstractSkeleton
+instance Serialize AbstractBase
+instance Serialize AbstractSkeleton
 
 -- distinguish one type from a given general one
 type SplitMsg = (AbstractSkeleton, AbstractSkeleton)

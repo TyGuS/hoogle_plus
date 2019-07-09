@@ -19,7 +19,9 @@ data GenerationOpts = GenerationOpts {
     pkgFetchOpts :: PackageFetchOpts,
     modules :: [String],
     envPath :: FilePath,
-    hoPath :: FilePath
+    hoPath :: FilePath,
+    generateGraph :: Bool,
+    solverPath :: FilePath
     }
     deriving (Show, Typeable, Eq)
 
@@ -58,7 +60,11 @@ defaultGenerationOpts = GenerationOpts {
     pkgFetchOpts = defaultLocalOpts,
     modules = [],
     envPath = defaultEnvPath,
-    hoPath = "ho.txt"
+    hoPath = defaultHOPath,
+    generateGraph = False,
+    solverPath = defaultSolverPath
     }
 
 defaultEnvPath = "data/env.db"
+defaultSolverPath = "data/solver.db"
+defaultHOPath = "ho.txt"

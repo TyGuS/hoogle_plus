@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, DeriveDataTypeable #-}
+{-# LANGUAGE TemplateHaskell, DeriveDataTypeable, DeriveGeneric #-}
 module Types.Experiments where
 
 import Types.Type
