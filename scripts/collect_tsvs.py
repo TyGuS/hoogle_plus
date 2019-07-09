@@ -6,7 +6,7 @@ import csv
 import json
 from tabulate import tabulate
 
-DATA_DIR = "tmp/results"
+DATA_DIR = "tmp/before2130"
 OUTPUT_FILE = "collected.csv"
 name_regex = r'(.*)\+(.*)\.tsv'
 
@@ -71,14 +71,19 @@ def header():
         "ct-0",
         "ct-NO",
         "ct-Sypet",
+
         "st-Q",
+        "st-QB5",
         "st-0",
+        "st-0B5",
         "st-NO",
         "st-Sypet",
+
         "tc-Q",
         "tc-0",
         "tc-NO",
         "tc-Sypet",
+
         "tr-Q",
         "tr-QB5",
         "tr-0",
@@ -102,18 +107,21 @@ def mk_row(idx, query_group):
         safeGetFirst(query_group, NOGAR, "constructionTime"),
         safeGetFirst(query_group, SYPET, "constructionTime"),
         safeGetFirst(query_group, TYGARQ, "solverTime"),
+        safeGetFirst(query_group, TYGARQB5, "solverTime"),
         safeGetFirst(query_group, TYGAR0, "solverTime"),
+        safeGetFirst(query_group, TYGAR0B5, "solverTime"),
         safeGetFirst(query_group, NOGAR, "solverTime"),
         safeGetFirst(query_group, SYPET, "solverTime"),
         safeGetFirst(query_group, TYGARQ, "typeCheckerTime"),
         safeGetFirst(query_group, TYGAR0, "typeCheckerTime"),
         safeGetFirst(query_group, NOGAR, "typeCheckerTime"),
         safeGetFirst(query_group, SYPET, "typeCheckerTime"),
+
         get_transitions(query_group, TYGARQ),
         get_transitions(query_group, TYGARQB5),
         get_transitions(query_group, TYGAR0),
         get_transitions(query_group, TYGAR0B5),
-        get_transitions(query_group, SYPET),
+        get_transitions(query_group, SYPET)
     ]
 
 def write_csv(table):

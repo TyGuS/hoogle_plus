@@ -57,14 +57,14 @@ runExperiment setup (exp@(env, envName, q, params, paramName), (n, total)) = do
     timeout timeoutUs $ synthesize params goal messageChan
     writeChan messageChan (MesgClose CSTimeout) -- could possibly be putting a second close on the channel.
   results <- (readChan messageChan >>= collectResults messageChan [])
-  writeResult exp results
+  writeResult setup exp results
   return results
 
-writeResult :: Experiment -> [(Either EvaluationException (Maybe RProgram), TimeStatistics)] -> IO ()
-writeResult (env, envName, q, params, paramName) xs = do
+writeResult :: ExperimentSetup -> Experiment -> [(Either EvaluationException (Maybe RProgram), TimeStatistics)] -> IO ()
+writeResult setup (env, envName, q, params, paramName) xs = do
     let solns = reverse xs -- They come in reverse order
     let fileName = (printf "%s+%s.tsv" (replace " " "-" $ paramName) (replace " " "-" $ name q)) :: String
-    let dirName = "tmp/results/"
+    let dirName = (expDirectory setup) ++ "/"
     createDirectoryIfMissing True dirName
     let rowHeaders =
             [ "name"

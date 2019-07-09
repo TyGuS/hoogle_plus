@@ -30,6 +30,7 @@ defaultArgs = Args {
   argsQueryFile=defaultQueryFile &= name "queries" &= typFile,
   argsTimeout=defaultTimeout &= name "timeout" &= help "Each experiment will have N seconds to complete" ,
   argsOutputFile=[] &= name "output" &= typFile,
+  argsOutputDirectory="tmp/results" &= name "directory",
   argsExperiment=defaultExperiment &= argPos 0,
   argsOutputFormat=[] &= name "format",
   argsPreset=ICFPPartial &= name "preset" &= help "Component set preset"
@@ -39,7 +40,8 @@ main :: IO ()
 main = do
     args <- cmdArgs defaultArgs
     let currentExperiment = argsExperiment args
-    let setup = ExpSetup {expTimeout = argsTimeout args, expCourse = currentExperiment}
+    let directory = argsOutputDirectory args
+    let setup = ExpSetup {expTimeout = argsTimeout args, expCourse = currentExperiment, expDirectory = directory}
     (envs, params, exps) <- getSetup args
     let outputFormats' = argsOutputFormat args
     let outputFormats = if null outputFormats' then [Plot, TSV] else outputFormats'
@@ -111,14 +113,16 @@ getSetup args = do
             (searchParamsTyGarQNoDmd{_useHO=True, _solutionCnt=solnCount}, expTyGarQNoDmd),
             (searchParamsTyGarQNoRel{_useHO=True, _solutionCnt=solnCount}, expTyGarQNoRel)
             ]
-          POPLSpeed -> [
+          POPLSpeed -> let
+            bounds = 1:[5,10..25]
+            boundedSearch = map (\i -> (searchParamsTyGar0 {_stopRefine=True,_threshold=i}, "TyGar0B"++show i)) bounds
+                            ++ map (\i -> (searchParamsTyGarQ {_stopRefine=True,_threshold=i}, "TyGarQB"++show i)) bounds
+            in [
             (searchParamsTyGarQ, expTyGarQ),
-            (searchParamsTyGarQB, expTyGarQB ++ "-5"),
             (searchParamsTyGar0, expTyGar0),
-            (searchParamsTyGar0B, expTyGar0B ++ "-5"),
-            (searchParamsNoGar, expNoGar),
-            (searchParamsSypetClone, expSypetClone)
-            ]
+            (searchParamsNoGar, expNoGar)
+            -- (searchParamsSypetClone, expSypetClone)
+            ] ++ boundedSearch
           CoalescingStrategies -> [
             (searchParamsTyGarQ{_coalesceTypes=False}, expTyGarQNoCoalesce),
             (searchParamsTyGarQ{_coalesceTypes=True,
