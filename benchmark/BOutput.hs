@@ -161,14 +161,14 @@ toRow currentExp (name, rss) =
     mbqrNew = find (\x -> (paramName x == expTyGarQ && envName x == (show POPL))) rss
     mbzero = findwhere expTyGar0 rss
     mbbaseline = findwhere expSypetClone rss
-    mbExpNoDmd = find (\x -> (paramName x == expTyGarQNoDmd))  rss
+    mbExpNoDmd = find (\x -> (paramName x == expTyGarQBNoDmd))  rss
     mbNoCoalescing = findwhere expTyGarQNoCoalesce rss
 
     rowForExp :: ExperimentCourse -> [Maybe String]
     rowForExp POPLQuality = let
-      mbqr = findwhere expTyGarQ rss
-      mbqrNoDmd = findwhere expTyGarQNoDmd rss
-      mbqrNoRel = findwhere expTyGarQNoRel rss
+      mbqr = findwhere expTyGarQB rss
+      mbqrNoDmd = findwhere expTyGarQBNoDmd rss
+      mbqrNoRel = findwhere expTyGarQBNoRel rss
       toSolution = (either show id . resSolutionOrError) :: Result -> String
       qrr = reverse (fromJust (results <$> mbqr)) :: [Result]
       qrrNoDmd = reverse (fromJust (results <$> mbqrNoDmd)) :: [Result]

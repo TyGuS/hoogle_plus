@@ -7,12 +7,12 @@ import BTypes
 
 
 defaultTimeout = 60 :: Int
-defaultQueryFile = "benchmark/suites/base.yml"
+defaultQueryFile = "benchmark/suites/working.yml"
 defaultExperiment = TrackTypesAndTransitions
 
 expTyGarQ = "TYGAR-Q"
-expTyGarQNoDmd = expTyGarQ ++ "-no-demand"
-expTyGarQNoRel = expTyGarQ ++ "-no-relevancy"
+expTyGarQBNoDmd = expTyGarQB ++ "-no-demand"
+expTyGarQBNoRel = expTyGarQB ++ "-no-relevancy"
 expTyGarQNoCoalesce = expTyGarQ ++ "-no-coalescing"
 expTyGarQCoalesceFirst = expTyGarQ ++ "-coalesce naive"
 expTyGarQCoalesceLeast = expTyGarQ ++ "-coalesce least"
@@ -31,8 +31,8 @@ expTyGarQBInc = "TyGarQB-Incremental"
 expILP = "Integer Linear Programming"
 
 searchParamsTyGarQ = defaultSearchParams
-searchParamsTyGarQNoDmd = defaultSearchParams{_disableDemand = True}
-searchParamsTyGarQNoRel = defaultSearchParams{_disableDemand = True, _disableRelevancy = True}
+searchParamsTyGarQBNoDmd = searchParamsTyGarQB{_disableDemand = True}
+searchParamsTyGarQBNoRel = searchParamsTyGarQB{_disableDemand = True, _disableRelevancy = True}
 searchParamsSypetClone = defaultSearchParams{_refineStrategy=SypetClone}
 searchParamsTyGar0 = defaultSearchParams{_refineStrategy=TyGar0}
 searchParamsTyGarQB = defaultSearchParams{_stopRefine=True, _threshold=5}

@@ -109,9 +109,9 @@ getSetup args = do
   let params =
         case currentExperiment of
           POPLQuality -> let solnCount = 5 in [
-            (searchParamsTyGarQ{_useHO=True, _solutionCnt=solnCount}, expTyGarQ),
-            (searchParamsTyGarQNoDmd{_useHO=True, _solutionCnt=solnCount}, expTyGarQNoDmd),
-            (searchParamsTyGarQNoRel{_useHO=True, _solutionCnt=solnCount}, expTyGarQNoRel)
+            (searchParamsTyGarQB{_useHO=True, _solutionCnt=solnCount}, expTyGarQB),
+            (searchParamsTyGarQBNoDmd{_useHO=True, _solutionCnt=solnCount}, expTyGarQBNoDmd),
+            (searchParamsTyGarQBNoRel{_useHO=True, _solutionCnt=solnCount}, expTyGarQBNoRel)
             ]
           POPLSpeed -> let
             bounds = 1:[5,10..25]
