@@ -28,17 +28,19 @@
 # - name: reverseMap
 #   query: Ord k, Ord v => Map k v -> Map v [k]
 
-- name: overlapCount
-  query: "Eq a => [a] -> [a] -> Int"
+# - name: overlapCount
+#   query: "Eq a => [a] -> [a] -> Int"
 
 - name: mbElem
   query: "Eq a => a -> [a] -> Maybe a"
+  solution: bool (Nothing) (Just (arg1)) (elem arg1 arg0)
 
 # - name: convert
 #   query: Int -> Int -> Float
 
 - name: areEq
   query: "Eq a => a -> a -> Maybe a"
+  solution: bool (Nothing) (Just (arg1)) (== arg1 arg0)
 
 # - name: d2i
 #   query: Double -> Integer

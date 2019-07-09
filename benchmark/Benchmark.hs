@@ -49,8 +49,9 @@ main = do
     putStrLn environmentStatsTable
 
     resultSummaries <- runExperiments setup exps
-    flip mapM_ (outputFormatFiles) (\(format, mbFile) -> do
+    flip mapM_ outputFormatFiles (\(format, mbFile) -> do
       case format of
+        None -> return ()
         Plot -> mkPlot mbFile setup resultSummaries
         _ -> do
           let resultTable = outputSummary format currentExperiment resultSummaries

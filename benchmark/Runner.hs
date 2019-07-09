@@ -20,10 +20,12 @@ import Data.Maybe
 import Data.Either
 import GHC.Conc (getNumCapabilities)
 import GHC.Exception
+import Data.List.Extra
 import Data.Ratio ((%))
 import Data.List
 import Text.Printf
 import System.IO.Unsafe
+import System.Directory
 
 runExperiments :: ExperimentSetup -> [Experiment] -> IO [ResultSummary]
 runExperiments setup exps = do
@@ -45,7 +47,7 @@ runPool setup exps pool = do
     mergeEithers (Right rest) = rest
 
 runExperiment :: ExperimentSetup -> (Experiment,(Int, Int)) -> IO [(Either EvaluationException (Maybe RProgram), TimeStatistics)]
-runExperiment setup ((env, envName, q, params, paramName), (n, total)) = do
+runExperiment setup (exp@(env, envName, q, params, paramName), (n, total)) = do
   let queryStr = query q
   printf "Running [%d/%d]: (%s-%s): %s\n" n total envName paramName queryStr
   let timeoutUs = expTimeout setup * 10^6 -- Timeout in microseconds
@@ -54,7 +56,59 @@ runExperiment setup ((env, envName, q, params, paramName), (n, total)) = do
   forkIO $ do
     timeout timeoutUs $ synthesize params goal messageChan
     writeChan messageChan (MesgClose CSTimeout) -- could possibly be putting a second close on the channel.
-  readChan messageChan >>= collectResults messageChan []
+  results <- (readChan messageChan >>= collectResults messageChan [])
+  writeResult exp results
+  return results
+
+writeResult :: Experiment -> [(Either EvaluationException (Maybe RProgram), TimeStatistics)] -> IO ()
+writeResult (env, envName, q, params, paramName) xs = do
+    let solns = reverse xs -- They come in reverse order
+    let fileName = (printf "%s+%s.tsv" (replace " " "-" $ paramName) (replace " " "-" $ name q)) :: String
+    let dirName = "tmp/results/"
+    createDirectoryIfMissing True dirName
+    let rowHeaders =
+            [ "encodingTime"
+            , "constructionTime"
+            , "solverTime"
+            , "codeFormerTime"
+            , "refineTime"
+            , "typeCheckerTime"
+            , "totalTime"
+            , "iterations"
+            , "pathLength"
+            , "numOfTransitions"
+            , "numOfPlaces"
+            , "duplicateSymbols"
+            , "Solution"
+            ]
+    let rowsdata = map showRow solns
+    let fileData = rowHeaders : rowsdata
+    let rows = (map (intercalate "\t") fileData) :: [String]
+    let fileStr = ((intercalate "\r\n") rows) :: String
+    writeFile (dirName ++ fileName) (fileStr)
+
+    where
+      showResult (Left err) = show err
+      showResult (Right Nothing) = "No Solution"
+      showResult (Right (Just x)) = toHaskellSolution $ show x
+
+      showRow (errOrMbProg, times) =
+         [ showFloat $ encodingTime times
+         , showFloat $ constructionTime times
+         , showFloat $ solverTime times
+         , showFloat $ codeFormerTime times
+         , showFloat $ refineTime times
+         , showFloat $ typeCheckerTime times
+         , showFloat $ totalTime times
+         , show $ iterations times
+         , show $ pathLength times
+         , show $ map snd $ Map.toAscList $ numOfTransitions times
+         , show $ map snd $ Map.toAscList $ numOfPlaces times
+         , show $ duplicateSymbols times
+         , showResult errOrMbProg
+         ]
+
+
 
 -- collectResults will listen to a channel until it closes. Intermediate results are put on top
 -- and replace existing intermediate results. Once a program/stats pair comes in, that will replace

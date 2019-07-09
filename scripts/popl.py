@@ -12,7 +12,7 @@ from multiprocessing import Pool
 HPLUS_CMD = "stack exec -- evaluation %s -q %s -f TSV -o %s"
 
 BMS_PER_GROUP = 1
-NUM_POOLS = 1
+NUM_POOLS = 4
 OUTPUT_FILE = "results.tsv"
 
 def chunks(l, n):
@@ -44,11 +44,14 @@ def run_benchmarks(experiment, benchmarks):
     allResults = []
     headers = []
     for p in run_pairs:
-        with open(p["output_file"]) as tsv_file:
-            reader = csv.reader(tsv_file, delimiter="\t")
-            lines = list(reader)
-            headers = lines[0]
-            allResults += lines[1:]
+        try:
+            with open(p["output_file"]) as tsv_file:
+                reader = csv.reader(tsv_file, delimiter="\t")
+                lines = list(reader)
+                headers = lines[0]
+                allResults += lines[1:]
+        except Exception as e:
+            print(e)
     with open(OUTPUT_FILE, "w") as final_table:
         writer = csv.writer(final_table, delimiter="\t", quoting=csv.QUOTE_ALL)
         writer.writerow(headers)
