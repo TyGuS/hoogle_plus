@@ -33,8 +33,20 @@ def gather_files():
         file_path = os.path.join(DATA_DIR, file_name)
         with open(file_path, 'r') as f:
             reader = csv.DictReader(f, delimiter="\t")
-            per_query[query_name][exp_name] = list(reader)
+            query_exp_results = check_results(list(reader))
+            if query_exp_results:
+                per_query[query_name][exp_name] = query_exp_results
     return per_query
+
+def check_results(solutions):
+    try:
+        first = solutions[0]
+        soln = first["Solution"]
+        if not soln or "No Solution" in soln or "Runtime" in soln:
+            first["totalTime"] = None
+        return solutions
+    except IndexError:
+        return None
 
 def mk_table(per_query):
     table = []
@@ -47,6 +59,7 @@ def mk_table(per_query):
 def header():
     return [
         "N",
+        "Name",
         "Query",
         "t-Q",
         "t-QB5",
@@ -77,6 +90,7 @@ def header():
 def mk_row(idx, query_group):
     return [
         idx,
+        safeGetFirst(query_group, TYGARQ, "name"),
         safeGetFirst(query_group, TYGARQ, "query"),
         safeGetFirst(query_group, TYGARQ, "totalTime"),
         safeGetFirst(query_group, TYGARQB5, "totalTime"),
@@ -124,7 +138,9 @@ def safeGetFirst(dct, exp, field):
 
 def get_transitions(dct, exp):
     try:
-        safeGetFirst(dct, exp, "numOfTransitions")[-1]
+        transitionsStr = safeGetFirst(dct, exp, "numOfTransitions")
+        trs = json.loads(transitionsStr)
+        return trs[-1]
     except (IndexError, TypeError):
         return None
 
