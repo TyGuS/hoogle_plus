@@ -9,7 +9,7 @@ import argparse
 import csv
 from multiprocessing import Pool
 
-HPLUS_CMD = "stack exec -- evaluation %s -q %s -f TSV -o %s"
+HPLUS_CMD = "stack exec -- evaluation %s -q %s -f none"
 
 BMS_PER_GROUP = 1
 NUM_POOLS = 4
@@ -27,37 +27,35 @@ def run_benchmarks(experiment, benchmarks):
     for i in range(len(groups)):
         group = groups[i]
         filename = "tmp/in%s.yml" % str(i)
-        outname = "tmp/out%s.tsv" % str(i)
         run_pairs.append({
             "input_file": filename,
-            "output_file": outname,
         })
         with open(filename, 'w') as out_file:
             out_file.write(yaml.dump(group))
     # run the actual evaluations
     cmds = []
     for p in run_pairs:
-        cmd = HPLUS_CMD % (experiment, p["input_file"], p["output_file"])
+        cmd = HPLUS_CMD % (experiment, p["input_file"])
         cmds.append(cmd)
     execute_bms(cmds)
     # combine the results
-    allResults = []
-    headers = []
-    for p in run_pairs:
-        try:
-            with open(p["output_file"]) as tsv_file:
-                reader = csv.reader(tsv_file, delimiter="\t")
-                lines = list(reader)
-                headers = lines[0]
-                allResults += lines[1:]
-        except Exception as e:
-            print(e)
-    with open(OUTPUT_FILE, "w") as final_table:
-        writer = csv.writer(final_table, delimiter="\t", quoting=csv.QUOTE_ALL)
-        writer.writerow(headers)
-        for line in allResults:
-            writer.writerow(line)
-    print("wrote to %s" % OUTPUT_FILE)
+    # allResults = []
+    # headers = []
+    # for p in run_pairs:
+    #     try:
+    #         with open(p["output_file"]) as tsv_file:
+    #             reader = csv.reader(tsv_file, delimiter="\t")
+    #             lines = list(reader)
+    #             headers = lines[0]
+    #             allResults += lines[1:]
+    #     except Exception as e:
+    #         print(e)
+    # with open(OUTPUT_FILE, "w") as final_table:
+    #     writer = csv.writer(final_table, delimiter="\t", quoting=csv.QUOTE_ALL)
+    #     writer.writerow(headers)
+    #     for line in allResults:
+    #         writer.writerow(line)
+    # print("wrote to %s" % OUTPUT_FILE)
 
 def execute_bms(cmds):
     with Pool(processes=NUM_POOLS) as pool:

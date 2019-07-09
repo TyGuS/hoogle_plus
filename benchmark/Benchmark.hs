@@ -111,6 +111,14 @@ getSetup args = do
             (searchParamsTyGarQNoDmd{_useHO=True, _solutionCnt=solnCount}, expTyGarQNoDmd),
             (searchParamsTyGarQNoRel{_useHO=True, _solutionCnt=solnCount}, expTyGarQNoRel)
             ]
+          POPLSpeed -> [
+            (searchParamsTyGarQ, expTyGarQ),
+            (searchParamsTyGarQB, expTyGarQB ++ "-5"),
+            (searchParamsTyGar0, expTyGar0),
+            (searchParamsTyGar0B, expTyGar0B ++ "-5"),
+            (searchParamsNoGar, expNoGar),
+            (searchParamsSypetClone, expSypetClone)
+            ]
           CoalescingStrategies -> [
             (searchParamsTyGarQ{_coalesceTypes=False}, expTyGarQNoCoalesce),
             (searchParamsTyGarQ{_coalesceTypes=True,

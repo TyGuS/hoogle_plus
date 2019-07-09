@@ -104,6 +104,7 @@ data ExperimentCourse
   | CompareEnvironments
   | CoalescingStrategies
   | POPLQuality
+  | POPLSpeed
   deriving (Show, Data, Typeable)
 
 data Message

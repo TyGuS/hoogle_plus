@@ -67,7 +67,9 @@ writeResult (env, envName, q, params, paramName) xs = do
     let dirName = "tmp/results/"
     createDirectoryIfMissing True dirName
     let rowHeaders =
-            [ "encodingTime"
+            [ "name"
+            , "query"
+            , "encodingTime"
             , "constructionTime"
             , "solverTime"
             , "codeFormerTime"
@@ -93,7 +95,9 @@ writeResult (env, envName, q, params, paramName) xs = do
       showResult (Right (Just x)) = toHaskellSolution $ show x
 
       showRow (errOrMbProg, times) =
-         [ showFloat $ encodingTime times
+         [ (name q)
+         , (query q)
+         , showFloat $ encodingTime times
          , showFloat $ constructionTime times
          , showFloat $ solverTime times
          , showFloat $ codeFormerTime times
