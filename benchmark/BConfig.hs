@@ -6,17 +6,18 @@ import Types.Environment
 import BTypes
 
 
-defaultTimeout = 2 * 60 :: Int
+defaultTimeout = 60 :: Int
 defaultQueryFile = "benchmark/suites/base.yml"
 defaultExperiment = TrackTypesAndTransitions
 
 expTyGarQ = "TYGAR-Q"
-expTyGarQNoDmd = expTyGarQ ++ "- no demand"
-expTyGarQNoCoalesce = expTyGarQ ++ "- no coalescing"
-expTyGarQCoalesceFirst = expTyGarQ ++ "- coalesce naive"
-expTyGarQCoalesceLeast = expTyGarQ ++ "- coalesce least"
-expTyGarQCoalesceMost = expTyGarQ ++ "- coalesce most"
-expQueryRefinementHOF = "Query Refinement - HOF"
+expTyGarQNoDmd = expTyGarQ ++ "-no-demand"
+expTyGarQNoRel = expTyGarQ ++ "-no-relevancy"
+expTyGarQNoCoalesce = expTyGarQ ++ "-no-coalescing"
+expTyGarQCoalesceFirst = expTyGarQ ++ "-coalesce naive"
+expTyGarQCoalesceLeast = expTyGarQ ++ "-coalesce least"
+expTyGarQCoalesceMost = expTyGarQ ++ "-coalesce most"
+expQueryRefinementHOF = "Query Refinement-HOF"
 expSypetClone = "Sypet-Clone"
 expTyGar0 = "TYGAR-0"
 expTyGarQB = "TYGAR-QB"
@@ -31,11 +32,11 @@ expILP = "Integer Linear Programming"
 
 searchParamsTyGarQ = defaultSearchParams
 searchParamsTyGarQNoDmd = defaultSearchParams{_disableDemand = True}
-searchParamsHOF = defaultSearchParams{_useHO=True}
+searchParamsTyGarQNoRel = defaultSearchParams{_disableDemand = True, _disableRelevancy = True}
 searchParamsSypetClone = defaultSearchParams{_refineStrategy=SypetClone}
 searchParamsTyGar0 = defaultSearchParams{_refineStrategy=TyGar0}
-searchParamsTyGarQB = defaultSearchParams{_stopRefine=True,_threshold=5}
-searchParamsTyGar0B = searchParamsTyGarQB{_refineStrategy=TyGar0}
+searchParamsTyGarQB = defaultSearchParams{_stopRefine=True, _threshold=5}
+searchParamsTyGar0B = searchParamsTyGarQB{_refineStrategy=TyGar0, _threshold=5}
 searchParamsNoGar = defaultSearchParams{_refineStrategy=NoGar}
 searchParamsNoGar0 = defaultSearchParams{_refineStrategy=NoGar0}
 searchParamsILP = defaultSearchParams

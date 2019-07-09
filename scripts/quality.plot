@@ -1,0 +1,1 @@
+plot "results.tsv" using 3 with lines title "foo"

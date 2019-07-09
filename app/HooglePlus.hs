@@ -79,7 +79,7 @@ main = do
                   , app_max
                   , log_
                   , sol_num
-                  , higher_order
+                  , disable_higher_order
                   , use_refine
                   , disable_demand
                   , stop_refine
@@ -94,7 +94,7 @@ main = do
                         { _maxApplicationDepth = app_max
                         , _explorerLogLevel = log_
                         , _solutionCnt = sol_num
-                        , _useHO = higher_order
+                        , _useHO = not disable_higher_order
                         , _stopRefine = stop_refine
                         , _threshold = stop_threshold
                         , _incrementalSolving = incremental
@@ -144,7 +144,7 @@ data CommandLineArgs
         log_ :: Int,
         -- | Graph params
         sol_num :: Int,
-        higher_order :: Bool,
+        disable_higher_order :: Bool,
         use_refine :: RefineStrategy,
         stop_refine :: Bool,
         stop_threshold :: Int,
@@ -174,7 +174,7 @@ synt = Synthesis {
   app_max             = 6               &= help ("Maximum depth of an application term (default: 6)") &= groupname "Explorer parameters",
   log_                = 0               &= help ("Logger verboseness level (default: 0)") &= name "l",
   sol_num             = 1               &= help ("Number of solutions need to find (default: 1)") &= name "cnt",
-  higher_order        = False           &= help ("Include higher order functions (default: False)"),
+  disable_higher_order        = False   &= help ("Disable higher order functions (default: False)"),
   use_refine          = TyGarQ          &= help ("Use abstract refinement or not (default: TyGarQ)"),
   stop_refine         = False           &= help ("Stop refine the abstraction cover after some threshold (default: False)"),
   stop_threshold      = 10              &= help ("Refinement stops when the number of places reaches the threshold, only when stop_refine is True"),

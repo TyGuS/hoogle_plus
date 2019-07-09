@@ -1,2 +1,201 @@
+- name: intToBS
+  query: "Int64 -> ByteString"
+
+- name: test
+  query: "Bool -> a -> Maybe a"
+
 - name: both
   query: "(a -> b) -> (a, a) -> (b, b)"
+
+- name: fromFirstMaybes
+  query: "a -> [Maybe a] -> a"
+
+# - name: groupList
+#   query: "[(k, v)] -> Map k [v]"
+
+- name: mapEither
+  query: "(a -> Either b c) -> [a] -> ([b], [c])"
+
+- name: firstJust
+  query: "(a -> Maybe b) -> [a] -> Maybe b"
+
+- name: mergeEither
+  query: "Either a (Either a b) -> Either a b"
+
+- name: multiApp
+  query: "(a -> b -> c) -> (a -> b) -> a -> c"
+
+- name: singleList
+  query: "Int -> [Int]"
+
+- name: head-tail
+  query: "[a] -> (a,a)"
+
+- name: head-rest
+  query: "[a] -> (a, [a])"
+
+- name: pred-match
+  query: "[a] -> (a -> Bool) -> Int"
+
+- name: splitStr
+  query: "String -> Char -> [String]"
+
+- name: splitAtFirst
+  query: "a -> [a] -> ([a], [a])"
+
+- name: mbToEither
+  query: "Maybe a -> b -> Either a b"
+
+- name: cartProduct
+  query: "[a] -> [b] -> [[(a,b)]]"
+
+- name: multiAppPair
+  query: "(a -> b, a -> c) -> a -> (b, c)"
+
+# No useful solution. Head of map ?
+- name: hoogle01
+  query: "(a -> b) -> [a] -> b"
+
+- name: hoogle02
+  query: "b -> (a -> b) -> [a] -> b"
+
+- name: firstMatch
+  query: "[a] -> (a -> Bool) -> a"
+
+- name: firstMaybe
+  query: "[Maybe a] -> a"
+
+- name: rights
+  query: "[Either a b] -> Either a [b]"
+
+- name: firstKey
+  query: "[(a,b)] -> a"
+
+- name: applyPair
+  query: "(a -> b, a) -> b"
+  solution: (fst arg0) (snd arg0)
+
+# No solution?
+- name: cross
+  query: "(a, b) -> (a, b) -> (a, b)"
+
+- name: firstRight
+  query: "[Either a b] -> Either a b"
+
+- name: appPair
+  query: "(a, a) -> (a -> b) -> (b, b)"
+
+- name: maybe
+  query: "Maybe a -> a -> Maybe a"
+  solution: Just (maybe arg0 arg1)
+
+- name: app3
+  query: "(a -> b -> c -> d) -> a -> c -> b -> d"
+
+- name: appendN
+  query: "Int -> [a] -> [a]"
+  solution: concat (replicate n xs)
+
+- name: map
+  query: "(a->b)->[a]->[b]"
+  solution: map arg1 arg0
+
+- name: repl-funcs
+  query: "(a->b)->Int->[a->b]"
+  solution: GHC.List.replicate n f
+
+- name: mapMaybes
+  query: "(a -> Maybe b) -> [a] -> Maybe b"
+  solution: Data.Maybe.listToMaybe (Data.Maybe.mapMaybe f xs)
+
+- name: countFilter
+  query: "(a->Bool)->[a]->Int"
+  solution: GHC.List.length (GHC.List.takeWhile p xs)
+
+- name: mbAppFirst
+  query: "b -> (a -> b) -> [a] -> b"
+  solution: Data.Maybe.maybe x f (Data.Maybe.listToMaybe xs)
+
+- name: 2partApp
+  query: "(a->b)->(b->c)->[a]->[c]"
+  solution: GHC.List.map g (GHC.List.map f xs)
+
+- name: zipWithResult
+  query: "(a->b)->[a]->[(a,b)]"
+  solution: GHC.List.zip xs (GHC.List.map f [])
+
+- name: resolveEither
+  query: "Either a b -> (a->b) -> b"
+  solution: Data.Either.either f GHC.List.id x
+
+- name: applyNtimes
+  query: "(a->a) -> a -> Int -> a"
+  solution: GHC.List.foldr Prelude.app x (GHC.List.replicate n f)
+
+- name: eitherTriple
+  query: "Either a b -> Either a b -> Either a b"
+  solution: \x y -> either Left (const (either Left Right y)) x
+
+- name: pipe
+  query: "[(a -> a)] -> (a -> a)"
+  solution: foldr ($) id xs
+
+# - name: numElem
+#   query: Eq a => [a] -> a -> Int
+#   solution: length (elemIndices x xs)
+
+- name: lookup
+  query: "Eq a => [(a,b)] -> a -> b"
+  solution: Data.Maybe.fromJust (GHC.List.lookup arg0 arg1)
+
+# - name: intersperse
+#   query: Show a => a -> [String] -> String
+#   solution: intersperse (show arg1) arg0
+
+# - name: convertToInt
+#   query: Double -> Int
+
+# - name: toText
+#   query: Show a => a -> Text
+
+# - name: toFloat
+#   query: Float -> Int
+
+# - name: c2i
+#   query: Char -> Integer
+
+# - name: a2i
+#   query: Num a => a -> Int
+
+# - name: reverseMap
+#   query: Ord k, Ord v => Map k v -> Map v [k]
+
+- name: overlapCount
+  query: "Eq a => [a] -> [a] -> Int"
+
+- name: mbElem
+  query: "Eq a => a -> [a] -> Maybe a"
+
+# - name: convert
+#   query: Int -> Int -> Float
+
+- name: areEq
+  query: "Eq a => a -> a -> Maybe a"
+
+# - name: d2i
+#   query: Double -> Integer
+
+# - name: keyOverlap
+#   query: Ord k => Map k v -> Set k -> Set k
+#   solution: Set.intersection arg0 (keySet arg1)
+
+# - name: justMap
+#   query: Ord k => [Maybe (k, v)] -> Map k v
+#   solution: Map.fromList (catMaybe arg0)
+
+# - name: removeListFromSet
+#   query: Ord k => [k] -> Set k -> Set k
+#   solution: (\\) arg0 (fromList arg1)
+
+# - name: updateAllInMap
+#   query: (v -> Maybe v) -> Map k v -> Map k v

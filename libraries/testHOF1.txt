@@ -13,6 +13,6 @@ zip :: [a] -> [b] -> [(a,b)]
 foldr :: (a -> b -> b) -> b -> [a] -> b
 replicate :: Int -> a -> [a]
 
-module Prelude
+module Data.Function
 ($) :: (a -> b) -> a -> b
 

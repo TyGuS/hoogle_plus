@@ -3,7 +3,7 @@
 #   solution: length (elemIndices x xs)
 
 - name: lookup
-  query: Eq a => [(a,b)] -> a -> b
+  query: "Eq a => [(a,b)] -> a -> b"
   solution: Data.Maybe.fromJust (GHC.List.lookup arg0 arg1)
 
 # - name: intersperse
@@ -28,17 +28,19 @@
 # - name: reverseMap
 #   query: Ord k, Ord v => Map k v -> Map v [k]
 
-- name: overlapCount
-  query: Eq a => [a] -> [a] -> Int
+# - name: overlapCount
+#   query: "Eq a => [a] -> [a] -> Int"
 
 - name: mbElem
-  query: Eq a => a -> [a] -> Maybe a
+  query: "Eq a => a -> [a] -> Maybe a"
+  solution: bool (Nothing) (Just (arg1)) (elem arg1 arg0)
 
-- name: convert
-  query: Int -> Int -> Float
+# - name: convert
+#   query: Int -> Int -> Float
 
 - name: areEq
-  query: Eq a => a -> a -> Maybe a
+  query: "Eq a => a -> a -> Maybe a"
+  solution: bool (Nothing) (Just (arg1)) (== arg1 arg0)
 
 # - name: d2i
 #   query: Double -> Integer
@@ -57,3 +59,7 @@
 
 # - name: updateAllInMap
 #   query: (v -> Maybe v) -> Map k v -> Map k v
+
+- name: containsEdge
+  query: "[Int] -> (Int,Int) -> Bool"
+  solution: containsEdge xs (a,b) = (a `elem` xs) && (b `elem` xs)

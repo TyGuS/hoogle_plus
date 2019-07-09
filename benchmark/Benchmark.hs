@@ -49,8 +49,9 @@ main = do
     putStrLn environmentStatsTable
 
     resultSummaries <- runExperiments setup exps
-    flip mapM_ (outputFormatFiles) (\(format, mbFile) -> do
+    flip mapM_ outputFormatFiles (\(format, mbFile) -> do
       case format of
+        None -> return ()
         Plot -> mkPlot mbFile setup resultSummaries
         _ -> do
           let resultTable = outputSummary format currentExperiment resultSummaries
@@ -105,9 +106,18 @@ getSetup args = do
   let currentExperiment = argsExperiment args
   let params =
         case currentExperiment of
-          POPLQuality -> let solnCount = 1 in [
-            (searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ),
-            (searchParamsTyGarQNoDmd{_solutionCnt=solnCount}, expTyGarQNoDmd)
+          POPLQuality -> let solnCount = 5 in [
+            (searchParamsTyGarQ{_useHO=True, _solutionCnt=solnCount}, expTyGarQ),
+            (searchParamsTyGarQNoDmd{_useHO=True, _solutionCnt=solnCount}, expTyGarQNoDmd),
+            (searchParamsTyGarQNoRel{_useHO=True, _solutionCnt=solnCount}, expTyGarQNoRel)
+            ]
+          POPLSpeed -> [
+            (searchParamsTyGarQ, expTyGarQ),
+            (searchParamsTyGarQB, expTyGarQB ++ "-5"),
+            (searchParamsTyGar0, expTyGar0),
+            (searchParamsTyGar0B, expTyGar0B ++ "-5"),
+            (searchParamsNoGar, expNoGar),
+            (searchParamsSypetClone, expSypetClone)
             ]
           CoalescingStrategies -> [
             (searchParamsTyGarQ{_coalesceTypes=False}, expTyGarQNoCoalesce),
@@ -128,18 +138,20 @@ getSetup args = do
                (searchParamsSypetClone{_solutionCnt=solnCount}, expSypetClone)]
           CompareInitialAbstractCovers -> [
             (searchParamsTyGarQ, expTyGarQ),
-            (searchParamsHOF, expQueryRefinementHOF),
             (searchParamsSypetClone, expSypetClone),
-            (searchParamsTyGar0, expTyGar0),
-            (searchParamsTyGarQB, expTyGarQB),
-            (searchParamsTyGar0B, expTyGar0B),
-            (searchParamsNoGar, expNoGar)]
+            (searchParamsTyGar0, expTyGar0)
+            -- (searchParamsTyGarQB, expTyGarQB),
+            -- (searchParamsTyGar0B, expTyGar0B),
+            -- (searchParamsNoGar, expNoGar)
+            ]
           CompareFinalCovers -> [
             (searchParamsNoGar, expNoGar),
             (searchParamsNoGar0, expNoGar0)]
-          CompareThresholds ->
-            map (\i -> (searchParamsTyGar0 {_stopRefine=True,_threshold=i}, "TyGar0B"++show i)) [1..10]
-            ++ map (\i -> (searchParamsTyGarQ {_stopRefine=True,_threshold=i}, "TyGarQB"++show i)) [1..10]
+          CompareThresholds -> let
+            bounds = 1:[5,10..25]
+            in
+            map (\i -> (searchParamsTyGar0 {_stopRefine=True,_threshold=i}, "TyGar0B"++show i)) bounds
+            ++ map (\i -> (searchParamsTyGarQ {_stopRefine=True,_threshold=i}, "TyGarQB"++show i)) bounds
           CompareIncremental -> [
             (searchParamsNoGar, expNoGar),
             (searchParamsNoGarInc, expNoGarInc),

@@ -114,14 +114,10 @@ instance Summary [ResultSummary] where
 
 
 headersList :: ExperimentCourse -> [String]
-headersList POPLQuality = [
-  "T - first - dmd", "T - first - nodmd",
-  "T - all - dmd", "T - all - nodmd",
-  "length - dmd", "length - nodmd",
-  "ref - dmd", "ref - nodmd",
-  "Transitons - dmd", "Transitions - nodmd",
-  "Solutions - dmd", "Solutions - nodmd"
-  ]
+headersList POPLQuality =
+  let getRows x = map (\y -> y ++ (" - " ++ x)) ["T - first", "T - all", "length", "ref", "Transitions", "Solutions"]
+  in concat (transpose (map getRows ["dmd", "nodmd", "norel"]))
+
 headersList CompareEnvironments = [
   "T - first - Old", "T - all - New",
   "total - old", "total - new",
@@ -136,11 +132,12 @@ headersList CoalescingStrategies = [
   "Soln-None", "Soln-Naive", "Soln-Least", "Soln-Most"
   ]
 headersList CompareInitialAbstractCovers = [
-    "tS - QR", "tEnc - QR",
-    "l", "r", "tr", "ty",
-    "tS - B", "tr - B",
-    "tS - Z", "tr - Z"
-    ]
+    "T-Q", "T-0", "T-Sypet",
+    "Ref-Q", "Ref-0", "Ref-Sypet",
+    "Transitions-Q", "Transitions-0", "Transitions-Sypet",
+    "Types-Q", "Types-0", "Types-Sypet",
+    "Solution-Q", "Solution-0", "Solution-Sypet"
+  ]
 headersList TrackTypesAndTransitions = [
   "time - no coalescing", "time - coalescing", "nc: length", "c: length",
   "nc: refinement steps", "c: refinement steps",
@@ -171,40 +168,37 @@ toRow currentExp (name, rss) =
     rowForExp POPLQuality = let
       mbqr = findwhere expTyGarQ rss
       mbqrNoDmd = findwhere expTyGarQNoDmd rss
+      mbqrNoRel = findwhere expTyGarQNoRel rss
       toSolution = (either show id . resSolutionOrError) :: Result -> String
       qrr = reverse (fromJust (results <$> mbqr)) :: [Result]
       qrrNoDmd = reverse (fromJust (results <$> mbqrNoDmd)) :: [Result]
-      timeToAll = sum $ map resTFirstSoln qrr
-      timeToAllNoDmd = sum $ map resTFirstSoln qrrNoDmd
-      in [
-        (showFloat . resTFirstSoln) <$> listToMaybe qrr, -- First
-        (showFloat . resTFirstSoln) <$> listToMaybe qrrNoDmd, -- First
-        bool Nothing (Just (showFloat timeToAllNoDmd)) (timeToAllNoDmd /= 0), -- All
-        bool Nothing (Just (showFloat timeToAll)) (timeToAll /= 0), -- All
+      qrrNoRel = reverse (fromJust (results <$> mbqrNoRel)) :: [Result]
+      timeToAll x = sum $ map resTFirstSoln x
+      getRows x = [
+        (showFloat . resTFirstSoln) <$> listToMaybe x, -- First
+        bool Nothing (Just (showFloat (timeToAll x))) ((timeToAll x) /= 0), -- All
+        (show . resLenFirstSoln) <$> listToMaybe x,
+        (show . resRefinementSteps) <$> listToMaybe x,
+        (show . resTransitions) <$> listToMaybe x,
+        Just $ unlines (map (mkOneLine . toSolution) x)
+        ]
+      in
+        concat (transpose (map getRows [qrr, qrrNoDmd, qrrNoRel]))
 
-        (show . resLenFirstSoln) <$> listToMaybe qrr,
-        (show . resLenFirstSoln) <$> listToMaybe qrrNoDmd,
-        (show . resRefinementSteps) <$> listToMaybe qrr,
-        (show . resRefinementSteps) <$> listToMaybe qrrNoDmd,
-        (show . resTransitions) <$> listToMaybe qrr,
-        (show . resTransitions) <$> listToMaybe qrrNoDmd,
+    rowForExp CompareInitialAbstractCovers = let
+      tygar = fromJust (results <$> findwhere expTyGarQ rss)
+      tygar0 = fromJust (results <$> findwhere expTyGar0 rss)
+      sypet = fromJust (results <$> findwhere expSypetClone rss)
+      getRows x = [
+        (showFloat . resTFirstSoln) <$> listToMaybe x,
+        (show . resRefinementSteps) <$> listToMaybe x,
+        (show . resTransitions) <$> listToMaybe x,
+        (show . resTypes) <$> listToMaybe x,
+        either show id <$> resSolutionOrError <$> listToMaybe x
+        ]
+      in
+        concat (transpose (map getRows [tygar, tygar0, sypet]))
 
-        Just $ unlines (map (mkOneLine . toSolution) qrr),
-        Just $ unlines (map (mkOneLine . toSolution) qrrNoDmd)
-      ]
-    rowForExp CompareInitialAbstractCovers = [
-      (showFloat . resTFirstSoln) <$> (head . results) <$> mbqr,
-      (showFloat . resTEncFirstSoln) <$> (head . results) <$> mbqr,
-      (show . resLenFirstSoln) <$> (head . results) <$> mbqr,
-      (show . resRefinementSteps) <$> (head . results) <$> mbqr,
-      (show . resTransitions) <$> (head . results) <$> mbqr,
-      (show . resTypes) <$> (head . results) <$> mbqr,
-
-      (showFloat . resTFirstSoln) <$> (head . results) <$> mbbaseline,
-      (show . resTransitions) <$> (head . results) <$> mbbaseline,
-      (showFloat . resTFirstSoln) <$> (head . results) <$> mbzero,
-      (show . resTransitions) <$> (head . results) <$> mbzero
-      ]
 
     rowForExp TrackTypesAndTransitions = [
       (showFloat . resTFirstSoln) <$> (head . results) <$> mbNoCoalescing,
