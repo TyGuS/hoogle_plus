@@ -238,8 +238,7 @@ mkGroups env sigs = do
 
 selectRepresentative :: MonadIO m => Set Id -> GroupId -> Set Id -> PNSolver m Id
 selectRepresentative hoArgs gid s = do
-    let intsct = Set.intersection s hoArgs
-    let setToPickFrom = if not (null intsct) then intsct else s
+    let setToPickFrom = s
     strat <- getExperiment coalesceStrategy
     case strat of
         First -> return $ Set.elemAt 0 setToPickFrom
@@ -509,18 +508,13 @@ findProgram env dst st ps
         let hoAlias = Map.keysSet $ Map.filter (`elem` hoArgs') nameMap
         let getGroup p = lookupWithError "nameToGroup" p ngm
         let getFuncs p = Map.findWithDefault Set.empty (getGroup p) gm
-        let filterFuncs p =
-                let intsct = Set.intersection hoAlias p
-                 in if Set.null intsct
-                        then p
-                        else intsct
         let sortFuncs p =
                 sortOn
                     (\x ->
                          let name = lookupWithError "nameMapping" x nameMap
                           in Map.findWithDefault 0 name uc) $
                 Set.toList p
-        let allPaths = map (sortFuncs . filterFuncs . getFuncs) path
+        let allPaths = map (sortFuncs . getFuncs) path
         let filterPaths p =
                 let p' =
                         map

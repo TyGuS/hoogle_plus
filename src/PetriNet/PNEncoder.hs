@@ -132,6 +132,7 @@ nonincrementalSolve = do
                             , prevChecked = False }
 
     addAllConstraints
+
     check
 
 incrementalSolve :: Encoder Z3.Result
@@ -274,7 +275,8 @@ encoderInc sigs inputs rets = do
                        , returnTyps = rets
                        , optionalConstraints = []
                        , blockConstraints = []
-                       , finalConstraints = [] }
+                       , finalConstraints = []
+                       , prevChecked = False }
     places <- gets (HashMap.keys . ty2tr)
     transitions <- gets (Set.toList . Set.unions . HashMap.elems . ty2tr)
     l <- gets loc
