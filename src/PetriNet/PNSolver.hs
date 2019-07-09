@@ -590,7 +590,9 @@ findProgram env dst st ps
                     Nothing -> checkUntilFail st' ps
                     Just p -> return (p, st' {prevChecked = null ps}, ps)
             Just (Right err)
-                | not (doRefine rs) || (stop && coverSize cover >= placeNum) ->
+                | not (doRefine rs) || (stop && coverSize cover >= placeNum) -> do
+                    cover <- gets $ view abstractionCover
+                    funcs <- gets $ view activeSigs
                     modify $ over solverStats (\s -> s {
                           numOfPlaces = Map.insert (iterations s + 1) (coverSize cover) (numOfPlaces s)
                         , numOfTransitions = Map.insert (iterations s + 1) (Set.size funcs) (numOfTransitions s)

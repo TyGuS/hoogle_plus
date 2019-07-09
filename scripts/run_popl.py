@@ -9,7 +9,7 @@ import argparse
 import csv
 from multiprocessing import Pool
 
-HPLUS_CMD = "stack exec -- evaluation %s -q %s -f none"
+HPLUS_CMD = "stack exec -- evaluation %s -q %s -f none -t 300"
 
 BMS_PER_GROUP = 1
 NUM_POOLS = 4

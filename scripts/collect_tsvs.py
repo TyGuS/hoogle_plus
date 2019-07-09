@@ -42,7 +42,7 @@ def check_results(solutions):
     try:
         first = solutions[0]
         soln = first["Solution"]
-        if not soln or "No Solution" in soln or "Runtime" in soln:
+        if not soln or "No Solution" in soln or "Runtime" in soln or "Timeout" in soln:
             first["totalTime"] = None
         return solutions
     except IndexError:
@@ -83,7 +83,6 @@ def header():
         "tr-QB5",
         "tr-0",
         "tr-0B5",
-        "tr-NO",
         "tr-Sypet",
     ]
 
@@ -114,7 +113,6 @@ def mk_row(idx, query_group):
         get_transitions(query_group, TYGARQB5),
         get_transitions(query_group, TYGAR0),
         get_transitions(query_group, TYGAR0B5),
-        get_transitions(query_group, NOGAR),
         get_transitions(query_group, SYPET),
     ]
 
