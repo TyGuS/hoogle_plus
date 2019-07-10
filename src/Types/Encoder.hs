@@ -71,7 +71,8 @@ data EncodeState = EncodeState {
   optionalConstraints :: [Z3.AST],
   finalConstraints :: [Z3.AST],
   blockConstraints :: [Z3.AST],
-  useArguments :: Bool
+  useArguments :: Bool,
+  disableClones :: Bool
 }
 
 emptyEncodeState = EncodeState {
@@ -95,7 +96,8 @@ emptyEncodeState = EncodeState {
   optionalConstraints = [],
   finalConstraints = [],
   blockConstraints = [],
-  useArguments = True
+  useArguments = True,
+  disableClones = True
 }
 
 newEnv :: Maybe Logic -> Opts -> IO Z3Env
@@ -110,7 +112,7 @@ newEnv mbLogic opts =
 initialZ3Env = newEnv Nothing stdOpts
 
 freshEnv :: Z3.Context -> IO Z3Env
-freshEnv ctx = 
+freshEnv ctx =
   Z3.withConfig $ \cfg -> do
     setOpts cfg stdOpts
     solver <- Z3.mkSolver ctx

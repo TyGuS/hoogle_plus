@@ -88,6 +88,8 @@ main = do
                   , coalescing_strategy
                   , incremental
                   , disable_relevancy
+                  , disable_copy_trans
+                  , disable_fst_snd
                   } -> do
             let searchParams =
                     defaultSearchParams
@@ -103,6 +105,8 @@ main = do
                         , _coalesceTypes = not disable_coalescing
                         , _coalesceStrategy = coalescing_strategy
                         , _disableRelevancy = disable_relevancy
+                        , _disableCopy = disable_copy_trans
+                        , _disableFS = disable_fst_snd
                         }
             let synquidParams =
                     defaultSynquidParams {Main.envPath = env_file_path_in}
@@ -152,7 +156,9 @@ data CommandLineArgs
         disable_coalescing :: Bool,
         incremental :: Bool,
         coalescing_strategy :: CoalesceStrategy,
-        disable_relevancy :: Bool
+        disable_relevancy :: Bool,
+        disable_copy_trans :: Bool,
+        disable_fst_snd :: Bool
       }
       | Generate {
         -- | Input
@@ -179,10 +185,12 @@ synt = Synthesis {
   stop_refine         = False           &= help ("Stop refine the abstraction cover after some threshold (default: False)"),
   stop_threshold      = 10              &= help ("Refinement stops when the number of places reaches the threshold, only when stop_refine is True"),
   incremental         = False           &= help ("Enable the incremental solving in z3 (default: False)"),
-  disable_demand = False &= name "d" &= help ("Disable the demand analyzer (default: False)"),
+  disable_demand    = False &= name "d" &= help ("Disable the demand analyzer (default: False)"),
   disable_coalescing = False &= name "xc" &= help ("Do not coalesce transitions in the net with the same abstract type"),
   coalescing_strategy = First &= help ("Choose how type coalescing works. Default: Pick first element of each group set."),
-  disable_relevancy   = False           &= help ("Disable the relevancy requirement for argument types (default: False)")
+  disable_relevancy   = False           &= help ("Disable the relevancy requirement for argument types (default: False)"),
+  disable_copy_trans  = False           &= help ("Disable the copy transitions and allow more than one token in initial state instead (default: False)"),
+  disable_fst_snd     = False           &= help ("Disable usage of single fst or snd functions in the solution (default: False)")
   } &= auto &= help "Synthesize goals specified in the input file"
 
 generate = Generate {

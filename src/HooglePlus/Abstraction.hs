@@ -47,7 +47,7 @@ allAbstractDts _ _ = Set.empty
 -- Produce the most specific abstraction possible from the given types.
 specificAbstractionFromTypes :: Environment -> [RSchema] -> AbstractCover
 specificAbstractionFromTypes env schemas = let
-    abstrSkels = map (toAbstractType . shape) (concatMap (allBaseTypes . toMonotype) schemas)
+    abstrSkels = map (compactAbstractType . toAbstractType . shape . toMonotype) schemas
     base = HashMap.singleton rootNode Set.empty
     in
         foldr (updateCover (env ^. boundTypeVars)) base abstrSkels

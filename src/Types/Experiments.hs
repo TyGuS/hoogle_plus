@@ -44,7 +44,9 @@ data SearchParams = SearchParams {
   _disableDemand :: Bool,
   _coalesceTypes :: Bool,
   _coalesceStrategy :: CoalesceStrategy,
-  _disableRelevancy :: Bool
+  _disableRelevancy :: Bool,
+  _disableCopy :: Bool,
+  _disableFS :: Bool
 } deriving (Eq, Show)
 
 makeLenses ''SearchParams
@@ -89,7 +91,9 @@ defaultSearchParams = SearchParams {
   _disableDemand = False,
   _coalesceTypes = True,
   _coalesceStrategy = First,
-  _disableRelevancy = False
+  _disableRelevancy = False,
+  _disableCopy = False,
+  _disableFS = False
 }
 
 type ExperimentName = String
@@ -102,6 +106,7 @@ data ExperimentCourse
   | CompareIncremental
   | CompareSolutions -- 2019-06-12
   | CompareEnvironments
+  | CompareCopyTransitions
   | CoalescingStrategies
   | POPLQuality
   | POPLSpeed

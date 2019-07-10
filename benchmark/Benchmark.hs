@@ -135,6 +135,24 @@ getSetup args = do
                                 _coalesceStrategy=MostInstantiated},
               expTyGarQCoalesceMost)
             ]
+          CompareCopyTransitions -> [
+            (searchParamsTyGarQ{_disableCopy=False, _disableFS=False}, expTyGarQ ++ "-both")   ,
+            (searchParamsTyGarQ{_disableCopy=True, _disableFS=False} , expTyGarQ ++ "-no-copy"),
+            (searchParamsTyGarQ{_disableCopy=False, _disableFS=True} , expTyGarQ ++ "-no-fs")  ,
+            (searchParamsTyGarQ{_disableCopy=True, _disableFS=True}  , expTyGarQ ++ "-neither"),
+            (searchParamsTyGarQB{_disableCopy=False, _disableFS=False}, expTyGarQB ++ "-both"),
+            (searchParamsTyGarQB{_disableCopy=True, _disableFS=False}, expTyGarQB ++ "-no-copy"),
+            (searchParamsTyGarQB{_disableCopy=False, _disableFS=True}, expTyGarQB ++ "-no-fs"),
+            (searchParamsTyGarQB{_disableCopy=True, _disableFS=True}, expTyGarQB ++ "-neither"),
+            (searchParamsTyGar0{_disableCopy=False, _disableFS=False}, expTyGar0 ++ "-both"),
+            (searchParamsTyGar0{_disableCopy=True, _disableFS=False}, expTyGar0 ++ "-no-copy"),
+            (searchParamsTyGar0{_disableCopy=False, _disableFS=True}, expTyGar0 ++ "-no-fs"),
+            (searchParamsTyGar0{_disableCopy=True, _disableFS=True}, expTyGar0 ++ "-neither"),
+            (searchParamsNoGar{_disableCopy=False, _disableFS=False}, expNoGar ++ "-both"),
+            (searchParamsNoGar{_disableCopy=True, _disableFS=False}, expNoGar ++ "-no-copy"),
+            (searchParamsNoGar{_disableCopy=False, _disableFS=True}, expNoGar ++ "-no-fs"),
+            (searchParamsNoGar{_disableCopy=True, _disableFS=True}, expNoGar ++ "-neither")
+            ]
           CompareEnvironments -> let solnCount = 1  in
               [(searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ)]
           CompareSolutions -> let solnCount = 5 in

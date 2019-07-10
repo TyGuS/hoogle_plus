@@ -72,7 +72,8 @@ setInitialState inputs places = do
     assignInput p v = do
         placeMap <- gets place2variable
         let tVar = findVariable "place2variable" (p, 0) placeMap
-        ge <- mkIntNum v >>= mkGe tVar
+        noClone <- gets disableClones
+        ge <- mkIntNum v >>= if noClone then mkGe tVar else mkEq tVar
         modify $ \st -> st { optionalConstraints = ge : optionalConstraints st }
 
 -- | set the final solver state, we allow only one token in the return type
@@ -132,6 +133,8 @@ nonincrementalSolve = do
                             , prevChecked = False }
 
     addAllConstraints
+    -- str <- solverToString
+    -- liftIO $ writeFile "constraint.z3" str
     check
 
 incrementalSolve :: Encoder Z3.Result
@@ -248,8 +251,9 @@ encoderInit :: Int
             -> HashMap AbstractSkeleton (Set Id)
             -> Bool
             -> Bool
+            -> Bool
             -> IO EncodeState
-encoderInit len hoArgs inputs rets sigs t2tr incr rele = do
+encoderInit len hoArgs inputs rets sigs t2tr incr rele noClone = do
     z3Env <- initialZ3Env
     false <- Z3.mkFalse (envContext z3Env)
     let initialState = emptyEncodeState {
@@ -260,6 +264,7 @@ encoderInit len hoArgs inputs rets sigs t2tr incr rele = do
         , incrementalSolving = incr
         , returnTyps = rets
         , useArguments = not rele
+        , disableClones = noClone
         }
     execStateT (createEncoder inputs (head rets) sigs) initialState
 
@@ -274,7 +279,8 @@ encoderInc sigs inputs rets = do
                        , returnTyps = rets
                        , optionalConstraints = []
                        , blockConstraints = []
-                       , finalConstraints = [] }
+                       , finalConstraints = []
+                       , prevChecked = False }
     places <- gets (HashMap.keys . ty2tr)
     transitions <- gets (Set.toList . Set.unions . HashMap.elems . ty2tr)
     l <- gets loc
@@ -309,7 +315,7 @@ encoderInc sigs inputs rets = do
     setFinalState (head rets) places
 
 encoderRefine :: SplitInfo -> HashMap Id [Id] -> [AbstractSkeleton] -> [AbstractSkeleton] -> [FunctionCode] -> HashMap AbstractSkeleton (Set Id) -> Encoder ()
-encoderRefine info musters inputs rets sigs t2tr = do
+encoderRefine info musters inputs rets newSigs t2tr = do
     {- update the abstraction level -}
     modify $ \st -> st { ty2tr = t2tr
                        , mustFirers = musters
@@ -324,7 +330,7 @@ encoderRefine info musters inputs rets sigs t2tr = do
     let newPlaceIds = newPlaces info
     let newTransIds = newTrans info
     let currPlaces = HashMap.keys t2tr
-    let newSigs = filter ((`elem` newTransIds) . funName) sigs
+    -- let newSigs = filter ((`elem` newTransIds) . funName) sigs
     let allTrans = [(t, tr) | t <- [0..(l-1)], tr <- newSigs ]
 
     -- add new place, transition and timestamp variables
