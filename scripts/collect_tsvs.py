@@ -7,19 +7,22 @@ import json
 import yaml
 import numpy
 from tabulate import tabulate
+import numpy as np
+import matplotlib.pyplot as plt
 
-DATA_DIR = "tmp/multi-run"
+DATA_DIR = "tmp/run_each/"
 OUTPUT_FILE = "collected.csv"
 OUTPUT_TEX = "result.tex"
 quality_map = "data/quality-map.csv"
 name_regex = r'(.*)\+(.*)\.tsv'
 
-TYGARQ = "TYGAR-Q".lower()
+TYGARQ = "TYGARQ".lower()
+TYGAR0 = "TYGAR0".lower()
 TYGARQB5 = "TYGARQB5".lower()
-TYGAR0 = "TYGAR-0".lower()
-TYGAR0B5 = "TYGAR0B5".lower()
+TYGARQB10 = "TYGARQB10".lower()
+TYGARQB15 = "TYGARQB15".lower()
+TYGARQB20 = "TYGARQB20".lower()
 NOGAR = "NoGar".lower()
-SYPET = "Sypet-Clone".lower()
 
 class Result():
     def __init__(self):
@@ -88,7 +91,8 @@ class CollectTSVs():
         return new_per_query
 
     def average_query(self, query_name, exp_name, results):
-        numerics = ["totalTime", "constructionTime", "solverTime", "typeCheckerTime"]
+        numerics = ["totalTime", "constructionTime", "solverTime",
+            "typeCheckerTime", "numOfTransitions"]
         average_result = {}
         for numeric in numerics:
             values = []
@@ -102,13 +106,14 @@ class CollectTSVs():
             if len(values) > 1:
                 print("%s-%s: %s - variance %0.2f : %s" % (query_name, exp_name, numeric, numpy.var(values), str(values)))
 
-        last_transitions = []
-        for result in results:
-            trs = json.loads(result["numOfTransitions"])
-            if len(trs) > 0:
-                last_transitions.append(trs[-1])
-        if len(last_transitions) > 0:
-            average_result["numOfTransitions"] = int(numpy.median(last_transitions))
+        # transitions are now taken care of by run_each_benchmark
+        # last_transitions = []
+        # for result in results:
+        #     trs = json.loads(result["numOfTransitions"])
+        #     if len(trs) > 0:
+        #         last_transitions.append(trs[-1])
+        # if len(last_transitions) > 0:
+        #     average_result["numOfTransitions"] = int(numpy.median(last_transitions))
 
         average_result["name"] = query_name
         average_result["query"] = results[0]["query"]
@@ -177,13 +182,11 @@ class CollectTSVs():
             safeGet(query_group, TYGARQ, "totalTime"),
             safeGet(query_group, TYGARQB5, "totalTime"),
             safeGet(query_group, TYGAR0, "totalTime"),
-            safeGet(query_group, TYGAR0B5, "totalTime"),
             safeGet(query_group, NOGAR, "totalTime"),
 
             safeGet(query_group, TYGARQ, "solverTime"),
             safeGet(query_group, TYGARQB5, "solverTime"),
             safeGet(query_group, TYGAR0, "solverTime"),
-            safeGet(query_group, TYGAR0B5, "solverTime"),
             safeGet(query_group, NOGAR, "solverTime"),
 
             safeGet(query_group, TYGARQ, "typeCheckerTime"),
@@ -193,7 +196,6 @@ class CollectTSVs():
             safeGet(query_group, TYGARQ, "numOfTransitions"),
             safeGet(query_group, TYGARQB5, "numOfTransitions"),
             safeGet(query_group, TYGAR0, "numOfTransitions"),
-            safeGet(query_group, TYGAR0B5, "numOfTransitions"),
         ]
         assert len(res) == len(self.header())
         return res
@@ -237,11 +239,11 @@ def mk_plot(per_query):
         if "q" in exp:
             m="."
         plt.plot(values, ys, marker=m, label=exp)
-        plt.legend(loc=0, prop={'size': 4})
-        plt.xlabel("seconds")
-        plt.ylabel("benchmarks solved")
-        plt.savefig("bounds.pdf")
-        plt.show()
+    plt.legend(loc=0, prop={'size': 4})
+    plt.xlabel("seconds")
+    plt.ylabel("benchmarks solved")
+    plt.savefig("bounds.pdf")
+    plt.show()
 
 
 def safeGet(dct, exp, field):
