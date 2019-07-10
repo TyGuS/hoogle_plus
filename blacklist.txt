@@ -1,0 +1,4 @@
+Data.Function.const
+Data.Function.id
+Data.Tuple.fst
+Data.Tuple.snd

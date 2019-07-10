@@ -74,11 +74,10 @@ synthesize searchParams goal messageChan = do
     let (env'', monospec) = updateEnvWithBoundTyVars (gSpec goal) env'''
     let (env', destinationType) = updateEnvWithSpecArgs monospec env''
     let useHO = _useHO searchParams
-    let useFS = not (_disableFS searchParams)
-    let fsEnv = if useFS then env'
-                         else env' { _symbols = Map.delete "Data.Tuple.fst"
-                                              $ Map.delete "Data.Tuple.snd"
-                                              $ env' ^. symbols }
+    let useBlack = not (_disableBlack searchParams)
+    blacks <- readFile "blacklist.txt"
+    let fsEnv = if useBlack then env' { _symbols = Map.withoutKeys (env' ^. symbols) (Set.fromList (words blacks)) }
+                            else env'
     let rawSyms = fsEnv ^. symbols
     let hoCands = fsEnv ^. hoCandidates
     env <-

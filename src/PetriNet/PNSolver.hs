@@ -585,7 +585,7 @@ findProgram env dst st ps
         codeResult <- fillSketch path
         checkResult <- withTime TypeCheckTime $
                         firstCheckedOrError $
-                        sortOn length $ Set.toList codeResult
+                        reverse $ sortOn length $ Set.toList codeResult
         rs <- getExperiment refineStrategy
         stop <- getExperiment stopRefine
         placeNum <- getExperiment threshold
@@ -617,12 +617,7 @@ findProgram env dst st ps
         res <- parseAndCheck x
         case res of
             Left prog -> return $ Just res
-            Right err -> do
-                res' <- firstCheckedOrError xs
-                case res' of
-                    Nothing -> return $ Just res
-                    Just (Left prog) -> return res'
-                    Just (Right _)  -> return $ Just res
+            Right err -> firstCheckedOrError xs
 
     pickGeneralization ABottom target = return ABottom
     pickGeneralization ty target = do

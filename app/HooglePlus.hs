@@ -89,7 +89,7 @@ main = do
                   , incremental
                   , disable_relevancy
                   , disable_copy_trans
-                  , disable_fst_snd
+                  , disable_blacklist
                   } -> do
             let searchParams =
                     defaultSearchParams
@@ -106,7 +106,7 @@ main = do
                         , _coalesceStrategy = coalescing_strategy
                         , _disableRelevancy = disable_relevancy
                         , _disableCopy = disable_copy_trans
-                        , _disableFS = disable_fst_snd
+                        , _disableBlack = disable_blacklist
                         }
             let synquidParams =
                     defaultSynquidParams {Main.envPath = env_file_path_in}
@@ -158,7 +158,7 @@ data CommandLineArgs
         coalescing_strategy :: CoalesceStrategy,
         disable_relevancy :: Bool,
         disable_copy_trans :: Bool,
-        disable_fst_snd :: Bool
+        disable_blacklist :: Bool
       }
       | Generate {
         -- | Input
@@ -190,7 +190,7 @@ synt = Synthesis {
   coalescing_strategy = First &= help ("Choose how type coalescing works. Default: Pick first element of each group set."),
   disable_relevancy   = False           &= help ("Disable the relevancy requirement for argument types (default: False)"),
   disable_copy_trans  = False           &= help ("Disable the copy transitions and allow more than one token in initial state instead (default: False)"),
-  disable_fst_snd     = False           &= help ("Disable usage of single fst or snd functions in the solution (default: False)")
+  disable_blacklist     = False         &= help ("Disable blacklisting functions in the solution (default: False)")
   } &= auto &= help "Synthesize goals specified in the input file"
 
 generate = Generate {
