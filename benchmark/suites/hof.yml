@@ -6,10 +6,6 @@
   query: "(a->b)->Int->[a->b]"
   solution: GHC.List.replicate n f
 
-- name: mapMaybes
-  query: "(a -> Maybe b) -> [a] -> Maybe b"
-  solution: Data.Maybe.listToMaybe (Data.Maybe.mapMaybe f xs)
-
 - name: countFilter
   query: "(a->Bool)->[a]->Int"
   solution: GHC.List.length (GHC.List.takeWhile p xs)
