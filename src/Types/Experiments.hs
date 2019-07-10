@@ -106,6 +106,7 @@ data ExperimentCourse
   | CompareIncremental
   | CompareSolutions -- 2019-06-12
   | CompareEnvironments
+  | CompareCopyTransitions
   | CoalescingStrategies
   | POPLQuality
   | POPLSpeed

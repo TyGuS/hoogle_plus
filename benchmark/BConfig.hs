@@ -44,4 +44,5 @@ searchParamsTyGar0BInc = searchParamsTyGar0B{_incrementalSolving=True}
 searchParamsNoGarInc = searchParamsNoGar{_incrementalSolving=True}
 searchParamsTyGarQBInc = searchParamsTyGarQB{_incrementalSolving=True}
 searchParamsTyGarQInc = searchParamsTyGarQ{_incrementalSolving=True}
-
+searchParamsTyGarQNoCopy = searchParamsTyGarQ{_disableCopy=True}
+searchParamsTyGarQNoFS = searchParamsTyGarQ{_disableFS=True}
