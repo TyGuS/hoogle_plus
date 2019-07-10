@@ -70,6 +70,9 @@ encodeFunction id t@AScalar {} = FunctionCode id [] [] [t]
 instantiate :: MonadIO m => Environment -> Map Id RSchema -> PNSolver m (Map Id AbstractSkeleton)
 instantiate env sigs = do
     modify $ set toRemove []
+    noBlack <- getExperiment disableBlack
+    blacks <- liftIO $ readFile "blacklist.txt"
+    let sigs' = if noBlack then sigs else Map.withoutKeys sigs (Set.fromList $ words blacks)
     Map.fromList <$> instantiate' sigs
   where
     instantiate' sigs = do
