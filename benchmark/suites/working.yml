@@ -121,9 +121,9 @@
   source: "stackOverflow"
 
 # No solution?
-- name: cross
-  query: "(a, b) -> (a, b) -> (a, b)"
-  source: "hoogle"
+# - name: cross
+#   query: "(a, b) -> (a, b) -> (a, b)"
+#   source: "hoogle"
 
 - name: firstRight
   query: "[Either a b] -> Either a b"
