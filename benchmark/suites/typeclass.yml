@@ -5,6 +5,7 @@
 - name: lookup
   query: "Eq a => [(a,b)] -> a -> b"
   solution: Data.Maybe.fromJust (GHC.List.lookup arg0 arg1)
+  source: "hoogle"
 
 # - name: intersperse
 #   query: Show a => a -> [String] -> String
@@ -34,6 +35,7 @@
 - name: mbElem
   query: "Eq a => a -> [a] -> Maybe a"
   solution: bool (Nothing) (Just (arg1)) (elem arg1 arg0)
+  source: "hoogle"
 
 # - name: convert
 #   query: Int -> Int -> Float
@@ -41,6 +43,7 @@
 - name: areEq
   query: "Eq a => a -> a -> Maybe a"
   solution: bool (Nothing) (Just (arg1)) (== arg1 arg0)
+  source: "hoogle"
 
 # - name: d2i
 #   query: Double -> Integer
@@ -63,3 +66,4 @@
 - name: containsEdge
   query: "[Int] -> (Int,Int) -> Bool"
   solution: containsEdge xs (a,b) = (a `elem` xs) && (b `elem` xs)
+  source: "stackOverflow"
