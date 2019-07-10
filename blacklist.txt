@@ -1,4 +1,9 @@
 Data.Function.const
 Data.Function.id
+Data.Function.fix
+Data.Function.on
+Data.Function.flip
+(Data.Function.&)
+(Data.Function..)
 Data.Tuple.fst
 Data.Tuple.snd
