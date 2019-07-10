@@ -12,8 +12,8 @@ from multiprocessing import Pool
 HPLUS_CMD = "stack exec -- evaluation %s -q %s -f none -t 60 -d %s"
 
 BMS_PER_GROUP = 1
-NUM_POOLS = 2
-REPEATS = 1
+NUM_POOLS = 4
+REPEATS = 5
 OUTPUT_DIR = "tmp/results/"
 
 def ensure_dir(directory):
