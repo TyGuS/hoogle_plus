@@ -20,12 +20,14 @@ data Args = Args {
   argsOutputFile :: [FilePath],
   argsExperiment :: ExperimentCourse,
   argsOutputFormat :: [ResultFormat],
-  argsPreset :: Preset
+  argsPreset :: Preset,
+  argsOutputDirectory :: String
   } deriving (Show, Data, Typeable)
 
 data ExperimentSetup = ExpSetup {
   expTimeout :: Int, -- Timeout in seconds
-  expCourse :: ExperimentCourse
+  expCourse :: ExperimentCourse,
+  expDirectory :: String
   }
 
 type Experiment = (Environment, String, Query, SearchParams, String)

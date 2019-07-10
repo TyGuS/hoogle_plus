@@ -44,7 +44,7 @@
 
 - name: indexesOf
   query: "([(a,Int)] -> [(a,Int)]) -> [a] -> [Int] -> [Int]"
-  solution: indexesOf f xs ys = map snd (f (zip xs ys))
+  solution: map snd (f (zip xs ys))
 
 - name: dotProduct
   query: "[Int] -> [Int] -> Int"
@@ -52,4 +52,4 @@
 
 - name: appTuple
   query: "(a -> a') -> (b -> b') -> (a, b) -> (a', b')"
-  solution: appTuple f g t = (f (fst t), g (snd t))
+  solution: (f (fst t), g (snd t))

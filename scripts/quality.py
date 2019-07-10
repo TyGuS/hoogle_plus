@@ -9,16 +9,11 @@ import argparse
 import csv
 from multiprocessing import Pool
 
-HPLUS_CMD = "stack exec -- evaluation %s -q %s -f none -t 60 -d %s"
+HPLUS_CMD = "stack exec -- evaluation %s -q %s -f TSV -o %s"
 
 BMS_PER_GROUP = 1
-NUM_POOLS = 2
-REPEATS = 1
-OUTPUT_DIR = "tmp/results/"
-
-def ensure_dir(directory):
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+NUM_POOLS = 4
+OUTPUT_FILE = "results.tsv"
 
 def chunks(l, n):
     """Yield successive n-sized chunks from l."""
@@ -32,23 +27,20 @@ def run_benchmarks(experiment, benchmarks):
     for i in range(len(groups)):
         group = groups[i]
         filename = "tmp/in%s.yml" % str(i)
+        outname = "tmp/out%s.tsv" % str(i)
         run_pairs.append({
             "input_file": filename,
+            "output_file": outname,
         })
         with open(filename, 'w') as out_file:
             out_file.write(yaml.dump(group))
-    # prep the output directories
-    for idx in range(REPEATS):
-        ensure_dir(os.path.join(OUTPUT_DIR, str(idx)))
     # run the actual evaluations
     cmds = []
-    for idx in range(REPEATS):
-        out_dir = os.path.join(OUTPUT_DIR, str(idx))
-        for p in run_pairs:
-                cmd = HPLUS_CMD % (experiment, p["input_file"], out_dir)
-                cmds.append(cmd)
+    for p in run_pairs:
+        cmd = HPLUS_CMD % (experiment, p["input_file"], p["output_file"])
+        cmds.append(cmd)
     execute_bms(cmds)
-
+    # combine the results
     allResults = []
     headers = []
     for p in run_pairs:
@@ -79,7 +71,7 @@ def main ():
 
     with open(args.benchmarkfile) as f:
         bms = yaml.load(f)
-        # print(bms)
+        print(bms)
         run_benchmarks(args.experiment, bms)
 
 if __name__ == '__main__':
