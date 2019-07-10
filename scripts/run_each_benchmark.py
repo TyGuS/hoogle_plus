@@ -123,13 +123,13 @@ class Experiment():
 
 def main():
     bmg = Experiment([
-        # Variant("tygarQ"),
-        # Variant("tygar0", "--use-refine=tygar0"),
-        # Variant("tygarQB5", "--stop-refine=True --stop-threshold=5"),
+        Variant("tygarQ"),
+        Variant("tygar0", "--use-refine=tygar0"),
+        Variant("tygarQB5", "--stop-refine=True --stop-threshold=5"),
         Variant("tygarQB10", "--stop-refine=True --stop-threshold=10"),
-        # Variant("tygarQB15", "--stop-refine=True --stop-threshold=15"),
-        # Variant("tygarQB20", "--stop-refine=True --stop-threshold=20"),
-        # Variant("nogar", "--use-refine=nogar"),
+        Variant("tygarQB15", "--stop-refine=True --stop-threshold=15"),
+        Variant("tygarQB20", "--stop-refine=True --stop-threshold=20"),
+        Variant("nogar", "--use-refine=nogar"),
         ])
     bmg.load_queries()
     bmg.setup()

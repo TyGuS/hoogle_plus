@@ -41,6 +41,7 @@ import System.Directory (removeFile)
 import Text.Printf
 import Text.Regex
 import Var
+import Data.UUID.V4
 
 showGhc :: (Outputable a) => a -> String
 showGhc = showPpr unsafeGlobalDynFlags
@@ -54,7 +55,9 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just lib
     let toModuleImportStr = (printf "import %s\n") :: String -> String
     let moduleImports = concatMap toModuleImportStr modules
     let sourceCode = printf "module Temp where\n%s\n%s :: %s\n%s = %s\n" moduleImports ourFunctionName typeExpr ourFunctionName lambdaExpr
-    let fileName = tmpDir ++ "/Temp.hs"
+    baseName <- liftIO $ nextRandom
+    let baseNameStr = show baseName ++ ".hs"
+    let fileName = tmpDir ++ "/" ++ baseNameStr
     liftIO $ writeFile fileName sourceCode
 
     -- Establishing GHC session
@@ -79,7 +82,7 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just lib
     core' <- liftIO $ core2core env core
     prog <- liftIO $ (dmdAnalProgram dflags emptyFamInstEnvs $ mg_binds core')
     let decl = findOurBinding (prog :: [CoreBind]) -- only one method
-    -- liftIO $ removeFile fileName
+    liftIO $ removeFile fileName
     -- liftIO $ printf "whole program: %s\n" $ showSDocUnsafe $ ppr $ prog
     -- TODO: I'm thinking of simply checking for the presence of `L` (lazy) or `A` (absent)
     -- on the singatures. That would be enough to show that the relevancy requirement is not met.

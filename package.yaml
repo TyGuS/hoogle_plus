@@ -60,6 +60,7 @@ dependencies:
 - transformers-compat
 - unordered-containers
 - vector
+- uuid
 
 library:
   source-dirs:
