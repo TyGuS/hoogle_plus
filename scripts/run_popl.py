@@ -49,23 +49,23 @@ def run_benchmarks(experiment, benchmarks):
                 cmds.append(cmd)
     execute_bms(cmds)
 
-    allResults = []
-    headers = []
-    for p in run_pairs:
-        try:
-            with open(p["output_file"]) as tsv_file:
-                reader = csv.reader(tsv_file, delimiter="\t")
-                lines = list(reader)
-                headers = lines[0]
-                allResults += lines[1:]
-        except Exception as e:
-            print(e)
-    with open(OUTPUT_FILE, "w") as final_table:
-        writer = csv.writer(final_table, delimiter="\t", quoting=csv.QUOTE_ALL)
-        writer.writerow(headers)
-        for line in allResults:
-            writer.writerow(line)
-    print("wrote to %s" % OUTPUT_FILE)
+    # allResults = []
+    # headers = []
+    # for p in run_pairs:
+    #     try:
+    #         with open(p["output_file"]) as tsv_file:
+    #             reader = csv.reader(tsv_file, delimiter="\t")
+    #             lines = list(reader)
+    #             headers = lines[0]
+    #             allResults += lines[1:]
+    #     except Exception as e:
+    #         print(e)
+    # with open(OUTPUT_FILE, "w") as final_table:
+    #     writer = csv.writer(final_table, delimiter="\t", quoting=csv.QUOTE_ALL)
+    #     writer.writerow(headers)
+    #     for line in allResults:
+    #         writer.writerow(line)
+    # print("wrote to %s" % OUTPUT_FILE)
 
 def execute_bms(cmds):
     with Pool(processes=NUM_POOLS) as pool:

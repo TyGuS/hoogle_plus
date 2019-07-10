@@ -218,6 +218,32 @@ class CollectTSVs():
             f.write(tabulate(table, self.header(), tablefmt="latex"))
 
 
+def mk_plot(per_query):
+    per_exp = {}
+    for qm in per_query:
+        for exp in per_query[qm]:
+            if exp not in per_exp:
+                per_exp[exp] = []
+            time = per_query[qm][exp].get("totalTime")
+            if time is not None:
+                per_exp[exp].append(time)
+    for exp in per_exp:
+        per_exp[exp] = sorted(per_exp[exp])
+
+    for exp in per_exp:
+        values = per_exp[exp]
+        ys = range(0,len(values))
+        m = "+"
+        if "q" in exp:
+            m="."
+        plt.plot(values, ys, marker=m, label=exp)
+        plt.legend(loc=0, prop={'size': 4})
+        plt.xlabel("seconds")
+        plt.ylabel("benchmarks solved")
+        plt.savefig("bounds.pdf")
+        plt.show()
+
+
 def safeGet(dct, exp, field):
     try:
         return dct.get(exp,{}).get(field)
@@ -227,6 +253,7 @@ def safeGet(dct, exp, field):
 def main():
     ctsv = CollectTSVs()
     per_query = ctsv.gather_files()
+    mk_plot(per_query)
     table = ctsv.mk_table(per_query)
     ctsv.write_csv(table)
     ctsv.write_latex(table)
