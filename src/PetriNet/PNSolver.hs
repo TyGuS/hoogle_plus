@@ -285,13 +285,17 @@ refineSemantic env prog at = do
     let removables = removedSigs \\ addedSigs
     writeLog 3 "refineSemantic (toAdd, removables)" $ pretty (toAdd, removables)
 
+    -- add clone functions and add them into new transition set
+    noClone <- getExperiment disableCopy
+    cloneNames <- if noClone then return []
+                             else mapM addCloneFunction $ Set.toList splits
     -- update the higer order query arguments
     let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
     mapM_ addMusters (Map.keys hoArgs)
     -- call the refined encoder on these signatures and disabled signatures
     return SplitInfo { newPlaces = Set.toList splits
                      , removedTrans = removables
-                     , newTrans = addedSigs
+                     , newTrans = addedSigs ++ cloneNames
                      }
   where
     splitTransitions at = do
@@ -400,6 +404,11 @@ initNet env = withTime ConstructionTime $ do
     modify $ set instanceMapping HashMap.empty
 
     addSignatures env
+    -- add clone functions for each type
+    noClone <- getExperiment disableCopy
+    unless noClone $ do
+        allTy <- gets (HashMap.keys . view type2transition)
+        mapM_ addCloneFunction allTy
     -- add higher order query arguments
     let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
     mapM_ addMusters (Map.keys hoArgs)
@@ -422,14 +431,17 @@ resetEncoder env dst = do
     (srcTypes, tgt) <- updateSrcTgt env dst
     writeLog 2 "resetEncoder" $ text "parameter types are" <+> pretty srcTypes
     writeLog 2 "resetEncoder" $ text "return type is" <+> pretty tgt
-    (loc, musters, rets, funcs, tid2tr, incremental, relevancy) <- prepEncoderArgs env tgt
-    liftIO $ encoderInit loc musters srcTypes rets funcs tid2tr incremental relevancy
+    incremental <- getExperiment incrementalSolving
+    relevancy <- getExperiment disableRelevancy
+    noClone <- getExperiment disableCopy
+    (loc, musters, rets, funcs, tid2tr) <- prepEncoderArgs env tgt
+    liftIO $ encoderInit loc musters srcTypes rets funcs tid2tr incremental relevancy noClone
 
 incEncoder :: MonadIO m => Environment -> EncodeState -> PNSolver m EncodeState
 incEncoder env st = do
     tgt <- gets (view targetType)
     src <- gets (view sourceTypes)
-    (_, _, rets, funcs, _, _, _) <- prepEncoderArgs env tgt
+    (_, _, rets, funcs, _) <- prepEncoderArgs env tgt
     liftIO $ execStateT (encoderInc funcs src rets) st
 
 findPath :: MonadIO m
@@ -467,7 +479,7 @@ fixEncoder env dst st info = do
     writeLog 2 "fixEncoder" $ text "fixed return type:" <+> pretty tgt
     writeLog 3 "fixEncoder" $ text "get split information" </> pretty info
     modify $ over type2transition (HashMap.filter (not . null))
-    (loc, musters, rets, _, tid2tr, _, _) <- prepEncoderArgs env tgt
+    (loc, musters, rets, _, tid2tr) <- prepEncoderArgs env tgt
     fm <- gets $ view functionMap
     let funcs = map (fromJust . (`HashMap.lookup` fm)) (newTrans info)
     liftIO $ execStateT (encoderRefine info musters srcTypes rets funcs tid2tr) st
@@ -485,7 +497,9 @@ findProgram env dst st ps
         modify $ set typeAssignment Map.empty
         writeLog 2 "findProgram" $ text "calling findProgram"
         (path, st') <- findPath env dst st
-        paths <- enumeratePath path
+        writeLog 2 "findProgram" $ text "unfiltered path:" <+> pretty path
+        let usefulTrans = filter skipClone path
+        paths <- enumeratePath usefulTrans
         writeLog 2 "findProgram" $ text "all possible paths" <+> pretty paths
         checkUntilFail st' paths
   where
@@ -520,6 +534,7 @@ findProgram env dst st ps
                  in if disrel then True else all (`elem` p') hoArgs
         return $ filter filterPaths (sequence allPaths)
 
+    skipClone = not . isInfixOf "|clone"
 
     generateCode initialFormer src args sigs = do
         tgt <- gets (view targetType)
@@ -727,6 +742,13 @@ recoverNames mapping (Program (PFun x body) t) = Program (PFun x body') t
     body' = recoverNames mapping body
 
 {- helper functions -}
+addCloneFunction :: MonadIO m => AbstractSkeleton -> PNSolver m Id
+addCloneFunction ty = do
+    let fname = show ty ++ "|clone"
+    let fc = FunctionCode fname [] [ty] [ty, ty]
+    modify $ over functionMap (HashMap.insert fname fc)
+    updateTy2Tr fname ty
+    return fname
 
 doRefine :: RefineStrategy -> Bool
 doRefine NoGar = False
@@ -763,9 +785,7 @@ type EncoderArgs = (Int
                     , HashMap Id [Id]
                     , [AbstractSkeleton]
                     , [FunctionCode]
-                    , HashMap AbstractSkeleton (Set Id)
-                    , Bool
-                    , Bool)
+                    , HashMap AbstractSkeleton (Set Id))
 
 prepEncoderArgs :: MonadIO m
                 => Environment
@@ -777,14 +797,12 @@ prepEncoderArgs env tgt = do
     funcs <- gets $ view functionMap
     t2tr <- gets $ view type2transition
     musters <- gets $ view mustFirers
-    incremental <- getExperiment incrementalSolving
-    relevancy <- getExperiment disableRelevancy
     let bound = env ^. boundTypeVars
     let accepts = superTypeOf bound cover tgt
     let rets = sortBy (compareAbstract bound) accepts
     let sigs = HashMap.elems funcs
     writeLog 3 "prepEncoderArgs" $ text "current must firers" <+> pretty (HashMap.toList musters)
-    return (loc, musters, rets, sigs, t2tr, incremental, relevancy)
+    return (loc, musters, rets, sigs, t2tr)
 
 foArgsOf :: Environment -> Map Id RSchema
 foArgsOf = Map.filter (not . isFunctionType . toMonotype) . _arguments

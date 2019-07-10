@@ -74,23 +74,28 @@ synthesize searchParams goal messageChan = do
     let (env'', monospec) = updateEnvWithBoundTyVars (gSpec goal) env'''
     let (env', destinationType) = updateEnvWithSpecArgs monospec env''
     let useHO = _useHO searchParams
-    let rawSyms = env' ^. symbols
-    let hoCands = env' ^. hoCandidates
+    let useFS = not (_disableFS searchParams)
+    let fsEnv = if useFS then env'
+                         else env' { _symbols = Map.delete "Data.Tuple.fst"
+                                              $ Map.delete "Data.Tuple.snd"
+                                              $ env' ^. symbols }
+    let rawSyms = fsEnv ^. symbols
+    let hoCands = fsEnv ^. hoCandidates
     env <-
         if useHO -- add higher order query arguments
             then do
-                let args = env' ^. arguments
+                let args = fsEnv ^. arguments
                 let hoArgs = Map.filter (isFunctionType . toMonotype) args
                 let hoFuns = map (\(k, v) -> (k ++ hoPostfix, toFunType v)) (Map.toList hoArgs)
                 return $
-                    env'
+                    fsEnv
                         { _symbols = rawSyms `Map.union` Map.fromList hoFuns
                         , _hoCandidates = hoCands ++ map fst hoFuns
                         }
             else do
                 let syms = Map.filter (not . isHigherOrder . toMonotype) rawSyms
                 return $
-                    env'
+                    fsEnv
                         {_symbols = Map.withoutKeys syms $ Set.fromList hoCands, _hoCandidates = []}
     putStrLn $ "Component number: " ++ show (Map.size $ allSymbols env)
     let args = Monotype destinationType : Map.elems (env ^. arguments)

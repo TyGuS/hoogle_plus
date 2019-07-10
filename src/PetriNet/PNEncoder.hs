@@ -72,7 +72,8 @@ setInitialState inputs places = do
     assignInput p v = do
         placeMap <- gets place2variable
         let tVar = findVariable "place2variable" (p, 0) placeMap
-        ge <- mkIntNum v >>= mkGe tVar
+        noClone <- gets disableClones
+        ge <- mkIntNum v >>= if noClone then mkGe tVar else mkEq tVar
         modify $ \st -> st { optionalConstraints = ge : optionalConstraints st }
 
 -- | set the final solver state, we allow only one token in the return type
@@ -250,8 +251,9 @@ encoderInit :: Int
             -> HashMap AbstractSkeleton (Set Id)
             -> Bool
             -> Bool
+            -> Bool
             -> IO EncodeState
-encoderInit len hoArgs inputs rets sigs t2tr incr rele = do
+encoderInit len hoArgs inputs rets sigs t2tr incr rele noClone = do
     z3Env <- initialZ3Env
     false <- Z3.mkFalse (envContext z3Env)
     let initialState = emptyEncodeState {
@@ -262,6 +264,7 @@ encoderInit len hoArgs inputs rets sigs t2tr incr rele = do
         , incrementalSolving = incr
         , returnTyps = rets
         , useArguments = not rele
+        , disableClones = noClone
         }
     execStateT (createEncoder inputs (head rets) sigs) initialState
 
