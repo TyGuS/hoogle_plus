@@ -21,6 +21,10 @@
   query: "(a -> Either b c) -> [a] -> ([b], [c])"
   solution: foldr (\x (ys, zs) -> either (\y -> (y:ys,zs)) (\z -> (ys, z:zs)) (f x)) ([],[]) xs
 
+- name: firstJust
+  query: "(a -> Maybe b) -> [a] -> Maybe b"
+  solution: listToMaybe (mapMaybe f xs)
+
 - name: mergeEither
   query: "Either a (Either a b) -> Either a b"
   solution: either Left (Either Left Right) arg0
