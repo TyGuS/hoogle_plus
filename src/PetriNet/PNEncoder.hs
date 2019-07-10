@@ -133,8 +133,8 @@ nonincrementalSolve = do
                             , prevChecked = False }
 
     addAllConstraints
-    str <- solverToString
-    liftIO $ writeFile "constraint.z3" str
+    -- str <- solverToString
+    -- liftIO $ writeFile "constraint.z3" str
     check
 
 incrementalSolve :: Encoder Z3.Result
