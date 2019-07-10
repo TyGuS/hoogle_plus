@@ -144,15 +144,14 @@ getSetup args = do
             (searchParamsTyGarQB{_disableCopy=True, _disableFS=False}, expTyGarQB ++ "no copy"),
             (searchParamsTyGarQB{_disableCopy=False, _disableFS=True}, expTyGarQB ++ "no fs"),
             (searchParamsTyGarQB{_disableCopy=True, _disableFS=True}, expTyGarQB ++ "neither"),
-            (searchParamsTyGar0{_disableCopy=False, _disableFS=False}, exprTyGar0 ++ "both"),
-            (searchParamsTyGar0{_disableCopy=True, _disableFS=False}, exprTyGar0 ++ "no copy"),
-            (searchParamsTyGar0{_disableCopy=False, _disableFS=True}, exprTyGar0 ++ "no fs"),
-            (searchParamsTyGar0{_disableCopy=True, _disableFS=True}, exprTyGar0 ++ "neither"),
+            (searchParamsTyGar0{_disableCopy=False, _disableFS=False}, expTyGar0 ++ "both"),
+            (searchParamsTyGar0{_disableCopy=True, _disableFS=False}, expTyGar0 ++ "no copy"),
+            (searchParamsTyGar0{_disableCopy=False, _disableFS=True}, expTyGar0 ++ "no fs"),
+            (searchParamsTyGar0{_disableCopy=True, _disableFS=True}, expTyGar0 ++ "neither"),
             (searchParamsNoGar{_disableCopy=False, _disableFS=False}, expNoGar ++ "both"),
             (searchParamsNoGar{_disableCopy=True, _disableFS=False}, expNoGar ++ "no copy"),
             (searchParamsNoGar{_disableCopy=False, _disableFS=True}, expNoGar ++ "no fs"),
             (searchParamsNoGar{_disableCopy=True, _disableFS=True}, expNoGar ++ "neither")
-              )
             ]
           CompareEnvironments -> let solnCount = 1  in
               [(searchParamsTyGarQ{_solutionCnt=solnCount}, expTyGarQ)]
