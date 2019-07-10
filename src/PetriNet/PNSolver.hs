@@ -73,7 +73,7 @@ instantiate env sigs = do
     noBlack <- getExperiment disableBlack
     blacks <- liftIO $ readFile "blacklist.txt"
     let sigs' = if noBlack then sigs else Map.withoutKeys sigs (Set.fromList $ words blacks)
-    Map.fromList <$> instantiate' sigs
+    Map.fromList <$> instantiate' sigs'
   where
     instantiate' sigs = do
         tree <- gets (view abstractionCover)
