@@ -24,9 +24,20 @@ TYGARQB15 = "TYGARQB15".lower()
 TYGARQB20 = "TYGARQB20".lower()
 NOGAR = "NoGar".lower()
 
-class Result():
-    def __init__(self):
-        pass
+
+def best_bold(func, *args):
+    args_list = [x for x in args if x is not None]
+    if len(args_list) == 0:
+        return list(args)
+    top = func(args_list)
+    newargs = []
+    for arg in args:
+        if arg == top:
+            # make bold:
+            arg = "\\textbf{%s}" % arg
+        newargs.append(arg)
+    return newargs
+
 
 class CollectTSVs():
 
@@ -74,10 +85,9 @@ class CollectTSVs():
                     if query_exp_results:
                         current_query_exp.append(query_exp_results)
         self.per_query = per_query
-        self.average_results()
-        return self.per_query
+        return self.median_results()
 
-    def average_results(self):
+    def median_results(self):
         new_per_query = {}
         for qn in self.per_query:
             if qn not in new_per_query:
@@ -87,14 +97,14 @@ class CollectTSVs():
             for exp_name in old_qn:
                 if exp_name not in new_qn:
                     new_qn[exp_name] = {}
-                new_qn[exp_name] = self.average_query(qn, exp_name, old_qn[exp_name])
+                new_qn[exp_name] = self.median_query(qn, exp_name, old_qn[exp_name])
         self.per_query = new_per_query
         return new_per_query
 
-    def average_query(self, query_name, exp_name, results):
+    def median_query(self, query_name, exp_name, results):
         numerics = ["totalTime", "constructionTime", "solverTime",
             "typeCheckerTime", "numOfTransitions"]
-        average_result = {}
+        median_result = {}
         for numeric in numerics:
             values = []
             for result in results:
@@ -103,7 +113,7 @@ class CollectTSVs():
                 except (TypeError, ValueError):
                     pass
             if len(values) > 0:
-                average_result[numeric] = round(numpy.median(values), 2)
+                median_result[numeric] = round(numpy.median(values), 2)
             if len(values) > 1:
                 print("%s-%s: %s - variance %0.2f : %s" % (query_name, exp_name, numeric, numpy.var(values), str(values)))
 
@@ -114,21 +124,23 @@ class CollectTSVs():
         #     if len(trs) > 0:
         #         last_transitions.append(trs[-1])
         # if len(last_transitions) > 0:
-        #     average_result["numOfTransitions"] = int(numpy.median(last_transitions))
+        #     median_result["numOfTransitions"] = int(numpy.median(last_transitions))
 
-        average_result["name"] = query_name
-        average_result["query"] = results[0]["query"]
-        return average_result
+        median_result["name"] = query_name
+        median_result["query"] = results[0]["query"]
+        return median_result
 
 
     def check_results(self, solutions):
         try:
             first = solutions[0]
+            if "Solution" not in first:
+                return first  # it's a dud
             soln = first["Solution"]
             if not soln or "No Solution" in soln or "Runtime" in soln or "Timeout" in soln:
                 first["totalTime"] = None
             return first
-        except IndexError:
+        except (IndexError):
             return None
 
     def mk_table(self, per_query):
@@ -146,12 +158,13 @@ class CollectTSVs():
             "Name",
             "Query",
 
-            "t-Q",
             "t-QB10",
+            "t-Q",
             "t-0",
             "t-NO",
 
             "st-QB10",
+            "st-Q",
             "st-0",
             "st-NO",
 
@@ -171,17 +184,17 @@ class CollectTSVs():
             query_name,
             safeGet(query_group, TYGARQB10, "query"),
 
-            safeGet(query_group, TYGARQ, "totalTime"),
             safeGet(query_group, TYGARQB10, "totalTime"),
+            safeGet(query_group, TYGARQ, "totalTime"),
             safeGet(query_group, TYGAR0, "totalTime"),
             safeGet(query_group, NOGAR, "totalTime"),
 
-            safeGet(query_group, TYGARQ, "solverTime"),
             safeGet(query_group, TYGARQB10, "solverTime"),
+            safeGet(query_group, TYGARQ, "solverTime"),
             safeGet(query_group, TYGAR0, "solverTime"),
             safeGet(query_group, NOGAR, "solverTime"),
 
-            safeGet(query_group, TYGARQ, "typeCheckerTime"),
+            safeGet(query_group, TYGARQB10, "typeCheckerTime"),
             safeGet(query_group, TYGAR0, "typeCheckerTime"),
             safeGet(query_group, NOGAR, "typeCheckerTime"),
 
@@ -208,9 +221,26 @@ class CollectTSVs():
                 writer.writerow(row)
 
     def write_latex(self, table):
+        columns = "rll|rrrr|rrrr|rrr|lll"
+        begin = "\\begin{tabular}{%s} \\hline \n" % columns
+        header = " & ".join(self.header()) + " \\\\ \n \\hline \n"
+        rows = ""
+        for row in table:
+            strRows = [mk_str(x) for x in row]
+            newrow = " & ".join(strRows).replace(">","\\ensuremath{>}") + " \\\\ \n"
+            rows += newrow
+        closer = "\\hline \n \\end{tabular}"
         with open(OUTPUT_TEX, "w") as f:
-            f.write(tabulate(table, self.header(), tablefmt="latex"))
+            f.write(begin)
+            f.write(header)
+            f.write(rows)
+            f.write(closer)
+            # f.write(tabulate(table, self.header(), tablefmt="latex"))
 
+def mk_str(to_stringable):
+    if to_stringable is None:
+        return ""
+    return str(to_stringable)
 
 def mk_plot(per_query):
     per_exp = {}
@@ -276,7 +306,7 @@ def main():
     per_query = ctsv.gather_files()
     mk_plot(per_query)
     table = ctsv.mk_table(per_query)
-    ctsv.write_csv(table)
+    # ctsv.write_csv(table)
     ctsv.write_latex(table)
 
 if __name__ == '__main__':

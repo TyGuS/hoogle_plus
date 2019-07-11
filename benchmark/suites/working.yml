@@ -1,3 +1,8 @@
+- name: appBoth
+  query: "(a -> b) -> (a -> c) -> a -> (b, c)"
+  solution: "(f x, g x)"
+  source: "original"
+
 - name: intToBS
   query: "Int64 -> ByteString"
   solution: fromBuilder (Int64 arg0)
@@ -90,11 +95,6 @@
   solution: arg1 (head arg0)
   source: "hoogle"
 
-- name: hoogle02
-  query: "b -> (a -> b) -> [a] -> b"
-  solution: maybe arg2 arg1 (listToMaybe arg0)
-  source: "hoogle"
-
 - name: firstMatch
   query: "[a] -> (a -> Bool) -> a"
   solution: head (filter arg0 arg1)
@@ -163,11 +163,6 @@
 - name: repl-funcs
   query: "(a->b)->Int->[a->b]"
   solution: GHC.List.replicate n f
-  source: "original"
-
-- name: countFilter
-  query: "(a->Bool)->[a]->Int"
-  solution: GHC.List.length (GHC.List.takeWhile p xs)
   source: "original"
 
 - name: mbAppFirst

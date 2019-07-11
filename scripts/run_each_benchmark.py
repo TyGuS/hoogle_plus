@@ -42,10 +42,12 @@ class Variant():
             lines = f.readlines()
             stats = lines[-2]
             solution = lines[-4]
+            obj = {}
+            obj["name"] = qn
+            obj["query"] = querydct["query"]
             if "writeSolution" not in stats:
                 # did not finish completely
-                return
-            obj = {}
+                return obj
             obj["Solution"] = solution
             if "****" not in lines[-3]:
                 obj["Solution"] = "No Solution"
@@ -57,8 +59,6 @@ class Variant():
                 if v[0] == '[':
                     v = v.strip('[]').split(',')
                 obj[k] = v
-            obj["name"] = qn
-            obj["query"] = querydct["query"]
             transitions_regex = r"numOfTransitions = fromList \[(.*)\], num"
             res = re.findall(transitions_regex, stats)
             if res:
@@ -133,7 +133,7 @@ def main():
         ])
     bmg.load_queries()
     bmg.setup()
-    bmg.run()
+    # bmg.run()
     bmg.logs_to_csv()
 
 if __name__ == "__main__":
