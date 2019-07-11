@@ -12,7 +12,7 @@ BASE_CMD = 'echo "{count}" && timeout 60 stack exec -- hplus "{query}" --log=1 {
 DEFAULT_QUERY_FILE = "benchmark/suites/working.yml"
 LOG_DIR = "tmp/run_each/logs/"
 TSV_DIR = "tmp/run_each/tsv/"
-REPEATS = 1
+REPEATS = 3
 NUM_POOLS = 2
 
 def ensure_dir(directory):

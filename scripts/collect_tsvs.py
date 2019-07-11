@@ -137,7 +137,7 @@ class CollectTSVs():
         for idx in range(len(keys_list)):
             query_name = keys_list[idx]
             query_group = per_query[query_name]
-            table.append(self.mk_row(idx, query_group, query_name))
+            table.append(self.mk_row(idx + 1, query_group, query_name))
         return table
 
     def header(self):
@@ -145,45 +145,39 @@ class CollectTSVs():
             "N",
             "Name",
             "Query",
-            "H",
-            "H-D",
-            "H-R",
+
             "t-Q",
-            "t-QB5",
+            "t-QB10",
             "t-0",
             "t-NO",
 
-            "st-Q",
-            "st-QB5",
+            "st-QB10",
             "st-0",
             "st-NO",
 
-            "tc-Q",
+            "tc-QB10",
             "tc-0",
             "tc-NO",
 
-            "tr-Q",
-            "tr-QB5",
-            "tr-0",
+
+            "H",
+            "H-D",
+            "H-R",
         ]
 
     def mk_row(self, idx, query_group, query_name):
         res = [
             idx,
             query_name,
-            safeGet(query_group, TYGARQ, "query"),
-
-            self.get_quality(query_name, "H"),
-            self.get_quality(query_name, "H-D"),
-            self.get_quality(query_name, "H-R"),
+            safeGet(query_group, TYGARQB10, "query"),
 
             safeGet(query_group, TYGARQ, "totalTime"),
-            safeGet(query_group, TYGARQB5, "totalTime"),
+            safeGet(query_group, TYGARQB10, "totalTime"),
             safeGet(query_group, TYGAR0, "totalTime"),
             safeGet(query_group, NOGAR, "totalTime"),
 
             safeGet(query_group, TYGARQ, "solverTime"),
-            safeGet(query_group, TYGARQB5, "solverTime"),
+            safeGet(query_group, TYGARQB10, "solverTime"),
             safeGet(query_group, TYGAR0, "solverTime"),
             safeGet(query_group, NOGAR, "solverTime"),
 
@@ -191,9 +185,9 @@ class CollectTSVs():
             safeGet(query_group, TYGAR0, "typeCheckerTime"),
             safeGet(query_group, NOGAR, "typeCheckerTime"),
 
-            safeGet(query_group, TYGARQ, "numOfTransitions"),
-            safeGet(query_group, TYGARQB5, "numOfTransitions"),
-            safeGet(query_group, TYGAR0, "numOfTransitions"),
+            self.get_quality(query_name, "H"),
+            self.get_quality(query_name, "H-D"),
+            self.get_quality(query_name, "H-R"),
         ]
         assert len(res) == len(self.header())
         return res
@@ -232,7 +226,7 @@ def mk_plot(per_query):
 
     plot1 = {
         "tygarq" : per_exp["tygarq"],
-        "tygarqb5" : per_exp["tygarqb5"],
+        "tygarqb10" : per_exp["tygarqb10"],
         "tygar0" : per_exp["tygar0"],
         "nogar" : per_exp["nogar"],
     }
