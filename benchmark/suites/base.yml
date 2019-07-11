@@ -154,3 +154,8 @@
   query: "Int -> Int -> [a] -> ([a], [a])"
   solution: "(take n l, drop m l)"
   source: "stackOverflow"
+
+- name: appBoth
+  query: "(a -> b) -> (a -> c) -> a -> (b, c)"
+  solution: "(f x, g x)"
+  source: "original"
