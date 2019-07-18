@@ -575,7 +575,7 @@ findProgram env dst st ps
             modify $ over useCount $ Map.insertWith (+) name 1) firedTrans
         let sigs = substPair $ substName firedTrans $ map (findFunction fm) reps
         writeLog 2 "fillSketch" $ text "found filtered sigs" <+> pretty sigs
-        let initialFormer = FormerState 0 HashMap.empty [] []
+        let initialFormer = FormerState HashMap.empty []
         withTime FormerTime $ generateCode initialFormer src args sigs
 
     checkUntilFail :: MonadIO m
@@ -631,6 +631,7 @@ findProgram env dst st ps
         return ty'
 
     parseAndCheck code = do
+        modify $ set typeAssignment Map.empty
         let prog = case parseExp code of
                        ParseOk exp -> toSynquidProgram exp
                        ParseFailed loc err -> error err

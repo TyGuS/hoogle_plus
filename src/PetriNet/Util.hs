@@ -33,6 +33,7 @@ import Control.Concurrent.Chan
 import Data.Hashable
 import Control.Monad.ST (runST, ST)
 import Data.Array.ST (STArray, readArray, writeArray, newListArray, getElems)
+import Debug.Trace
 
 getExperiment exp = gets $ view (searchParams . exp)
 
@@ -43,6 +44,7 @@ writeLog :: MonadIO m => Int -> String -> Doc -> PNSolver m ()
 writeLog level tag msg = do
     mesgChan <- gets $ view messageChan
     liftIO $ writeChan mesgChan (MesgLog level tag $ show $ plain msg)
+    -- if level <= 3 then trace (printf "[%s]: %s\n" tag (show $ plain msg)) $ return () else return ()
 
 multiPermutation len elmts | len == 0 = [[]]
 multiPermutation len elmts | len == 1 = [[e] | e <- elmts]
