@@ -694,9 +694,9 @@ findFirstN :: MonadIO m
             -> EncodeState
             -> [[Id]]
             -> Int
-            -> PNSolver m ()
+            -> PNSolver m [RProgram]
 findFirstN env dst st ps n
-    | n == 0 = return ()
+    | n == 0 = gets $ view currentSolutions
     | otherwise = do
         strategy <- getExperiment refineStrategy
         (soln, st', ps') <- withTime TotalSearch $ findProgram env dst st ps
@@ -706,15 +706,16 @@ findFirstN env dst st ps n
         writeLog 2 "findFirstN" $ text "Current Solutions:" <+> pretty currentSols
         findFirstN env dst st' ps' (n - 1)
 
-runPNSolver :: MonadIO m => Environment -> RType -> PNSolver m ()
+runPNSolver :: MonadIO m => Environment -> RType -> PNSolver m [RProgram]
 runPNSolver env t = do
     writeLog 3 "runPNSolver" $ text $ show (allSymbols env)
     withTime TotalSearch $ initNet env
     st <- withTime TotalSearch $ withTime EncodingTime (resetEncoder env t)
     cnt <- getExperiment solutionCnt
-    findFirstN env t st [] cnt
+    res <- findFirstN env t st [] cnt
     msgChan <- gets $ view messageChan
     liftIO $ writeChan msgChan (MesgClose CSNormal)
+    return res
 
 writeSolution :: MonadIO m => UProgram -> PNSolver m ()
 writeSolution code = do
@@ -723,6 +724,7 @@ writeSolution code = do
     msgChan <- gets $ view messageChan
     let stats' = stats {pathLength = loc}
     liftIO $ writeChan msgChan (MesgP (code, stats'))
+    liftIO $ print code
     writeLog 1 "writeSolution" $ text (show stats')
 
 recoverNames :: Map Id Id -> Program t -> Program t

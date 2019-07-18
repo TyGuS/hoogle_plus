@@ -32,9 +32,7 @@ runQuery queryOpts = do
     env <- readEnv
     goal <- envToGoal env (unpack $ typeSignature queryOpts)
     messageChan <- newChan
-    forkIO $ synthesize defaultSearchParams goal messageChan
-    readChan messageChan >>= collectResults messageChan []
-    -- return queryResults
+    synthesize defaultSearchParams goal messageChan
     where
       readEnv = do
         let envPathIn = defaultEnvPath

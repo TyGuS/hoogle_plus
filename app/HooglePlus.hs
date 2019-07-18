@@ -240,7 +240,10 @@ executeSearch synquidParams searchParams query = do
   env <- readEnv
   goal <- envToGoal env query
   messageChan <- newChan
-  worker <- forkIO $ synthesize searchParams goal messageChan
+  forkFinally (synthesize searchParams goal messageChan) $ \res ->
+      case res of
+          Left ep -> error "exception"
+          Right _ -> return ()
   readChan messageChan >>= (handleMessages messageChan)
   return ()
   where

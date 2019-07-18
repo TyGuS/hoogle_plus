@@ -68,7 +68,7 @@ envToGoal env queryStr = do
 
       _ -> error "parse a signature for a none goal declaration"
 
-synthesize :: SearchParams -> Goal -> Chan Message -> IO ()
+synthesize :: SearchParams -> Goal -> Chan Message -> IO [RProgram]
 synthesize searchParams goal messageChan = do
     let env''' = gEnvironment goal
     let (env'', monospec) = updateEnvWithBoundTyVars (gSpec goal) env'''
@@ -112,6 +112,6 @@ synthesize searchParams goal messageChan = do
         (evalStateT (runPNSolver env destinationType) is)
         (\e ->
              writeChan messageChan (MesgLog 0 "error" (show e)) >>
-             writeChan messageChan (MesgClose (CSError e)))
-    return ()
-
+             writeChan messageChan (MesgClose (CSError e)) >>
+             error (show e))
+    -- return ()
