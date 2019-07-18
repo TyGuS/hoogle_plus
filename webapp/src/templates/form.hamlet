@@ -1,41 +1,5 @@
 <p>
     <b>
-        What modules to search on?
-<label .checkbox-inline>
-    ^{fvInput dMaybeView}
-        Data.Maybe
-<label .checkbox-inline>
-    ^{fvInput dEitherView}
-        Data.Either
-<label .checkbox-inline>
-    ^{fvInput dListView}
-        Data.List
-<label .checkbox-inline>
-    ^{fvInput tShowView}
-        Text.Show
-<label .checkbox-inline>
-    ^{fvInput gCharView}
-        GHC.Char
-<label .checkbox-inline>
-    ^{fvInput dIntView}
-        Data.Int
-<label .checkbox-inline>
-    ^{fvInput dBSLazyView}
-        Data.ByteString.Lazy
-<label .checkbox-inline>
-    ^{fvInput dBSLazyBuilderView}
-        Data.ByteString.Lazy.Builder
-<br>
-<br>
-<p>
-    <b>
-        Search only on totally defined functions or partial functions?
-<label class="radio-inline">
-    ^{fvInput tierView}
-<br>
-<br>
-^{fvInput signatureView}
-<br>
 <div id="search-button" .input-group-append>
     <button .btn .btn-outline-secondary type="submit" id="button-addon2">
         Search

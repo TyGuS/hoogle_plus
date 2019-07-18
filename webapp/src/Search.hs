@@ -14,32 +14,43 @@ import Types
 import Data.Text (unpack)
 import Home
 import HooglePlus.Synthesize (synthesize, envToGoal)
-import Database.Environment (generateEnv)
 import Types.Experiments
 import Types.Generate
 import Types.Program (RProgram)
+import System.Directory
+import Data.Serialize
+import Control.Monad
+import qualified Data.ByteString as B
 
 import Control.Concurrent
 import Control.Concurrent.Chan
 
 runQuery :: TygarQuery -> IO [RProgram]
 runQuery queryOpts = do
-    env <- generateEnv options
+    env <- readEnv
     goal <- envToGoal env (unpack $ typeSignature queryOpts)
     messageChan <- newChan
     forkIO $ synthesize defaultSearchParams goal messageChan
-    queryResults <- readChan messageChan >>= collectResults messageChan []
-    return queryResults
+    readChan messageChan >>= collectResults messageChan []
+    -- return queryResults
     where
+      readEnv = do
+        let envPathIn = defaultEnvPath
+        doesExist <- doesFileExist envPathIn
+        when (not doesExist) (error ("fail to find the environment file"))
+        envRes <- decode <$> B.readFile envPathIn
+        case envRes of
+          Left err -> error err
+          Right env -> return env
       options = defaultGenerationOpts {
-        modules = (chosenModules queryOpts),
+        -- modules = (chosenModules queryOpts),
         pkgFetchOpts = Local {
           files = ["libraries/tier1/base.txt", "libraries/tier1/bytestring.txt", "libraries/ghc-prim.txt"]
           }
       }
       collectResults ch res (MesgClose _) = return res
-      collectResults ch res (MesgP (program, _)) = readChan ch >>= (collectResults ch (program:res))
-      collectResults ch res _ = readChan ch >>= (collectResults ch res)
+      collectResults ch res (MesgP (program, _)) = readChan ch >>= collectResults ch (program:res)
+      collectResults ch res _ = readChan ch >>= collectResults ch res
 
 postSearchR :: Handler Html
 postSearchR = do

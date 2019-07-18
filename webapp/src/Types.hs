@@ -11,7 +11,7 @@ data Tier = Partial | Total
 
 data TygarQuery = TygarQuery
     {
-      typeSignature :: Text,
-      chosenModules :: [String],
-      tier :: Tier
+      typeSignature :: Text
+    -- , chosenModules :: [String]
+    -- , tier :: Tier
     } deriving (Show)
