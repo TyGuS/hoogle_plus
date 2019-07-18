@@ -263,9 +263,9 @@ executeSearch synquidParams searchParams query = do
       printf "[writeStats]: %s\n" (show debug)
       readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgLog level tag msg) = do
-      -- when (level <= logLevel) (do
-        -- mapM (printf "[%s]: %s\n" tag) (lines msg)
-        -- hFlush stdout)
+      when (level <= logLevel) (do
+        mapM (printf "[%s]: %s\n" tag) (lines msg)
+        hFlush stdout)
       readChan ch >>= (handleMessages ch)
 
 pdoc = printDoc Plain

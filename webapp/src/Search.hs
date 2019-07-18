@@ -12,6 +12,8 @@ import Text.Lucius
 import Yesod.Form
 import Types
 import Data.Text (unpack)
+import Text.Printf
+import System.IO
 import Home
 import HooglePlus.Synthesize (synthesize, envToGoal)
 import Types.Experiments
@@ -50,6 +52,10 @@ runQuery queryOpts = do
       }
       collectResults ch res (MesgClose _) = return res
       collectResults ch res (MesgP (program, _)) = readChan ch >>= collectResults ch (program:res)
+      -- collectResults ch res (MesgLog level tag msg) = do
+      --   mapM_ (printf "[%s]: %s\n" tag) (lines msg)
+      --   hFlush stdout
+      --   readChan ch >>= collectResults ch res
       collectResults ch res _ = readChan ch >>= collectResults ch res
 
 postSearchR :: Handler Html
