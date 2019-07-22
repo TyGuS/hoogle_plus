@@ -9,7 +9,7 @@
             introduce new functionality in Haskell API search engines,
             most notably Hoogle.
         <p> We support both type class and higher order function search.
-            The supported packages and components are listed in the sidebar.
+            The supported modules and components are listed in the sidebar.
 
     <div .body>
       <div .left>

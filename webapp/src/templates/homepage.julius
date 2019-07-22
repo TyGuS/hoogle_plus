@@ -55,7 +55,7 @@ $(function(){
                            var pkg_div = $("<span></span>")
                                          .addClass("packages")
                            if(line["packages"].length != 0)
-                              pkg_div.append("Packages: ")
+                              pkg_div.append("Modules: ")
                            var packages = Object.values(line["packages"]).join(', ')
                            pkg_div.append(packages)
                            right_div.append(pkg_div)
