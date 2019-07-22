@@ -1,0 +1,60 @@
+<html>
+  <body .container .main-style>
+    <h1 .hplus_font>
+        TYGAR
+    $if (Just HomeR == mcurrentRoute)
+        <br>
+        <h5> Welcome to the TYGAR Demo
+        <p> TYGAR (pronounced like tiger) is proof-of-concept tool aspiring to
+            introduce new functionality in Haskell API search engines,
+            most notably Hoogle.
+        <p> We support both type class and higher order function search.
+            The supported packages and components are listed in the sidebar.
+
+    <div .body>
+      <div .left>
+          <form id="theForm" method=post action=@{SearchR}>
+              <input #signature type=text, class="form-control", placeholder=Search by type singature!">
+              <button .btn .btn-outline-secondary type="submit" id="button-addon2">
+                  Search
+          <div id="loading" style="display:none">
+              <i class="fa fa-spinner fa-spin fa-3x fa-fw margin-bottom"/>
+                  <span class="sr-only">Loading...
+          <div id="demo" class="card">
+              <div class="card-header">
+                  <h5 class="card-title">Sample queries
+              <div class="card-body">
+                  <span> First Just:
+                      <code> a -> [Maybe a] -> a
+                  <br>
+                  <span> Apply n times:
+                      <code> (a -> a) -> a -> Int -> a
+                  <br>
+                  <span> Apply pair:
+                      <code> (a -> b, a) -> b
+                  <br>
+                  <span> Look up element by key:
+                      <code> Eq a => [(a, b)] -> a -> b
+          <div id="result" class="hplus_result">
+
+      <div .right>
+          <div class="accordion md-accordion" id="accordionEx" role="tablist" aria-multiselectable="true">
+              $forall mdl <- db
+                  <div class="card">
+                      <div class="card-header" role="tab" id="heading#{fst (fst mdl)}">
+                          <a role="button" data-toggle="collapse" data-parent="#accordionEx" data-target="##{fst (fst mdl)}" href="##{fst (fst mdl)}" aria-expanded="false" aria-controls="#{fst (fst mdl)}">
+                              <h5 class="mb-0"> #{snd (fst mdl)}
+                                  <i class="fas fa-angle-down rotate-icon"/>
+
+                      <!-- Card body -->
+                      <div id="#{fst (fst mdl)}" class="collapse" role="tabpanel" aria-labelledby="heading#{fst (fst mdl)}" data-parent="#accordionEx">
+                          <div class="card-body">
+                              <pre>
+                                  <code class="haskell">
+                                      $forall entry <- snd mdl
+                                          <span>#{entry}
+
+  <footer .footer .footer-style .text-center>
+      <div .container>
+          <span>
+              Made with blood, sweat, and tears by Zheng, David, Michael, Joe, Ranjit and Nadia.

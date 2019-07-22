@@ -1,8 +1,0 @@
-<p>
-    <b>
-<br>
-^{fvInput signatureView}
-<br>
-<div id="search-button" .input-group-append>
-    <button .btn .btn-outline-secondary type="submit" id="button-addon2">
-        Search

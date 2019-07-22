@@ -7,67 +7,50 @@
 
 module Home where
 
-import Foundation
 import Yesod.Core
 import Text.Lucius
+import Text.Julius
 import Yesod.Form
-import Types
 import Data.Text (Text)
 import Control.Monad (filterM)
+import Data.List
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import Language.Haskell.Exts.Pretty
 
-tiers :: [(Text, Tier)]
-tiers = [("Partial", Partial), ("Total", Total)]
+import Database.Environment
+import Database.Presets
+import Types.Generate
+import Types
+import Foundation
 
-getChosenModules :: [FormResult Bool] ->  FormResult [String]
-getChosenModules selection =
-    let allModules = ["Data.Maybe", "Data.Either", "Data.List", "Text.Show", "GHC.Char","Data.Int", "Data.ByteString.Lazy","Data.ByteString.Builder"] in
-    let chosenModules' = filterM (\(s::([Char]),b::(FormResult Bool)) -> b) $ zip allModules selection in
-    let chosenModules = (map (\(s,b) -> s)) <$> chosenModules'
-    in chosenModules
-
-searchForm :: Html -> MForm Handler (FormResult TygarQuery, Widget)
-searchForm _ = do
-    (signatureRes, signatureView) <- mreq textField settings Nothing
-    -- (tierRes, tierView) <- mreq (radioFieldList tiers) defaultSettings Nothing
-    -- (dMaybeRes, dMaybeView) <- mreq checkBoxField defaultSettings Nothing
-    -- (dEitherRes, dEitherView) <- mreq checkBoxField defaultSettings Nothing
-    -- (dListRes, dListView) <- mreq checkBoxField defaultSettings Nothing
-    -- (tShowRes, tShowView) <- mreq checkBoxField defaultSettings Nothing
-    -- (gCharRes, gCharView) <- mreq checkBoxField defaultSettings Nothing
-    -- (dIntRes, dIntView) <- mreq checkBoxField defaultSettings Nothing
-    -- (dBSLazyRes, dBSLazyView) <- mreq checkBoxField defaultSettings Nothing
-    -- (dBSLazyBuilderRes, dBSLazyBuilderView) <- mreq checkBoxField defaultSettings Nothing
-
-    -- let selection = [dMaybeRes, dEitherRes, dListRes, tShowRes, gCharRes, dIntRes, dBSLazyRes, dBSLazyBuilderRes]
-    -- let chosenModules = getChosenModules selection
-    -- let personRes = TygarQuery <$> signatureRes <*> chosenModules <*> tierRes
-    let personRes = TygarQuery <$> signatureRes
-    let widget = $(whamletFile "webapp/src/templates/form.hamlet")
-    return (personRes, widget)
-    where settings = defaultSettings {
-            fsAttrs   = [
-                ("class", "form-control"),
-                ("placeholder", "Search by type singature!")
-                ]
-            }
-          defaultSettings = FieldSettings {
-            fsLabel   = "",
-            fsTooltip = Nothing,
-            fsId      = Nothing,
-            fsName    = Nothing,
-            fsAttrs   = []
-          }
-
+getDatabase :: IO [((String, String), [String])]
+getDatabase = do
+    files <- getFiles (pkgFetchOpts genOptsTier2)
+    let mdls = modules genOptsTier2
+    mp <- filesToEntries files False
+    let mp' = Map.restrictKeys mp (Set.fromList mdls)
+    let mplist = zip [0,1..] $ Map.toList mp'
+    return $ map (\(i, (a, b)) -> (("mid" ++ show i, a), map unpackEntry b)) mplist
+    where
+      unpackEntry (EPackage pkg) = pkg
+      unpackEntry (EModule mdl) = mdl
+      unpackEntry (EDecl decl) = prettyPrint decl
 
 getHomeR :: Handler Html
 getHomeR = do
-    ((_, formWidget), formEnctype) <- runFormGet searchForm
     defaultLayout $ do
         mcurrentRoute <- getCurrentRoute
-        let candidates = []::(String)
+        let candidates = [] :: [String]
+        db <- liftIO getDatabase
         setTitle "TYGAR Demo - Home"
-        addScriptRemote "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"
-        addStylesheetRemote "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css"
-        addStylesheetRemote "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
-        toWidget $(luciusFile "webapp/src/templates/style.lucius")
-        $(whamletFile "webapp/src/templates/default.hamlet")
+        addScriptRemote "https://use.fontawesome.com/releases/v5.9.0/js/all.js"
+        addScriptRemote "https://code.jquery.com/jquery-3.4.1.min.js"
+        addScriptRemote "https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js"
+        addScriptRemote "https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js"
+        addScriptRemote "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.8/highlight.min.js"
+        addStylesheetRemote "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.8/styles/default.min.css"
+        addStylesheetRemote "https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css"
+        toWidget $(luciusFile "webapp/src/templates/homepage.lucius")
+        toWidget $(juliusFile "webapp/src/templates/homepage.julius")
+        $(whamletFile "webapp/src/templates/homepage.hamlet")

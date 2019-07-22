@@ -10,12 +10,14 @@ module Foundation where
 import Yesod.Core
 import Data.Text (Text)
 import Yesod.Form
+import Yesod.Form.Jquery
 
 data App = App
 
 mkYesodData "App" $(parseRoutesFile "webapp/routes")
 
 instance Yesod App
+instance YesodJquery App
 
 instance RenderMessage App FormMessage where
     renderMessage :: App -> [Lang] -> FormMessage -> Text

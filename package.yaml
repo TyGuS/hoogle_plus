@@ -62,6 +62,7 @@ dependencies:
 - vector
 - uuid
 - z3
+- regex-posix
 
 library:
   source-dirs:

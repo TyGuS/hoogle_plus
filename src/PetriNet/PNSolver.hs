@@ -26,6 +26,7 @@ import Data.Tuple
 import Debug.Trace
 import Language.Haskell.Exts.Parser (ParseResult(..), parseExp)
 import Text.Printf
+import System.IO
 
 import Database.Convert
 import Database.Generate
@@ -724,7 +725,8 @@ writeSolution code = do
     msgChan <- gets $ view messageChan
     let stats' = stats {pathLength = loc}
     liftIO $ writeChan msgChan (MesgP (code, stats'))
-    liftIO $ print code
+    liftIO $ printSolution code
+    liftIO $ hFlush stdout
     writeLog 1 "writeSolution" $ text (show stats')
 
 recoverNames :: Map Id Id -> Program t -> Program t

@@ -1,5 +1,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module Database.Environment(writeEnv, generateEnv, toFunType) where
+module Database.Environment(
+    writeEnv
+  , generateEnv
+  , toFunType
+  , getFiles
+  , filesToEntries
+  ) where
 
 import Data.Either
 import Data.Serialize (encode)
@@ -58,7 +64,7 @@ generateEnv genOpts = do
     let pathToHo = hoPath genOpts
     let mbModuleNames = if length mdls > 0 then Just mdls else Nothing
     pkgFiles <- getFiles pkgOpts
-    allEntriesByMdl <- filesToEntries pkgFiles
+    allEntriesByMdl <- filesToEntries pkgFiles True
     DD.cleanTmpFiles pkgOpts pkgFiles
     let entriesByMdl = filterEntries allEntriesByMdl mbModuleNames
     let ourEntries = nubOrd $ concat $ Map.elems entriesByMdl
@@ -117,9 +123,9 @@ toFunType t = t
 
 -- filesToEntries reads each file into map of module -> declartions
 -- Filters for modules we care about. If none, use them all.
-filesToEntries :: [FilePath] -> IO (Map MdlName [Entry])
-filesToEntries fps = do
-    declsByModuleByFile <- mapM DC.readDeclarationsFromFile fps
+filesToEntries :: [FilePath] -> Bool -> IO (Map MdlName [Entry])
+filesToEntries fps renameFunc = do
+    declsByModuleByFile <- mapM (\fp -> DC.readDeclarationsFromFile fp renameFunc) fps
     return $ Map.unionsWith (++) declsByModuleByFile
 
 

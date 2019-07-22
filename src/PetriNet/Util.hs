@@ -135,5 +135,5 @@ groupSignatures sigs = do
         duplicateSymbols = duplicateSymbols s ++ [(length sigLists, sum dupes, sum $ map length $ sigLists)]
     })
     stats <- view solverStats <$> get
-    liftIO $ writeChan mesgChan (MesgS stats)
+    -- liftIO $ writeChan mesgChan (MesgS stats)
     return (t2g, groupMap)

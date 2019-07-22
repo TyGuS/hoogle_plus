@@ -381,13 +381,15 @@ reorderDecls = Sort.sortOn toInt
     toInt (Pos _ TP.FuncDecl {}) = 99
     toInt (Pos _ TP.SynthesisGoal {}) = 100
 
-renameSigs :: String -> [Entry] -> Map Id [Entry]
-renameSigs _ [] = Map.empty
-renameSigs currModule (decl:decls) = case decl of
-    EModule mdl -> Map.insertWith (++) mdl [decl] (renameSigs mdl decls)
-    EPackage _ -> renameSigs currModule decls
-    EDecl (TypeSig loc names ty) -> Map.insertWith (++) currModule [EDecl (TypeSig loc (map (prependName currModule) names) ty)] (renameSigs currModule decls)
-    _ -> Map.insertWith (++) currModule [decl] (renameSigs currModule decls)
+renameSigs :: Bool -> String -> [Entry] -> Map Id [Entry]
+renameSigs _ _ [] = Map.empty
+renameSigs renameFunc currModule (decl:decls) = case decl of
+    EModule mdl -> Map.insertWith (++) mdl [decl] (renameSigs renameFunc mdl decls)
+    EPackage _ -> renameSigs renameFunc currModule decls
+    EDecl (TypeSig loc names ty) -> let
+      newNames = if renameFunc then map (prependName currModule) names else names
+      in Map.insertWith (++) currModule [EDecl (TypeSig loc newNames ty)] (renameSigs renameFunc currModule decls)
+    _ -> Map.insertWith (++) currModule [decl] (renameSigs renameFunc currModule decls)
 
 readDeclarations :: PkgName -> Maybe Version -> IO (Map Id [Entry])
 readDeclarations pkg version = do
@@ -397,16 +399,16 @@ readDeclarations pkg version = do
             Nothing -> return pkg
             Just v -> ifM (checkVersion pkg v) (return $ pkg ++ "-" ++ v) (return pkg)
     let filePath = downloadDir ++ vpkg ++ ".txt"
-    readDeclarationsFromFile filePath
+    readDeclarationsFromFile filePath True
 
-readDeclarationsFromFile :: FilePath -> IO (Map MdlName [Entry])
-readDeclarationsFromFile fp = do
+readDeclarationsFromFile :: FilePath -> Bool -> IO (Map MdlName [Entry])
+readDeclarationsFromFile fp renameFunc = do
     h   <- openFile fp ReadMode
     hSetEncoding h utf8
     s   <- hGetContents h
     let fileLines = lines s
     let code = concat $ rights $ map parseLine fileLines
-    return $ renameSigs "" code
+    return $ renameSigs renameFunc "" code
 
 
 packageDependencies :: PkgName -> Bool -> IO [PkgName]

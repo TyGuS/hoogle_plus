@@ -7,67 +7,78 @@
 module Search where
 
 import Foundation
-import Yesod.Core
-import Text.Lucius
-import Yesod.Form
 import Types
-import Data.Text (unpack)
-import Text.Printf
-import System.IO
 import Home
 import HooglePlus.Synthesize (synthesize, envToGoal)
 import Types.Experiments
 import Types.Generate
 import Types.Program (RProgram)
+import PetriNet.Util
+
 import System.Directory
 import Data.Serialize
 import Control.Monad
 import qualified Data.ByteString as B
+import Text.Regex.Posix.Wrap
+import System.Process
+import Foreign.C.String
+import Text.Regex
+import qualified Data.Array as A
+import Data.Bits
+import Data.List
+import Data.Text (unpack)
+import Text.Printf
+import System.IO
+import Yesod.Core
+import Text.Lucius
+import Yesod.Form
+import Data.Time
 
-import Control.Concurrent
-import Control.Concurrent.Chan
-
-runQuery :: TygarQuery -> IO [RProgram]
+runQuery :: TygarQuery -> IO [ResultEntry]
 runQuery queryOpts = do
-    env <- readEnv
-    goal <- envToGoal env (unpack $ typeSignature queryOpts)
-    messageChan <- newChan
-    synthesize defaultSearchParams goal messageChan
+    let query = typeSignature queryOpts
+    let cmd = "python3"
+    let opts = ["scripts/run_query.py", query]
+    (exit, out, err) <- readProcessWithExitCode cmd opts ""
+    let defaultOpt = compNewline .|. compExtended
+    -- find the solutions in the stdout
+    cregex <- newCString "SOLUTION\\:\\ (.+)"
+    cout <- newCString out
+    comp <- wrapCompile defaultOpt execBlank cregex
+    let regex = case comp of
+                  Left err -> error $ snd err
+                  Right r -> r
+    matches <- wrapMatchAll regex cout
+    case matches of
+        Left err -> error $ snd err
+        Right res -> do
+            -- transform the solutions into (solution, pkgs)
+            pkgRegex <- newCString "([^\\(\\ ]+)\\."
+            pkgExtraction <- wrapCompile defaultOpt execBlank pkgRegex
+            let pkgComp = case pkgExtraction of
+                            Left err -> error $ snd err
+                            Right r -> r
+            let sols = map (getRes out . (A.! 1)) res
+            logQuery query sols
+            mapM (getPkg pkgComp) sols
     where
-      readEnv = do
-        let envPathIn = defaultEnvPath
-        doesExist <- doesFileExist envPathIn
-        when (not doesExist) (error ("fail to find the environment file"))
-        envRes <- decode <$> B.readFile envPathIn
-        case envRes of
-          Left err -> error err
-          Right env -> return env
-      options = defaultGenerationOpts {
-        -- modules = (chosenModules queryOpts),
-        pkgFetchOpts = Local {
-          files = ["libraries/tier1/base.txt", "libraries/tier1/bytestring.txt", "libraries/ghc-prim.txt"]
-          }
-      }
-      collectResults ch res (MesgClose _) = return res
-      collectResults ch res (MesgP (program, _)) = readChan ch >>= collectResults ch (program:res)
-      -- collectResults ch res (MesgLog level tag msg) = do
-      --   mapM_ (printf "[%s]: %s\n" tag) (lines msg)
-      --   hFlush stdout
-      --   readChan ch >>= collectResults ch res
-      collectResults ch res _ = readChan ch >>= collectResults ch res
+        logQuery q s = do
+            time <- getCurrentTime
+            let str = printf "[%s]: Query: %s Solutions: [%s]\n" (show time) q (intercalate ", " s)
+            appendFile defaultLogFile str
+        getRes str (offset, len) = take len $ drop offset str
+        getPkg regex solution = do
+            csol <- newCString solution
+            pkgs <- wrapMatchAll regex csol
+            case pkgs of
+                Left err -> error $ snd err
+                Right ps -> let
+                    pkgNames = nub $ map (getRes solution . (A.! 1)) ps
+                    stripSol = foldr (\p -> replaceId (p++".") "") solution pkgNames
+                    in return (ResultEntry stripSol pkgNames)
 
-postSearchR :: Handler Html
+postSearchR :: Handler Value
 postSearchR = do
-    ((res, formWidget), formEnctype) <- runFormPostNoToken searchForm
-    case res of
-        FormSuccess queryOpts -> defaultLayout $ do
-                            mcurrentRoute <- getCurrentRoute
-                            candidates <- liftIO $ runQuery queryOpts
-                            setTitle "TYGAR Demo | Search"
-                            addScriptRemote "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"
-                            addStylesheetRemote "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css"
-                            addStylesheetRemote "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
-                            toWidget $(luciusFile "webapp/src/templates/style.lucius")
-                            $(whamletFile "webapp/src/templates/default.hamlet")
-        FormFailure err -> error (show err)
-        FormMissing  -> error "Form Missing. Please Resubmit"
+    queryOpts <- requireCheckJsonBody :: Handler TygarQuery
+    searchRes <- liftIO $ runQuery queryOpts
+    returnJson $ TygarResult searchRes

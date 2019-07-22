@@ -1,0 +1,78 @@
+hljs.initHighlightingOnLoad();
+
+$(function(){
+    $(document).bind("ajaxSend", function(){
+        $("#result").empty()
+        $("#loading").show()
+        $("#demo").hide()
+    });
+
+    $("#loading").hide();
+
+    $("#theForm").submit(function(e) {
+
+        e.preventDefault(); // avoid to execute the actual submit of the form.
+
+        var form = $(this);
+        var url = form.attr('action');
+
+        $.ajax({
+               contentType: "application/json",
+               type: "POST",
+               url: "@{SearchR}",
+               data: JSON.stringify({
+                                    typeSignature: $("#signature").val()
+                                }),
+               success: function(res)
+               {
+                   $("#loading").hide()
+                   // post return data to results
+                   var data = res["results"]
+                   var result_div = $("#result")
+                   result_div.empty()
+                   if(data === undefined || data.length == 0) {
+                      result_div.append("No result found");
+                   } else {
+                      result_div.addClass("list-group")
+                                .addClass("list-group-flush")
+                       for (var idx in data) {
+                          var badge = $("<span></span>")
+                                      .addClass("badge")
+                                      .addClass("badge-primary")
+                                      .append(idx)
+                           var line = data[idx]
+                           var sol_div = $("<div></div>")
+                                         .addClass("d-flex")
+                                         .addClass("flex-row")
+                                         .addClass("list-group-item")
+                                         .append($("<div></div>")
+                                                 .addClass("left")
+                                                 .append(badge))
+                           var right_div = $("<div></div>")
+                                           .append($("<h5></h5>")
+                                                   .append($("<span></span>")
+                                                           .append(line["solution"])))
+                           var pkg_div = $("<span></span>")
+                                         .addClass("packages")
+                           if(line["packages"].length != 0)
+                              pkg_div.append("Packages: ")
+                           var packages = Object.values(line["packages"]).join(', ')
+                           pkg_div.append(packages)
+                           right_div.append(pkg_div)
+                           sol_div.append(right_div)
+                           result_div.append(sol_div)
+                       }
+                   }
+               },
+               error: function (ajaxContext) {
+                  $("#loading").hide()
+                  var result_div = $("#result")
+                  result_div.empty()
+                  result_div.append("Something wrong happened in the server")
+               },
+               dataType: "json"
+             });
+
+
+    });
+});
