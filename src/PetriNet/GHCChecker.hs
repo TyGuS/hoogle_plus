@@ -1,6 +1,6 @@
 module PetriNet.GHCChecker (
     runGhcChecks, mkFunctionSigStr, mkLambdaStr,
-    removeTypeclasses, toHaskellSolution,
+    removeTypeclasses, removeAll, toHaskellSolution,
     parseStrictnessSig, checkStrictness', printSolution) where
 
 import Language.Haskell.Interpreter

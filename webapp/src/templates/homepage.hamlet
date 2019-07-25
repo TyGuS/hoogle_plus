@@ -5,8 +5,7 @@
     $if (Just HomeR == mcurrentRoute)
         <br>
         <h5> Welcome to the Hoogle+ Demo
-        <p> Hoogle+ is a scalable Haskell API synthesis engine using type-guided abstract refinement (TYGAR) in component based program synthesis.
-        <p> It supports many popular features in haskell including polymorphism, type classes and higher order functions. The supported modules and components are listed in the sidebar.
+        <p> Hoogle+ is a type-driven synthesis engine for Haskell. Given a Haskell type, Hoogle+ generates terms that inhabit this type by composing library components. It supports polymorphism, type classes, and higher-order functions. Available library components are listed in the side bar.
 
     <div .body>
         <div .left>

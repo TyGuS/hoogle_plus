@@ -9,6 +9,7 @@ import Data.Aeson
 
 data TygarQuery = TygarQuery
     {
+      query_uuid :: String,
       typeSignature :: String
     } deriving (Show, Generic)
 
@@ -17,7 +18,8 @@ instance FromJSON TygarQuery
 data ResultEntry = ResultEntry{
   query :: String,
   solution :: String,
-  packages :: [String]
+  packages :: [String],
+  result_uuid :: String
 } deriving(Generic)
 
 instance ToJSON ResultEntry

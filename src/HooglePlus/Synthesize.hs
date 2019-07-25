@@ -63,16 +63,18 @@ envToGoal env queryStr = do
         let goal = Goal id env sch uprog 3 $ initialPos "goal"
         let spec = runExcept $ evalStateT (resolveSchema (gSpec goal)) (initResolverState { _environment = env })
         case spec of
-          Right sp -> return $ goal { gEnvironment = env, gSpec = sp }
+          Right sp -> do
+            let (env', monospec) = updateEnvWithBoundTyVars sp env
+            let (env'', destinationType) = updateEnvWithSpecArgs monospec env'
+            return $ goal { gEnvironment = env'', gSpec = sp }
           Left parseErr -> putDoc (pretty parseErr) >> putDoc empty >> exitFailure
 
       _ -> error "parse a signature for a none goal declaration"
 
 synthesize :: SearchParams -> Goal -> Chan Message -> IO ()
 synthesize searchParams goal messageChan = do
-    let env''' = gEnvironment goal
-    let (env'', monospec) = updateEnvWithBoundTyVars (gSpec goal) env'''
-    let (env', destinationType) = updateEnvWithSpecArgs monospec env''
+    let env' = gEnvironment goal
+    let destinationType = lastType $ toMonotype $ gSpec goal
     let useHO = _useHO searchParams
     let rawSyms = env' ^. symbols
     let hoCands = env' ^. hoCandidates

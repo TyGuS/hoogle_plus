@@ -243,20 +243,20 @@ instance Show QSpace where
 
 {- Types -}
 
-prettyBase :: Pretty r => (TypeSkeleton r -> Doc) -> BaseType r -> Doc
+prettyBase :: Pretty r => (Int -> TypeSkeleton r -> Doc) -> BaseType r -> Doc
 prettyBase prettyType base = case base of
   IntT -> text "Int"
   BoolT -> text "Bool"
-  DatatypeT "List" tArgs pArgs -> hlBrackets $ hsep (map (hlParens . prettyType) tArgs) <+> hsep (map (hlAngles . pretty) pArgs)
-  DatatypeT "Pair" (larg:rarg:[]) pArgs -> hlParens $ prettyType larg <+> operator "," <+> prettyType rarg <+> hsep (map (hlAngles . pretty) pArgs)
+  DatatypeT "List" tArgs pArgs -> hlBrackets $ hsep (map (prettyType 0) tArgs) <+> hsep (map (hlAngles . pretty) pArgs)
+  DatatypeT "Pair" (larg:rarg:[]) pArgs -> hlParens $ prettyType 0 larg <+> operator "," <+> prettyType 1 rarg <+> hsep (map (hlAngles . pretty) pArgs)
   TypeVarT s name -> if Map.null s then text name else hMapDoc pretty pretty s <> text name
-  DatatypeT name tArgs pArgs -> text name <+> hsep (map prettyType tArgs) <+> hsep (map (hlAngles . pretty) pArgs)
+  DatatypeT name tArgs pArgs -> text name <+> hsep (map (prettyType 2) tArgs) <+> hsep (map (hlAngles . pretty) pArgs)
 
 instance Pretty (BaseType ()) where
-  pretty = prettyBase (hlParens . pretty)
+  pretty = prettyBase (\_ -> pretty)
 
 instance Pretty (BaseType Formula) where
-  pretty = prettyBase (prettyTypeAt 1)
+  pretty = prettyBase prettyTypeAt
 
 instance Show (BaseType Formula) where
   show = show . plain . pretty
@@ -286,15 +286,14 @@ typePower (ScalarT (DatatypeT _ tArgs pArgs) r)
 typePower _ = 3
 
 prettyTypeAt :: Int -> RType -> Doc
-prettyTypeAt n t = -- condHlParens (n' <= n) (
+prettyTypeAt n t = condHlParens (n' <= n) (
   case t of
     ScalarT base (BoolLit True) -> pretty base
     ScalarT base fml -> hlBraces (pretty base <> operator "|" <> pretty fml)
     AnyT -> text "_"
-    FunctionT x t1 t2 | isFunctionType t1 -> hlParens (prettyTypeAt n' t1) <+> operator "->" <+> prettyTypeAt 0 t2
-                      | otherwise -> prettyTypeAt n' t1 <+> operator "->" <+> prettyTypeAt 0 t2
+    FunctionT x t1 t2 -> prettyTypeAt n' t1 <+> operator "->" <+> prettyTypeAt 0 t2
     BotT -> text "⊥"
-  -- )
+  )
   where
     n' = typePower t
 

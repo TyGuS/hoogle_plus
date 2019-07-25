@@ -16,6 +16,7 @@ import Types.Type
 import Types.Environment
 import Synquid.Type
 import Synquid.Pretty
+import Synquid.Program
 import PetriNet.Util
 import PetriNet.GHCChecker
 import Database.Util
@@ -31,6 +32,7 @@ import qualified Data.Aeson as Aeson
 import Data.Serialize
 import Data.Text (unpack)
 import Data.Time
+import Data.Maybe
 import Foreign.C.String
 import qualified Data.Array as A
 import qualified Data.ByteString.Lazy.Char8 as BChar
@@ -50,7 +52,7 @@ import Yesod.Form
 import qualified Data.Map as Map
 import Control.Lens
 
-time_limit = 120 * 10^6 :: Int
+time_limit = 60 * 10^6 :: Int
 
 runQuery :: TygarQuery -> IO (Chan Message, Goal)
 runQuery queryOpts = do
@@ -77,7 +79,7 @@ runQuery queryOpts = do
                 Left err -> error err
                 Right env -> return env
 
-transformSolution :: Goal -> RProgram -> IO ResultEntry
+transformSolution :: Goal -> RProgram -> IO (String -> ResultEntry)
 transformSolution goal queryResult = do
     let defaultOpt = compNewline .|. compExtended
     pkgRegex <- newCString "([^\\(\\ ]+)\\."
@@ -98,7 +100,9 @@ transformSolution goal queryResult = do
                 Left err -> error $ snd err
                 Right ps -> let
                     pkgNames = nub $ map (getRes solution . (A.! 1)) ps
-                    stripSol = foldr (\p -> replaceId (p++".") "") solution pkgNames
+                    env = gEnvironment goal
+                    htmlCode = toHtml env queryResult
+                    stripSol = foldr (\p -> replaceId (p++".") "") htmlCode pkgNames
                     goalTyp = toMonotype $ gSpec goal
                     argNames = argNamesOf goalTyp
                     lambdaSol = "\\" ++ unwords argNames ++ " -> " ++ stripSol
@@ -110,15 +114,54 @@ transformSolution goal queryResult = do
             | otherwise = x : argNamesOf tRes
         argNamesOf _ = []
 
-        showGoal (FunctionT x tArg tRes)
+        toHtml env (Program (PSymbol "Nil") _) = "<span class=\"my-tooltip\" data-toggle=\"tooltip\" title data-html=\"true\" data-original-title=\"<code>[] :: [a]</code>\">[]</span>"
+        toHtml env (Program (PSymbol s) t)
+            | tyclassArgBase `isPrefixOf` s = ""
+            | otherwise = case lookupSymbol s 0 env of
+                Just sch -> printf "<span class=\"my-tooltip\" data-toggle=\"tooltip\" title data-html=\"true\" data-original-title=\"<code>%s :: %s</code>\">%s</span>" s (removeTypeclasses $ show (toMonotype sch)) s
+                Nothing -> error $ "cannot find symbol " ++ s
+        toHtml env (Program (PApp f args) _) = let
+            optParens p = case p of
+                Program (PSymbol _) _ -> " " ++ toHtml env p
+                _ -> " (" ++ toHtml env p ++ ")"
+            in (case f of
+                "Cons" -> "<span class=\"my-tooltip\" data-toggle=\"tooltip\" title data-html=\"true\" data-original-title=\"<code>(:) :: a -> [a] -> [a]</code>\">(:)</span>"
+                "Pair" -> "<span class=\"my-tooltip\" data-toggle=\"tooltip\" title data-html=\"true\" data-original-title=\"<code>(,) :: a -> b -> (a, b)</code>\">(,)</span>"
+                _      -> case lookupSymbol f 0 env of
+                    Just sch -> printf "<span class=\"my-tooltip\" data-toggle=\"tooltip\" title data-html=\"true\" data-original-title=\"<code>%s :: %s</code>\">%s</span>" f (removeTypeclasses $ show (toMonotype sch)) f
+                    Nothing -> error $ "cannot find symbol " ++ f
+                ) ++ concatMap optParens args
+
+        removeTypeclasses = go (mkRegex (tyclassPrefix ++ "([a-zA-Z\\ ]*)\\->\\ "))
+
+        go regex input =
+            if (isJust $ matchRegex regex input)
+            then (go regex $ subRegex regex input "\\1 => ")
+            else input
+
+        showGoal t@(FunctionT x tArg tRes)
             | isFunctionType tArg = x ++ ": (" ++ showGoal tArg ++ ") -> " ++ showGoal tRes
-            | tyclassArgBase `isPrefixOf` x = showGoal tRes
+            | tyclassArgBase `isPrefixOf` x = let
+                allTyclass tt = case tt of
+                                    FunctionT x' tArg' tRes' ->
+                                        if tyclassArgBase `isPrefixOf` x'
+                                            then let
+                                                ScalarT (DatatypeT id [ScalarT (TypeVarT _ tyvarName) _] _) _ = tArg'
+                                                res = allTyclass tRes'
+                                                classNameRegex = mkRegex $ tyclassPrefix ++ "([a-zA-Z]*)"
+                                                className = subRegex classNameRegex id "\\1"
+                                                constraint = className ++ " " ++ tyvarName
+                                                in constraint : res
+                                            else []
+                                    _ -> []
+                constraints = allTyclass t
+                in "(" ++ intercalate ", " constraints ++ ") => " ++ showGoal tRes
             | otherwise = x ++ ": " ++ showGoal tArg ++ " -> " ++ showGoal tRes
         showGoal t = show t
 
 logQuery :: ResultEntry -> IO ()
 logQuery res = do
-    let ResultEntry q s _ = res
+    let ResultEntry q s _ _ = res
     time <- getCurrentTime
     let str = printf "[%s]: Query: %s Solution: %s\n" (show time) q s
     appendFile defaultLogFile str
@@ -127,15 +170,16 @@ postSearchR :: Handler TypedContent
 postSearchR = do
     queryOpts <- requireCheckJsonBody :: Handler TygarQuery
     (chan, goal) <- liftIO $ runQuery queryOpts
-    respondSource typeJson $ liftIO (readChan chan) >>= collectResults goal chan
+    respondSource typeJson $ liftIO (readChan chan) >>= collectResults goal (query_uuid queryOpts) chan
     where
-        collectResults goal ch (MesgClose _) = C.sinkNull
-        collectResults goal ch (MesgP (program, _)) = do
+        collectResults goal uuid ch (MesgClose _) = C.sinkNull
+        collectResults goal uuid ch (MesgP (program, _)) = do
             strProg <- liftIO $ transformSolution goal program
-            liftIO $ print (BChar.unpack $ Aeson.encode strProg)
-            C.yield $ C.Chunk $ lazyByteString $ Aeson.encode strProg
+            let prog = strProg uuid
+            liftIO $ print (BChar.unpack $ Aeson.encode prog)
+            C.yield $ C.Chunk $ lazyByteString $ Aeson.encode prog
             sendFlush
-            liftIO $ logQuery strProg
-            liftIO (readChan ch) >>= collectResults goal ch
-        collectResults goal ch _ = liftIO (readChan ch) >>= collectResults goal ch
+            liftIO $ logQuery prog
+            liftIO (readChan ch) >>= collectResults goal uuid ch
+        collectResults goal uuid ch _ = liftIO (readChan ch) >>= collectResults goal uuid ch
 

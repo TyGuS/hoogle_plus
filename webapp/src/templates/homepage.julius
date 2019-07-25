@@ -17,7 +17,23 @@ function parseJson(str) {
   return found
 }
 
+function generateUUID() { // Public Domain/MIT
+    var d = new Date().getTime();
+    if (typeof performance !== 'undefined' && typeof performance.now === 'function'){
+        d += performance.now(); //use high-precision timer if available
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = (d + Math.random() * 16) % 16 | 0;
+        d = Math.floor(d / 16);
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+}
+
+var curr_uuid;
+
 $(function(){
+    $('[data-toggle="tooltip"]').tooltip()
+
     $(document).bind("ajaxSend", function(){
         $("#result").empty()
         $("#loading").show()
@@ -35,6 +51,7 @@ $(function(){
         var last_response_len = false;
         var idx = 0;
         var result_div = $("#result")
+        curr_uuid = generateUUID()
         result_div.addClass("list-group")
                   .addClass("list-group-flush")
         $.ajax({
@@ -43,10 +60,12 @@ $(function(){
                url: "@{SearchR}",
                data: JSON.stringify({
                                     typeSignature: $("#signature").val()
+                                    , query_uuid: curr_uuid
                                 }),
                xhrFields: {
                     onprogress: function(e)
                     {
+                        $("#loading").show()
                         var this_response, response = e.currentTarget.response;
                         if(last_response_len === false)
                         {
@@ -67,6 +86,9 @@ $(function(){
                           if(data === undefined) {
                               result_div.append("No result found");
                           } else {
+                              // check whether uuid matches
+                              if(data["result_uuid"] != curr_uuid)
+                                return; // skip unmatched results
                               var badge = $("<span></span>")
                                           .addClass("badge")
                                           .addClass("badge-primary")
@@ -91,11 +113,12 @@ $(function(){
                               right_div.append(pkg_div)
                               sol_div.append(right_div)
                               result_div.append(sol_div)
+                              $('[data-toggle="tooltip"]').tooltip()
                           }
                           idx = idx + 1
                         }
                         // flush()
-                        console.log(this_response);
+                        // console.log(this_response);
                     }
                 },
                 done: function(e){
@@ -103,10 +126,16 @@ $(function(){
                 },
                success: function(res)
                {
-                  $("#loading").hide()
+                  var data = parseJson(res)
+                  if(data[0]["result_uuid"] == curr_uuid){
+                    $("#loading").hide()
+                  }
+                  if(data.length == 0)
+                    result_div.append("No result found")
                },
                error: function (xhr, ajaxOptions, thrownError) {
                   $("#loading").hide()
+                  result_div.append("No result found")
                   // alert(xhr.response);
                   // alert(thrownError);
                },

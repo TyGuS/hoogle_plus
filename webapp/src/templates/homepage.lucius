@@ -184,3 +184,27 @@ button {
     }
 
 }
+
+.hplus_result > h5{
+    font-size: 75%;
+}
+
+.tooltip{
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.tooltip-inner {
+    max-width: 500px !important;
+}
+
+.my-tooltip{
+    padding: 0 2.5px 1px 2.5px;
+}
+
+.my-tooltip:hover {
+    background: #e83e8c;
+    color: #fff;
+    transition: background .3s, color .3s;
+    border-radius: 5px;
+}
