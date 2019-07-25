@@ -88,9 +88,7 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just lib
     -- on the singatures. That would be enough to show that the relevancy requirement is not met.
 
     case decl of
-        NonRec id rest -> do
-            -- liftIO $ printf "\nourDecl: %s\n" (showSDocUnsafe $ ppr decl)
-            return $ isStrict tyclassCount decl
+        NonRec id rest -> return $ isStrict tyclassCount decl
         _ -> error "checkStrictness: recursive expression found"
 
     where
@@ -127,7 +125,7 @@ runGhcChecks disableDemand env goalType prog = let
     argTypes = map snd argList
     monoGoals = (map toMonotype argTypes)
     funcSig = mkFunctionSigStr (monoGoals ++ [goalType])
-    argTypesMap = Map.fromList $ zip (argNames) (map show monoGoals)
+    argTypesMap = Map.fromList $ zip argNames (map show monoGoals)
     body = mkLambdaStr argNames prog
     expr = body ++ " :: " ++ funcSig
     in do
@@ -151,9 +149,10 @@ checkType expr modules = do
 mkFunctionSigStr :: [RType] -> String
 mkFunctionSigStr args = addConstraints $ Prelude.foldr accumConstraints ([],[]) args
     where
-        showSigs sigs = intercalate " -> " sigs
+        showSigs = intercalate " -> "
+        wrapParen x = "(" ++ x ++ ")"
         addConstraints ([], baseSigs) = showSigs baseSigs
-        addConstraints (constraints, baseSigs) = "(" ++ (intercalate ", " constraints) ++ ") => " ++ showSigs baseSigs
+        addConstraints (constraints, baseSigs) = "(" ++ intercalate ", " constraints ++ ") => " ++ showSigs baseSigs
 
         accumConstraints :: RType -> ([String], [String]) -> ([String], [String])
         accumConstraints (ScalarT (DatatypeT id [ScalarT (TypeVarT _ tyvarName) _] _) _) (constraints, baseSigs)
@@ -164,7 +163,9 @@ mkFunctionSigStr args = addConstraints $ Prelude.foldr accumConstraints ([],[]) 
                 -- \(@@hplusTC@@([a-zA-Z]*) \(([a-z]*)\)\)
                 in
                     (constraint:constraints, baseSigs)
-        accumConstraints otherTy (constraints, baseSigs) = (constraints, show otherTy:baseSigs)
+        accumConstraints otherTy (constraints, baseSigs) = let
+            otherStr = if isFunctionType otherTy then wrapParen (show otherTy) else show otherTy
+            in (constraints, otherStr:baseSigs)
 
 -- mkLambdaStr produces a oneline lambda expr str:
 -- (\x -> \y -> body))
@@ -175,8 +176,8 @@ mkLambdaStr args body = let
         unwords . words . show $ foldr addFuncArg (text unTypeclassed) args
     where
         addFuncArg arg rest
-            | "arg" `isPrefixOf` arg = Pretty.parens $ text ("\\" ++ arg ++ " -> ") <+> rest
-            | otherwise = rest
+            | "tcarg" `isPrefixOf` arg = rest
+            | otherwise = Pretty.parens $ text ("\\" ++ arg ++ " -> ") <+> rest
 
 removeAll :: Regex -> String -> String
 removeAll a b = unwords $ words $ go a b
@@ -199,7 +200,7 @@ removeTypeclasses = removeEmptyParens . removeTypeclassArgs . removeTypeclassIns
 toHaskellSolution :: String -> String
 toHaskellSolution bodyStr = let
     oneLineBody = unwords $ lines bodyStr
-    noTypeclasses = (removeTypeclasses) oneLineBody
+    noTypeclasses = removeTypeclasses oneLineBody
     in
         noTypeclasses
 

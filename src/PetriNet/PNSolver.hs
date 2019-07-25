@@ -22,6 +22,7 @@ import qualified Data.Map as Map
 import Data.Maybe
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Ord
 import Data.Tuple
 import Debug.Trace
 import Language.Haskell.Exts.Parser (ParseResult(..), parseExp)
@@ -535,7 +536,7 @@ findProgram env dst st ps
                                  replaceId hoPostfix "" $
                                  lookupWithError "nameMapping" x nameMap)
                             p
-                 in if disrel then True else all (`elem` p') hoArgs
+                 in disrel || all (`elem` p') hoArgs
         return $ filter filterPaths (sequence allPaths)
 
     skipClone = not . isInfixOf "|clone"
@@ -589,7 +590,8 @@ findProgram env dst st ps
         codeResult <- fillSketch path
         checkResult <- withTime TypeCheckTime $
                         firstCheckedOrError $
-                        reverse $ sortOn length $ Set.toList codeResult
+                        sortOn (Data.Ord.Down . length) $ 
+                        Set.toList codeResult
         rs <- getExperiment refineStrategy
         stop <- getExperiment stopRefine
         placeNum <- getExperiment threshold
@@ -695,9 +697,9 @@ findFirstN :: MonadIO m
             -> EncodeState
             -> [[Id]]
             -> Int
-            -> PNSolver m [RProgram]
+            -> PNSolver m ()
 findFirstN env dst st ps n
-    | n == 0 = gets $ view currentSolutions
+    | n == 0 = return ()
     | otherwise = do
         strategy <- getExperiment refineStrategy
         (soln, st', ps') <- withTime TotalSearch $ findProgram env dst st ps
@@ -707,16 +709,15 @@ findFirstN env dst st ps n
         writeLog 2 "findFirstN" $ text "Current Solutions:" <+> pretty currentSols
         findFirstN env dst st' ps' (n - 1)
 
-runPNSolver :: MonadIO m => Environment -> RType -> PNSolver m [RProgram]
+runPNSolver :: MonadIO m => Environment -> RType -> PNSolver m ()
 runPNSolver env t = do
     writeLog 3 "runPNSolver" $ text $ show (allSymbols env)
     withTime TotalSearch $ initNet env
     st <- withTime TotalSearch $ withTime EncodingTime (resetEncoder env t)
     cnt <- getExperiment solutionCnt
-    res <- findFirstN env t st [] cnt
+    findFirstN env t st [] cnt
     msgChan <- gets $ view messageChan
     liftIO $ writeChan msgChan (MesgClose CSNormal)
-    return res
 
 writeSolution :: MonadIO m => UProgram -> PNSolver m ()
 writeSolution code = do
@@ -725,8 +726,8 @@ writeSolution code = do
     msgChan <- gets $ view messageChan
     let stats' = stats {pathLength = loc}
     liftIO $ writeChan msgChan (MesgP (code, stats'))
-    liftIO $ printSolution code
-    liftIO $ hFlush stdout
+    -- liftIO $ printSolution code
+    -- liftIO $ hFlush stdout
     writeLog 1 "writeSolution" $ text (show stats')
 
 recoverNames :: Map Id Id -> Program t -> Program t

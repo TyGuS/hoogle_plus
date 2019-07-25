@@ -68,7 +68,7 @@ envToGoal env queryStr = do
 
       _ -> error "parse a signature for a none goal declaration"
 
-synthesize :: SearchParams -> Goal -> Chan Message -> IO [RProgram]
+synthesize :: SearchParams -> Goal -> Chan Message -> IO ()
 synthesize searchParams goal messageChan = do
     let env''' = gEnvironment goal
     let (env'', monospec) = updateEnvWithBoundTyVars (gSpec goal) env'''

@@ -109,6 +109,21 @@ parseTypeDecl = do
   reservedOp "="
   typeDef <- parseType
   return $ TypeDecl typeName typeVars typeDef
+  where
+
+fixArgName :: Int -> RType -> RType
+fixArgName _ typ = let (_, res) = fixArgName' 0 typ in res
+  where
+    fixArgName' idx (FunctionT x tArg tRes)
+      | "@@arg" `isPrefixOf` x = let
+          (idx', tArg') = fixArgName' (idx + 1) tArg
+          (idx'', tRes') = fixArgName' idx' tRes
+          in (idx'', FunctionT ("arg"++show idx) tArg' tRes')
+      | otherwise = let
+          (idx', tArg') = fixArgName' idx tArg
+          (idx'', tRes') = fixArgName' idx' tRes
+          in (idx'', FunctionT x tArg' tRes')
+    fixArgName' idx t = (idx, t)
 
 parseDataDecl :: Parser BareDeclaration
 parseDataDecl = do
@@ -129,7 +144,7 @@ parseConstructorSig = do
   ctorName <- parseTypeName
   reservedOp "::"
   ctorType <- parseType
-  return $ ConstructorSig ctorName ctorType
+  return $ ConstructorSig ctorName $ fixArgName 0 ctorType
 
 parseMeasureDecl :: Parser BareDeclaration
 parseMeasureDecl = do
@@ -197,7 +212,7 @@ parseTypeMbTypeclasses :: Parser RType
 parseTypeMbTypeclasses = do
   tcs <- try parseTypeclasses <|> (pure id)
   plainTypes <- parseType
-  return (tcs plainTypes)
+  return (tcs $ fixArgName 0 plainTypes)
 
 parseTCName :: Parser RType
 parseTCName = do
@@ -215,8 +230,7 @@ parseTypeclasses = do
   return $ foldr combineTypeclasses id tcsAndNumbers
 
 parseType :: Parser RType
-parseType = do
-  withPos (choice [try parseFunctionTypeWithArg, parseFunctionTypeMb] <?> "type")
+parseType = withPos (choice [try parseFunctionTypeWithArg, parseFunctionTypeMb] <?> "type")
 
 -- | Parse top-level type that starts with an argument name, and thus must be a function type
 parseFunctionTypeWithArg = do
@@ -237,7 +251,7 @@ parseFunctionTypeMb = do
     parseFunctionRest argType = do
       reservedOp "->"
       returnType <- parseType
-      return $ FunctionT ("arg" ++ show (arity returnType)) argType returnType
+      return $ FunctionT ("@@arg" ++ show (arity returnType)) argType returnType
 
 parseTypeAtom :: Parser RType
 parseTypeAtom = choice [

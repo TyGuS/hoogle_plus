@@ -38,7 +38,7 @@ getDatabase = do
       unpackEntry (EDecl decl) = prettyPrint decl
 
 getHomeR :: Handler Html
-getHomeR = do
+getHomeR =
     defaultLayout $ do
         mcurrentRoute <- getCurrentRoute
         let candidates = [] :: [String]

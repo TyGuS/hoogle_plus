@@ -4,12 +4,8 @@
 
 module Types where
 
-import Data.Text (Text)
 import GHC.Generics
-import Yesod.Core
-
-data Tier = Partial | Total
-    deriving (Show, Eq)
+import Data.Aeson
 
 data TygarQuery = TygarQuery
     {
@@ -19,6 +15,7 @@ data TygarQuery = TygarQuery
 instance FromJSON TygarQuery
 
 data ResultEntry = ResultEntry{
+  query :: String,
   solution :: String,
   packages :: [String]
 } deriving(Generic)

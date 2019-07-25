@@ -263,7 +263,9 @@ instance Show (BaseType Formula) where
 
 prettySType :: SType -> Doc
 prettySType (ScalarT base _) = pretty base
-prettySType (FunctionT _ t1 t2) = hlParens (pretty t1 <+> operator "->" <+> pretty t2)
+prettySType (FunctionT _ t1 t2)
+  | isFunctionType t1 = hlParens (pretty t1) <+> operator "->" <+> pretty t2
+  | otherwise = pretty t1 <+> operator "->" <+> pretty t2
 prettySType AnyT = text "_"
 
 instance Pretty SType where
@@ -284,14 +286,15 @@ typePower (ScalarT (DatatypeT _ tArgs pArgs) r)
 typePower _ = 3
 
 prettyTypeAt :: Int -> RType -> Doc
-prettyTypeAt n t = hlParens ( -- condHlParens (n' <= n) (
+prettyTypeAt n t = -- condHlParens (n' <= n) (
   case t of
     ScalarT base (BoolLit True) -> pretty base
     ScalarT base fml -> hlBraces (pretty base <> operator "|" <> pretty fml)
     AnyT -> text "_"
-    FunctionT x t1 t2 -> prettyTypeAt n' t1 <+> operator "->" <+> prettyTypeAt 0 t2
+    FunctionT x t1 t2 | isFunctionType t1 -> hlParens (prettyTypeAt n' t1) <+> operator "->" <+> prettyTypeAt 0 t2
+                      | otherwise -> prettyTypeAt n' t1 <+> operator "->" <+> prettyTypeAt 0 t2
     BotT -> text "⊥"
-  )
+  -- )
   where
     n' = typePower t
 
@@ -535,12 +538,12 @@ instance Pretty SplitInfo where
                              $+$ text "New transitions:" <+> text (show tr)
 
 instance Pretty FunctionCode where
-    pretty (FunctionCode name hop params rets) = 
+    pretty (FunctionCode name hop params rets) =
         text "function code:" <+> hlBraces
       ( text "function name:" <+> text name
         $+$ text "HO parameters:" <+> hlBrackets (commaSep (map pretty hop))
         $+$ text "paramters:" <+> hlBrackets (commaSep (map pretty params))
-        $+$ text "return types:" <+> hlBrackets (commaSep (map pretty rets)))  
+        $+$ text "return types:" <+> hlBrackets (commaSep (map pretty rets)))
 
 instance Show FunctionCode where
     show = show . plain . pretty

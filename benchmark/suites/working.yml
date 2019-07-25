@@ -13,7 +13,7 @@
   solution: (,) (arg1 (fst arg0)) (arg1 (snd arg0))
   source: "original"
 
-- name: fromFirstMaybes
+- name: firstJust
   query: "a -> [Maybe a] -> a"
   solution: fromMaybe x (listToMaybe (catMaybes xs))
   source: "original"
