@@ -180,22 +180,22 @@ mkLambdaStr args body = let
             | otherwise = Pretty.parens $ text ("\\" ++ arg ++ " -> ") <+> rest
 
 removeAll :: Regex -> String -> String
-removeAll a b = unwords $ words $ go a b
+removeAll = go
     where
         go regex input =
-            if (isJust $ matchRegex regex input)
-            then (go regex $ subRegex regex input "")
+            if isJust $ matchRegex regex input
+            then go regex $ subRegex regex input ""
             else input
 
 removeTypeclassArgs :: String -> String
-removeTypeclassArgs = removeAll (mkRegex (tyclassArgBase++"[0-9]+\\s?"))
+removeTypeclassArgs = removeAll (mkRegex (tyclassArgBase++"[0-9]+"))
 
 removeTypeclassInstances :: String -> String
 removeTypeclassInstances = removeAll (mkRegex (tyclassInstancePrefix ++ "[0-9]*[a-zA-Z]*"))
 
 removeTypeclasses = removeEmptyParens . removeTypeclassArgs . removeTypeclassInstances
     where
-        removeEmptyParens = removeAll (mkRegex "\\(\\s+\\)")
+        removeEmptyParens = removeAll (mkRegex "\\([\\ ]+\\)")
 
 toHaskellSolution :: String -> String
 toHaskellSolution bodyStr = let

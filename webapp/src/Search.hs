@@ -147,15 +147,15 @@ transformSolution goal queryResult = do
                                         if tyclassArgBase `isPrefixOf` x'
                                             then let
                                                 ScalarT (DatatypeT id [ScalarT (TypeVarT _ tyvarName) _] _) _ = tArg'
-                                                res = allTyclass tRes'
+                                                (res, tRes'') = allTyclass tRes'
                                                 classNameRegex = mkRegex $ tyclassPrefix ++ "([a-zA-Z]*)"
                                                 className = subRegex classNameRegex id "\\1"
                                                 constraint = className ++ " " ++ tyvarName
-                                                in constraint : res
-                                            else []
-                                    _ -> []
-                constraints = allTyclass t
-                in "(" ++ intercalate ", " constraints ++ ") => " ++ showGoal tRes
+                                                in (constraint : res, tRes'')
+                                            else ([], tt)
+                                    _ -> ([], tt)
+                (constraints, t') = allTyclass t
+                in "(" ++ intercalate ", " constraints ++ ") => " ++ showGoal t'
             | otherwise = x ++ ": " ++ showGoal tArg ++ " -> " ++ showGoal tRes
         showGoal t = show t
 
