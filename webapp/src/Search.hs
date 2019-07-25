@@ -89,11 +89,6 @@ transformSolution goal queryResult = do
     -- logQuery query sols
     getPkg pkgComp sol
     where
-        logQuery q s = do
-            time <- getCurrentTime
-            let str = printf "[%s]: Query: %s Solutions: [%s]\n" (show time) q (intercalate ", " s)
-            appendFile defaultLogFile str
-
         getRes str (offset, len) = take len $ drop offset str
 
         getPkg regex solution = do
@@ -121,6 +116,13 @@ transformSolution goal queryResult = do
             | otherwise = x ++ ": " ++ showGoal tArg ++ " -> " ++ showGoal tRes
         showGoal t = show t
 
+logQuery :: ResultEntry -> IO ()
+logQuery res = do
+    let ResultEntry q s _ = res
+    time <- getCurrentTime
+    let str = printf "[%s]: Query: %s Solution: %s\n" (show time) q s
+    appendFile defaultLogFile str
+
 postSearchR :: Handler TypedContent
 postSearchR = do
     queryOpts <- requireCheckJsonBody :: Handler TygarQuery
@@ -133,6 +135,7 @@ postSearchR = do
             liftIO $ print (BChar.unpack $ Aeson.encode strProg)
             C.yield $ C.Chunk $ lazyByteString $ Aeson.encode strProg
             sendFlush
+            liftIO $ logQuery strProg
             liftIO (readChan ch) >>= collectResults goal ch
         collectResults goal ch _ = liftIO (readChan ch) >>= collectResults goal ch
 
