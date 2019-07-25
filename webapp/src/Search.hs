@@ -22,7 +22,6 @@ import Database.Util
 
 import Control.Concurrent
 import Control.Concurrent.Chan
-import Control.Concurrent.Timeout
 import Control.Exception (catch)
 import Control.Monad
 import Data.Bits
@@ -48,7 +47,6 @@ import Text.Regex.Posix.Wrap
 import Yesod.Core
 import Yesod.Core.Content
 import Yesod.Form
-import Network.HTTP.Types.Status
 import qualified Data.Map as Map
 import Control.Lens
 
