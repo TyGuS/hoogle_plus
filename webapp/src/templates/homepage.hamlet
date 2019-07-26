@@ -1,8 +1,6 @@
 <html>
   <body .container .main-style>
-    <h1 .hplus_font>
-        <a href="/" style="text-decoration: none">Hoogle+</a>
-    $if (Just HomeR == mcurrentRoute)
+    <h1 .hplus_font>Hoogle+
         <br>
         <h5> Welcome to the Hoogle+ Demo
         <p> Hoogle+ is a type-driven synthesis engine for Haskell. Given a Haskell type, Hoogle+ generates terms that inhabit this type by composing library components. It supports polymorphism, type classes, and higher-order functions. Available library components are listed in the side bar.
