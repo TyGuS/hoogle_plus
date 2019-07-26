@@ -1,7 +1,7 @@
 <html>
   <body .container .main-style>
     <h1 .hplus_font>
-        Hoogle+
+        <a href="/" style="text-decoration: none">Hoogle+</a>
     $if (Just HomeR == mcurrentRoute)
         <br>
         <h5> Welcome to the Hoogle+ Demo

@@ -57,7 +57,7 @@ $(function(){
         $.ajax({
                contentType: "application/json",
                type: "POST",
-               url: url,
+               url: window.location + "/search",
                data: JSON.stringify({
                                     typeSignature: $("#signature").val()
                                     , query_uuid: curr_uuid

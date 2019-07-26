@@ -207,4 +207,5 @@ button {
     color: #fff;
     transition: background .3s, color .3s;
     border-radius: 5px;
+    cursor: pointer;
 }
