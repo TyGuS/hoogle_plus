@@ -65,7 +65,6 @@ $(function(){
                xhrFields: {
                     onprogress: function(e)
                     {
-                        $("#loading").show()
                         var this_response, response = e.currentTarget.response;
                         if(last_response_len === false)
                         {
@@ -89,6 +88,7 @@ $(function(){
                               // check whether uuid matches
                               if(data["result_uuid"] != curr_uuid)
                                 return; // skip unmatched results
+                              $("#loading").show()
                               var badge = $("<span></span>")
                                           .addClass("badge")
                                           .addClass("badge-primary")

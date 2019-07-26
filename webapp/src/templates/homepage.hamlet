@@ -9,7 +9,7 @@
 
     <div .body>
         <div .left>
-            <form id="theForm" method=post action="/hoogle_plus/search">
+            <form id="theForm" method=post action="search">
                 <input #signature type=text, class="form-control", placeholder="Search by type singature!">
                 <button .btn .btn-outline-secondary type="submit" id="button-addon2">
                     Search
