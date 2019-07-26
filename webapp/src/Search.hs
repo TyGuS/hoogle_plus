@@ -61,8 +61,8 @@ runQuery queryOpts = do
     goal <- envToGoal env query
     messageChan <- newChan
     let params = defaultSearchParams {
-          _stopRefine=True
-        , _threshold=5
+          _stopRefine = True
+        , _threshold = 10
         , _solutionCnt = 10 }
     tid <- forkIO $ synthesize params goal messageChan
     forkIO $ threadDelay time_limit >> writeChan messageChan (MesgClose CSTimeout)
@@ -81,6 +81,7 @@ runQuery queryOpts = do
 
 transformSolution :: Goal -> RProgram -> IO (String -> ResultEntry)
 transformSolution goal queryResult = do
+    print queryResult
     let defaultOpt = compNewline .|. compExtended
     pkgRegex <- newCString "([^\\(\\ ]+)\\."
     pkgExtraction <- wrapCompile defaultOpt execBlank pkgRegex
@@ -88,7 +89,7 @@ transformSolution goal queryResult = do
                     Left err -> error $ snd err
                     Right r -> r
     let sol = toHaskellSolution $ show queryResult
-    -- logQuery query sols
+    logQuery (show $ toMonotype $ gSpec goal) sol
     getPkg pkgComp sol
     where
         getRes str (offset, len) = take len $ drop offset str
@@ -159,9 +160,8 @@ transformSolution goal queryResult = do
             | otherwise = x ++ ": " ++ showGoal tArg ++ " -> " ++ showGoal tRes
         showGoal t = show t
 
-logQuery :: ResultEntry -> IO ()
-logQuery res = do
-    let ResultEntry q s _ _ = res
+logQuery :: String -> String -> IO ()
+logQuery q s = do
     time <- getCurrentTime
     let str = printf "[%s]: Query: %s Solution: %s\n" (show time) q s
     appendFile defaultLogFile str
@@ -179,7 +179,8 @@ postSearchR = do
             liftIO $ print (BChar.unpack $ Aeson.encode prog)
             C.yield $ C.Chunk $ lazyByteString $ Aeson.encode prog
             sendFlush
-            liftIO $ logQuery prog
             liftIO (readChan ch) >>= collectResults goal uuid ch
+        -- collectResults goal uuid ch (MesgLog lv name log) = when (lv <= 1) (liftIO (putStrLn (printf "[%s]: %s" name log)))
+        --                                                   >> liftIO (readChan ch) >>= collectResults goal uuid ch
         collectResults goal uuid ch _ = liftIO (readChan ch) >>= collectResults goal uuid ch
 

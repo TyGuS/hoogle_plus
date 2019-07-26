@@ -89,6 +89,7 @@ $(function(){
                               if(data["result_uuid"] != curr_uuid)
                                 return; // skip unmatched results
                               $("#loading").show()
+                              $("#button-addon2").attr('disabled','disabled')
                               var badge = $("<span></span>")
                                           .addClass("badge")
                                           .addClass("badge-primary")
@@ -127,15 +128,18 @@ $(function(){
                success: function(res)
                {
                   var data = parseJson(res)
-                  if(data[0]["result_uuid"] == curr_uuid){
+                  // console.log(data)
+                  if(data === undefined || data.length == 0 || data[0]["result_uuid"] == curr_uuid){
                     $("#loading").hide()
+                    $("#button-addon2").removeAttr('disabled');
                   }
                   if(data.length == 0)
                     result_div.append("No result found")
                },
                error: function (xhr, ajaxOptions, thrownError) {
                   $("#loading").hide()
-                  result_div.append("No result found")
+                  $("#button-addon2").removeAttr('disabled')
+                  result_div.append("No result found in one minute")
                   // alert(xhr.response);
                   // alert(thrownError);
                },
