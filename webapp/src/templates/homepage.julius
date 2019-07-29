@@ -1,4 +1,5 @@
 hljs.initHighlightingOnLoad();
+$("#loading").hide();
 
 function bin2String(array) {
   var result = "";
@@ -29,18 +30,52 @@ function generateUUID() { // Public Domain/MIT
     });
 }
 
-var curr_uuid;
-
 $(function(){
     $('[data-toggle="tooltip"]').tooltip()
 
-    $(document).bind("ajaxSend", function(){
+    var curr_uuid;
+
+    $(document).bind("ajaxSend", function(event, jqxhr, settings){
+      if ( settings.url == window.location + "/search" ) {
         $("#result").empty()
         $("#loading").show()
         $("#demo").hide()
+      } else {
+        $('#loading').hide()
+        $('#demo').show()
+      }
     });
 
-    $("#loading").hide();
+    // $(document).on("click", "#home", function(){
+    //     location.reload();
+    // });
+
+    $("#button-stop").attr('disabled','disabled')
+    $(document).on("click", "#button-stop", function(){
+        $.ajax({
+               contentType: "application/json",
+               dataType: "text",
+               type: "PUT",
+               url: window.location + "/stop",
+               data: JSON.stringify({
+                                    query_uuid: curr_uuid,
+                                    typeSignature: $("#signature").val()
+                                }),
+              success: function(res) {
+                  console.log(res)
+                  $('#loading').hide()
+               },
+               error: function(xhr, ajaxOptions, thrownError) {
+                  console.log(thrownError)
+               }
+        });
+    });
+
+    $("#signature").keyup(function() {
+        if (!this.value) {
+            $("#demo").show()
+        }
+    });
 
     $("#theForm").submit(function(e) {
 
@@ -51,31 +86,30 @@ $(function(){
         var last_response_len = false;
         var idx = 0;
         var result_div = $("#result")
-        curr_uuid = generateUUID()
         result_div.addClass("list-group")
                   .addClass("list-group-flush")
+        $("#button-addon2").attr('disabled','disabled')
+        $("#button-stop").removeAttr('disabled')
         $.ajax({
                contentType: "application/json",
                type: "POST",
                url: window.location + "/search",
                data: JSON.stringify({
+                                    query_uuid: generateUUID(),
                                     typeSignature: $("#signature").val()
-                                    , query_uuid: curr_uuid
                                 }),
                xhrFields: {
                     onprogress: function(e)
                     {
                         var this_response, response = e.currentTarget.response;
-                        if(last_response_len === false)
-                        {
+                        if(last_response_len === false) {
                             result_div.empty()
                             idx = 0
                             this_response = parseJson(response);
                             $("#signature").val(this_response[0]["query"])
+                            curr_uuid = this_response[0]["result_uuid"]
                             last_response_len = response.length;
-                        }
-                        else
-                        {
+                        } else {
                             this_response = parseJson(response.substring(last_response_len));
                             last_response_len = response.length;
                         }
@@ -89,7 +123,6 @@ $(function(){
                               if(data["result_uuid"] != curr_uuid)
                                 return; // skip unmatched results
                               $("#loading").show()
-                              $("#button-addon2").attr('disabled','disabled')
                               var badge = $("<span></span>")
                                           .addClass("badge")
                                           .addClass("badge-primary")
@@ -122,9 +155,6 @@ $(function(){
                         // console.log(this_response);
                     }
                 },
-                done: function(e){
-                    // alert('done');
-                },
                success: function(res)
                {
                   var data = parseJson(res)
@@ -132,6 +162,8 @@ $(function(){
                   if(data === undefined || data.length == 0 || data[0]["result_uuid"] == curr_uuid){
                     $("#loading").hide()
                     $("#button-addon2").removeAttr('disabled');
+                    $("#button-stop").attr('disabled','disabled')
+                    // $('#demo').show()
                   }
                   if(data.length == 0)
                     result_div.append("No result found")
@@ -139,7 +171,9 @@ $(function(){
                error: function (xhr, ajaxOptions, thrownError) {
                   $("#loading").hide()
                   $("#button-addon2").removeAttr('disabled')
-                  result_div.append("No result found in one minute")
+                  $("#button-stop").attr('disabled','disabled')
+                  // $('#demo').show()
+                  result_div.append("Search timeout")
                   // alert(xhr.response);
                   // alert(thrownError);
                },

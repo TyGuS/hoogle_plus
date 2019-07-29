@@ -11,8 +11,13 @@ import Yesod.Core
 import Data.Text (Text)
 import Yesod.Form
 import Yesod.Form.Jquery
+import Control.Concurrent (ThreadId)
+import Data.Map (Map)
+import Data.IORef
 
-data App = App
+data App = App {
+    threadMap :: IORef (Map String ThreadId)
+}
 
 mkYesodData "App" $(parseRoutesFile "webapp/routes")
 

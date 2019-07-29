@@ -49,13 +49,13 @@ import Text.Regex.Posix.Wrap
 import Yesod.Core
 import Yesod.Core.Content
 import Yesod.Form
+import Data.Map (Map)
 import qualified Data.Map as Map
 import Control.Lens
+import Data.IORef
 
-time_limit = 60 * 10^6 :: Int
-
-runQuery :: TygarQuery -> IO (Chan Message, Goal)
-runQuery queryOpts = do
+runQuery :: TygarQuery -> IORef (Map String ThreadId) -> IO (Chan Message, Goal)
+runQuery queryOpts tm = do
     let query = typeSignature queryOpts
     env <- readEnv
     goal <- envToGoal env query
@@ -65,6 +65,7 @@ runQuery queryOpts = do
         , _threshold = 10
         , _solutionCnt = 10 }
     tid <- forkIO $ synthesize params goal messageChan
+    atomicModifyIORef tm (\m -> (Map.insert (query_uuid queryOpts) tid m, ()))
     forkIO $ threadDelay time_limit >> writeChan messageChan (MesgClose CSTimeout)
                                     >> killThread tid
     return (messageChan, goal)
@@ -115,21 +116,23 @@ transformSolution goal queryResult = do
             | otherwise = x : argNamesOf tRes
         argNamesOf _ = []
 
-        toHtml env (Program (PSymbol "Nil") _) = "<span class=\"my-tooltip\" data-toggle=\"tooltip\" title data-html=\"true\" data-original-title=\"<code>[] :: [a]</code>\">[]</span>"
+        tooltip = "<span class=\"my-tooltip\" data-toggle=\"tooltip\" title data-html=\"true\" data-original-title=\"<code>%s :: %s</code>\">%s</span>"
+
+        toHtml env (Program (PSymbol "Nil") _) = printf tooltip ("[]" :: String) ("[a]" :: String) ("[]" :: String)
         toHtml env (Program (PSymbol s) t)
             | tyclassArgBase `isPrefixOf` s = ""
             | otherwise = case lookupSymbol s 0 env of
-                Just sch -> printf "<span class=\"my-tooltip\" data-toggle=\"tooltip\" title data-html=\"true\" data-original-title=\"<code>%s :: %s</code>\">%s</span>" s (removeTypeclasses $ show (toMonotype sch)) s
+                Just sch -> printf tooltip s (removeTypeclasses $ show (toMonotype sch)) s
                 Nothing -> error $ "cannot find symbol " ++ s
         toHtml env (Program (PApp f args) _) = let
             optParens p = case p of
                 Program (PSymbol _) _ -> " " ++ toHtml env p
                 _ -> " (" ++ toHtml env p ++ ")"
             in (case f of
-                "Cons" -> "<span class=\"my-tooltip\" data-toggle=\"tooltip\" title data-html=\"true\" data-original-title=\"<code>(:) :: a -> [a] -> [a]</code>\">(:)</span>"
-                "Pair" -> "<span class=\"my-tooltip\" data-toggle=\"tooltip\" title data-html=\"true\" data-original-title=\"<code>(,) :: a -> b -> (a, b)</code>\">(,)</span>"
+                "Cons" -> printf tooltip ("(:)" :: String) ("a -> [a] -> [a]" :: String) ("(:)" :: String)
+                "Pair" -> printf tooltip ("(,)" :: String) ("a -> b -> (a, b)" :: String) ("(,)" :: String)
                 _      -> case lookupSymbol f 0 env of
-                    Just sch -> printf "<span class=\"my-tooltip\" data-toggle=\"tooltip\" title data-html=\"true\" data-original-title=\"<code>%s :: %s</code>\">%s</span>" f (removeTypeclasses $ show (toMonotype sch)) f
+                    Just sch -> printf tooltip f (removeTypeclasses $ show (toMonotype sch)) f
                     Nothing -> error $ "cannot find symbol " ++ f
                 ) ++ concatMap optParens args
 
@@ -169,7 +172,8 @@ logQuery q s = do
 postSearchR :: Handler TypedContent
 postSearchR = do
     queryOpts <- requireCheckJsonBody :: Handler TygarQuery
-    (chan, goal) <- liftIO $ runQuery queryOpts
+    yesod <- getYesod
+    (chan, goal) <- liftIO $ runQuery queryOpts $ threadMap yesod
     respondSource typeJson $ liftIO (readChan chan) >>= collectResults goal (query_uuid queryOpts) chan
     where
         collectResults goal uuid ch (MesgClose _) = C.sinkNull
@@ -183,4 +187,3 @@ postSearchR = do
         -- collectResults goal uuid ch (MesgLog lv name log) = when (lv <= 1) (liftIO (putStrLn (printf "[%s]: %s" name log)))
         --                                                   >> liftIO (readChan ch) >>= collectResults goal uuid ch
         collectResults goal uuid ch _ = liftIO (readChan ch) >>= collectResults goal uuid ch
-

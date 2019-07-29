@@ -1,2 +1,3 @@
 /             HomeR GET
-/search        SearchR POST
+/search       SearchR POST
+/stop         StopR PUT

@@ -31,3 +31,4 @@ data TygarResult = TygarResult{
 instance ToJSON TygarResult
 
 defaultLogFile = "data/hplus.log"
+time_limit = 60 * 10^6 :: Int
