@@ -20,23 +20,25 @@ getTypeString input =
     typeOf input
   }
 
--- todo: qualified type support
-parseTypeString :: String -> ([ArgumentType], ArgumentType)
-parseTypeString input = buildRet [] value
+parseTypeString :: String -> (TypeEnv, [ArgumentType], ArgumentType)
+parseTypeString input = buildRet [] [] value
   where
     (ParseOk value) = parseType input
 
     argName (TyVar _ (Ident _ name)) = Polymorphic name
-    argName (TyCon _ (UnQual _ (Ident _ name))) = Instance name
-    argName (TyList _ arg) =
-      case argName arg of Instance n -> Instance ("[" ++ n ++ "]")
-                          Polymorphic n -> Polymorphic ("[" ++ n ++ "]")
-    
-    -- todo: e.g. map numeric value to Int
-    argName (TyForall _ _ _ t) = error $ show t
+    argName (TyCon _ (UnQual _ (Ident _ name))) = Concrete name
+    argName (TyList _ arg) = ArgTypeList (argName arg)
 
-    buildRet argList (TyFun _ typeArg typeRet) = buildRet (argList ++ [argName typeArg]) typeRet
-    buildRet argList typeRet = (argList, argName typeRet)
+    buildRet typeEnv argList (TyForall _ _ (Just ctx) t) = buildRet typeEnv' argList t
+      where typeEnv' = typeEnv ++ buildEnv typeEnv ctx
+    buildRet typeEnv argList (TyFun _ typeArg typeRet) = buildRet typeEnv argList' typeRet
+      where argList' = argList ++ [argName typeArg]
+    buildRet typeEnv argList typeRet = (typeEnv, argList, argName typeRet)
+
+    extractQualified (ClassA _ (UnQual _ (Ident _ name)) var) =
+      map (\x -> (argName x, name)) var
+    buildEnv typeEnv (CxSingle _ item) = typeEnv ++ extractQualified item
+    buildEnv typeEnv (CxTuple _ list) = foldr ((++) . extractQualified) typeEnv list
 
 
 -- todo: implement
