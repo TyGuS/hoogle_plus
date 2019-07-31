@@ -1,4 +1,4 @@
-module HooglePlus.FilterTest (runGhcChecks, getTypeString, runNoExceptionTest) where
+module HooglePlus.FilterTest (runGhcChecks, getTypeString, runNoExceptionTest, runChecks) where
 
 import Language.Haskell.Interpreter
 import Language.Haskell.Exts.Parser
@@ -11,13 +11,27 @@ import Language.Haskell.Exts.Pretty
 
 import Test.QuickCheck
 
-data ArgumentType = Instance String | Polymorphic String deriving (Show)
+import HooglePlus.Utils
+import Types.Environment
+import Types.Program
+import Types.Type hiding (typeOf)
+import Synquid.Type
 
-getTypeString :: String -> IO (Either InterpreterError String)
-getTypeString input =
+import qualified Data.Map as Map hiding (map, foldr)
+import qualified Data.Set as Set hiding (map)
+
+data ArgumentType = Concrete String
+                  | Polymorphic String
+                  | ArgTypeList ArgumentType
+                    deriving (Show, Eq)
+
+type TypeEnv = [(ArgumentType, String)]
+
+getTypeString :: [String] -> String -> IO (Either InterpreterError String)
+getTypeString imports input =
   runInterpreter $ do {
-    setImports ["Prelude", "Data.List", "Data.Maybe"];
-    typeOf input
+    setImports imports;
+    Language.Haskell.Interpreter.typeOf input
   }
 
 parseTypeString :: String -> (TypeEnv, [ArgumentType], ArgumentType)
@@ -43,10 +57,10 @@ parseTypeString input = buildRet [] [] value
 
 -- todo: implement
 runGhcChecks :: String -> IO Bool
-runGhcChecks input = return False 
+runGhcChecks input = return False
 
 generatePrimitiveTestData :: String -> IO String
-generatePrimitiveTestData pType = 
+generatePrimitiveTestData pType =
   let pre str = "(" ++ str ++ ")" in case pType of
   "Int" ->
     do result <- generate arbitrary :: IO Int
@@ -60,15 +74,56 @@ generatePrimitiveTestData pType =
     where
       format str = prettyPrint (String [] str "")
 
--- todo: support for list/custom data types
-prepareArguments :: String-> IO String
-prepareArguments input =
+prepareArguments :: [String] -> String -> IO String
+prepareArguments imports input =
   do
-    (Right typeStr) <- getTypeString input
-    unwords <$> mapM f (fst $ parseTypeString typeStr)
+    (Right typeStr) <- getTypeString imports input
+    unwords <$> mapM f (transformTypePre $ parseTypeString typeStr)
   where
-    f (Instance x) = generatePrimitiveTestData x
+    f (Concrete x) = generatePrimitiveTestData x
     f (Polymorphic x) = generatePrimitiveTestData "Int"
+
+    transformTypePre (typeEnv, argsType, _) =
+      transformType typeEnv argsType
+
+    transformType [] args = args
+    transformType (envItem:env) args = transformType env args'
+      where
+        args' = map (replace envItem) args
+
+        replace (Polymorphic name, cons) (Polymorphic name') =
+          if name == name' then
+            case cons of
+              "Eq" -> Concrete "Int"
+              "Num" -> Concrete "Int"
+          else Polymorphic name'
+        replace cons (ArgTypeList argType) = ArgTypeList (replace cons argType)
+        replace _ x = x
+
+prepareArguments' :: (TypeEnv, [ArgumentType], ArgumentType) -> IO String
+prepareArguments' result =
+  do
+    unwords <$> mapM f (transformTypePre result)
+  where
+    f (Concrete x) = generatePrimitiveTestData x
+    f (Polymorphic x) = generatePrimitiveTestData "Int"
+
+    transformTypePre (typeEnv, argsType, _) =
+      transformType typeEnv argsType
+
+    transformType [] args = args
+    transformType (envItem:env) args = transformType env args'
+      where
+        args' = map (replace envItem) args
+
+        replace (Polymorphic name, cons) (Polymorphic name') =
+          if name == name' then
+            case cons of
+              "Eq" -> Concrete "Int"
+              "Num" -> Concrete "Int"
+          else Polymorphic name'
+        replace cons (ArgTypeList argType) = ArgTypeList (replace cons argType)
+        replace _ x = x
 
 runNoExceptionTest :: String -> IO Bool
 runNoExceptionTest input =
@@ -76,7 +131,7 @@ runNoExceptionTest input =
     importList = ["Prelude", "Data.List", "Data.Maybe"]
     code = "(" ++ input ++ ")"
   in do
-    arg <- prepareArguments input
+    arg <- prepareArguments importList input
     result <- runInterpreter $ do {
       setImports importList;
       eval (code ++ " " ++ arg)
@@ -85,3 +140,35 @@ runNoExceptionTest input =
       Left err -> putStrLn (displayException err) >> return False
       Right res -> putStrLn res >> return True
 
+-- https://github.com/haskell-hint/hint/issues/77
+test :: IO (Either InterpreterError String)
+test = runInterpreter $ do {
+  setImports ["Prelude", "Test.QuickCheck"];
+  act <- interpret "generate arbitrary :: IO String" (as :: IO String);
+  liftIO act
+}
+
+runChecks :: Environment -> RType -> UProgram -> IO Bool
+runChecks env goalType prog = let
+  args = _arguments env
+  modules = Set.toList $ _included_modules env
+  argList = Map.toList args
+  argNames = map fst argList
+  argTypes = map snd argList
+  monoGoals = (map toMonotype argTypes)
+  funcSig = mkFunctionSigStr (monoGoals ++ [goalType])
+  body = mkLambdaStr argNames prog
+
+
+  in do
+
+    arg <- prepareArguments' $ parseTypeString funcSig
+    result <- runInterpreter $ do {
+      setImports modules;
+      eval (body ++ " " ++ arg)
+    }
+    case result of
+      Left err -> putStrLn (displayException err) >> return False
+      Right res -> putStrLn res >> return True
+    -- call test procedures
+    return False

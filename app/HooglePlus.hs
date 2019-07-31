@@ -26,7 +26,8 @@ import Synquid.Util (showme)
 import HooglePlus.Synthesize
 import HooglePlus.Stats
 import Types.Encoder
-import PetriNet.GHCChecker
+import HooglePlus.GHCChecker
+import HooglePlus.Utils
 
 import Control.Monad
 import Control.Lens ((^.))
@@ -90,6 +91,7 @@ main = do
                   , disable_relevancy
                   , disable_copy_trans
                   , disable_blacklist
+                  , disable_filter
                   } -> do
             let searchParams =
                     defaultSearchParams
@@ -107,6 +109,7 @@ main = do
                         , _disableRelevancy = disable_relevancy
                         , _disableCopy = disable_copy_trans
                         , _disableBlack = disable_blacklist
+                        , _disableFilter = disable_filter
                         }
             let synquidParams =
                     defaultSynquidParams {Main.envPath = env_file_path_in}
@@ -158,7 +161,8 @@ data CommandLineArgs
         coalescing_strategy :: CoalesceStrategy,
         disable_relevancy :: Bool,
         disable_copy_trans :: Bool,
-        disable_blacklist :: Bool
+        disable_blacklist :: Bool,
+        disable_filter :: Bool
       }
       | Generate {
         -- | Input
@@ -190,7 +194,8 @@ synt = Synthesis {
   coalescing_strategy = First &= help ("Choose how type coalescing works. Default: Pick first element of each group set."),
   disable_relevancy   = False           &= help ("Disable the relevancy requirement for argument types (default: False)"),
   disable_copy_trans  = False           &= help ("Disable the copy transitions and allow more than one token in initial state instead (default: False)"),
-  disable_blacklist     = False         &= help ("Disable blacklisting functions in the solution (default: False)")
+  disable_blacklist     = False         &= help ("Disable blacklisting functions in the solution (default: False)"),
+  disable_filter      = False           &= help ("Disable filter-based test")
   } &= auto &= help "Synthesize goals specified in the input file"
 
 generate = Generate {

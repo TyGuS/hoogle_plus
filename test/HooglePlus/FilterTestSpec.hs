@@ -11,12 +11,14 @@ import Data.Either
 
 import HooglePlus.FilterTest
 
+importList = ["Prelude", "Data.List", "Data.Maybe"]
+
 spec :: Spec
 spec =
   describe "Filter" $ do
 
   it "Return Correct Type" $ do
-    result <- getTypeString "\\x -> [x]"
+    result <- getTypeString importList "\\x -> [x]"
     case result of
       Left err -> error "failed"
       Right str -> str `shouldBe` "a -> [a]"

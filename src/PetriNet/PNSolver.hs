@@ -35,7 +35,7 @@ import HooglePlus.CodeFormer
 import HooglePlus.Refinement
 import HooglePlus.Stats
 import PetriNet.AbstractType
-import PetriNet.GHCChecker
+import HooglePlus.GHCChecker
 import PetriNet.PNEncoder
 import PetriNet.Util
 import Synquid.Error
@@ -679,10 +679,11 @@ findProgram env dst st ps
         let code' = recoverNames mapping code
         disableDemand <- getExperiment disableDemand
         disableRele <- getExperiment disableRelevancy
-        checkedSols <-
+        params <- gets $ view searchParams
+        checkedSols <- -- todo: filter-tests went here?
             withTime
                 TypeCheckTime
-                (filterM (liftIO . runGhcChecks (disableRele || disableDemand) env dst) [code'])
+                (filterM (liftIO . runGhcChecks params env dst) [code'])
         if (code' `elem` solutions) || null checkedSols
             then return Nothing
             else return $ Just code'
