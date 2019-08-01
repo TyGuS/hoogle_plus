@@ -1,4 +1,4 @@
-module HooglePlus.FilterTest (runGhcChecks, getTypeString, runNoExceptionTest, runChecks) where
+module HooglePlus.FilterTest (runChecks, runChecks') where
 
 import Language.Haskell.Interpreter
 import Language.Haskell.Exts.Parser
@@ -62,13 +62,14 @@ generateRandomValue typeName = do
   }
   case result of
     Left err -> putStrLn (displayException err) >> return "error \"114514\""
-    Right res -> return res
+    Right res -> return ("(" ++ res ++ ")")
 
 mapRandomArguments :: (TypeEnv, [ArgumentType], ArgumentType) -> IO String
 mapRandomArguments (typeEnv, args, retType)  = unwords <$> mapM f (transformType typeEnv args)
   where
     f (Concrete x) = generateRandomValue x
     f (Polymorphic x) = generateRandomValue "Int"
+    -- ! fixme - extend to any type
 
     transformType [] args = args
     transformType (envItem:env) args = transformType env args'
@@ -88,20 +89,20 @@ runChecks :: Environment -> RType -> UProgram -> IO Bool
 runChecks env goalType prog = runChecks' modules funcSig body
   where
     args = _arguments env
-    modules = Set.toList $ _included_modules env
+    modules = "Prelude" : Set.toList (_included_modules env)
     argList = Map.toList args
     argNames = map fst argList
     argTypes = map snd argList
     monoGoals = (map toMonotype argTypes)
     funcSig = mkFunctionSigStr (monoGoals ++ [goalType])
     body = mkLambdaStr argNames prog
-    
+
 
 runChecks' :: [String] -> String -> String -> IO Bool
 runChecks' modules funcSig body = do
   putStrLn funcSig
   arg <- (mapRandomArguments . parseTypeString) funcSig
-  putStrLn (body ++ " " ++ arg) 
+  putStrLn (body ++ " " ++ arg)
   result <- runInterpreter $ do {
     setImports modules;
     eval ("((" ++ body ++ ") :: " ++ funcSig ++ ") " ++ arg)
