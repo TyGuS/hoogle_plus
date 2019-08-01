@@ -27,13 +27,6 @@ data ArgumentType = Concrete String
 
 type TypeEnv = [(ArgumentType, String)]
 
-getTypeString :: [String] -> String -> IO (Either InterpreterError String)
-getTypeString imports input =
-  runInterpreter $ do {
-    setImports imports;
-    Language.Haskell.Interpreter.typeOf input
-  }
-
 parseTypeString :: String -> (TypeEnv, [ArgumentType], ArgumentType)
 parseTypeString input = buildRet [] [] value
   where
@@ -42,6 +35,7 @@ parseTypeString input = buildRet [] [] value
     argName (TyVar _ (Ident _ name)) = Polymorphic name
     argName (TyCon _ (UnQual _ (Ident _ name))) = Concrete name
     argName (TyList _ arg) = ArgTypeList (argName arg)
+    argName (TyParen _ t) = argName t
 
     buildRet typeEnv argList (TyForall _ _ (Just ctx) t) = buildRet typeEnv' argList t
       where typeEnv' = typeEnv ++ buildEnv typeEnv ctx
@@ -54,37 +48,27 @@ parseTypeString input = buildRet [] [] value
     buildEnv typeEnv (CxSingle _ item) = typeEnv ++ extractQualified item
     buildEnv typeEnv (CxTuple _ list) = foldr ((++) . extractQualified) typeEnv list
 
+generateRandomValue :: String -> IO String
+generateRandomValue typeName = do
+  result <- runInterpreter $ do {
+    setImports ["Prelude", "Test.QuickCheck"];
 
--- todo: implement
-runGhcChecks :: String -> IO Bool
-runGhcChecks input = return False
+    act <- interpret ("do {\
+    \it <- generate (arbitrary :: Gen (" ++ typeName ++ "));\
+    \return $ show it\
+    \}") (as :: IO String);
 
-generatePrimitiveTestData :: String -> IO String
-generatePrimitiveTestData pType =
-  let pre str = "(" ++ str ++ ")" in case pType of
-  "Int" ->
-    do result <- generate arbitrary :: IO Int
-       return $ pre $ show result
-  "Bool" ->
-    do result <- generate arbitrary :: IO Bool
-       return $ pre $ show result
-  "String" ->
-    do result <- generate arbitrary :: IO String
-       return $ pre $ format $ show result
-    where
-      format str = prettyPrint (String [] str "")
+    liftIO act
+  }
+  case result of
+    Left err -> putStrLn (displayException err) >> return "error \"114514\""
+    Right res -> return res
 
-prepareArguments :: [String] -> String -> IO String
-prepareArguments imports input =
-  do
-    (Right typeStr) <- getTypeString imports input
-    unwords <$> mapM f (transformTypePre $ parseTypeString typeStr)
+mapRandomArguments :: (TypeEnv, [ArgumentType], ArgumentType) -> IO String
+mapRandomArguments (typeEnv, args, retType)  = unwords <$> mapM f (transformType typeEnv args)
   where
-    f (Concrete x) = generatePrimitiveTestData x
-    f (Polymorphic x) = generatePrimitiveTestData "Int"
-
-    transformTypePre (typeEnv, argsType, _) =
-      transformType typeEnv argsType
+    f (Concrete x) = generateRandomValue x
+    f (Polymorphic x) = generateRandomValue "Int"
 
     transformType [] args = args
     transformType (envItem:env) args = transformType env args'
@@ -99,76 +83,29 @@ prepareArguments imports input =
           else Polymorphic name'
         replace cons (ArgTypeList argType) = ArgTypeList (replace cons argType)
         replace _ x = x
-
-prepareArguments' :: (TypeEnv, [ArgumentType], ArgumentType) -> IO String
-prepareArguments' result =
-  do
-    unwords <$> mapM f (transformTypePre result)
-  where
-    f (Concrete x) = generatePrimitiveTestData x
-    f (Polymorphic x) = generatePrimitiveTestData "Int"
-
-    transformTypePre (typeEnv, argsType, _) =
-      transformType typeEnv argsType
-
-    transformType [] args = args
-    transformType (envItem:env) args = transformType env args'
-      where
-        args' = map (replace envItem) args
-
-        replace (Polymorphic name, cons) (Polymorphic name') =
-          if name == name' then
-            case cons of
-              "Eq" -> Concrete "Int"
-              "Num" -> Concrete "Int"
-          else Polymorphic name'
-        replace cons (ArgTypeList argType) = ArgTypeList (replace cons argType)
-        replace _ x = x
-
-runNoExceptionTest :: String -> IO Bool
-runNoExceptionTest input =
-  let
-    importList = ["Prelude", "Data.List", "Data.Maybe"]
-    code = "(" ++ input ++ ")"
-  in do
-    arg <- prepareArguments importList input
-    result <- runInterpreter $ do {
-      setImports importList;
-      eval (code ++ " " ++ arg)
-    }
-    case result of
-      Left err -> putStrLn (displayException err) >> return False
-      Right res -> putStrLn res >> return True
-
--- https://github.com/haskell-hint/hint/issues/77
-test :: IO (Either InterpreterError String)
-test = runInterpreter $ do {
-  setImports ["Prelude", "Test.QuickCheck"];
-  act <- interpret "generate arbitrary :: IO String" (as :: IO String);
-  liftIO act
-}
 
 runChecks :: Environment -> RType -> UProgram -> IO Bool
-runChecks env goalType prog = let
-  args = _arguments env
-  modules = Set.toList $ _included_modules env
-  argList = Map.toList args
-  argNames = map fst argList
-  argTypes = map snd argList
-  monoGoals = (map toMonotype argTypes)
-  funcSig = mkFunctionSigStr (monoGoals ++ [goalType])
-  body = mkLambdaStr argNames prog
+runChecks env goalType prog = runChecks' modules funcSig body
+  where
+    args = _arguments env
+    modules = Set.toList $ _included_modules env
+    argList = Map.toList args
+    argNames = map fst argList
+    argTypes = map snd argList
+    monoGoals = (map toMonotype argTypes)
+    funcSig = mkFunctionSigStr (monoGoals ++ [goalType])
+    body = mkLambdaStr argNames prog
+    
 
-
-  in do
-
-    arg <- prepareArguments' $ parseTypeString funcSig
-    result <- runInterpreter $ do {
-      setImports modules;
-      eval (body ++ " " ++ arg)
-    }
-    case result of
-      Left err -> putStrLn (displayException err) >> return False
-      Right res -> putStrLn res >> return True
-    -- call test procedures
-    return False
+runChecks' :: [String] -> String -> String -> IO Bool
+runChecks' modules funcSig body = do
+  putStrLn funcSig
+  arg <- (mapRandomArguments . parseTypeString) funcSig
+  putStrLn (body ++ " " ++ arg) 
+  result <- runInterpreter $ do {
+    setImports modules;
+    eval ("((" ++ body ++ ") :: " ++ funcSig ++ ") " ++ arg)
+  }
+  case result of
+    Left err -> putStrLn (displayException err) >> return False
+    Right res -> putStrLn res >> return True
