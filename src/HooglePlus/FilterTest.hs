@@ -8,8 +8,11 @@ import Data.List
 import Language.Haskell.Exts.SrcLoc
 import Language.Haskell.Exts.Syntax
 import Language.Haskell.Exts.Pretty
-
 import Test.QuickCheck
+import qualified Data.Map as Map hiding (map, foldr)
+import qualified Data.Set as Set hiding (map)
+import System.Timeout
+import Control.Monad
 
 import HooglePlus.Utils
 import Types.Environment
@@ -17,8 +20,8 @@ import Types.Program
 import Types.Type hiding (typeOf)
 import Synquid.Type
 
-import qualified Data.Map as Map hiding (map, foldr)
-import qualified Data.Set as Set hiding (map)
+excludeFunctions :: [String]
+excludeFunctions = ["GHC.List.iterate"]
 
 data ArgumentType = Concrete String
                   | Polymorphic String
@@ -86,7 +89,7 @@ mapRandomArguments (typeEnv, args, retType)  = unwords <$> mapM f (transformType
         replace _ x = x
 
 runChecks :: Environment -> RType -> UProgram -> IO Bool
-runChecks env goalType prog = runChecks' modules funcSig body
+runChecks env goalType prog = runChecks'' modules funcSig body
   where
     args = _arguments env
     modules = "Prelude" : Set.toList (_included_modules env)
@@ -99,8 +102,7 @@ runChecks env goalType prog = runChecks' modules funcSig body
 
 
 runChecks' :: [String] -> String -> String -> IO Bool
-runChecks' modules funcSig body = do
-  putStrLn funcSig
+runChecks' modules funcSig body = if preCheck body then do
   arg <- (mapRandomArguments . parseTypeString) funcSig
   putStrLn (body ++ " " ++ arg)
   result <- runInterpreter $ do {
@@ -110,3 +112,14 @@ runChecks' modules funcSig body = do
   case result of
     Left err -> putStrLn (displayException err) >> return False
     Right res -> putStrLn res >> return True
+else pure False
+
+runChecks'' :: [String] -> String -> String -> IO Bool
+runChecks'' modules funcSig body = do
+  result <- timeout 3000000 (runChecks' modules funcSig body)
+  case result of
+    Nothing -> return False
+    Just val -> return val
+
+preCheck :: String -> Bool
+preCheck body = not $ any (`isInfixOf` body) excludeFunctions
