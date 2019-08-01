@@ -1,5 +1,5 @@
 # hoogle_plus
-Type-driven, component based synthesis, showcasing Type Guided Abstract Refinement (TYGAR).
+Type-driven, component based synthesis, showcasing TYpe Guided Abstract Refinement (TYGAR).
 
 ## build
 To build this project, you need to have z3-4.7.1.
