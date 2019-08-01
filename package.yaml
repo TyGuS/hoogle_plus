@@ -63,6 +63,7 @@ dependencies:
 - uuid
 - z3
 - regex-posix
+- async
 
 library:
   source-dirs:

@@ -53,8 +53,9 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Control.Lens
 import Data.IORef
+import Control.Concurrent.Async
 
-runQuery :: TygarQuery -> IORef (Map String ThreadId) -> IO (Chan Message, Goal)
+runQuery :: TygarQuery -> IORef (Map String (Chan Message)) -> IO (Chan Message, Goal)
 runQuery queryOpts tm = do
     let query = typeSignature queryOpts
     env <- readEnv
@@ -64,10 +65,10 @@ runQuery queryOpts tm = do
           _stopRefine = True
         , _threshold = 10
         , _solutionCnt = 10 }
-    tid <- forkIO $ synthesize params goal messageChan
-    atomicModifyIORef tm (\m -> (Map.insert (query_uuid queryOpts) tid m, ()))
+    async $ synthesize params goal messageChan
+    -- tid <- asyncThreadId asyncId
+    atomicModifyIORef tm (\m -> (Map.insert (query_uuid queryOpts) messageChan m, ()))
     forkIO $ threadDelay time_limit >> writeChan messageChan (MesgClose CSTimeout)
-                                    >> killThread tid
     return (messageChan, goal)
     -- queryResults <- readChan messageChan >>= collectResults messageChan []
     where

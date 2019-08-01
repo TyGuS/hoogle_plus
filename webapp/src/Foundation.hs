@@ -7,16 +7,18 @@
 
 module Foundation where
 
+import Types.Experiments
+
 import Yesod.Core
 import Data.Text (Text)
 import Yesod.Form
 import Yesod.Form.Jquery
-import Control.Concurrent (ThreadId)
+import Control.Concurrent.Chan
 import Data.Map (Map)
 import Data.IORef
 
 data App = App {
-    threadMap :: IORef (Map String ThreadId)
+    threadMap :: IORef (Map String (Chan Message))
 }
 
 mkYesodData "App" $(parseRoutesFile "webapp/routes")
