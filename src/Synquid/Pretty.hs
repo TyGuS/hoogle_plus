@@ -60,6 +60,7 @@ import Types.Common
 import Types.Type
 import Types.Program
 import Types.Encoder
+import Types.Experiments
 
 import Synquid.Logic
 import Synquid.Type
@@ -545,4 +546,19 @@ instance Pretty FunctionCode where
         $+$ text "return types:" <+> hlBrackets (commaSep (map pretty rets)))
 
 instance Show FunctionCode where
+    show = show . plain . pretty
+
+instance Pretty TimeStatistics where
+    pretty (TimeStatistics et ct st cft rt tct ttt iter len ntr npl dsym) =
+        (text "Encoding time:" <+> pretty et)
+      $+$ (text "Solver time:" <+> pretty st)
+      $+$ (text "Refine time:" <+> pretty rt)
+      $+$ (text "Checker time:" <+> pretty tct)
+      $+$ (text "Total time:" <+> pretty ttt)
+      $+$ (text "Path length:" <+> pretty len)
+      $+$ (text "Transition #:" <+> text (show $ Map.elems ntr))
+      $+$ (text "Place #:" <+> text (show $ Map.elems npl))
+      $+$ (text "Duplicates:" <+> text (show $ dsym))
+
+instance Show TimeStatistics where
     show = show . plain . pretty

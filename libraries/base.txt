@@ -76,8 +76,8 @@ filter :: (a -> Bool) -> [a] -> [a]
 concat :: [[a]] -> [a]
 head :: [a] -> a
 last :: [a] -> a
-tail :: [a] -> [a]
-init :: [a] -> [a]
+-- tail :: [a] -> [a]
+-- init :: [a] -> [a]
 uncons :: [a] -> Maybe (a, [a])
 null :: [a] -> Bool
 length :: [a] -> Int
@@ -98,7 +98,7 @@ iterate :: (a -> a) -> a -> [a]
 iterate' :: (a -> a) -> a -> [a]
 repeat :: a -> [a]
 replicate :: Int -> a -> [a]
-cycle :: [a] -> [a]
+-- cycle :: [a] -> [a]
 take :: Int -> [a] -> [a]
 drop :: Int -> [a] -> [a]
 sum :: Num a => [a] -> a
@@ -110,7 +110,7 @@ takeWhile :: (a -> Bool) -> [a] -> [a]
 dropWhile :: (a -> Bool) -> [a] -> [a]
 span :: (a -> Bool) -> [a] -> ([a], [a])
 break :: (a -> Bool) -> [a] -> ([a], [a])
-reverse :: [a] -> [a]
+-- reverse :: [a] -> [a]
 and :: [Bool] -> Bool
 or :: [Bool] -> Bool
 any :: (a -> Bool) -> [a] -> Bool

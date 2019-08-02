@@ -12,14 +12,14 @@ getOptsFromPreset POPL = poplWithTypeclasses
 genOptsTier1 = defaultGenerationOpts {
   modules = myModules,
   pkgFetchOpts = Local {
-      files = ["libraries/tier1/base.txt", "libraries/tier1/bytestring.txt", "libraries/ghc-prim.txt"]
+      files = ["libraries/tier1/base.txt", "libraries/tier1/bytestring.txt", "libraries/ghc-prim.txt", "libraries/containers.txt"]
       }
   }
 
 genOptsTier2 = genOptsTier1 {
   modules = myModules,
   pkgFetchOpts = Local {
-      files = ["libraries/base.txt", "libraries/bytestring.txt", "libraries/ghc-prim.txt"]
+      files = ["libraries/base.txt", "libraries/bytestring.txt", "libraries/ghc-prim.txt", "libraries/containers.txt"]
       }
   }
 
@@ -45,7 +45,9 @@ myModules = [
   "Data.Function",
   -- ByteString
   "Data.ByteString.Lazy",
-  "Data.ByteString.Builder"
+  "Data.ByteString.Builder",
+  -- unordered-containers
+  "Data.Set"
   ]
 
 poplModules = error "use icfppartial for popl"

@@ -25,10 +25,12 @@ RUN apt-get install -y haskell-stack
 RUN stack upgrade
 ENV PATH="/root/.local/bin:${PATH}"
 
-# Start with bash
-CMD ["/bin/bash"]
-
 # To start the image, please mount the source file directory to /home/hoogle_plus
 # docker run -v PATH_TO_HOOGLE_PLUS_SOURCE:/home/hoogle_plus -it hoogle_plus
 # After the docker image is started
 # run `cd /home/hoogle_plus; stack build`
+RUN cd /home; git clone https://github.com/davidmrdavid/hoogle_plus.git; cd hoogle_plus; git checkout zheng_z3
+RUN cd /home/hoogle_plus; stack build
+
+# Start with bash
+CMD ["/bin/bash"]
