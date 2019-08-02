@@ -1,3 +1,6 @@
+ARG branch=webapp
+ARG preset=icfppartial
+
 # Pull base image.
 FROM ubuntu:18.04
 
@@ -25,8 +28,19 @@ RUN apt-get install -y haskell-stack
 RUN stack upgrade
 ENV PATH="/root/.local/bin:${PATH}"
 
+# Get HooglePlus
+RUN cd /home; git clone https://github.com/davidmrdavid/hoogle_plus.git
+RUN cd /home/hoogle_plus; git checkout $branch; stack build
+
+EXPOSE 3000/tcp
+
 # Start with bash
-CMD ["/bin/bash"]
+RUN cd /home/hoogle_plus && stack exec -- hplus generate --preset=$preset
+RUN mkdir -p /var/log/hplus
+
+CMD cd /home/hoogle_plus && stack run webapp >> /var/log/hplus/run.log
+
+HEALTHCHECK CMD curl --fail http://localhost:3000/ || exit 1
 
 # To start the image, please mount the source file directory to /home/hoogle_plus
 # docker run -v PATH_TO_HOOGLE_PLUS_SOURCE:/home/hoogle_plus -it hoogle_plus

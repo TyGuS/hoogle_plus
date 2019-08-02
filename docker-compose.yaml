@@ -1,0 +1,29 @@
+version: '3'
+services:
+  nginx:
+    image: nginx:1.17.2
+    container_name: nginx
+    restart: unless-stopped
+    ports:
+      - 3000:3000
+    networks:
+      - hplus
+    volumes:
+      - ./webapp/load_balance_nginx.conf:/etc/nginx/conf.d/hplus.conf
+  hplus1:
+    image: 5688ad94fbe3
+    container_name: hplus1
+    networks:
+      - hplus
+    volumes:
+      - ./logs/1.run.log:/var/log/hplus/run.log
+  hplus2:
+    image: 5688ad94fbe3
+    container_name: hplus2
+    networks:
+      - hplus
+    volumes:
+      - ./logs/2.run.log:/var/log/hplus/run.log
+
+networks:
+  hplus:
