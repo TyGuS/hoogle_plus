@@ -45,9 +45,9 @@ myModules = [
   "Data.Function",
   -- ByteString
   "Data.ByteString.Lazy",
-  "Data.ByteString.Builder",
+  "Data.ByteString.Builder"
   -- unordered-containers
-  "Data.Set"
+  -- "Data.Set"
   ]
 
 poplModules = error "use icfppartial for popl"
