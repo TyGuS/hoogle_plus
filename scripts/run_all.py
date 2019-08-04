@@ -13,10 +13,10 @@ HPLUS_CMD = 'hplus' # Command to call hoogle+
 TIMEOUT_CMD = 'timeout' # Timeout command
 TIMEOUT = '60' # Timeout value (seconds)
 CMD_OPTS = ['--stop-refine', '--stop-threshold=10']
-LOGFILE = 'results.log'                                         # Log file
-CSV_FILE = 'result.csv'                                         # CSV-output file
+LOGFILE = 'data/results.log'                                         # Log file
+CSV_FILE = 'data/result.tsv'                                         # CSV-output file
 DEFAULT_QUERY_FILE = "benchmark/suites/working.yml"
-DUMPFILE = 'results'                                            # Result serialization file
+DUMPFILE = 'data/results'                                            # Result serialization file
 
 class Benchmark:
     def __init__(self, name, query, description, options=[]):
@@ -116,13 +116,14 @@ def format_time(t):
 def write_csv():
     '''Generate CSV file from the results dictionary'''
     with open(CSV_FILE, 'w') as outfile:
+        outfile.write ('Name\tQuery\tTime\tSolution\n')
         for group in groups:
             for b in group.benchmarks:
-                outfile.write (b.name + ',')
-                outfile.write (b.query + ',')
+                outfile.write (b.name + '\t')
+                outfile.write (b.query + '\t')
                 result = results [b.name]
-                outfile.write (format_time(result.time) + ',')
-                outfile.write (result.solution + ',')
+                outfile.write (format_time(result.time) + '\t')
+                outfile.write (result.solution)
                 # outfile.write (format_time(result.variant_times['def']) + ',')
                 outfile.write ('\n')
 
