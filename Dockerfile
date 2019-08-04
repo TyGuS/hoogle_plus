@@ -1,8 +1,6 @@
-ARG branch=webapp
-ARG preset=icfppartial
-
 # Pull base image.
 FROM ubuntu:18.04
+EXPOSE 3000/tcp
 
 # install locales
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y locales
@@ -30,12 +28,12 @@ ENV PATH="/root/.local/bin:${PATH}"
 
 # Get HooglePlus
 RUN cd /home; git clone https://github.com/davidmrdavid/hoogle_plus.git
-RUN cd /home/hoogle_plus; git checkout $branch; stack build
-
-EXPOSE 3000/tcp
+CMD /bin/bash
+RUN cd /home/hoogle_plus && git checkout webapp
+RUN cd /home/hoogle_plus && stack build
 
 # Start with bash
-RUN cd /home/hoogle_plus && stack exec -- hplus generate --preset=$preset
+RUN cd /home/hoogle_plus && stack exec -- hplus generate --preset=icfppartial
 RUN mkdir -p /var/log/hplus
 
 CMD cd /home/hoogle_plus && stack run webapp >> /var/log/hplus/run.log
