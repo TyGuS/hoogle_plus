@@ -26,7 +26,12 @@ excludeFunctions = ["GHC.List.iterate"]
 data ArgumentType = Concrete String
                   | Polymorphic String
                   | ArgTypeList ArgumentType
-                    deriving (Show, Eq)
+                    deriving (Eq)
+
+instance Show ArgumentType where
+  show (Concrete name) = name
+  show (Polymorphic _) = "Int"
+  show (ArgTypeList sub) = printf "[%s]" (show sub)
 
 type TypeEnv = [(ArgumentType, String)]
 
@@ -69,12 +74,45 @@ generateRandomValue typeName = do
     Left err -> putStrLn (displayException err) >> return "error \"114514\""
     Right res -> return ("(" ++ res ++ ")")
 
-mapRandomArguments :: (TypeEnv, [ArgumentType], ArgumentType) -> IO String
-mapRandomArguments (typeEnv, args, retType)  = unwords <$> mapM f (transformType typeEnv args)
+mapRandomMultiple :: (TypeEnv, [ArgumentType], ArgumentType) -> Int -> IO [String]
+mapRandomMultiple env count = do
+  base <- mapRandomArguments' env
+  replicateM count (derive base)
   where
-    f (Concrete x) = generateRandomValue x
-    f (Polymorphic x) = generateRandomValue "Int"
-    -- ! fixme - extend to any type
+    derive :: [(String, String)] -> IO String
+    derive base = do
+      rand <- generate (arbitrary :: Gen Int)
+      let index = rand `rem` length base
+      let item = getNthElement index base
+
+      replaced <- newRandomValue item
+      let list = setNthElement index replaced base
+      return $ unwords (map snd list)
+
+    newRandomValue (name, _) = do
+      val <- generateRandomValue name
+      return (name, val)
+
+    getNthElement idx list = item
+      where (_, item:_) = splitAt idx list
+
+    setNthElement idx item list
+      | idx < 0   = list
+      | otherwise = case splitAt idx list of
+                    (front, _:back) -> front ++ item : back
+                    _ -> list
+
+mapRandomArguments :: (TypeEnv, [ArgumentType], ArgumentType) -> IO String
+mapRandomArguments env = do
+  result <- mapRandomArguments' env
+  return $ unwords (map snd result)
+
+mapRandomArguments' :: (TypeEnv, [ArgumentType], ArgumentType) -> IO [(String, String)]
+mapRandomArguments' (typeEnv, args, retType) = mapM f (transformType typeEnv args)
+  where
+    f x = let str = show x in do
+      val <- generateRandomValue str
+      return (str, val)
 
     transformType [] args = args
     transformType (envItem:env) args = transformType env args'
@@ -115,7 +153,7 @@ runChecks' modules funcSig body = if filterInf body then do
   result <- eval_ modules (printf "((%s) :: %s) %s" body funcSig arg)
   case result of
     Left err -> putStrLn (displayException err) >> return Nothing
-    Right res -> putStrLn res >> return (Just res) 
+    Right res -> putStrLn res >> return (Just res)
 else pure Nothing
 
 runChecks'' :: [String] -> String -> String -> IO Bool
@@ -149,6 +187,7 @@ runIntegratedChecks modules funcSig body numTests = if filterInf body then
       Right Failure {} -> return False
 else pure False
 
+checkDuplicate :: [String] -> String -> String -> String -> IO Bool
 checkDuplicate modules funcSig bodyL bodyR = let fmt = printf "((%s) :: %s) %s" in
   if (not $ filterInf bodyL) || (not $ filterInf bodyR) then pure False
   else do
