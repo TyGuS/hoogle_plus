@@ -96,13 +96,12 @@ runChecks env goalType prog = runChecks'' modules funcSig body
     argList = Map.toList args
     argNames = map fst argList
     argTypes = map snd argList
-    monoGoals = (map toMonotype argTypes)
+    monoGoals = map toMonotype argTypes
     funcSig = mkFunctionSigStr (monoGoals ++ [goalType])
     body = mkLambdaStr argNames prog
 
-
 runChecks' :: [String] -> String -> String -> IO Bool
-runChecks' modules funcSig body = if preCheck body then do
+runChecks' modules funcSig body = if filterInf body then do
   arg <- (mapRandomArguments . parseTypeString) funcSig
   putStrLn (body ++ " " ++ arg)
   result <- runInterpreter $ do {
@@ -121,5 +120,24 @@ runChecks'' modules funcSig body = do
     Nothing -> return False
     Just val -> return val
 
-preCheck :: String -> Bool
-preCheck body = not $ any (`isInfixOf` body) excludeFunctions
+filterInf :: String -> Bool
+filterInf body = not $ any (`isInfixOf` body) excludeFunctions
+
+
+runIntegratedChecks :: [String] -> String -> String -> Int -> IO Bool
+runIntegratedChecks modules funcSig body numTests = if filterInf body then
+  let func = printf "((%s) :: %s)" body funcSig :: String
+      prop = printf "((`seq` True) . %s)" func :: String
+      modules' = "Test.QuickCheck":modules
+  in do
+    result <- runInterpreter $ do {
+      setImports modules';
+      act <- interpret ("verboseCheckResult " ++ prop) (as :: IO Result);
+
+      liftIO act
+    }
+    case result of
+      Left err -> putStrLn (displayException err) >> return False
+      Right Success {} -> return True
+      Right Failure {} -> return False
+else pure False
