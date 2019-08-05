@@ -4,7 +4,7 @@
         <a href="." class="nav-link" id="home">Hoogle+</a>
         <br>
         <h5> Welcome to the Hoogle+ Demo
-        <p> Hoogle+ is a type-driven synthesis engine for Haskell. Given a Haskell type, Hoogle+ generates terms that inhabit this type by composing library components. It supports polymorphism, type classes, and higher-order functions. Available library components are listed in the side bar.
+        <p> Hoogle+ is a type-driven synthesis engine for Haskell - like Hoogle but able to find compositions of functions. Given a Haskell type, Hoogle+ generates terms that inhabit this type by composing library components. It supports polymorphism, type classes, and higher-order functions. Available library components are listed in the side bar.
 
     <div .body>
         <div .left>
@@ -21,17 +21,21 @@
                 <div class="card-header">
                     <h5 class="card-title">Sample queries
                 <div class="card-body">
-                    <span> Apply pair:
-                        <code> (a -> b, a) -> b
+                    <span> Apply pair:&nbsp;
+                        <a class="sample" href="javascript:void(0)">
+                            <code>(a -> b, a) -> b
                     <br>
-                    <span> Look up element by key:
-                        <code> Eq a => xs: [(a, b)] -> k: a -> b
+                    <span> Look up element by key:&nbsp;
+                        <a class="sample" href="javascript:void(0)">
+                            <code>Eq a => xs: [(a, b)] -> k: a -> b
                     <br>
-                    <span> Both:
-                        <code> f: (a -> b) -> p: (a, a) -> (b, b)
+                    <span> Both:&nbsp;
+                        <a class="sample" href="javascript:void(0)">
+                            <code>f: (a -> b) -> p: (a, a) -> (b, b)
                     <br>
-                    <span> Resolve either:
-                        <code> Either a b -> (a->b) -> b
+                    <span> Resolve either:&nbsp;
+                        <a class="sample" href="javascript:void(0)">
+                            <code>Either a b -> (a -> b) -> b
                     <br>
             <div id="result" class="hplus_result">
             <div id="loading" class="lds-facebook">

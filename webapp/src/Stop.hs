@@ -10,6 +10,7 @@ import qualified Data.Map as Map
 import Control.Lens
 import Data.IORef
 import Control.Concurrent.Chan
+import Control.Concurrent
 
 putStopR :: Handler String
 putStopR = do
@@ -18,8 +19,9 @@ putStopR = do
     tm <- liftIO $ readIORef $ threadMap yesod
     case Map.lookup (query_uuid queryOpts) tm of
         Nothing -> return "not found uuid"
-        Just chan -> liftIO $ do
+        Just (chan, tid) -> liftIO $ do
             writeChan chan (MesgClose CSTimeout)
+            killThread tid
             atomicModifyIORef (threadMap yesod)
                               (\m -> (Map.delete (query_uuid queryOpts) m, ()))
             return "thread killed"

@@ -50,8 +50,17 @@ $(function(){
     //     location.reload();
     // });
 
+    $(document).on("click", ".sample", function(){
+      var val = $(this).children('code')[0].innerText
+      console.log(val)
+      $("#signature").val(val)
+      $("#button-stop").click()
+      $("#theForm").submit()
+    })
+
     $("#button-stop").attr('disabled','disabled')
     $(document).on("click", "#button-stop", function(){
+        var my_uuid = curr_uuid
         $.ajax({
                contentType: "application/json",
                dataType: "text",
@@ -63,7 +72,9 @@ $(function(){
                                 }),
               success: function(res) {
                   console.log(res)
-                  $('#loading').hide()
+                  if(my_uuid == curr_uuid){
+                    $('#loading').hide()
+                  }
                },
                error: function(xhr, ajaxOptions, thrownError) {
                   console.log(thrownError)
@@ -123,6 +134,8 @@ $(function(){
                               if(data["result_uuid"] != curr_uuid)
                                 return; // skip unmatched results
                               $("#loading").show()
+                              $("#button-stop").removeAttr('disabled')
+                              $("#button-addon2").attr('disabled','disabled')
                               var badge = $("<span></span>")
                                           .addClass("badge")
                                           .addClass("badge-primary")
@@ -174,8 +187,8 @@ $(function(){
                   $("#button-stop").attr('disabled','disabled')
                   // $('#demo').show()
                   result_div.append("Search timeout")
-                  // alert(xhr.response);
-                  // alert(thrownError);
+                  console.log(xhr.response);
+                  console.log(thrownError);
                },
                dataType: "text"
              });
