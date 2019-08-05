@@ -11,19 +11,33 @@ services:
     volumes:
       - ./webapp/load_balance_nginx.conf:/etc/nginx/conf.d/hplus.conf
   hplus1:
-    image: 5688ad94fbe3
+    image: michaelbjames/hoogleplus_web:latest
     container_name: hplus1
     networks:
       - hplus
     volumes:
-      - ./logs/1.run.log:/var/log/hplus/run.log
+      - ./logs/1/:/var/log/hplus/
   hplus2:
-    image: 5688ad94fbe3
+    image: michaelbjames/hoogleplus_web:latest
     container_name: hplus2
     networks:
       - hplus
     volumes:
-      - ./logs/2.run.log:/var/log/hplus/run.log
+      - ./logs/2/:/var/log/hplus/
+  hplus3:
+    image: michaelbjames/hoogleplus_web:latest
+    container_name: hplus4
+    networks:
+      - hplus
+    volumes:
+      - ./logs/3/:/var/log/hplus/
+  hplus4:
+    image: michaelbjames/hoogleplus_web:latest
+    container_name: hplus4
+    networks:
+      - hplus
+    volumes:
+      - ./logs/4/:/var/log/hplus/
 
 networks:
   hplus:

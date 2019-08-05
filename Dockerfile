@@ -43,3 +43,8 @@ HEALTHCHECK CMD curl --fail http://localhost:3000/ || exit 1
 # docker run -v PATH_TO_HOOGLE_PLUS_SOURCE:/home/hoogle_plus -it hoogle_plus
 # After the docker image is started
 # run `cd /home/hoogle_plus; stack build`
+
+#
+# REMEMBER TO TAG CHANGES WITH LATEST.
+# LATEST TAG IS NOT UPDATED AUTOMATICALLY
+#
