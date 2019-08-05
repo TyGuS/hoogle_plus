@@ -28,8 +28,7 @@ ENV PATH="/root/.local/bin:${PATH}"
 
 # Get HooglePlus
 RUN cd /home; git clone https://github.com/davidmrdavid/hoogle_plus.git
-CMD /bin/bash
-RUN cd /home/hoogle_plus && git checkout webapp
+RUN cd /home/hoogle_plus && git checkout origin/webapp
 RUN cd /home/hoogle_plus && stack build
 
 # Start with bash
