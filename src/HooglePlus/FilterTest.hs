@@ -48,6 +48,8 @@ parseTypeString input = buildRet [] [] value
 
     extractQualified (ClassA _ (UnQual _ (Ident _ name)) var) =
       map (\x -> (argName x, name)) var
+    extractQualified (ParenA _ qual) = extractQualified qual
+    extractQualified other = error $ show other
     buildEnv typeEnv (CxSingle _ item) = typeEnv ++ extractQualified item
     buildEnv typeEnv (CxTuple _ list) = foldr ((++) . extractQualified) typeEnv list
 
@@ -88,6 +90,12 @@ mapRandomArguments (typeEnv, args, retType)  = unwords <$> mapM f (transformType
         replace cons (ArgTypeList argType) = ArgTypeList (replace cons argType)
         replace _ x = x
 
+eval_ :: [String] -> String -> IO (Either InterpreterError String)
+eval_ modules line = runInterpreter $ do {
+  setImports modules;
+  eval line
+}
+
 runChecks :: Environment -> RType -> UProgram -> IO Bool
 runChecks env goalType prog = runChecks'' modules funcSig body
   where
@@ -100,30 +108,29 @@ runChecks env goalType prog = runChecks'' modules funcSig body
     funcSig = mkFunctionSigStr (monoGoals ++ [goalType])
     body = mkLambdaStr argNames prog
 
-runChecks' :: [String] -> String -> String -> IO Bool
+runChecks' :: [String] -> String -> String -> IO (Maybe String)
 runChecks' modules funcSig body = if filterInf body then do
   arg <- (mapRandomArguments . parseTypeString) funcSig
   putStrLn (body ++ " " ++ arg)
-  result <- runInterpreter $ do {
-    setImports modules;
-    eval ("((" ++ body ++ ") :: " ++ funcSig ++ ") " ++ arg)
-  }
+  result <- eval_ modules (printf "((%s) :: %s) %s" body funcSig arg)
   case result of
-    Left err -> putStrLn (displayException err) >> return False
-    Right res -> putStrLn res >> return True
-else pure False
+    Left err -> putStrLn (displayException err) >> return Nothing
+    Right res -> putStrLn res >> return (Just res) 
+else pure Nothing
 
 runChecks'' :: [String] -> String -> String -> IO Bool
 runChecks'' modules funcSig body = do
   result <- timeout 3000000 (runChecks' modules funcSig body)
   case result of
     Nothing -> return False
-    Just val -> return val
+    Just Nothing -> return False
+    Just (Just _) -> return True
 
 filterInf :: String -> Bool
 filterInf body = not $ any (`isInfixOf` body) excludeFunctions
 
-
+-- not used due to the lack of specific types
+-- https://www.oipapio.com/question-4824318
 runIntegratedChecks :: [String] -> String -> String -> Int -> IO Bool
 runIntegratedChecks modules funcSig body numTests = if filterInf body then
   let func = printf "((%s) :: %s)" body funcSig :: String
@@ -141,3 +148,14 @@ runIntegratedChecks modules funcSig body numTests = if filterInf body then
       Right Success {} -> return True
       Right Failure {} -> return False
 else pure False
+
+checkDuplicate modules funcSig bodyL bodyR = let fmt = printf "((%s) :: %s) %s" in
+  if (not $ filterInf bodyL) || (not $ filterInf bodyR) then pure False
+  else do
+    arg <- (mapRandomArguments . parseTypeString) funcSig
+    retL <- eval_ modules (fmt bodyL funcSig arg)
+    retR <- eval_ modules (fmt bodyR funcSig arg)
+
+    case (retL, retR) of
+      (Right l, Right r) -> putStrLn "duplicate fcn" >> return (l /= r)
+      _ -> return False
