@@ -121,7 +121,7 @@ transformSolution goal queryResult = do
 
         toHtml env (Program (PSymbol "Nil") _) = printf tooltip ("[]" :: String) ("[a]" :: String) ("[]" :: String)
         toHtml env (Program (PSymbol s) t)
-            | tyclassArgBase `isPrefixOf` s = ""
+            | tyclassArgBase `isPrefixOf` s || tyclassInstancePrefix `isPrefixOf` s = ""
             | otherwise = case lookupSymbol s 0 env of
                 Just sch -> printf tooltip s (removeTypeclasses $ show (toMonotype sch)) s
                 Nothing -> error $ "cannot find symbol " ++ s
