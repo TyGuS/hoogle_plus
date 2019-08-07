@@ -13,6 +13,8 @@ import qualified Data.Map as Map hiding (map, foldr)
 import qualified Data.Set as Set hiding (map)
 import System.Timeout
 import Control.Monad
+import Data.Maybe
+import Data.Typeable
 
 import HooglePlus.Utils
 import Types.Environment
@@ -23,6 +25,9 @@ import Synquid.Type
 excludeFunctions :: [String]
 excludeFunctions = ["GHC.List.iterate"]
 
+rejectInfiniteFunctions :: Bool
+rejectInfiniteFunctions = True
+
 data ArgumentType = Concrete String
                   | Polymorphic String
                   | ArgTypeList ArgumentType
@@ -32,6 +37,11 @@ instance Show ArgumentType where
   show (Concrete name) = name
   show (Polymorphic _) = "Int"
   show (ArgTypeList sub) = printf "[%s]" (show sub)
+
+data NotSupportedException = NotSupportedException String
+  deriving (Show, Typeable)
+
+instance Exception NotSupportedException
 
 type TypeEnv = [(ArgumentType, String)]
 
@@ -44,6 +54,7 @@ parseTypeString input = buildRet [] [] value
     argName (TyCon _ (UnQual _ (Ident _ name))) = Concrete name
     argName (TyList _ arg) = ArgTypeList (argName arg)
     argName (TyParen _ t) = argName t
+    argName other = throw $ NotSupportedException ("Not able to handle " ++ show other)
 
     buildRet typeEnv argList (TyForall _ _ (Just ctx) t) = buildRet typeEnv' argList t
       where typeEnv' = typeEnv ++ buildEnv typeEnv ctx
@@ -54,7 +65,7 @@ parseTypeString input = buildRet [] [] value
     extractQualified (ClassA _ (UnQual _ (Ident _ name)) var) =
       map (\x -> (argName x, name)) var
     extractQualified (ParenA _ qual) = extractQualified qual
-    extractQualified other = error $ show other
+    extractQualified other = throw $ NotSupportedException ("Not able to extract " ++ show other)
     buildEnv typeEnv (CxSingle _ item) = typeEnv ++ extractQualified item
     buildEnv typeEnv (CxTuple _ list) = foldr ((++) . extractQualified) typeEnv list
 
@@ -128,14 +139,16 @@ mapRandomArguments' (typeEnv, args, retType) = mapM f (transformType typeEnv arg
         replace cons (ArgTypeList argType) = ArgTypeList (replace cons argType)
         replace _ x = x
 
-eval_ :: [String] -> String -> IO (Either InterpreterError String)
-eval_ modules line = runInterpreter $ do {
+eval_ :: [String] -> String -> Int -> IO (Maybe (Either InterpreterError String))
+eval_ modules line time = timeout time $ runInterpreter $ do {
   setImports modules;
   eval line
 }
 
 runChecks :: Environment -> RType -> UProgram -> IO Bool
-runChecks env goalType prog = runChecks'' modules funcSig body
+runChecks env goalType prog = do
+  list <- replicateM 10 (runChecks' modules funcSig body)
+  return $ or list
   where
     args = _arguments env
     modules = "Prelude" : Set.toList (_included_modules env)
@@ -146,55 +159,36 @@ runChecks env goalType prog = runChecks'' modules funcSig body
     funcSig = mkFunctionSigStr (monoGoals ++ [goalType])
     body = mkLambdaStr argNames prog
 
-runChecks' :: [String] -> String -> String -> IO (Maybe String)
-runChecks' modules funcSig body = if filterInf body then do
+runChecks' :: [String] -> String -> String -> IO Bool
+runChecks' modules funcSig body = if filterInf body then handleNotSupported $ do
   arg <- (mapRandomArguments . parseTypeString) funcSig
-  putStrLn (body ++ " " ++ arg)
-  result <- eval_ modules (printf "((%s) :: %s) %s" body funcSig arg)
+  result <- eval_ modules (fmtFunction_ body funcSig arg) 3000000
   case result of
-    Left err -> putStrLn (displayException err) >> return Nothing
-    Right res -> putStrLn res >> return (Just res)
-else pure Nothing
-
-runChecks'' :: [String] -> String -> String -> IO Bool
-runChecks'' modules funcSig body = do
-  result <- timeout 3000000 (runChecks' modules funcSig body)
-  case result of
-    Nothing -> return False
-    Just Nothing -> return False
-    Just (Just _) -> return True
+    Nothing -> putStrLn "Timeout in running always-fail detection" >> return True
+    Just (Left err) -> putStrLn (displayException err) >> return False
+    Just (Right res) -> putStrLn res >> return True
+else pure $ not rejectInfiniteFunctions
 
 filterInf :: String -> Bool
 filterInf body = not $ any (`isInfixOf` body) excludeFunctions
 
--- not used due to the lack of specific types
--- https://www.oipapio.com/question-4824318
-runIntegratedChecks :: [String] -> String -> String -> Int -> IO Bool
-runIntegratedChecks modules funcSig body numTests = if filterInf body then
-  let func = printf "((%s) :: %s)" body funcSig :: String
-      prop = printf "((`seq` True) . %s)" func :: String
-      modules' = "Test.QuickCheck":modules
-  in do
-    result <- runInterpreter $ do {
-      setImports modules';
-      act <- interpret ("verboseCheckResult " ++ prop) (as :: IO Result);
-
-      liftIO act
-    }
-    case result of
-      Left err -> putStrLn (displayException err) >> return False
-      Right Success {} -> return True
-      Right Failure {} -> return False
-else pure False
-
 checkDuplicate :: [String] -> String -> String -> String -> IO Bool
-checkDuplicate modules funcSig bodyL bodyR = let fmt = printf "((%s) :: %s) %s" in
-  if (not $ filterInf bodyL) || (not $ filterInf bodyR) then pure False
+checkDuplicate modules funcSig bodyL bodyR = let fmt = fmtFunction_ in
+  if not (filterInf bodyL) || not (filterInf bodyR) then pure $ not rejectInfiniteFunctions 
   else do
     arg <- (mapRandomArguments . parseTypeString) funcSig
-    retL <- eval_ modules (fmt bodyL funcSig arg)
-    retR <- eval_ modules (fmt bodyR funcSig arg)
+    retL <- eval_ modules (fmt bodyL funcSig arg) 3000000
+    retR <- eval_ modules (fmt bodyR funcSig arg) 3000000
 
     case (retL, retR) of
-      (Right l, Right r) -> putStrLn "duplicate fcn" >> return (l /= r)
+      (Just (Right l), Just (Right r)) -> putStrLn "duplicate fcn" >> return (l /= r)
       _ -> return False
+
+checkParamsUsage :: [String] -> String -> String -> Int -> IO [Maybe (Either InterpreterError String)]
+checkParamsUsage modules funcSig body count = do
+  args <- mapRandomMultiple (parseTypeString funcSig) count
+  results <- mapM (\arg -> eval_ modules (fmtFunction_ body funcSig arg) 3000000) args
+  return results
+
+handleNotSupported = (`catch` ((\ex -> (putStrLn $ show ex) >> return True) :: NotSupportedException -> IO Bool))
+fmtFunction_ = printf "((%s) :: %s) %s" :: String -> String -> String -> String
