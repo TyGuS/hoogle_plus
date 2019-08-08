@@ -1,5 +1,6 @@
 module HooglePlus.Utils where
 
+import Types.Common
 import Types.Environment
 import Types.Program
 import Types.Type
@@ -23,7 +24,7 @@ import Demand
 import DmdAnal
 import DynFlags
 import FamInstEnv
-import GHC
+import GHC hiding (Id)
 import GHC.Paths ( libdir )
 import HscTypes
 import IdInfo
@@ -36,7 +37,7 @@ import SimplCore (core2core)
 import System.Directory (removeFile)
 import Text.Printf
 import Text.Regex
-import Var
+import Var hiding (Id)
 import Data.UUID.V4
 
 -- Converts the list of param types into a haskell function signature.
@@ -100,3 +101,15 @@ printSolution solution = do
     putStrLn "*******************SOLUTION*********************"
     putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
     putStrLn "************************************************"
+
+extractSolution :: Environment -> RType -> UProgram -> ([String], String, String, [(Id, RSchema)])
+extractSolution env goalType prog = (modules, funcSig, body, argList)
+    where
+        args = _arguments env
+        modules = "Prelude" : Set.toList (_included_modules env)
+        argList = Map.toList args
+        argNames = map fst argList
+        argTypes = map snd argList
+        monoGoals = map toMonotype argTypes
+        funcSig = mkFunctionSigStr (monoGoals ++ [goalType])
+        body = mkLambdaStr argNames prog

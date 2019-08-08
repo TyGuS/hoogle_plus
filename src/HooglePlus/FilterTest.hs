@@ -68,7 +68,7 @@ generateRandomValue imports typeName = do
   }
 
   case result of
-    Left err -> putStrLn (displayException err) >> return "error \"unable to generate input\"" 
+    Left err -> putStrLn (displayException err) >> return "error \"unable to generate input\""
     Right res -> return ("(" ++ res ++ ")")
 
 generateRandomValueWith :: Int -> Int -> [String] -> String -> IO String
@@ -76,10 +76,10 @@ generateRandomValueWith seed size imports typeName = do
   result <- runInterpreter $ do
     setImports ("Test.QuickCheck":imports)
     eval $ printf "unGen arbitrary (mkQCGen (%d)) (%d)" seed size
- 
+
   case result of
     Left err -> putStrLn (displayException err) >> return "error \"unable to generate input\""
-    Right res -> return $ printf "(%s)" res 
+    Right res -> return $ printf "(%s)" res
 
 
 mapRandomParamsList :: [String] -> FunctionSigniture -> Int -> IO [String]
@@ -149,34 +149,31 @@ runChecks env goalType prog = do
   list <- replicateM 10 (runChecks' modules funcSig body)
   return $ or list
   where
-    args = _arguments env
-    modules = "Prelude" : Set.toList (_included_modules env)
-    argList = Map.toList args
-    argNames = map fst argList
-    argTypes = map snd argList
-    monoGoals = map toMonotype argTypes
-    funcSig = mkFunctionSigStr (monoGoals ++ [goalType])
-    body = mkLambdaStr argNames prog
+    (modules, funcSig, body, _) = extractSolution env goalType prog
 
 runChecks' :: [String] -> String -> String -> IO Bool
-runChecks' modules funcSig body = if filterInf body then handleNotSupported $ do
-  arg <- generateTestInput modules (parseTypeString funcSig)
-  result <- eval_ modules (fmtFunction_ body funcSig arg) 3000000
-  case result of
-    Nothing -> putStrLn "Timeout in running always-fail detection" >> return True
-    Just (Left err) -> putStrLn (displayException err) >> return False
-    Just (Right res) -> putStrLn res >> return True
-else pure $ not rejectInfiniteFunctions
+runChecks' modules funcSig body =
+  if hasNoInfiniteFuncs body
+  then handleNotSupported executeCheck
+  else pure $ not rejectInfiniteFunctions
+  where
+    executeCheck = do
+      arg <- generateTestInput modules (parseTypeString funcSig)
+      result <- eval_ modules (fmtFunction_ body funcSig arg) 3000000
+      case result of
+        Nothing -> putStrLn "Timeout in running always-fail detection" >> return True
+        Just (Left err) -> putStrLn (displayException err) >> return False
+        Just (Right res) -> putStrLn res >> return True
 
-filterInf :: String -> Bool
-filterInf body = not $ any (`isInfixOf` body) excludeFunctions
+hasNoInfiniteFuncs :: String -> Bool
+hasNoInfiniteFuncs body = not $ any (`isInfixOf` body) excludeFunctions
 
 -- *WIP: not used until the next iteration
 checkDuplicate :: [String] -> String -> String -> String -> IO Bool
 checkDuplicate modules funcSig bodyL bodyR = let fmt = fmtFunction_ in
-  if not (filterInf bodyL) || not (filterInf bodyR) then pure $ not rejectInfiniteFunctions
+  if not (hasNoInfiniteFuncs bodyL) || not (hasNoInfiniteFuncs bodyR) then pure $ not rejectInfiniteFunctions
   else do
-    arg <- generateTestInput modules (parseTypeString funcSig) 
+    arg <- generateTestInput modules (parseTypeString funcSig)
     retL <- eval_ modules (fmt bodyL funcSig arg) 3000000
     retR <- eval_ modules (fmt bodyR funcSig arg) 3000000
 

@@ -122,16 +122,8 @@ checkStrictness tyclassCount body sig modules = handle (\(SomeException _) -> re
 runGhcChecks :: SearchParams -> Environment -> RType -> UProgram -> IO Bool
 runGhcChecks params env goalType prog = let
     -- constructs program and its type signature as strings
-    args = _arguments env
-    modules = Set.toList $ _included_modules env
-    argList = Map.toList args
+    (modules, funcSig, body, argList) = extractSolution env goalType prog
     tyclassCount = length $ Prelude.filter (\(id, _) -> tyclassArgBase `isPrefixOf` id) argList
-    argNames = map fst argList
-    argTypes = map snd argList
-    monoGoals = (map toMonotype argTypes)
-    funcSig = mkFunctionSigStr (monoGoals ++ [goalType])
-    argTypesMap = Map.fromList $ zip (argNames) (map show monoGoals)
-    body = mkLambdaStr argNames prog
     expr = body ++ " :: " ++ funcSig
     disableDemand = _disableDemand params
     disableFilter = _disableFilter params
@@ -147,7 +139,7 @@ runGhcChecks params env goalType prog = let
 -- ensures that the program type-checks
 checkType :: String -> [String] -> Interpreter Bool
 checkType expr modules = do
-    setImports ("Prelude":modules)
+    setImports modules
     -- Ensures that if there's a problem we'll know
     Language.Haskell.Interpreter.typeOf expr
     typeChecks expr
