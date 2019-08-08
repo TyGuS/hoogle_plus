@@ -22,3 +22,6 @@ instance Exception NotSupportedException
 
 type TypeConstraints = [(ArgumentType, String)]
 type FunctionSigniture = (TypeConstraints, [ArgumentType], ArgumentType)
+
+defaultTimeout = 3000000 :: Int
+defaultNumChecks = 10 :: Int

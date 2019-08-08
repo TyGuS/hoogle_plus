@@ -23,12 +23,6 @@ import Types.Type hiding (typeOf)
 import Types.Filtering
 import Synquid.Type
 
-excludeFunctions :: [String]
-excludeFunctions = ["GHC.List.iterate", "GHC.List.repeat"]
-
-rejectInfiniteFunctions :: Bool
-rejectInfiniteFunctions = True
-
 parseTypeString :: String -> FunctionSigniture
 parseTypeString input = buildRet [] [] value
   where
@@ -146,16 +140,13 @@ eval_ modules line time = timeout time $ runInterpreter $ do
 
 runChecks :: Environment -> RType -> UProgram -> IO Bool
 runChecks env goalType prog = do
-  list <- replicateM 10 (runChecks' modules funcSig body)
+  list <- replicateM defaultNumChecks (runChecks' modules funcSig body)
   return $ or list
   where
     (modules, funcSig, body, _) = extractSolution env goalType prog
 
 runChecks' :: [String] -> String -> String -> IO Bool
-runChecks' modules funcSig body =
-  if hasNoInfiniteFuncs body
-  then handleNotSupported executeCheck
-  else pure $ not rejectInfiniteFunctions
+runChecks' modules funcSig body = handleNotSupported executeCheck
   where
     executeCheck = do
       arg <- generateTestInput modules (parseTypeString funcSig)
@@ -163,30 +154,8 @@ runChecks' modules funcSig body =
       case result of
         Nothing -> putStrLn "Timeout in running always-fail detection" >> return True
         Just (Left err) -> putStrLn (displayException err) >> return False
-        Just (Right res) -> putStrLn res >> return True
+        -- `seq` used to evaluate res, thus raise the exception on always-fail
+        Just (Right res) -> seq res (pure ()) >> return True
 
-hasNoInfiniteFuncs :: String -> Bool
-hasNoInfiniteFuncs body = not $ any (`isInfixOf` body) excludeFunctions
-
--- *WIP: not used until the next iteration
-checkDuplicate :: [String] -> String -> String -> String -> IO Bool
-checkDuplicate modules funcSig bodyL bodyR = let fmt = fmtFunction_ in
-  if not (hasNoInfiniteFuncs bodyL) || not (hasNoInfiniteFuncs bodyR) then pure $ not rejectInfiniteFunctions
-  else do
-    arg <- generateTestInput modules (parseTypeString funcSig)
-    retL <- eval_ modules (fmt bodyL funcSig arg) 3000000
-    retR <- eval_ modules (fmt bodyR funcSig arg) 3000000
-
-    case (retL, retR) of
-      (Just (Right l), Just (Right r)) -> putStrLn "duplicate fcn" >> return (l /= r)
-      _ -> return False
-
--- *WIP: not used until the next iteration
-checkParamsUsage :: [String] -> String -> String -> Int -> IO [Maybe (Either InterpreterError String)]
-checkParamsUsage modules funcSig body count = do
-  args <- mapRandomParamsList modules (parseTypeString funcSig) count
-  results <- mapM (\arg -> eval_ modules (fmtFunction_ body funcSig arg) 3000000) args
-  return results
-
-handleNotSupported = (`catch` ((\ex -> (putStrLn $ show ex) >> return True) :: NotSupportedException -> IO Bool))
+handleNotSupported = (`catch` ((\ex -> print ex >> return True) :: NotSupportedException -> IO Bool))
 fmtFunction_ = printf "((%s) :: %s) %s" :: String -> String -> String -> String
