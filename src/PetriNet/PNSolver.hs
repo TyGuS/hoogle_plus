@@ -680,7 +680,7 @@ findProgram env dst st ps
         disableDemand <- getExperiment disableDemand
         disableRele <- getExperiment disableRelevancy
         params <- gets $ view searchParams
-        checkedSols <- -- todo: filter-tests went here?
+        checkedSols <-
             withTime
                 TypeCheckTime
                 (filterM (liftIO . runGhcChecks params env dst) [code'])

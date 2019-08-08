@@ -117,6 +117,8 @@ parseStrictnessSig result = let
 checkStrictness :: Int -> String -> String -> [String] -> IO Bool
 checkStrictness tyclassCount body sig modules = handle (\(SomeException _) -> return False) (checkStrictness' tyclassCount body sig modules)
 
+-- validate type signiture, run demand analysis, and run filter test
+-- checks the end result type checks; all arguments are used; and that the program will not immediately fail
 runGhcChecks :: SearchParams -> Environment -> RType -> UProgram -> IO Bool
 runGhcChecks params env goalType prog = let
     -- constructs program and its type signature as strings
@@ -133,7 +135,7 @@ runGhcChecks params env goalType prog = let
     expr = body ++ " :: " ++ funcSig
     disableDemand = _disableDemand params
     disableFilter = _disableFilter params
-    in do --
+    in do
         typeCheckResult <- runInterpreter $ checkType expr modules
         strictCheckResult <- if disableDemand then return True else checkStrictness tyclassCount body funcSig modules
         filterCheckResult <- if disableFilter then return True else runChecks env goalType prog

@@ -129,20 +129,20 @@ generateTestInput' imports (constraints, args, retType) = mapM f (transformType 
       where
         args' = map (replace envItem) args
 
-        replace (Polymorphic name, cons) (Polymorphic name') =
-          if name == name' then
-            case cons of
+        -- replace all occurrance of nameL to its instantiated type
+        replace (Polymorphic nameL, constraint) (Polymorphic nameR) =
+          if nameL == nameR then
+            case constraint of
               "Eq" -> Concrete "Int"
               "Num" -> Concrete "Int"
-          else Polymorphic name'
-        replace cons (ArgTypeList argType) = ArgTypeList (replace cons argType)
+          else Polymorphic nameR
+        replace constraint (ArgTypeList argType) = ArgTypeList (replace constraint argType)
         replace _ x = x
 
 eval_ :: [String] -> String -> Int -> IO (Maybe (Either InterpreterError String))
-eval_ modules line time = timeout time $ runInterpreter $ do {
-  setImports modules;
+eval_ modules line time = timeout time $ runInterpreter $ do
+  setImports modules
   eval line
-}
 
 runChecks :: Environment -> RType -> UProgram -> IO Bool
 runChecks env goalType prog = do
