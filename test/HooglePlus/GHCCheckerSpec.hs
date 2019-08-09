@@ -1,6 +1,7 @@
-module PetriNet.GHCCheckerSpec (spec) where
+module HooglePlus.GHCCheckerSpec (spec) where
 
-import PetriNet.GHCChecker
+import HooglePlus.GHCChecker
+import HooglePlus.Utils
 import Synquid.Parser
 import Synquid.Pretty () -- Instances
 import Types.Type
