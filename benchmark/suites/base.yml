@@ -90,11 +90,6 @@
   solution: arg1 (head arg0)
   source: "hoogle"
 
-- name: hoogle02
-  query: "b -> (a -> b) -> [a] -> b"
-  solution: maybe arg2 arg1 (listToMaybe arg0)
-  source: "hoogle"
-
 - name: firstMatch
   query: "[a] -> (a -> Bool) -> a"
   solution: head (filter arg0 arg1)

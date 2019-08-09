@@ -21,7 +21,6 @@ firstRight,2,2,2
 flatten,5,5,
 pipe,1,1,
 firstKey,,,
-pred-match,4,4,4
 splitStr,,,
 areEq,,,
 lookup,1,1,1
@@ -34,7 +33,6 @@ repl-funcs,2,2,1
 mapMaybes,2,2,2
 takeNdropM,5,5,
 cartProduct,,,
-hoogle02,2,1,
 containsEdge,,,
 app3,1,1,1
 indexesOf,,,

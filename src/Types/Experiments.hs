@@ -46,7 +46,8 @@ data SearchParams = SearchParams {
   _coalesceStrategy :: CoalesceStrategy,
   _disableRelevancy :: Bool,
   _disableCopy :: Bool,
-  _disableBlack :: Bool
+  _disableBlack :: Bool,
+  _disableFilter :: Bool
 } deriving (Eq, Show)
 
 makeLenses ''SearchParams
@@ -93,7 +94,8 @@ defaultSearchParams = SearchParams {
   _coalesceStrategy = First,
   _disableRelevancy = False,
   _disableCopy = False,
-  _disableBlack = False
+  _disableBlack = False,
+  _disableFilter = False
 }
 
 type ExperimentName = String

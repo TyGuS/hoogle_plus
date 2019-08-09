@@ -18,7 +18,8 @@ import Synquid.Type
 import Synquid.Pretty
 import Synquid.Program
 import PetriNet.Util
-import PetriNet.GHCChecker
+import HooglePlus.GHCChecker
+import HooglePlus.Utils
 import Database.Util
 
 import Control.Concurrent

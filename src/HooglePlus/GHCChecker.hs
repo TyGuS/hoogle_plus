@@ -1,17 +1,18 @@
-module PetriNet.GHCChecker (
-    runGhcChecks, mkFunctionSigStr, mkLambdaStr,
-    removeTypeclasses, removeAll, toHaskellSolution,
-    parseStrictnessSig, checkStrictness', printSolution) where
+module HooglePlus.GHCChecker (
+    runGhcChecks, parseStrictnessSig, checkStrictness') where
 
 import Language.Haskell.Interpreter
 
 import Types.Environment
 import Types.Program
 import Types.Type
+import Types.Experiments
 import Synquid.Type
 import Synquid.Util hiding (fromRight)
 import Synquid.Pretty as Pretty
 import Database.Util
+import HooglePlus.Utils
+import HooglePlus.FilterTest (runChecks)
 
 import Control.Exception
 import Control.Monad.Trans
@@ -114,97 +115,29 @@ parseStrictnessSig result = let
 checkStrictness :: Int -> String -> String -> [String] -> IO Bool
 checkStrictness tyclassCount body sig modules = handle (\(SomeException _) -> return False) (checkStrictness' tyclassCount body sig modules)
 
-runGhcChecks :: Bool -> Environment -> RType -> UProgram -> IO Bool
-runGhcChecks disableDemand env goalType prog = let
+-- validate type signiture, run demand analysis, and run filter test
+-- checks the end result type checks; all arguments are used; and that the program will not immediately fail
+runGhcChecks :: SearchParams -> Environment -> RType -> UProgram -> IO Bool
+runGhcChecks params env goalType prog = let
     -- constructs program and its type signature as strings
-    args = _arguments env
-    modules = Set.toList $ _included_modules env
-    argList = Map.toList args
+    (modules, funcSig, body, argList) = extractSolution env goalType prog
     tyclassCount = length $ Prelude.filter (\(id, _) -> tyclassArgBase `isPrefixOf` id) argList
-    argNames = map fst argList
-    argTypes = map snd argList
-    monoGoals = (map toMonotype argTypes)
-    funcSig = mkFunctionSigStr (monoGoals ++ [goalType])
-    argTypesMap = Map.fromList $ zip argNames (map show monoGoals)
-    body = mkLambdaStr argNames prog
     expr = body ++ " :: " ++ funcSig
+    disableDemand = _disableDemand params
+    disableFilter = _disableFilter params
     in do
         typeCheckResult <- runInterpreter $ checkType expr modules
         strictCheckResult <- if disableDemand then return True else checkStrictness tyclassCount body funcSig modules
+        filterCheckResult <- if disableFilter then return True else runChecks env goalType prog
         case typeCheckResult of
             Left err -> (putStrLn $ displayException err) >> return False
             Right False -> (putStrLn "Program does not typecheck") >> return False
-            Right True -> return strictCheckResult
+            Right True -> return $ strictCheckResult && filterCheckResult
 
 -- ensures that the program type-checks
 checkType :: String -> [String] -> Interpreter Bool
 checkType expr modules = do
-    setImports ("Prelude":modules)
+    setImports modules
     -- Ensures that if there's a problem we'll know
     Language.Haskell.Interpreter.typeOf expr
     typeChecks expr
-
--- Converts the list of param types into a haskell function signature.
--- Moves typeclass-looking things to the front in a context.
-mkFunctionSigStr :: [RType] -> String
-mkFunctionSigStr args = addConstraints $ Prelude.foldr accumConstraints ([],[]) args
-    where
-        showSigs = intercalate " -> "
-        wrapParen x = "(" ++ x ++ ")"
-        addConstraints ([], baseSigs) = showSigs baseSigs
-        addConstraints (constraints, baseSigs) = "(" ++ intercalate ", " constraints ++ ") => " ++ showSigs baseSigs
-
-        accumConstraints :: RType -> ([String], [String]) -> ([String], [String])
-        accumConstraints (ScalarT (DatatypeT id [ScalarT (TypeVarT _ tyvarName) _] _) _) (constraints, baseSigs)
-            | tyclassPrefix `isPrefixOf` id = let
-                classNameRegex = mkRegex $ tyclassPrefix ++ "([a-zA-Z]*)"
-                className = subRegex classNameRegex id "\\1"
-                constraint = className ++ " " ++ tyvarName
-                -- \(@@hplusTC@@([a-zA-Z]*) \(([a-z]*)\)\)
-                in
-                    (constraint:constraints, baseSigs)
-        accumConstraints otherTy (constraints, baseSigs) = let
-            otherStr = if isFunctionType otherTy then wrapParen (show otherTy) else show otherTy
-            in (constraints, otherStr:baseSigs)
-
--- mkLambdaStr produces a oneline lambda expr str:
--- (\x -> \y -> body))
-mkLambdaStr :: [String] -> UProgram -> String
-mkLambdaStr args body = let
-    unTypeclassed = toHaskellSolution (show body)
-    in
-        unwords . words . show $ foldr addFuncArg (text unTypeclassed) args
-    where
-        addFuncArg arg rest
-            | "tcarg" `isPrefixOf` arg = rest
-            | otherwise = Pretty.parens $ text ("\\" ++ arg ++ " -> ") <+> rest
-
-removeAll :: Regex -> String -> String
-removeAll = go
-    where
-        go regex input =
-            if isJust $ matchRegex regex input
-            then go regex $ subRegex regex input ""
-            else input
-
-removeTypeclassArgs :: String -> String
-removeTypeclassArgs = removeAll (mkRegex (tyclassArgBase++"[0-9]+"))
-
-removeTypeclassInstances :: String -> String
-removeTypeclassInstances = removeAll (mkRegex (tyclassInstancePrefix ++ "[0-9]*[a-zA-Z]*"))
-
-removeTypeclasses = removeEmptyParens . removeTypeclassArgs . removeTypeclassInstances
-    where
-        removeEmptyParens = removeAll (mkRegex "\\([\\ ]+\\)")
-
-toHaskellSolution :: String -> String
-toHaskellSolution bodyStr = let
-    oneLineBody = unwords $ lines bodyStr
-    noTypeclasses = removeTypeclasses oneLineBody
-    in
-        noTypeclasses
-
-printSolution solution = do
-    putStrLn "*******************SOLUTION*********************"
-    putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
-    putStrLn "************************************************"

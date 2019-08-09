@@ -1,13 +1,12 @@
 # hoogle_plus
-Better than HoogleBook
+Type-driven, component based synthesis, showcasing TYpe Guided Abstract Refinement (TYGAR).
 
 ## build
-To build this project, you need to have z3-4.7.1 and gradle-4.10.2 installed
+To build this project, you need to have z3-4.7.1.
 
 ## usage
 Execute in the `hoogle_plus` directory:
 ```
-./build.sh
 stack exec -- hplus generate --preset icfptotal
 stack exec -- hplus [DESIRED TYPE] [OPTIONAL ARGS]
 ```
@@ -49,7 +48,7 @@ stack exec -- hplus generate -p base  -p bytestring -m "Data.Word" -m "Data.Int"
 ```
 
 ## Docker image:
-First run `docker pull aaron069/hoogle-plus:v2`
-Then go to your hoogle_plus repo, run `docker run -v ./:/home/hoogle-plus -it aaron069/hoogle-plus:v2`
+First run `docker pull aaron069/hoogle-plus:v5`
+Then go to your hoogle_plus repo, run `docker run -v ./:/home/hoogle-plus -it aaron069/hoogle-plus:v5`
 If you want to redirect port on localhost:3000, add this flag: `-p 3000:3000` on above command.
 

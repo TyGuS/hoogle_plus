@@ -15,6 +15,7 @@ dependencies:
 - ansi-terminal
 - ansi-wl-pprint
 - array
+- async
 - base
 - bimap
 - bytestring
@@ -47,7 +48,9 @@ dependencies:
 - pretty-simple
 - pretty-tree
 - process
+- QuickCheck
 - regex-compat
+- regex-posix
 - resourcet
 - safe
 - sort
@@ -59,11 +62,9 @@ dependencies:
 - transformers
 - transformers-compat
 - unordered-containers
-- vector
 - uuid
+- vector
 - z3
-- regex-posix
-- async
 
 library:
   source-dirs:

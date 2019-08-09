@@ -7,7 +7,7 @@ import Synquid.Util
 import Types.Experiments
 import Types.Environment
 import Types.Generate
-import PetriNet.GHCChecker (toHaskellSolution)
+import HooglePlus.Utils
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set

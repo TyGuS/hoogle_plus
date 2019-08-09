@@ -8,7 +8,7 @@ import Types.Experiments
 import Synquid.Util
 import HooglePlus.Synthesize
 import Database.Environment
-import PetriNet.GHCChecker (toHaskellSolution, printSolution)
+import HooglePlus.Utils
 
 import System.Timeout
 import Control.Exception
