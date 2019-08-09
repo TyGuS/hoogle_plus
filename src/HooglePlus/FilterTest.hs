@@ -164,5 +164,8 @@ runChecks' modules sigString body = handleNotSupported executeCheck
         Just (Right ()) -> return True
 
 handleNotSupported = (`catch` ((\ex -> print ex >> return True) :: NotSupportedException -> IO Bool))
-handleAnyException = (`catch` ((\ex -> return $ Just $ Left $ UnknownError $ show ex) :: SomeException -> IO (Maybe (Either InterpreterError ()))))
+handleAnyException = (`catch` (return . handler . show :: SomeException -> IO (Maybe (Either InterpreterError ()))))
+  where
+    handler ex  | "timeout" `isInfixOf` ex = Nothing
+                | otherwise = (Just . Left. UnknownError) ex
 fmtFunction_ = printf "((%s) :: %s) %s" :: String -> String -> String -> String
