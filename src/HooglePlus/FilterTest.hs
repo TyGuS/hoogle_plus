@@ -139,6 +139,11 @@ eval_ modules line time = timeout time $ runInterpreter $ do
   setImports modules
   eval line
 
+runStmt_ :: [String] -> String -> Int -> IO (Maybe (Either InterpreterError ()))
+runStmt_ modules line time = timeout time $ runInterpreter $ do
+  setImports modules
+  runStmt $ printf line 
+
 runChecks :: Environment -> RType -> UProgram -> IO Bool
 runChecks env goalType prog = do
   list <- replicateM defaultNumChecks (runChecks' modules funcSig body)
@@ -152,13 +157,12 @@ runChecks' modules sigString body = handleNotSupported executeCheck
     executeCheck = do
       let funcSig = (instantiateSignature . parseTypeString) sigString
       arg <- generateTestInput modules funcSig
-      result <- eval_ modules (fmtFunction_ body (show funcSig) arg) defaultTimeout
+      result <- handleAnyException $ runStmt_ modules (fmtFunction_ body (show funcSig) arg) defaultTimeout
       case result of
         Nothing -> putStrLn "Timeout in running always-fail detection" >> return True
         Just (Left err) -> putStrLn (displayException err) >> return False
-        -- `seq` used to evaluate res, thus raise the exception on always-fail
-        Just (Right res) -> handleAnyException (seq res (pure ()) >> return True)
+        Just (Right ()) -> return True
 
 handleNotSupported = (`catch` ((\ex -> print ex >> return True) :: NotSupportedException -> IO Bool))
-handleAnyException = (`catch` ((\ex -> return False) :: SomeException -> IO Bool))
+handleAnyException = (`catch` ((\ex -> return $ Just $ Left $ UnknownError $ show ex) :: SomeException -> IO (Maybe (Either InterpreterError ()))))
 fmtFunction_ = printf "((%s) :: %s) %s" :: String -> String -> String -> String
