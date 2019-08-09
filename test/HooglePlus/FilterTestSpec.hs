@@ -11,44 +11,30 @@ import Data.Either
 
 import HooglePlus.FilterTest
 
-importList = ["Prelude", "Data.List", "Data.Maybe"]
+modules = ["Prelude"]
+
+runTest modules' = runChecks' (modules' ++ modules)
 
 spec :: Spec
 spec =
   describe "Filter" $ do
 
-  it "Return Correct Type" $ do
-    result <- getTypeString importList "\\x -> [x]"
-    case result of
-      Left err -> error "failed"
-      Right str -> str `shouldBe` "a -> [a]"
-  
   it "Succeed on poly function w/o type constrains" $ do
-    result <- runNoExceptionTest "\\x -> x"
+    result <- runTest [] "a -> a" "\\x -> x"
     result `shouldBe` True
 
-  it "Pass function w/ different retval - singleList" $ do
-    result <- runGhcChecks "\\x -> [x]"
+  it "Succeed on var w/ module names" $ do
+    result <- runTest ["GHC.Int", "Data.ByteString.Lazy", "Data.ByteString.Builder"] "GHC.Int.Int64 -> Data.ByteString.Lazy.ByteString" "\\arg0 -> Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64Dec arg0)"
     result `shouldBe` True
 
-  it "Pass function w/ different retval - headLast" $ do
-    result <- runGhcChecks "\\x -> (head x, last x)"
-    result `shouldBe` True
-
-  it "Fail on invalid fcns - head []" $ do
-    result <- runGhcChecks "\\x -> (head x, last [])"
+  it "Fail on invalid function 1" $ do
+    result <- runTest ["Data.Maybe"] "a -> a" "\\x -> fromJust Nothing"
     result `shouldBe` False
 
-  it "Fail on invalid fcns - just nothing" $ do
-    result <- runGhcChecks "\\x -> fromJust Nothing"
+  it "Fail on invalid function 1" $ do
+    result <- runTest ["Data.List"] "a -> a" "\\x -> head []"
     result `shouldBe` False
 
-  it "Fail on const fcns" $ do
-    result <- runGhcChecks "\\x -> \\y -> const x y"
+  it "Fail on invalid function 2" $ do
+    result <- runTest ["Data.List"] "a -> (a, a)" "\\x -> (head [x], last [])"
     result `shouldBe` False
-
-
-
-
--- quickCheckWith stdArgs{replay = Just (mkQCGen 4, 0)}
--- stack test --test-arguments "--match /HooglePlus.FilterTest/Filter"

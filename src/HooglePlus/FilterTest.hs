@@ -155,7 +155,8 @@ runChecks' modules funcSig body = handleNotSupported executeCheck
         Nothing -> putStrLn "Timeout in running always-fail detection" >> return True
         Just (Left err) -> putStrLn (displayException err) >> return False
         -- `seq` used to evaluate res, thus raise the exception on always-fail
-        Just (Right res) -> seq res (pure ()) >> return True
+        Just (Right res) -> handleAnyException (seq res (pure ()) >> return True)
 
 handleNotSupported = (`catch` ((\ex -> print ex >> return True) :: NotSupportedException -> IO Bool))
+handleAnyException = (`catch` ((\ex -> return False) :: SomeException -> IO Bool))
 fmtFunction_ = printf "((%s) :: %s) %s" :: String -> String -> String -> String
