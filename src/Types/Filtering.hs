@@ -6,15 +6,20 @@ import Text.Printf
 import Data.List (intercalate)
 
 data ArgumentType =
-    Concrete String
+    Concrete    String
   | Polymorphic String
   | ArgTypeList ArgumentType
+  | ArgTypeTuple [ArgumentType]
+  | ArgTypeApp  ArgumentType ArgumentType
   deriving (Eq)
 
 instance Show ArgumentType where
-  show (Concrete name) = name
+  show (Concrete    name) = name
   show (Polymorphic name) = name
-  show (ArgTypeList sub) = printf "[%s]" (show sub)
+  show (ArgTypeList sub)  = printf "[%s]" (show sub)
+  show (ArgTypeApp  l r)  = printf "(%s) %s"  (show l) (show r)
+  show (ArgTypeTuple types) = 
+    (printf "(%s)" . intercalate ", " . map show) types
 
 newtype NotSupportedException = NotSupportedException String
   deriving (Show, Typeable)

@@ -26,20 +26,22 @@ import Synquid.Type
 parseTypeString :: String -> FunctionSignature
 parseTypeString input = FunctionSignature constraints argsType returnType
   where
-    (constraints, argsType, returnType) = buildRet [] [] value
-
+    (constraints, argsType, returnType) = buildSig [] [] value
     (ParseOk value) = parseType input
 
-    buildRet constraints argList (TyForall _ _ (Just ctx) t) = buildRet constraints' argList t
+    buildSig constraints argList (TyForall _ _ (Just ctx) t) = buildSig constraints' argList t
       where constraints' = constraints ++ extractConstraints constraints ctx
-    buildRet constraints argList (TyFun _ typeArg typeRet) = buildRet constraints argList' typeRet
+    buildSig constraints argList (TyFun _ typeArg typeRet) = buildSig constraints argList' typeRet
       where argList' = argList ++ [extractType typeArg]
-    buildRet constraints argList typeRet = (constraints, argList, extractType typeRet)
+    buildSig constraints argList typeRet = (constraints, argList, extractType typeRet)
 
     extractType (TyVar _ (Ident _ name)) = Polymorphic name
     extractType (TyCon _ (UnQual _ (Ident _ name))) = Concrete name
+    extractType (TyCon _ (Qual _ (ModuleName _ moduleName) (Ident _ id))) = Concrete (printf "%s.%s" moduleName id)
     extractType (TyList _ arg) = ArgTypeList (extractType arg)
     extractType (TyParen _ t) = extractType t
+    extractType (TyApp _ l r) = ArgTypeApp (extractType l) (extractType r)
+    extractType (TyTuple _ _ types) = ArgTypeTuple (map extractType types)
     extractType other = throw $ NotSupportedException ("Not able to handle " ++ show other)
 
     extractQualified (ClassA _ (UnQual _ (Ident _ name)) var) =
@@ -59,6 +61,8 @@ instantiateSignature (FunctionSignature constraints argsType returnType) =
       instantiate (Concrete name) = Concrete name
       instantiate (Polymorphic name) = Concrete "Int"
       instantiate (ArgTypeList sub) = ArgTypeList $ instantiate sub
+      instantiate (ArgTypeTuple types) = ArgTypeTuple (map instantiate types)
+      instantiate (ArgTypeApp l r) = ArgTypeApp (instantiate l) (instantiate r)
 
 generateRandomValue :: [String] -> String -> IO String
 generateRandomValue imports typeName = do
