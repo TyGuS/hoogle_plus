@@ -23,9 +23,11 @@ import Types.Type hiding (typeOf)
 import Types.Filtering
 import Synquid.Type
 
-parseTypeString :: String -> FunctionSigniture
-parseTypeString input = buildRet [] [] value
+parseTypeString :: String -> FunctionSignature
+parseTypeString input = FunctionSignature constraints argsType returnType
   where
+    (constraints, argsType, returnType) = buildRet [] [] value
+
     (ParseOk value) = parseType input
 
     buildRet constraints argList (TyForall _ _ (Just ctx) t) = buildRet constraints' argList t
@@ -41,12 +43,22 @@ parseTypeString input = buildRet [] [] value
     extractType other = throw $ NotSupportedException ("Not able to handle " ++ show other)
 
     extractQualified (ClassA _ (UnQual _ (Ident _ name)) var) =
-      map (\x -> (extractType x, name)) var
+      map (\x -> TypeConstraint (show $ extractType x) name) var
     extractQualified (ParenA _ qual) = extractQualified qual
     extractQualified other = throw $ NotSupportedException ("Not able to extract " ++ show other)
 
     extractConstraints constraints (CxSingle _ item) = constraints ++ extractQualified item
     extractConstraints constraints (CxTuple _ list) = foldr ((++) . extractQualified) constraints list
+
+-- instantiate polymorphic types in function signature with `Int`
+-- * note that constraints were ignored since we only use `Int` now
+instantiateSignature :: FunctionSignature -> FunctionSignature
+instantiateSignature (FunctionSignature constraints argsType returnType) =
+  FunctionSignature constraints (map instantiate argsType) (instantiate returnType)
+    where
+      instantiate (Concrete name) = Concrete name
+      instantiate (Polymorphic name) = Concrete "Int"
+      instantiate (ArgTypeList sub) = ArgTypeList $ instantiate sub
 
 generateRandomValue :: [String] -> String -> IO String
 generateRandomValue imports typeName = do
@@ -76,7 +88,7 @@ generateRandomValueWith seed size imports typeName = do
     Right res -> return $ printf "(%s)" res
 
 
-mapRandomParamsList :: [String] -> FunctionSigniture -> Int -> IO [String]
+mapRandomParamsList :: [String] -> FunctionSignature -> Int -> IO [String]
 mapRandomParamsList imports env count = do
   base <- generateTestInput' imports env
   replicateM count (derive base)
@@ -105,33 +117,18 @@ mapRandomParamsList imports env count = do
                     _ -> list
 
 -- generate test input as line of code
-generateTestInput :: [String] -> FunctionSigniture -> IO String
+generateTestInput :: [String] -> FunctionSignature -> IO String
 generateTestInput imports env = do
   result <- generateTestInput' imports env
   return $ unwords (map snd result)
 
 -- generate test input as pair (type, value)
-generateTestInput' :: [String] -> FunctionSigniture -> IO [(String, String)]
-generateTestInput' imports (constraints, args, retType) = mapM f (transformType constraints args)
+generateTestInput' :: [String] -> FunctionSignature -> IO [(String, String)]
+generateTestInput' imports funcSig = mapM f (_argsType funcSig)
   where
     f x = let str = show x in do
       val <- generateRandomValue imports str
       return (str, val)
-
-    transformType [] args = args
-    transformType (envItem:env) args = transformType env args'
-      where
-        args' = map (replace envItem) args
-
-        -- replace all occurrance of nameL to its instantiated type
-        replace (Polymorphic nameL, constraint) (Polymorphic nameR) =
-          if nameL == nameR then
-            case constraint of
-              "Eq" -> Concrete "Int"
-              "Num" -> Concrete "Int"
-          else Polymorphic nameR
-        replace constraint (ArgTypeList argType) = ArgTypeList (replace constraint argType)
-        replace _ x = x
 
 eval_ :: [String] -> String -> Int -> IO (Maybe (Either InterpreterError String))
 eval_ modules line time = timeout time $ runInterpreter $ do
@@ -146,11 +143,12 @@ runChecks env goalType prog = do
     (modules, funcSig, body, _) = extractSolution env goalType prog
 
 runChecks' :: [String] -> String -> String -> IO Bool
-runChecks' modules funcSig body = handleNotSupported executeCheck
+runChecks' modules sigString body = handleNotSupported executeCheck
   where
     executeCheck = do
-      arg <- generateTestInput modules (parseTypeString funcSig)
-      result <- eval_ modules (fmtFunction_ body funcSig arg) 3000000
+      let funcSig = (instantiateSignature . parseTypeString) sigString
+      arg <- generateTestInput modules funcSig
+      result <- eval_ modules (fmtFunction_ body (show funcSig) arg) defaultTimeout
       case result of
         Nothing -> putStrLn "Timeout in running always-fail detection" >> return True
         Just (Left err) -> putStrLn (displayException err) >> return False
