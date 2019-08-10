@@ -55,6 +55,10 @@ spec =
     result <- runTest ["Data.List"] "a -> (a, a)" "\\x -> (head [x], last [])"
     result `shouldBe` False
 
-  it "Fail on invalid function 6" $ do
+  it "Fail on invalid function 5" $ do
     result <- runTest ["Data.Maybe"] "Either a b -> Maybe a" "\\x -> fromJust Nothing"
     result `shouldBe` False
+  
+  it "Pass w/ type class 1" $ do
+    result <- runTest [] "(Show a, Show b) => Either a b -> String" "\\x -> show x"
+    result `shouldBe` True

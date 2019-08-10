@@ -55,8 +55,8 @@ parseTypeString input = FunctionSignature constraints argsType returnType
 -- instantiate polymorphic types in function signature with `Int`
 -- * note that constraints were ignored since we only use `Int` now
 instantiateSignature :: FunctionSignature -> FunctionSignature
-instantiateSignature (FunctionSignature constraints argsType returnType) =
-  FunctionSignature constraints (map instantiate argsType) (instantiate returnType)
+instantiateSignature (FunctionSignature _ argsType returnType) =
+  FunctionSignature [] (map instantiate argsType) (instantiate returnType)
     where
       instantiate (Concrete name) = Concrete name
       instantiate (Polymorphic name) = Concrete "Int"
