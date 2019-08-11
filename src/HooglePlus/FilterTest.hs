@@ -134,15 +134,10 @@ generateTestInput' imports funcSig = mapM f (_argsType funcSig)
       val <- generateRandomValue imports str
       return (str, val)
 
-eval_ :: [String] -> String -> Int -> IO (Maybe (Either InterpreterError String))
-eval_ modules line time = timeout time $ runInterpreter $ do
-  setImports modules
-  eval line
-
 runStmt_ :: [String] -> String -> Int -> IO (Maybe (Either InterpreterError ()))
 runStmt_ modules line time = timeout time $ runInterpreter $ do
   setImports modules
-  runStmt $ printf line 
+  runStmt $ printf line
 
 runChecks :: Environment -> RType -> UProgram -> IO Bool
 runChecks env goalType prog = do
@@ -160,7 +155,7 @@ runChecks' modules sigString body = handleNotSupported executeCheck
       result <- handleAnyException $ runStmt_ modules (fmtFunction_ body (show funcSig) arg) defaultTimeout
       case result of
         Nothing -> putStrLn "Timeout in running always-fail detection" >> return True
-        Just (Left err) -> putStrLn (displayException err) >> return False
+        Just (Left err) -> printf "[filtertest]: Result: `%s` failed with: %s" body (displayException err) >> return False
         Just (Right ()) -> return True
 
 handleNotSupported = (`catch` ((\ex -> print ex >> return True) :: NotSupportedException -> IO Bool))
