@@ -55,8 +55,8 @@ parseTypeString input = FunctionSignature constraints argsType returnType
 -- instantiate polymorphic types in function signature with `Int`
 -- * note that constraints were ignored since we only use `Int` now
 instantiateSignature :: FunctionSignature -> FunctionSignature
-instantiateSignature (FunctionSignature constraints argsType returnType) =
-  FunctionSignature constraints (map instantiate argsType) (instantiate returnType)
+instantiateSignature (FunctionSignature _ argsType returnType) =
+  FunctionSignature [] (map instantiate argsType) (instantiate returnType)
     where
       instantiate (Concrete name) = Concrete name
       instantiate (Polymorphic name) = Concrete "Int"
@@ -159,5 +159,8 @@ runChecks' modules sigString body = handleNotSupported executeCheck
         Just (Right ()) -> return True
 
 handleNotSupported = (`catch` ((\ex -> print ex >> return True) :: NotSupportedException -> IO Bool))
-handleAnyException = (`catch` ((\ex -> return $ Just $ Left $ UnknownError $ show ex) :: SomeException -> IO (Maybe (Either InterpreterError ()))))
+handleAnyException = (`catch` (return . handler . show :: SomeException -> IO (Maybe (Either InterpreterError ()))))
+  where
+    handler ex  | "timeout" `isInfixOf` ex = Nothing
+                | otherwise = (Just . Left. UnknownError) ex
 fmtFunction_ = printf "((%s) :: %s) %s" :: String -> String -> String -> String
