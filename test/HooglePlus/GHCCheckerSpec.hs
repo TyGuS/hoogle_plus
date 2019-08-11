@@ -1,7 +1,6 @@
 module HooglePlus.GHCCheckerSpec (spec) where
 
 import HooglePlus.GHCChecker
-import HooglePlus.Utils
 import Synquid.Parser
 import Synquid.Pretty () -- Instances
 import Types.Type
@@ -30,59 +29,6 @@ separateFunctions query = let
 
 spec :: Spec
 spec = do
-    describe "mkFunctionSigStr" $ do
-        it "Handles no typeclasses" $ do
-            let input = "Int -> a"
-            let baseTys = separateFunctions input
-            let result = mkFunctionSigStr baseTys
-            let expected = "(Int) -> (a)"
-            result `shouldBe` expected
-
-        it "Handles a single typeclasses" $ do
-            let input = "Show a => a -> String"
-            let result = mkFunctionSigStr (separateFunctions input)
-            let expected = "(Show a) => (a) -> (String)"
-            result `shouldBe` expected
-
-        it "Handles multiple typeclasses on the same variable" $ do
-            let input = "(Show a, Ord a) => a -> String"
-            let result = mkFunctionSigStr (separateFunctions input)
-            let expected = "(Show a, Ord a) => (a) -> (String)"
-            result `shouldBe` expected
-
-    describe "mkLambdaStr" $ do
-        it "outputs the body of simple function" $ do
-            let inputProgram = Program {
-                typeOf=AnyT,
-                content=PApp "arg0" [anyTy $ PSymbol "0"]
-            }
-            let result = mkLambdaStr ["arg0"] inputProgram
-            let expected = "(\\arg0 -> arg0 0)"
-            result `shouldBe` expected
-
-        it "upgrades a typeclass used as a param" $ do
-            let tcFunc = "show"
-            let inputProgram = anyTy (PApp tcFunc [
-                    anyTy (PSymbol "tcarg0"),
-                    anyTy (PSymbol "arg0")
-                    ])
-            let result = mkLambdaStr ["tcarg0", "arg0"] inputProgram
-            let expected = "(\\arg0 -> show arg0)"
-            result `shouldBe` expected
-
-    describe "removeTypeclassInstances" $ do
-        it "removes a simple typeclass" $ do
-            let input = "Text.Show.show (@@hplusTCInstance@@01Show tcarg0 tcarg1) arg0"
-            let expected = "Text.Show.show arg0"
-            let result = removeTypeclasses input
-            result `shouldBe` expected
-
-        it "removes a prelude typeclass usage" $ do
-            let input = "Prelude.show @@hplusTCInstance@@01Show arg0"
-            let expected = "Prelude.show arg0"
-            let result = removeTypeclasses input
-            result `shouldBe` expected
-
     describe "parseStrictnessSig" $ do
         it "plucks out the strictness signatures" $ do
             let sig = unlines [ "foo :: forall a b. a -> a -> (a -> b) -> a"
