@@ -5,6 +5,10 @@ import Data.Typeable
 import Text.Printf
 import Data.List (intercalate)
 
+defaultTimeout = 1000000 :: Int
+defaultNumChecks = 10 :: Int
+defaultEvalLength = 100 :: Int
+
 data ArgumentType =
     Concrete    String
   | Polymorphic String
@@ -44,5 +48,8 @@ instance Show FunctionSignature where
         constraintsExpr = (intercalate ", " . map show) constraints
         argsExpr = (intercalate " -> " . map show) (argsType ++ [returnType])
 
-defaultTimeout = 3000000 :: Int
-defaultNumChecks = 10 :: Int
+data SampleResult =
+    Sample { _inputs :: [String]
+           , _results :: [[String]]}
+  | EmptySample
+  deriving (Eq, Show)

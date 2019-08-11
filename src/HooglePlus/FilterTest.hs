@@ -1,4 +1,4 @@
-module HooglePlus.FilterTest (runChecks, runChecks') where
+module HooglePlus.FilterTest (runChecks, runChecks', checkDuplicates, checkDuplicates') where
 
 import Language.Haskell.Interpreter
 import Language.Haskell.Exts.Parser
@@ -142,7 +142,7 @@ eval_ modules line time = timeout time $ runInterpreter $ do
 runStmt_ :: [String] -> String -> Int -> IO (Maybe (Either InterpreterError ()))
 runStmt_ modules line time = timeout time $ runInterpreter $ do
   setImports modules
-  runStmt $ printf line 
+  runStmt $ printf line
 
 runChecks :: Environment -> RType -> UProgram -> IO Bool
 runChecks env goalType prog = do
@@ -169,3 +169,31 @@ handleAnyException = (`catch` (return . handler . show :: SomeException -> IO (M
     handler ex  | "timeout" `isInfixOf` ex = Nothing
                 | otherwise = (Just . Left. UnknownError) ex
 fmtFunction_ = printf "((%s) :: %s) %s" :: String -> String -> String -> String
+
+checkDuplicates :: SampleResult -> Environment -> RType -> UProgram -> IO (Bool, SampleResult)
+checkDuplicates result env goalType prog =
+  checkDuplicates' result modules sigStr body
+  where
+    (modules, sigStr, body, _) = extractSolution env goalType prog
+
+
+checkDuplicates' :: SampleResult -> [String] -> String -> String -> IO (Bool, SampleResult)
+checkDuplicates' result modules sigStr body =
+  case result of
+    EmptySample ->
+      ((`Sample` []) <$> generateInputs modules funcSig) >>= (\r -> checkDuplicates' r modules sigStr body)
+    Sample inputs results -> do
+      evals <- evalResults inputs funcSig body
+      let isDuplicated = evals `elem` results
+      let results' = if isDuplicated then results else evals:results
+      return (not isDuplicated, Sample inputs results')
+
+  where
+    funcSig = (instantiateSignature . parseTypeString) sigStr
+
+    generateInputs :: [String] -> FunctionSignature -> IO [String]
+    generateInputs modules funcSig = replicateM defaultNumChecks (generateTestInput modules funcSig)
+    evalResults inputs funcSig body = mapM f inputs
+
+    f arg =
+        fst . splitAt defaultEvalLength . show <$> eval_ modules (fmtFunction_ body (show funcSig) arg) defaultTimeout

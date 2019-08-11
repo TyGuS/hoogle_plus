@@ -10,6 +10,7 @@ import qualified Data.Map as Map
 import Data.Either
 
 import HooglePlus.FilterTest
+import Types.Filtering
 
 modules = ["Prelude"]
 runTest modules' = runChecks' (modules' ++ modules)
@@ -21,12 +22,12 @@ itCase (desc, modules, funcSig, body, expectedRetVal) =
     result `shouldBe` expectedRetVal
 
 testCases :: [(String, [String], String, String, Bool)]
-testCases = 
+testCases =
   [("Succeed on poly function w/o type constrains 1", [], "a -> a", "\\x -> x", True)
   , ("Succeed on poly function w/o type constrains 2", [], "(a, b) -> b", "\\(x, y) -> y", True)
   , ("Succeed on poly function w/o type constrains 3", [], "(a, Either Int Int) -> Int", "\\(_, t) -> either id id t", True)
   , ("Succeed on infinite functions", ["GHC.List"], "a -> [a]", "\\x -> repeat x", True)
-  , ("Succeed on var w/ module names", ["GHC.Int", "Data.ByteString.Lazy", "Data.ByteString.Builder"], 
+  , ("Succeed on var w/ module names", ["GHC.Int", "Data.ByteString.Lazy", "Data.ByteString.Builder"],
      "GHC.Int.Int64 -> Data.ByteString.Lazy.ByteString",
      "\\arg0 -> Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64Dec arg0)", True)
   , ("Fail on invalid function 1", ["Data.Maybe"], "a -> a", "\\x -> fromJust Nothing", False)
@@ -37,4 +38,35 @@ testCases =
 
 spec :: Spec
 spec =
-  describe "Filter" $ mapM_ itCase testCases
+  describe "Filter" $ do
+    mapM_ itCase testCases
+
+    it "Duplicates - pass on base case" $ do
+      (ret, sample) <- checkDuplicates' EmptySample ["Prelude"] "a -> a" "\\x -> x"
+      ret `shouldBe` True
+      sample `shouldNotBe` EmptySample
+
+      let Sample inputs outputs = sample
+      length inputs `shouldBe` defaultNumChecks
+      length outputs `shouldBe` 1
+      
+      let evalResults = head outputs
+      length evalResults `shouldBe` defaultNumChecks
+
+    it "Duplicates - reject identical solution" $ do
+      (ret, sample) <- checkDuplicates' EmptySample ["Prelude"] "Num a => a -> a" "\\x -> x + 1"
+      (ret', sample') <- checkDuplicates' sample ["Prelude"] "Num a => a -> a" "\\x -> 1 + x"
+      
+      ret `shouldBe` True
+      ret' `shouldBe` False
+
+      sample `shouldBe` sample'
+
+    it "test - pass valid solution" $ do
+      (ret, sample) <- checkDuplicates' EmptySample ["Prelude"] "[a] -> a" "\\x -> head x"
+      (ret', sample') <- checkDuplicates' sample ["Prelude"] "[a] -> a" "\\x -> last x"
+      
+      ret `shouldBe` True
+      ret' `shouldBe` True
+
+      sample `shouldNotBe` sample'
