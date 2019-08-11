@@ -69,7 +69,8 @@ mkLambdaStr args body = let
         unwords . words . show $ foldr addFuncArg (text unTypeclassed) args
     where
         addFuncArg arg rest
-            | "arg" `isPrefixOf` arg = Pretty.parens $ text ("\\" ++ arg ++ " -> ") <+> rest
+            | arg `elem` args && not (tyclassArgBase `isPrefixOf` arg) =
+                Pretty.parens $ text ("\\" ++ arg ++ " -> ") <+> rest
             | otherwise = rest
 
 toHaskellSolution :: String -> String

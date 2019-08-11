@@ -113,7 +113,10 @@ parseStrictnessSig result = let
         _ -> error $ "unable to find strictness in: " ++ result
 
 checkStrictness :: Int -> String -> String -> [String] -> IO Bool
-checkStrictness tyclassCount body sig modules = handle (\(SomeException _) -> return False) (checkStrictness' tyclassCount body sig modules)
+checkStrictness tyclassCount body sig modules =
+    handle
+        (\(SomeException _) -> return False)
+        (checkStrictness' tyclassCount body sig modules)
 
 -- validate type signiture, run demand analysis, and run filter test
 -- checks the end result type checks; all arguments are used; and that the program will not immediately fail
