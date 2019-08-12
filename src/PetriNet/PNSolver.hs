@@ -28,6 +28,7 @@ import Debug.Trace
 import Language.Haskell.Exts.Parser (ParseResult(..), parseExp)
 import Text.Printf
 import System.IO
+import System.Console.ANSI
 
 import Database.Convert
 import Database.Generate
@@ -73,7 +74,7 @@ instantiate :: MonadIO m => Environment -> Map Id RSchema -> PNSolver m (Map Id 
 instantiate env sigs = do
     modify $ set toRemove []
     noBlack <- getExperiment disableBlack
-    blacks <- liftIO $ readFile "blacklist.txt"
+    blacks <- liftIO $ readFile "config/blacklist.txt"
     let sigs' = if noBlack then sigs else Map.withoutKeys sigs (Set.fromList $ words blacks)
     Map.fromList <$> instantiate' sigs'
   where
@@ -590,7 +591,7 @@ findProgram env dst st ps
         codeResult <- fillSketch path
         checkResult <- withTime TypeCheckTime $
                         firstCheckedOrError $
-                        sortOn (Data.Ord.Down . length) $ 
+                        sortOn (Data.Ord.Down . length) $
                         Set.toList codeResult
         rs <- getExperiment refineStrategy
         stop <- getExperiment stopRefine
@@ -726,9 +727,12 @@ writeSolution code = do
     msgChan <- gets $ view messageChan
     let stats' = stats {pathLength = loc}
     liftIO $ writeChan msgChan (MesgP (code, stats'))
-    -- liftIO $ printSolution code
+    -- liftIO $ setSGR [SetColor Foreground Vivid Yellow]
+    liftIO $ printSolution code
+    liftIO $ putStrLn $ show stats'
+    -- liftIO $ setSGR [Reset]
     -- liftIO $ hFlush stdout
-    writeLog 1 "writeSolution" $ text (show stats')
+    -- writeLog 1 "writeSolution" $ text (show stats')
 
 recoverNames :: Map Id Id -> Program t -> Program t
 recoverNames mapping (Program (PSymbol sym) t) =

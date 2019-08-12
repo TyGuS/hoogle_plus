@@ -4,8 +4,9 @@ module HooglePlus.Stats where
 
 import Types.Experiments
 import Types.Solver
-
 import Synquid.Util
+import Synquid.Pretty
+
 import Control.Monad.State
 import System.CPUTime
 import Text.Printf

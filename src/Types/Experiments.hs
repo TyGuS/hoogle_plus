@@ -64,7 +64,7 @@ data TimeStatistics = TimeStatistics {
   numOfTransitions :: Map Int Int,
   numOfPlaces :: Map Int Int,
   duplicateSymbols :: [(Int, Int, Int)]
-} deriving(Show, Eq)
+} deriving(Eq)
 
 emptyTimeStats = TimeStatistics 0 0 0 0 0 0 0 0 0 Map.empty Map.empty []
 

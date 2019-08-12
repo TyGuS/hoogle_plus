@@ -58,7 +58,7 @@ defaultGenerationOpts = GenerationOpts {
     pkgFetchOpts = defaultLocalOpts,
     modules = [],
     envPath = defaultEnvPath,
-    hoPath = "ho.txt"
+    hoPath = "config/ho.txt"
     }
 
 defaultEnvPath = "data/env.db"

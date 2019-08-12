@@ -76,7 +76,7 @@
   source: "original"
 
 - name: cartProduct
-  query: "[a] -> [b] -> [[(a,b)]]"
+  query: "[a] -> [b] -> [[(a, b)]]"
   source: "original"
 
 - name: multiAppPair
@@ -111,7 +111,7 @@
   source: "hoogle"
 
 - name: firstKey
-  query: "[(a,b)] -> a"
+  query: "[(a, b)] -> a"
   solution: fst (head arg0)
   source: "hoogle"
 
@@ -156,17 +156,17 @@
   source: "stackOverflow"
 
 - name: map
-  query: "(a->b)->[a]->[b]"
+  query: "(a -> b) -> [a] -> [b]"
   solution: map arg1 arg0
   source: "original"
 
 - name: repl-funcs
-  query: "(a->b)->Int->[a->b]"
+  query: "(a -> b) -> Int -> [a -> b]"
   solution: GHC.List.replicate n f
   source: "original"
 
 - name: countFilter
-  query: "(a->Bool)->[a]->Int"
+  query: "(a -> Bool) -> [a] -> Int"
   solution: GHC.List.length (GHC.List.takeWhile p xs)
   source: "original"
 
@@ -176,22 +176,22 @@
   source: "original"
 
 - name: 2partApp
-  query: "(a->b)->(b->c)->[a]->[c]"
+  query: "(a -> b) -> (b -> c) -> [a] -> [c]"
   solution: GHC.List.map g (GHC.List.map f xs)
   source: "original"
 
 - name: zipWithResult
-  query: "(a->b)->[a]->[(a,b)]"
+  query: "(a -> b) -> [a] -> [(a, b)]"
   solution: GHC.List.zip xs (GHC.List.map f [])
   source: "hoogle"
 
 - name: resolveEither
-  query: "Either a b -> (a->b) -> b"
+  query: "Either a b -> (a -> b) -> b"
   solution: Data.Either.either f GHC.List.id x
   source: "original"
 
 - name: applyNtimes
-  query: "(a->a) -> a -> Int -> a"
+  query: "(a -> a) -> a -> Int -> a"
   solution: GHC.List.foldr Prelude.app x (GHC.List.replicate n f)
   source: "hoogle"
 
@@ -206,7 +206,7 @@
   source: "hoogle"
 
 - name: indexesOf
-  query: "([(a,Int)] -> [(a,Int)]) -> [a] -> [Int] -> [Int]"
+  query: "([(a, Int)] -> [(a, Int)]) -> [a] -> [Int] -> [Int]"
   solution: map snd (f (zip xs ys))
   source: "stackOverflow"
 
@@ -223,7 +223,7 @@
 #   solution: length (elemIndices x xs)
 
 - name: lookup
-  query: "Eq a => [(a,b)] -> a -> b"
+  query: "Eq a => [(a, b)] -> a -> b"
   solution: Data.Maybe.fromJust (GHC.List.lookup arg0 arg1)
   source: "hoogle"
 
@@ -284,7 +284,7 @@
 #   query: (v -> Maybe v) -> Map k v -> Map k v
 
 - name: containsEdge
-  query: "[Int] -> (Int,Int) -> Bool"
+  query: "[Int] -> (Int, Int) -> Bool"
   solution: containsEdge xs (a,b) = (a `elem` xs) && (b `elem` xs)
   source: "stackOverflow"
 

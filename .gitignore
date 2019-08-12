@@ -38,3 +38,5 @@ logs/
 hplus.code-workspace
 .vscode
 benchmark/suites/working.yml
+result.csv
+results

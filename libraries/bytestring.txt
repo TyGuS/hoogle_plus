@@ -12,8 +12,8 @@ length :: ShortByteString -> Int
 index :: ShortByteString -> Int -> Word8
 module Data.ByteString.Unsafe
 unsafeHead :: ByteString -> Word8
-unsafeTail :: ByteString -> ByteString
-unsafeInit :: ByteString -> ByteString
+-- unsafeTail :: ByteString -> ByteString
+-- unsafeInit :: ByteString -> ByteString
 unsafeLast :: ByteString -> Word8
 unsafeIndex :: ByteString -> Int -> Word8
 unsafeTake :: Int -> ByteString -> ByteString
@@ -43,15 +43,15 @@ head :: ByteString -> Word8
 uncons :: ByteString -> Maybe (Word8, ByteString)
 unsnoc :: ByteString -> Maybe (ByteString, Word8)
 last :: ByteString -> Word8
-tail :: ByteString -> ByteString
-init :: ByteString -> ByteString
+-- tail :: ByteString -> ByteString
+-- init :: ByteString -> ByteString
 null :: ByteString -> Bool
 length :: ByteString -> Int
 map :: (Word8 -> Word8) -> ByteString -> ByteString
-reverse :: ByteString -> ByteString
+-- reverse :: ByteString -> ByteString
 intersperse :: Word8 -> ByteString -> ByteString
 intercalate :: ByteString -> [ByteString] -> ByteString
-transpose :: [ByteString] -> [ByteString]
+-- transpose :: [ByteString] -> [ByteString]
 foldl :: (a -> Word8 -> a) -> a -> ByteString -> a
 foldl' :: (a -> Word8 -> a) -> a -> ByteString -> a
 foldl1 :: (Word8 -> Word8 -> Word8) -> ByteString -> Word8
@@ -113,8 +113,8 @@ count :: Word8 -> ByteString -> Int
 zip :: ByteString -> ByteString -> [(Word8, Word8)]
 zipWith :: (Word8 -> Word8 -> a) -> ByteString -> ByteString -> [a]
 unzip :: [(Word8, Word8)] -> (ByteString, ByteString)
-sort :: ByteString -> ByteString
-copy :: ByteString -> ByteString
+-- sort :: ByteString -> ByteString
+-- copy :: ByteString -> ByteString
 packCString :: CString -> IO ByteString
 packCStringLen :: CStringLen -> IO ByteString
 useAsCString :: ByteString -> (CString -> IO a) -> IO a
@@ -143,8 +143,8 @@ empty :: ByteString
 singleton :: Word8 -> ByteString
 pack :: [Word8] -> ByteString
 unpack :: ByteString -> [Word8]
-fromStrict :: ByteString -> ByteString
-toStrict :: ByteString -> ByteString
+-- fromStrict :: ByteString -> ByteString
+-- toStrict :: ByteString -> ByteString
 fromChunks :: [ByteString] -> ByteString
 toChunks :: ByteString -> [ByteString]
 foldrChunks :: (ByteString -> a -> a) -> a -> ByteString -> a
@@ -160,15 +160,15 @@ head :: ByteString -> Word8
 uncons :: ByteString -> Maybe (Word8, ByteString)
 unsnoc :: ByteString -> Maybe (ByteString, Word8)
 last :: ByteString -> Word8
-tail :: ByteString -> ByteString
-init :: ByteString -> ByteString
+-- tail :: ByteString -> ByteString
+-- init :: ByteString -> ByteString
 null :: ByteString -> Bool
 length :: ByteString -> Int64
 map :: (Word8 -> Word8) -> ByteString -> ByteString
-reverse :: ByteString -> ByteString
+-- reverse :: ByteString -> ByteString
 intersperse :: Word8 -> ByteString -> ByteString
 intercalate :: ByteString -> [ByteString] -> ByteString
-transpose :: [ByteString] -> [ByteString]
+-- transpose :: [ByteString] -> [ByteString]
 foldl :: (a -> Word8 -> a) -> a -> ByteString -> a
 foldl' :: (a -> Word8 -> a) -> a -> ByteString -> a
 foldl1 :: (Word8 -> Word8 -> Word8) -> ByteString -> Word8
@@ -186,7 +186,7 @@ mapAccumL :: (acc -> Word8 -> (acc, Word8)) -> acc -> ByteString -> (acc, ByteSt
 mapAccumR :: (acc -> Word8 -> (acc, Word8)) -> acc -> ByteString -> (acc, ByteString)
 repeat :: Word8 -> ByteString
 replicate :: Int64 -> Word8 -> ByteString
-cycle :: ByteString -> ByteString
+-- cycle :: ByteString -> ByteString
 iterate :: (Word8 -> Word8) -> Word8 -> ByteString
 unfoldr :: (a -> Maybe (Word8, a)) -> a -> ByteString
 take :: Int64 -> ByteString -> ByteString
@@ -221,7 +221,7 @@ count :: Word8 -> ByteString -> Int64
 zip :: ByteString -> ByteString -> [(Word8, Word8)]
 zipWith :: (Word8 -> Word8 -> a) -> ByteString -> ByteString -> [a]
 unzip :: [(Word8, Word8)] -> (ByteString, ByteString)
-copy :: ByteString -> ByteString
+-- copy :: ByteString -> ByteString
 getContents :: IO ByteString
 putStr :: ByteString -> IO ()
 putStrLn :: ByteString -> IO ()
