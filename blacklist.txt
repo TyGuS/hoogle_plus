@@ -7,10 +7,7 @@ Data.Function.flip
 (Data.Function..)
 GHC.List.reverse
 GHC.List.cycle
-GHC.List.iterate'
-GHC.List.foldl'
-GHC.List.foldl1'
-GHC.List.scanl'
-GHC.List.repeat
-GHC.List.tail
-GHC.List.init
+Data.ByteString.Lazy.reverse
+Data.ByteString.Lazy.cycle
+Data.ByteString.Lazy.transpose
+Data.ByteString.Lazy.copy
