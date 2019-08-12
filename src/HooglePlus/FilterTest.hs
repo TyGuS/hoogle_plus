@@ -186,7 +186,10 @@ checkDuplicates' result modules sigStr body =
       evals <- evalResults inputs funcSig body
       let isDuplicated = evals `elem` results
       let results' = if isDuplicated then results else evals:results
-      return (not isDuplicated, Sample inputs results')
+
+      let retVal = (not isDuplicated, Sample inputs results')
+      print retVal
+      return retVal
 
   where
     funcSig = (instantiateSignature . parseTypeString) sigStr

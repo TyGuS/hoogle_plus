@@ -36,6 +36,7 @@ import HooglePlus.Refinement
 import HooglePlus.Stats
 import PetriNet.AbstractType
 import HooglePlus.GHCChecker
+import HooglePlus.FilterTest
 import PetriNet.PNEncoder
 import PetriNet.Util
 import Synquid.Error
@@ -684,9 +685,21 @@ findProgram env dst st ps
             withTime
                 TypeCheckTime
                 (filterM (liftIO . runGhcChecks params env dst) [code'])
-        if (code' `elem` solutions) || null checkedSols
+        passDuplicateCheck <- withTime TypeCheckTime (checkDuplicateSolution st code')
+        if (code' `elem` solutions) || null checkedSols || not passDuplicateCheck
             then return Nothing
             else return $ Just code'
+    
+    checkDuplicateSolution :: MonadIO m => EncodeState -> UProgram -> PNSolver m Bool
+    checkDuplicateSolution st code = do
+        disabled <- getExperiment disableFilter
+        if disabled then return True else do
+            params <- gets $ view searchParams
+            sResult <- gets $ view sampleResult
+            (pass, sResult') <- liftIO (checkDuplicates sResult env dst code)
+            modify $ set sampleResult sResult'
+            return pass
+
 
 findFirstN :: MonadIO m
             => Environment
