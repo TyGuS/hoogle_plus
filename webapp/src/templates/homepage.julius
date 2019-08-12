@@ -126,6 +126,7 @@ $(function(){
                         }
 
                         for (var k in this_response) {
+                          idx = idx + 1
                           var data = this_response[k]
                           if(data === undefined) {
                               result_div.append("No result found");
@@ -162,7 +163,6 @@ $(function(){
                               result_div.append(sol_div)
                               $('[data-toggle="tooltip"]').tooltip()
                           }
-                          idx = idx + 1
                         }
                         // flush()
                         // console.log(this_response);
