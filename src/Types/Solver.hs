@@ -86,3 +86,35 @@ emptySolverState = SolverState {
 makeLenses ''SolverState
 
 type PNSolver m = StateT SolverState m
+
+data BiSolverState = BiSolverState {
+    _searchParams :: SearchParams,
+    _allSymbols :: Map Id RSchema,
+    _selectedTypes :: Set RType,
+    _selectedSymbols :: Map Id RType,
+    _petrinet :: HashMap AbstractSkeleton (Set Id),
+    _nameMap :: HashMap Id Id,
+    _forwardSet :: Set RType,
+    _backwardSet :: Set RType,
+    _srcTypes :: [RType],
+    _dstTypes :: [RType],
+    _maxLength :: Int,
+    _messageChan :: Chan Message
+}
+
+emptyBiSolver :: BiSolverState
+emptyBiSolver = BiSolver {
+    _searchParams = defaultSearchParams,
+    _allSymbols = Map.empty,
+    _selectedSymbols = Set.empty,
+    _petrinet = HashMap.empty,
+    _nameMap :: HashMap.empty,
+    _forwardSet = Set.empty,
+    _backwardSet = Set.empty,
+    _srcTypes = [],
+    _dstTypes = [],
+    _maxLength = 0,
+    _messageChan = undefined
+}
+
+makeLenses ''BiSolverState

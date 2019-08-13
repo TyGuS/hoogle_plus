@@ -57,19 +57,6 @@ import Types.Program
 import Types.Solver
 import Types.Type
 
-
-encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
-encodeFunction id t | pairProj `isPrefixOf` id =
-    let toMatch (FunctionCode name ho [p1,p2] ret) = FunctionCode id ho [p1] (p2:ret)
-     in toMatch $ encodeFunction "__f" t
-encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [lastAbstract t]
-  where
-    base = (0, [])
-    hoFun x = encodeFunction (show x) x
-    hoParams = map hoFun $ filter isAFunctionT (abstractParamList t)
-    params = abstractParamList t
-encodeFunction id t@AScalar {} = FunctionCode id [] [] [t]
-
 instantiate :: MonadIO m => Environment -> Map Id RSchema -> PNSolver m (Map Id AbstractSkeleton)
 instantiate env sigs = do
     modify $ set toRemove []
@@ -201,7 +188,7 @@ addSignatures env = do
     let envSymbols = allSymbols env
     let usefulPipe k _ = k `notElem` foArgs
     let usefulSymbols = Map.filterWithKey usefulPipe envSymbols
-    let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+    let hoArgs = Map.filter isFunctionType (env ^. arguments)
     let binds = env ^. boundTypeVars
     -- cands <- getExperiment hoCandidates
     envSigs <- instantiate env usefulSymbols
@@ -222,7 +209,7 @@ mkGroups env sigs = do
     (t2g, sigGroups) <- groupSignatures encodedSigs
     -- Do I want to take the sigs here?
     nameMap <- gets $ view nameMapping
-    let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+    let hoArgs = Map.keys $ Map.filter isFunctionType (env ^. arguments)
     let hoAlias = Map.keysSet $ Map.filter (`elem` hoArgs) nameMap
     representatives <- Map.fromList <$> mapM (selectOurRep hoAlias) (Map.toList sigGroups)
     let sigs' = Map.restrictKeys sigs (Set.fromList $ Map.elems representatives)
@@ -296,7 +283,7 @@ refineSemantic env prog at = do
     cloneNames <- if noClone then return []
                              else mapM addCloneFunction $ Set.toList splits
     -- update the higer order query arguments
-    let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+    let hoArgs = Map.filter isFunctionType (env ^. arguments)
     mapM_ addMusters (Map.keys hoArgs)
     -- call the refined encoder on these signatures and disabled signatures
     return SplitInfo { newPlaces = Set.toList splits
@@ -316,7 +303,7 @@ refineSemantic env prog at = do
         let gids = Map.keys $ Map.filter (`Set.member` pids) gr
         let fids = concatMap (\gid -> Set.toList $ Map.findWithDefault Set.empty gid gm) gids
         sigs <- mapM (splitTransition env at) fids
-        let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+        let hoArgs = Map.filter isFunctionType (env ^. arguments)
         let tvs = env ^. boundTypeVars
         let envSigs = Map.fromList (concat sigs)
         let allSigs = concat sigs
@@ -384,7 +371,7 @@ refineSemantic env prog at = do
                     if not (null currentGroup)
                       then do
                         -- We need to elect a new leader for the group!
-                        let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+                        let hoArgs = Map.keys $ Map.filter isFunctionType (env ^. arguments)
                         let hoAlias = Map.keysSet $ Map.filter (`elem` hoArgs) nameMap
                         newRep <- selectRepresentative hoAlias gid currentGroup
                         let abstractType = lookupWithError "currentSigs" rep sigs
@@ -416,7 +403,7 @@ initNet env = withTime ConstructionTime $ do
         allTy <- gets (HashMap.keys . view type2transition)
         mapM_ addCloneFunction allTy
     -- add higher order query arguments
-    let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+    let hoArgs = Map.filter isFunctionType (env ^. arguments)
     mapM_ addMusters (Map.keys hoArgs)
   where
     abstractSymbol id sch = do
@@ -518,7 +505,7 @@ findProgram env dst st ps
         disrel <- getExperiment disableRelevancy
         let hoArgs =
                 Map.keys $
-                Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+                Map.filter isFunctionType (env ^. arguments)
         let hoArgs' = map (++ hoPostfix) hoArgs ++ hoArgs
         let hoAlias = Map.keysSet $ Map.filter (`elem` hoArgs') nameMap
         let getGroup p = lookupWithError "nameToGroup" p ngm
@@ -781,7 +768,7 @@ updateSrcTgt env dst = do
     tgt <- currentAbst binds abstraction (toAbstractType (shape dst))
     modify $ set targetType tgt
 
-    let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
+    let foArgs = Map.filter (not . isFunctionType) (env ^. arguments)
     srcTypes <- mapM ( currentAbst binds abstraction
                      . toAbstractType
                      . shape
@@ -812,8 +799,8 @@ prepEncoderArgs env tgt = do
     writeLog 3 "prepEncoderArgs" $ text "current must firers" <+> pretty (HashMap.toList musters)
     return (loc, musters, rets, sigs, t2tr)
 
-foArgsOf :: Environment -> Map Id RSchema
-foArgsOf = Map.filter (not . isFunctionType . toMonotype) . _arguments
+foArgsOf :: Environment -> Map Id RType
+foArgsOf = Map.filter (not . isFunctionType) . _arguments
 
 noneInst instMap id t = not (HashMap.member (id, absFunArgs id t) instMap)
 

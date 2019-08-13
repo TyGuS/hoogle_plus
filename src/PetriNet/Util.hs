@@ -40,6 +40,18 @@ getExperiment exp = gets $ view (searchParams . exp)
 -------------------------------------------------------------------------------
 -- | helper functions
 -------------------------------------------------------------------------------
+encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
+encodeFunction id t | pairProj `isPrefixOf` id =
+    let toMatch (FunctionCode name ho [p1,p2] ret) = FunctionCode id ho [p1] (p2:ret)
+     in toMatch $ encodeFunction "__f" t
+encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [lastAbstract t]
+  where
+    base = (0, [])
+    hoFun x = encodeFunction (show x) x
+    hoParams = map hoFun $ filter isAFunctionT (abstractParamList t)
+    params = abstractParamList t
+encodeFunction id t@AScalar {} = FunctionCode id [] [] [t]
+
 writeLog :: MonadIO m => Int -> String -> Doc -> PNSolver m ()
 writeLog level tag msg = do
     mesgChan <- gets $ view messageChan

@@ -165,7 +165,7 @@ isBound :: Environment -> Id -> Bool
 isBound env tv = tv `elem` env ^. boundTypeVars
 
 addArgument :: Id -> RType -> Environment -> Environment
-addArgument name t = (arguments %~ Map.insert name (Monotype t))
+addArgument name t = arguments %~ Map.insert name t
 
 addVariable :: Id -> RType -> Environment -> Environment
 addVariable name t = addPolyVariable name (Monotype t)

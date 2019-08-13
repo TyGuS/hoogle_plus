@@ -76,15 +76,15 @@ decomposeHo :: AbstractSkeleton -> [AbstractSkeleton]
 decomposeHo (AFunctionT tArg tRet) = tArg : decomposeHo tRet
 decomposeHo t = [t]
 
-toAbstractType :: SType -> AbstractSkeleton
+toAbstractType :: TypeSkeleton r -> AbstractSkeleton
 toAbstractType (ScalarT (TypeVarT _ id) _) = AScalar (ATypeVarT id)
-toAbstractType (ScalarT (DatatypeT id args _) _) = AScalar (ADatatypeT id (map (compactAbstractType . toAbstractType) args))
+toAbstractType (ScalarT (DatatypeT id args _) _) = AScalar (ADatatypeT id (map toAbstractFun args))
 toAbstractType (FunctionT _ tArg tRet) = AFunctionT (toAbstractFun tArg) (toAbstractType tRet)
 toAbstractType AnyT = AScalar (ATypeVarT varName)
 toAbstractType BotT = ABottom
 toAbstractType x = error $ "unhandled case: " ++ show x
 
-toAbstractFun :: SType -> AbstractSkeleton
+toAbstractFun :: TypeSkeleton r -> AbstractSkeleton
 toAbstractFun (FunctionT _ tArg tRes) = AScalar $ ADatatypeT "Fun" [toAbstractFun tArg, toAbstractFun tRes]
 toAbstractFun t = toAbstractType t
 
@@ -118,7 +118,7 @@ checkUnification bound tass (AScalar (ATypeVarT id)) t | id `Map.member` tass =
                   _ -> Nothing
     substedTass u = Map.map (abstractSubstitute (Map.singleton id (substed u))) u
     updatedTass u = Map.insert id (substed u) (substedTass u)
-checkUnification bound tass t@(AScalar (ATypeVarT id)) t'@(AScalar (ATypeVarT id')) 
+checkUnification bound tass t@(AScalar (ATypeVarT id)) t'@(AScalar (ATypeVarT id'))
   | id `elem` bound && id' `elem` bound = Nothing
   | id `elem` bound && id' `notElem` bound = checkUnification bound tass t' t
   | id `notElem` bound && id `elem` abstractTypeVars t' = Nothing
@@ -161,7 +161,7 @@ getUnifier' bound (Just tass) (c:cs) =
         Just m  -> getUnifier' bound (Just m) cs
 
 abstractSubstitute :: Map Id AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
-abstractSubstitute tass typ = 
+abstractSubstitute tass typ =
     if substed /= typ then abstractSubstitute tass substed
                       else substed
   where
@@ -178,7 +178,7 @@ abstractSubstitute' id typ (AFunctionT tArg tRes) = AFunctionT tArg' tRes'
 
 abstractTypeVars :: AbstractSkeleton -> [Id]
 abstractTypeVars (AScalar (ATypeVarT id)) = [id]
-abstractTypeVars (AScalar (ADatatypeT id args)) = concatMap abstractTypeVars args 
+abstractTypeVars (AScalar (ADatatypeT id args)) = concatMap abstractTypeVars args
 abstractTypeVars (AFunctionT tArg tRes) = abstractTypeVars tArg ++ abstractTypeVars tRes
 abstractTypeVars _ = []
 
@@ -196,10 +196,10 @@ existAbstract tvs cover t = existAbstract' rootNode
     existAbstract' paren = False
 
 abstractIntersect :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Maybe AbstractSkeleton
-abstractIntersect bound t1 t2 = 
+abstractIntersect bound t1 t2 =
     case unifier of
       Nothing -> Nothing
-      Just u -> Just $ abstractSubstitute u t1 
+      Just u -> Just $ abstractSubstitute u t1
   where
     unifier = getUnifier bound [(t1, t2)]
 
