@@ -13,6 +13,7 @@ import qualified Data.Map as Map hiding (map, foldr)
 import qualified Data.Set as Set hiding (map)
 import System.Timeout
 import Control.Monad
+import Control.Monad.State
 import Data.Maybe
 import Data.Typeable
 
@@ -157,7 +158,7 @@ runChecks' modules sigString body = handleNotSupported executeCheck
     executeCheck = do
       let funcSig = (instantiateSignature . parseTypeString) sigString
       arg <- generateTestInput modules funcSig
-      result <- handleAnyException $ runStmt_ modules (fmtFunction_ body (show funcSig) arg) defaultTimeout
+      result <- handleAnyException $ runStmt_ modules (fmtFunction_ body (show funcSig) arg) defaultTimeoutMicro
       case result of
         Nothing -> putStrLn "Timeout in running always-fail detection" >> return True
         Just (Left err) -> putStrLn (displayException err) >> return False
@@ -170,33 +171,31 @@ handleAnyException = (`catch` (return . handler . show :: SomeException -> IO (M
                 | otherwise = (Just . Left. UnknownError) ex
 fmtFunction_ = printf "((%s) :: %s) %s" :: String -> String -> String -> String
 
-checkDuplicates :: SampleResult -> Environment -> RType -> UProgram -> IO (Bool, SampleResult)
+checkDuplicates :: Maybe SampleResult -> Environment -> RType -> UProgram -> IO (Bool, Maybe SampleResult)
 checkDuplicates result env goalType prog =
   checkDuplicates' result modules sigStr body
   where
     (modules, sigStr, body, _) = extractSolution env goalType prog
 
 
-checkDuplicates' :: SampleResult -> [String] -> String -> String -> IO (Bool, SampleResult)
+checkDuplicates' :: Maybe SampleResult -> [String] -> String -> String -> IO (Bool, Maybe SampleResult)
 checkDuplicates' result modules sigStr body =
   case result of
-    EmptySample ->
-      ((`Sample` []) <$> generateInputs modules funcSig) >>= (\r -> checkDuplicates' r modules sigStr body)
-    Sample inputs results -> do
+    Nothing ->
+      (Just . (`SampleResult` []) <$> generateInputs modules funcSig) >>= (\r -> checkDuplicates' r modules sigStr body)
+    Just (SampleResult inputs results) -> do
       evals <- evalResults inputs funcSig body
       let isDuplicated = evals `elem` results
       let results' = if isDuplicated then results else evals:results
 
-      let retVal = (not isDuplicated, Sample inputs results')
-      print retVal
-      return retVal
+      return (not isDuplicated, Just $ SampleResult inputs results')
 
   where
     funcSig = (instantiateSignature . parseTypeString) sigStr
 
     generateInputs :: [String] -> FunctionSignature -> IO [String]
     generateInputs modules funcSig = replicateM defaultNumChecks (generateTestInput modules funcSig)
-    evalResults inputs funcSig body = mapM f inputs
+    evalResults inputs funcSig body = mapM evalWithArg inputs
 
-    f arg =
-        fst . splitAt defaultEvalLength . show <$> eval_ modules (fmtFunction_ body (show funcSig) arg) defaultTimeout
+    evalWithArg arg =
+        fst . splitAt defaultEvalLength . show <$> eval_ modules (fmtFunction_ body (show funcSig) arg) defaultTimeoutMicro

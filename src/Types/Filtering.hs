@@ -5,7 +5,7 @@ import Data.Typeable
 import Text.Printf
 import Data.List (intercalate)
 
-defaultTimeout = 1000000 :: Int
+defaultTimeoutMicro = 1 * 10^6 :: Int
 defaultNumChecks = 10 :: Int
 defaultEvalLength = 100 :: Int
 
@@ -22,7 +22,7 @@ instance Show ArgumentType where
   show (Polymorphic name) = name
   show (ArgTypeList sub)  = printf "[%s]" (show sub)
   show (ArgTypeApp  l r)  = printf "(%s) %s"  (show l) (show r)
-  show (ArgTypeTuple types) = 
+  show (ArgTypeTuple types) =
     (printf "(%s)" . intercalate ", " . map show) types
 
 newtype NotSupportedException = NotSupportedException String
@@ -42,14 +42,19 @@ data FunctionSignature =
   }
 
 instance Show FunctionSignature where
-  show (FunctionSignature constraints argsType returnType) = 
+  show (FunctionSignature constraints argsType returnType) =
     printf "(%s) => %s" constraintsExpr argsExpr
       where
         constraintsExpr = (intercalate ", " . map show) constraints
         argsExpr = (intercalate " -> " . map show) (argsType ++ [returnType])
 
-data SampleResult =
-    Sample { _inputs :: [String]
-           , _results :: [[String]]}
-  | EmptySample
+data SampleResult = SampleResult
+  { _inputs :: [String], _results :: [[String]]}
   deriving (Eq, Show)
+
+data FilterState = FilterState
+  { _sampleResults :: Maybe SampleResult }
+
+emptyFilterState = FilterState {
+  _sampleResults = Nothing
+}
