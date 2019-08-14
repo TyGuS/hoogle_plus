@@ -8,7 +8,7 @@ import Data.List (intercalate)
 
 defaultTimeoutMicro = 1 * 10^6 :: Int
 defaultNumChecks = 10 :: Int
-defaultEvalLength = 100 :: Int
+defaultMaxOutputLength = 100 :: Int
 
 data ArgumentType =
     Concrete    String
@@ -55,7 +55,7 @@ data SampleResult = SampleResult
 
 data FilterState = FilterState
   { sampleResults :: Maybe SampleResult }
-  deriving (Eq)
+  deriving (Eq, Show)
 
 emptyFilterState = FilterState {
   sampleResults = Nothing

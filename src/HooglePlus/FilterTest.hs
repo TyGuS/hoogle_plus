@@ -136,14 +136,19 @@ generateTestInput' imports funcSig = mapM f (_argsType funcSig)
       return (str, val)
 
 eval_ :: [String] -> String -> Int -> IO (Maybe (Either InterpreterError String))
-eval_ modules line time = timeout time $ runInterpreter $ do
-  setImports modules
-  eval line
+eval_ modules line time = do 
+  result <- handleAnyException $ timeout time $ runInterpreter $ do
+    setImports modules
+    eval line
+  case result of
+    Just (Right val) -> 
+      (return . Just . Right . fst . splitAt defaultMaxOutputLength) val 
+    _ -> return result
 
 runStmt_ :: [String] -> String -> Int -> IO (Maybe (Either InterpreterError ()))
-runStmt_ modules line time = timeout time $ runInterpreter $ do
+runStmt_ modules line time = handleAnyException $ timeout time $ runInterpreter $ do
   setImports modules
-  runStmt $ printf line
+  runStmt line
 
 runChecks :: MonadIO m => Environment -> RType -> UProgram -> FilterTest m Bool
 runChecks env goalType prog =
@@ -160,14 +165,16 @@ checkSolutionNotCrash modules sigStr body = or <$> liftIO (replicateM defaultNum
     executeCheck = handleNotSupported $ do
       let funcSig = (instantiateSignature . parseTypeString) sigStr
       arg <- generateTestInput modules funcSig
-      result <- handleAnyException $ runStmt_ modules (fmtFunction_ body (show funcSig) arg) defaultTimeoutMicro
+      result <- runStmt_ modules (fmtFunction_ body (show funcSig) arg) defaultTimeoutMicro
       case result of
         Nothing -> putStrLn "Timeout in running always-fail detection" >> return True
         Just (Left err) -> putStrLn (displayException err) >> return False
         Just (Right ()) -> return True
 
 handleNotSupported = (`catch` ((\ex -> print ex >> return True) :: NotSupportedException -> IO Bool))
-handleAnyException = (`catch` (return . handler . show :: SomeException -> IO (Maybe (Either InterpreterError ()))))
+
+handleAnyException :: IO (Maybe (Either InterpreterError a)) -> IO (Maybe (Either InterpreterError a))
+handleAnyException = (`catch` (return . handler . (show :: SomeException -> String)))
   where
     handler ex  | "timeout" `isInfixOf` ex = Nothing
                 | otherwise = (Just . Left. UnknownError) ex
@@ -178,8 +185,8 @@ checkDuplicates modules sigStr body = do
   st <- get
   case sampleResults st of
     Nothing -> do
-      result' <- liftIO (Just . (`SampleResult` []) <$> generateInputs modules funcSig)
-      modify $ \st -> st { sampleResults = result' }
+      sampleWithInputs <- liftIO (Just . (`SampleResult` []) <$> generateInputs modules funcSig)
+      modify $ \st -> st { sampleResults = sampleWithInputs }
       checkDuplicates modules sigStr body
     Just (SampleResult inputs results) -> do
       evals <- liftIO $ evalResults inputs funcSig body
@@ -197,4 +204,4 @@ checkDuplicates modules sigStr body = do
     evalResults inputs funcSig body = mapM evalWithArg inputs
 
     evalWithArg arg =
-        fst . splitAt defaultEvalLength . show <$> eval_ modules (fmtFunction_ body (show funcSig) arg) defaultTimeoutMicro
+        show <$> eval_ modules (fmtFunction_ body (show funcSig) arg) defaultTimeoutMicro

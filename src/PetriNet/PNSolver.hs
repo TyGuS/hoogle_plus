@@ -682,10 +682,10 @@ findProgram env dst st ps
         disableRele <- getExperiment disableRelevancy
         params <- gets $ view searchParams
         fState <- gets $ view filterState
-        (checkResult, fState') <-
+        (passedCheck, fState') <-
             withTime TypeCheckTime (liftIO $ runStateT (runGhcChecks params env dst code') fState)
         modify $ set filterState fState'
-        if (code' `elem` solutions) || not checkResult
+        if (code' `elem` solutions) || not passedCheck
             then return Nothing
             else return $ Just code'
 

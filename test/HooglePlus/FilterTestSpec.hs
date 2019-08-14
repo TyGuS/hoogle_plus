@@ -47,8 +47,8 @@ spec =
   describe "Filter" $ do
     mapM_ itNotCrashCase testNotCrashCases
 
-    it "Duplicates - pass on base case" $ do
-      (ret, (FilterState {sampleResults = sample})) <- runDuplicateTest emptyFilterState [] "a -> a" "\\x -> x"
+    it "Duplicates - generate inputs and pass on base case" $ do
+      (ret, FilterState {sampleResults = sample}) <- runDuplicateTest emptyFilterState [] "a -> a" "\\x -> x"
       ret `shouldBe` True
       sample `shouldNotBe` Nothing
 
@@ -59,20 +59,20 @@ spec =
       let evalResults = head outputs
       length evalResults `shouldBe` defaultNumChecks
 
-    it "Duplicates - reject identical solution" $ do
+    it "Duplicates - reject identical solution and persist the previous state" $ do
       (ret, st) <- runDuplicateTest emptyFilterState [] "Num a => a -> a" "\\x -> x + 1"
       (ret', st') <- runDuplicateTest st [] "Num a => a -> a" "\\x -> 1 + x"
       
       ret `shouldBe` True
       ret' `shouldBe` False
 
-      (st == st') `shouldBe` True 
+      st `shouldBe` st'
 
-    it "test - pass valid solution" $ do
+    it "test - pass valid solution and add solution to the state" $ do
       (ret, st) <- runDuplicateTest emptyFilterState [] "[a] -> a" "\\x -> head x"
       (ret', st') <- runDuplicateTest st [] "[a] -> a" "\\x -> last x"
       
       ret `shouldBe` True
       ret' `shouldBe` True
 
-      (st == st') `shouldBe` False  
+      st `shouldNotBe` st'
