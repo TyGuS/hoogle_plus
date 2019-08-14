@@ -1,6 +1,6 @@
-module HooglePlus.FilterTest (runChecks, runChecks', checkDuplicates, checkDuplicates') where
+module HooglePlus.FilterTest (runChecks, checkSolutionNotCrash, checkDuplicates) where
 
-import Language.Haskell.Interpreter
+import Language.Haskell.Interpreter hiding (get)
 import Language.Haskell.Exts.Parser
 import Text.Printf
 import Control.Exception
@@ -145,18 +145,20 @@ runStmt_ modules line time = timeout time $ runInterpreter $ do
   setImports modules
   runStmt $ printf line
 
-runChecks :: Environment -> RType -> UProgram -> IO Bool
-runChecks env goalType prog = do
-  list <- replicateM defaultNumChecks (runChecks' modules funcSig body)
-  return $ or list
+runChecks :: MonadIO m => Environment -> RType -> UProgram -> FilterTest m Bool
+runChecks env goalType prog =
+  and <$> mapM (\f -> f modules funcSig body) checks
   where
     (modules, funcSig, body, _) = extractSolution env goalType prog
 
-runChecks' :: [String] -> String -> String -> IO Bool
-runChecks' modules sigString body = handleNotSupported executeCheck
+    checks = [ checkSolutionNotCrash
+             , checkDuplicates]
+
+checkSolutionNotCrash :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
+checkSolutionNotCrash modules sigStr body = or <$> liftIO (replicateM defaultNumChecks executeCheck)
   where
-    executeCheck = do
-      let funcSig = (instantiateSignature . parseTypeString) sigString
+    executeCheck = handleNotSupported $ do
+      let funcSig = (instantiateSignature . parseTypeString) sigStr
       arg <- generateTestInput modules funcSig
       result <- handleAnyException $ runStmt_ modules (fmtFunction_ body (show funcSig) arg) defaultTimeoutMicro
       case result of
@@ -171,24 +173,21 @@ handleAnyException = (`catch` (return . handler . show :: SomeException -> IO (M
                 | otherwise = (Just . Left. UnknownError) ex
 fmtFunction_ = printf "((%s) :: %s) %s" :: String -> String -> String -> String
 
-checkDuplicates :: Maybe SampleResult -> Environment -> RType -> UProgram -> IO (Bool, Maybe SampleResult)
-checkDuplicates result env goalType prog =
-  checkDuplicates' result modules sigStr body
-  where
-    (modules, sigStr, body, _) = extractSolution env goalType prog
-
-
-checkDuplicates' :: Maybe SampleResult -> [String] -> String -> String -> IO (Bool, Maybe SampleResult)
-checkDuplicates' result modules sigStr body =
-  case result of
-    Nothing ->
-      (Just . (`SampleResult` []) <$> generateInputs modules funcSig) >>= (\r -> checkDuplicates' r modules sigStr body)
+checkDuplicates :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
+checkDuplicates modules sigStr body = do
+  st <- get
+  case sampleResults st of
+    Nothing -> do
+      result' <- liftIO (Just . (`SampleResult` []) <$> generateInputs modules funcSig)
+      modify $ \st -> st { sampleResults = result' }
+      checkDuplicates modules sigStr body
     Just (SampleResult inputs results) -> do
-      evals <- evalResults inputs funcSig body
+      evals <- liftIO $ evalResults inputs funcSig body
       let isDuplicated = evals `elem` results
       let results' = if isDuplicated then results else evals:results
 
-      return (not isDuplicated, Just $ SampleResult inputs results')
+      modify $ \st -> st { sampleResults = Just $ SampleResult inputs results' }
+      return $ not isDuplicated
 
   where
     funcSig = (instantiateSignature . parseTypeString) sigStr

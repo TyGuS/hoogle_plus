@@ -1,6 +1,7 @@
 module Types.Filtering where
 
 import Control.Exception
+import Control.Monad.State
 import Data.Typeable
 import Text.Printf
 import Data.List (intercalate)
@@ -53,8 +54,11 @@ data SampleResult = SampleResult
   deriving (Eq, Show)
 
 data FilterState = FilterState
-  { _sampleResults :: Maybe SampleResult }
+  { sampleResults :: Maybe SampleResult }
+  deriving (Eq)
 
 emptyFilterState = FilterState {
-  _sampleResults = Nothing
+  sampleResults = Nothing
 }
+
+type FilterTest m = StateT FilterState m

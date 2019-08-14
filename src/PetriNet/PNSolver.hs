@@ -681,24 +681,13 @@ findProgram env dst st ps
         disableDemand <- getExperiment disableDemand
         disableRele <- getExperiment disableRelevancy
         params <- gets $ view searchParams
-        checkedSols <-
-            withTime
-                TypeCheckTime
-                (filterM (liftIO . runGhcChecks params env dst) [code'])
-        passDuplicateCheck <- withTime TypeCheckTime (checkDuplicateSolution st code')
-        if (code' `elem` solutions) || null checkedSols || not passDuplicateCheck
+        fState <- gets $ view filterState
+        (checkResult, fState') <-
+            withTime TypeCheckTime (liftIO $ runStateT (runGhcChecks params env dst code') fState)
+        modify $ set filterState fState'
+        if (code' `elem` solutions) || not checkResult
             then return Nothing
             else return $ Just code'
-    
-    checkDuplicateSolution :: MonadIO m => EncodeState -> UProgram -> PNSolver m Bool
-    checkDuplicateSolution st code = do
-        disabled <- getExperiment disableFilter
-        if disabled then return True else do
-            params <- gets $ view searchParams
-            sResult <- gets $ view sampleResult
-            (pass, sResult') <- liftIO (checkDuplicates sResult env dst code)
-            modify $ set sampleResult sResult'
-            return pass
 
 
 findFirstN :: MonadIO m

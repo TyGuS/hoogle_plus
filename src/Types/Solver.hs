@@ -51,7 +51,7 @@ data SolverState = SolverState {
     _toRemove :: [Id],
     _useCount :: Map Id Int,
     _messageChan :: Chan Message,
-    _sampleResult :: Maybe SampleResult
+    _filterState :: FilterState
 } deriving(Eq)
 
 
@@ -83,7 +83,7 @@ emptySolverState = SolverState {
     _toRemove = [],
     _useCount = Map.empty,
     _messageChan = undefined,
-    _sampleResult = Nothing 
+    _filterState = emptyFilterState
 }
 
 makeLenses ''SolverState
