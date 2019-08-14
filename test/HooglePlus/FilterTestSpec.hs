@@ -35,7 +35,8 @@ testNotCrashCases =
   , ("Fail on invalid function 1", ["Data.Maybe"], "a -> a", "\\x -> fromJust Nothing", False)
   , ("Fail on invalid function 2", ["Data.List"], "a -> a", "\\x -> head []", False)
   , ("Fail on invalid function 3", ["Data.List"], "a -> (a, a)", "\\x -> (head [x], last [])", False)
-  , ("Fail on invalid function 5", ["Data.Maybe"], "Either a b -> Maybe a", "\\x -> fromJust Nothing", False)
+  , ("Fail on invalid function 4", ["Data.List"], "a -> (a, a)", "\\x -> (head [x], last [])", False)
+  -- , ("Non-deterministic function", [], "Int", "last $ repeat 5", True)
   , ("Pass w/ type class 1", [], "(Show a, Show b) => Either a b -> String", "\\x -> show x", True)]
 
 runDuplicateTest :: FilterState -> [String] -> String -> String -> IO (Bool, FilterState)

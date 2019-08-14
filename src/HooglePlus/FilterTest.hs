@@ -136,13 +136,16 @@ generateTestInput' imports funcSig = mapM f (_argsType funcSig)
       return (str, val)
 
 eval_ :: [String] -> String -> Int -> IO (Maybe (Either InterpreterError String))
-eval_ modules line time = do 
-  result <- handleAnyException $ timeout time $ runInterpreter $ do
+eval_ modules line time = handleAnyException $ timeout time $ do
+  result <- runInterpreter $ do
     setImports modules
     eval line
   case result of
-    Just (Right val) -> 
-      (return . Just . Right . fst . splitAt defaultMaxOutputLength) val 
+    Right val -> do
+      let output = (fst . splitAt defaultMaxOutputLength) val
+      if "*** Exception" `isInfixOf` output
+        then (return . Left . UnknownError) val
+        else (return . Right) output
     _ -> return result
 
 runStmt_ :: [String] -> String -> Int -> IO (Maybe (Either InterpreterError ()))
@@ -160,18 +163,23 @@ runChecks env goalType prog =
              , checkDuplicates]
 
 checkSolutionNotCrash :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
-checkSolutionNotCrash modules sigStr body = or <$> liftIO (replicateM defaultNumChecks executeCheck)
+checkSolutionNotCrash modules sigStr body = or <$> liftIO executeCheck
   where
     executeCheck = handleNotSupported $ do
       let funcSig = (instantiateSignature . parseTypeString) sigStr
+      replicateM defaultNumChecks (check funcSig)
+
+    check funcSig = do
       arg <- generateTestInput modules funcSig
-      result <- runStmt_ modules (fmtFunction_ body (show funcSig) arg) defaultTimeoutMicro
+      let expression = fmtFunction_ body (show funcSig) arg
+
+      result <- runStmt_ modules expression defaultTimeoutMicro
       case result of
         Nothing -> putStrLn "Timeout in running always-fail detection" >> return True
         Just (Left err) -> putStrLn (displayException err) >> return False
         Just (Right ()) -> return True
 
-handleNotSupported = (`catch` ((\ex -> print ex >> return True) :: NotSupportedException -> IO Bool))
+handleNotSupported = (`catch` ((\ex -> print ex >> return []) :: NotSupportedException -> IO [Bool]))
 
 handleAnyException :: IO (Maybe (Either InterpreterError a)) -> IO (Maybe (Either InterpreterError a))
 handleAnyException = (`catch` (return . handler . (show :: SomeException -> String)))
