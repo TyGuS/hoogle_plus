@@ -140,13 +140,13 @@ vartAll n = vart n ftrue
 asSortSubst :: TypeSubstitution -> SortSubstitution
 asSortSubst = Map.map (toSort . baseTypeOf)
 
-stypeSubstitute :: Map Id SType -> SType -> SType
-stypeSubstitute subst t@(ScalarT (TypeVarT _ id) r) =
-  if id `Map.member` subst then fromJust $ Map.lookup id subst else t
-stypeSubstitute subst t@(ScalarT (DatatypeT name tArgs p) r) = ScalarT (DatatypeT name (map (stypeSubstitute subst) tArgs) p) r
-stypeSubstitute subst t@(ScalarT _ _) = t
-stypeSubstitute subst (FunctionT x tArg tRes) = FunctionT x (stypeSubstitute subst tArg) (stypeSubstitute subst tRes)
-stypeSubstitute subst t = t
+-- typeSubstituteWore :: Map Id (TypeSkeleton r) -> TypeSkeleton r -> TypeSkeleton r
+-- typeSubstituteWore subst t@(ScalarT (TypeVarT _ id) r) =
+--   if id `Map.member` subst then fromJust $ Map.lookup id subst else t
+-- typeSubstituteWore subst t@(ScalarT (DatatypeT name tArgs p) r) = ScalarT (DatatypeT name (map (typeSubstituteWore subst) tArgs) p) r
+-- typeSubstituteWore subst t@(ScalarT _ _) = t
+-- typeSubstituteWore subst (FunctionT x tArg tRes) = FunctionT x (typeSubstituteWore subst tArg) (typeSubstituteWore subst tRes)
+-- typeSubstituteWore subst t = t
 
 -- | 'typeSubstitute' @t@ : substitute all free type variables in @t@
 typeSubstitute :: TypeSubstitution -> RType -> RType
@@ -163,7 +163,7 @@ typeSubstitute subst (ScalarT baseT r) = addRefinement substituteBase (sortSubst
         in ScalarT (DatatypeT name tArgs' pArgs') ftrue
       _ -> ScalarT baseT ftrue
 typeSubstitute subst (FunctionT x tArg tRes) = FunctionT x (typeSubstitute subst tArg) (typeSubstitute subst tRes)
-typeSubstitute _ AnyT = AnyT
+typeSubstitute _ t = t
 
 noncaptureTypeSubst :: [Id] -> [RType] -> RType -> RType
 noncaptureTypeSubst tVars tArgs t =

@@ -26,9 +26,7 @@ type AbstractCover = HashMap AbstractSkeleton (Set AbstractSkeleton)
 data SolverState = SolverState {
     _searchParams :: SearchParams,
     _nameCounter :: Map Id Int,  -- name map for generating fresh names (type variables, parameters)
-    _typeAssignment :: Map Id SType,  -- current type assignment for each type variable
     _abstractionCover :: AbstractCover,
-    _isChecked :: Bool, -- is the current state check passed
     _currentSolutions :: [RProgram], -- type checked solutions
     _currentLoc :: Int, -- current solution depth
     _currentSigs :: Map Id AbstractSkeleton, -- current type signature groups
@@ -57,9 +55,7 @@ emptySolverState :: SolverState
 emptySolverState = SolverState {
     _searchParams = defaultSearchParams,
     _nameCounter = Map.empty,
-    _typeAssignment = Map.empty,
     _abstractionCover = HashMap.singleton rootNode Set.empty,
-    _isChecked = True,
     _currentSolutions = [],
     _currentLoc = 1,
     _currentSigs = Map.empty,
@@ -87,34 +83,55 @@ makeLenses ''SolverState
 
 type PNSolver m = StateT SolverState m
 
+instance Freshable SolverState where
+    getNameIndices = _nameCounter
+    setNameIndices m s = s { _nameCounter = m }
+
+instance Timable SolverState where
+    getTimeStats = _solverStats
+    setTimeStats m s = s { _solverStats = m }
+
 data BiSolverState = BiSolverState {
-    _searchParams :: SearchParams,
+    _biSearchParams :: SearchParams,
     _allSymbols :: Map Id RSchema,
     _selectedTypes :: Set RType,
     _selectedSymbols :: Map Id RType,
     _petrinet :: HashMap AbstractSkeleton (Set Id),
-    _nameMap :: HashMap Id Id,
+    _nameMap :: Map Id Id,
     _forwardSet :: Set RType,
     _backwardSet :: Set RType,
     _srcTypes :: [RType],
     _dstTypes :: [RType],
     _maxLength :: Int,
-    _messageChan :: Chan Message
+    _biNameCounter :: Map Id Int,
+    _biTimeStats :: TimeStatistics
 }
 
 emptyBiSolver :: BiSolverState
-emptyBiSolver = BiSolver {
-    _searchParams = defaultSearchParams,
+emptyBiSolver = BiSolverState {
+    _biSearchParams = defaultSearchParams,
     _allSymbols = Map.empty,
-    _selectedSymbols = Set.empty,
+    _selectedTypes = Set.empty,
+    _selectedSymbols = Map.empty,
     _petrinet = HashMap.empty,
-    _nameMap :: HashMap.empty,
+    _nameMap = Map.empty,
     _forwardSet = Set.empty,
     _backwardSet = Set.empty,
     _srcTypes = [],
     _dstTypes = [],
     _maxLength = 0,
-    _messageChan = undefined
+    _biNameCounter = Map.empty,
+    _biTimeStats = emptyTimeStats
 }
 
 makeLenses ''BiSolverState
+
+instance Freshable BiSolverState where
+    getNameIndices = _biNameCounter
+    setNameIndices m s = s { _biNameCounter = m }
+
+instance Timable BiSolverState where
+    getTimeStats = _biTimeStats
+    setTimeStats m s = s { _biTimeStats = m }
+
+type BiSolver m = StateT BiSolverState m

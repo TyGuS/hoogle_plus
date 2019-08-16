@@ -114,7 +114,7 @@ resolveDeclaration (DataDecl dtName tParams pVarParams ctors) = do
 resolveDeclaration (MeasureDecl measureName inSort outSort post defCases isTermination) = error "resolveDeclaration"
 resolveDeclaration (PredDecl (PredSig name argSorts resSort)) = error "resolveDecl"
 resolveDeclaration (SynthesisGoal name impl) = do
-  syms <- uses environment allSymbols
+  syms <- uses environment _symbols
   pos <- use currentPosition
   if Map.member name syms
     then goals %= (++ [(name, (impl, pos))])
@@ -142,14 +142,14 @@ resolveDeclaration (InlineDecl name args body) =
 
 resolveSignatures :: BareDeclaration -> Resolver ()
 resolveSignatures (FuncDecl name _)  = do
-  sch <- uses environment ((Map.! name) . allSymbols)
+  sch <- uses environment ((Map.! name) . _symbols)
   sch' <- resolveSchema sch
   environment %= removeVariable name
   environment %= addPolyConstant name sch'
 resolveSignatures (DataDecl dtName tParams pParams ctors) = mapM_ resolveConstructorSignature ctors
   where
     resolveConstructorSignature (ConstructorSig name _) = do
-      sch <- uses environment ((Map.! name) . allSymbols)
+      sch <- uses environment ((Map.! name) . _symbols)
       sch' <- resolveSchema sch
       let nominalType = ScalarT (DatatypeT dtName (map vartAll tParams) (map nominalPredApp (map fst pParams))) ftrue
       let returnType = lastType (toMonotype sch')

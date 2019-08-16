@@ -14,7 +14,7 @@ import Data.Data
 import Data.Typeable
 import GHC.Generics
 import qualified Language.Haskell.Exts.Syntax as HSE
-import Data.Function
+
 
 import Types.Common
 import Types.Abstract
@@ -24,25 +24,6 @@ data EncoderType = Normal | Arity
 
 data VarType = VarPlace | VarTransition | VarFlow | VarTimestamp
     deriving(Eq, Ord, Show)
-
-data FunctionCode = FunctionCode {
-  funName   :: String,  -- function name
-  hoParams  :: [FunctionCode],
-  funParams :: [AbstractSkeleton], -- function parameter types and their count
-  funReturn :: [AbstractSkeleton]   -- function return type
-}
-
-instance Eq FunctionCode where
-  fc1 == fc2 = let
-    areEq arg = on (==) arg fc1 fc2
-    in areEq hoParams && areEq funParams && areEq funReturn
-
-instance Ord FunctionCode where
-  compare fc1 fc2 = let
-    thenCmp EQ       ordering = ordering
-    thenCmp ordering _        = ordering
-    cmp arg = on compare arg fc1 fc2
-    in foldr1 thenCmp [cmp hoParams, cmp funParams, cmp funReturn]
 
 data Z3Env = Z3Env {
   envSolver  :: Z3.Solver,
@@ -78,7 +59,7 @@ emptyEncodeState = EncodeState {
   z3env = undefined,
   counter = 0,
   block = undefined,
-  loc = 0,
+  loc = 1,
   transitionNb = 0,
   variableNb = 1,
   place2variable = HashMap.empty,
@@ -96,24 +77,17 @@ emptyEncodeState = EncodeState {
   finalConstraints = [],
   blockConstraints = [],
   useArguments = True,
-  disableClones = True
+  disableClones = False
 }
 
-newEnv :: Maybe Logic -> Opts -> IO Z3Env
-newEnv mbLogic opts =
+newEnv :: Opts -> IO Z3Env
+newEnv opts =
   Z3.withConfig $ \cfg -> do
     setOpts cfg opts
     ctx <- Z3.mkContext cfg
-    solver <- maybe (Z3.mkSolver ctx) (Z3.mkSolverForLogic ctx) mbLogic
-    return $ Z3Env solver ctx
-
-initialZ3Env = newEnv Nothing stdOpts
-
-freshEnv :: Z3.Context -> IO Z3Env
-freshEnv ctx =
-  Z3.withConfig $ \cfg -> do
-    setOpts cfg stdOpts
     solver <- Z3.mkSolver ctx
     return $ Z3Env solver ctx
+
+initialZ3Env = newEnv stdOpts
 
 type Encoder = StateT EncodeState IO

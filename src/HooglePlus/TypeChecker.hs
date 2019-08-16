@@ -1,49 +1,62 @@
 module HooglePlus.TypeChecker(
-    bottomUpCheck
+    bottomUpCheck,
+    solveTypeConstraint
     ) where
 
 import Types.Type
 import Types.Program
 import Types.Environment
+import Types.Checker
+import Types.Common
 import Synquid.Type
 import Synquid.Program
+import Synquid.Util
+import Synquid.Pretty
 import PetriNet.Util
+import Database.Util
+import Database.Convert
 
 import Control.Monad.State
+import Control.Lens
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import Data.Maybe
 
 -- bottom up check a program on the concrete type system
 -- at the same time, keep track of the abstract type for each node
-bottomUpCheck :: MonadIO m => Environment -> RProgram -> (TypeChecker r) m RProgram
+bottomUpCheck :: MonadIO m => Environment -> RProgram -> TypeChecker m RProgram
 bottomUpCheck env p@(Program (PSymbol sym) typ) = do
+    -- liftIO $ putStrLn $ "Checking for " ++ show p
     -- lookup the symbol type in current scope
-    nameMap <- gets $ view nameMapping
+    nameMap <- gets checkerNameMapping
     let sym' = removeLast '_' sym
     let name = replaceId hoPostfix "" $ fromMaybe sym' (Map.lookup sym' nameMap)
-    t <- findSymbol env name
+    t <- freshType $ findSymbol nameMap env name
     return (Program (PSymbol sym) t)
 bottomUpCheck env (Program (PApp f args) typ) = do
   argResult <- checkArgs args
   case argResult of
     Left err -> return err
     Right checkedArgs -> do
-        t <- findSymbol env (removeLast '_' f)
+        nameMap <- gets checkerNameMapping
+        t <- freshType $ findSymbol nameMap env (removeLast '_' f)
         -- check function signature against each argument provided
-        let argVars = map shape (allArgTypes t)
-        let checkedArgTys = map (shape . typeOf) checkedArgs
+        let argVars = allArgTypes t
+        let checkedArgTys = map typeOf checkedArgs
         mapM_ (uncurry $ solveTypeConstraint env) (zip checkedArgTys argVars)
         -- we eagerly substitute the assignments into the return type of t
-        tass <- gets (view typeAssignment)
-        let ret = addTrue $ stypeSubstitute tass (shape $ lastType t)
+        tass <- gets typeAssignment
+        let ret = typeSubstitute tass (lastType t)
         -- if any of these checks returned false, this function application
         -- would produce a bottom type
-        ifM (gets $ view isChecked)
+        ifM (gets isChecked)
             (return $ Program (PApp f checkedArgs) ret)
             (return $ Program (PApp f checkedArgs) BotT)
   where
     checkArgs [] = return $ Right []
     checkArgs (arg:args) = do
         checkedArg <- bottomUpCheck env arg
-        ifM (gets $ view isChecked)
+        ifM (gets isChecked)
             (do
                checkedArgs <- checkArgs args
                case checkedArgs of
@@ -52,90 +65,83 @@ bottomUpCheck env (Program (PApp f args) typ) = do
             )
             (return $ Left checkedArg)
 bottomUpCheck env p@(Program (PFun x body) (FunctionT _ tArg tRet)) = do
-    writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
+    -- writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
     body' <- bottomUpCheck (addVariable x (addTrue tArg) env) body
     let tBody = typeOf body'
     let t = FunctionT x tArg tBody
-    ifM (gets $ view isChecked)
+    ifM (gets isChecked)
         (return $ Program (PFun x body') t)
         (return body')
-bottomUpCheck env p@(Program (PFun x body) _) = do
-    writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
-    id <- freshId "A"
-    id' <- freshId "A"
-    let tArg = addTrue (ScalarT (TypeVarT Map.empty id) ())
-    let tRet = addTrue (ScalarT (TypeVarT Map.empty id') ())
-    bottomUpCheck env (Program (PFun x body)(FunctionT x tArg tRet))
 bottomUpCheck _ p = error $ "unhandled case for checking "
                           ++ show p ++ "::" ++ show (typeOf p)
 
-solveTypeConstraint :: MonadIO m => Environment -> TypeSkeleton r -> TypeSkeleton r -> (TypeChecker r) m ()
+solveTypeConstraint :: MonadIO m => Environment -> RType -> RType -> TypeChecker m ()
 solveTypeConstraint _ AnyT _ = return ()
 solveTypeConstraint _ _ AnyT = return ()
 solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ id') _)
     | id == id' = return ()
-    | isBound env id && isBound env id' = modify $ set isChecked False
+    | isBound env id && isBound env id' = modify $ \st -> st { isChecked = False }
     | isBound env id = do
-        st <- get
-        if id' `Map.member` (st ^. typeAssignment)
+        tass <- gets typeAssignment
+        if id' `Map.member` tass
             then do
-                let typ = fromJust $ Map.lookup id' $ st ^. typeAssignment
-                writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty typ <+> text "==" <+> pretty tv
+                let typ = fromJust $ Map.lookup id' tass
+                -- liftIO $ putStrLn $ "Solving constraint " ++ show typ ++ " == " ++ show tv
                 solveTypeConstraint env tv typ
             else unify env id' tv
   | otherwise = do
-    st <- get
-    if id `Map.member` (st ^. typeAssignment)
+    tass <- gets typeAssignment
+    if id `Map.member` tass
         then do
-            let typ = fromJust $ Map.lookup id $ st ^. typeAssignment
-            writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty typ <+> text "==" <+> pretty tv'
+            let typ = fromJust $ Map.lookup id tass
+            -- liftIO $ putStrLn $ "Solving constraint " ++ show typ ++ " == " ++ show tv'
             solveTypeConstraint env typ tv'
-        else if id' `Map.member` (st ^. typeAssignment)
+        else if id' `Map.member` tass
             then do
-                let typ = fromJust $ Map.lookup id' $ st ^. typeAssignment
-                writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tv <+> text "==" <+> pretty typ
+                let typ = fromJust $ Map.lookup id' tass
+                -- liftIO $ putStrLn $ "Solving constraint " ++ show tv ++ " == " ++ show typ
                 solveTypeConstraint env tv typ
             else unify env id tv'
-solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t | isBound env id = modify $ set isChecked False
+solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t | isBound env id = modify $ \st -> st { isChecked = False }
 solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t = do
-    st <- get
-    writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tv <+> text "==" <+> pretty t
-    if id `Map.member` (st ^. typeAssignment)
+    tass <- gets typeAssignment
+    -- liftIO $ putStrLn $ "Solving constraint " ++ show tv ++ " == " ++ show t
+    if id `Map.member` tass
         then do
-            let typ = fromJust $ Map.lookup id $ st ^. typeAssignment
-            writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty typ <+> text "==" <+> pretty t
+            let typ = fromJust $ Map.lookup id tass
+            -- liftIO $ putStrLn $ "Solving constraint " ++ show typ ++ " == " ++ show t
             solveTypeConstraint env typ t
         else unify env id t
 solveTypeConstraint env t tv@(ScalarT (TypeVarT _ id) _) = solveTypeConstraint env tv t
 solveTypeConstraint env (FunctionT _ tArg tRet) (FunctionT _ tArg' tRet') = do
-    writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tArg <+> text "==" <+> pretty tArg'
+    -- liftIO $ putStrLn $ "Solving constraint " ++ show tArg ++ " == " ++ show tArg'
     solveTypeConstraint env tArg tArg'
-    writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tRet <+> text "==" <+> pretty tRet'
+    -- liftIO $ putStrLn $ "Solving constraint " ++ show tRet ++ " == " ++ show tRet'
     solveTypeConstraint env tRet tRet'
 solveTypeConstraint env (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT id' tArgs' _) _) | id /= id' =
-    modify $ set isChecked False
+    modify $ \st -> st { isChecked = False }
 solveTypeConstraint env (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT id' tArgs' _) _) | id == id' =
     solveTypeConstraint' env tArgs tArgs'
   where
     solveTypeConstraint' _ []  [] = return ()
     solveTypeConstraint' env (ty:tys) (ty':tys') = do
-        writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty ty <+> text "==" <+> pretty ty'
+        -- liftIO $ putStrLn $ "Solving constraint " ++ show ty ++ " == " ++ show ty'
         solveTypeConstraint env ty ty'
-        checked <- gets $ view isChecked
+        checked <- gets isChecked
         -- if the checking between ty and ty' succeeds, proceed to others
         when checked $ solveTypeConstraint' env tys tys'
 solveTypeConstraint env t1 t2 = do
-    writeLog 3 "solveTypeConstraint" $ text "unmatched types" <+> pretty t1 <+> text "and" <+> pretty t2
-    modify $ set isChecked False
+    -- liftIO $ putStrLn $ "unmatched types " ++ show t1 ++ " and " ++ show t2
+    modify $ \st -> st { isChecked = False }
 
 -- | unify the type variable with some given type
 -- add the type assignment to our state
-unify :: MonadIO m => Environment -> Id -> TypeSkeleton r -> (TypeChecker r) m ()
+unify :: MonadIO m => Environment -> Id -> RType -> TypeChecker m ()
 unify env v t
-    | v `Set.member` typeVarsOf t = modify $ set isChecked False
+    | v `Set.member` typeVarsOf t = modify $ \st -> st { isChecked = False }
     | otherwise = do
-        tass' <- gets $ view typeAssignment
-        writeLog 3 "unify" $ text (show tass')
-        modify $ over typeAssignment (Map.map (stypeSubstitute (Map.singleton v t)))
-        tass <- gets $ view typeAssignment
-        modify $ over typeAssignment (Map.insert v (stypeSubstitute tass t))
+        tass <- gets typeAssignment
+        -- writeLog 3 "unify" $ text (show tass')
+        let tass' = Map.map (typeSubstitute (Map.singleton v t)) tass
+        let tass'' = Map.insert v (typeSubstitute tass' t) tass'
+        modify $ \st -> st { typeAssignment = tass'' }

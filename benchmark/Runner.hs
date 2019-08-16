@@ -3,6 +3,7 @@ module Runner where
 import BTypes
 import BConfig
 import Types.Program
+import Types.Common
 import Types.Environment
 import Types.Experiments
 import Synquid.Util
@@ -54,7 +55,7 @@ runExperiment setup (exp@(env, envName, q, params, paramName), (n, total)) = do
   goal <- envToGoal env queryStr
   messageChan <- newChan
   forkIO $ do
-    timeout timeoutUs $ synthesize params goal messageChan
+    timeout timeoutUs $ synthesize TyGarSolver params goal messageChan
     writeChan messageChan (MesgClose CSTimeout) -- could possibly be putting a second close on the channel.
   results <- (readChan messageChan >>= collectResults messageChan [])
   writeResult setup exp results

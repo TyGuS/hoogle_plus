@@ -65,7 +65,7 @@ runQuery queryOpts tm = do
           _stopRefine = True
         , _threshold = 10
         , _solutionCnt = 10 }
-    tid <- forkIO $ synthesize params goal messageChan
+    tid <- forkIO $ synthesize TyGarSolver params goal messageChan
     -- tid <- asyncThreadId asyncId
     atomicModifyIORef tm (\m -> (Map.insert (query_uuid queryOpts) (messageChan, tid) m, ()))
     forkIO $ threadDelay time_limit >> writeChan messageChan (MesgClose CSTimeout) >> killThread tid

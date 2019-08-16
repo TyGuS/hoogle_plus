@@ -9,7 +9,6 @@ import Synquid.Error
 import Synquid.Pretty
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Resolver (resolveDecls, ResolverState (..), initResolverState, resolveSchema)
-import Synquid.SolverMonad
 import Types.Generate hiding (files)
 import Types.Experiments
 import Types.Environment
@@ -90,6 +89,7 @@ main = do
                   , disable_relevancy
                   , disable_copy_trans
                   , disable_blacklist
+                  , solver_type
                   } -> do
             let searchParams =
                     defaultSearchParams
@@ -109,7 +109,10 @@ main = do
                         , _disableBlack = disable_blacklist
                         }
             let synquidParams =
-                    defaultSynquidParams {Main.envPath = env_file_path_in}
+                    defaultSynquidParams {
+                      Main.envPath = env_file_path_in,
+                      solverType = solver_type
+                    }
             executeSearch synquidParams searchParams file
         Generate {preset = (Just preset)} -> do
             precomputeGraph (getOptsFromPreset preset)
@@ -158,7 +161,8 @@ data CommandLineArgs
         coalescing_strategy :: CoalesceStrategy,
         disable_relevancy :: Bool,
         disable_copy_trans :: Bool,
-        disable_blacklist :: Bool
+        disable_blacklist :: Bool,
+        solver_type :: SolverType
       }
       | Generate {
         -- | Input
@@ -190,7 +194,8 @@ synt = Synthesis {
   coalescing_strategy = First &= help ("Choose how type coalescing works. Default: Pick first element of each group set."),
   disable_relevancy   = False           &= help ("Disable the relevancy requirement for argument types (default: False)"),
   disable_copy_trans  = False           &= help ("Disable the copy transitions and allow more than one token in initial state instead (default: False)"),
-  disable_blacklist     = False         &= help ("Disable blacklisting functions in the solution (default: False)")
+  disable_blacklist     = False         &= help ("Disable blacklisting functions in the solution (default: False)"),
+  solver_type         = TyGarSolver
   } &= auto &= help "Synthesize goals specified in the input file"
 
 generate = Generate {
@@ -223,11 +228,13 @@ printDoc Html doc = putStr (showDocHtml (renderPretty 0.4 100 doc))
 
 -- | Parameters of the synthesis
 data SynquidParams = SynquidParams {
-    envPath :: String -- ^ Path to the environment file
+    envPath :: String, -- ^ Path to the environment file
+    solverType :: SolverType
 }
 
 defaultSynquidParams = SynquidParams {
-    Main.envPath = defaultEnvPath
+    Main.envPath = defaultEnvPath,
+    solverType = TyGarSolver
 }
 
 precomputeGraph :: GenerationOpts -> IO ()
@@ -240,7 +247,7 @@ executeSearch synquidParams searchParams query = do
   env <- readEnv
   goal <- envToGoal env query
   messageChan <- newChan
-  forkIO $ synthesize searchParams goal messageChan
+  forkIO $ synthesize (solverType synquidParams) searchParams goal messageChan
   readChan messageChan >>= (handleMessages messageChan)
   where
     logLevel = searchParams ^. explorerLogLevel

@@ -262,18 +262,18 @@ instance Pretty (BaseType Formula) where
 instance Show (BaseType Formula) where
   show = show . plain . pretty
 
-prettySType :: SType -> Doc
-prettySType (ScalarT base _) = pretty base
-prettySType (FunctionT _ t1 t2)
-  | isFunctionType t1 = hlParens (pretty t1) <+> operator "->" <+> pretty t2
-  | otherwise = pretty t1 <+> operator "->" <+> pretty t2
-prettySType AnyT = text "_"
+-- prettySType :: SType -> Doc
+-- prettySType (ScalarT base _) = pretty base
+-- prettySType (FunctionT _ t1 t2)
+--   | isFunctionType t1 = hlParens (pretty t1) <+> operator "->" <+> pretty t2
+--   | otherwise = pretty t1 <+> operator "->" <+> pretty t2
+-- prettySType AnyT = text "_"
 
-instance Pretty SType where
-  pretty = prettySType
+-- instance Pretty SType where
+--   pretty = prettySType
 
-instance Show SType where
- show = show . plain . pretty
+-- instance Show SType where
+--  show = show . plain . pretty
 
 -- | Pretty-printed refinement type
 prettyType :: RType -> Doc
@@ -298,28 +298,40 @@ prettyTypeAt n t = condHlParens (n' <= n) (
   where
     n' = typePower t
 
-instance Pretty RType where
-  pretty = prettyType
+-- instance Pretty RType where
+--   pretty = prettyType
 
-instance Show RType where
- show = show . plain . pretty
+-- instance Show RType where
+--  show = show . plain . pretty
 
-prettySchema :: Pretty (TypeSkeleton r) => SchemaSkeleton r -> Doc
+instance Pretty r => Pretty (TypeSkeleton r) where
+  pretty = prettyType . fmap (\_ -> ftrue)
+
+instance Pretty r => Show (TypeSkeleton r) where
+  show = show . plain . pretty
+
+prettySchema :: Pretty r => SchemaSkeleton r -> Doc
 prettySchema sch = case sch of
   Monotype t -> pretty t
   ForallT a sch' -> hlAngles (text a)  <+> operator "." <+> prettySchema sch'
   ForallP sig sch' -> pretty sig <+> operator "." <+> prettySchema sch'
 
-instance Pretty SSchema where
+-- instance Pretty SSchema where
+--   pretty = prettySchema
+
+-- instance Show SSchema where
+--  show = show . plain . pretty
+
+-- instance Pretty RSchema where
+--   pretty = prettySchema
+
+-- instance Show RSchema where
+--   show = show . plain . pretty
+
+instance Pretty r => Pretty (SchemaSkeleton r) where
   pretty = prettySchema
 
-instance Show SSchema where
- show = show . plain . pretty
-
-instance Pretty RSchema where
-  pretty = prettySchema
-
-instance Show RSchema where
+instance Pretty r => Show (SchemaSkeleton r) where
   show = show . plain . pretty
 
 {- Programs -}
@@ -372,7 +384,7 @@ instance Pretty MeasureDef where
 
 prettyBinding (name, typ) = text name <+> operator "::" <+> pretty typ
 
-prettyBindings env = commaSep (map pretty (Map.keys $ removeDomain (env ^. constants) (allSymbols env)))
+prettyBindings env = commaSep (map pretty (Map.keys $ removeDomain (env ^. constants) (env ^. symbols)))
 -- prettyBindings env = hMapDoc pretty pretty (removeDomain (env ^. constants) (allSymbols env))
 -- prettyBindings env = empty
 

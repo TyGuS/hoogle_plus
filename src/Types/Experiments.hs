@@ -16,6 +16,11 @@ import qualified Data.Map as Map
 import Control.Exception
 
 {- Interface -}
+data SolverType =
+    TyGarSolver
+  | BiSolver
+  deriving(Data, Show, Eq)
+
 data RefineStrategy =
     SypetClone -- first level abstraction, no refinement
   | TyGar0 -- start from \nu, refinement
@@ -50,21 +55,6 @@ data SearchParams = SearchParams {
 } deriving (Eq, Show)
 
 makeLenses ''SearchParams
-
-data TimeStatistics = TimeStatistics {
-  encodingTime :: Double,
-  constructionTime :: Double,
-  solverTime :: Double,
-  codeFormerTime :: Double,
-  refineTime :: Double,
-  typeCheckerTime :: Double,
-  totalTime :: Double,
-  iterations :: Int,
-  pathLength :: Int,
-  numOfTransitions :: Map Int Int,
-  numOfPlaces :: Map Int Int,
-  duplicateSymbols :: [(Int, Int, Int)]
-} deriving(Eq)
 
 emptyTimeStats = TimeStatistics 0 0 0 0 0 0 0 0 0 Map.empty Map.empty []
 

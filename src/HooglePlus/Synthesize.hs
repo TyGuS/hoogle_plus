@@ -18,6 +18,7 @@ import Types.Experiments
 import Types.Program
 import Types.Solver
 import Types.Type
+import PetriNet.BiSolver
 
 import Control.Applicative ((<$>))
 import Control.Concurrent.Chan
@@ -71,8 +72,8 @@ envToGoal env queryStr = do
 
       _ -> error "parse a signature for a none goal declaration"
 
-synthesize :: SearchParams -> Goal -> Chan Message -> IO ()
-synthesize searchParams goal messageChan = do
+synthesize :: SolverType -> SearchParams -> Goal -> Chan Message -> IO ()
+synthesize solverType searchParams goal messageChan = do
     let env' = gEnvironment goal
     let destinationType = lastType $ toMonotype $ gSpec goal
     let useHO = _useHO searchParams
@@ -82,8 +83,8 @@ synthesize searchParams goal messageChan = do
         if useHO -- add higher order query arguments
             then do
                 let args = env' ^. arguments
-                let hoArgs = Map.filter (isFunctionType . toMonotype) args
-                let hoFuns = map (\(k, v) -> (k ++ hoPostfix, toFunType v)) (Map.toList hoArgs)
+                let hoArgs = Map.filter isFunctionType args
+                let hoFuns = map (\(k, v) -> (k ++ hoPostfix, toFunType (Monotype v))) (Map.toList hoArgs)
                 return $
                     env'
                         { _symbols = rawSyms `Map.union` Map.fromList hoFuns
@@ -94,8 +95,8 @@ synthesize searchParams goal messageChan = do
                 return $
                     env'
                         {_symbols = Map.withoutKeys syms $ Set.fromList hoCands, _hoCandidates = []}
-    putStrLn $ "Component number: " ++ show (Map.size $ allSymbols env)
-    let args = Monotype destinationType : Map.elems (env ^. arguments)
+    putStrLn $ "Component number: " ++ show (Map.size $ env ^. symbols)
+    let args = map Monotype $ destinationType : Map.elems (env ^. arguments)
   -- start with all the datatypes defined in the components, first level abstraction
     let rs = _refineStrategy searchParams
     let is =
@@ -103,7 +104,7 @@ synthesize searchParams goal messageChan = do
                 { _searchParams = searchParams
                 , _abstractionCover =
                       case rs of
-                          SypetClone -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
+                          SypetClone -> Abstraction.firstLvAbs env (Map.elems (env ^. symbols))
                           TyGar0 -> emptySolverState ^. abstractionCover
                           TyGarQ -> Abstraction.specificAbstractionFromTypes env args
                           NoGar -> Abstraction.specificAbstractionFromTypes env args
@@ -111,7 +112,10 @@ synthesize searchParams goal messageChan = do
                 , _messageChan = messageChan
                 }
     catch
-        (evalStateT (runPNSolver env destinationType) is)
+        (case solverType of
+          TyGarSolver -> evalStateT (runPNSolver env destinationType) is
+          BiSolver -> runBiSolver env (toMonotype (gSpec goal)) >>
+                      writeChan messageChan (MesgClose CSNormal))
         (\e ->
              writeChan messageChan (MesgLog 0 "error" (show e)) >>
              writeChan messageChan (MesgClose (CSError e)) >>

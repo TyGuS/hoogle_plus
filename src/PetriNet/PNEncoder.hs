@@ -44,8 +44,10 @@ createEncoder inputs ret sigs = do
     places <- gets (HashMap.keys . ty2tr)
     transIds <- gets (Set.toList . Set.unions . HashMap.elems . ty2tr)
     -- create all the type variables for encoding
+    -- liftIO $ putStrLn "creating variables"
     createVariables places transIds
     -- add all the constraints for the solver
+    -- liftIO $ putStrLn "creating constraints"
     createConstraints places sigs
     -- set initial and final state for solver
     setInitialState inputs places
@@ -173,6 +175,7 @@ solveAndGetModel = do
 
     case res of
         Sat -> do
+            liftIO $ putStrLn "sat"
             model <- solverGetModel
             places <- gets (HashMap.keys . ty2tr)
             -- evaluate what transitions are fired
@@ -189,6 +192,7 @@ solveAndGetModel = do
                 cancelConstraints "final"
             return selectedNames
         Unsat -> do
+            liftIO $ putStrLn "unsat"
             rets <- gets returnTyps
             unless incremental solverReset
             if length rets == 1
@@ -287,21 +291,27 @@ encoderInc sigs inputs rets = do
     let allTransitions = [(l - 1, tr) | tr <- sigs ]
 
     -- all places have non-negative number of tokens
+    -- liftIO $ print "inc - nonnegative"
     nonnegativeTokens places
 
     -- disable transitions at the new timestamp
+    -- liftIO $ print "inc - disable"
     toRemove <- gets disabledTrans
     disableTransitions toRemove (l-1)
 
     -- refine the postcondition constraints
+    -- liftIO $ print "inc - fire"
     mapM_ (uncurry fireTransitions) allTransitions
 
     -- save the current state and add changeable constraints
+    -- liftIO $ print "inc - rng"
     transitionRng
 
+    -- liftIO $ print "inc - no transition"
     mapM_ (uncurry noTransitionTokens) [(t, p) | p <- places, t <- [0..(l-1)]]
 
     -- refine the must firers
+    -- liftIO $ print "inc - must"
     mustFireTransitions
 
     -- set new initial and final state
@@ -327,25 +337,33 @@ encoderRefine info musters inputs rets newSigs t2tr = do
     let currPlaces = HashMap.keys t2tr
     -- let newSigs = filter ((`elem` newTransIds) . funName) sigs
     let allTrans = [(t, tr) | t <- [0..(l-1)], tr <- newSigs ]
-
+    -- liftIO $ print newSigs
     -- add new place, transition and timestamp variables
+    -- liftIO $ print newPlaceIds
     mapM_ (uncurry addPlaceVar) [(a, i) | a <- newPlaceIds, i <- [0..l]]
+    -- liftIO $ print newTransIds
     addTransitionVar newTransIds
 
     -- all places have non-negative number of tokens
+    -- liftIO $ print "refine - nonnegative"
     nonnegativeTokens newPlaceIds
 
     -- refine the postcondition constraints
+    -- liftIO $ print "refine - fire"
     mapM_ (uncurry fireTransitions) allTrans
 
     -- disable splitted transitions
+    -- liftIO $ print "refine - disable"
     mapM_ (disableTransitions (removedTrans info)) [0..(l-1)]
 
+    -- liftIO $ print "refine - rng"
     transitionRng
 
+    -- liftIO $ print "refine - no transitions"
     mapM_ (uncurry noTransitionTokens) [(t, p) | p <- currPlaces, t <- [0..(l-1)]]
 
     -- refine the must firers
+    -- liftIO $ print "refine - must"
     mustFireTransitions
 
     -- set new initial and final state
@@ -406,20 +424,24 @@ createVariables :: [AbstractSkeleton] -> [Id] -> Encoder ()
 createVariables places transitions = do
     l <- gets loc
     -- add place variables
+    -- liftIO $ putStrLn "adding place variables"
     mapM_ (uncurry addPlaceVar) [(a, i) | a <- places, i <- [0..l]]
     -- add transition mapping
+    -- liftIO $ putStrLn "adding transitions variables"
     addTransitionVar transitions
     -- add timestamp variables
+    -- liftIO $ putStrLn "adding time variables"
     mapM_ addTimestampVar [0..(l-1)]
 
 createConstraints :: [AbstractSkeleton] -> [FunctionCode] -> Encoder ()
 createConstraints places transitions = do
     -- prepare constraint parameters
-    liftIO $ print places
+    -- liftIO $ print places
     l <- gets loc
     let allTrans = [(t, tr) | t <- [0..(l-1)], tr <- transitions]
     let allPlaces = [(t, p) | t <- [0..(l-1)], p <- places]
 
+    -- liftIO $ putStrLn "adding more constraints"
     nonnegativeTokens places
 
     mapM_ (uncurry fireTransitions) allTrans

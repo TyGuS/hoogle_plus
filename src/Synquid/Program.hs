@@ -1,5 +1,4 @@
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE TemplateHaskell, DeriveFunctor, DeriveGeneric #-}
 
 -- | Executable programs
 module Synquid.Program where
@@ -58,7 +57,7 @@ symbolsOf (Program p _) = case p of
   _ -> Set.empty
 
 hasHole (Program p _) = case p of
-  PApp fun arg -> or (map hasHole arg)
+  PApp fun arg -> any hasHole arg
   PHole -> True
   _ -> False
 
@@ -115,13 +114,19 @@ renameAsImpl isBound = renameAsImpl' Map.empty
     renameAsImpl' subst  _ t = substituteInType isBound subst t
 
 {- Top-level definitions -}
--- | All symbols in an environment
-allSymbols :: Environment -> Map Id RSchema
-allSymbols env = env ^. symbols
-
 -- | 'lookupSymbol' @name env@ : type of symbol @name@ in @env@, including built-in constants
 lookupSymbol :: Id -> Int -> Environment -> Maybe RSchema
-lookupSymbol name a env = Map.lookup name (allSymbols env)
+lookupSymbol name a env = Map.lookup name (env ^. symbols)
+
+findSymbol :: Map Id Id -> Environment -> Id -> RSchema
+findSymbol nameMap env sym =
+    let name = fromMaybe sym (Map.lookup sym nameMap)
+    in case lookupSymbol name 0 env of
+        Nothing ->
+            case lookupSymbol ("(" ++ name ++ ")") 0 env of
+                Nothing -> error $ "cannot find symbol " ++ name ++ " in the current environment"
+                Just sch -> sch
+        Just sch -> sch
 
 symbolAsFormula :: Environment -> Id -> RType -> Formula
 symbolAsFormula _ name t | arity t > 0
@@ -185,7 +190,7 @@ addUnresolvedConstant :: Id -> RSchema -> Environment -> Environment
 addUnresolvedConstant name sch = unresolvedConstants %~ Map.insert name sch
 
 removeVariable :: Id -> Environment -> Environment
-removeVariable name env = case Map.lookup name (allSymbols env) of
+removeVariable name env = case Map.lookup name (env ^. symbols) of
   Nothing -> env
   Just sch -> over symbols (Map.delete name) . over constants (Set.delete name) $ env
 

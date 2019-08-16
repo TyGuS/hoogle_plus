@@ -14,6 +14,7 @@ import Synquid.Logic hiding (varName)
 import Synquid.Type
 import Synquid.Pretty
 import Synquid.Util
+import Database.Util
 
 import Data.Maybe
 import qualified Data.Text as Text
@@ -40,23 +41,11 @@ getExperiment exp = gets $ view (searchParams . exp)
 -------------------------------------------------------------------------------
 -- | helper functions
 -------------------------------------------------------------------------------
-encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
-encodeFunction id t | pairProj `isPrefixOf` id =
-    let toMatch (FunctionCode name ho [p1,p2] ret) = FunctionCode id ho [p1] (p2:ret)
-     in toMatch $ encodeFunction "__f" t
-encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [lastAbstract t]
-  where
-    base = (0, [])
-    hoFun x = encodeFunction (show x) x
-    hoParams = map hoFun $ filter isAFunctionT (abstractParamList t)
-    params = abstractParamList t
-encodeFunction id t@AScalar {} = FunctionCode id [] [] [t]
-
 writeLog :: MonadIO m => Int -> String -> Doc -> PNSolver m ()
 writeLog level tag msg = do
     mesgChan <- gets $ view messageChan
     liftIO $ writeChan mesgChan (MesgLog level tag $ show $ plain msg)
-    -- if level <= 3 then trace (printf "[%s]: %s\n" tag (show $ plain msg)) $ return () else return ()
+    -- trace (printf "[%s]: %s\n" tag (show $ plain msg)) $ return ()
 
 multiPermutation len elmts | len == 0 = [[]]
 multiPermutation len elmts | len == 1 = [[e] | e <- elmts]
@@ -86,21 +75,22 @@ var2any env t@(ScalarT (TypeVarT _ id) _) = AnyT
 var2any env (ScalarT (DatatypeT id args l) r) = ScalarT (DatatypeT id (map (var2any env) args) l) r
 var2any env (FunctionT x tArg tRet) = FunctionT x (var2any env tArg) (var2any env tRet)
 
-freshId :: MonadIO m => Id -> PNSolver m Id
+freshId :: (Freshable s, MonadIO m) => Id -> StateT s m Id
 freshId prefix = do
-    indices <- gets (^. nameCounter)
+    s <- get
+    let indices = getNameIndices s
     let idx = Map.findWithDefault 0 prefix indices
-    modify (over nameCounter $ Map.insert prefix (idx+1))
+    put $ setNameIndices (Map.insert prefix (idx+1) indices) s
     return $ prefix ++ show idx
 
 -- | Replace all bound type variables with fresh free variables
-freshType :: MonadIO m => RSchema -> PNSolver m RType
-freshType = freshType' Map.empty []
+freshType :: (Freshable s, MonadIO m) => RSchema -> StateT s m RType
+freshType = freshType' Map.empty
   where
-    freshType' subst constraints (ForallT a sch) = do
+    freshType' subst (ForallT a sch) = do
         a' <- freshId "A"
-        freshType' (Map.insert a (vart a' ftrue) subst) (a':constraints) sch
-    freshType' subst constraints (Monotype t) = return (typeSubstitute subst t)
+        freshType' (Map.insert a (vart a' ftrue) subst) sch
+    freshType' subst (Monotype t) = return (typeSubstitute subst t)
 
 freshAbstract :: MonadIO m => [Id] -> AbstractSkeleton -> PNSolver m AbstractSkeleton
 freshAbstract bound t = do
@@ -148,3 +138,18 @@ groupSignatures sigs = do
     })
     stats <- gets $ view solverStats
     return (t2g, groupMap)
+
+recoverNames :: Map Id Id -> Program t -> Program t
+recoverNames mapping (Program (PSymbol sym) t) =
+    case Map.lookup sym mapping of
+      Nothing -> Program (PSymbol (replaceId hoPostfix "" $ removeLast '_' sym)) t
+      Just name -> Program (PSymbol (replaceId hoPostfix "" $ removeLast '_' name)) t
+recoverNames mapping (Program (PApp fun pArg) t) = Program (PApp fun' pArg') t
+  where
+    fun' = case Map.lookup fun mapping of
+                Nothing -> replaceId hoPostfix "" $ removeLast '_' fun
+                Just name -> replaceId hoPostfix "" $ removeLast '_' name
+    pArg' = map (recoverNames mapping) pArg
+recoverNames mapping (Program (PFun x body) t) = Program (PFun x body') t
+  where
+    body' = recoverNames mapping body

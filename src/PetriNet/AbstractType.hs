@@ -76,7 +76,7 @@ decomposeHo :: AbstractSkeleton -> [AbstractSkeleton]
 decomposeHo (AFunctionT tArg tRet) = tArg : decomposeHo tRet
 decomposeHo t = [t]
 
-toAbstractType :: TypeSkeleton r -> AbstractSkeleton
+toAbstractType :: Pretty r => TypeSkeleton r -> AbstractSkeleton
 toAbstractType (ScalarT (TypeVarT _ id) _) = AScalar (ATypeVarT id)
 toAbstractType (ScalarT (DatatypeT id args _) _) = AScalar (ADatatypeT id (map toAbstractFun args))
 toAbstractType (FunctionT _ tArg tRet) = AFunctionT (toAbstractFun tArg) (toAbstractType tRet)
@@ -84,7 +84,7 @@ toAbstractType AnyT = AScalar (ATypeVarT varName)
 toAbstractType BotT = ABottom
 toAbstractType x = error $ "unhandled case: " ++ show x
 
-toAbstractFun :: TypeSkeleton r -> AbstractSkeleton
+toAbstractFun :: Pretty r => TypeSkeleton r -> AbstractSkeleton
 toAbstractFun (FunctionT _ tArg tRes) = AScalar $ ADatatypeT "Fun" [toAbstractFun tArg, toAbstractFun tRes]
 toAbstractFun t = toAbstractType t
 
@@ -243,3 +243,15 @@ compareAbstract :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Ordering
 compareAbstract tvs t1 t2 | isSubtypeOf tvs t1 t2 && isSubtypeOf tvs t2 t1 = EQ
                           | isSubtypeOf tvs t1 t2 = LT
                           | otherwise = GT
+
+encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
+encodeFunction id t | pairProj `isPrefixOf` id =
+    let toMatch (FunctionCode name ho [p1,p2] ret) = FunctionCode id ho [p1] (p2:ret)
+     in toMatch $ encodeFunction "__f" t
+encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [lastAbstract t]
+  where
+    base = (0, [])
+    hoFun x = encodeFunction (show x) x
+    hoParams = map hoFun $ filter isAFunctionT (abstractParamList t)
+    params = abstractParamList t
+encodeFunction id t@AScalar {} = FunctionCode id [] [] [t]
