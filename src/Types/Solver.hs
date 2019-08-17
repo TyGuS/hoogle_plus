@@ -104,6 +104,8 @@ data BiSolverState = BiSolverState {
     _dstTypes :: [RType],
     _maxLength :: Int,
     _biNameCounter :: Map Id Int,
+    _incompleteSymbols :: Map Id RType,
+    _nullaryInhabitant :: Set RType,
     _biTimeStats :: TimeStatistics
 }
 
@@ -121,6 +123,8 @@ emptyBiSolver = BiSolverState {
     _dstTypes = [],
     _maxLength = 0,
     _biNameCounter = Map.empty,
+    _incompleteSymbols = Map.empty,
+    _nullaryInhabitant = Set.empty,
     _biTimeStats = emptyTimeStats
 }
 

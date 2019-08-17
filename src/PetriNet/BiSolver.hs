@@ -37,7 +37,7 @@ import Control.Lens
 import Language.Haskell.Exts.Parser (ParseResult(..), parseExp)
 import Debug.Trace
 import Text.Printf
-import Text.PrettyPrint.ANSI.Leijen
+import Text.PrettyPrint.ANSI.Leijen hiding ((<$>))
 
 data Direction = Forward | Backward deriving(Show)
 
@@ -68,35 +68,34 @@ selectComps env = do
         mkConstraints (arg:args) types = [ (arg, t):c | t <- types
                                          , c <- mkConstraints args types]
 
-        hasInstance nameMap typeMap t n = let
-            sameSigs = Map.filter ((==) t) typeMap
-            sigNames = Map.keys sameSigs
-            funNames = map (fromJust . (`Map.lookup` nameMap)) sigNames
-            in n `elem` funNames
 
         mkNewTransition dir cname ctype state | isChecked state = do
             modify $ setNameIndices (getNameIndices state)
             let tass = typeAssignment state
             let ftype = typeSubstitute tass ctype
             writeLog "mkNewTransition" $ text (show dir)
-
-            let boundTvs = Set.fromList (env ^. boundTypeVars)
-            let freeVars = typeVarsOf ftype `Set.difference` boundTvs
+            let boundTvs = env ^. boundTypeVars
+            let freeVars = Set.toList (typeVarsOf ftype) \\ boundTvs
             symbols <- gets $ view selectedSymbols
             names <- gets $ view nameMap
-            when (Set.null freeVars && not (hasInstance names symbols ftype cname)) $ do
-                fname <- freshId "f"
-                let types = map toFunDts (lastType ftype : allArgTypes ftype)
-                let places = decompose (toAbstractType ftype)
-                writeLog "mkNewTransition" $ pretty places
-                writeLog "mkNewTransition" $ text cname <+> text "==>" <+> text fname <+> text "::" <+> pretty ftype
-                modify $ over nameMap (Map.insert fname cname)
-                modify $ over selectedSymbols (Map.insert fname ftype)
-                modify $ over selectedTypes (Set.union $ Set.fromList types)
-                modify $ \st -> st {
-                    _petrinet = foldr (\p -> HashMap.insertWith Set.union p (Set.singleton fname)) (_petrinet st) places
-                }
-                updateSets dir ftype
+            incompletes <- gets $ view incompleteSymbols
+            if null freeVars && not (hasInstance boundTvs names symbols ftype cname)
+                then do
+                    fname <- freshId "f"
+                    let types = map toFunDts (lastType ftype : allArgTypes ftype)
+                    let places = decompose (toAbstractType ftype)
+                    writeLog "mkNewTransition" $ pretty places
+                    writeLog "mkNewTransition" $ text cname <+> text "==>" <+> text fname <+> text "::" <+> pretty ftype
+                    modify $ over nameMap (Map.insert fname cname)
+                    modify $ over selectedSymbols (Map.insert fname ftype)
+                    modify $ over selectedTypes (Set.union $ Set.fromList types)
+                    mapM_ (\p -> modify $ over petrinet (HashMap.insertWith Set.union p (Set.singleton fname))) places
+                    updateSets dir ftype
+                else
+                    when (not (null freeVars) && not (hasInstance boundTvs names incompletes ftype cname)) $ do
+                        fname <- freshId "f"
+                        modify $ over nameMap (Map.insert fname cname)
+                        modify $ over incompleteSymbols (Map.insert fname ftype)
         mkNewTransition _ _ _ _ = return ()
 
         updateSets Forward t = do
@@ -105,6 +104,7 @@ selectComps env = do
         updateSets Backward t = do
             let args = Set.fromList $ map toFunDts $ allArgTypes t
             modify $ over backwardSet (Set.union args)
+            when (arity t == 0) (modify $ over nullaryInhabitant (Set.insert t))
 
         addInhabitant dir cname ctype constraints = do
             names <- gets $ view nameMap
@@ -186,7 +186,6 @@ searchProgram env encoderSt = do
             symbols' <- gets $ view selectedSymbols
             let newTypes = Set.toList (types' `Set.difference` types)
             let newFuncs = map encode $ Map.toList (symbols' `Map.difference` symbols)
-            -- writeLog "searchProgram" $ pretty newFuncs
             encoderSt' <- addEncoderSymbols env newTypes newFuncs $ encoderSt { loc = 1 }
             searchProgram env encoderSt'
 
@@ -200,18 +199,60 @@ addEncoderSymbols env newTypes newFuncs st = do
     src <- gets $ view srcTypes
     dst <- gets $ view dstTypes
     names <- gets $ view nameMap
+    incompletes <- gets $ view incompleteSymbols
+    allTypes <- gets $ view selectedTypes
     let encoderSrc = map toAbstractType src
     let encoderDst = map toAbstractType dst
-    let types' = map toAbstractType newTypes
     let hoArgNames = Map.keys $ Map.filter isFunctionType (env ^. arguments)
     let hoFunNames = Map.filter (`elem` hoArgNames) names
     let reverseMap (k, v) = HashMap.insertWith (++) v [k]
     let musters = foldr reverseMap HashMap.empty (Map.toList hoFunNames)
+    -- only add those inhabited types into the net
+    -- if one type is not a source type, not a return type
+    -- not a new type that appears both in the forward set and backward set
+    -- remove it from the net
+    inhabited <- filterM isInhabited newTypes
+    let types' = map toAbstractType inhabited
+    let uninhabited = map toAbstractType (newTypes \\ inhabited)
     cloneFuncs <- mapM addCloneFunction types'
+    let selectedInhabited = (Set.toList allTypes \\ newTypes) ++ inhabited
+    filledFvs <- mapM (uncurry $ fillFreeVar selectedInhabited) (Map.toList incompletes)
     t2tr <- gets $ view petrinet
-    let newFuncs' = newFuncs ++ cloneFuncs
-    let info = SplitInfo types' [] (map funName newFuncs')
-    liftIO $ execStateT (encoderRefine info musters encoderSrc encoderDst newFuncs' t2tr) st
+    let allInhabited = not . null . intersect uninhabited . funParams
+    let newFuncs' = filter allInhabited (newFuncs ++ concat filledFvs)
+    let allFuncs = newFuncs' ++ cloneFuncs
+    let info = SplitInfo types' [] (map funName allFuncs)
+    let t2tr' = HashMap.filterWithKey (\k _ -> k `notElem` uninhabited) t2tr
+    liftIO $ execStateT (encoderRefine info musters encoderSrc encoderDst allFuncs t2tr') st
+    where
+        isInhabited t = do
+            fset <- gets $ view forwardSet
+            bset <- gets $ view backwardSet
+            src <- gets $ view srcTypes
+            dst <- gets $ view dstTypes
+            nullaries <- gets $ view nullaryInhabitant
+            return $ t `elem` src ||
+                     t `elem` dst ||
+                    (t `Set.member` nullaries) ||
+                    (t `Set.member` fset && t `Set.member` bset)
+
+        fillFreeVar types sname sig = do
+            names <- gets $ view nameMap
+            selected <- gets $ view selectedSymbols
+            let fvs = (Set.toList $ typeVarsOf sig) \\ env ^. boundTypeVars
+            let cname = fromJust (Map.lookup sname names)
+            let substs = map (Map.fromList . zip fvs) $ combsWithRep (length fvs) types
+            let newSigs = map (`typeSubstitute` sig) substs
+            let tvs = env ^. boundTypeVars
+            let filteredSigs = filter (\s -> hasInstance tvs names selected s cname) newSigs
+            mapM (\s -> do
+                let places = decompose $ toAbstractType s
+                fname <- freshId "f"
+                modify $ over nameMap (Map.insert fname cname)
+                modify $ over selectedSymbols (Map.insert fname s)
+                mapM_ (\p -> modify $ over petrinet (HashMap.insertWith Set.union p $ Set.singleton fname)) places
+                return $ encode (fname, s)
+                ) filteredSigs
 
 addCloneFunction :: MonadIO m => AbstractSkeleton -> BiSolver m FunctionCode
 addCloneFunction ty = do
@@ -254,3 +295,30 @@ toFunDts t = t
 encode (id, t) = encodeFunction id (toAbstractType $ shape t)
 
 writeLog tag msg = trace (printf "[%s]: %s\n" tag (show $ plain msg)) $ return ()
+
+eqExceptFvs :: [Id] -> TypeSkeleton r -> TypeSkeleton r -> Bool
+eqExceptFvs tvs (ScalarT (TypeVarT _ id1) _) (ScalarT (TypeVarT _ id2) _) =
+    id1 == id2 || ((id1 `notElem` tvs) && (id2 `notElem` tvs))
+eqExceptFvs tvs (ScalarT (DatatypeT id1 args1 _) _) (ScalarT (DatatypeT id2 args2 _) _) =
+    id1 == id2 && all (uncurry $ eqExceptFvs tvs) (zip args1 args2)
+eqExceptFvs tvs (FunctionT _ arg1 res1) (FunctionT _ arg2 res2) =
+    eqExceptFvs tvs arg1 arg2 && eqExceptFvs tvs res1 res2
+eqExceptFvs _ BotT BotT = True
+eqExceptFvs _ AnyT AnyT = True
+eqExceptFvs _ _ _ = False
+
+-- Return the combinations, with replacement, of k items from the
+-- list.  We ignore the case where k is greater than the length of
+-- the list.
+combsWithRep :: Int -> [a] -> [[a]]
+combsWithRep 0 _ = [[]]
+combsWithRep _ [] = []
+combsWithRep k xxs@(x:xs) =
+  (x :) <$> combsWithRep (k - 1) xxs ++ combsWithRep k xs
+
+hasInstance :: [Id] -> Map Id Id -> Map Id RType -> RType -> Id -> Bool
+hasInstance tvs nameMap typeMap t n = let
+    sameSigs = Map.filter (eqExceptFvs tvs t) typeMap
+    sigNames = Map.keys sameSigs
+    funNames = map (fromJust . (`Map.lookup` nameMap)) sigNames
+    in n `elem` funNames
