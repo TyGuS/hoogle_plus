@@ -1,9 +1,14 @@
 module Types.Filtering where
 
 import Control.Exception
+import Control.Monad.State
 import Data.Typeable
 import Text.Printf
 import Data.List (intercalate)
+
+defaultTimeoutMicro = 1 * 10^6 :: Int
+defaultNumChecks = 10 :: Int
+defaultMaxOutputLength = 100 :: Int
 
 data ArgumentType =
     Concrete    String
@@ -18,7 +23,7 @@ instance Show ArgumentType where
   show (Polymorphic name) = name
   show (ArgTypeList sub)  = printf "[%s]" (show sub)
   show (ArgTypeApp  l r)  = printf "(%s) %s"  (show l) (show r)
-  show (ArgTypeTuple types) = 
+  show (ArgTypeTuple types) =
     (printf "(%s)" . intercalate ", " . map show) types
 
 newtype NotSupportedException = NotSupportedException String
@@ -38,11 +43,22 @@ data FunctionSignature =
   }
 
 instance Show FunctionSignature where
-  show (FunctionSignature constraints argsType returnType) = 
+  show (FunctionSignature constraints argsType returnType) =
     printf "(%s) => %s" constraintsExpr argsExpr
       where
         constraintsExpr = (intercalate ", " . map show) constraints
         argsExpr = (intercalate " -> " . map show) (argsType ++ [returnType])
 
-defaultTimeout = 3000000 :: Int
-defaultNumChecks = 10 :: Int
+data SampleResult = SampleResult
+  { _inputs :: [String], _results :: [[String]]}
+  deriving (Eq, Show)
+
+data FilterState = FilterState
+  { sampleResults :: Maybe SampleResult }
+  deriving (Eq, Show)
+
+emptyFilterState = FilterState {
+  sampleResults = Nothing
+}
+
+type FilterTest m = StateT FilterState m

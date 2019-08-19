@@ -1,6 +1,6 @@
-module HooglePlus.FilterTest (runChecks, runChecks') where
+module HooglePlus.FilterTest (runChecks, checkSolutionNotCrash, checkDuplicates) where
 
-import Language.Haskell.Interpreter
+import Language.Haskell.Interpreter hiding (get)
 import Language.Haskell.Exts.Parser
 import Text.Printf
 import Control.Exception
@@ -13,6 +13,7 @@ import qualified Data.Map as Map hiding (map, foldr)
 import qualified Data.Set as Set hiding (map)
 import System.Timeout
 import Control.Monad
+import Control.Monad.State
 import Data.Maybe
 import Data.Typeable
 
@@ -135,37 +136,80 @@ generateTestInput' imports funcSig = mapM f (_argsType funcSig)
       return (str, val)
 
 eval_ :: [String] -> String -> Int -> IO (Maybe (Either InterpreterError String))
-eval_ modules line time = timeout time $ runInterpreter $ do
-  setImports modules
-  eval line
+eval_ modules line time = handleAnyException $ timeout time $ do
+  result <- runInterpreter $ do
+    setImports modules
+    eval line
+  case result of
+    Right val -> do
+      let output = (fst . splitAt defaultMaxOutputLength) val
+      if "*** Exception" `isInfixOf` output
+        then (return . Left . UnknownError) val
+        else (return . Right) output
+    _ -> return result
 
 runStmt_ :: [String] -> String -> Int -> IO (Maybe (Either InterpreterError ()))
-runStmt_ modules line time = timeout time $ runInterpreter $ do
+runStmt_ modules line time = handleAnyException $ timeout time $ runInterpreter $ do
   setImports modules
-  runStmt $ printf line 
+  runStmt line
 
-runChecks :: Environment -> RType -> UProgram -> IO Bool
-runChecks env goalType prog = do
-  list <- replicateM defaultNumChecks (runChecks' modules funcSig body)
-  return $ or list
+runChecks :: MonadIO m => Environment -> RType -> UProgram -> FilterTest m Bool
+runChecks env goalType prog =
+  and <$> mapM (\f -> f modules funcSig body) checks
   where
     (modules, funcSig, body, _) = extractSolution env goalType prog
 
-runChecks' :: [String] -> String -> String -> IO Bool
-runChecks' modules sigString body = handleNotSupported executeCheck
+    checks = [ checkSolutionNotCrash
+             , checkDuplicates]
+
+checkSolutionNotCrash :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
+checkSolutionNotCrash modules sigStr body = or <$> liftIO executeCheck
   where
-    executeCheck = do
-      let funcSig = (instantiateSignature . parseTypeString) sigString
+    executeCheck = handleNotSupported $ do
+      let funcSig = (instantiateSignature . parseTypeString) sigStr
+      replicateM defaultNumChecks (check funcSig)
+
+    check funcSig = do
       arg <- generateTestInput modules funcSig
-      result <- handleAnyException $ runStmt_ modules (fmtFunction_ body (show funcSig) arg) defaultTimeout
+      let expression = fmtFunction_ body (show funcSig) arg
+
+      result <- runStmt_ modules expression defaultTimeoutMicro
       case result of
         Nothing -> putStrLn "Timeout in running always-fail detection" >> return True
         Just (Left err) -> putStrLn (displayException err) >> return False
         Just (Right ()) -> return True
 
-handleNotSupported = (`catch` ((\ex -> print ex >> return True) :: NotSupportedException -> IO Bool))
-handleAnyException = (`catch` (return . handler . show :: SomeException -> IO (Maybe (Either InterpreterError ()))))
+handleNotSupported = (`catch` ((\ex -> print ex >> return []) :: NotSupportedException -> IO [Bool]))
+
+handleAnyException :: IO (Maybe (Either InterpreterError a)) -> IO (Maybe (Either InterpreterError a))
+handleAnyException = (`catch` (return . handler . (show :: SomeException -> String)))
   where
     handler ex  | "timeout" `isInfixOf` ex = Nothing
                 | otherwise = (Just . Left. UnknownError) ex
 fmtFunction_ = printf "((%s) :: %s) %s" :: String -> String -> String -> String
+
+checkDuplicates :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
+checkDuplicates modules sigStr body = do
+  st <- get
+  case sampleResults st of
+    Nothing -> do
+      sampleWithInputs <- liftIO (Just . (`SampleResult` []) <$> generateInputs modules funcSig)
+      modify $ \st -> st { sampleResults = sampleWithInputs }
+      checkDuplicates modules sigStr body
+    Just (SampleResult inputs results) -> do
+      evals <- liftIO $ evalResults inputs funcSig body
+      let isDuplicated = evals `elem` results
+      let results' = if isDuplicated then results else evals:results
+
+      modify $ \st -> st { sampleResults = Just $ SampleResult inputs results' }
+      return $ not isDuplicated
+
+  where
+    funcSig = (instantiateSignature . parseTypeString) sigStr
+
+    generateInputs :: [String] -> FunctionSignature -> IO [String]
+    generateInputs modules funcSig = replicateM defaultNumChecks (generateTestInput modules funcSig)
+    evalResults inputs funcSig body = mapM evalWithArg inputs
+
+    evalWithArg arg =
+        show <$> eval_ modules (fmtFunction_ body (show funcSig) arg) defaultTimeoutMicro

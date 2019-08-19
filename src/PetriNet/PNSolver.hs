@@ -36,6 +36,7 @@ import HooglePlus.Refinement
 import HooglePlus.Stats
 import PetriNet.AbstractType
 import HooglePlus.GHCChecker
+import HooglePlus.FilterTest
 import PetriNet.PNEncoder
 import PetriNet.Util
 import Synquid.Error
@@ -680,13 +681,14 @@ findProgram env dst st ps
         disableDemand <- getExperiment disableDemand
         disableRele <- getExperiment disableRelevancy
         params <- gets $ view searchParams
-        checkedSols <-
-            withTime
-                TypeCheckTime
-                (filterM (liftIO . runGhcChecks params env dst) [code'])
-        if (code' `elem` solutions) || null checkedSols
+        fState <- gets $ view filterState
+        (passedCheck, fState') <-
+            withTime TypeCheckTime (liftIO $ runStateT (runGhcChecks params env dst code') fState)
+        modify $ set filterState fState'
+        if (code' `elem` solutions) || not passedCheck
             then return Nothing
             else return $ Just code'
+
 
 findFirstN :: MonadIO m
             => Environment

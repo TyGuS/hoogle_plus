@@ -7,6 +7,7 @@ import Types.Environment
 import Types.Program
 import Types.Type
 import Types.Experiments
+import Types.Filtering
 import Synquid.Type
 import Synquid.Util hiding (fromRight)
 import Synquid.Pretty as Pretty
@@ -122,7 +123,7 @@ checkStrictness tyclassCount body sig modules =
 
 -- validate type signiture, run demand analysis, and run filter test
 -- checks the end result type checks; all arguments are used; and that the program will not immediately fail
-runGhcChecks :: SearchParams -> Environment -> RType -> UProgram -> IO Bool
+runGhcChecks :: MonadIO m => SearchParams -> Environment -> RType -> UProgram -> FilterTest m Bool
 runGhcChecks params env goalType prog = let
     -- constructs program and its type signature as strings
     (modules, funcSig, body, argList) = extractSolution env goalType prog
@@ -131,12 +132,12 @@ runGhcChecks params env goalType prog = let
     disableDemand = _disableDemand params
     disableFilter = _disableFilter params
     in do
-        typeCheckResult <- runInterpreter $ checkType expr modules
-        strictCheckResult <- if disableDemand then return True else checkStrictness tyclassCount body funcSig modules
+        typeCheckResult <- liftIO $ runInterpreter $ checkType expr modules
+        strictCheckResult <- if disableDemand then return True else liftIO $ checkStrictness tyclassCount body funcSig modules
         filterCheckResult <- if disableFilter then return True else runChecks env goalType prog
         case typeCheckResult of
-            Left err -> (putStrLn $ displayException err) >> return False
-            Right False -> (putStrLn "Program does not typecheck") >> return False
+            Left err -> liftIO $ putStrLn (displayException err) >> return False
+            Right False -> liftIO $ putStrLn "Program does not typecheck" >> return False
             Right True -> return $ strictCheckResult && filterCheckResult
 
 -- ensures that the program type-checks

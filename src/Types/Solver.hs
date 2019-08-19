@@ -17,6 +17,7 @@ import Types.Experiments hiding (PetriNet)
 import Types.Type
 import Types.Common
 import Types.Encoder
+import Types.Filtering
 
 rootNode = AScalar (ATypeVarT varName)
 pairProj = "pair_match"
@@ -49,7 +50,8 @@ data SolverState = SolverState {
     _instanceCounts :: HashMap Id Int, -- Number of instantiations for a real-name, used in selecting representative
     _toRemove :: [Id],
     _useCount :: Map Id Int,
-    _messageChan :: Chan Message
+    _messageChan :: Chan Message,
+    _filterState :: FilterState
 } deriving(Eq)
 
 
@@ -80,7 +82,8 @@ emptySolverState = SolverState {
     _instanceCounts = HashMap.empty,
     _toRemove = [],
     _useCount = Map.empty,
-    _messageChan = undefined
+    _messageChan = undefined,
+    _filterState = emptyFilterState
 }
 
 makeLenses ''SolverState
