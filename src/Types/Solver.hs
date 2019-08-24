@@ -47,7 +47,6 @@ data SolverState = SolverState {
     _instanceCounts :: HashMap Id Int, -- Number of instantiations for a real-name, used in selecting representative
     _toRemove :: [Id],
     _useCount :: Map Id Int,
-    _forwardSet ::
     _messageChan :: Chan Message
 } deriving(Eq)
 
@@ -94,56 +93,4 @@ instance Timable SolverState where
 
 data Direction = Forward | Backward deriving(Show, Eq, Ord)
 
-data BiSolverState = BiSolverState {
-    _biSearchParams :: SearchParams,
-    _allSymbols :: Map Id RSchema,
-    _selectedTypes :: Set RType,
-    _selectedSymbols :: Map Id RType,
-    _petrinet :: HashMap AbstractSkeleton (Set Id),
-    _nameMap :: Map Id Id,
-    _forwardSet :: Set RType,
-    _backwardSet :: Set RType,
-    _srcTypes :: [RType],
-    _dstTypes :: [RType],
-    _maxLength :: Int,
-    _biNameCounter :: Map Id Int,
-    _incompleteSymbols :: Map Id (Direction, RType),
-    _nullaryInhabitant :: Set RType,
-    _pendingTypes :: Set RType,
-    _pendingSymbols :: Set Id,
-    _biTimeStats :: TimeStatistics
-}
-
-emptyBiSolver :: BiSolverState
-emptyBiSolver = BiSolverState {
-    _biSearchParams = defaultSearchParams,
-    _allSymbols = Map.empty,
-    _selectedTypes = Set.empty,
-    _selectedSymbols = Map.empty,
-    _petrinet = HashMap.empty,
-    _nameMap = Map.empty,
-    _forwardSet = Set.empty,
-    _backwardSet = Set.empty,
-    _srcTypes = [],
-    _dstTypes = [],
-    _maxLength = 0,
-    _biNameCounter = Map.empty,
-    _incompleteSymbols = Map.empty,
-    _nullaryInhabitant = Set.empty,
-    _pendingTypes = Set.empty,
-    _pendingSymbols = Set.empty,
-    _biTimeStats = emptyTimeStats
-}
-
-makeLenses ''BiSolverState
-
-instance Freshable BiSolverState where
-    getNameIndices = _biNameCounter
-    setNameIndices m s = s { _biNameCounter = m }
-
-instance Timable BiSolverState where
-    getTimeStats = _biTimeStats
-    setTimeStats m s = s { _biTimeStats = m }
-
 type Constraints = [(RType, RType)]
-type BiSolver m = StateT BiSolverState m

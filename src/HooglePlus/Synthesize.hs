@@ -18,7 +18,6 @@ import Types.Experiments
 import Types.Program
 import Types.Solver
 import Types.Type
-import PetriNet.BiSolver
 
 import Control.Applicative ((<$>))
 import Control.Concurrent.Chan
@@ -112,10 +111,7 @@ synthesize solverType searchParams goal messageChan = do
                 , _messageChan = messageChan
                 }
     catch
-        (case solverType of
-          TyGarSolver -> evalStateT (runPNSolver env destinationType) is
-          BiSolver -> runBiSolver env (toMonotype (gSpec goal)) >>
-                      writeChan messageChan (MesgClose CSNormal))
+        (evalStateT (runPNSolver env destinationType) is)
         (\e ->
              writeChan messageChan (MesgLog 0 "error" (show e)) >>
              writeChan messageChan (MesgClose (CSError e)) >>
