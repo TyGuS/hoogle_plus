@@ -90,14 +90,14 @@ setFinalState ret places = do
     includeRet = do
         placeMap <- gets place2variable
         l <- gets loc
-        let retVar = findVariable "place2variable" (ret, l) placeMap
+        let retVar = findVariable "final place2variable" (ret, l) placeMap
         assrt <- mkIntNum 1 >>= mkEq retVar
         modify $ \st -> st { finalConstraints = assrt : finalConstraints st }
 
     excludeOther p = do
         l <- gets loc
         placeMap <- gets place2variable
-        let tVar = findVariable "place2variable" (p, l) placeMap
+        let tVar = findVariable "final place2variable" (p, l) placeMap
         eq <- mkIntNum 0 >>= mkEq tVar
         modify $ \st -> st { finalConstraints = eq : finalConstraints st }
 
@@ -134,8 +134,8 @@ nonincrementalSolve = do
                             , prevChecked = False }
 
     addAllConstraints
-    -- str <- solverToString
-    -- liftIO $ putStrLn str
+    str <- solverToString
+    liftIO $ putStrLn str
     -- liftIO $ writeFile "constraint.z3" str
     check
 
@@ -285,7 +285,7 @@ encoderInc sigs inputs rets = do
     l <- gets loc
 
     -- add new place, transition and timestamp variables
-    mapM_ (uncurry addPlaceVar) [(a, l) | a <- places]
+    mapM_ (uncurry addPlaceVar) [(a, l) | a <- places ++ inputs ++ rets]
     addTimestampVar (l - 1)
 
     let allTransitions = [(l - 1, tr) | tr <- sigs ]

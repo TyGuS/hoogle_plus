@@ -47,6 +47,7 @@ data SolverState = SolverState {
     _instanceCounts :: HashMap Id Int, -- Number of instantiations for a real-name, used in selecting representative
     _toRemove :: [Id],
     _useCount :: Map Id Int,
+    _forwardSet ::
     _messageChan :: Chan Message
 } deriving(Eq)
 
@@ -91,6 +92,8 @@ instance Timable SolverState where
     getTimeStats = _solverStats
     setTimeStats m s = s { _solverStats = m }
 
+data Direction = Forward | Backward deriving(Show, Eq, Ord)
+
 data BiSolverState = BiSolverState {
     _biSearchParams :: SearchParams,
     _allSymbols :: Map Id RSchema,
@@ -104,8 +107,10 @@ data BiSolverState = BiSolverState {
     _dstTypes :: [RType],
     _maxLength :: Int,
     _biNameCounter :: Map Id Int,
-    _incompleteSymbols :: Map Id RType,
+    _incompleteSymbols :: Map Id (Direction, RType),
     _nullaryInhabitant :: Set RType,
+    _pendingTypes :: Set RType,
+    _pendingSymbols :: Set Id,
     _biTimeStats :: TimeStatistics
 }
 
@@ -125,6 +130,8 @@ emptyBiSolver = BiSolverState {
     _biNameCounter = Map.empty,
     _incompleteSymbols = Map.empty,
     _nullaryInhabitant = Set.empty,
+    _pendingTypes = Set.empty,
+    _pendingSymbols = Set.empty,
     _biTimeStats = emptyTimeStats
 }
 
@@ -138,4 +145,5 @@ instance Timable BiSolverState where
     getTimeStats = _biTimeStats
     setTimeStats m s = s { _biTimeStats = m }
 
+type Constraints = [(RType, RType)]
 type BiSolver m = StateT BiSolverState m

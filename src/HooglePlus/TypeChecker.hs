@@ -21,6 +21,7 @@ import Control.Lens
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Maybe
+import Debug.Trace
 
 -- bottom up check a program on the concrete type system
 -- at the same time, keep track of the abstract type for each node
@@ -142,6 +143,10 @@ unify env v t
     | otherwise = do
         tass <- gets typeAssignment
         -- writeLog 3 "unify" $ text (show tass')
-        let tass' = Map.map (typeSubstitute (Map.singleton v t)) tass
-        let tass'' = Map.insert v (typeSubstitute tass' t) tass'
-        modify $ \st -> st { typeAssignment = tass'' }
+        let t' = typeSubstitute tass t
+        if v `Set.member` typeVarsOf t'
+            then modify $ \st -> st { isChecked = False }
+            else do
+                let tass' = Map.map (typeSubstitute (Map.singleton v t')) tass
+                let tass'' = Map.insert v t' tass
+                modify $ \st -> st { typeAssignment = tass'' }

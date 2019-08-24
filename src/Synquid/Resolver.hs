@@ -156,8 +156,8 @@ resolveSignatures (DataDecl dtName tParams pParams ctors) = mapM_ resolveConstru
       if nominalType == returnType
         then do
           let nominalSort = toSort $ baseTypeOf nominalType
-          let sch'' = addRefinementToLastSch sch' (Var nominalSort valueVarName |=| Cons nominalSort name (allArgs (toMonotype sch')))
-          environment %= addPolyConstant name sch''
+          -- let sch'' = addRefinementToLastSch sch' (Var nominalSort valueVarName |=| Cons nominalSort name (allArgs (toMonotype sch')))
+          environment %= addPolyConstant name sch'
         else throwResError (commaSep [text "Constructor" <+> text name <+> text "must return type" <+> pretty nominalType, text "got" <+> pretty returnType])
 resolveSignatures (MeasureDecl measureName _ _ post defCases _) = error "measurewhat"
 resolveSignatures _                      = return ()
