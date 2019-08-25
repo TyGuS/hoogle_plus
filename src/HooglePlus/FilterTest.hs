@@ -173,11 +173,11 @@ checkSolutionNotCrash modules sigStr body = or <$> liftIO executeCheck
       arg <- generateTestInput modules funcSig
       let expression = fmtFunction_ body (show funcSig) arg
 
-      result <- runStmt_ modules expression defaultTimeoutMicro
+      result <- eval_ modules expression defaultTimeoutMicro
       case result of
         Nothing -> putStrLn "Timeout in running always-fail detection" >> return True
         Just (Left err) -> putStrLn (displayException err) >> return False
-        Just (Right ()) -> return True
+        Just (Right res) -> return (seq res True)
 
 handleNotSupported = (`catch` ((\ex -> print ex >> return []) :: NotSupportedException -> IO [Bool]))
 
