@@ -141,8 +141,7 @@ check_ goal searchParams solverChan checkerChan = do
             case msg of
                 (MesgP (program, _)) -> do
                     programPassedChecks <- executeCheck program
-
-                    (++) "Checker state: " . show <$> get >>= log
+                    show <$> get >>= log
                     if programPassedChecks then bypass >> next else next
                 (MesgClose _) -> bypass
                 _ -> bypass >> next

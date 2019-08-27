@@ -7,7 +7,7 @@ import Text.Printf
 import Data.List (intercalate)
 
 defaultTimeoutMicro = 1 * 10^6 :: Int
-defaultNumChecks = 10 :: Int
+defaultNumChecks = 5 :: Int
 defaultMaxOutputLength = 100 :: Int
 
 data ArgumentType =

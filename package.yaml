@@ -83,6 +83,7 @@ executables:
     ghc-options:
     - -rtsopts
     - -O2
+    - -threaded
     dependencies:
     - HooglePlus
   webapp:
