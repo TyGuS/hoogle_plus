@@ -211,5 +211,7 @@ checkDuplicates modules sigStr body = do
     generateInputs modules funcSig = replicateM defaultNumChecks (generateTestInput modules funcSig)
     evalResults inputs funcSig body = mapM evalWithArg inputs
 
-    evalWithArg arg =
-        show <$> eval_ modules (fmtFunction_ body (show funcSig) arg) defaultTimeoutMicro
+    evalWithArg :: String -> IO SampleResultItem
+    evalWithArg arg = liftM2 (,)
+      (pure arg)
+      (show <$> eval_ modules (fmtFunction_ body (show funcSig) arg) defaultTimeoutMicro)

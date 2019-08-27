@@ -1,7 +1,7 @@
 module HooglePlus.GHCChecker (
     runGhcChecks, parseStrictnessSig, checkStrictness', check) where
 
-import Language.Haskell.Interpreter
+import Language.Haskell.Interpreter hiding (get)
 
 import Types.Environment
 import Types.Program
@@ -141,13 +141,16 @@ check_ goal searchParams solverChan checkerChan = do
             case msg of
                 (MesgP (program, _)) -> do
                     programPassedChecks <- executeCheck program
-                    if programPassedChecks then back >> next else next
-                (MesgClose _) -> back
-                _ -> back >> next
+
+                    (++) "Checker state: " . show <$> get >>= log
+                    if programPassedChecks then bypass >> next else next
+                (MesgClose _) -> bypass
+                _ -> bypass >> next
 
             where
                 next = (liftIO . readChan) solverChan >>= handleMessages solverChan checkerChan
-                back = liftIO $ writeChan checkerChan msg
+                bypass = liftIO $ writeChan checkerChan msg
+                log msg = liftIO $ writeChan checkerChan (MesgLog 0 "checker" msg)
 
         (env, destType) = preprocessEnvFromGoal goal
         executeCheck = runGhcChecks searchParams env destType
