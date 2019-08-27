@@ -1,5 +1,5 @@
 module HooglePlus.GHCChecker (
-    runGhcChecks, parseStrictnessSig, checkStrictness') where
+    runGhcChecks, parseStrictnessSig, checkStrictness', check) where
 
 import Language.Haskell.Interpreter
 
@@ -44,6 +44,9 @@ import Text.Printf
 import Text.Regex
 import Var
 import Data.UUID.V4
+import Control.Concurrent.Chan
+import Control.Monad.Trans.State
+import Control.Concurrent
 
 showGhc :: (Outputable a) => a -> String
 showGhc = showPpr unsafeGlobalDynFlags
@@ -120,6 +123,35 @@ checkStrictness tyclassCount body sig modules =
     handle
         (\(SomeException _) -> return False)
         (checkStrictness' tyclassCount body sig modules)
+
+check :: Goal -> SearchParams -> Chan Message -> Chan Message -> IO ()
+check goal searchParams solverChan checkerChan = catch
+    (evalStateT (check_ goal searchParams solverChan checkerChan) emptyFilterState)
+    (\err ->
+        writeChan checkerChan (MesgLog 0 "error" (show err)) >>
+        writeChan checkerChan (MesgClose (CSError err)))
+
+check_ :: MonadIO m => Goal -> SearchParams -> Chan Message -> Chan Message -> FilterTest m ()
+check_ goal searchParams solverChan checkerChan = do
+    msg <- liftIO $ readChan solverChan
+    handleMessages solverChan checkerChan msg
+    return ()
+    where
+        handleMessages solverChan checkChan msg =
+            case msg of
+                (MesgP (program, _)) -> do
+                    programPassedChecks <- executeCheck program
+                    if programPassedChecks then back >> next else next
+                (MesgClose _) -> back
+                _ -> back >> next
+
+            where
+                next = (liftIO . readChan) solverChan >>= handleMessages solverChan checkerChan
+                back = liftIO $ writeChan checkerChan msg
+
+        (env, destType) = preprocessEnvFromGoal goal
+        executeCheck = runGhcChecks searchParams env destType
+
 
 -- validate type signiture, run demand analysis, and run filter test
 -- checks the end result type checks; all arguments are used; and that the program will not immediately fail

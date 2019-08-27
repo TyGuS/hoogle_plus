@@ -678,14 +678,8 @@ findProgram env dst st ps
         solutions <- gets $ view currentSolutions
         mapping <- gets $ view nameMapping
         let code' = recoverNames mapping code
-        disableDemand <- getExperiment disableDemand
-        disableRele <- getExperiment disableRelevancy
         params <- gets $ view searchParams
-        fState <- gets $ view filterState
-        (passedCheck, fState') <-
-            withTime TypeCheckTime (liftIO $ runStateT (runGhcChecks params env dst code') fState)
-        modify $ set filterState fState'
-        if (code' `elem` solutions) || not passedCheck
+        if (code' `elem` solutions) 
             then return Nothing
             else return $ Just code'
 

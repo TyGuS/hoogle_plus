@@ -8,6 +8,7 @@ import Types.Experiments
 import Synquid.Type
 import Synquid.Util hiding (fromRight)
 import Synquid.Pretty as Pretty
+import Synquid.Program
 import Database.Util
 
 import Control.Exception
@@ -114,3 +115,17 @@ extractSolution env goalType prog = (modules, funcSig, body, argList)
         monoGoals = map toMonotype argTypes
         funcSig = mkFunctionSigStr (monoGoals ++ [goalType])
         body = mkLambdaStr argNames prog
+
+updateEnvWithBoundTyVars :: RSchema -> Environment -> (Environment, RType)
+updateEnvWithBoundTyVars (Monotype ty) env = (env, ty)
+updateEnvWithBoundTyVars (ForallT x ty) env = updateEnvWithBoundTyVars ty (addTypeVar x env)
+
+updateEnvWithSpecArgs :: RType -> Environment -> (Environment, RType)
+updateEnvWithSpecArgs ty@(ScalarT _ _) env = (env, ty)
+updateEnvWithSpecArgs (FunctionT x tArg tRes) env = updateEnvWithSpecArgs tRes $ addVariable x tArg $ addArgument x tArg env
+
+preprocessEnvFromGoal :: Goal -> (Environment, RType)
+preprocessEnvFromGoal goal = updateEnvWithSpecArgs monospec env''
+    where
+        env''' = gEnvironment goal
+        (env'', monospec) = updateEnvWithBoundTyVars (gSpec goal) env'''

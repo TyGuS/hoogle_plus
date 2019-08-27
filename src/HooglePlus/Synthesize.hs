@@ -18,6 +18,7 @@ import Types.Experiments
 import Types.Program
 import Types.Solver
 import Types.Type
+import HooglePlus.Utils
 
 import Control.Applicative ((<$>))
 import Control.Concurrent.Chan
@@ -43,14 +44,6 @@ import Text.Parsec.Pos
 import Text.Printf (printf)
 
 
-updateEnvWithBoundTyVars :: RSchema -> Environment -> (Environment, RType)
-updateEnvWithBoundTyVars (Monotype ty) env = (env, ty)
-updateEnvWithBoundTyVars (ForallT x ty) env = updateEnvWithBoundTyVars ty (addTypeVar x env)
-
-updateEnvWithSpecArgs :: RType -> Environment -> (Environment, RType)
-updateEnvWithSpecArgs ty@(ScalarT _ _) env = (env, ty)
-updateEnvWithSpecArgs (FunctionT x tArg tRes) env = updateEnvWithSpecArgs tRes $ addVariable x tArg $ addArgument x tArg env
-
 envToGoal :: Environment -> String -> IO Goal
 envToGoal env queryStr = do
   let transformedSig = "goal :: " ++ queryStr ++ "\ngoal = ??"
@@ -70,9 +63,7 @@ envToGoal env queryStr = do
 
 synthesize :: SearchParams -> Goal -> Chan Message -> IO ()
 synthesize searchParams goal messageChan = do
-    let env''' = gEnvironment goal
-    let (env'', monospec) = updateEnvWithBoundTyVars (gSpec goal) env'''
-    let (env', destinationType) = updateEnvWithSpecArgs monospec env''
+    let (env', destinationType) = preprocessEnvFromGoal goal
     let useHO = _useHO searchParams
     let rawSyms = env' ^. symbols
     let hoCands = env' ^. hoCandidates
