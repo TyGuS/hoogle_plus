@@ -1,4 +1,4 @@
-module HooglePlus.FilterTest (runChecks, checkSolutionNotCrash, checkDuplicates, generateRandomValue) where
+module HooglePlus.FilterTest (runChecks, checkSolutionNotCrash, checkDuplicates) where
 
 import Language.Haskell.Interpreter hiding (get)
 import Language.Haskell.Interpreter.Unsafe
