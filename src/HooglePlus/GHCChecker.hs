@@ -128,7 +128,7 @@ check :: Goal -> SearchParams -> Chan Message -> Chan Message -> IO ()
 check goal searchParams solverChan checkerChan = catch
     (evalStateT (check_ goal searchParams solverChan checkerChan) emptyFilterState)
     (\err ->
-        writeChan checkerChan (MesgLog 0 "error" (show err)) >>
+        writeChan checkerChan (MesgLog 0 "filterCheck" ("error: " ++ show err)) >>
         writeChan checkerChan (MesgClose (CSError err)))
 
 check_ :: MonadIO m => Goal -> SearchParams -> Chan Message -> Chan Message -> FilterTest m ()
@@ -149,7 +149,7 @@ check_ goal searchParams solverChan checkerChan = do
             where
                 next = (liftIO . readChan) solverChan >>= handleMessages solverChan checkerChan
                 bypass = liftIO $ writeChan checkerChan msg
-                log msg = liftIO $ writeChan checkerChan (MesgLog 0 "checker" msg)
+                log msg = liftIO $ writeChan checkerChan (MesgLog 3 "checker" msg)
 
         (env, destType) = preprocessEnvFromGoal goal
         executeCheck = runGhcChecks searchParams env destType
