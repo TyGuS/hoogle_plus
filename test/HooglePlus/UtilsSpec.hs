@@ -34,19 +34,19 @@ spec = do
             let input = "Int -> a"
             let baseTys = separateFunctions input
             let result = mkFunctionSigStr baseTys
-            let expected = "Int -> a"
+            let expected = "(Int) -> (a)"
             result `shouldBe` expected
 
         it "Handles a single typeclasses" $ do
             let input = "Show a => a -> String"
             let result = mkFunctionSigStr (separateFunctions input)
-            let expected = "(Show a) => a -> String"
+            let expected = "(Show a) => (a) -> (String)"
             result `shouldBe` expected
 
         it "Handles multiple typeclasses on the same variable" $ do
             let input = "(Show a, Ord a) => a -> String"
             let result = mkFunctionSigStr (separateFunctions input)
-            let expected = "(Show a, Ord a) => a -> String"
+            let expected = "(Show a, Ord a) => (a) -> (String)"
             result `shouldBe` expected
 
     describe "mkLambdaStr" $ do
