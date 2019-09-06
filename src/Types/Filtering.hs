@@ -7,7 +7,7 @@ import Text.Printf
 import Data.List (intercalate)
 
 defaultTimeoutMicro = 1 * 10^6 :: Int
-defaultNumChecks = 10 :: Int
+defaultNumChecks = 5 :: Int
 defaultMaxOutputLength = 100 :: Int
 
 data ArgumentType =
@@ -49,11 +49,12 @@ instance Show FunctionSignature where
         constraintsExpr = (intercalate ", " . map show) constraints
         argsExpr = (intercalate " -> " . map show) (argsType ++ [returnType])
 
+type SampleResultItem = (String, String)
 data SampleResult = SampleResult
-  { _inputs :: [String], _results :: [[String]]}
+  { _inputs :: [String], _results :: [[SampleResultItem]]}
   deriving (Eq, Show)
 
-data FilterState = FilterState
+newtype FilterState = FilterState
   { sampleResults :: Maybe SampleResult }
   deriving (Eq, Show)
 

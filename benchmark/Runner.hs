@@ -9,6 +9,7 @@ import Synquid.Util
 import HooglePlus.Synthesize
 import Database.Environment
 import HooglePlus.Utils
+import HooglePlus.GHCChecker (check)
 
 import System.Timeout
 import Control.Exception
@@ -52,11 +53,12 @@ runExperiment setup (exp@(env, envName, q, params, paramName), (n, total)) = do
   printf "Running [%d/%d]: (%s-%s): %s\n" n total envName paramName queryStr
   let timeoutUs = expTimeout setup * 10^6 -- Timeout in microseconds
   goal <- envToGoal env queryStr
-  messageChan <- newChan
-  forkIO $ do
-    timeout timeoutUs $ synthesize params goal messageChan
-    writeChan messageChan (MesgClose CSTimeout) -- could possibly be putting a second close on the channel.
-  results <- (readChan messageChan >>= collectResults messageChan [])
+  solverChan <- newChan
+  checkerChan <- newChan
+  forkIO (threadDelay timeoutUs >> writeChan solverChan (MesgClose CSTimeout) >> return ())
+  forkIO $ synthesize params goal solverChan
+  forkIO $ check goal params solverChan checkerChan
+  results <- (readChan checkerChan >>= collectResults checkerChan [])
   writeResult setup exp results
   return results
 

@@ -244,9 +244,11 @@ executeSearch :: SynquidParams -> SearchParams  -> String -> IO ()
 executeSearch synquidParams searchParams query = do
   env <- readEnv
   goal <- envToGoal env query
-  messageChan <- newChan
-  worker <- forkIO $ synthesize searchParams goal messageChan
-  readChan messageChan >>= (handleMessages messageChan)
+  solverChan <- newChan
+  checkerChan <- newChan
+  workerS <- forkIO $ synthesize searchParams goal solverChan
+  workerC <- forkIO $ check goal searchParams solverChan checkerChan
+  readChan checkerChan >>= (handleMessages checkerChan)
   return ()
   where
     logLevel = searchParams ^. explorerLogLevel

@@ -1,6 +1,7 @@
 module HooglePlus.FilterTest (runChecks, checkSolutionNotCrash, checkDuplicates) where
 
 import Language.Haskell.Interpreter hiding (get)
+import Language.Haskell.Interpreter.Unsafe
 import Language.Haskell.Exts.Parser
 import Text.Printf
 import Control.Exception
@@ -137,7 +138,7 @@ generateTestInput' imports funcSig = mapM f (_argsType funcSig)
 
 eval_ :: [String] -> String -> Int -> IO (Maybe (Either InterpreterError String))
 eval_ modules line time = handleAnyException $ timeout time $ do
-  result <- runInterpreter $ do
+  result <- unsafeRunInterpreterWithArgs ["-fno-omit-yields"] $ do
     setImports modules
     eval line
   case result of
@@ -147,11 +148,6 @@ eval_ modules line time = handleAnyException $ timeout time $ do
         then (return . Left . UnknownError) val
         else (return . Right) output
     _ -> return result
-
-runStmt_ :: [String] -> String -> Int -> IO (Maybe (Either InterpreterError ()))
-runStmt_ modules line time = handleAnyException $ timeout time $ runInterpreter $ do
-  setImports modules
-  runStmt line
 
 runChecks :: MonadIO m => Environment -> RType -> UProgram -> FilterTest m Bool
 runChecks env goalType prog =
@@ -211,5 +207,7 @@ checkDuplicates modules sigStr body = do
     generateInputs modules funcSig = replicateM defaultNumChecks (generateTestInput modules funcSig)
     evalResults inputs funcSig body = mapM evalWithArg inputs
 
-    evalWithArg arg =
-        show <$> eval_ modules (fmtFunction_ body (show funcSig) arg) defaultTimeoutMicro
+    evalWithArg :: String -> IO SampleResultItem
+    evalWithArg arg = liftM2 (,)
+      (pure arg)
+      (show <$> eval_ modules (fmtFunction_ body (show funcSig) arg) defaultTimeoutMicro)
