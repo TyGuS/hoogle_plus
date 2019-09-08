@@ -23,6 +23,24 @@ pairProj = "pair_match"
 
 type AbstractCover = HashMap AbstractSkeleton (Set AbstractSkeleton)
 
+data ExplorerState = ExplorerState {
+    _forwardSet :: Set RType,
+    _backwardSet :: Set RType,
+    _selectedTypes :: Set RType,
+    _selectedNames :: Set Id,
+    _selectedSymbols :: Map Id RType
+} deriving(Eq)
+
+makeLenses ''ExplorerState
+
+emptyExplorer = ExplorerState {
+    _forwardSet = Set.empty,
+    _backwardSet = Set.empty,
+    _selectedTypes = Set.empty,
+    _selectedNames = Set.empty,
+    _selectedSymbols = Map.empty
+}
+
 data SolverState = SolverState {
     _searchParams :: SearchParams,
     _nameCounter :: Map Id Int,  -- name map for generating fresh names (type variables, parameters)
@@ -47,9 +65,9 @@ data SolverState = SolverState {
     _instanceCounts :: HashMap Id Int, -- Number of instantiations for a real-name, used in selecting representative
     _toRemove :: [Id],
     _useCount :: Map Id Int,
+    _explorer :: ExplorerState,
     _messageChan :: Chan Message
 } deriving(Eq)
-
 
 emptySolverState :: SolverState
 emptySolverState = SolverState {
@@ -76,6 +94,7 @@ emptySolverState = SolverState {
     _instanceCounts = HashMap.empty,
     _toRemove = [],
     _useCount = Map.empty,
+    _explorer = emptyExplorer,
     _messageChan = undefined
 }
 

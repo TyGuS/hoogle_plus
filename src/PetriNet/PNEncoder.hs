@@ -39,24 +39,26 @@ instance MonadZ3 Encoder where
     getContext = gets (envContext . z3env)
 
 -- | create a new encoder in z3
-createEncoder :: [AbstractSkeleton] -> AbstractSkeleton -> [FunctionCode] -> Encoder ()
-createEncoder inputs ret sigs = do
+createEncoder :: [AbstractSkeleton] -> [AbstractSkeleton] -> [FunctionCode] -> Encoder ()
+createEncoder inputs rets sigs = do
     places <- gets (HashMap.keys . ty2tr)
     transIds <- gets (Set.toList . Set.unions . HashMap.elems . ty2tr)
     -- create all the type variables for encoding
     -- liftIO $ putStrLn "creating variables"
-    createVariables places transIds
+    let places' = places ++ inputs ++ rets
+    createVariables places' transIds
     -- add all the constraints for the solver
     -- liftIO $ putStrLn "creating constraints"
-    createConstraints places sigs
+    createConstraints places' sigs
     -- set initial and final state for solver
-    setInitialState inputs places
-    setFinalState ret places
+    setInitialState inputs places'
+    setFinalState (head rets) places'
 
 -- | set the initial state for the solver, where we have tokens only in void or inputs
 -- the tokens in the other places should be zero
 setInitialState :: [AbstractSkeleton] -> [AbstractSkeleton] -> Encoder ()
-setInitialState inputs places = do
+setInitialState inputs places' = do
+    let places = nub places'
     let nonInputs = filter (`notElem` inputs) places
     let inputCounts = map (\t -> (head t, length t)) (group (sort inputs))
     let nonInputCounts = map (, 0) nonInputs
@@ -84,7 +86,7 @@ setFinalState ret places = do
     -- the return value should have only one token
     includeRet
     -- other places excluding void and ret should have nothing
-    let nonOutputs = filter (ret /=) places
+    let nonOutputs = filter (ret /=) (nub places)
     mapM_ excludeOther nonOutputs
   where
     includeRet = do
@@ -120,10 +122,14 @@ addAllConstraints = do
     ocons <- gets optionalConstraints
     fcons <- gets finalConstraints
     bcons <- gets blockConstraints
+    fires <- gets fireConstraints
     mapM_ assert pcons
     mapM_ assert ocons
     mapM_ assert fcons
     mapM_ assert bcons
+    l <- gets loc
+    let fires' = HashMap.filterWithKey (\k _ -> k < l) fires
+    mapM_ (mapM_ assert) (HashMap.elems fires')
 
 nonincrementalSolve :: Encoder Z3.Result
 nonincrementalSolve = do
@@ -134,8 +140,8 @@ nonincrementalSolve = do
                             , prevChecked = False }
 
     addAllConstraints
-    str <- solverToString
-    liftIO $ putStrLn str
+    -- str <- solverToString
+    -- liftIO $ putStrLn str
     -- liftIO $ writeFile "constraint.z3" str
     check
 
@@ -265,7 +271,7 @@ encoderInit len hoArgs inputs rets sigs t2tr incr rele noClone = do
         , useArguments = not rele
         , disableClones = noClone
         }
-    execStateT (createEncoder inputs (head rets) sigs) initialState
+    execStateT (createEncoder inputs rets sigs) initialState
 
 encoderSolve :: EncodeState -> IO ([Id], EncodeState)
 encoderSolve = runStateT solveAndGetModel
@@ -280,14 +286,16 @@ encoderInc sigs inputs rets = do
                        , blockConstraints = []
                        , finalConstraints = []
                        , prevChecked = False }
-    places <- gets (HashMap.keys . ty2tr)
+    places' <- gets (HashMap.keys . ty2tr)
     transitions <- gets (Set.toList . Set.unions . HashMap.elems . ty2tr)
     l <- gets loc
+    let places = places' ++ inputs ++ rets
 
     -- add new place, transition and timestamp variables
-    mapM_ (uncurry addPlaceVar) [(a, l) | a <- places ++ inputs ++ rets]
+    mapM_ (uncurry addPlaceVar) [(a, l) | a <- places]
     addTimestampVar (l - 1)
 
+    -- liftIO $ print (map funName sigs)
     let allTransitions = [(l - 1, tr) | tr <- sigs ]
 
     -- all places have non-negative number of tokens
@@ -334,7 +342,7 @@ encoderRefine info musters inputs rets newSigs t2tr = do
     l <- gets loc
     let newPlaceIds = newPlaces info
     let newTransIds = newTrans info
-    let currPlaces = HashMap.keys t2tr
+    let currPlaces = HashMap.keys t2tr ++ inputs ++ rets
     -- let newSigs = filter ((`elem` newTransIds) . funName) sigs
     let allTrans = [(t, tr) | t <- [0..(l-1)], tr <- newSigs ]
     -- liftIO $ print newSigs
@@ -517,26 +525,33 @@ noTransitionTokens t p = do
 
 fireTransitions :: Int -> FunctionCode -> Encoder ()
 fireTransitions t (FunctionCode name [] params rets) = do
-    transMap <- gets transition2id
-    placeMap <- gets place2variable
-    tsMap <- gets time2variable
+    fires <- gets fireConstraints
+    let exists = HashMap.member name (HashMap.lookupDefault HashMap.empty t fires)
+    unless exists $ do
+        transMap <- gets transition2id
+        placeMap <- gets place2variable
+        tsMap <- gets time2variable
 
-    -- accumulate counting for parameters and return types
-    let pcnt = map (\l -> (head l, length l)) (group (sort params))
-    let pmap = HashMap.fromList pcnt
-    let rmap = foldl' (\acc t -> HashMap.insertWith (+) t (-1) acc) pmap rets
-    let rcnt = HashMap.toList rmap
-    changes <- mapM (mkChange t) rcnt
+        -- accumulate counting for parameters and return types
+        let pcnt = map (\l -> (head l, length l)) (group (sort params))
+        let pmap = HashMap.fromList pcnt
+        let rmap = foldl' (\acc t -> HashMap.insertWith (+) t (-1) acc) pmap rets
+        let rcnt = HashMap.toList rmap
+        changes <- mapM (mkChange t) rcnt
 
-    let tsVar = findVariable "time2variable" t tsMap
-    let trVar = findVariable "transition2id" name transMap
-    fire <- mkEq tsVar trVar
-    enoughTokens <- mapM getSatisfiedPlace pcnt
-    postCond <- mkAnd (enoughTokens ++ changes)
-    tokenChange <- mkImplies fire postCond
-    modify $ \st -> st { persistConstraints = tokenChange : persistConstraints st }
-    incremental <- gets incrementalSolving
-    when incremental $ assert tokenChange
+        let tsVar = findVariable "time2variable" t tsMap
+        let trVar = findVariable "transition2id" name transMap
+        fire <- mkEq tsVar trVar
+        enoughTokens <- mapM getSatisfiedPlace pcnt
+        postCond <- mkAnd (enoughTokens ++ changes)
+        tokenChange <- mkImplies fire postCond
+        -- liftIO $ putStrLn (show t ++ ", " ++ name)
+        modify $ \st -> st {
+            fireConstraints = HashMap.insertWith HashMap.union t
+                                                (HashMap.singleton name tokenChange)
+                                                (fireConstraints st) }
+        incremental <- gets incrementalSolving
+        when incremental $ assert tokenChange
   where
     mkChange t (p, diff) = do
         let d = -diff

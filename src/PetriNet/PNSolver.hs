@@ -38,6 +38,7 @@ import HooglePlus.CodeFormer
 import HooglePlus.Refinement
 import HooglePlus.Stats
 import HooglePlus.TypeChecker
+import HooglePlus.BiExplorer
 import PetriNet.AbstractType
 import PetriNet.GHCChecker
 import PetriNet.PNEncoder
@@ -58,6 +59,8 @@ import Types.Program
 import Types.Solver
 import Types.Type
 import Types.Checker
+
+selection = False
 
 instantiate :: MonadIO m => Environment -> Map Id RSchema -> PNSolver m (Map Id AbstractSkeleton)
 instantiate env sigs = do
@@ -184,23 +187,9 @@ splitTransition env newAt fid = do
                               in [a:as | a <- [arg, newAt], as <- args']
       | otherwise = map (arg:) (enumArgs parents args)
 
-addSignatures :: MonadIO m => Environment -> PNSolver m (Map Id AbstractSkeleton)
-addSignatures env = do
-    let foArgs = Map.keys $ foArgsOf env
-    -- first abstraction all the symbols with fresh type variables and then instantiate them
-    let envSymbols = env ^. symbols
-    let usefulPipe k _ = k `notElem` foArgs
-    let usefulSymbols = Map.filterWithKey usefulPipe envSymbols
-    let hoArgs = Map.filter isFunctionType (env ^. arguments)
-    let binds = env ^. boundTypeVars
-    -- cands <- getExperiment hoCandidates
-    envSigs <- instantiate env usefulSymbols
-    -- add higher order functions
-    -- hoSigs <- mapM (addHoArg env envSigs False) cands
-    -- hoSigs' <- mapM (addHoArg env envSigs True) $ Map.keys hoArgs
-    -- let sigs = Map.unions $ envSigs : hoSigs ++ hoSigs'
-    let sigs = envSigs
-
+addSignatures :: MonadIO m => Environment -> Map Id RSchema -> PNSolver m (Map Id AbstractSkeleton)
+addSignatures env usefulSymbols = do
+    sigs <- instantiate env usefulSymbols
     sigs' <- ifM (getExperiment coalesceTypes) (mkGroups env sigs) (return sigs)
     modify $ over activeSigs (Set.union (Map.keysSet sigs'))
     mapM_ addEncodedFunction (Map.toList sigs')
@@ -271,7 +260,7 @@ refineSemantic env prog at = do
     splits <- gets (view splitTypes)
     let tvs = env ^. boundTypeVars
     let sortedSplits = sortBy (flip (compareAbstract tvs)) (Set.toList splits)
-    writeLog 3 "refineSemantic splitTypes" $ pretty sortedSplits
+    writeLog 2 "refineSemantic splitTypes" $ pretty sortedSplits
     -- get removed transitions
     addsAndRemoves <- mapM splitTransitions sortedSplits
     let (adds, removes) = unzip addsAndRemoves
@@ -279,7 +268,7 @@ refineSemantic env prog at = do
     let removedSigs = concat removes
     let toAdd = addedSigs \\ removedSigs
     let removables = removedSigs \\ addedSigs
-    writeLog 3 "refineSemantic (toAdd, removables)" $ pretty (toAdd, removables)
+    writeLog 2 "refineSemantic (toAdd, removables)" $ pretty (toAdd, removables)
 
     -- add clone functions and add them into new transition set
     noClone <- getExperiment disableCopy
@@ -399,7 +388,10 @@ initNet env = withTime ConstructionTime $ do
     modify $ set type2transition HashMap.empty
     modify $ set instanceMapping HashMap.empty
 
-    addSignatures env
+    names <- if selection then selectComp env >> gets (view (explorer . selectedNames))
+                          else return $ Map.keysSet (env ^. symbols)
+    let mySymbols = Map.restrictKeys (env ^. symbols) names
+    addSignatures env mySymbols
     -- add clone functions for each type
     noClone <- getExperiment disableCopy
     unless noClone $ do
@@ -447,19 +439,42 @@ findPath :: MonadIO m
          -> PNSolver m ([Id], EncodeState)
 findPath env dst st = do
     (res, st') <- withTime SolverTime (liftIO (encoderSolve st))
+    currSt <- get
+    maxDepth <- getExperiment maxApplicationDepth
+    writeLog 0 "findPath" $ text "current depth" <+> pretty (currSt ^. currentLoc)
     case res of
-        [] -> do
-            currSt <- get
-            maxDepth <- getExperiment maxApplicationDepth
-            when (currSt ^. currentLoc >= maxDepth) (
-              do
+        [] | currSt ^. currentLoc >= maxDepth && selection -> do
+                newNames <- addMoreComponent
+                modify $ set currentLoc 1
+                st'' <- fixEncoder env dst st' (SplitInfo [] [] newNames)
+                findPath env dst (st'' { loc = 1 })
+            | currSt ^. currentLoc >= maxDepth -> do
                 mesgChan <- gets $ view messageChan
                 liftIO $ writeChan mesgChan (MesgClose CSNoSolution)
-                error "cannot find a path")
-            modify $ set currentLoc ((currSt ^. currentLoc) + 1)
-            st'' <- withTime EncodingTime (incEncoder env st')
-            findPath env dst st''
+                error "cannot find a path"
+            | otherwise -> do
+                modify $ set currentLoc ((currSt ^. currentLoc) + 1)
+                st'' <- withTime EncodingTime (incEncoder env st')
+                findPath env dst st''
         _  -> return (res, st')
+    where
+        addMoreComponent = do
+            oldNames <- gets (view (explorer . selectedNames))
+            writeLog 1 "addMoreComponents" $ pretty oldNames
+            selectComp env
+            names <- gets (view (explorer . selectedNames))
+            if oldNames == names
+                then do
+                    mesgChan <- gets $ view messageChan
+                    liftIO $ writeChan mesgChan (MesgClose CSNoSolution)
+                    error "cannot find a path"
+                else do
+                    let newNames = names `Set.difference` oldNames
+                    let mySymbols = Map.restrictKeys (env ^. symbols) newNames
+                    sigs <- addSignatures env mySymbols
+                    let hoArgs = Map.filter isFunctionType (env ^. arguments)
+                    mapM_ addMusters (Map.keys hoArgs)
+                    return (Map.keys sigs)
 
 fixEncoder :: MonadIO m
            => Environment
@@ -477,6 +492,8 @@ fixEncoder env dst st info = do
     modify $ over type2transition (HashMap.filter (not . null))
     (loc, musters, rets, _, tid2tr) <- prepEncoderArgs env tgt
     fm <- gets $ view functionMap
+    -- writeLog 1 "fixEncoder" $ text "test before fromJust"
+    -- writeLog 1 "fixEncoder" $ pretty fm
     let funcs = map (fromJust . (`HashMap.lookup` fm)) (newTrans info)
     liftIO $ execStateT (encoderRefine info musters srcTypes rets funcs tid2tr) st
 
@@ -490,6 +507,10 @@ findProgram env dst st ps
     | not (null ps) = checkUntilFail st ps
     | null ps = do
         modify $ set splitTypes Set.empty
+        -- types <- gets (view (explorer . selectedTypes))
+        -- names <- gets (view (explorer . selectedNames))
+        -- writeLog 1 "selectComp" $ pretty types
+        -- writeLog 1 "selectComp" $ pretty names
         writeLog 2 "findProgram" $ text "calling findProgram"
         (path, st') <- findPath env dst st
         writeLog 2 "findProgram" $ text "unfiltered path:" <+> pretty path
@@ -634,24 +655,28 @@ findProgram env dst st ps
                 checkerNameCounter = counter,
                 checkerNameMapping = mapping
             }
-        writeLog 3 "parseAndCheck" $ text "bottom up checking get program" <+> pretty (recoverNames mapping btm)
+        writeLog 2 "parseAndCheck" $ text "bottom up checking get program" <+> pretty (recoverNames mapping btm)
         let checkStatus = isChecked checkerState
         let tyBtm = typeOf btm
+        writeLog 2 "parseAndCheck" $ pretty tyBtm <+> pretty dst
         checkerState' <- if checkStatus
             then execStateT (solveTypeConstraint env tyBtm dst) checkerState
             else return checkerState
         let tass = typeAssignment checkerState'
+        -- writeLog 1 "parseAndCheck" $ pretty tass
         if isChecked checkerState'
             then return (Left btm)
             else do
                 let tyBtm' = toAbstractType $ typeSubstitute tass tyBtm
                 let absDst = toAbstractType dst
                 absBtm <- observeT $ pickGeneralization tyBtm' absDst
+                -- writeLog 1 "parseAndCheck" $ text "get distinguished type" <+> pretty absBtm
                 return (Right (btm, absBtm))
 
     nextSolution st (prog, at) = do
         cover <- gets $ view abstractionCover
         splitInfo <- withTime RefinementTime (refineSemantic env prog at)
+        -- writeLog 1 "nextSolution" $ text "get split info" <+> pretty splitInfo
         -- add new places and transitions into the petri net
         cover <- gets $ view abstractionCover
         t2tr <- gets $ view type2transition
@@ -704,6 +729,10 @@ findFirstN env dst st ps n
 
 runPNSolver :: MonadIO m => Environment -> RType -> PNSolver m ()
 runPNSolver env t = do
+    let args = map toFunDts (Map.elems (env ^. arguments))
+    let res = [t]
+    modify $ set (explorer . forwardSet) (Set.fromList args)
+    modify $ set (explorer . backwardSet) (Set.fromList res)
     withTime TotalSearch $ initNet env
     st <- withTime TotalSearch $ withTime EncodingTime (resetEncoder env t)
     cnt <- getExperiment solutionCnt
@@ -757,6 +786,8 @@ updateSrcTgt env dst = do
     srcTypes <- mapM ( currentAbst binds abstraction
                      . toAbstractType) $ Map.elems foArgs
     modify $ set sourceTypes srcTypes
+    noClone <- getExperiment disableCopy
+    unless noClone $ mapM_ addCloneFunction (tgt:srcTypes)
     return (srcTypes, tgt)
 
 type EncoderArgs = (Int

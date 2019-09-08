@@ -28,6 +28,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Tuple (swap)
 import Text.Printf
+import Debug.Trace
 
 -- | add a new type into our cover and ensure all of them have proper lower bound
 updateCover :: [Id] -> AbstractSkeleton -> AbstractCover -> AbstractCover
@@ -39,7 +40,7 @@ updateCover' bound cover intscts t paren | isSubtypeOf bound t paren =
     let children = HashMap.lookupDefault Set.empty paren cover
         child_fun c (ints, acc) = updateCover' bound acc ints t c
         (scts, updatedCover) = Set.foldr child_fun (intscts, cover) children
-        lower c = isSubtypeOf bound t c || isSubtypeOf bound c t
+        lower c = isSubtypeOf bound t c && not (isSubtypeOf bound c t) -- || isSubtypeOf bound c t
         inSubtree = any lower (Set.toList children)
         baseCover = if inSubtree
                       then updatedCover
@@ -47,8 +48,10 @@ updateCover' bound cover intscts t paren | isSubtypeOf bound t paren =
         int_fun s (ints, acc) = updateCover' bound acc ints s rootNode
      in foldr int_fun ([], baseCover) scts
 updateCover' bound cover intscts t paren | isSubtypeOf bound paren t =
-    let parents = HashMap.keys $ HashMap.filter (Set.member paren) cover
-        rmParen = HashMap.map (Set.delete paren) cover
+    let nodeFilter k v = Set.member paren v && isSubtypeOf bound t k && not (isSubtypeOf bound k t)
+        parents = HashMap.keys $ HashMap.filterWithKey nodeFilter cover
+        diffParen new old = old `Set.difference` new
+        rmParen = foldr (\p -> HashMap.insertWith diffParen p $ Set.singleton paren) cover parents
         addCurr p = HashMap.insertWith Set.union p $ Set.singleton t
         addedCurr = foldr addCurr rmParen parents
         cover' = HashMap.insertWith Set.union t (Set.singleton paren) addedCurr
@@ -67,6 +70,7 @@ propagate env p@(Program (PSymbol sym) t) upstream = do
     unless (existAbstract bound cover upstream)
            (do
                 let newCover = updateCover bound upstream cover
+                writeLog 2 "propagate" $ text "Cover!cover!cover!" <+> pretty newCover
                 modify $ set abstractionCover newCover
                 let newTyps = allTypesOf newCover \\ allTypesOf cover
                 modify $ over splitTypes (Set.union $ Set.fromList newTyps)

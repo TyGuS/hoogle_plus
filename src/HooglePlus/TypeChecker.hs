@@ -34,25 +34,29 @@ bottomUpCheck env p@(Program (PSymbol sym) typ) = do
     let name = replaceId hoPostfix "" $ fromMaybe sym' (Map.lookup sym' nameMap)
     t <- freshType $ findSymbol nameMap env name
     return (Program (PSymbol sym) t)
-bottomUpCheck env (Program (PApp f args) typ) = do
-  argResult <- checkArgs args
-  case argResult of
-    Left err -> return err
-    Right checkedArgs -> do
-        nameMap <- gets checkerNameMapping
-        t <- freshType $ findSymbol nameMap env (removeLast '_' f)
-        -- check function signature against each argument provided
-        let argVars = allArgTypes t
-        let checkedArgTys = map typeOf checkedArgs
-        mapM_ (uncurry $ solveTypeConstraint env) (zip checkedArgTys argVars)
-        -- we eagerly substitute the assignments into the return type of t
-        tass <- gets typeAssignment
-        let ret = typeSubstitute tass (lastType t)
-        -- if any of these checks returned false, this function application
-        -- would produce a bottom type
-        ifM (gets isChecked)
-            (return $ Program (PApp f checkedArgs) ret)
-            (return $ Program (PApp f checkedArgs) BotT)
+bottomUpCheck env p@(Program (PApp f args) typ) = do
+    -- liftIO $ putStrLn $ "Checking for " ++ show p
+    argResult <- checkArgs args
+    -- liftIO $ putStrLn $ "Get argument " ++ show argResult
+    case argResult of
+        Left err -> return err
+        Right checkedArgs -> do
+            nameMap <- gets checkerNameMapping
+            t <- freshType $ findSymbol nameMap env (removeLast '_' f)
+            -- check function signature against each argument provided
+            let argVars = allArgTypes t
+            let checkedArgTys = map typeOf checkedArgs
+            -- liftIO $ print $ zip checkedArgTys argVars
+            mapM_ (uncurry $ solveTypeConstraint env) (zip checkedArgTys argVars)
+            -- we eagerly substitute the assignments into the return type of t
+            tass <- gets typeAssignment
+            -- liftIO $ print tass
+            let ret = typeSubstitute tass (lastType t)
+            -- if any of these checks returned false, this function application
+            -- would produce a bottom type
+            ifM (gets isChecked)
+                (return $ Program (PApp f checkedArgs) ret)
+                (return $ Program (PApp f checkedArgs) BotT)
   where
     checkArgs [] = return $ Right []
     checkArgs (arg:args) = do

@@ -217,8 +217,9 @@ currentAbst tvs cover at = do
   where
     currentAbst' at paren | isSubtypeOf tvs at paren =
       let children = Set.toList $ HashMap.lookupDefault Set.empty paren cover
-          inSubtree = any (isSubtypeOf tvs at) children
-       in if inSubtree then head $ filter isJust $ map (currentAbst' at) children
+          subchild = map (currentAbst' at) children
+          inSubtree = any isJust subchild
+       in if inSubtree then head $ filter isJust subchild
                        else Just paren
     currentAbst' at paren = Nothing
 
@@ -228,16 +229,19 @@ applySemantic tvs fun args = do
     let ret = last (decompose fun)
     let args' = map compactAbstractType args
     constraints <- zipWithM (typeConstraints tvs) cargs args'
-    -- writeLog 3 "applySemantic" $ text "solving constraints" <+> pretty constraints
+    writeLog 3 "applySemantic" $ text "solving constraints" <+> pretty constraints
     let unifier = getUnifier tvs (concat constraints)
     case unifier of
         Nothing -> return ABottom
         Just m -> do
-            -- writeLog 3 "applySemantic" $ text "get unifier" <+> pretty (Map.toList m)
+            writeLog 3 "applySemantic" $ text "get unifier" <+> pretty (Map.toList m)
             cover <- gets (view abstractionCover)
             let substRes = abstractSubstitute m ret
-            -- writeLog 3 "applySemantic" $ text "current cover" <+> text (show cover)
-            currentAbst tvs cover substRes
+            writeLog 3 "applySemantic" $ text "current cover" <+> text (show cover)
+            writeLog 3 "applySemantic" $ text "to find the type" <+> pretty substRes
+            abst <- currentAbst tvs cover substRes
+            writeLog 3 "applySemantic" $ text "get abstract type" <+> pretty abst
+            return abst
 
 compareAbstract :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Ordering
 compareAbstract tvs t1 t2 | isSubtypeOf tvs t1 t2 && isSubtypeOf tvs t2 t1 = EQ

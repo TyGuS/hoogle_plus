@@ -11,8 +11,9 @@ from colorama import init, Fore, Back, Style
 
 HPLUS_CMD = 'hplus' # Command to call hoogle+
 TIMEOUT_CMD = 'timeout' # Timeout command
-TIMEOUT = '60' # Timeout value (seconds)
-CMD_OPTS = ['--stop-refine', '--stop-threshold=10']
+TIMEOUT = '75' # Timeout value (seconds)
+CMD_OPTS = []
+# CMD_OPTS = ['--stop-refine', '--stop-threshold=10']
 LOGFILE = 'data/results.log'                                         # Log file
 CSV_FILE = 'data/result.tsv'                                         # CSV-output file
 DEFAULT_QUERY_FILE = "benchmark/suites/working.yml"
@@ -68,15 +69,19 @@ def run_benchmark(name, query, opts, default_opts):
             results[name] = SynthesisResult(name, (end - start), '-', '-', '-', '-', '-', '-')
         else: # Synthesis succeeded: code metrics from the output and record synthesis time
             lastLines = os.popen("tail -n 12 %s" % LOGFILE).read().split('\n')
-            solution = re.match(r"^SOLUTION: (.+)$", lastLines[0]).group(1)
-            encoding_time = re.match(r"Encoding time: (\d+.*)$", lastLines[2]).group(1)
-            solver_time = re.match(r"Solver time: (\d+.*)$", lastLines[3]).group(1)
-            refine_time = re.match(r"Refine time: (\d+.*)$", lastLines[4]).group(1)
-            checker_time = re.match(r"Checker time: (\d+.*)$", lastLines[5]).group(1)
-            total_time = re.match(r"Total time: (\d+.*)$", lastLines[6]).group(1)
-            path_len = re.match(r"Path length: (\d+)$", lastLines[7]).group(1)
-            results[name] = SynthesisResult(name, total_time, solution, encoding_time, solver_time, refine_time, checker_time, path_len)
-            print(Fore.GREEN + Style.BRIGHT + 'OK' + Style.RESET_ALL, end='\n')
+            if re.match(r"^SOLUTION: (.+)$", lastLines[0]):
+                solution = re.match(r"^SOLUTION: (.+)$", lastLines[0]).group(1)
+                encoding_time = re.match(r"Encoding time: (\d+.*)$", lastLines[2]).group(1)
+                solver_time = re.match(r"Solver time: (\d+.*)$", lastLines[3]).group(1)
+                refine_time = re.match(r"Refine time: (\d+.*)$", lastLines[4]).group(1)
+                checker_time = re.match(r"Checker time: (\d+.*)$", lastLines[5]).group(1)
+                total_time = re.match(r"Total time: (\d+.*)$", lastLines[6]).group(1)
+                path_len = re.match(r"Path length: (\d+)$", lastLines[7]).group(1)
+                results[name] = SynthesisResult(name, total_time, solution, encoding_time, solver_time, refine_time, checker_time, path_len)
+                print(Fore.GREEN + Style.BRIGHT + 'OK' + Style.RESET_ALL, end='\n')
+            else:
+                print(Fore.RED + Style.BRIGHT + 'FAIL' + Style.RESET_ALL, end='\n')
+                results[name] = SynthesisResult(name, (end - start), '-', '-', '-', '-', '-', '-')
 
         # variant_options = [   # Command-line options to use for each variant of Synquid
         #     ('def', default_opts)
