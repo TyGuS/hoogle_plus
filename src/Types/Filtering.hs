@@ -10,12 +10,20 @@ defaultTimeoutMicro = 1 * 10^6 :: Int
 defaultNumChecks = 5 :: Int
 defaultMaxOutputLength = 100 :: Int
 
+supportedInnerType =
+  [ "Int"
+  , "Float"
+  , "Double"
+  , "Char"
+  , "String" ]
+
 data ArgumentType =
     Concrete    String
   | Polymorphic String
   | ArgTypeList ArgumentType
   | ArgTypeTuple [ArgumentType]
   | ArgTypeApp  ArgumentType ArgumentType
+  | ArgTypeFunc ArgumentType ArgumentType
   deriving (Eq)
 
 instance Show ArgumentType where
@@ -25,6 +33,7 @@ instance Show ArgumentType where
   show (ArgTypeApp  l r)  = printf "(%s) %s"  (show l) (show r)
   show (ArgTypeTuple types) =
     (printf "(%s)" . intercalate ", " . map show) types
+  show (ArgTypeFunc src dst) = printf "(%s) -> (%s)" (show src) (show dst)
 
 newtype NotSupportedException = NotSupportedException String
   deriving (Show, Typeable)

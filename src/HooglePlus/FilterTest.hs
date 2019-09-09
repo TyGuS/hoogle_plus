@@ -1,4 +1,5 @@
-module HooglePlus.FilterTest (runChecks, checkSolutionNotCrash, checkDuplicates) where
+-- module HooglePlus.FilterTest (runChecks, checkSolutionNotCrash, checkDuplicates) where
+module HooglePlus.FilterTest where
 
 import Language.Haskell.Interpreter hiding (get)
 import Language.Haskell.Interpreter.Unsafe
@@ -24,6 +25,7 @@ import Types.Program
 import Types.Type hiding (typeOf)
 import Types.Filtering
 import Synquid.Type
+import Paths_HooglePlus
 
 parseTypeString :: String -> FunctionSignature
 parseTypeString input = FunctionSignature constraints argsType returnType
@@ -44,6 +46,7 @@ parseTypeString input = FunctionSignature constraints argsType returnType
     extractType (TyParen _ t) = extractType t
     extractType (TyApp _ l r) = ArgTypeApp (extractType l) (extractType r)
     extractType (TyTuple _ _ types) = ArgTypeTuple (map extractType types)
+    extractType (TyFun _ src dst) = ArgTypeFunc (extractType src) (extractType dst)
     extractType other = throw $ NotSupportedException ("Not able to handle " ++ show other)
 
     extractQualified (ClassA _ (UnQual _ (Ident _ name)) var) =
@@ -60,28 +63,51 @@ instantiateSignature :: FunctionSignature -> FunctionSignature
 instantiateSignature (FunctionSignature _ argsType returnType) =
   FunctionSignature [] (map instantiate argsType) (instantiate returnType)
     where
-      instantiate (Concrete name) = Concrete name
+      instantiate sig@(Concrete name) = sig
       instantiate (Polymorphic name) = Concrete "Int"
       instantiate (ArgTypeList sub) = ArgTypeList $ instantiate sub
       instantiate (ArgTypeTuple types) = ArgTypeTuple (map instantiate types)
       instantiate (ArgTypeApp l r) = ArgTypeApp (instantiate l) (instantiate r)
+      instantiate (ArgTypeFunc l r) = ArgTypeFunc (instantiate l) (instantiate r)
 
-generateRandomValue :: [String] -> String -> IO String
-generateRandomValue imports typeName = do
+toInnerType :: FunctionSignature -> FunctionSignature
+toInnerType (FunctionSignature _ argsType returnType) =
+  FunctionSignature [] (map f argsType) (f returnType)
+    where
+      f sig@(Concrete name)
+        | name `elem` supportedInnerType = Concrete (printf "(Internal (%s))" name)
+        | otherwise = sig
+      f (ArgTypeList sub) = ArgTypeList $ f sub
+      f (ArgTypeTuple types) = ArgTypeTuple (map f types)
+      f (ArgTypeApp l r) = ArgTypeApp (f l) (f r)
+      f (ArgTypeFunc l r) = ArgTypeFunc (f l) (f r)
+
+generateRandomValue :: [String] -> [String] -> IO [String]
+generateRandomValue imports typeNames = do
+  srcPath <- getDataFileName "InternalTypeGen.hs"
   result <- runInterpreter $ do {
-    setImports ("Test.QuickCheck":imports);
+    loadModules [srcPath];
+    setTopLevelModules ["InternalTypeGen"];
+    setImports imports;
 
-    act <- interpret ("do {\
-    \it <- generate (arbitrary :: Gen (" ++ typeName ++ "));\
-    \return $ show it\
-    \}") (as :: IO String);
-
-    liftIO act
+    mapM (\x -> interpret (fmtLine x) (as :: IO String) >>= liftIO) typeNames
   }
 
   case result of
-    Left err -> putStrLn (displayException err) >> return "error \"unable to generate input\""
-    Right res -> return ("(" ++ res ++ ")")
+    Left err -> putStrLn (displayException err) >> return ["error \"unable to generate input\""]
+    Right res -> return $ map (printf "(%s)") res
+  where
+    fmtLine typeName = printf "show <$> generate (arbitrary :: Gen (%s))" typeName :: String
+
+generateRandomFunction :: String -> [String] -> InterpreterT IO String
+generateRandomFunction funcSig inputs =
+  interpret (fmtLine funcSig inputs) (as :: IO String) >>= liftIO
+  where
+    fmtLine :: String -> [String] -> String
+    fmtLine funcSig inputs =
+      printf "(generate arbitrary :: IO (%s)) >>= (\\f -> return $ map f (%s)) >>= return . show" funcSig (fmtInputList inputs)
+    fmtInputList inputs = printf "[%s]" $ intercalate ", " inputs :: String
+  
 
 generateRandomValueWith :: Int -> Int -> [String] -> String -> IO String
 generateRandomValueWith seed size imports typeName = do
@@ -110,7 +136,7 @@ mapRandomParamsList imports env count = do
       return $ unwords (map snd list)
 
     newRandomValue (name, _) = do
-      val <- generateRandomValue imports name
+      [val] <- generateRandomValue imports [name]
       return (name, val)
 
     getNthElement idx list = item
@@ -124,17 +150,16 @@ mapRandomParamsList imports env count = do
 
 -- generate test input as line of code
 generateTestInput :: [String] -> FunctionSignature -> IO String
-generateTestInput imports env = do
-  result <- generateTestInput' imports env
+generateTestInput imports funcSig = do
+  result <- generateTestInput' imports funcSig
   return $ unwords (map snd result)
 
 -- generate test input as pair (type, value)
 generateTestInput' :: [String] -> FunctionSignature -> IO [(String, String)]
-generateTestInput' imports funcSig = mapM f (_argsType funcSig)
+generateTestInput' imports funcSig = zip args <$> generateRandomValue imports args
   where
-    f x = let str = show x in do
-      val <- generateRandomValue imports str
-      return (str, val)
+    funcSig' = toInnerType funcSig
+    args = map show $ _argsType funcSig'
 
 eval_ :: [String] -> String -> Int -> IO (Maybe (Either InterpreterError String))
 eval_ modules line time = handleAnyException $ timeout time $ do
@@ -175,7 +200,7 @@ checkSolutionNotCrash modules sigStr body = or <$> liftIO executeCheck
         Just (Left err) -> putStrLn (displayException err) >> return False
         Just (Right res) -> return (seq res True)
 
-handleNotSupported = (`catch` ((\ex -> print ex >> return []) :: NotSupportedException -> IO [Bool]))
+handleNotSupported = (`catch` ((\ex -> print ex >> return [True]) :: NotSupportedException -> IO [Bool]))
 
 handleAnyException :: IO (Maybe (Either InterpreterError a)) -> IO (Maybe (Either InterpreterError a))
 handleAnyException = (`catch` (return . handler . (show :: SomeException -> String)))
@@ -193,7 +218,7 @@ checkDuplicates modules sigStr body = do
       modify $ \st -> st { sampleResults = sampleWithInputs }
       checkDuplicates modules sigStr body
     Just (SampleResult inputs results) -> do
-      evals <- liftIO $ evalResults inputs funcSig body
+      evals <- liftIO $ evalResults inputs body
       let isDuplicated = evals `elem` results
       let results' = if isDuplicated then results else evals:results
 
@@ -205,7 +230,7 @@ checkDuplicates modules sigStr body = do
 
     generateInputs :: [String] -> FunctionSignature -> IO [String]
     generateInputs modules funcSig = replicateM defaultNumChecks (generateTestInput modules funcSig)
-    evalResults inputs funcSig body = mapM evalWithArg inputs
+    evalResults inputs body = mapM evalWithArg inputs
 
     evalWithArg :: String -> IO SampleResultItem
     evalWithArg arg = liftM2 (,)

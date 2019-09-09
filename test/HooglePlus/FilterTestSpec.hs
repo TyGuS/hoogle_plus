@@ -39,6 +39,11 @@ testNotCrashCases =
   , ("Non-deterministic function", [], "Int", "last $ repeat 5", True)
   , ("Pass w/ type class 1", [], "(Show a, Show b) => Either a b -> String", "\\x -> show x", True)]
 
+testNotCrashHOFs :: [(String, [String], String, String, Bool)]
+testNotCrashHOFs =
+  [("Succeed on basic application", [], "(a -> b) -> a -> b", "\\f x -> f x", True)]
+
+
 runDuplicateTest :: FilterState -> [String] -> String -> String -> IO (Bool, FilterState)
 runDuplicateTest st modules' funcSig body =
   runStateT (checkDuplicates (modules ++ modules') funcSig body) st
@@ -46,6 +51,8 @@ runDuplicateTest st modules' funcSig body =
 spec :: Spec
 spec =
   describe "Filter" $ do
+    mapM_ itNotCrashCase testNotCrashHOFs
+
     mapM_ itNotCrashCase testNotCrashCases
 
     it "Duplicates - generate inputs and pass on base case" $ do
