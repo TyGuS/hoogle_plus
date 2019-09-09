@@ -118,7 +118,7 @@ listInstance tyclassName = let
           FunctionT "tc" instanceType $
             ScalarT (DatatypeT (tyclassPrefix ++ tyclassName) [listInstance] []) ftrue
 
-mkTyVar str = ScalarT (TypeVarT (Map.empty) str) ftrue
+mkTyVar str = ScalarT (TypeVarT Map.empty str) ftrue
 
 intType = ScalarT (DatatypeT "Int" [] []) ftrue
 boolType = ScalarT (DatatypeT "Bool" [] []) ftrue

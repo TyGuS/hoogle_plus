@@ -60,7 +60,7 @@ import Types.Solver
 import Types.Type
 import Types.Checker
 
-selection = False
+selection = True
 
 instantiate :: MonadIO m => Environment -> Map Id RSchema -> PNSolver m (Map Id AbstractSkeleton)
 instantiate env sigs = do
@@ -441,17 +441,18 @@ findPath env dst st = do
     (res, st') <- withTime SolverTime (liftIO (encoderSolve st))
     currSt <- get
     maxDepth <- getExperiment maxApplicationDepth
+    currMaxDepth <- gets (view (explorer . currentDepth))
     writeLog 0 "findPath" $ text "current depth" <+> pretty (currSt ^. currentLoc)
     case res of
-        [] | currSt ^. currentLoc >= maxDepth && selection -> do
+        [] | currSt ^. currentLoc >= maxDepth -> do
+                mesgChan <- gets $ view messageChan
+                liftIO $ writeChan mesgChan (MesgClose CSNoSolution)
+                error "cannot find a path"
+            | currSt ^. currentLoc >= currMaxDepth && selection -> do
                 newNames <- addMoreComponent
                 modify $ set currentLoc 1
                 st'' <- fixEncoder env dst st' (SplitInfo [] [] newNames)
                 findPath env dst (st'' { loc = 1 })
-            | currSt ^. currentLoc >= maxDepth -> do
-                mesgChan <- gets $ view messageChan
-                liftIO $ writeChan mesgChan (MesgClose CSNoSolution)
-                error "cannot find a path"
             | otherwise -> do
                 modify $ set currentLoc ((currSt ^. currentLoc) + 1)
                 st'' <- withTime EncodingTime (incEncoder env st')
@@ -730,9 +731,12 @@ findFirstN env dst st ps n
 runPNSolver :: MonadIO m => Environment -> RType -> PNSolver m ()
 runPNSolver env t = do
     let args = map toFunDts (Map.elems (env ^. arguments))
+    let foArgs = Map.filter (not . isFunctionType) (env ^. arguments)
+    let nonArgSyms = Map.difference (env ^. symbols) foArgs
     let res = [t]
     modify $ set (explorer . forwardSet) (Set.fromList args)
     modify $ set (explorer . backwardSet) (Set.fromList res)
+    modify $ set (explorer . nullaries) (Map.filter ((==) 0 . arity . toMonotype) nonArgSyms)
     withTime TotalSearch $ initNet env
     st <- withTime TotalSearch $ withTime EncodingTime (resetEncoder env t)
     cnt <- getExperiment solutionCnt

@@ -31,28 +31,42 @@ selectComp env = do
     fset <- gets (view (explorer . forwardSet))
     bset <- gets (view (explorer . backwardSet))
     has <- gets (view (explorer . selectedNames))
-    let allSymbols = Map.withoutKeys (env ^. symbols) has
-    -- writeLog 1 "selectComp" $ pretty allSymbols
+    let allSymbols = env ^. symbols
     mapM_ (pickOne fset bset) (Map.toList allSymbols)
     writeLog 1 "selectComp" (text "finished selection")
+    fset' <- gets (view (explorer . forwardSet))
+    bset' <- gets (view (explorer . backwardSet))
+    when (fset /= fset') (modify $ over (explorer . currentDepth) (+1))
+    when (bset /= bset') (modify $ over (explorer . currentDepth) (+1))
     where
         pickOne :: MonadIO m => Set RType -> Set RType -> (Id, RSchema) -> PNSolver m ()
         pickOne fset bset (cname, sch) = do
             -- writeLog 1 "pickOne" $ text cname
+            nulls <- gets (view (explorer . nullaries))
             ctype <- freshType sch
             let tvs = env ^. boundTypeVars
             let args = map toFunDts (allArgTypes ctype)
             let guardedArgs = filter (isGuarded tvs) args
-            let constraints = mkConstraints tvs guardedArgs (Set.toList fset)
-            when (cname == "(Data.Function.$)") (writeLog 1 "pickOne" $ pretty constraints)
-            mapM_ (addInhabitant env Forward cname ctype) constraints
+            -- for forward sets,
+            -- if one of the guarded argument unifies with some type in the forward set
+            -- try to unify other args with types in forward set + nullary components
+            let fsConstraints = [(a, ("_", t)) | a <- guardedArgs, t <- Set.toList fset]
+            nullTypes <- mapM freshType nulls
+            let candidateTypes = Map.toList nullTypes ++ map ((,) "_") (Set.toList fset)
+            let mkConstraintsEx (a, t) = map ((a, t):) $
+                    mkConstraints tvs (delete a guardedArgs) candidateTypes
+            let constraints = concatMap mkConstraintsEx fsConstraints
+            let separate p (accNulls, accConstraints) = (
+                    if fst (snd p) /= "_" then fst (snd p) : accNulls else accNulls,
+                    (fst p, snd (snd p)) : accConstraints)
+            mapM_ (uncurry (addInhabitant env Forward cname ctype) . foldr separate ([], [])) constraints
             let res = lastType ctype
             let rets = if isGuarded tvs res then [res] else []
             let constraints = mkConstraints tvs rets (Set.toList bset)
-            mapM_ (addInhabitant env Backward cname ctype) constraints
+            mapM_ (addInhabitant env Backward cname ctype []) constraints
 
-addInhabitant :: MonadIO m => Environment -> Direction -> Id -> RType -> Constraints -> PNSolver m ()
-addInhabitant env dir cname ctype constraints = do
+addInhabitant :: MonadIO m => Environment -> Direction -> Id -> RType -> [Id] -> Constraints -> PNSolver m ()
+addInhabitant env dir cname ctype nulls constraints = do
     names <- gets $ view nameMapping
     indices <- gets getNameIndices
     let initialState = emptyCheckerState {
@@ -65,10 +79,12 @@ addInhabitant env dir cname ctype constraints = do
         when (isChecked finalState) $ do
             modify $ setNameIndices (getNameIndices finalState)
             let tass = typeAssignment finalState
-            addComponent env dir cname ctype tass
+            addComponent env dir cname ctype tass nulls
+            writeLog 1 "addInhabitant" $ text "add nullary components" <+> pretty nulls
+            modify $ over (explorer . selectedNames) (Set.union $ Set.fromList nulls)
 
-addComponent :: MonadIO m => Environment -> Direction -> Id -> RType -> TypeSubstitution -> PNSolver m ()
-addComponent env dir cname ctype tass = do
+addComponent :: MonadIO m => Environment -> Direction -> Id -> RType -> TypeSubstitution -> [Id] -> PNSolver m ()
+addComponent env dir cname ctype tass nulls = do
     let ftype = typeSubstitute tass ctype
     let boundTvs = env ^. boundTypeVars
     let freeVars = Set.toList (typeVarsOf ftype) \\ boundTvs
@@ -92,7 +108,7 @@ addComponent env dir cname ctype tass = do
             updateSets boundTvs dir ftype
 
 {- Helper functions -}
-mkConstraints :: [Id] -> [RType] -> [RType] -> [Constraints]
+mkConstraints :: [a] -> [b] -> [c] -> [[(b, c)]]
 mkConstraints _ [] _ = [[]]
 mkConstraints tvs (arg:args) types = [ (arg, t):more | t <- types,
                                                        more <- mkConstraints tvs args types]
