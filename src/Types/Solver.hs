@@ -30,7 +30,9 @@ data ExplorerState = ExplorerState {
     _selectedNames :: Set Id,
     _selectedSymbols :: Map Id RType,
     _nullaries :: Map Id RSchema,
-    _currentDepth :: Int
+    _currentDepth :: Int,
+    _ft2tr :: Map RType (Set Id),
+    _bt2tr :: Map RType (Set Id)
 } deriving(Eq)
 
 makeLenses ''ExplorerState
@@ -42,7 +44,9 @@ emptyExplorer = ExplorerState {
     _selectedNames = Set.empty,
     _selectedSymbols = Map.empty,
     _nullaries = Map.empty,
-    _currentDepth = 0
+    _currentDepth = 0,
+    _ft2tr = Map.empty,
+    _bt2tr = Map.empty
 }
 
 data SolverState = SolverState {

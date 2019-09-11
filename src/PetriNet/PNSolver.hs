@@ -449,10 +449,17 @@ findPath env dst st = do
                 liftIO $ writeChan mesgChan (MesgClose CSNoSolution)
                 error "cannot find a path"
             | currSt ^. currentLoc >= currMaxDepth && selection -> do
-                newNames <- addMoreComponent
-                modify $ set currentLoc 1
-                st'' <- fixEncoder env dst st' (SplitInfo [] [] newNames)
-                findPath env dst (st'' { loc = 1 })
+                addOrNot <- addMoreComponent
+                case addOrNot of
+                    Right newNames -> do
+                        writeLog 1 "findPath" $ text "adding functions:" <+> pretty newNames
+                        st'' <- fixEncoder env dst st' (SplitInfo [] [] newNames)
+                        findPath env dst st''
+                    Left _ -> do
+                        modify $ set (explorer . currentDepth) maxDepth
+                        modify $ set currentLoc ((currSt ^. currentLoc) + 1)
+                        st'' <- withTime EncodingTime (incEncoder env st')
+                        findPath env dst st''
             | otherwise -> do
                 modify $ set currentLoc ((currSt ^. currentLoc) + 1)
                 st'' <- withTime EncodingTime (incEncoder env st')
@@ -466,16 +473,21 @@ findPath env dst st = do
             names <- gets (view (explorer . selectedNames))
             if oldNames == names
                 then do
-                    mesgChan <- gets $ view messageChan
-                    liftIO $ writeChan mesgChan (MesgClose CSNoSolution)
-                    error "cannot find a path"
+                    maxDepth <- getExperiment maxApplicationDepth
+                    currDepth <- gets (view currentLoc)
+                    if currDepth >= maxDepth
+                        then do
+                            mesgChan <- gets $ view messageChan
+                            liftIO $ writeChan mesgChan (MesgClose CSNoSolution)
+                            error "cannot find a path"
+                        else return (Left names)
                 else do
                     let newNames = names `Set.difference` oldNames
                     let mySymbols = Map.restrictKeys (env ^. symbols) newNames
                     sigs <- addSignatures env mySymbols
                     let hoArgs = Map.filter isFunctionType (env ^. arguments)
                     mapM_ addMusters (Map.keys hoArgs)
-                    return (Map.keys sigs)
+                    return $ Right (Map.keys sigs)
 
 fixEncoder :: MonadIO m
            => Environment
@@ -665,6 +677,7 @@ findProgram env dst st ps
             else return checkerState
         let tass = typeAssignment checkerState'
         -- writeLog 1 "parseAndCheck" $ pretty tass
+        modify $ set nameCounter (checkerNameCounter checkerState')
         if isChecked checkerState'
             then return (Left btm)
             else do

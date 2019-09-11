@@ -1,3 +1,6 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TupleSections #-}
+
 module HooglePlus.BiExplorer where
 
 import Types.Solver
@@ -38,7 +41,38 @@ selectComp env = do
     bset' <- gets (view (explorer . backwardSet))
     when (fset /= fset') (modify $ over (explorer . currentDepth) (+1))
     when (bset /= bset') (modify $ over (explorer . currentDepth) (+1))
+    -- intersects <- mapM (intersectBy bset') (Set.toList fset')
+    -- let commons = Set.fromList $ concat intersects
+    -- liftIO $ print commons
+    -- search commons
     where
+        intersectBy s t = do
+            let constraints = [(t, tt) | tt <- Set.toList s]
+            let solveConstraint = uncurry $ solveTypeConstraint env
+            sts <- mapM (\c -> execStateT (solveConstraint c) emptyCheckerState) constraints
+            let sts' = filter (isChecked . fst) $ zip sts (Set.toList s)
+            return $ map snd sts'
+
+        converge dir fm m s = let
+            fs = Set.unions $ map (\t -> Map.findWithDefault Set.empty t m) $ Set.toList s
+            s' = case dir of
+                Forward -> Set.fromList $ concatMap (\f -> allArgTypes $ fromJust $ Map.lookup f fm) $ Set.toList fs
+                Backward -> Set.map (\f -> lastType $ fromJust $ Map.lookup f fm) fs
+            in if s' `Set.isSubsetOf` s then fs else converge dir fm m (s `Set.union` s')
+
+        search commons = do
+            sym <- gets (view (explorer . selectedSymbols))
+            -- search in the forward direction, unify with the return types
+            fmap <- gets (view (explorer . ft2tr))
+            -- search in the backward direction, unify with the arg types
+            bmap <- gets (view (explorer . bt2tr))
+            nameMap <- gets (view nameMapping)
+            let ffuns = converge Forward sym fmap commons
+            let bfuns = converge Backward sym bmap commons
+            let funNames = Set.map (fromJust . (`Map.lookup` nameMap)) (ffuns `Set.union` bfuns)
+            writeLog 1 "search" $ pretty funNames
+            modify $ over (explorer . selectedNames) (Set.filter (`Set.member` funNames))
+
         pickOne :: MonadIO m => Set RType -> Set RType -> (Id, RSchema) -> PNSolver m ()
         pickOne fset bset (cname, sch) = do
             -- writeLog 1 "pickOne" $ text cname
@@ -52,7 +86,7 @@ selectComp env = do
             -- try to unify other args with types in forward set + nullary components
             let fsConstraints = [(a, ("_", t)) | a <- guardedArgs, t <- Set.toList fset]
             nullTypes <- mapM freshType nulls
-            let candidateTypes = Map.toList nullTypes ++ map ((,) "_") (Set.toList fset)
+            let candidateTypes = Map.toList nullTypes ++ map ("_",) (Set.toList fset)
             let mkConstraintsEx (a, t) = map ((a, t):) $
                     mkConstraints tvs (delete a guardedArgs) candidateTypes
             let constraints = concatMap mkConstraintsEx fsConstraints
@@ -105,7 +139,7 @@ addComponent env dir cname ctype tass nulls = do
             modify $ over (explorer . selectedTypes) (Set.union $ Set.fromList types')
             unless (cname `Map.member` Map.filter (not . isFunctionType) (env ^. arguments))
                    (modify $ over (explorer . selectedNames) (Set.insert cname))
-            updateSets boundTvs dir ftype
+            updateSets boundTvs dir fname ftype
 
 {- Helper functions -}
 mkConstraints :: [a] -> [b] -> [c] -> [[(b, c)]]
@@ -144,14 +178,18 @@ hasInstance tvs nameMap typeMap t n = let
     funNames = map (fromJust . (`Map.lookup` nameMap)) sigNames
     in n `elem` funNames
 
-updateSets :: MonadIO m => [Id] -> Direction -> RType -> PNSolver m ()
-updateSets tvs Forward t = do
+updateSets :: MonadIO m => [Id] -> Direction -> Id -> RType -> PNSolver m ()
+updateSets tvs Forward f t = do
     let res = lastType t
     fset <- gets $ view (explorer . forwardSet)
-    when (arity t > 0 && all (not . eqExceptFvs tvs res) fset)
-        (modify $ over (explorer . forwardSet) (Set.insert res))
-updateSets tvs Backward t = do
+    when (isGuarded tvs res) $ do
+        when (arity t > 0 && all (not . eqExceptFvs tvs res) fset)
+            (modify $ over (explorer . forwardSet) (Set.insert res))
+        let args = Set.fromList $ filter (isGuarded tvs) $ map toFunDts $ res : allArgTypes t
+        mapM_ (\tt -> modify $ over (explorer . ft2tr) (Map.insertWith Set.union tt (Set.singleton f))) args
+updateSets tvs Backward f t = do
     bset <- gets $ view (explorer . backwardSet)
-    let args = Set.fromList $ filter (isGuarded tvs) $ map toFunDts $ allArgTypes t
-    let args' = Set.filter (\t -> all (not . eqExceptFvs tvs t) bset) args
+    let args = filter (isGuarded tvs) $ map toFunDts $ allArgTypes t
+    let args' = Set.filter (\t -> all (not . eqExceptFvs tvs t) bset) (Set.fromList args)
     modify $ over (explorer . backwardSet) (Set.union args')
+    mapM_ (\tt -> modify $ over (explorer . bt2tr) (Map.insertWith Set.union tt (Set.singleton f))) (lastType t : args)
