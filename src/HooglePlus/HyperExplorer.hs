@@ -41,7 +41,7 @@ addTransition maxIndex (FunctionCode f _ args res) net = net {
         productionTree' = insertTransition f productionMap (productionTree net)
 
 insertTransition :: Id -> [Int] -> StateTree -> StateTree
-insertTransition f [] _ = Node (Right f) []
+insertTransition f [] (Node lb forest) = Node lb (Node (Right f) [] : forest)
 insertTransition f (cnt:res) (Node lb forest) =
     case findIndex eqCount forest of
         Nothing -> Node lb (insertTransition f res (Node (Left cnt) []) : forest)
@@ -52,7 +52,12 @@ insertTransition f (cnt:res) (Node lb forest) =
         eqCount (Node (Right _) _) = False
 
 fireTransitions :: PNState -> PNState -> StateTree -> Logic (PNState, Id)
-fireTransitions (curr:nexts) acc (Node lb []) = mzero
+fireTransitions [] acc (Node lb forest) = msum $ map (\node ->
+    case node of
+        Node (Left n) children | n == 0 -> fireTransitions [] acc node
+                               | otherwise -> mzero
+        Node (Right f) _ -> return (reverse acc, f)
+        ) forest
 fireTransitions (curr:nexts) acc (Node lb forest) = msum $ map (\node ->
     case node of
         Node (Left n) children | curr >= n -> fireTransitions nexts ((curr-n):acc) node
@@ -92,7 +97,7 @@ bisearchPN net lv forwards backwards =
         backwards' = concatMap (expandOne net Backward) backwards
 
 expandOne :: PetriNet -> Direction -> QueueNode -> [QueueNode]
-expandOne net dir initial = map (:initial) expandStates
+expandOne net dir initial = traceShow expandStates $ map (:initial) expandStates
     where
         states = case dir of
             Forward -> observeAll $ fireTransitions (fst (head initial)) [] (consumptionTree net)
@@ -103,10 +108,10 @@ listToMap :: Ord a => [a] -> [(a, Int)]
 listToMap lst = map (\l -> (head l, length l)) (group (sort lst))
 
 setIth :: [a] -> Int -> a -> [a]
-setIth xs n x = snd $ foldr fold_fun base xs
+setIth xs n x = reverse $ snd $ foldl fold_fun base xs
     where
         base = (0, [])
-        fold_fun elmt (i, acc) = (i + 1, (if i == n then x else elmt) : acc)
+        fold_fun (i, acc) elmt = (i + 1, (if i == n then x else elmt) : acc)
 
 setFromLists :: [a] -> [(Int, a)] -> [a]
 setFromLists = foldl (uncurry . setIth)

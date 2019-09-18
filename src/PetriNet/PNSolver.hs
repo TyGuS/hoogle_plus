@@ -445,6 +445,12 @@ resetEncoder env dst = do
     (loc, musters, rets, funcs, tid2tr) <- prepEncoderArgs env tgt
     let src = map (t2id Map.!) srcTypes
     let res = map (t2id Map.!) rets
+    let maxIndex = Map.size t2id
+    let net = mkPetriNet maxIndex funcs
+    let initial = setFromLists (replicate maxIndex 0) (listToMap src)
+    let final = setFromLists (replicate maxIndex 0) (listToMap (take 1 res))
+    let path = searchPetriNet net initial final
+    liftIO $ print path
     liftIO $ encoderInit loc musters src res funcs tid2tr incremental relevancy noClone
 
 incEncoder :: MonadIO m => Environment -> EncodeState -> PNSolver m EncodeState
