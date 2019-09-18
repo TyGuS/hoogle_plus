@@ -12,8 +12,8 @@ from colorama import init, Fore, Back, Style
 HPLUS_CMD = 'hplus' # Command to call hoogle+
 TIMEOUT_CMD = 'timeout' # Timeout command
 TIMEOUT = '75' # Timeout value (seconds)
-CMD_OPTS = []
-# CMD_OPTS = ['--stop-refine', '--stop-threshold=10']
+# CMD_OPTS = []
+CMD_OPTS = ['--stop-refine', '--stop-threshold=10']
 LOGFILE = 'data/results.log'                                         # Log file
 CSV_FILE = 'data/result.tsv'                                         # CSV-output file
 DEFAULT_QUERY_FILE = "benchmark/suites/working.yml"

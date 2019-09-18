@@ -1,0 +1,66 @@
+<html>
+  <body .container .main-style>
+    <h1 .hplus_font>
+        <a href="." class="nav-link" id="home">Hoogle+</a>
+        <br>
+        <h5> Welcome to the Hoogle+ Demo
+        <p> Hoogle+ is a type-driven synthesis engine for Haskell - like Hoogle but able to find compositions of functions. Given a Haskell type, Hoogle+ generates terms that inhabit this type by composing library components. It supports polymorphism, type classes, and higher-order functions. Available library components are listed in the side bar.
+
+    <div .body>
+        <div .left>
+            <form id="theForm" method=post action="search">
+                <input #signature type=text, class="form-control", placeholder="Search by type signature!">
+                <button .btn .btn-outline-primary type="submit" id="button-addon2">
+                    Search
+                <button .btn .btn-outline-primary type="button" id="button-stop">
+                    Stop
+            <!-- <div id="loading" style="display:none">
+                <i class="fa fa-spinner fa-spin fa-3x fa-fw margin-bottom"/>
+                    <span class="sr-only">Loading... -->
+            <div id="demo" class="card">
+                <div class="card-header">
+                    <h5 class="card-title">Sample queries
+                <div class="card-body">
+                    <span> Apply pair:&nbsp;
+                        <a class="sample" href="javascript:void(0)">
+                            <code>(a -> b, a) -> b
+                    <br>
+                    <span> Look up element by key:&nbsp;
+                        <a class="sample" href="javascript:void(0)">
+                            <code>Eq a => xs: [(a, b)] -> k: a -> b
+                    <br>
+                    <span> Both:&nbsp;
+                        <a class="sample" href="javascript:void(0)">
+                            <code>f: (a -> b) -> p: (a, a) -> (b, b)
+                    <br>
+                    <span> Resolve either:&nbsp;
+                        <a class="sample" href="javascript:void(0)">
+                            <code>Either a b -> (a -> b) -> b
+                    <br>
+            <div id="result" class="hplus_result">
+            <div id="loading" class="lds-facebook">
+                <div>
+                <div>
+                <div>
+
+        <div .right>
+            <div class="accordion md-accordion" id="accordionEx" role="tablist" aria-multiselectable="true">
+                $forall mdl <- db
+                    <div class="card">
+                        <div class="card-header" role="tab" id="heading#{fst (fst mdl)}">
+                            <a role="button" data-toggle="collapse" data-parent="#accordionEx" data-target="##{fst (fst mdl)}" href="##{fst (fst mdl)}" aria-expanded="false" aria-controls="#{fst (fst mdl)}">
+                                <h5 class="mb-0"> #{snd (fst mdl)}
+                                    <i class="fas fa-angle-down rotate-icon"/>
+
+                      <!-- Card body -->
+                        <div id="#{fst (fst mdl)}" class="collapse" role="tabpanel" aria-labelledby="heading#{fst (fst mdl)}" data-parent="#accordionEx">
+                            <div class="card-body">
+                                <pre>
+                                    <code class="haskell">
+                                        $forall entry <- snd mdl
+                                            <span>#{entry}
+
+    <footer .footer .footer-style .text-center>
+        <div .container>
+            <span>
+                Made by Zheng, David, Michael, Joe, Ziteng, Ranjit and Nadia.
