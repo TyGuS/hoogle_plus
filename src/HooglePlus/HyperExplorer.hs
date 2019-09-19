@@ -12,6 +12,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.List
 import Data.Tree
+import Data.Maybe
 import Debug.Trace
 import Control.Monad.Logic
 
@@ -39,6 +40,21 @@ addTransition maxIndex (FunctionCode f _ args res) net = net {
         baseList = replicate maxIndex 0
         consumptionTree' = insertTransition f consumptionMap (consumptionTree net)
         productionTree' = insertTransition f productionMap (productionTree net)
+
+rmTransition :: Id -> PetriNet -> PetriNet
+rmTransition f net = net {
+        transitions = Map.delete f (transitions net),
+        consumptionTree = fromJust $ deleteTransition f (consumptionTree net),
+        productionTree = fromJust $ deleteTransition f (productionTree net)
+    }
+
+deleteTransition :: Id -> StateTree -> Maybe StateTree
+deleteTransition f (Node (Left n) forest) = let 
+    forest' = map (deleteTransition f) forest 
+    in case catMaybes forest' of
+        [] -> Nothing
+        res -> Just (Node (Left n) res)
+deleteTransition f (Node (Right name) forest) = if name == f then Nothing else Just (Node (Right name) forest)
 
 insertTransition :: Id -> [Int] -> StateTree -> StateTree
 insertTransition f [] (Node lb forest) = Node lb (Node (Right f) [] : forest)
@@ -72,26 +88,25 @@ applyTransition net dir (st, f) = let
         Forward -> (addList st (producesAt tr), f)
         Backward -> (addList st (consumesFrom tr), f)
 
-type QueueNode = [(PNState, Id)]
-
-searchPetriNet :: PetriNet -> PNState -> PNState -> [Id]
-searchPetriNet net initial final = bisearchPN net 0 [[(initial, "")]] [[(final, "")]]
-
-bisearchPN :: PetriNet -> Int -> [QueueNode] -> [QueueNode] -> [Id]
-bisearchPN net lv forwards backwards =
+bisearchPN :: PetriNet -> Int -> Int -> Set [Id] -> [QueueNode] -> [QueueNode] -> ([Id], SearchState)
+bisearchPN net lv depthBound foundPaths forwards backwards =
     case isConnected forwards of
-        [] | lv < 6 -> case bisearchPN net (lv + 1) forwards' backwards of
-                            [] -> bisearchPN net (lv + 2) forwards' backwards'
-                            res -> res
-           | otherwise -> error "cannot find a path"
+        ([],_)  | lv < depthBound -> 
+            case bisearchPN net (lv + 1) depthBound foundPaths forwards' backwards of
+                ([],_) -> bisearchPN net (lv + 2) depthBound foundPaths forwards' backwards'
+                res -> res
+                | otherwise -> error "cannot find a path"
         res -> res
     where
         checkStates = map (fst . head) backwards
 
-        isConnected [] = []
+        isConnected [] = ([], SearchState forwards backwards lv)
         isConnected (f:fs) = case elemIndex (fst (head f)) checkStates of
             Nothing -> isConnected fs
-            Just i -> map snd (reverse f) ++ map snd (drop 1 (backwards !! i))
+            Just i -> let 
+                path = map snd (reverse f) ++ map snd (drop 1 (backwards !! i))
+                in if path `Set.member` foundPaths then isConnected fs 
+                                                   else (path, SearchState forwards backwards lv)
 
         forwards' = concatMap (expandOne net Forward) forwards
         backwards' = concatMap (expandOne net Backward) backwards

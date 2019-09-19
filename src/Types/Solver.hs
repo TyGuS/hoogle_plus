@@ -71,6 +71,7 @@ data SolverState = SolverState {
     _useCount :: Map Id Int,
     _explorer :: ExplorerState,
     _typeToIndex :: Map AbstractSkeleton Int,
+    _triedPaths :: Set [Id],
     _messageChan :: Chan Message
 } deriving(Eq)
 
@@ -101,6 +102,7 @@ emptySolverState = SolverState {
     _useCount = Map.empty,
     _explorer = emptyExplorer,
     _typeToIndex = Map.empty,
+    _triedPaths = Set.empty,
     _messageChan = undefined
 }
 
@@ -117,3 +119,5 @@ instance Timable SolverState where
     setTimeStats m s = s { _solverStats = m }
 
 type Constraints = [(RType, RType)]
+
+data Option = NotFound | Found RProgram | MoreRefine (RProgram, AbstractSkeleton)
