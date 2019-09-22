@@ -239,7 +239,7 @@ applySemantic tvs fun args = do
         Nothing -> return ABottom
         Just m -> do
             writeLog 3 "applySemantic" $ text "get unifier" <+> pretty (Map.toList m)
-            cover <- gets (view abstractionCover)
+            cover <- getSolver abstractionCover
             let substRes = abstractSubstitute m ret
             writeLog 3 "applySemantic" $ text "current cover" <+> text (show cover)
             writeLog 3 "applySemantic" $ text "to find the type" <+> pretty substRes
@@ -262,5 +262,5 @@ encodeFunction m id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [
     hoFun x = encodeFunction m (show x) x
     hoParams = map hoFun $ filter isAFunctionT (abstractParamList t)
     params = map ((Map.!) m) (abstractParamList t)
-    res = m Map.! (lastAbstract t)
+    res = m Map.! lastAbstract t
 encodeFunction m id t@AScalar {} = FunctionCode id [] [] [m Map.! t]

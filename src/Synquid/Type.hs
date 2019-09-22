@@ -273,3 +273,8 @@ longScalarName (ScalarT IntT _) = "Int"
 longScalarName (ScalarT BoolT _) = "Bool"
 longScalarName (ScalarT (TypeVarT _ name) _) = name
 longScalarName t = error $ "longScalarName error: cannot be applied to nonscalar type "
+
+toFunDts :: RType -> RType
+toFunDts (ScalarT (DatatypeT id args p) r) = ScalarT (DatatypeT id (map toFunDts args) p) r
+toFunDts (FunctionT _ tArg tRes) = ScalarT (DatatypeT "Fun" [toFunDts tArg, toFunDts tRes] []) ftrue
+toFunDts t = t

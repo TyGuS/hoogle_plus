@@ -5,10 +5,12 @@ import Types.Common
 
 import Data.Tree
 import Data.Map.Strict (Map)
+import Data.PQueue.Prio.Min
 
 type PNState = [Int]
 type StateTree = Tree (Either Int Id)
 type QueueNode = [(PNState, Id)]
+type Queue = MinPQueue Int QueueNode
 
 data Transition = Transition {
     transitionId :: Id,
@@ -23,7 +25,7 @@ data PetriNet = PetriNet {
 } deriving(Eq, Show)
 
 data SearchState = SearchState {
-    forwards :: [QueueNode],
-    backwards :: [QueueNode],
+    forwards :: Queue,
+    backwards :: Queue,
     searchDepth :: Int
 } deriving(Eq, Show)

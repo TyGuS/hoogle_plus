@@ -36,14 +36,17 @@ import Control.Monad.ST (runST, ST)
 import Data.Array.ST (STArray, readArray, writeArray, newListArray, getElems)
 import Debug.Trace
 
-getExperiment exp = gets $ view (searchParams . exp)
+getExperiment exp = gets $ view (_1 . searchParams . exp)
+getSolver field = gets $ view (_1 . field)
+setSolver field = modify . set (_1 . field)
+overSolver field = modify . over (_1 . field)
 
 -------------------------------------------------------------------------------
 -- | helper functions
 -------------------------------------------------------------------------------
 writeLog :: MonadIO m => Int -> String -> Doc -> PNSolver m ()
 writeLog level tag msg = do
-    mesgChan <- gets $ view messageChan
+    mesgChan <- getSolver messageChan
     liftIO $ writeChan mesgChan (MesgLog level tag $ show $ plain msg)
     -- when (level <= 1) (trace (printf "[%s]: %s\n" tag (show $ plain msg)) $ return ())
 
@@ -54,19 +57,23 @@ multiPermutation len elmts            = nubSpence [ l:r | l <- elmts, r <- multi
 -- Thanks, this only helps when you get >100 elements, otherwise, use nubOrd:
 -- https://github.com/AndreasPK/nubBench/blob/038bc644f32aaa47035484b4384a4aaf5b78320c/app/Main.hs
 nubSpence :: (Hashable a, Eq a) => [a] -> [a]
-nubSpence l = runST $ do
-  arr <- mr
-  forM_ l $ \j -> do
-    let index = (hash j) `mod` 255
-    current <- readArray arr index
-    let new = if j `elem` current then current else j : current
-    writeArray arr index new
-  join <$> getElems arr
-    where
-      mr :: ST s (STArray s Int [a])
-      mr = newListArray (0, 255) (replicate 256 [])
+nubSpence l =
+    runST $ do
+        arr <- mr
+        forM_ l $ \j -> do
+            let index = hash j `mod` 255
+            current <- readArray arr index
+            let new =
+                    if j `elem` current
+                        then current
+                        else j : current
+            writeArray arr index new
+        join <$> getElems arr
+  where
+    mr :: ST s (STArray s Int [a])
+    mr = newListArray (0, 255) (replicate 256 [])
 
-listDiff left right = Set.toList $ (Set.fromList left) `Set.difference` (Set.fromList right)
+listDiff left right = Set.toList $ Set.fromList left `Set.difference` Set.fromList right
 
 replaceId a b = Text.unpack . Text.replace (Text.pack a) (Text.pack b) . Text.pack
 
@@ -101,7 +108,7 @@ freshAbstract bound t = do
     freshAbstract' bound m (AScalar (ATypeVarT id)) | id `Map.member` m =
         return (m, fromJust (Map.lookup id m))
     freshAbstract' bound m (AScalar (ATypeVarT id)) = do
-        v <- freshId "A"
+        v <- lift $ freshId "A"
         let t = AScalar (ATypeVarT v)
         return (Map.insert id t m, AScalar (ATypeVarT v))
     freshAbstract' bound m (AScalar (ADatatypeT id args)) = do
@@ -119,26 +126,26 @@ mkConstraint bound v t = do
     t' <- freshAbstract bound t
     return (AScalar (ATypeVarT v), t')
 
-groupSignatures :: MonadIO m => Map Id FunctionCode -> PNSolver m (Map FunctionCode GroupId, Map GroupId (Set Id))
+groupSignatures :: MonadIO m => Map Id FunctionCode -> PNSolver m (Map GroupId FunctionCode, Map GroupId (Set Id))
 groupSignatures sigs = do
     let sortArgs (FunctionCode f ho args res) = FunctionCode f ho (sort args) res
     let sigsByType = Map.map Set.fromList $ groupByMap $ Map.map sortArgs sigs
-    writeLog 3 "groupSignatures" $ pretty sigsByType
+    writeLog 2 "groupSignatures" $ pretty sigsByType
     let sigLists = Map.toList sigsByType
-    signatureGroups <- flip zip sigLists <$> mapM (\_ -> freshId "gm") [() | _ <- sigLists]
+    signatureGroups <- flip zip sigLists <$> mapM (\_ -> lift $ freshId "gm") [() | _ <- sigLists]
     let dupes = [Set.size $ snd $ snd x | x <- signatureGroups, Set.size (snd $ snd x) > 1]
     let allIds = [Set.size $ snd $ snd x | x <- signatureGroups]
-    writeLog 3 "groupSignatures" $ text $ printf "%d class; %d equiv; %d total"
-        (length sigLists) (sum dupes) (Map.size sigs)
+    writeLog 3 "groupSignatures" $
+        text $ printf "%d class; %d equiv; %d total" (length sigLists) (sum dupes) (Map.size sigs)
     let groupMap = Map.fromList $ map (\(gid, (_, ids)) -> (gid, ids)) signatureGroups
-    let t2g = Map.fromList $ map (\(gid, (aty, _)) -> (aty, gid)) signatureGroups
+    let groupSig = Map.fromList $ map (\(gid, (aty, _)) -> (gid, aty {funName = gid})) signatureGroups
     -- write out the info.
-    mesgChan <- gets $ view messageChan
-    modify $ over solverStats (\s -> s {
-        duplicateSymbols = duplicateSymbols s ++ [(length sigLists, sum dupes, sum $ map length $ sigLists)]
-    })
-    stats <- gets $ view solverStats
-    return (t2g, groupMap)
+    mesgChan <- getSolver messageChan
+    overSolver solverStats (\s -> s {
+            duplicateSymbols = duplicateSymbols s ++ [(length sigLists, sum dupes, sum $ map length sigLists)]
+        })
+    stats <- getSolver solverStats
+    return (groupSig, groupMap)
 
 recoverNames :: Map Id Id -> Program t -> Program t
 recoverNames mapping (Program (PSymbol sym) t) =
@@ -154,3 +161,23 @@ recoverNames mapping (Program (PApp fun pArg) t) = Program (PApp fun' pArg') t
 recoverNames mapping (Program (PFun x body) t) = Program (PFun x body') t
   where
     body' = recoverNames mapping body
+    
+listToMap :: Ord a => [a] -> [(a, Int)]
+listToMap lst = map (\l -> (head l, length l)) (group (sort lst))
+
+setIth :: [a] -> Int -> a -> [a]
+setIth xs n x = reverse $ snd $ foldl fold_fun base xs
+    where
+        base = (0, [])
+        fold_fun (i, acc) elmt = (i + 1, (if i == n then x else elmt) : acc)
+
+setFromLists :: [a] -> [(Int, a)] -> [a]
+setFromLists = foldl (uncurry . setIth)
+
+addList :: [Int] -> [Int] -> [Int]
+addList xs ys = zipWith (+) xs' ys'
+    where
+        xlen = length xs
+        ylen = length ys
+        xs' = if xlen < ylen then xs ++ replicate (ylen - xlen) 0 else xs
+        ys' = if xlen < ylen then ys else ys ++ replicate (xlen - ylen) 0

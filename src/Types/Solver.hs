@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Types.Solver where
 
 import Data.Map (Map)
@@ -10,6 +11,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Control.Lens
 import Control.Monad.State
 import Control.Concurrent.Chan
+import Control.Monad.Logic
 
 import Types.Program
 import Types.Abstract
@@ -17,6 +19,7 @@ import Types.Experiments hiding (PetriNet)
 import Types.Type
 import Types.Common
 import Types.Encoder
+import Types.HyperGraph
 
 rootNode = AScalar (ATypeVarT varName)
 pairProj = "pair_match"
@@ -52,14 +55,11 @@ data SolverState = SolverState {
     _currentSolutions :: [RProgram], -- type checked solutions
     _currentLoc :: Int, -- current solution depth
     _currentSigs :: Map Id AbstractSkeleton, -- current type signature groups
-    _activeSigs :: Set Id,
     _functionMap :: HashMap Id FunctionCode,
     _targetType :: AbstractSkeleton,
     _sourceTypes :: [AbstractSkeleton],
     _mustFirers :: HashMap Id [Id],
     _groupMap :: Map GroupId (Set Id), -- mapping from group id to Skel and list of function names with the same skel
-    _groupRepresentative :: Map GroupId Id, -- mapping of current representative for group.
-    _typeToGroup :: Map FunctionCode GroupId,
     _nameToGroup :: Map Id GroupId,
     _type2transition :: HashMap Int (Set Id), -- mapping from abstract type to group ids
     _solverStats :: TimeStatistics,
@@ -83,14 +83,11 @@ emptySolverState = SolverState {
     _currentSolutions = [],
     _currentLoc = 1,
     _currentSigs = Map.empty,
-    _activeSigs = Set.empty,
     _functionMap = HashMap.empty,
     _targetType = AScalar (ATypeVarT varName),
     _sourceTypes = [],
     _mustFirers = HashMap.empty,
     _groupMap = Map.empty,
-    _groupRepresentative = Map.empty,
-    _typeToGroup = Map.empty,
     _nameToGroup = Map.empty,
     _type2transition = HashMap.empty,
     _solverStats = emptyTimeStats,
@@ -108,15 +105,15 @@ emptySolverState = SolverState {
 
 makeLenses ''SolverState
 
-type PNSolver m = StateT SolverState m
+type PNSolver m = LogicT (StateT (SolverState, SearchState) m)
 
-instance Freshable SolverState where
-    getNameIndices = _nameCounter
-    setNameIndices m s = s { _nameCounter = m }
+instance Freshable (SolverState, SearchState) where
+    getNameIndices = _nameCounter . fst
+    setNameIndices m (s, st) = (s { _nameCounter = m }, st)
 
-instance Timable SolverState where
-    getTimeStats = _solverStats
-    setTimeStats m s = s { _solverStats = m }
+instance Timable (SolverState, SearchState) where
+    getTimeStats = _solverStats . fst
+    setTimeStats m (s, st) = (s { _solverStats = m }, st)
 
 type Constraints = [(RType, RType)]
 

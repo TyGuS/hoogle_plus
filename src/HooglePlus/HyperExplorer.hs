@@ -5,6 +5,7 @@ import Types.Abstract
 import Types.Common
 import PetriNet.AbstractType
 import Synquid.Pretty
+import PetriNet.Util
 
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -15,6 +16,8 @@ import Data.Tree
 import Data.Maybe
 import Debug.Trace
 import Control.Monad.Logic
+import Data.List.Extra
+import qualified Data.PQueue.Prio.Min as PQ
 
 mkPetriNet :: Int -> [FunctionCode] -> PetriNet
 mkPetriNet maxIndex = foldr (addTransition maxIndex) $ PetriNet {
@@ -48,9 +51,22 @@ rmTransition f net = net {
         productionTree = fromJust $ deleteTransition f (productionTree net)
     }
 
+clearPath :: [Id] -> SearchState -> SearchState
+clearPath [] st = st
+clearPath fs st = st {
+        forwards = let after = nubSort $ filter (not . null) (map (dropLast []) $ PQ.elemsU (forwards st))
+                    in mkPriorityQueue after,
+        backwards = let after = nubSort $ filter (not . null) (map (dropLast []) (PQ.elemsU $ backwards st))
+                    in mkPriorityQueue after
+    }
+    where
+        dropLast acc [] = reverse acc
+        dropLast acc (x:xs) | snd x `elem` fs = dropLast [] xs
+                            | otherwise = dropLast (x:acc) xs
+
 deleteTransition :: Id -> StateTree -> Maybe StateTree
-deleteTransition f (Node (Left n) forest) = let 
-    forest' = map (deleteTransition f) forest 
+deleteTransition f (Node (Left n) forest) = let
+    forest' = map (deleteTransition f) forest
     in case catMaybes forest' of
         [] -> Nothing
         res -> Just (Node (Left n) res)
@@ -88,28 +104,33 @@ applyTransition net dir (st, f) = let
         Forward -> (addList st (producesAt tr), f)
         Backward -> (addList st (consumesFrom tr), f)
 
-bisearchPN :: PetriNet -> Int -> Int -> Set [Id] -> [QueueNode] -> [QueueNode] -> ([Id], SearchState)
+bisearchPN :: PetriNet -> Int -> Int -> Set [Id] -> Queue -> Queue -> ([Id], SearchState)
 bisearchPN net lv depthBound foundPaths forwards backwards =
-    case isConnected forwards of
-        ([],_)  | lv < depthBound -> 
-            case bisearchPN net (lv + 1) depthBound foundPaths forwards' backwards of
-                ([],_) -> bisearchPN net (lv + 2) depthBound foundPaths forwards' backwards'
-                res -> res
+--    case isConnected forwards of
+--        ([],_)  | lv + 1 <= depthBound ->
+--            case isConnected forwards' of
+--                ([],_) | lv + 2 <= depthBound -> bisearchPN net (lv + 2) depthBound foundPaths forwards' backwards'
+--                       | otherwise -> error "cannot find a path"
+--                res -> res
+--                | otherwise -> error "cannot find a path"
+--        res -> res
+    case isConnected (PQ.elemsU forwards) of
+        ([],_)  | lv + 2 <= depthBound -> bisearchPN net (lv + 2) depthBound foundPaths forwards' backwards'
                 | otherwise -> error "cannot find a path"
         res -> res
     where
-        checkStates = map (fst . head) backwards
+        checkStates = map (fst . head) (PQ.elemsU backwards)
 
         isConnected [] = ([], SearchState forwards backwards lv)
         isConnected (f:fs) = case elemIndex (fst (head f)) checkStates of
             Nothing -> isConnected fs
-            Just i -> let 
-                path = map snd (reverse f) ++ map snd (drop 1 (backwards !! i))
-                in if path `Set.member` foundPaths then isConnected fs 
+            Just i -> let
+                path = map snd (reverse f) ++ map snd (PQ.elemsU backwards !! i)
+                in if path `Set.member` foundPaths then isConnected fs
                                                    else (path, SearchState forwards backwards lv)
 
-        forwards' = concatMap (expandOne net Forward) forwards
-        backwards' = concatMap (expandOne net Backward) backwards
+        forwards' = mkPriorityQueue $ concatMap (expandOne net Forward) forwards
+        backwards' = mkPriorityQueue $ concatMap (expandOne net Backward) backwards
 
 expandOne :: PetriNet -> Direction -> QueueNode -> [QueueNode]
 expandOne net dir initial = traceShow expandStates $ map (:initial) expandStates
@@ -117,24 +138,7 @@ expandOne net dir initial = traceShow expandStates $ map (:initial) expandStates
         states = case dir of
             Forward -> observeAll $ fireTransitions (fst (head initial)) [] (consumptionTree net)
             Backward -> observeAll $ fireTransitions (fst (head initial)) [] (productionTree net)
-        expandStates = map (applyTransition net dir) states
+        expandStates = traceShow (initial, states) $ map (applyTransition net dir) states
 
-listToMap :: Ord a => [a] -> [(a, Int)]
-listToMap lst = map (\l -> (head l, length l)) (group (sort lst))
-
-setIth :: [a] -> Int -> a -> [a]
-setIth xs n x = reverse $ snd $ foldl fold_fun base xs
-    where
-        base = (0, [])
-        fold_fun (i, acc) elmt = (i + 1, (if i == n then x else elmt) : acc)
-
-setFromLists :: [a] -> [(Int, a)] -> [a]
-setFromLists = foldl (uncurry . setIth)
-
-addList :: [Int] -> [Int] -> [Int]
-addList xs ys = zipWith (+) xs' ys'
-    where
-        xlen = length xs
-        ylen = length ys
-        xs' = if xlen < ylen then xs ++ replicate (ylen - xlen) 0 else xs
-        ys' = if xlen < ylen then ys else ys ++ replicate (xlen - ylen) 0
+mkPriorityQueue :: [QueueNode] -> Queue
+mkPriorityQueue = PQ.fromList . map (\l -> (length l, l))

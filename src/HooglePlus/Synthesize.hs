@@ -18,6 +18,9 @@ import Types.Experiments
 import Types.Program
 import Types.Solver
 import Types.Type
+import PetriNet.AbstractType
+import PetriNet.Util
+import Types.HyperGraph
 
 import Control.Applicative ((<$>))
 import Control.Concurrent.Chan
@@ -41,7 +44,7 @@ import System.Exit
 import Text.Parsec.Indent
 import Text.Parsec.Pos
 import Text.Printf (printf)
-
+import qualified Data.PQueue.Prio.Min as PQ
 
 updateEnvWithBoundTyVars :: RSchema -> Environment -> (Environment, RType)
 updateEnvWithBoundTyVars (Monotype ty) env = (env, ty)
@@ -95,9 +98,10 @@ synthesize solverType searchParams goal messageChan = do
                     env'
                         {_symbols = Map.withoutKeys syms $ Set.fromList hoCands, _hoCandidates = []}
     putStrLn $ "Component number: " ++ show (Map.size $ env ^. symbols)
-    let args = map Monotype $ destinationType : Map.elems (env ^. arguments)
+    let args = destinationType : Map.elems (env ^. arguments)
   -- start with all the datatypes defined in the components, first level abstraction
     let rs = _refineStrategy searchParams
+    let args' = nub (map (toAbstractType . toFunDts) args)
     let is =
             emptySolverState
                 { _searchParams = searchParams
@@ -105,15 +109,23 @@ synthesize solverType searchParams goal messageChan = do
                       case rs of
                           SypetClone -> Abstraction.firstLvAbs env (Map.elems (env ^. symbols))
                           TyGar0 -> emptySolverState ^. abstractionCover
-                          TyGarQ -> Abstraction.specificAbstractionFromTypes env args
-                          NoGar -> Abstraction.specificAbstractionFromTypes env args
+                          TyGarQ -> Abstraction.specificAbstractionFromTypes env $ map Monotype args
+                          NoGar -> Abstraction.specificAbstractionFromTypes env $ map Monotype args
                           NoGar0 -> emptySolverState ^. abstractionCover
+                , _typeToIndex = Map.fromList $ zip args' [0..]
                 , _messageChan = messageChan
                 }
+    let t2id = _typeToIndex is
+    let maxIndex = Map.size t2id
+    let src = map ((t2id Map.!) . toAbstractType . toFunDts) (Map.elems (env ^. arguments)) 
+    let res = map ((t2id Map.!) . toAbstractType) [destinationType]
+    let initial = setFromLists (replicate maxIndex 0) (listToMap src)
+    let final = setFromLists (replicate maxIndex 0) (listToMap (take 1 res))
+    let st = SearchState (PQ.singleton 1 [(initial, "")]) (PQ.singleton 1 [(final, "")]) 0
     catch
-        (evalStateT (runPNSolver env destinationType) is)
+        (evalStateT (observeManyT (searchParams ^. solutionCnt) $ runPNSolver env destinationType) (is, st))
         (\e ->
              writeChan messageChan (MesgLog 0 "error" (show e)) >>
              writeChan messageChan (MesgClose (CSError e)) >>
              error (show e))
-    -- return ()
+    return ()

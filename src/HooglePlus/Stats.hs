@@ -7,6 +7,7 @@ import Types.Solver
 import Types.Common
 import Synquid.Util
 import Synquid.Pretty
+import PetriNet.Util
 
 import Control.Monad.State
 import System.CPUTime
@@ -16,7 +17,7 @@ import qualified Data.Map as Map
 import Text.Pretty.Simple
 
 -- | wrap some action with time measuring and print out the execution time
-withTime :: (Timable s, MonadIO m) => TimeStatUpdate -> StateT s m a -> StateT s m a
+withTime :: MonadIO m => TimeStatUpdate -> PNSolver m a -> PNSolver m a
 withTime desc f = do
     start <- liftIO getCPUTime
     res <- f
@@ -35,7 +36,7 @@ withTime desc f = do
 
 resetTiming :: Monad m => PNSolver m ()
 resetTiming =
-  modify $ over solverStats (\s ->
+  overSolver solverStats (\s ->
     s { encodingTime=0,
         codeFormerTime=0,
         solverTime=0,
@@ -46,8 +47,8 @@ resetTiming =
 
 printStats :: MonadIO m => PNSolver m ()
 printStats = do
-    stats <- gets $ view solverStats
-    depth <- gets $ view currentLoc
+    stats <- getSolver solverStats
+    depth <- getSolver currentLoc
     liftIO $ putStrLn "*******************STATISTICS*******************"
     liftIO $ putStrLn ("Search time for solution: " ++ showFullPrecision (totalTime stats))
     liftIO $ putStrLn ("Petri net construction time: " ++ showFullPrecision (constructionTime stats))

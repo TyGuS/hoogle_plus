@@ -30,39 +30,40 @@ import Debug.Trace
 
 selectComp :: MonadIO m => Environment -> PNSolver m ()
 selectComp env = do
-    fset <- gets (view (explorer . forwardSet))
-    bset <- gets (view (explorer . backwardSet))
-    has <- gets (view (explorer . selectedNames))
+    fset <- getSolver (explorer . forwardSet)
+    bset <- getSolver (explorer . backwardSet)
+    has <- getSolver (explorer . selectedNames)
     let allSymbols = env ^. symbols
     mapM_ (pickOne fset bset) (Map.toList allSymbols)
     writeLog 1 "selectComp" (text "finished selection")
-    fset' <- gets (view (explorer . forwardSet))
-    bset' <- gets (view (explorer . backwardSet))
-    when (fset /= fset') (modify $ over (explorer . currentDepth) (+1))
-    when (bset /= bset') (modify $ over (explorer . currentDepth) (+1))
-    where
-        pickOne :: MonadIO m => Set RType -> Set RType -> (Id, RSchema) -> PNSolver m ()
-        pickOne fset bset (cname, sch) = do
+    fset' <- getSolver (explorer . forwardSet)
+    bset' <- getSolver (explorer . backwardSet)
+    when (fset /= fset') (overSolver (explorer . currentDepth) (+ 1))
+    when (bset /= bset') (overSolver (explorer . currentDepth) (+ 1))
+  where
+    pickOne :: MonadIO m => Set RType -> Set RType -> (Id, RSchema) -> PNSolver m ()
+    pickOne fset bset (cname, sch)
             -- writeLog 1 "pickOne" $ text cname
-            nulls <- gets (view (explorer . nullaries))
-            ctype <- freshType sch
-            let tvs = env ^. boundTypeVars
-            let args = map toFunDts (allArgTypes ctype)
-            let guardedArgs = filter (isGuarded tvs) args
+     = do
+        nulls <- getSolver (explorer . nullaries)
+        ctype <- lift $ freshType sch
+        let tvs = env ^. boundTypeVars
+        let args = map toFunDts (allArgTypes ctype)
+        let guardedArgs = filter (isGuarded tvs) args
             -- for forward sets,
             -- if one of the guarded argument unifies with some type in the forward set
-            nullTypes <- mapM freshType nulls
-            let candidateTypes = Set.toList fset
-            constraints <- mapM (\a -> mkConstraints tvs [a] candidateTypes) guardedArgs
-            mapM_ (addInhabitant env Forward cname ctype) (concat constraints)
-            let res = lastType ctype
-            let rets = if isGuarded tvs res then [res] else []
-            constraints <- mkConstraints tvs rets (Set.toList bset)
-            mapM_ (addInhabitant env Backward cname ctype) constraints
+        nullTypes <- lift $ mapM freshType nulls
+        let candidateTypes = Set.toList fset
+        constraints <- mapM (\a -> mkConstraints tvs [a] candidateTypes) guardedArgs
+        mapM_ (addInhabitant env Forward cname ctype) (concat constraints)
+        let res = lastType ctype
+        let rets = [res | isGuarded tvs res]
+        constraints <- mkConstraints tvs rets (Set.toList bset)
+        mapM_ (addInhabitant env Backward cname ctype) constraints
 
 addInhabitant :: MonadIO m => Environment -> Direction -> Id -> RType -> Constraints -> PNSolver m ()
 addInhabitant env dir cname ctype constraints = do
-    names <- gets $ view nameMapping
+    names <- getSolver nameMapping
     indices <- gets getNameIndices
     let initialState = emptyCheckerState {
         checkerNameMapping = names,
@@ -71,7 +72,7 @@ addInhabitant env dir cname ctype constraints = do
     unless (null constraints) $ do
         let solveConstraint = uncurry $ solveTypeConstraint env
         finalState <- execStateT (mapM_ solveConstraint constraints) initialState
-        modify $ set nameMapping (checkerNameMapping finalState)
+        setSolver nameMapping (checkerNameMapping finalState)
         when (isChecked finalState) $ do
             let tass = typeAssignment finalState
             addComponent env dir cname ctype tass
@@ -81,23 +82,23 @@ addComponent env dir cname ctype tass = do
     let ftype = typeSubstitute tass ctype
     let boundTvs = env ^. boundTypeVars
     let freeVars = Set.toList (typeVarsOf ftype) \\ boundTvs
-    symbols <- gets $ view (explorer . selectedSymbols)
-    names <- gets $ view nameMapping
-    selected <- gets $ view (explorer . selectedTypes)
+    symbols <- getSolver (explorer . selectedSymbols)
+    names <- getSolver nameMapping
+    selected <- getSolver (explorer . selectedTypes)
     let smallTypes t = typeDepth (toFunDts t) <= 2
     writeLog 1 "addComponent" $ text cname <+> text "::" <+> pretty ftype
     when (not (hasInstance boundTvs names symbols ftype cname) &&
         all smallTypes (lastType ftype : allArgTypes ftype)) $ do
-            fname <- freshId "f"
+            fname <- lift $ freshId "f"
             writeLog 1 "addComponent" $ text fname <+> text "::" <+> pretty ftype
             let types = map toFunDts (lastType ftype : allArgTypes ftype)
             let places = decompose (toAbstractType ftype)
-            modify $ over nameMapping (Map.insert fname cname)
-            modify $ over (explorer . selectedSymbols) (Map.insert fname ftype)
+            overSolver nameMapping (Map.insert fname cname)
+            overSolver (explorer . selectedSymbols) (Map.insert fname ftype)
             let types' = filter (\t -> all (not . eqExceptFvs boundTvs t) selected) types
-            modify $ over (explorer . selectedTypes) (Set.union $ Set.fromList types')
+            overSolver (explorer . selectedTypes) (Set.union $ Set.fromList types')
             unless (cname `Map.member` Map.filter (not . isFunctionType) (env ^. arguments))
-                   (modify $ over (explorer . selectedNames) (Set.insert cname))
+                   (overSolver (explorer . selectedNames) (Set.insert cname))
             updateSets boundTvs dir fname ftype
 
 {- Helper functions -}
@@ -105,8 +106,8 @@ mkConstraints :: MonadIO m => [a] -> [b] -> [RType] -> PNSolver m [[(b, RType)]]
 mkConstraints _ [] _ = return [[]]
 mkConstraints tvs (arg:args) types = do
     more <- mkConstraints tvs args types
-    types' <- mapM (freshType . Monotype) types
-    return $ [ c:m | c <- zip (repeat arg) types', m <- more ]
+    types' <- lift $ mapM (freshType . Monotype) types
+    return [c : m | c <- zip (repeat arg) types', m <- more]
 
 isGuarded :: [Id] -> RType -> Bool
 isGuarded tvs (ScalarT (TypeVarT _ id) _) | id `elem` tvs = True
@@ -124,11 +125,6 @@ eqExceptFvs _ BotT BotT = True
 eqExceptFvs _ AnyT AnyT = True
 eqExceptFvs _ _ _ = False
 
-toFunDts :: RType -> RType
-toFunDts (ScalarT (DatatypeT id args p) r) = ScalarT (DatatypeT id (map toFunDts args) p) r
-toFunDts (FunctionT _ tArg tRes) = ScalarT (DatatypeT "Fun" [toFunDts tArg, toFunDts tRes] []) ftrue
-toFunDts t = t
-
 -- encode :: Map AbstractSkeleton Int -> (Id, RType) -> FunctionCode
 -- encode m (id, t) = encodeFunction m id (toAbstractType $ shape t)
 
@@ -142,16 +138,16 @@ hasInstance tvs nameMap typeMap t n = let
 updateSets :: MonadIO m => [Id] -> Direction -> Id -> RType -> PNSolver m ()
 updateSets tvs Forward f t = do
     let res = lastType t
-    fset <- gets $ view (explorer . forwardSet)
-    bset <- gets $ view (explorer . backwardSet)
+    fset <- getSolver (explorer . forwardSet)
+    bset <- getSolver (explorer . backwardSet)
     when (isGuarded tvs res) $
         when (arity t > 0 && all (not . eqExceptFvs tvs res) fset)
-            (modify $ over (explorer . forwardSet) (Set.insert res))
+            (overSolver (explorer . forwardSet) (Set.insert res))
     let args = Set.fromList $ filter (isGuarded tvs) $ map toFunDts $ allArgTypes t
     let args' = Set.filter (\t -> all (not . eqExceptFvs tvs t) bset) args
-    modify $ over (explorer . backwardSet) (Set.union args')
+    overSolver (explorer . backwardSet) (Set.union args')
 updateSets tvs Backward f t = do
-    bset <- gets $ view (explorer . backwardSet)
+    bset <- getSolver (explorer . backwardSet)
     let args = filter (isGuarded tvs) $ map toFunDts $ allArgTypes t
     let args' = Set.filter (\t -> all (not . eqExceptFvs tvs t) bset) (Set.fromList args)
-    modify $ over (explorer . backwardSet) (Set.union args')
+    overSolver (explorer . backwardSet) (Set.union args')

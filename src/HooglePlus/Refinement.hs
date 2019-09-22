@@ -65,15 +65,15 @@ propagate :: MonadIO m => Environment -> RProgram -> AbstractSkeleton -> PNSolve
 -- | base case, when we reach the leaf of the AST
 propagate env p@(Program (PSymbol sym) t) upstream = do
     writeLog 3 "propagate" $ text "propagate" <+> pretty upstream <+> text "into" <+> pretty p
-    cover <- gets (view abstractionCover)
+    cover <- getSolver abstractionCover
     let bound = env ^. boundTypeVars
     unless (existAbstract bound cover upstream)
            (do
                 let newCover = updateCover bound upstream cover
                 writeLog 2 "propagate" $ text "Cover!cover!cover!" <+> pretty newCover
-                modify $ set abstractionCover newCover
+                setSolver abstractionCover newCover
                 let newTyps = allTypesOf newCover \\ allTypesOf cover
-                modify $ over splitTypes (Set.union $ Set.fromList newTyps)
+                overSolver splitTypes (Set.union $ Set.fromList newTyps)
            )
 -- | starter case, when we start from a bottom type
 -- find the most general abstraction that unifies with the concrete types
@@ -81,8 +81,8 @@ propagate env p@(Program (PSymbol sym) t) upstream = do
 propagate env p@(Program (PApp f args) _) upstream = do
     unless (isBot upstream) (propagate env (Program (PSymbol "x") AnyT) upstream)
     writeLog 3 "propagate" $ text "propagate" <+> pretty upstream <+> text "into" <+> pretty p
-    nameMap <- gets $ view nameMapping
-    t <- freshType $ findSymbol nameMap env (removeLast '_' f)
+    nameMap <- getSolver nameMapping
+    t <- lift $ freshType $ findSymbol nameMap env (removeLast '_' f)
     let closedArgs = map (shape . typeOf) args
     let argConcs = map toAbstractType closedArgs
     let absFun = toAbstractType $ shape t
@@ -102,7 +102,7 @@ propagate env (Program (PFun x body) (FunctionT _ tArg tRet))
               (AFunctionT atArg atRet) =
     propagate (addVariable x (addTrue tArg) env) body atRet
 propagate env (Program (PFun x body) t) (AFunctionT atArg atRet) = do
-    id <- freshId "A"
+    id <- lift $ freshId "A"
     let tArg = addTrue (ScalarT (TypeVarT Map.empty id) ())
     propagate (addVariable x (addTrue tArg) env) body atRet
 propagate _ prog t = return ()
@@ -113,14 +113,14 @@ generalize :: MonadIO m => [Id] -> AbstractSkeleton -> LogicT (PNSolver m) Abstr
 generalize bound t@(AScalar (ATypeVarT id))
   | id `notElem` bound = return t
   | otherwise = do
-    v <- lift $ freshId "T"
+    v <- lift $ lift $ freshId "T"
     return (AScalar (ATypeVarT v)) `mplus` return t
 -- for datatype, we define the generalization order as follows:
 -- (1) v
 -- (2) datatype with all fresh type variables
 -- (3) datatype with incrementally generalized inner types
 generalize bound t@(AScalar (ADatatypeT id args)) = do
-    v <- lift $ freshId "T"
+    v <- lift $ lift $ freshId "T"
     return (AScalar (ATypeVarT v)) `mplus` freshVars `mplus` subsetTyps -- interleave
   where
     -- this search may explode when we have a large number of datatype parameters
