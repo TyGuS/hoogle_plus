@@ -33,7 +33,7 @@ instance Show ArgumentType where
   show (ArgTypeApp  l r)  = printf "(%s) %s"  (show l) (show r)
   show (ArgTypeTuple types) =
     (printf "(%s)" . intercalate ", " . map show) types
-  show (ArgTypeFunc src dst) = printf "(%s) -> (%s)" (show src) (show dst)
+  show (ArgTypeFunc src dst) = printf "((%s) -> (%s))" (show src) (show dst)
 
 newtype NotSupportedException = NotSupportedException String
   deriving (Show, Typeable)
