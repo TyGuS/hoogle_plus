@@ -60,7 +60,7 @@ spec =
       ret `shouldBe` True
       sample `shouldNotBe` Nothing
 
-      let Just (SampleResult inputs outputs) = sample
+      let Just (SampleResult inputs outputs _ _) = sample
       length inputs `shouldBe` defaultNumChecks
       length outputs `shouldBe` 1
       
@@ -75,6 +75,27 @@ spec =
       ret' `shouldBe` False
 
       st `shouldBe` st'
+
+    it "Duplicates - reject identical solution and persist the previous state (HO)" $ do
+      (ret, st) <- runDuplicateTest emptyFilterState [] "Num a => (a -> a) -> (a -> a) -> a -> a" "\\f g x -> (f . g) x"
+      (ret', st') <- runDuplicateTest st [] "Num a => (a -> a) -> (a -> a) -> a -> a" "\\f g x -> f (g x)"
+      
+      ret `shouldBe` True
+      ret' `shouldBe` False
+
+      st `shouldBe` st'
+
+    it "Duplicates - pass valid solution and add solution to the state (HO)" $ do
+
+      -- note that we generate all HO arguments as identical for same type
+      -- so we can't directly test (f . g) and (g . f)
+      (ret, st) <- runDuplicateTest emptyFilterState [] "Num a => (a -> a) -> (a -> a) -> a -> a" "\\f g x -> (f . g) x"
+      (ret', st') <- runDuplicateTest st [] "Num a => (a -> a) -> (a -> a) -> a -> a" "\\f g x -> f (g (x+1))"
+      
+      ret `shouldBe` True
+      ret' `shouldBe` True
+
+      st `shouldNotBe` st'
 
     it "test - pass valid solution and add solution to the state" $ do
       (ret, st) <- runDuplicateTest emptyFilterState [] "[a] -> a" "\\x -> head x"

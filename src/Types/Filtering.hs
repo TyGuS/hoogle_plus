@@ -59,9 +59,12 @@ instance Show FunctionSignature where
         argsExpr = (intercalate " -> " . map show) (argsType ++ [returnType])
 
 type SampleResultItem = (String, String)
-data SampleResult = SampleResult
-  { _inputs :: [String], _results :: [[SampleResultItem]]}
-  deriving (Eq, Show)
+data SampleResult = SampleResult {
+  _inputs :: [String],
+  _results :: [[SampleResultItem]],
+  _seed :: Int,
+  _size :: Int
+} deriving (Eq, Show)
 
 newtype FilterState = FilterState
   { sampleResults :: Maybe SampleResult }
