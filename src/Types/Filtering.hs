@@ -10,6 +10,8 @@ defaultTimeoutMicro = 1 * 10^6 :: Int
 defaultNumChecks = 5 :: Int
 defaultMaxOutputLength = 100 :: Int
 
+formatHigherOrderArgument = printf "(hof_%d)" :: Int -> String
+
 supportedInnerType =
   [ "Int"
   , "Float"
@@ -58,12 +60,21 @@ instance Show FunctionSignature where
         constraintsExpr = (intercalate ", " . map show) constraints
         argsExpr = (intercalate " -> " . map show) (argsType ++ [returnType])
 
+data GeneratedArg =
+    Value String
+  | HigherOrder String Int Int Int
+  deriving (Eq)
+
+instance Show GeneratedArg where
+  show (Value val) = val
+  show (HigherOrder _ index _ _) = formatHigherOrderArgument index
+
+type GeneratedInput = [GeneratedArg]
+
 type SampleResultItem = (String, String)
 data SampleResult = SampleResult {
-  _inputs :: [String],
-  _results :: [[SampleResultItem]],
-  _seed :: Int,
-  _size :: Int
+  _inputs :: [GeneratedInput],
+  _results :: [[SampleResultItem]]
 } deriving (Eq, Show)
 
 newtype FilterState = FilterState

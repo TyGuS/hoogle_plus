@@ -107,14 +107,14 @@ generateRandomValueWith :: Arbitrary a => Int -> Int -> a
 generateRandomValueWith seed = unGen arbitrary (mkQCGen seed)
 
 -- generate test input as line of code
-generateTestInput :: [String] -> FunctionSignature -> IO String
+generateTestInput :: [String] -> FunctionSignature -> IO GeneratedInput
 generateTestInput imports funcSig = do
 
   hoArgs <- transformHOs hoArgTypes
   foArgs <- transformFOs foArgTypes
 
-  let args = sortBy (\((l, _), _) ((r, _), _) -> compare l r) (hoArgs ++ foArgs)
-  return $ unwords $ map snd args
+  let args = sortBy (\(l, _) (r, _) -> compare l r) (hoArgs ++ foArgs)
+  return $ map snd args
 
   where
 
@@ -124,39 +124,24 @@ generateTestInput imports funcSig = do
     foArgTypes = filter (not . isHigherOrderArgument . snd) argTypeIndexed
 
     transformHOs hoArgTypes =
-      let generatedValues = [ fmtHOF_ i | i <- [1..] ] in
-        pure $ zip hoArgTypes generatedValues
+      zip indexes <$> mapM f (zip [1..] hoArgTypes)
+      where
+        indexes = map fst hoArgTypes
+        f (index, (_, argType)) = do
+          seed <- generate arbitrary :: IO Int
+          size <- generate arbitrary :: IO Int
+          
+          let typeStr = show argType
+          return (HigherOrder typeStr index seed size)
 
     transformFOs foArgTypes =
+      let indexes = map fst foArgTypes in
       let argTypeStrs = map (show . snd) foArgTypes in
       let generatedValues = generateRandomValue imports argTypeStrs in
-        zip foArgTypes <$> generatedValues
+        zip indexes . map Value <$> generatedValues
 
-evalHOF :: [String] -> [String] -> String -> Int -> IO (Maybe (Either InterpreterError String))
-evalHOF modules hofTypes line time = handleAnyException $ timeout time $ do
-  srcPath <- getDataFileName "InternalTypeGen.hs"
-  result <- unsafeRunInterpreterWithArgs ["-fno-omit-yields"] $ do
-
-    loadModules [srcPath]
-    setTopLevelModules ["InternalTypeGen"]
-    setImports modules
-
-    mapM_ (runStmt . fmtGenerateHO) hofTypeIndexed
-    eval line
-  case result of
-    Right val -> do
-      let output = (fst . splitAt defaultMaxOutputLength) val
-      if "*** Exception" `isInfixOf` output
-        then (return . Left . UnknownError) val
-        else (return . Right) output
-    _ -> return result
-  where
-    hofTypeIndexed = zip [1..] hofTypes :: [(Int, String)]
-    fmtGenerateHO (index, typeStr) = 
-      printf "hof_%d <- generate (arbitrary :: Gen (%s))" index typeStr :: String
-
-evalHOF_ :: [String] -> [String] -> String -> Int -> (Int, Int) -> IO (Maybe (Either InterpreterError String))
-evalHOF_ modules hofTypes line time (seed, size) = handleAnyException $ timeout time $ do
+evalHOF_ :: [String] -> [String] -> String -> Int -> IO (Maybe (Either InterpreterError String))
+evalHOF_ modules inits line time = handleAnyException $ timeout time $ do
   srcPath <- getDataFileName "InternalTypeGen.hs"
   result <- unsafeRunInterpreterWithArgs ["-fno-omit-yields"] $ do
 
@@ -164,7 +149,7 @@ evalHOF_ modules hofTypes line time (seed, size) = handleAnyException $ timeout 
     setTopLevelModules ["InternalTypeGen"]
     setImports (quickCheckModules ++ modules)
 
-    mapM_ (runStmt . fmtPureHO seed size) hofTypeIndexed
+    mapM_ runStmt inits
     eval line
   case result of
     Right val -> do
@@ -175,11 +160,6 @@ evalHOF_ modules hofTypes line time (seed, size) = handleAnyException $ timeout 
     _ -> return result
   where
     quickCheckModules = ["Test.QuickCheck", "Test.QuickCheck.Gen", "Test.QuickCheck.Random"]
-    hofTypeIndexed = zip [1..] hofTypes :: [(Int, String)]
-    fmtPureHO seed size (index, typeStr)  =
-      printf "hof_%d <- pure (((unGen arbitrary (mkQCGen (%d)) (%d)) :: (%s)))" index seed size typeStr :: String
- 
-
 
 runChecks :: MonadIO m => Environment -> RType -> UProgram -> FilterTest m Bool
 runChecks env goalType prog =
@@ -198,11 +178,12 @@ checkSolutionNotCrash modules sigStr body = or <$> liftIO executeCheck
       replicateM defaultNumChecks (check funcSig)
 
     check funcSig = do
-      arg <- generateTestInput modules funcSig
+      input <- generateTestInput modules funcSig
+      let (inits, arg) = formatGenInputInitialization input
       let expression = fmtFunction_ body (show funcSig) arg
 
       let hos = filterHigherOrder_ funcSig
-      result <- evalHOF modules hos expression defaultTimeoutMicro
+      result <- evalHOF_ modules inits expression defaultTimeoutMicro
 
       case result of
         Nothing -> putStrLn "Timeout in running always-fail detection" >> return True
@@ -219,7 +200,19 @@ handleAnyException = (`catch` (return . handler . (show :: SomeException -> Stri
     handler ex  | "timeout" `isInfixOf` ex = Nothing
                 | otherwise = (Just . Left. UnknownError) ex
 fmtFunction_ = printf "((%s) :: %s) %s" :: String -> String -> String -> String
-fmtHOF_ = printf "(hof_%d)" :: Int -> String
+fmtPureHO name typeStr seed size =
+  printf "(%s) <- pure (((unGen arbitrary (mkQCGen (%d)) (%d)) :: (%s)))" name seed size typeStr :: String
+
+-- returns (init statements for HOs, line of arguments value)
+formatGenInputInitialization :: GeneratedInput -> ([String], String)
+formatGenInputInitialization generated =
+  (,) (map genStmtHO $ filter isHO generated) (unwords $ map show generated)
+  where
+    genStmtHO (HigherOrder tipe index seed size) =
+      fmtPureHO (formatHigherOrderArgument index) tipe seed size
+    
+    isHO HigherOrder {} = True
+    isHO _ = False
 
 isHigherOrderArgument :: ArgumentType -> Bool
 isHigherOrderArgument (ArgTypeFunc _ _) = True
@@ -237,31 +230,32 @@ checkDuplicates modules sigStr body = do
   case sampleResults st of
     Nothing -> do
 
-      (seed, size) <- liftIO $ generate (arbitrary :: Gen (Int, Int))
       inputs <- liftIO $ generateInputs modules funcSig
 
-      modify $ \st -> st { sampleResults = Just (SampleResult inputs [] seed size) }
+      modify $ \st -> st { sampleResults = Just (SampleResult inputs []) }
       checkDuplicates modules sigStr body
-    Just (SampleResult inputs results seed size) -> do
+    Just (SampleResult inputs results) -> do
       evals <- liftIO $ evalResults inputs body
       let isDuplicated = evals `elem` results
       let results' = if isDuplicated then results else evals:results
 
-      modify $ \st -> st { sampleResults = Just $ SampleResult inputs results' seed size}
+      modify $ \st -> st { sampleResults = Just $ SampleResult inputs results'}
       return $ not isDuplicated
 
       where
         evalResults inputs body = mapM evalWithArg inputs
 
-        evalWithArg :: String -> IO SampleResultItem
-        evalWithArg arg = liftM2 (,)
-          (pure arg)
-          (show <$> evalHOF_ modules hos (fmtFunction_ body (show funcSig) arg) defaultTimeoutMicro (seed, size)) 
+        evalWithArg :: GeneratedInput -> IO SampleResultItem
+        evalWithArg input = 
+          let (inits, arg) = formatGenInputInitialization input in
+          liftM2 (,)
+            (pure arg)
+            (show <$> evalHOF_ modules inits (fmtFunction_ body (show funcSig) arg) defaultTimeoutMicro) 
         
 
   where
     funcSig = (instantiateSignature . parseTypeString) sigStr
     hos = filterHigherOrder_ funcSig
 
-    generateInputs :: [String] -> FunctionSignature -> IO [String]
+    generateInputs :: [String] -> FunctionSignature -> IO [GeneratedInput]
     generateInputs modules funcSig = replicateM defaultNumChecks (generateTestInput modules funcSig)
