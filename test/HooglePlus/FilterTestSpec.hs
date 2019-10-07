@@ -87,8 +87,6 @@ spec =
 
     it "Duplicates - pass valid solution and add solution to the state (HO)" $ do
 
-      -- note that we generate all HO arguments as identical for same type
-      -- so we can't directly test (f . g) and (g . f)
       (ret, st) <- runDuplicateTest emptyFilterState [] "Num a => (a -> a) -> (a -> a) -> a -> a" "\\f g x -> (f . g) x"
       (ret', st') <- runDuplicateTest st [] "Num a => (a -> a) -> (a -> a) -> a -> a" "\\f g x -> (g . f) x"
       
