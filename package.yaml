@@ -62,6 +62,7 @@ dependencies:
 - vector
 - uuid
 - QuickCheck
+- z3
 
 library:
   source-dirs:

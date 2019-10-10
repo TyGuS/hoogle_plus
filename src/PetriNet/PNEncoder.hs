@@ -37,7 +37,6 @@ import Synquid.Pretty
 instance MonadZ3 Encoder where
     getSolver = gets (envSolver . z3env)
     getContext = gets (envContext . z3env)
-    getOptimize = gets (envOptimize . z3env)
 
 -- | create a new encoder in z3
 createEncoder :: [AbstractSkeleton] -> AbstractSkeleton -> [FunctionCode] -> Encoder ()
