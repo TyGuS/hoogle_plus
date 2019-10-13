@@ -38,7 +38,7 @@ runQuery queryOpts = do
           }
       }
       collectResults ch res (MesgClose _) = return res
-      collectResults ch res (MesgP (program, _)) = readChan ch >>= (collectResults ch (program:res))
+      collectResults ch res (MesgP (program, _, _)) = readChan ch >>= (collectResults ch (program:res))
       collectResults ch res _ = readChan ch >>= (collectResults ch res)
 
 postSearchR :: Handler Html

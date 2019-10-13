@@ -7,6 +7,7 @@ import Types.Program
 import Synquid.Program
 import Synquid.Error
 import Types.Common
+import Types.Filtering
 
 -- import Control.Monad.List
 import Data.Data
@@ -116,7 +117,7 @@ data ExperimentCourse
 
 data Message
   = MesgClose CloseStatus
-  | MesgP (RProgram, TimeStatistics) -- Program with the stats associated with generating it
+  | MesgP (RProgram, TimeStatistics, FilterState) -- Program with the stats associated with generating it
   | MesgS TimeStatistics
   | MesgLog Int String String -- Log level, tag, message
 

@@ -5,6 +5,8 @@ module BTypes where
 import Types.Environment
 import Types.Experiments
 import Types.Generate
+import Types.Filtering
+import Types.Program
 
 import GHC.Generics
 import GHC.Exception
@@ -77,3 +79,5 @@ instance Show EvaluationException where
   show NotImplementedException = "Not Implemented"
   show (RuntimeException _) = "Runtime error"
 instance Exception EvaluationException
+
+type RunnerResult = (Either EvaluationException (Maybe (RProgram, FilterState)), TimeStatistics)

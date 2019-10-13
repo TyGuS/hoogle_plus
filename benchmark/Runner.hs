@@ -36,18 +36,18 @@ runExperiments setup exps = do
   let currentExperiment = expCourse setup
   return $ map (summarizeResult currentExperiment) (zip exps eitherMbResults)
 
-runPool :: ExperimentSetup -> [Experiment] -> Pool -> IO [[(Either EvaluationException (Maybe RProgram), TimeStatistics)]]
+runPool :: ExperimentSetup -> [Experiment] -> Pool -> IO [[RunnerResult]]
 runPool setup exps pool = do
   nestedEithers <- parallelE pool (listOfExpsToDo exps)
   return $ map mergeEithers nestedEithers
   where
-    listOfExpsToDo :: [Experiment] -> [IO [(Either EvaluationException (Maybe RProgram), TimeStatistics)]]
+    listOfExpsToDo :: [Experiment] -> [IO [RunnerResult]]
     listOfExpsToDo xs = map (runExperiment setup) (zip xs $ zip [1..] $ repeat (length xs))
     mergeEithers :: Either SomeException [(Either EvaluationException b, TimeStatistics)] -> [(Either EvaluationException b, TimeStatistics)]
     mergeEithers (Left err) = [(Left (RuntimeException err), emptyTimeStats)]
     mergeEithers (Right rest) = rest
 
-runExperiment :: ExperimentSetup -> (Experiment,(Int, Int)) -> IO [(Either EvaluationException (Maybe RProgram), TimeStatistics)]
+runExperiment :: ExperimentSetup -> (Experiment,(Int, Int)) -> IO [RunnerResult]
 runExperiment setup (exp@(env, envName, q, params, paramName), (n, total)) = do
   let queryStr = query q
   printf "Running [%d/%d]: (%s-%s): %s\n" n total envName paramName queryStr
@@ -62,7 +62,7 @@ runExperiment setup (exp@(env, envName, q, params, paramName), (n, total)) = do
   writeResult setup exp results
   return results
 
-writeResult :: ExperimentSetup -> Experiment -> [(Either EvaluationException (Maybe RProgram), TimeStatistics)] -> IO ()
+writeResult :: ExperimentSetup -> Experiment -> [RunnerResult] -> IO ()
 writeResult setup (env, envName, q, params, paramName) xs = do
     let solns = reverse xs -- They come in reverse order
     let fileName = (printf "%s+%s.tsv" (replace " " "-" $ paramName) (replace " " "-" $ name q)) :: String
@@ -84,6 +84,7 @@ writeResult setup (env, envName, q, params, paramName) xs = do
             , "numOfPlaces"
             , "duplicateSymbols"
             , "Solution"
+            , "FilterState"
             ]
     let rowsdata = map showRow solns
     let fileData = rowHeaders : rowsdata
@@ -94,7 +95,10 @@ writeResult setup (env, envName, q, params, paramName) xs = do
     where
       showResult (Left err) = show err
       showResult (Right Nothing) = "No Solution"
-      showResult (Right (Just x)) = toHaskellSolution $ show x
+      showResult (Right (Just (soln, _))) = toHaskellSolution $ show soln
+
+      showState (Right (Just (_, fs))) = show fs
+      showState _ = ""
 
       showRow (errOrMbProg, times) =
          [ (name q)
@@ -112,6 +116,7 @@ writeResult setup (env, envName, q, params, paramName) xs = do
          , show $ map snd $ Map.toAscList $ numOfPlaces times
          , show $ duplicateSymbols times
          , showResult errOrMbProg
+         , showState errOrMbProg
          ]
 
 
@@ -119,8 +124,8 @@ writeResult setup (env, envName, q, params, paramName) xs = do
 -- collectResults will listen to a channel until it closes. Intermediate results are put on top
 -- and replace existing intermediate results. Once a program/stats pair comes in, that will replace
 -- any such intermediate results.
-collectResults :: Chan Message -> [(Either EvaluationException (Maybe RProgram), TimeStatistics)] -> Message
-               -> IO [(Either EvaluationException (Maybe RProgram), TimeStatistics)]
+collectResults :: Chan Message -> [RunnerResult] -> Message
+               -> IO [RunnerResult]
 collectResults ch res (MesgClose CSNormal) = return res
 collectResults ch ((_,stats):xs) (MesgClose CSTimeout) = return ((Left TimeoutException, stats):xs)
 collectResults ch ((_,stats):xs) (MesgClose CSNoSolution) = return ((Left NoSolutionException, stats):xs)
@@ -132,14 +137,14 @@ collectResults ch xs (MesgClose (CSError err)) = let
     _ -> emptyTimeStats
   in return ((Left errTy, stats):xs)
 collectResults ch res@((Left err, _):_) _ = return res
-collectResults ch ((Right Nothing, _):xs) (MesgP (p, ts)) = printSolution p >> readChan ch >>= collectResults ch ((Right $ Just p, ts):xs)
-collectResults ch xs (MesgP (p, ts)) = printSolution p >> readChan ch >>= collectResults ch ((Right $ Just p, ts):xs)
+collectResults ch ((Right Nothing, _):xs) (MesgP (p, ts, fs)) = printSolution p >> readChan ch >>= collectResults ch ((Right $ Just (p, fs), ts):xs)
+collectResults ch xs (MesgP (p, ts, fs)) = printSolution p >> readChan ch >>= collectResults ch ((Right $ Just (p, fs), ts):xs)
 collectResults ch ((Right Nothing, _):xs) (MesgS ts) = readChan ch >>= collectResults ch ((Right Nothing, ts):xs)
 collectResults ch xs (MesgS ts) = readChan ch >>= collectResults ch ((Right Nothing, ts):xs)
 collectResults ch xs _ = readChan ch >>= collectResults ch xs
 
 summarizeResult :: ExperimentCourse
-                -> (Experiment, [(Either EvaluationException (Maybe RProgram), TimeStatistics)])
+                -> (Experiment, [RunnerResult])
                 -> ResultSummary
 summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
   results = case (currentExperiment, r) of
@@ -157,11 +162,11 @@ summarizeResult currentExperiment ((_, envN, q, _, paramN), r) = let
   where
     errorhead msg xs = fromMaybe (error msg) $ listToMaybe xs
 
-    outputToResult :: (Either EvaluationException (Maybe RProgram), TimeStatistics) -> Result
+    outputToResult :: RunnerResult -> Result
     outputToResult (soln,stats) = let
       safeTransitions = map snd (Map.toAscList (numOfTransitions stats))
       safeTypes = map snd (Map.toAscList (numOfPlaces stats))
-      solution = either Left (maybe (Left NoSolutionException) (Right . toHaskellSolution . show)) soln
+      solution = either Left (maybe (Left NoSolutionException) (Right . toHaskellSolution . show . fst)) soln
       in emptyResult {
         resSolutionOrError = solution,
         resTFirstSoln = totalTime stats,

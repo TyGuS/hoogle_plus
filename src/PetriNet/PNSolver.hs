@@ -718,7 +718,7 @@ writeSolution code = do
     loc <- gets $ view currentLoc
     msgChan <- gets $ view messageChan
     let stats' = stats {pathLength = loc}
-    liftIO $ writeChan msgChan (MesgP (code, stats'))
+    liftIO $ writeChan msgChan (MesgP (code, stats', undefined))
     writeLog 1 "writeSolution" $ text (show stats')
 
 recoverNames :: Map Id Id -> Program t -> Program t
