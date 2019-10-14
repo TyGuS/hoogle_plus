@@ -5,6 +5,7 @@ import BConfig
 import Types.Program
 import Types.Environment
 import Types.Experiments
+import Types.Filtering
 import Synquid.Util
 import HooglePlus.Synthesize
 import Database.Environment
@@ -97,7 +98,10 @@ writeResult setup (env, envName, q, params, paramName) xs = do
       showResult (Right Nothing) = "No Solution"
       showResult (Right (Just (soln, _))) = toHaskellSolution $ show soln
 
-      showState (Right (Just (_, fs))) = show fs
+      showState (Right (Just (_, FilterState (Just sr)))) = intercalate "\n" lines
+        where
+          lines = map show results
+          results = _results sr
       showState _ = ""
 
       showRow (errOrMbProg, times) =
