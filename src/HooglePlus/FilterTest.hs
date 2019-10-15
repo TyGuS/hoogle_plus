@@ -186,7 +186,7 @@ checkSolutionNotCrash modules sigStr body = or <$> liftIO executeCheck
       result <- evalHOF_ modules inits expression defaultTimeoutMicro
 
       case result of
-        Nothing -> putStrLn "Timeout in running always-fail detection" >> return True
+        Nothing -> putStrLn "Timeout in running always-fail detection" >> return False
         Just (Left err) -> putStrLn (displayException err) >> return False
         Just (Right res) -> return (seq res True)
 

@@ -98,10 +98,10 @@ writeResult setup (env, envName, q, params, paramName) xs = do
       showResult (Right Nothing) = "No Solution"
       showResult (Right (Just (soln, _))) = toHaskellSolution $ show soln
 
-      showState (Right (Just (_, FilterState (Just sr)))) = intercalate "\n" lines
+      showState (Right (Just (_, FilterState (Just sr)))) = intercalate "\t" lines
         where
-          lines = map show results
-          results = _results sr
+          lines = map (\(i, o) -> printf "%s -> %s" i o) results
+          results = head $ _results sr
       showState _ = ""
 
       showRow (errOrMbProg, times) =
