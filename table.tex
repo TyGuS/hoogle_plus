@@ -1,0 +1,271 @@
+\documentclass[acmsmall]{acmart}
+
+\usepackage{booktabs}
+% \usepackage{subcaption}
+\usepackage{amsthm,mathtools,amssymb,stmaryrd}
+\usepackage{amsfonts}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{xspace}
+\usepackage{multirow}
+\usepackage{textcomp}
+\usepackage[T1]{fontenc}
+\usepackage[scaled=0.75]{beramono}
+\usepackage{paralist}
+\usepackage[inference]{semantic}
+% \usepackage[ruled]{algorithm2e} % For algorithms
+\usepackage{algorithmicx}
+\usepackage[noend]{algpseudocode}
+\usepackage{wrapfig}
+% \usepackage{auto-pst-pdf} % attempt to include ps file
+\usepackage{pdfpages}
+
+\usepackage[version=0.96]{pgf}
+\usepackage{tikz}
+\usetikzlibrary{arrows,shapes,automata,backgrounds,petri,positioning}
+\usepackage{todonotes}
+
+\usepackage{ltablex,array}
+
+\begin{document}
+
+
+% Text abbreviations
+\newcommand{\etc}{\emph{etc}\xspace}
+\newcommand{\wrt}{\emph{wrt.}\xspace}
+\newcommand{\ie}{\emph{i.e.}\xspace}
+\newcommand{\Ie}{\emph{I.e.}\xspace}
+\newcommand{\eg}{\emph{e.g.}\xspace}
+\newcommand{\Eg}{\emph{E.g.}\xspace}
+\newcommand{\etal}{\emph{et~al.}\xspace}
+\newcommand{\tygar}{\tname{TYGAR}}
+\newcommand{\emphbf}[1]{\emph{\textbf{#1}\xspace}}
+\newcommand{\mypara}[1]{\smallskip\noindent\emphbf{#1.}\xspace}
+\newcommand{\setof}[1]{\ensuremath{\{ #1 \}}}
+\newcommand{\sem}[1]{\ensuremath{\llbracket #1 \rrbracket}}
+
+\newcommand{\mFixType}{\emph{Baseline}\xspace}
+\newcommand{\mNoGar}{\emph{NOGAR}\xspace}
+\newcommand{\mTopType}{\emph{\tygar-0}\xspace}
+\newcommand{\mQryType}{\emph{\tygar-Q}\xspace}
+\newcommand{\mQryTypeBounded}{\emph{\tygar-QB}\xspace}
+
+% Remarks
+\newif\ifdraft
+\draftfalse
+
+\ifdraft
+\newcommand\authorrnote[3]{\textcolor{#1}{({#2}: {#3})}\xspace}
+\newcommand{\TODO}[1]{{\color{orange!80!black}[\textsl{#1}]}}
+\else
+\newcommand\authorrnote[2]{}
+\newcommand{\TODO}[1]{}
+\fi
+
+% Tool names
+\newcommand{\nex}{\ensuremath{E}}
+\newcommand{\tname}[1]{\textsc{#1}\xspace}
+\newcommand{\tool}{\tname{H+}}
+\newcommand{\sys}{\tool}
+\newcommand{\hoogle}{\tname{Hoogle}}
+\newcommand{\agda}{\tname{Agda}}
+\newcommand{\sypet}{\tname{SyPet}}
+\newcommand{\insynth}{\tname{InSynth}}
+\newcommand{\prospector}{\tname{Prospector}}
+\newcommand{\blaze}{\tname{Blaze}}
+\newcommand{\djinn}{\tname{Djinn}}
+\newcommand{\synquid}{\tname{Synquid}}
+\newcommand{\myth}{\tname{Myth2}}
+\newcommand{\corelang}{$\lambda_H$\xspace}
+
+\definecolor{commentgreen}{rgb}{0.25,0.5,0.35}
+
+% Listings
+\lstset{
+  language=Haskell,
+  basicstyle=\small\ttfamily,
+  numbers=none,
+  escapeinside={(*@}{@*)},
+  keywordstyle=[1]{\ttfamily},
+  commentstyle={\color{commentgreen}},
+  literate=%
+    {->}{$\rightarrow$}2
+    {forall}{$\forall$}1
+    {_a}{$\alpha$}1
+    {_b}{$\beta$}1
+    {_t}{$\tau$}1
+    {_n}{$\nu$}1
+}
+
+\lstdefinestyle{numbers}
+{
+  numbers=left,
+  numberstyle=\sf,
+  xleftmargin=15pt
+}
+
+\newcommand{\T}[1]{\mbox{\lstinline[language=Haskell,basicstyle=\ttfamily,columns=fixed]^#1^}}
+
+% TikZ
+
+\tikzstyle{place}=[circle,thick,draw=blue!75,fill=blue!20,minimum size=6mm]
+\tikzstyle{final}=[place,double]
+\tikzstyle{other}=[place,draw=red!75,fill=red!20]
+\tikzstyle{blank}=[minimum size=6mm]
+\tikzstyle{transition}=[rectangle,thick,draw=black!75,fill=black!20,minimum size=4mm]
+\tikzstyle{sol}=[very thick]
+\tikzstyle{mismatch}=[thick,red!75]
+
+\newcommand{\labels}[2]{{\begin{tabular}{c} \textcolor{blue}{#1} \\ \textcolor{red}{#2} \end{tabular}}}
+\newcommand{\labelc}[1]{{\textcolor{red}{#1}}}
+
+% Algorithms
+
+\newcommand*\Let[2]{\State #1 $\gets$ #2}
+\algrenewcommand\algorithmicrequire{\textbf{Input:}}
+\algrenewcommand\algorithmicensure{\textbf{Output:}}
+\algnewcommand{\LineFor}[2]{
+  \State\algorithmicfor\ {#1}\ \algorithmicdo\ {#2}}
+% \algnewcommand\algorithmicswitch{\textbf{match}}
+% \algnewcommand\algorithmiccase{\textbf{case}}
+% \algdef{SE}[SWITCH]{Switch}{EndSwitch}[1]{\algorithmicswitch\ #1}{\algorithmicend\ \algorithmicswitch}%
+% \algdef{SE}[CASE]{Case}{EndCase}[1]{\algorithmiccase\ #1:}{\algorithmicend\ \algorithmiccase}%
+% \algtext*{EndSwitch}%
+% \algtext*{EndCase}%
+
+\newcommand{\abssynth}{SynAbstract}
+\newcommand{\shortestpath}{ShortestValidPath}
+
+% Math
+
+\newcommand{\dom}[1]{\mathsf{dom}(#1)}
+\newcommand{\rng}[1]{\mathsf{range}(#1)}
+\newcommand{\subst}[2]{{#1} \mapsto {#2}}
+\newcommand{\pre}{\mathsf{pre}}
+\newcommand{\post}{\mathsf{post}}
+\newcommand{\parents}{\mathsf{parents}}
+\newcommand{\many}[1]{\overline{#1}}
+\newcommand{\tvars}[1]{\mathsf{tv}(#1)}
+\newcommand{\ty}[1]{\Lambda(#1)}
+\newcommand{\abset}{\mathcal{A}}
+\newcommand{\wrap}[2]{\mathsf{wrap}(#1,#2)}
+\newcommand{\nat}{\mathbb{N}}
+\newcommand{\net}{\mathcal{N}}
+\newcommand{\steps}[1]{\xrightarrow{#1}}
+\newcommand{\toBase}[1]{\mathsf{base}(#1)}
+\newcommand{\fo}{\mathsf{desugar}}
+\newcommand{\hask}[1]{\tilde{#1}}
+\newcommand{\fromPath}[1]{\mathsf{terms}(#1)}
+\newcommand{\fresh}[1]{\mathsf{fresh}(#1)}
+\newcommand{\subterms}[1]{\mathsf{subterms}(#1)}
+\newcommand{\close}[1]{\mathsf{close}(#1)}
+\newcommand{\up}[1]{\mathsf{up}(#1)}
+\newcommand{\init}{\mathsf{init}}
+\newcommand{\final}{\mathsf{fin}}
+\newcommand{\refines}{\preceq}
+\newcommand{\inv}{\mathcal{I}}
+\newcommand{\sub}{\sqsubseteq}
+\newcommand{\meet}{\sqcap}
+\newcommand{\join}{\sqcup}
+\newcommand{\mgu}[1]{\mathsf{mgu}(#1)}
+\newcommand{\bases}{\ensuremath{\mathbf{B}}}
+\newcommand{\basebots}{\ensuremath{\mathbf{B_{\bot}}}}
+\newcommand{\anew}{A_{\mathit{new}}}
+
+
+\newcommand{\eapp}[2]{{#1}\ {#2}}
+\newcommand{\elam}[2]{\lambda {#1}.{#2}}
+\newcommand{\ebody}{e_{\mathit{body}}}
+\newcommand{\sapp}[2]{{#1}{#2}}
+
+\newcommand{\memph}[1]{\textcolor{red}{#1}}
+\newcommand{\mnoemph}[1]{\textcolor{black}{#1}}
+
+\newcommand{\chkarrow}{\Longleftarrow}
+\newcommand{\synarrow}{\Longrightarrow}
+
+\newcommand{\jtyping}[3]{\ensuremath{\Lambda;#1 \vdash #2 :: #3}}
+\newcommand{\jtcheck}[3]{\ensuremath{\Lambda;#1 \vdash #2 \chkarrow #3}}
+\newcommand{\jtinfer}[3]{\ensuremath{\Lambda;#1 \vdash #2 \synarrow #3}}
+\newcommand{\jtinferlib}[4]{\ensuremath{#1;#2 \vdash #3 \synarrow #4}}
+\newcommand{\jntyping}[3]{\ensuremath{\Lambda;#1 \not\vdash #2 \chkarrow #3}}
+% \newcommand{\jntyping}[3]{\ensuremath{\Lambda;#1 \vdash #2 \chkarrow \bot }}
+\newcommand{\jwf}[1]{\Lambda \vdash #1}
+\newcommand{\jwfenv}[1]{\Lambda \vdash #1}
+\newcommand{\jacheck}[4]{\ensuremath{\Lambda;#1 \vdash_{#4} #2 \chkarrow #3}}
+\newcommand{\jainfer}[4]{\ensuremath{\Lambda;#1 \vdash_{#4} #2 \synarrow #3}}
+\newcommand{\jancheck}[4]{\ensuremath{\Lambda;#1 \not\vdash_{#4} #2 \chkarrow #3}}
+% \newcommand{\jancheck}[4]{\ensuremath{\Lambda;#1 \vdash_{#4} #2 \chkarrow \bot}}
+\newcommand{\jawf}[2]{\Lambda;#1 \vdash #2}
+\newcommand{\unifies}[2]{#1 \sim #2}
+\newcommand{\nunifies}[2]{#1 \not\sim #2}
+
+%% Depricated
+\newcommand{\jatyping}[4]{\Lambda;#1 \vdash_{#4} #2 :: #3}
+% \newcommand{\aunifies}[3]{#1 \sim #2 \rightsquigarrow #3}
+
+% Evaluation
+\newcommand{\componentCount}{291\xspace}
+\newcommand{\benchmarkCount}{44\xspace}
+\newcommand{\hoogleOnlyBms}{24\xspace}
+\newcommand{\SOOnlyBms}{6\xspace}
+\newcommand{\ourBms}{17\xspace}
+
+\newcommand{\timeout}{60\xspace}
+\newcommand{\qualitytimeout}{100\xspace}
+\newcommand{\failureCount}{1\xspace}
+
+\newcommand{\qualityH}{\T{H+}\xspace}
+\newcommand{\qualityHD}{\T{H-D}\xspace}
+\newcommand{\qualityHR}{\T{H-R}\xspace}
+\newcommand{\qualityHRankAvg}{1.6\xspace}
+\newcommand{\qualityHDRankAvg}{1.5\xspace}
+\newcommand{\qualityHRRankAvg}{0.6\xspace}
+
+\newcommand{\firstSolutionTime}{1.4\xspace}
+\newcommand{\nogarTime}{0.6\xspace}
+\newcommand{\tygarQTime}{1.2\xspace}
+\newcommand{\tygarZTime}{1.4\xspace}
+
+\newcommand{\tygarQBSolnCount}{43\xspace}
+\newcommand{\tygarQSolnCount}{34\xspace}
+\newcommand{\tygarZSolnCount}{35\xspace}
+\newcommand{\nogarSolnCount}{37\xspace}
+
+\newcommand{\applyNTimesRank}{10\xspace}
+\newcommand{\applyNTimesPosition}{11\xspace}
+\newcommand{\firstJustRank}{18\xspace}
+\newcommand{\firstJustPosition}{19\xspace}
+\newcommand{\lookupRank}{1\xspace}
+\newcommand{\lookupPosition}{18\xspace}
+
+\newcommand{\interestingCount}{32\xspace}
+
+
+\begin{figure}
+    \resizebox{\textwidth}{!}{
+    \input{result}
+    }
+
+  \caption{\tool synthesis times and solution quality on \benchmarkCount benchmarks.
+  Suffixes `-QB10', `-Q', `-0', `-NO'
+  correspond to four variants of the search algorithm:
+  \mQryTypeBounded$[10]$, \mQryType, \mTopType, and \mNoGar.
+  Prefixes `t-', `st-`, and `tc-` denote, respectively,
+  the total time to a first solution,
+  time spend in the SMT solver,
+  and time spent type checking (including demand analysis).
+  All times are in seconds.
+  Absence indicates no solution found within the timeout of \timeout seconds.
+  % `tr-' are the number of transitions at the end of search--either after a
+  % timeout of \timeout seconds or when the first solution was reached.
+  `H' is the number of interesting solutions in the first five on \tool.
+  `H-D' is the same number with the demand analyzer disabled.
+  `H-R' is the same number with structural typing over relevant typing.
+  Absence indicates no interesting solution was in the first five.
+  }
+
+\end{figure}
+\end{document}

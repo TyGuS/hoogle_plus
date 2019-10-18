@@ -32,7 +32,6 @@ class Variant():
         qn = querydct["name"]
         query = querydct["query"]
         log_name = Variant.log_name(self.name, qn, directory)
-        self.log_name = log_name
         return BASE_CMD.format(count=progress_str, query=query, options=self.options, log_file=log_name)
 
     def log_to_dict(self, querydct, log_path):
@@ -110,6 +109,7 @@ class Experiment():
     def logs_to_csv(self):
         for idx in range(REPEATS):
             out_dir = os.path.join(LOG_DIR, str(idx))
+            ensure_dir(out_dir)
             for query in self.queries:
                 for variant in self.variants:
                     result_dict = variant.log_to_dict(query, out_dir)
@@ -133,7 +133,7 @@ def main():
         ])
     bmg.load_queries()
     bmg.setup()
-    # bmg.run()
+    bmg.run()
     bmg.logs_to_csv()
 
 if __name__ == "__main__":
