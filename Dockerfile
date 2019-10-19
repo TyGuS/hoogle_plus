@@ -29,7 +29,6 @@ ENV PATH="/root/.local/bin:${PATH}"
 
 # Get tools for the evaluation
 RUN apt-get install -y python3 python3-pip
-RUN apt-get install -y texlive-full
 RUN pip3 install --user PyYAML numpy tabulate matplotlib
 
 # Get HooglePlus

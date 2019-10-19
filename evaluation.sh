@@ -14,5 +14,6 @@ stack exec -- hplus generate --preset=icfppartial || (echo "failed to create dat
 mv bounded_variants.pdf $OUTPUTDIR/bounded_variants.pdf
 mv major_variants.pdf $OUTPUTDIR/major_variants.pdf
 mv quality.csv $OUTPUTDIR/quality.csv
-pdflatex table.tex
+cp table.tex $OUTPUTDIR/table.tex
 mv table.pdf $OUTPUTDIR/table.pdf
+echo "Please run 'cd $OUTPUTDIR; pdflatex table.tex'"
