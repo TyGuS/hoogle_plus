@@ -259,10 +259,11 @@ executeSearch synquidParams searchParams query = do
         Right env ->
           return env
 
-    handleMessages ch (MesgClose _) = putStrLn "Search complete" >> return ()
+    handleMessages ch (MesgClose _) = when (logLevel > 0) (putStrLn "Search complete") >> return ()
     handleMessages ch (MesgP (program, stats)) = do
       when (logLevel > 0) $ printf "[writeStats]: %s\n" (show stats)
       printSolution program
+      hFlush stdout
       readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgS debug) = do
       when (logLevel > 1) $ printf "[writeStats]: %s\n" (show debug)

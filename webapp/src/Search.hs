@@ -2,12 +2,14 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Search where
 
 import Foundation
 import Types
 import Home
+import Util
 import HooglePlus.Synthesize (synthesize, envToGoal)
 import Types.Experiments
 import Types.Generate
@@ -17,14 +19,17 @@ import Types.Environment
 import Synquid.Type
 import Synquid.Pretty
 import Synquid.Program
+import Synquid.Util
 import PetriNet.Util
 import HooglePlus.GHCChecker
 import HooglePlus.Utils
 import Database.Util
+import Database.Convert
 
+import Language.Haskell.Exts.Parser (ParseResult(..), parseExp)
 import Control.Concurrent
 import Control.Concurrent.Chan
-import Control.Exception (catch)
+import Control.Exception (catch, IOException)
 import Control.Monad
 import Data.Bits
 import Data.ByteString.Lazy.Builder
@@ -56,21 +61,18 @@ import Control.Lens
 import Data.IORef
 import Control.Concurrent.Async
 
-runQuery :: TygarQuery -> IORef (Map String (Chan Message, ThreadId)) -> IO (Chan Message, Goal)
+runQuery :: TygarQuery -> IORef (Map String (Handle, ProcessHandle)) -> IO (Handle, Goal)
 runQuery queryOpts tm = do
     let query = typeSignature queryOpts
+    let uuid = query_uuid queryOpts
     env <- readEnv
     goal <- envToGoal env query
-    messageChan <- newChan
-    let params = defaultSearchParams {
-          _stopRefine = True
-        , _threshold = 10
-        , _solutionCnt = 10 }
-    tid <- forkIO $ synthesize params goal messageChan
-    -- tid <- asyncThreadId asyncId
-    atomicModifyIORef tm (\m -> (Map.insert (query_uuid queryOpts) (messageChan, tid) m, ()))
-    forkIO $ threadDelay time_limit >> writeChan messageChan (MesgClose CSTimeout) >> killThread tid
-    return (messageChan, goal)
+    hdl <- openFile uuid ReadWriteMode
+    proc <- spawnCommand $ printf "stack exec -- hplus \"%s\" --stop-refine --disable-filter --stop-threshold=10 --cnt=10 > %s" query uuid
+    atomicModifyIORef tm (\m -> (Map.insert uuid (hdl, proc) m, ()))
+    -- timeout the process after the time limit
+    forkIO $ threadDelay time_limit >> terminateProcess proc >> endFile uuid hdl
+    return (hdl, goal)
     -- queryResults <- readChan messageChan >>= collectResults messageChan []
     where
         readEnv = do
@@ -82,7 +84,7 @@ runQuery queryOpts tm = do
                 Left err -> error err
                 Right env -> return env
 
-transformSolution :: Goal -> RProgram -> IO (String -> ResultEntry)
+transformSolution :: Goal -> String -> IO (String -> ResultEntry)
 transformSolution goal queryResult = do
     print queryResult
     let defaultOpt = compNewline .|. compExtended
@@ -91,13 +93,17 @@ transformSolution goal queryResult = do
     let pkgComp = case pkgExtraction of
                     Left err -> error $ snd err
                     Right r -> r
-    let sol = toHaskellSolution $ show queryResult
+    let sol = toHaskellSolution queryResult
     logQuery (show $ toMonotype $ gSpec goal) sol
     getPkg pkgComp sol
     where
         getRes str (offset, len) = take len $ drop offset str
 
         getPkg regex solution = do
+            let prog = case parseExp queryResult of
+                       ParseOk exp -> toSynquidProgram exp
+                       ParseFailed loc err -> error err
+            print prog
             csol <- newCString solution
             pkgs <- wrapMatchAll regex csol
             case pkgs of
@@ -105,7 +111,7 @@ transformSolution goal queryResult = do
                 Right ps -> let
                     pkgNames = nub $ map (getRes solution . (A.! 1)) ps
                     env = gEnvironment goal
-                    htmlCode = toHtml env queryResult
+                    htmlCode = toHtml env prog
                     stripSol = foldr (\p -> replaceId (p++".") "") htmlCode pkgNames
                     goalTyp = toMonotype $ gSpec goal
                     argNames = argNamesOf goalTyp
@@ -124,8 +130,11 @@ transformSolution goal queryResult = do
         toHtml env (Program (PSymbol s) t)
             | tyclassArgBase `isPrefixOf` s || tyclassInstancePrefix `isPrefixOf` s = ""
             | otherwise = case lookupSymbol s 0 env of
-                Just sch -> printf tooltip s (removeTypeclasses $ show (toMonotype sch)) s
-                Nothing -> error $ "cannot find symbol " ++ s
+                 Just sch -> printf tooltip s (removeTypeclasses $ show (toMonotype sch)) s
+                 Nothing -> let s' = "(" ++ s ++ ")" in 
+                     case lookupSymbol s' 0 env of
+                         Just sch -> printf tooltip s' (removeTypeclasses $ show (toMonotype sch)) s'
+                         Nothing -> error $ "cannot find symbol " ++ s
         toHtml env (Program (PApp f args) _) = let
             optParens p = case p of
                 Program (PSymbol _) _ -> " " ++ toHtml env p
@@ -134,8 +143,11 @@ transformSolution goal queryResult = do
                 "Cons" -> printf tooltip ("(:)" :: String) ("a -> [a] -> [a]" :: String) ("(:)" :: String)
                 "Pair" -> printf tooltip ("(,)" :: String) ("a -> b -> (a, b)" :: String) ("(,)" :: String)
                 _      -> case lookupSymbol f 0 env of
-                    Just sch -> printf tooltip f (removeTypeclasses $ show (toMonotype sch)) f
-                    Nothing -> error $ "cannot find symbol " ++ f
+                     Just sch -> printf tooltip f (removeTypeclasses $ show (toMonotype sch)) f
+                     Nothing -> let f' = "(" ++ f ++ ")" in 
+                         case lookupSymbol f' 0 env of
+                             Just sch -> printf tooltip f' (removeTypeclasses $ show (toMonotype sch)) f'
+                             Nothing -> error $ "cannot find symbol " ++ f
                 ) ++ concatMap optParens args
 
         removeTypeclasses = go (mkRegex (tyclassPrefix ++ "([a-zA-Z\\ ]*)\\->\\ "))
@@ -175,9 +187,27 @@ postSearchR :: Handler TypedContent
 postSearchR = do
     queryOpts <- requireCheckJsonBody :: Handler TygarQuery
     yesod <- getYesod
-    (chan, goal) <- liftIO $ runQuery queryOpts $ threadMap yesod
-    respondSource typeJson $ liftIO (readChan chan) >>= collectResults goal (query_uuid queryOpts) chan
+    (hdl, goal) <- liftIO $ runQuery queryOpts $ threadMap yesod
+    -- respondSource typeJson $ liftIO (readChan chan) >>= collectResults goal (query_uuid queryOpts) chan
+    -- hdl <- liftIO $ openFile "test.txt" ReadWriteMode 
+    -- liftIO $ forkIO $ testRead hdl
+    liftIO $ print "get handler and prepare response"
+    respondSource typeJson $ collectResults goal (query_uuid queryOpts) hdl
     where
+        collectResults goal uuid hdl = do
+            eof <- liftIO $ catch (hIsEOF hdl) (\(e :: IOException) -> return False)
+            if eof then collectResults goal uuid hdl else do -- if it is waiting for the next solution
+                program <- liftIO $ catch (hGetLine hdl) (\(e :: IOException) -> return "") -- if the handler is closed
+                if program == ""
+                    then C.sinkNull >> liftIO (endFile uuid hdl)
+                    else if head program == '*' then collectResults goal uuid hdl else do -- skip the stars in the output
+                        strProg <- liftIO $ transformSolution goal $ drop 10 program
+                        let prog = strProg uuid
+                        liftIO $ print (BChar.unpack $ Aeson.encode prog)
+                        C.yield $ C.Chunk $ lazyByteString $ Aeson.encode prog
+                        sendFlush
+                        collectResults goal uuid hdl
+{-
         collectResults goal uuid ch (MesgClose _) = C.sinkNull
         collectResults goal uuid ch (MesgP (program, _)) = do
             strProg <- liftIO $ transformSolution goal program
@@ -189,3 +219,4 @@ postSearchR = do
         -- collectResults goal uuid ch (MesgLog lv name log) = when (lv <= 1) (liftIO (putStrLn (printf "[%s]: %s" name log)))
         --                                                   >> liftIO (readChan ch) >>= collectResults goal uuid ch
         collectResults goal uuid ch _ = liftIO (readChan ch) >>= collectResults goal uuid ch
+-}

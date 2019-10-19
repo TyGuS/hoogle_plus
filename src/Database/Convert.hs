@@ -76,8 +76,10 @@ consStr (TyList _ typ) = "List" ++ consStr typ
 consStr _ = "_"
 
 specialConsStr (UnitCon _) = "Unit"
-specialConsStr (ListCon _) = "List"
+specialConsStr (ListCon _) = "Nil"
 specialConsStr (FunCon _) = "Fun"
+specialConsStr (TupleCon _ _ _) = "Pair"
+specialConsStr (Language.Haskell.Exts.Cons _) = "Cons"
 specialConsStr _ = "_"
 
 allTypeVars (TyForall _ _ _ typ) = allTypeVars typ
@@ -548,4 +550,8 @@ toSynquidProgram (App _ fun arg) =
           _ -> error "unrecognized function type"
 toSynquidProgram (Paren _ e) = toSynquidProgram e
 toSynquidProgram (Con _ qname) = Program (PSymbol (qnameStr qname)) AnyT
+toSynquidProgram (List _ elmts) = let
+    args = map toSynquidProgram elmts
+    mkCons e acc = Program (PApp "Cons" [e, acc]) AnyT
+    in foldr mkCons (Program (PSymbol "Nil") AnyT) args
 toSynquidProgram e = error $ show e

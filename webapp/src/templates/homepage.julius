@@ -64,7 +64,7 @@ $(function(){
         $.ajax({
                contentType: "application/json",
                dataType: "text",
-               type: "PUT",
+               type: "POST",
                url: window.location + "/stop",
                data: JSON.stringify({
                                     query_uuid: curr_uuid,
@@ -101,12 +101,13 @@ $(function(){
                   .addClass("list-group-flush")
         $("#button-addon2").attr('disabled','disabled')
         $("#button-stop").removeAttr('disabled')
+        curr_uuid = generateUUID()
         $.ajax({
                contentType: "application/json",
                type: "POST",
                url: window.location + "/search",
                data: JSON.stringify({
-                                    query_uuid: generateUUID(),
+                                    query_uuid: curr_uuid,
                                     typeSignature: $("#signature").val()
                                 }),
                xhrFields: {
@@ -186,7 +187,7 @@ $(function(){
                   $("#button-addon2").removeAttr('disabled')
                   $("#button-stop").attr('disabled','disabled')
                   // $('#demo').show()
-                  result_div.append("Search timeout")
+                  // result_div.append("Search timeout")
                   console.log(xhr.response);
                   console.log(thrownError);
                },

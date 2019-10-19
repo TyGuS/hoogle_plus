@@ -415,7 +415,7 @@ createVariables places transitions = do
 createConstraints :: [AbstractSkeleton] -> [FunctionCode] -> Encoder ()
 createConstraints places transitions = do
     -- prepare constraint parameters
-    liftIO $ print places
+    -- liftIO $ print places
     l <- gets loc
     let allTrans = [(t, tr) | t <- [0..(l-1)], tr <- transitions]
     let allPlaces = [(t, p) | t <- [0..(l-1)], p <- places]
