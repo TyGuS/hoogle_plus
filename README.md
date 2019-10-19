@@ -26,6 +26,19 @@ docker run -v /absolute/path/to/output/dir:/output -it hoogleplus_aec:1.0.0 /bin
 At this point, you should have 4 new files in your output directory.
 These are the results of the evaluation.
 
+## Usage
+```
+stack exec -- hplus "Maybe a -> [a] -> a"
+```
+Replace the type query with whatever your heart fancies.
+The default search mode is `TYGARAQ` as described in the paper: unbounded abstraction refinement.
+
+You may try searches with different variants with the following command line args:
+- TYGARQ: Unbounded abstraction refinement. This is the default mode. The initial abstract cover are the types in the query.
+- TYGARQ0: Unbounded abstraction refinmenet. The initial abstract cover is empty. Use `stack exec -- hplus --use-refine=tygar0 "<query"`
+- NOGAR: No refinement. Use `stack exec -- hplus --use-refine=nogar "<query"`
+- TYGARQB: Bounded abstraction refinement. Use `stack exec -- hplus --stop-refine=True --stop-threshold=10 "<query"`. Replace `10` with any number. This is the maximum refinements HooglePlus will make.
+
 
 # Building from scratch, for the developers
 ## build
