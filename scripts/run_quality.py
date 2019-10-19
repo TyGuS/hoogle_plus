@@ -9,7 +9,7 @@ from multiprocessing import Pool
 
 
 BASE_CMD = 'echo "{count}" && timeout 120 stack exec -- hplus "{query}" --log=1 --cnt=5 {options} > {log_file}'
-DEFAULT_QUERY_FILE = "benchmark/suites/not-work.yaml"
+DEFAULT_QUERY_FILE = "benchmark/suites/working.yml"
 LOG_DIR = "tmp/run_qual/logs/"
 TSV_DIR = "tmp/run_qual/tsv/"
 REPEATS = 1
@@ -32,7 +32,6 @@ class Variant():
         qn = querydct["name"]
         query = querydct["query"]
         log_name = Variant.log_name(self.name, qn, directory)
-        self.log_name = log_name
         return BASE_CMD.format(count=progress_str, query=query, options=self.options, log_file=log_name)
 
     def log_to_dict(self, querydct, log_path):

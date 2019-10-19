@@ -1,8 +1,36 @@
-# hoogle_plus
-Better than HoogleBook
+# hoogle+
+Type-driven, component based synthesis, showcasing TYpe Guided Abstract Refinement (TYGAR).
 
+# Using Evaluation Docker Image
+## Evaluation Results
+H+ will rerun its evaluation to produce four files:
+- `table.pdf` This is the table seen in the evaluation section of the paper
+- `major_variants.pdf` This is a plot of the 4 major search strategies (TYGARQ, TYGARQB10, TYGAR0, NOGAR)
+- `bounded_variants.pdf` This is a plot of the 4 bounded abstraction searches (TYGARQB5, 10, 15, 20)
+- `quality.csv` This is a CSV of the top 5 solutions for each benchmark produced within 120 seconds.
+It is easiest to view this file by importing it into a Google Sheets spreadsheet.
+
+There is also an executable you may interact with, `hplus`.
+
+## Re-running the evaluation
+You should have a docker image
+0. Load it with `docker load --input hoogleplus_aec.tar`
+1. Run the docker file interactively with a desired output directory.
+Hoogle+ will put the evaluation results into that directory.
+```
+docker run -v /absolute/path/to/output/dir:/output -it hoogleplus_aec:1.0.0 /bin/bash
+```
+0. Now navigate to the internal hoogle plus directory: `cd /home/hoogle_plus`
+0. Run the evaluation script: `./evaluation.sh`
+
+At this point, you should have 4 new files in your output directory.
+These are the results of the evaluation.
+
+
+# Building from scratch, for the developers
 ## build
-To build this project, you need to have z3-4.7.1 and gradle-4.10.2 installed
+To build this project, you need to have z3-4.7.1.
+You will need to ensure that the z3 library is in your `LD_LIBRARY_PATH` variable.
 
 ## usage
 Execute in the `hoogle_plus` directory:

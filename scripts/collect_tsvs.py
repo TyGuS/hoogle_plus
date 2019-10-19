@@ -272,7 +272,7 @@ def mk_plot(per_query):
     plt.legend(loc=0, prop={'size': 10})
     plt.xlabel("Seconds")
     plt.ylabel("Benchmarks solved")
-    plt.savefig("hoogle_plus.pdf")
+    plt.savefig("major_variants.pdf")
     plt.clf()
 
     plot2 = {
@@ -292,7 +292,7 @@ def mk_plot(per_query):
     plt.legend(loc=0, prop={'size': 10})
     plt.xlabel("seconds")
     plt.ylabel("benchmarks solved")
-    plt.savefig("bounds.pdf")
+    plt.savefig("bounded_variants.pdf")
     plt.clf()
 
 
