@@ -40,9 +40,9 @@ The default search mode is `TYGARAQ` as described in the paper: unbounded abstra
 
 You may try searches with different variants with the following command line args:
 - TYGARQ: Unbounded abstraction refinement. This is the default mode. The initial abstract cover are the types in the query.
-- TYGARQ0: Unbounded abstraction refinmenet. The initial abstract cover is empty. Use `stack exec -- hplus --use-refine=tygar0 "<query"`
-- NOGAR: No refinement. Use `stack exec -- hplus --use-refine=nogar "<query"`
-- TYGARQB: Bounded abstraction refinement. Use `stack exec -- hplus --stop-refine=True --stop-threshold=10 "<query"`. Replace `10` with any number. This is the maximum refinements HooglePlus will make.
+- TYGARQ0: Unbounded abstraction refinmenet. The initial abstract cover is empty. Use `stack exec -- hplus --use-refine=tygar0 "<query>"`
+- NOGAR: No refinement. Use `stack exec -- hplus --use-refine=nogar "<query>"`
+- TYGARQB: Bounded abstraction refinement. Use `stack exec -- hplus --stop-refine=True --stop-threshold=10 "<query>"`. Replace `10` with any number. This is the maximum refinements HooglePlus will make.
 
 
 # Building from scratch, for the developers
