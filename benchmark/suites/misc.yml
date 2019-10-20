@@ -1,0 +1,66 @@
+# - name: dotProduct
+#   query: "[Int] -> [Int] -> Int"
+#   solution: \x y -> sum (zipWith (*) x y)
+
+# - name: appTuple
+#   query: "(a -> a') -> (b -> b') -> (a, b) -> (a', b')"
+#   solution: (f (fst t), g (snd t))
+
+# - name: numElem
+#   query: Eq a => [a] -> a -> Int
+#   solution: length (elemIndices x xs)
+
+# - name: intersperse
+#   query: Show a => a -> [String] -> String
+#   solution: intersperse (show arg1) arg0
+
+# - name: convertToInt
+#   query: Double -> Int
+
+# - name: toText
+#   query: Show a => a -> Text
+
+# - name: toFloat
+#   query: Float -> Int
+
+# - name: c2i
+#   query: Char -> Integer
+
+# - name: a2i
+#   query: Num a => a -> Int
+
+# - name: reverseMap
+#   query: Ord k, Ord v => Map k v -> Map v [k]
+
+# - name: overlapCount
+#   query: "Eq a => [a] -> [a] -> Int"
+
+# - name: d2i
+#   query: Double -> Integer
+
+# - name: keyOverlap
+#   query: Ord k => Map k v -> Set k -> Set k
+#   solution: Set.intersection arg0 (keySet arg1)
+
+# - name: justMap
+#   query: Ord k => [Maybe (k, v)] -> Map k v
+#   solution: Map.fromList (catMaybe arg0)
+
+# - name: removeListFromSet
+#   query: Ord k => [k] -> Set k -> Set k
+#   solution: (\\) arg0 (fromList arg1)
+
+# - name: updateAllInMap
+#   query: (v -> Maybe v) -> Map k v -> Map k v
+
+
+# - name: convert
+#   query: Int -> Int -> Float
+
+# No solution?
+# - name: cross
+#   query: "(a, b) -> (a, b) -> (a, b)"
+#   source: "hoogle"
+
+# - name: groupList
+#   query: "[(k, v)] -> Map k [v]"

@@ -2,10 +2,14 @@
 Type-driven, component based synthesis, showcasing TYpe Guided Abstract Refinement (TYGAR).
 
 # Using Evaluation Docker Image
+## System Prerequisites:
+- Docker
+- Latex (for compiling completed evaluation results)
+
 ## Evaluation Results
 H+ will rerun its evaluation to produce five files:
 - `table.tex` and `table_results.tex` These are the latex files to produce the table seen in the evaluation section of the paper.
-You will need use `pdflatex table.tex` to combine them
+You will need use your system's latex installation `pdflatex table.tex` to combine them.
 - `major_variants.pdf` This is a plot of the 4 major search strategies (TYGARQ, TYGARQB10, TYGAR0, NOGAR)
 - `bounded_variants.pdf` This is a plot of the 4 bounded abstraction searches (TYGARQB5, 10, 15, 20)
 - `quality.csv` This is a CSV of the top 5 solutions for each benchmark produced within 120 seconds.
@@ -14,17 +18,17 @@ It is easiest to view this file by importing it into a Google Sheets spreadsheet
 There is also an executable you may interact with, `hplus`.
 
 ## Re-running the evaluation
-You should have a docker image
-0. Load it with `docker load --input hoogleplus_aec.tar`
+First we must build a docker image:
+0. Build it with `docker build --tag hoogleplus_aec:latest` (This can take between 40 minutes and 2 hours)
 1. Run the docker file interactively with a desired output directory.
 Hoogle+ will put the evaluation results into that directory.
 ```
-docker run -v /absolute/path/to/output/dir:/output -it hoogleplus_aec:1.0.0 /bin/bash
+docker run -v /absolute/path/to/output/dir:/output -it hoogleplus_aec:latest /bin/bash
 ```
 0. Now navigate to the internal hoogle plus directory: `cd /home/hoogle_plus`
-0. Run the evaluation script: `./evaluation.sh`
+0. Run the evaluation script: `./evaluation.sh` (This can take about 150 minutes, )
 
-At this point, you should have 4 new files in your output directory.
+At this point, you should have 5 new files in your output directory.
 These are the results of the evaluation.
 
 ## Usage
@@ -49,9 +53,8 @@ You will need to ensure that the z3 library is in your `LD_LIBRARY_PATH` variabl
 ## usage
 Execute in the `hoogle_plus` directory:
 ```
-./build.sh
 stack exec -- hplus generate --preset icfptotal
-stack exec -- hplus [DESIRED TYPE] [OPTIONAL ARGS]
+stack exec -- hplus [OPTIONAL ARGS] [DESIRED TYPE]
 ```
 
 ## Example:
