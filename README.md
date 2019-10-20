@@ -19,14 +19,14 @@ There is also an executable you may interact with, `hplus`.
 
 ## Re-running the evaluation
 First we must build a docker image:
-0. Build it with `docker build --tag hoogleplus_aec:latest` (This can take between 40 minutes and 2 hours)
-1. Run the docker file interactively with a desired output directory.
+1. Build it with `docker build --tag hoogleplus_aec:latest` (This can take between 40 minutes and 2 hours)
+2. Run the docker file interactively with a desired output directory.
 Hoogle+ will put the evaluation results into that directory.
 ```
 docker run -v /absolute/path/to/output/dir:/output -it hoogleplus_aec:latest /bin/bash
 ```
-0. Now navigate to the internal hoogle plus directory: `cd /home/hoogle_plus`
-0. Run the evaluation script: `./evaluation.sh` (This can take about 150 minutes, )
+3. Now navigate to the internal hoogle plus directory: `cd /home/hoogle_plus`
+4. Run the evaluation script: `./evaluation.sh` (This can take about 150 minutes, )
 
 At this point, you should have 5 new files in your output directory.
 These are the results of the evaluation.
