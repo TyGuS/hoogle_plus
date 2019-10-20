@@ -136,7 +136,7 @@ def main():
         ])
     bmg.load_queries()
     bmg.setup()
-    # bmg.run()
+    bmg.run()
     bmg.logs_to_csv()
 
 if __name__ == "__main__":
