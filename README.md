@@ -26,7 +26,7 @@ Hoogle+ will put the evaluation results into that directory.
 docker run -v /absolute/path/to/output/dir:/output -it hoogleplus_aec:latest /bin/bash
 ```
 3. Now navigate to the internal hoogle plus directory: `cd /home/hoogle_plus`
-4. Run the evaluation script: `./evaluation.sh` (This can take about 150 minutes)
+4. Run the evaluation script: `./evaluation.sh` (This can take about 150 minutes). Don't feel like waiting that long? Use `./evaluation-short.sh`. This should take ~5 minutes. It relies on a smaller set of benchmarks, only 3. You may wish to modify `benchmark/suites/aec-short.yml` adding more in as you like from the master set, located at `benchmark/suites/working.yml`.
 
 At this point, you should have 5 new files in your output directory.
 These are the results of the evaluation.

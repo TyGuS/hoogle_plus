@@ -3,10 +3,11 @@
 OUTPUTDIR=/output
 HOOGLE_DIR=/home/hoogle_plus
 
-SHORT_BENCHMARKS=benchmarks/suites/aec-short.yml
+SHORT_BENCHMARKS=benchmark/suites/aec-short.yml
 
 cd $HOOGLE_DIR
 mkdir -p $OUTPUTDIR
+rm -rf tmp/*
 
 stack exec -- hplus generate --preset=popl2020 || (echo "failed to create database" && exit 1)
 ./scripts/run_each_benchmark.py --benchmarks $SHORT_BENCHMARKS || (echo "failed to run benchmarks" && exit 1)

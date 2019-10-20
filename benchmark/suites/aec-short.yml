@@ -13,12 +13,12 @@
   solution: Data.Maybe.fromJust (GHC.List.lookup arg0 arg1)
   source: "hoogle"
 
-- name: appBoth
-  query: "(a -> b) -> (a -> c) -> a -> (b, c)"
-  solution: "(f x, g x)"
-  source: "original"
+# - name: appBoth
+#   query: "(a -> b) -> (a -> c) -> a -> (b, c)"
+#   solution: "(f x, g x)"
+#   source: "original"
 
-- name: both
-  query: "(a -> b) -> (a, a) -> (b, b)"
-  solution: (,) (arg1 (fst arg0)) (arg1 (snd arg0))
-  source: "original"
+# - name: both
+#   query: "(a -> b) -> (a, a) -> (b, b)"
+#   solution: (,) (arg1 (fst arg0)) (arg1 (snd arg0))
+#   source: "original"
