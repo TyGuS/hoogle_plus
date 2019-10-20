@@ -3,8 +3,9 @@ Type-driven, component based synthesis, showcasing TYpe Guided Abstract Refineme
 
 # Using Evaluation Docker Image
 ## Evaluation Results
-H+ will rerun its evaluation to produce four files:
-- `table.pdf` This is the table seen in the evaluation section of the paper
+H+ will rerun its evaluation to produce five files:
+- `table.tex` and `table_results.tex` These are the latex files to produce the table seen in the evaluation section of the paper.
+You will need use `pdflatex table.tex` to combine them
 - `major_variants.pdf` This is a plot of the 4 major search strategies (TYGARQ, TYGARQB10, TYGAR0, NOGAR)
 - `bounded_variants.pdf` This is a plot of the 4 bounded abstraction searches (TYGARQB5, 10, 15, 20)
 - `quality.csv` This is a CSV of the top 5 solutions for each benchmark produced within 120 seconds.

@@ -38,32 +38,35 @@ class Variant():
         qn = querydct["name"]
         log_name = Variant.log_name(self.name, qn, log_path)
         with open(log_name) as f:
-            lines = f.readlines()
-            stats = lines[-2]
-            solution = lines[-4]
-            obj = {}
-            obj["name"] = qn
-            obj["query"] = querydct["query"]
-            if "writeSolution" not in stats:
-                # did not finish completely
+            try:
+                lines = f.readlines()
+                stats = lines[-2]
+                solution = lines[-4]
+                obj = {}
+                obj["name"] = qn
+                obj["query"] = querydct["query"]
+                if "writeSolution" not in stats:
+                    # did not finish completely
+                    return obj
+                obj["Solution"] = solution
+                if "****" not in lines[-3]:
+                    obj["Solution"] = "No Solution"
+                reg_str = r'[a-zA-Z]+ = [^,]+|[a-zA-Z]+ = \[.*?\]|[a-zA-Z]+ = \".*?\"|[a-zA-Z]+ = \(.*?\)'
+                res = re.findall(reg_str, stats)
+                properties = map(lambda x: x.split('='), res)
+                for p in properties:
+                    k, v = p[0].strip(), p[1].strip(' \"')
+                    if v[0] == '[':
+                        v = v.strip('[]').split(',')
+                    obj[k] = v
+                transitions_regex = r"numOfTransitions = fromList \[(.*)\], num"
+                res = re.findall(transitions_regex, stats)
+                if res:
+                    last_transition = res[0].split(",")[-1][:-1]
+                    obj["numOfTransitions"] = last_transition
                 return obj
-            obj["Solution"] = solution
-            if "****" not in lines[-3]:
-                obj["Solution"] = "No Solution"
-            reg_str = r'[a-zA-Z]+ = [^,]+|[a-zA-Z]+ = \[.*?\]|[a-zA-Z]+ = \".*?\"|[a-zA-Z]+ = \(.*?\)'
-            res = re.findall(reg_str, stats)
-            properties = map(lambda x: x.split('='), res)
-            for p in properties:
-                k, v = p[0].strip(), p[1].strip(' \"')
-                if v[0] == '[':
-                    v = v.strip('[]').split(',')
-                obj[k] = v
-            transitions_regex = r"numOfTransitions = fromList \[(.*)\], num"
-            res = re.findall(transitions_regex, stats)
-            if res:
-                last_transition = res[0].split(",")[-1][:-1]
-                obj["numOfTransitions"] = last_transition
-            return obj
+            except (AttributeError, IndexError):
+                return None
 
     def write_tsv(self, idx, result_dict):
         tsv_name = "%s+%s.tsv" % (self.name, result_dict["name"])
@@ -133,7 +136,7 @@ def main():
         ])
     bmg.load_queries()
     bmg.setup()
-    bmg.run()
+    # bmg.run()
     bmg.logs_to_csv()
 
 if __name__ == "__main__":

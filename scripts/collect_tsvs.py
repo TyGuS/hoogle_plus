@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 DATA_DIR = "tmp/run_each/tsv/"
 OUTPUT_FILE = "collected.csv"
-OUTPUT_TEX = "result.tex"
+OUTPUT_TEX = "table_results.tex"
 quality_map = "data/quality-map.csv"
 name_regex = r'(.*)\+(.*)\.tsv'
 
