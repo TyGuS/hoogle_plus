@@ -29,7 +29,7 @@ ENV PATH="/root/.local/bin:${PATH}"
 
 # Get tools for the evaluation
 RUN apt-get install -y python3 python3-pip
-RUN pip3 install --user PyYAML numpy tabulate matplotlib
+RUN pip3 install --user PyYAML numpy tabulate matplotlib argparse
 
 # Get HooglePlus
 RUN cd /home; git clone https://github.com/davidmrdavid/hoogle_plus.git
@@ -37,7 +37,7 @@ RUN cd /home/hoogle_plus && git checkout origin/mj_popl_aec
 RUN cd /home/hoogle_plus && stack build
 
 # Start with bash
-# RUN cd /home/hoogle_plus && stack exec -- hplus generate --preset=icfppartial
+RUN cd /home/hoogle_plus && stack exec -- hplus generate --preset=popl2020
 
 # Re-run the evaluation
 # RUN cd /home/hoogle_plus && \

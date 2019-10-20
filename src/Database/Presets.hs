@@ -6,8 +6,7 @@ import Types.Environment
 
 getOptsFromPreset :: Preset -> GenerationOpts
 getOptsFromPreset ICFPTotal = genOptsTier1
-getOptsFromPreset ICFPPartial = genOptsTier2
-getOptsFromPreset POPL = poplWithTypeclasses
+getOptsFromPreset Popl2020 = genOptsTier2
 
 genOptsTier1 = defaultGenerationOpts {
   modules = myModules,
@@ -48,7 +47,7 @@ myModules = [
   "Data.ByteString.Builder"
   ]
 
-poplModules = error "use icfppartial for popl"
+poplModules = error "use popl2020 for popl"
   -- [
   -- "Prelude", -- This prelude in customPrelude is missing those with HK-tyvars and the zip >=3 family functions.
   -- "Data.List", -- This is Data.OldList to avoid a Foldable fiasco. We don't support those higher-kinded tyvars yet.

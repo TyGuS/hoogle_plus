@@ -44,7 +44,7 @@ type HName = HSE.Name ()
 type HExp = HSE.Exp ()
 type HDeclaration = HSE.Decl ()
 
-data Preset = ICFPTotal | ICFPPartial  | POPL deriving (Eq, Show, Data, Typeable)
+data Preset = ICFPTotal | Popl2020  | OLDPOPL deriving (Eq, Show, Data, Typeable)
 
 defaultHackageOpts = Hackage {packages = []}
 

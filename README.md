@@ -26,7 +26,7 @@ Hoogle+ will put the evaluation results into that directory.
 docker run -v /absolute/path/to/output/dir:/output -it hoogleplus_aec:latest /bin/bash
 ```
 3. Now navigate to the internal hoogle plus directory: `cd /home/hoogle_plus`
-4. Run the evaluation script: `./evaluation.sh` (This can take about 150 minutes, )
+4. Run the evaluation script: `./evaluation.sh` (This can take about 150 minutes)
 
 At this point, you should have 5 new files in your output directory.
 These are the results of the evaluation.
@@ -80,7 +80,7 @@ stack exec -- hplus generate --preset icfptotal
 
 For the superset of components to ICFP total that includes partial functions like `head`:
 ```
-stack exec -- hplus generate --preset icfppartial
+stack exec -- hplus generate --preset popl2020
 ```
 
 If you have your own file(s) you want to use, you may specify them. You will then use all the modules within the files. At this time you may not filter within the file:

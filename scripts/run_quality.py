@@ -5,6 +5,7 @@ import yaml
 import os
 import shutil
 import re
+import argparse
 from multiprocessing import Pool
 
 
@@ -95,8 +96,8 @@ class Experiment():
     def __init__(self, variants):
         self.variants = variants
 
-    def load_queries(self):
-        with open(DEFAULT_QUERY_FILE) as f:
+    def load_queries(self, benchmark_file):
+        with open(benchmark_file) as f:
             self.queries = yaml.load(f)
 
     def setup(self):
@@ -138,6 +139,10 @@ class Experiment():
 # Variant("tygar0B5", "--stop-threshold=5 --use-refine=tygar0")
 
 def main():
+    parser = argparse.ArgumentParser(description='Collect top 5 solutions for queries for H+ within 120 seconds')
+    parser.add_argument('--benchmarks', default=DEFAULT_QUERY_FILE, help ='path to benchmarks yml file')
+    args = parser.parse_args()
+
     bmg = Experiment([
         # Variant("tygarQ"),
         # Variant("tygar0", "--use-refine=tygar0"),
@@ -149,7 +154,7 @@ def main():
         # Variant("tygarQB20", "--stop-refine=True --stop-threshold=20"),
         # Variant("nogar", "--use-refine=nogar"),
         ])
-    bmg.load_queries()
+    bmg.load_queries(args.benchmarks)
     bmg.setup()
     bmg.run()
     bmg.logs_to_csv()

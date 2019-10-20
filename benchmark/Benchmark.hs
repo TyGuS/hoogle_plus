@@ -33,7 +33,7 @@ defaultArgs = Args {
   argsOutputDirectory="tmp/results" &= name "directory",
   argsExperiment=defaultExperiment &= argPos 0,
   argsOutputFormat=[] &= name "format",
-  argsPreset=ICFPPartial &= name "preset" &= help "Component set preset"
+  argsPreset=Popl2020 &= name "preset" &= help "Component set preset"
   }
 
 main :: IO ()
@@ -102,7 +102,7 @@ readQueryFile fp = do
 getSetup args = do
   let preset = argsPreset args
   componentSet <- generateEnv $ getOptsFromPreset preset
-  componentOldSet <- generateEnv $ getOptsFromPreset ICFPPartial
+  componentOldSet <- generateEnv $ getOptsFromPreset Popl2020
   queries <- readQueryFile (argsQueryFile args)
   let envs = [(componentSet, show preset)]
   let currentExperiment = argsExperiment args
@@ -188,6 +188,6 @@ getSetup args = do
             (searchParamsTyGarQ{_coalesceTypes=False}, expTyGarQNoCoalesce)]
   let exps =
         case currentExperiment of
-          CompareEnvironments -> mkExperiments ((componentOldSet, show ICFPPartial):envs) queries params
+          CompareEnvironments -> mkExperiments ((componentOldSet, show Popl2020):envs) queries params
           _ ->  mkExperiments envs queries params
   return (envs, params, exps)
