@@ -6,9 +6,11 @@ import Data.Typeable
 import Text.Printf
 import Data.List (intercalate)
 
-defaultTimeoutMicro = 1 * 10^6 :: Int
+defaultTimeoutMicro = 2 * 10^6 :: Int
 defaultNumChecks = 5 :: Int
 defaultMaxOutputLength = 100 :: Int
+
+defaultMaxArgShowLength = 15 :: Int
 
 formatHigherOrderArgument = printf "(hof_%d)" :: Int -> String
 
