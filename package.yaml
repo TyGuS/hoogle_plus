@@ -7,6 +7,8 @@ maintainer: "zhg069@ucsd.edu"
 
 extra-source-files:
 - README.md
+data-files:
+- InternalTypeGen.hs
 
 description: Please see the README
 

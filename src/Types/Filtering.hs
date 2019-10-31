@@ -10,12 +10,22 @@ defaultTimeoutMicro = 1 * 10^6 :: Int
 defaultNumChecks = 5 :: Int
 defaultMaxOutputLength = 100 :: Int
 
+formatHigherOrderArgument = printf "(hof_%d)" :: Int -> String
+
+supportedInnerType =
+  [ "Int"
+  , "Float"
+  , "Double"
+  , "Char"
+  , "String" ]
+
 data ArgumentType =
     Concrete    String
   | Polymorphic String
   | ArgTypeList ArgumentType
   | ArgTypeTuple [ArgumentType]
   | ArgTypeApp  ArgumentType ArgumentType
+  | ArgTypeFunc ArgumentType ArgumentType
   deriving (Eq)
 
 instance Show ArgumentType where
@@ -25,6 +35,7 @@ instance Show ArgumentType where
   show (ArgTypeApp  l r)  = printf "(%s) %s"  (show l) (show r)
   show (ArgTypeTuple types) =
     (printf "(%s)" . intercalate ", " . map show) types
+  show (ArgTypeFunc src dst) = printf "((%s) -> (%s))" (show src) (show dst)
 
 newtype NotSupportedException = NotSupportedException String
   deriving (Show, Typeable)
@@ -49,10 +60,22 @@ instance Show FunctionSignature where
         constraintsExpr = (intercalate ", " . map show) constraints
         argsExpr = (intercalate " -> " . map show) (argsType ++ [returnType])
 
+data GeneratedArg =
+    Value String
+  | HigherOrder String Int Int Int
+  deriving (Eq)
+
+instance Show GeneratedArg where
+  show (Value val) = val
+  show (HigherOrder _ index _ _) = formatHigherOrderArgument index
+
+type GeneratedInput = [GeneratedArg]
+
 type SampleResultItem = (String, String)
-data SampleResult = SampleResult
-  { _inputs :: [String], _results :: [[SampleResultItem]]}
-  deriving (Eq, Show)
+data SampleResult = SampleResult {
+  _inputs :: [GeneratedInput],
+  _results :: [[SampleResultItem]]
+} deriving (Eq, Show)
 
 newtype FilterState = FilterState
   { sampleResults :: Maybe SampleResult }
