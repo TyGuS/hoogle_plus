@@ -263,8 +263,9 @@ executeSearch synquidParams searchParams query = do
           return env
 
     handleMessages ch (MesgClose _) = putStrLn "Search complete" >> return ()
-    handleMessages ch (MesgP (program, stats)) = do
+    handleMessages ch (MesgP (program, stats, state)) = do
       printf "[writeStats]: %s\n" (show stats)
+      printf "[writeFilter]: %s\n" (show state)
       printSolution program >> readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgS debug) = do
       printf "[writeStats]: %s\n" (show debug)

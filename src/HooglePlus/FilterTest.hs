@@ -186,7 +186,7 @@ checkSolutionNotCrash modules sigStr body = or <$> liftIO executeCheck
       result <- evalHOF_ modules inits expression defaultTimeoutMicro
 
       case result of
-        Nothing -> putStrLn "Timeout in running always-fail detection" >> return True
+        Nothing -> putStrLn "Timeout in running always-fail detection" >> return False
         Just (Left err) -> putStrLn (displayException err) >> return False
         Just (Right res) -> return (seq res True)
 
@@ -249,8 +249,13 @@ checkDuplicates modules sigStr body = do
         evalWithArg input = 
           let (inits, arg) = formatGenInputInitialization input in
           liftM2 (,)
-            (pure arg)
-            (show <$> evalHOF_ modules inits (fmtFunction_ body (show funcSig) arg) defaultTimeoutMicro) 
+            (pure $ formatArg arg)
+            (show . formatEval <$> evalHOF_ modules inits (fmtFunction_ body (show funcSig) arg) defaultTimeoutMicro)
+          where
+            formatArg = take defaultMaxArgShowLength
+            formatEval Nothing = "timeout"
+            formatEval (Just (Left error)) = "error: " ++ show error
+            formatEval (Just (Right result)) = result
         
 
   where

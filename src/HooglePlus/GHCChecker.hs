@@ -139,17 +139,16 @@ check_ goal searchParams solverChan checkerChan = do
     where
         handleMessages solverChan checkChan msg =
             case msg of
-                (MesgP (program, _)) -> do
+                (MesgP (program, stats, _)) -> do
                     programPassedChecks <- executeCheck program
-                    show <$> get >>= log
-                    if programPassedChecks then bypass >> next else next
-                (MesgClose _) -> bypass
-                _ -> bypass >> next
+                    state <- get
+                    if programPassedChecks then (bypass (MesgP (program, stats, state))) >> next else next
+                (MesgClose _) -> bypass msg
+                _ -> (bypass msg) >> next
 
             where
                 next = (liftIO . readChan) solverChan >>= handleMessages solverChan checkerChan
-                bypass = liftIO $ writeChan checkerChan msg
-                log msg = liftIO $ writeChan checkerChan (MesgLog 3 "checker" msg)
+                bypass message = liftIO $ writeChan checkerChan message
 
         (env, destType) = preprocessEnvFromGoal goal
         executeCheck = runGhcChecks searchParams env destType
