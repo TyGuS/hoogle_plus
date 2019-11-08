@@ -1,10 +1,25 @@
 {-# LANGUAGE FlexibleInstances #-}
 module InternalTypeGen where
 
-import Test.QuickCheck hiding (quickCheck)
+import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
+import qualified Test.ChasingBottoms as CB
 import Data.Map (Map)
+import Data.List (isInfixOf)
 import Control.Applicative
+
+isEqualResult lhs rhs = case (lhs, rhs) of
+  (CB.Value a, CB.Value b) -> a == b
+  (CB.NonTermination, CB.NonTermination) -> True
+  (CB.Exception a, CB.Exception b) -> show a == show b
+  _ -> False
+
+isFailedResult result = case result of
+  CB.NonTermination -> True
+  CB.Exception _ -> True
+  CB.Value a | isInfixOf "_|_" a -> True
+  CB.Value a | isInfixOf "Exception" a -> True
+  _ -> False
 
 newtype Internal a = Val a
 

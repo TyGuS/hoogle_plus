@@ -64,6 +64,7 @@ dependencies:
 - vector
 - uuid
 - QuickCheck
+- ChasingBottoms
 
 library:
   source-dirs:

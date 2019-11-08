@@ -6,12 +6,21 @@ import Data.Typeable
 import Text.Printf
 import Data.List (intercalate)
 
-defaultTimeoutMicro = 2 * 10^6 :: Int
+defaultTimeoutMicro = 5 * 10^4 :: Int
 defaultNumChecks = 5 :: Int
 defaultMaxOutputLength = 100 :: Int
 defaultMaxArgShowLength = 15 :: Int
 
+toParamListDecl n = unwords
+  $ zipWith (curry fst) [printf "arg_%d" index :: String | index <- [0..] :: [Int]] [0..(n - 1)]
 formatHigherOrderArgument = printf "(hof_%d)" :: Int -> String
+quickCheckModules =
+  zip [ "Test.QuickCheck"
+  , "Test.QuickCheck.Gen"
+  , "Test.QuickCheck.Random"
+  , "Test.QuickCheck.Monadic" ] (repeat Nothing)
+
+  ++ [("Test.ChasingBottoms", Just "CB")]
 
 supportedInnerType =
   [ "Int"
@@ -19,6 +28,12 @@ supportedInnerType =
   , "Double"
   , "Char"
   , "String" ]
+
+data FunctionCrashKind = 
+    AlwaysSucceed
+  | AlwaysFail
+  | PartialFunction
+  deriving (Show)
 
 data ArgumentType =
     Concrete    String
@@ -71,19 +86,14 @@ instance Show GeneratedArg where
   show (HigherOrder _ index _ _) = formatHigherOrderArgument index
 
 type GeneratedInput = [GeneratedArg]
-
-type SampleResultItem = (String, String)
-data SampleResult = SampleResult {
-  _inputs :: [GeneratedInput],
-  _results :: [[SampleResultItem]]
+data FilterState = FilterState {
+  inputs :: [String],
+  solutions :: [String]
 } deriving (Eq, Show)
 
-newtype FilterState = FilterState
-  { sampleResults :: Maybe SampleResult }
-  deriving (Eq, Show)
-
 emptyFilterState = FilterState {
-  sampleResults = Nothing
+  inputs = [],
+  solutions = []
 }
 
 type FilterTest m = StateT FilterState m
