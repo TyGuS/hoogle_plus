@@ -9,6 +9,7 @@ import Synquid.Type
 import Types.Solver
 import PetriNet.Util
 import Synquid.Pretty
+import Database.Util
 
 import Control.Lens
 import GHC.Generics
@@ -204,40 +205,56 @@ abstractIntersect bound t1 t2 =
     unifier = getUnifier bound [(t1, t2)]
 
 -- | find the current most restrictive abstraction for a given type
-currentAbst :: MonadIO m => [Id] -> AbstractCover -> AbstractSkeleton -> PNSolver m AbstractSkeleton
+currentAbst :: MonadIO m => [Id] -> AbstractCover -> AbstractSkeleton -> PNSolver m [AbstractSkeleton]
 currentAbst tvs cover (AFunctionT tArg tRes) = do
     tArg' <- currentAbst tvs cover tArg
     tRes' <- currentAbst tvs cover tRes
-    return $ AFunctionT tArg' tRes'
+    return $ [AFunctionT a r | a <- tArg', r <- tRes']
 currentAbst tvs cover at = do
     freshAt <- freshAbstract tvs at
     case currentAbst' freshAt rootNode of
-        Nothing -> error $ "cannot find current abstraction for type " ++ show at
-        Just t -> return t
+        [] -> error $ "cannot find current abstraction for type " ++ show at
+        ts -> return ts
   where
     currentAbst' at paren | isSubtypeOf tvs at paren =
       let children = Set.toList $ HashMap.lookupDefault Set.empty paren cover
           inSubtree = any (isSubtypeOf tvs at) children
-       in if inSubtree then head $ filter isJust $ map (currentAbst' at) children
-                       else Just paren
-    currentAbst' at paren = Nothing
+       in if inSubtree then concatMap (currentAbst' at) children
+                       else [paren]
+    currentAbst' at paren = []
 
-applySemantic :: MonadIO m => [Id] -> AbstractSkeleton -> [AbstractSkeleton] -> PNSolver m AbstractSkeleton
+-- | find the most general unifier between arguments
+-- and apply this unifier onto the return type
+-- a special case for type
+applySemantic :: MonadIO m => [Id] -> AbstractSkeleton -> [AbstractSkeleton] -> PNSolver m [AbstractSkeleton]
 applySemantic tvs fun args = do
     let cargs = init (decompose fun)
     let ret = last (decompose fun)
     let args' = map compactAbstractType args
     constraints <- zipWithM (typeConstraints tvs) cargs args'
+    let constraints' = concat constraints
     -- writeLog 3 "applySemantic" $ text "solving constraints" <+> pretty constraints
-    let unifier = getUnifier tvs (concat constraints)
-    case unifier of
-        Nothing -> return ABottom
-        Just m -> do
-            -- writeLog 3 "applySemantic" $ text "get unifier" <+> pretty (Map.toList m)
-            cover <- gets (view abstractionCover)
-            let substRes = abstractSubstitute m ret
-            -- writeLog 3 "applySemantic" $ text "current cover" <+> text (show cover)
-            currentAbst tvs cover substRes
+    if matchTc constraints'
+        then do
+            let unifier = getUnifier tvs constraints'
+            case unifier of
+                Nothing -> return [ABottom]
+                Just m -> do
+                    -- writeLog 3 "applySemantic" $ text "get unifier" <+> pretty (Map.toList m)
+                    cover <- gets (view abstractionCover)
+                    let substRes = abstractSubstitute m ret
+                    -- writeLog 3 "applySemantic" $ text "current cover" <+> text (show cover)
+                    currentAbst tvs cover substRes
+        else return [ABottom]
+  where
+    matchTc [] = True
+    matchTc (c:cs) = case c of
+        (AScalar (ADatatypeT id1 _), AScalar (ADatatypeT id2 _)) ->
+            ((tyclassPrefix `isPrefixOf` id1) && (tyclassPrefix `isPrefixOf` id2)) ||
+            (not (tyclassPrefix `isPrefixOf` id1) && not (tyclassPrefix `isPrefixOf` id2))
+        (AScalar (ADatatypeT id _), _) -> not (tyclassPrefix `isPrefixOf` id)
+        (_, AScalar (ADatatypeT id _)) -> not (tyclassPrefix `isPrefixOf` id)
+        _ -> matchTc cs
 
 compareAbstract :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Ordering
 compareAbstract tvs t1 t2 | isSubtypeOf tvs t1 t2 && isSubtypeOf tvs t2 t1 = EQ

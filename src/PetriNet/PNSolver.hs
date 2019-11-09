@@ -8,6 +8,7 @@ import Control.Concurrent.Chan
 import Control.Lens
 import Control.Monad.Logic
 import Control.Monad.State
+import Control.Monad.Extra
 import qualified Data.Char as Char
 import Data.Data (Data)
 import Data.Either hiding (fromLeft, fromRight)
@@ -46,7 +47,7 @@ import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Pretty
 import Synquid.Program
 import Synquid.Type
-import Synquid.Util
+import Synquid.Util hiding (ifM)
 import Types.Abstract
 import Types.Common
 import Types.Encoder hiding (incrementalSolving, mustFirers, varName)
@@ -114,7 +115,7 @@ instantiateWith env typs id t = do
         let bound = env ^. boundTypeVars
         let argNum = length (decompose typ) - 1
         let allArgCombs = multiPermutation argNum typs
-        applyRes <- mapM (applySemantic bound typ) allArgCombs
+        applyRes <- concatMapM (applySemantic bound typ) allArgCombs
         let resSigs = filter (not . isBot . fst) (zip applyRes allArgCombs)
         return $ map (uncurry $ foldr AFunctionT) resSigs
 
@@ -154,8 +155,8 @@ splitTransition env newAt fid = do
         let first = toAbstractType $ shape fstType
         let secod = toAbstractType $ shape sndType
         let tvs = env ^. boundTypeVars
-        fstRets <- mapM (applySemantic tvs first) args'
-        sndRets <- mapM (applySemantic tvs secod) args'
+        fstRets <- concatMapM (applySemantic tvs first) args'
+        sndRets <- concatMapM (applySemantic tvs secod) args'
         let sameFunc ([a], (fret, sret)) = equalAbstract tvs fret fstRet
                                          && equalAbstract tvs sret sndRet
                                          && a == head args
@@ -178,7 +179,7 @@ splitTransition env newAt fid = do
         writeLog 3 "allSubsts'" $ text fid <+> text "::" <+> pretty funType
         let absFunType = toAbstractType (shape funType)
         let tvs = env ^. boundTypeVars
-        rets <- mapM (applySemantic tvs absFunType) args'
+        rets <- concatMapM (applySemantic tvs absFunType) args'
         writeLog 3 "allSubsts'" $ text fid <+> text "returns" <+> pretty rets
         let validFunc (a, r) = not (equalAbstract tvs ret r && a == args) && not (isBot r)
         let funcs = filter validFunc (zip args' rets)
@@ -480,8 +481,8 @@ fixEncoder env dst st info = do
     cover <- gets (view abstractionCover)
     writeLog 2 "fixEncoder" $ text "new abstraction cover:" <+> pretty (allTypesOf cover)
     (srcTypes, tgt) <- updateSrcTgt env dst
-    writeLog 2 "fixEncoder" $ text "fixed parameter types:" <+> pretty srcTypes
-    writeLog 2 "fixEncoder" $ text "fixed return type:" <+> pretty tgt
+    writeLog 1 "fixEncoder" $ text "fixed parameter types:" <+> pretty srcTypes
+    writeLog 1 "fixEncoder" $ text "fixed return type:" <+> pretty tgt
     writeLog 3 "fixEncoder" $ text "get split information" </> pretty info
     modify $ over type2transition (HashMap.filter (not . null))
     (loc, musters, rets, _, tid2tr) <- prepEncoderArgs env tgt
@@ -776,15 +777,17 @@ updateSrcTgt env dst = do
     let binds = env ^. boundTypeVars
     abstraction <- gets (view abstractionCover)
     tgt <- currentAbst binds abstraction (toAbstractType (shape dst))
-    modify $ set targetType tgt
+    let tgt' = head tgt
+    modify $ set targetType tgt'
 
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
     srcTypes <- mapM ( currentAbst binds abstraction
                      . toAbstractType
                      . shape
                      . toMonotype) $ Map.elems foArgs
-    modify $ set sourceTypes srcTypes
-    return (srcTypes, tgt)
+    let srcTypes' = map head srcTypes
+    modify $ set sourceTypes srcTypes'
+    return (srcTypes', tgt')
 
 type EncoderArgs = (Int
                     , HashMap Id [Id]

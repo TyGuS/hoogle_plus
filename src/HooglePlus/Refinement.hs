@@ -182,7 +182,7 @@ propagate env p@(Program (PApp f args) _) upstream = do
         lift $ writeLog 3 "propagate" $ text "get generalized types" <+> pretty absArgs <+> text "from" <+> pretty cArgs
         res <- lift $ applySemantic bound t absArgs
         lift $ writeLog 3 "propagate" $ text "apply" <+> pretty absArgs <+> text "to" <+> pretty t <+> text "gets" <+> pretty res
-        guard (isSubtypeOf bound res upstream)
+        guard (any (\r -> isSubtypeOf bound r upstream) res)
         return $ map compactAbstractType absArgs
 -- | case for lambda functions
 propagate env (Program (PFun x body) (FunctionT _ tArg tRet))
