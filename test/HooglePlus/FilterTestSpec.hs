@@ -53,9 +53,9 @@ testNotCrashCases =
   , ("Succeed on poly function w/o type constrains 2", [], "(a, b) -> b", "\\(x, y) -> y", True)
   , ("Succeed on poly function w/o type constrains 3", [], "(a, Either Int Int) -> Int", "\\(_, t) -> either id id t", True)
   , ("Succeed on infinite functions", ["GHC.List"], "a -> [a]", "\\x -> repeat x", True)
-  , ("Succeed on var w/ module names", ["GHC.Int", "Data.ByteString.Lazy", "Data.ByteString.Builder"],
-     "GHC.Int.Int64 -> Data.ByteString.Lazy.ByteString",
-     "\\arg0 -> Data.ByteString.Builder.toLazyByteString (Data.ByteString.Builder.int64Dec arg0)", True)
+  , ("Succeed on var w/ module names", ["GHC.List"],
+     "[a] -> [b] -> [[(a,b)]]",
+     "\\arg0 -> GHC.List.repeat (GHC.List.zip arg1 arg0)", True)
   , ("Fail on invalid function 1", ["Data.Maybe"], "a -> a", "\\x -> fromJust Nothing", False)
   , ("Fail on invalid function 2", ["Data.List"], "a -> a", "\\x -> head []", False)
   , ("Fail on invalid function 3", ["Data.List"], "a -> (a, a)", "\\x -> (head [x], last [])", False)

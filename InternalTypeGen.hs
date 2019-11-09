@@ -17,8 +17,8 @@ isEqualResult lhs rhs = case (lhs, rhs) of
 isFailedResult result = case result of
   CB.NonTermination -> True
   CB.Exception _ -> True
-  CB.Value a | isInfixOf "_|_" a -> True
-  CB.Value a | isInfixOf "Exception" a -> True
+  CB.Value a | "_|_" `isInfixOf` a -> True
+  CB.Value a | "Exception" `isInfixOf` a -> True
   _ -> False
 
 newtype Internal a = Val a
@@ -36,4 +36,4 @@ instance {-# OVERLAPPING #-} Arbitrary (Internal Char) where
   arbitrary = Val <$> choose ('A', 'D')
 
 instance {-# OVERLAPPING #-} Arbitrary (Internal String) where
-  arbitrary = Val <$> vectorOf 5 (choose ('A', 'D')) 
+  arbitrary = Val <$> vectorOf 5 (choose ('A', 'D'))
