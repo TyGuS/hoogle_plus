@@ -124,12 +124,12 @@ buildFunctionWrapper' wrapperName funcSig solution timeInMicro =
       printf "let %s %s = (CB.timeOutMicro' %d (CB.approxShow %d (sol_%s %s))) in" wrapperName argLine timeInMicro defaultMaxOutputLength wrapperName argLine :: String
 
 buildNotCrashProp :: FunctionSignature -> (String, String)
-buildNotCrashProp funcSig = 
-  
+buildNotCrashProp funcSig =
+
   (formatAlwaysFailProp argLine, formatNeverFailProp argLine)
   where
     argLine = toParamListDecl (length (_argsType funcSig))
-    
+
     formatAlwaysFailProp = formatProp "propAlwaysFail" "isFailedResult result"
     formatNeverFailProp = formatProp "propNeverFail" "not $ isFailedResult result"
 
@@ -157,7 +157,7 @@ buildDupCheckProp (sol, otherSols) funcSig timeInMicro =
     formatBindingItem :: (Int, String) -> String
     formatBindingItem (i, _) = printf "result_%d" i :: String
 
-    formatBindingList sols = 
+    formatBindingList sols =
       let items = intercalate "," $ map formatBindingItem sols in
         printf "[%s]" items :: String
 
@@ -165,7 +165,7 @@ buildDupCheckProp (sol, otherSols) funcSig timeInMicro =
       ([ printf "let dupProp %s = monadicIO $ do {" argLine
       , printf "resultL <- run (lhs %s);" argLine]
         ++ (map formatBinding otherSols') ++
-      [ printf "assert (or $ map (isEqualResult resultL) %s)" (formatBindingList otherSols')
+      [ printf "assert (Prelude.or $ Prelude.map (isEqualResult resultL) %s)" (formatBindingList otherSols')
       , "} in"
       , printf "quickCheckResult dupProp"]) :: String
 
@@ -183,8 +183,6 @@ validateSolution modules solution funcSig time = do
 
     let alwaysFailProp' = wrapper ++ " " ++ alwaysFailProp
     let neverFailProp' = wrapper ++ " " ++ neverFailProp
-
-    liftIO $ print neverFailProp'
 
     alwaysFailResult <- interpret alwaysFailProp' (as :: IO Result) >>= liftIO
     neverFailResult <- interpret neverFailProp' (as :: IO Result) >>= liftIO
@@ -224,7 +222,7 @@ checkSolutionNotCrash modules sigStr body = liftIO executeCheck
     handleNotSupported = (`catch` ((\ex -> print ex >> return True) :: NotSupportedException -> IO Bool))
     executeCheck = handleNotSupported $ do
       let funcSig = (instantiateSignature . parseTypeString) sigStr
-      
+
       result <- validateSolution modules body funcSig defaultTimeoutMicro
       case result of
         Left err -> print err >> return True
@@ -257,13 +255,14 @@ checkDuplicates modules sigStr solution = do
   FilterState inputs solns <- get
 
   result <- liftIO $ compareSolution modules solution solns funcSig defaultTimeoutMicro
-  
+
   case result of
-    Left _ -> do
-      modify $ \_ -> FilterState {inputs = inputs, solutions = solution:solns}
+    Left err -> do
+      liftIO $ print err
+      modify $ const FilterState {inputs = inputs, solutions = solution:solns}
       return True
     Right Failure{failingTestCase = c} -> do
-      modify $ \_ -> FilterState {inputs = ((show c) : inputs), solutions = solution:solns}
+      modify $ const FilterState {inputs = show c : inputs, solutions = solution:solns}
       return True
     _ -> return False
 
