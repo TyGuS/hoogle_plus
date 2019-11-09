@@ -153,13 +153,27 @@ buildDupCheckProp (sol, otherSols) funcSig timeInMicro =
       , "} in"
       , printf "quickCheckResult dupProp"]) :: String
 
+runInterpreter' :: Int -> InterpreterT IO a -> IO (Either InterpreterError a) 
+runInterpreter' timeInMicro exec =
+
+  toResult <$> timeout timeInMicro execute
+  where
+    execute = do
+      srcPath <- getDataFileName "InternalTypeGen.hs"
+      unsafeRunInterpreterWithArgs ["-fno-omit-yields"] $ do
+    
+        loadModules [srcPath]
+        setTopLevelModules ["InternalTypeGen"]
+    
+        exec
+
+    toResult Nothing = Left $ UnknownError "timeout"
+    toResult (Just v) = v 
+
+
 validateSolution :: [String] -> String -> FunctionSignature -> Int -> IO (Either InterpreterError FunctionCrashKind)
 validateSolution modules solution funcSig time = do
-  srcPath <- getDataFileName "InternalTypeGen.hs"
-  result <- unsafeRunInterpreterWithArgs ["-fno-omit-yields"] $ do
-
-    loadModules [srcPath]
-    setTopLevelModules ["InternalTypeGen"]
+  result <- runInterpreter' defaultInterpreterTimeoutMicro $ do
     setImportsQ (zip modules (repeat Nothing) ++ quickCheckModules)
 
     let (alwaysFailProp, neverFailProp) = buildNotCrashProp solution funcSig
@@ -176,15 +190,10 @@ validateSolution modules solution funcSig time = do
 
 compareSolution :: [String] -> String -> [String] -> FunctionSignature -> Int -> IO (Either InterpreterError Result)
 compareSolution modules solution otherSolutions funcSig time = do
-  srcPath <- getDataFileName "InternalTypeGen.hs"
-  unsafeRunInterpreterWithArgs ["-fno-omit-yields"] $ do
-
-    loadModules [srcPath]
-    setTopLevelModules ["InternalTypeGen"]
+  runInterpreter' defaultInterpreterTimeoutMicro $ do
     setImportsQ (zip modules (repeat Nothing) ++ quickCheckModules)
 
     let prop = buildDupCheckProp (solution, otherSolutions) funcSig time
-
     interpret prop (as :: IO Result) >>= liftIO
 
 runChecks :: MonadIO m => Environment -> RType -> UProgram -> FilterTest m Bool

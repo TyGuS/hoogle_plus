@@ -55,7 +55,7 @@ testNotCrashCases =
   , ("Succeed on infinite functions", ["GHC.List"], "a -> [a]", "\\x -> repeat x", True)
   , ("Succeed on var w/ module names", ["GHC.List"],
      "[a] -> [b] -> [[(a,b)]]",
-     "\\arg0 -> GHC.List.repeat (GHC.List.zip arg1 arg0)", True)
+     "\\arg0 arg1 -> GHC.List.repeat (GHC.List.zip arg1 arg0)", True)
   , ("Fail on invalid function 1", ["Data.Maybe"], "a -> a", "\\x -> fromJust Nothing", False)
   , ("Fail on invalid function 2", ["Data.List"], "a -> a", "\\x -> head []", False)
   , ("Fail on invalid function 3", ["Data.List"], "a -> (a, a)", "\\x -> (head [x], last [])", False)
