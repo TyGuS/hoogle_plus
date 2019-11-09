@@ -85,71 +85,55 @@ toInnerType (FunctionSignature _ argsType returnType) =
       f (ArgTypeApp l r) = ArgTypeApp (f l) (f r)
       f (ArgTypeFunc l r) = ArgTypeFunc (f l) (f r)
 
--- generate first-order values from QuickCheck
-generateRandomValue :: [String] -> [String] -> IO [String]
-generateRandomValue imports typeNames = do
-  srcPath <- getDataFileName "InternalTypeGen.hs"
-  result <- runInterpreter $ do {
-    loadModules [srcPath];
-    setTopLevelModules ["InternalTypeGen"];
-    setImports imports;
-
-    mapM (\x -> interpret (fmtLine x) (as :: IO String) >>= liftIO) typeNames
-  }
-
-  case result of
-    Left err -> putStrLn (displayException err) >> return ["error \"unable to generate input\""]
-    Right res -> return $ map (printf "(%s)") res
-  where
-    fmtLine typeName = printf "show <$> generate (arbitrary :: Gen (%s))" typeName :: String
-
--- map custom seed and size to value of arbitrary type
-generateRandomValueWith :: Arbitrary a => Int -> Int -> a
-generateRandomValueWith seed = unGen arbitrary (mkQCGen seed)
-
-buildFunctionWrapper :: FunctionSignature -> String -> Int -> String
+buildFunctionWrapper :: String -> String -> String -> Int -> String
 buildFunctionWrapper = buildFunctionWrapper' "wrappedSolution"
 
-buildFunctionWrapper' :: String -> FunctionSignature -> String -> Int -> String
-buildFunctionWrapper' wrapperName funcSig solution timeInMicro =
+buildFunctionWrapper' :: String -> String -> String -> String -> Int -> String
+buildFunctionWrapper' wrapperName solution solutionType solutionParams timeInMicro =
   unwords
-  [ formatSolution solution (show funcSig)
-  , formatWrapper timeInMicro argLine]
+  [ formatSolution solution solutionType
+  , formatWrapper timeInMicro solutionParams]
   where
-    argLine = toParamListDecl (length (_argsType funcSig))
 
     formatSolution solution typeStr =
       printf "let sol_%s = ((%s) :: %s) in" wrapperName solution typeStr :: String
-    formatWrapper timeInMicro argLine =
-      printf "let %s %s = (CB.timeOutMicro' %d (CB.approxShow %d (sol_%s %s))) in" wrapperName argLine timeInMicro defaultMaxOutputLength wrapperName argLine :: String
+    formatWrapper timeInMicro params =
+      printf "let %s %s = (CB.timeOutMicro' %d (CB.approxShow %d (sol_%s %s))) in" wrapperName params timeInMicro defaultMaxOutputLength wrapperName params :: String
 
-buildNotCrashProp :: FunctionSignature -> (String, String)
-buildNotCrashProp funcSig =
+buildNotCrashProp :: String -> FunctionSignature -> (String, String)
+buildNotCrashProp solution funcSig =
 
-  (formatAlwaysFailProp argLine, formatNeverFailProp argLine)
+  ( formatAlwaysFailProp argLine argDecl wrapper
+  , formatNeverFailProp argLine argDecl wrapper)
   where
-    argLine = toParamListDecl (length (_argsType funcSig))
+    (argLine, argDecl) = toParamListDecl (_argsType funcSig)
+
+    wrapper = buildFunctionWrapper solution (show funcSig) argLine defaultTimeoutMicro
 
     formatAlwaysFailProp = formatProp "propAlwaysFail" "isFailedResult result"
     formatNeverFailProp = formatProp "propNeverFail" "not $ isFailedResult result"
 
-    formatProp propName body argLine = unwords
-      [ printf "let %s %s = monadicIO $ do {" propName argLine
+    formatProp propName body argLine argDecl wrappedSolution = unwords
+      ([wrappedSolution] ++
+      [ printf "let %s %s = monadicIO $ do {" propName argDecl
       , printf "result <- run (%s %s);" "wrappedSolution" argLine
       , printf "assert (%s)" body
       , "} in"
-      , printf "quickCheckResult (%s)" propName] :: String
+      , printf "quickCheckResult (%s)" propName]) :: String
 
 buildDupCheckProp :: (String, [String]) -> FunctionSignature -> Int -> String
 buildDupCheckProp (sol, otherSols) funcSig timeInMicro =
 
-  unwords [wrapperLhs, unwords wrapperSols, formatProp wrapperLhs wrapperSols argLine]
+  unwords [wrapperLhs, unwords wrapperSols, formatProp wrapperLhs wrapperSols argLine argDecl]
   where
-    argLine = toParamListDecl (length (_argsType funcSig))
+    (argLine, argDecl) = toParamListDecl (_argsType funcSig)
+    solutionType = show funcSig
+
+    wrapFunc name sol = buildFunctionWrapper' name sol solutionType argLine timeInMicro
 
     otherSols' = zip [0..] otherSols
-    wrapperLhs = buildFunctionWrapper' "lhs" funcSig sol timeInMicro
-    wrapperSols = map (\(i, sol) -> buildFunctionWrapper' (printf "sol_%d" i) funcSig sol timeInMicro) otherSols'
+    wrapperLhs = wrapFunc "lhs" sol
+    wrapperSols = map (\(i, sol) -> wrapFunc (printf "sol_%d" i) sol) otherSols'
 
     formatBinding :: (Int, String) -> String
     formatBinding (i, _) = printf "result_%d <- run (sol_%d %s);" i i argLine :: String
@@ -161,10 +145,10 @@ buildDupCheckProp (sol, otherSols) funcSig timeInMicro =
       let items = intercalate "," $ map formatBindingItem sols in
         printf "[%s]" items :: String
 
-    formatProp wLhs wRhs argLine = unwords
-      ([ printf "let dupProp %s = monadicIO $ do {" argLine
+    formatProp wLhs wRhs argLine argDecl = unwords
+      ([ printf "let dupProp %s = monadicIO $ do {" argDecl 
       , printf "resultL <- run (lhs %s);" argLine]
-        ++ (map formatBinding otherSols') ++
+        ++ map formatBinding otherSols' ++
       [ printf "assert (Prelude.or $ Prelude.map (isEqualResult resultL) %s)" (formatBindingList otherSols')
       , "} in"
       , printf "quickCheckResult dupProp"]) :: String
@@ -178,14 +162,10 @@ validateSolution modules solution funcSig time = do
     setTopLevelModules ["InternalTypeGen"]
     setImportsQ (zip modules (repeat Nothing) ++ quickCheckModules)
 
-    let wrapper = buildFunctionWrapper funcSig solution time
-    let (alwaysFailProp, neverFailProp) = buildNotCrashProp funcSig
+    let (alwaysFailProp, neverFailProp) = buildNotCrashProp solution funcSig
 
-    let alwaysFailProp' = wrapper ++ " " ++ alwaysFailProp
-    let neverFailProp' = wrapper ++ " " ++ neverFailProp
-
-    alwaysFailResult <- interpret alwaysFailProp' (as :: IO Result) >>= liftIO
-    neverFailResult <- interpret neverFailProp' (as :: IO Result) >>= liftIO
+    alwaysFailResult <- interpret alwaysFailProp (as :: IO Result) >>= liftIO
+    neverFailResult <- interpret neverFailProp (as :: IO Result) >>= liftIO
 
     return (alwaysFailResult, neverFailResult)
   case result of
@@ -229,27 +209,6 @@ checkSolutionNotCrash modules sigStr body = liftIO executeCheck
         Right AlwaysFail -> return False
         Right _ -> return True
 
--- some timeout happened to raise an exception with "timeout" keyword
--- turn it into Nothing rather than have it as exception
-handleAnyException :: IO (Maybe (Either InterpreterError a)) -> IO (Maybe (Either InterpreterError a))
-handleAnyException = (`catch` (return . handler . (show :: SomeException -> String)))
-  where
-    handler ex  | "timeout" `isInfixOf` ex = Nothing
-                | otherwise = (Just . Left. UnknownError) ex
-fmtFunction_ = printf "((%s) :: %s) %s" :: String -> String -> String -> String
-fmtPureHO name typeStr seed size =
-  printf "(%s) <- pure (((unGen arbitrary (mkQCGen (%d)) (%d)) :: (%s)))" name seed size typeStr :: String
-
-isHigherOrderArgument :: ArgumentType -> Bool
-isHigherOrderArgument (ArgTypeFunc _ _) = True
-isHigherOrderArgument (ArgTypeList sub) = isHigherOrderArgument sub
-isHigherOrderArgument (ArgTypeApp l r) = any isHigherOrderArgument [l, r]
-isHigherOrderArgument (ArgTypeTuple types) = any isHigherOrderArgument types
-isHigherOrderArgument _ = False
-
-filterHigherOrder_ :: FunctionSignature -> [String]
-filterHigherOrder_ funcSig = map show $ filter isHigherOrderArgument $ _argsType funcSig
-
 checkDuplicates :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
 checkDuplicates modules sigStr solution = do
   FilterState inputs solns <- get
@@ -268,3 +227,38 @@ checkDuplicates modules sigStr solution = do
 
   where
     funcSig = (instantiateSignature . parseTypeString) sigStr
+
+toParamListDecl :: [ArgumentType] -> (String, String)
+toParamListDecl args =
+
+  (plainArgLine, declArgLine)
+
+  where
+    n = length args
+    indexedArgs = zip [1..n] args
+
+    plainArgLine = unwords $ map (formatParam . fst) indexedArgs
+    declArgLine = unwords $ map toDecl indexedArgs
+    
+    computeAppDepth (ArgTypeFunc l r) =
+      case r of
+        ArgTypeFunc _ _ -> 1 + computeAppDepth r
+        _ -> 1
+    computeAppDepth invalid = error $ printf "Invalid argument for computeAppDepth: %s" (show invalid)
+
+    formatParam = printf "arg_%d" :: Int -> String
+
+    toDecl :: (Int, ArgumentType) -> String
+    toDecl (index, tipe@(ArgTypeFunc l r)) =
+
+      printf "(%s arg_%d)" pattern index
+      where
+        pattern = case computeAppDepth tipe of
+          1 -> "Fn"
+          2 -> "Fn2"
+          3 -> "Fn3"
+          _ -> error "Unsupported higher-order function"
+    
+    toDecl (index, _) = formatParam index
+      
+      
