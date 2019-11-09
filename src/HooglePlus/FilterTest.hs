@@ -220,17 +220,17 @@ checkSolutionNotCrash modules sigStr body = liftIO executeCheck
 
 checkDuplicates :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
 checkDuplicates modules sigStr solution = do
-  FilterState inputs solns <- get
+  FilterState is solns <- get
 
   result <- liftIO $ compareSolution modules solution solns funcSig defaultTimeoutMicro
 
   case result of
     Left err -> do
       liftIO $ print err
-      modify $ const FilterState {inputs = inputs, solutions = solution:solns}
+      modify $ const FilterState {inputs = is, solutions = solution:solns}
       return True
     Right Failure{failingTestCase = c} -> do
-      modify $ const FilterState {inputs = show c : inputs, solutions = solution:solns}
+      modify $ const FilterState {inputs = c:is, solutions = solution:solns}
       return True
     _ -> return False
 

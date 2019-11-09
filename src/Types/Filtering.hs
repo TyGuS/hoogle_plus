@@ -7,7 +7,7 @@ import Text.Printf
 import Data.List (intercalate)
 
 defaultTimeoutMicro = 5 * 10^4 :: Int
-defaultInterpreterTimeoutMicro = 6 * 10^6 :: Int
+defaultInterpreterTimeoutMicro = 20 * 10^6 :: Int
 defaultMaxOutputLength = 100 :: Int
 
 quickCheckModules =
@@ -73,7 +73,7 @@ instance Show FunctionSignature where
         argsExpr = (intercalate " -> " . map show) (argsType ++ [returnType])
 
 data FilterState = FilterState {
-  inputs :: [String],
+  inputs :: [[String]],
   solutions :: [String]
 } deriving (Eq, Show)
 
