@@ -33,15 +33,16 @@ poplWithTypeclasses = defaultGenerationOpts {
 
 myModules = [
   -- base
-  "Data.Int",
-  "Data.Bool",
-  "Data.Maybe",
-  "Data.Either",
+  -- "Data.Int",
+  -- "Data.Bool",
+  -- "Data.Maybe",
+  -- "Data.Either",
   "Data.Tuple",
   "GHC.Char",
   "Text.Show",
   "GHC.List",
   "Data.Eq",
+  "Control.Monad",
   "Data.Function",
   -- ByteString
   "Data.ByteString.Lazy",

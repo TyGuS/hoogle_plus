@@ -28,7 +28,7 @@ import Text.Parsec.Expr
 import Text.Parsec.Indent
 import Text.Parsec.Error
 import Text.PrettyPrint.ANSI.Leijen (text, vsep)
-
+import Debug.Trace
 
 {- Interface -}
 
@@ -235,7 +235,7 @@ parseType = withPos (choice [try parseFunctionTypeWithArg, parseFunctionTypeMb] 
 -- | Parse top-level type that starts with an argument name, and thus must be a function type
 parseFunctionTypeWithArg = do
   argId <- parseArgName
-  argType <- parseUnrefTypeWithArgs <|> parseTypeAtom
+  argType <- parseArgType
   reservedOp "->"
   returnType <- parseType
   return $ FunctionT argId argType returnType
@@ -245,13 +245,20 @@ parseFunctionTypeWithArg = do
 -- | Parse top-level type that does not start with an argument name
 -- and thus could be a scalar or a function type depending on whether followed by ->
 parseFunctionTypeMb = do
-  argType <- parseUnrefTypeWithArgs <|> parseTypeAtom
+  argType <- parseArgType
   parseFunctionRest argType <|> return argType
   where
     parseFunctionRest argType = do
       reservedOp "->"
       returnType <- parseType
       return $ FunctionT ("@@arg" ++ show (arity returnType)) argType returnType
+
+parseArgType :: Parser RType
+parseArgType = choice [
+  parseUnrefTypeWithArgs,
+  try parseUnrefHkType,
+  parseTypeAtom
+  ]
 
 parseTypeAtom :: Parser RType
 parseTypeAtom = choice [
@@ -275,6 +282,17 @@ parseUnrefTypeWithArgs = do
   typeArgs <- many (sameOrIndented >> parseTypeAtom)
   predArgs <- many (sameOrIndented >> angles parsePredArg)
   return $ ScalarT (DatatypeT name typeArgs predArgs) ftrue
+
+parseUnrefHkType = do
+  hkArg <- parseIdentifier
+  args <- many1 (sameOrIndented >> parseTypeAtom)
+  let typeArgs = traceShow hkArg $ (ScalarT (TypeVarT Map.empty hkArg) ftrue) : args
+  if length typeArgs < 2
+    then error "wrong arity of higher kinded application"
+    else return $ foldr mkTyApp (initApp typeArgs) (drop 2 typeArgs)
+  where
+    initApp typeArgs = mkTyApp (head typeArgs) (typeArgs !! 1)
+    mkTyApp t1 t2 = ScalarT (DatatypeT "TyApp" [t1, t2] []) ftrue
 
 parsePredArg = braces parseFormula <|> (flip (Pred AnyS) [] <$> parseIdentifier)
 

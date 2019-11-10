@@ -64,6 +64,7 @@ envToGoal env queryStr = do
         let spec = runExcept $ evalStateT (resolveSchema (gSpec goal)) (initResolverState { _environment = env })
         case spec of
           Right sp -> do
+            print sp
             let (env', monospec) = updateEnvWithBoundTyVars sp env
             let (env'', destinationType) = updateEnvWithSpecArgs monospec env'
             return $ goal { gEnvironment = env'', gSpec = sp }

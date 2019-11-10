@@ -149,13 +149,14 @@ toSynquidSchema (TyForall _ _ (Just ctx) typ) = do -- if this type has some cont
         toTCDictName (_, [tyclassName]) = fixTCName tyclassName
         toTCDictName _ = error "toTCDictName: Unhandled case"
         getTypeVar (tyVar, _) = tyVar
-
 toSynquidSchema typ = do
     mbTyps <- toSynquidSkeleton typ
     case mbTyps of
         Nothing -> return Nothing
         Just [] -> return Nothing
         Just (typ:_)  -> return $ Just . Monotype $ typ
+
+mkTyApp ts = ScalarT (DatatypeT "TyApp" ts []) ()
 
 toSynquidSkeleton :: (MonadIO m) => Type () -> StateT Int m (Maybe [SType])
 toSynquidSkeleton t@(TyForall _ _ _ typ) = toSynquidSkeleton typ
@@ -174,22 +175,35 @@ toSynquidSkeleton t@(TyCon _ name) = case name of
     Qual _ moduleName consName -> return $ Just [ScalarT (DatatypeT (moduleNameStr moduleName ++ "." ++ nameStr consName) [] []) ()]
     UnQual _ name -> return $ Just [ScalarT (DatatypeT (nameStr name) [] []) ()]
     Special _ name -> return $ Just [ScalarT (DatatypeT (specialConsStr name) [] []) ()]
-toSynquidSkeleton (TyApp _ fun arg)
-    | (TyCon _ name) <- fun = constructTyp
-    | (TyApp _ fun' arg') <- fun = constructTyp
-    | (TyVar _ _) <- fun = return Nothing -- this is a higher kinded type variable, do not support now
-    | otherwise = do
-        funs <- toSynquidSkeleton fun
-        args <- toSynquidSkeleton arg
-        return $ liftA2 (++) funs args
-  where
-    constructTyp = do
-        mbdt <- toSynquidSkeleton fun
-        let toTys (ScalarT (DatatypeT id tys _) _:_) = (id, tys)
-        let idTys = toTys <$> mbdt
-        args <- toSynquidSkeleton arg
-        return $ liftA2 (\(id,t) a -> [ScalarT (DatatypeT id (t ++ a) []) ()]) idTys args
-toSynquidSkeleton (TyVar _ name) = return $ Just [ScalarT (TypeVarT Map.empty (nameStr name)) ()]
+toSynquidSkeleton (TyApp _ fun@(TyCon _ _) arg) = do
+    mbdt <- toSynquidSkeleton fun
+    let toTys (ScalarT (DatatypeT id tys _) _:_) = (id, tys)
+    let idTys = toTys <$> mbdt
+    args <- toSynquidSkeleton arg
+    return $ liftA2 (\(id,t) a -> [ScalarT (DatatypeT id (t ++ a) []) ()]) idTys args
+toSynquidSkeleton (TyApp _ fun@(TyApp _ _ _) arg) = do
+    funs <- toSynquidSkeleton fun
+    Just args <- toSynquidSkeleton arg
+    case funs of
+        Just ts -> 
+            let t@(ScalarT (DatatypeT id tvs _) _) = head ts 
+            in if id == "TyApp"
+                then return $ Just [mkTyApp (t : args)]
+                else return $ Just [ScalarT (DatatypeT id (tvs ++ args) []) ()]
+        Nothing -> error $ "unhandled " ++ show fun
+toSynquidSkeleton (TyApp _ fun@(TyVar _ v) arg) = do
+    funs <- toSynquidSkeleton fun
+    Just args <- toSynquidSkeleton arg
+        -- this is a higher kinded type variable
+    case funs of
+        Just ts -> 
+            let t@(ScalarT (TypeVarT _ id) _) = head ts
+            in return $ Just [mkTyApp (t:args)]
+        Nothing -> error $ "unhandled " ++ show fun
+toSynquidSkeleton (TyApp _ fun arg) = 
+    error $ "[toSynquidSkeleton] unhandled " ++ show fun 
+toSynquidSkeleton (TyVar _ name) = 
+    return $ Just [ScalarT (TypeVarT Map.empty (nameStr name)) ()]
 toSynquidSkeleton (TyList _ typ) = do
     typ' <- toSynquidSkeleton typ
     return $ (\ty -> [ScalarT (DatatypeT "List" ty []) ()]) <$> typ'
@@ -200,7 +214,8 @@ toSynquidSkeleton (TyTuple _ _ (f:s:ts)) = do
     case (mbfst, mbsnd) of
         (Just fst, Just snd) -> do
             let base = ScalarT (DatatypeT "Pair" (fst ++ snd) []) ()
-            let res = foldl' (\a (Just t) -> ScalarT (DatatypeT "Pair" (a:t) []) ()) base pts
+            let mkPair a (Just t) = ScalarT (DatatypeT "Pair" (a:t) []) ()
+            let res = foldl' mkPair base pts
             return $ Just [res]
         _ -> return Nothing
 toSynquidSkeleton t = do

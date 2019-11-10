@@ -25,7 +25,6 @@ xs >.> ys = let ys' = Set.fromList ys in filter (flip Set.notMember ys') xs
 
 defaultLibrary = concat [
   defaultFuncs,
-  defaultFun,
   defaultDts,
   defaultTypeclassInstances
   ]
@@ -48,7 +47,7 @@ defaultFuncs = [
 defaultDts = [
   defaultList, defaultPair, defaultUnit,
   defaultInt, defaultBool, defaultChar,
-  defaultFloat, defaultDouble]
+  defaultFloat, defaultDouble, defaultTyApp, defaultFun]
 
 defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
     ConstructorSig "Nil"  $
@@ -69,7 +68,9 @@ defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [] [
   ]
 
 
-defaultFun = [Pos (initialPos "Fun") $ DataDecl "Fun" ["a", "b"] [] []]
+defaultFun = Pos (initialPos "Fun") $ DataDecl "Fun" ["a", "b"] [] []
+
+defaultTyApp = Pos (initialPos "TyApp") $ DataDecl "TyApp" ["a", "b"] [] []
 
 -- This is only a subset of those predefinted in Haskell:
 -- Full report: https://www.haskell.org/onlinereport/basic.html
