@@ -19,7 +19,7 @@ There is also an executable you may interact with, `hplus`.
 
 ## Re-running the evaluation
 First we must build a docker image:
-1. Build it with `docker build --tag hoogleplus_aec:latest` (This can take between 40 minutes and 2 hours)
+1. Build it with `docker build --tag hoogleplus_aec:latest .` (This can take between 40 minutes and 2 hours)
 2. Run the docker file interactively with a desired output directory.
 Hoogle+ will put the evaluation results into that directory.
 ```
@@ -67,21 +67,22 @@ stack exec -- hplus [OPTIONAL ARGS] [DESIRED TYPE]
 ## Artifacts
 You may run any of these with `stack exec -- <artifactname>`:
 - `hplus` : This is the CLI for running single queries
-- `evaluation`: For re-running the evaluation script and getting a sense of the overall performance.
 - `webapp`: Hosts a simple web interface at localhost:3000
 
-## Sample genererate:
+## Database generation (before running any queries):
 You need to generate the component library that's used for synthesis.
 
-For the components that are only total functions used in the ICFP submission use:
+For the full set of components, which include partial functions like `head`:
+```
+stack exec -- hplus generate --preset popl2020
+```
+
+For the components that are only total functions use:
 ```
 stack exec -- hplus generate --preset icfptotal
 ```
 
-For the superset of components to ICFP total that includes partial functions like `head`:
-```
-stack exec -- hplus generate --preset popl2020
-```
+
 
 If you have your own file(s) you want to use, you may specify them. You will then use all the modules within the files. At this time you may not filter within the file:
 ```
@@ -93,8 +94,7 @@ Of course, you can specify the exact packages (from hackage) and modules you wan
 stack exec -- hplus generate -p base  -p bytestring -m "Data.Word" -m "Data.Int" -m "Data.Maybe" -m "Data.ByteString.Builder"       -m "Data.ByteString.Lazy" -m "Data.List" -m "Data.Tuple" -m "GHC.List" -m "GHC.Char" -m "Data.Bool"  -m "Text.Show"
 ```
 
-## Docker image:
+## Another docker image:
 First run `docker pull aaron069/hoogle-plus:v2`
 Then go to your hoogle_plus repo, run `docker run -v ./:/home/hoogle-plus -it aaron069/hoogle-plus:v2`
 If you want to redirect port on localhost:3000, add this flag: `-p 3000:3000` on above command.
-
