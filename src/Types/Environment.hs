@@ -16,7 +16,6 @@ import Control.Lens
 -- | User-defined datatype representation
 data DatatypeDef = DatatypeDef {
   _typeParams :: [Id],              -- ^ Type parameters
-  _predVariances :: [Bool],         -- ^ For each predicate parameter, whether it is contravariant
   _constructors :: [Id]            -- ^ Constructor names
 } deriving (Eq, Ord, Generic, Show)
 
@@ -25,15 +24,15 @@ makeLenses ''DatatypeDef
 
 -- | Typing environment
 data Environment = Environment {
-  _symbols :: Map Id RSchema,          -- ^ Variables and constants (with their refinement types), indexed by arity
-  _arguments :: Map Id RSchema,            -- ^ Function arguments, required in all the solutions
+  _symbols :: Map Id SchemaSkeleton,          -- ^ Variables and constants (with their refinement types), indexed by arity
+  _arguments :: Map Id SchemaSkeleton,            -- ^ Function arguments, required in all the solutions
   _typeClasses :: Map Id (Set Id),         -- ^ Type class instances
   _boundTypeVars :: [Id],                  -- ^ Bound type variables
   -- | Constant part:
   _constants :: Set Id,                    -- ^ Subset of symbols that are constants
   _datatypes :: Map Id DatatypeDef,        -- ^ Datatype definitions
-  _typeSynonyms :: Map Id ([Id], RType),   -- ^ Type synonym definitions
-  _unresolvedConstants :: Map Id RSchema,  -- ^ Unresolved types of components (used for reporting specifications with macros)
+  _typeSynonyms :: Map Id ([Id], TypeSkeleton),   -- ^ Type synonym definitions
+  _unresolvedConstants :: Map Id SchemaSkeleton,  -- ^ Unresolved types of components (used for reporting specifications with macros)
   _included_modules :: Set String,          -- ^ The set of modules any solution would need to import
   _typClassInstances :: [(String, String)],
   _condTypClasses :: [([(String, [Set String])], (String, String))],

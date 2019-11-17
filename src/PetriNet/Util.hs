@@ -10,7 +10,6 @@ import Types.Experiments
 import Types.Program
 import Types.Encoder
 import Synquid.Program
-import Synquid.Logic hiding (varName)
 import Synquid.Type
 import Synquid.Pretty
 import Synquid.Util
@@ -82,7 +81,7 @@ freshId prefix = do
     return $ prefix ++ show idx
 
 -- | Replace all bound type variables with fresh free variables
-freshType :: MonadIO m => RSchema -> PNSolver m RType
+freshType :: MonadIO m => RSchema -> PNSolver m TypeSkeleton
 freshType = freshType' Map.empty []
   where
     freshType' subst constraints (ForallT a sch) = do
@@ -94,28 +93,32 @@ freshAbstract :: MonadIO m => [Id] -> AbstractSkeleton -> PNSolver m AbstractSke
 freshAbstract bound t = do
     (_, t') <- freshAbstract' bound Map.empty t
     return t'
-  where
-    freshAbstract' bound m t@(AScalar (ATypeVarT id)) | id `elem` bound = return (m, t)
-    freshAbstract' bound m (AScalar (ATypeVarT id)) | id `Map.member` m =
-        return (m, fromJust (Map.lookup id m))
-    freshAbstract' bound m (AScalar (ATypeVarT id)) = do
-        v <- freshId "A"
-        let t = AScalar (ATypeVarT v)
-        return (Map.insert id t m, AScalar (ATypeVarT v))
-    freshAbstract' bound m (AScalar (ADatatypeT id args)) = do
-        (m', args') <- foldM (\(accm, acct) t -> do
-            (m', t') <- freshAbstract' bound accm t
-            return (m', acct++[t'])) (m,[]) args
-        return (m', AScalar (ADatatypeT id args'))
-    freshAbstract' bound m (AFunctionT tArg tRes) = do
-        (m', tArg') <- freshAbstract' bound m tArg
-        (m'', tRes') <- freshAbstract' bound m' tRes
-        return (m'', AFunctionT tArg' tRes')
+    where
+        freshAbstract' bound m t@(ATypeVarT id) | id `elem` bound = return (m, t)
+        freshAbstract' bound m (ATypeVarT id) | id `Map.member` m =
+            return (m, fromJust (Map.lookup id m))
+        freshAbstract' bound m (ATypeVarT id) = do
+            v <- freshId "A"
+            let t = ATypeVarT v
+            return (Map.insert id t m, ATypeVarT v)
+        freshAbstract' bound m (ATyAppT tFun tArg) = do
+            tFun' <- freshAbstract' bound m tFun
+            tArg' <- freshAbstract' bound m tArg
+            return (ATyAppT tFun' tArg')
+        freshAbstract' bound m (ATyFunT tArg tRes) = do
+            tArg' <- freshAbstract' bound m tArg
+            tRes' <- freshAbstract' bound m tRes
+            return (ATyFunT tArg' tRes')
+        freshAbstract' bound m (AFunctionT tArg tRes) = do
+            (m', tArg') <- freshAbstract' bound m tArg
+            (m'', tRes') <- freshAbstract' bound m' tRes
+            return (m'', AFunctionT tArg' tRes')
+        freshAbstract' bound m t = return t
 
 mkConstraint :: MonadIO m => [Id] -> Id -> AbstractSkeleton -> PNSolver m UnifConstraint
 mkConstraint bound v t = do
     t' <- freshAbstract bound t
-    return (AScalar (ATypeVarT v), t')
+    return (ATypeVarT v, t')
 
 groupSignatures :: MonadIO m => Map Id FunctionCode -> PNSolver m (Map FunctionCode GroupId, Map GroupId (Set Id))
 groupSignatures sigs = do

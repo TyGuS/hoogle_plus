@@ -21,7 +21,6 @@ import Text.Parsec.Pos (initialPos)
 import Text.Printf
 
 import Synquid.Error (Pos(Pos))
-import Synquid.Logic (ftrue)
 import Types.Type -- (BaseType(..), TypeSkeleton(..), SchemaSkeleton(..))
 import Synquid.Type (isHigherOrder, toMonotype)
 import Synquid.Pretty as Pretty
@@ -80,9 +79,6 @@ generateEnv genOpts = do
     let instanceTuples = zip instanceRules transitionIds
     instanceFunctions <- mapM (\(entry, id) -> evalStateT (DC.instanceToFunction entry id) 0) instanceTuples
 
-    -- TODO: remove all higher kinded type instances
-    -- let instanceFunctions' = filter (\x -> not(or [(isInfixOf "Applicative" $ show x),(isInfixOf "Functor" $ show x),(isInfixOf "Monad" $ show x)])) instanceFunctions
-
     let declStrs = show (instanceFunctions ++ ourDecls)
     let removeParentheses = (\x -> LUtils.replace ")" "" $ LUtils.replace "(" "" x)
     let tcNames = nub $ map removeParentheses $ filter (\x -> isInfixOf tyclassPrefix x) (splitOn " " declStrs)
@@ -91,6 +87,7 @@ generateEnv genOpts = do
     let library = concat [ourDecls, dependencyEntries, instanceFunctions, tcDecls, defaultLibrary]
     let hooglePlusDecls = DC.reorderDecls $ nubOrd $ library
 
+    print hooglePlusDecls
     result <- case resolveDecls hooglePlusDecls moduleNames of
        Left errMessage -> error $ show errMessage
        Right env -> do
@@ -113,12 +110,12 @@ generateEnv genOpts = do
      filterEntries entries Nothing = entries
      filterEntries entries (Just mdls) = Map.filterWithKey (\m _-> m `elem` mdls) entries
 
-toFunType :: RSchema -> RSchema
+toFunType :: SchemaSkeleton -> SchemaSkeleton
 toFunType (ForallT x t) = ForallT x (toFunType t)
 toFunType (Monotype (FunctionT x tArg tRes)) = let
   tArg' = toMonotype $ toFunType $ Monotype tArg
   tRes' = toMonotype $ toFunType $ Monotype tRes
-  in Monotype $ ScalarT (DatatypeT "Fun" [tArg', tRes'] []) ftrue
+  in Monotype $ ScalarT (TyFunT tArg' tRes')
 toFunType t = t
 
 -- filesToEntries reads each file into map of module -> declartions

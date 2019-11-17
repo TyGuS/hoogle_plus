@@ -5,7 +5,6 @@ import Database.Util
 import qualified HooglePlus.Abstraction as Abstraction
 import PetriNet.PNSolver
 import Synquid.Error
-import Synquid.Logic
 import Synquid.Parser
 import Synquid.Pretty
 import Synquid.Program
@@ -43,13 +42,14 @@ import Text.Parsec.Pos
 import Text.Printf (printf)
 
 
-updateEnvWithBoundTyVars :: RSchema -> Environment -> (Environment, RType)
+updateEnvWithBoundTyVars :: RSchema -> Environment -> (Environment, TypeSkeleton)
 updateEnvWithBoundTyVars (Monotype ty) env = (env, ty)
 updateEnvWithBoundTyVars (ForallT x ty) env = updateEnvWithBoundTyVars ty (addTypeVar x env)
 
-updateEnvWithSpecArgs :: RType -> Environment -> (Environment, RType)
-updateEnvWithSpecArgs ty@(ScalarT _ _) env = (env, ty)
-updateEnvWithSpecArgs (FunctionT x tArg tRes) env = updateEnvWithSpecArgs tRes $ addVariable x tArg $ addArgument x tArg env
+updateEnvWithSpecArgs :: TypeSkeleton -> Environment -> (Environment, TypeSkeleton)
+updateEnvWithSpecArgs (FunctionT x tArg tRes) env = 
+  updateEnvWithSpecArgs tRes $ addVariable x tArg $ addArgument x tArg env
+updateEnvWithSpecArgs ty env = (env, ty)
 
 envToGoal :: Environment -> String -> IO Goal
 envToGoal env queryStr = do

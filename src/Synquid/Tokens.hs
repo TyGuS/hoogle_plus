@@ -1,7 +1,6 @@
 -- | Lexems of the Synquid language
 module Synquid.Tokens where
 
-import Synquid.Logic
 import Types.Common
 import Synquid.Util
 import Data.Maybe

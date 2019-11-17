@@ -26,7 +26,7 @@ type AbstractCover = HashMap AbstractSkeleton (Set AbstractSkeleton)
 data SolverState = SolverState {
     _searchParams :: SearchParams,
     _nameCounter :: Map Id Int,  -- name map for generating fresh names (type variables, parameters)
-    _typeAssignment :: Map Id SType,  -- current type assignment for each type variable
+    _typeAssignment :: Map Id TypeSkeleton,  -- current type assignment for each type variable
     _abstractionCover :: AbstractCover,
     _isChecked :: Bool, -- is the current state check passed
     _currentSolutions :: [RProgram], -- type checked solutions

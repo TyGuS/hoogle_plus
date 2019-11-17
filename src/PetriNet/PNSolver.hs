@@ -42,7 +42,6 @@ import HooglePlus.GHCChecker
 import PetriNet.PNEncoder
 import PetriNet.Util
 import Synquid.Error
-import Synquid.Logic hiding (varName)
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Pretty
 import Synquid.Program
@@ -57,7 +56,6 @@ import Types.Program
 import Types.Solver
 import Types.Type
 
-
 encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
 encodeFunction id t | pairProj `isPrefixOf` id =
     let toMatch (FunctionCode name ho [p1,p2] ret) = FunctionCode id ho [p1] (p2:ret)
@@ -68,9 +66,9 @@ encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [la
     hoFun x = encodeFunction (show x) x
     hoParams = map hoFun $ filter isAFunctionT (abstractParamList t)
     params = abstractParamList t
-encodeFunction id t@AScalar {} = FunctionCode id [] [] [t]
+encodeFunction id t = FunctionCode id [] [] [t]
 
-instantiate :: MonadIO m => Environment -> Map Id RSchema -> PNSolver m (Map Id AbstractSkeleton)
+instantiate :: MonadIO m => Environment -> Map Id SchemaSkeleton -> PNSolver m (Map Id AbstractSkeleton)
 instantiate env sigs = do
     modify $ set toRemove []
     noBlack <- getExperiment disableBlack
@@ -86,7 +84,8 @@ instantiate env sigs = do
         foldM (\acc -> (<$>) (acc ++) . uncurry (instantiateWith env typs)) [] sigs'
 
 -- add Pair_match function as needed
-instantiateWith :: MonadIO m => Environment -> [AbstractSkeleton] -> Id -> RType -> PNSolver m [(Id, AbstractSkeleton)]
+-- use term indexing to speed up the search! this is currently slow!
+instantiateWith :: MonadIO m => Environment -> [AbstractSkeleton] -> Id -> TypeSkeleton -> PNSolver m [(Id, AbstractSkeleton)]
 -- skip "snd" function, it would be handled together with "fst"
 instantiateWith env typs id t | id == "snd" = return []
 instantiateWith env typs id t = do
@@ -432,7 +431,7 @@ addEncodedFunction (id, f) = do
     -- store the used abstract types and their groups into mapping
     updateTy2Tr id f
 
-resetEncoder :: (MonadIO m) => Environment -> RType -> PNSolver m EncodeState
+resetEncoder :: (MonadIO m) => Environment -> TypeSkeleton -> PNSolver m EncodeState
 resetEncoder env dst = do
     (srcTypes, tgt) <- updateSrcTgt env dst
     writeLog 2 "resetEncoder" $ text "parameter types are" <+> pretty srcTypes
@@ -452,7 +451,7 @@ incEncoder env st = do
 
 findPath :: MonadIO m
          => Environment
-         -> RType
+         -> TypeSkeleton
          -> EncodeState
          -> PNSolver m ([Id], EncodeState)
 findPath env dst st = do
@@ -473,7 +472,7 @@ findPath env dst st = do
 
 fixEncoder :: MonadIO m
            => Environment
-           -> RType
+           -> TypeSkeleton
            -> EncodeState
            -> SplitInfo
            -> PNSolver m EncodeState
@@ -492,7 +491,7 @@ fixEncoder env dst st info = do
 
 findProgram :: MonadIO m
             => Environment -- the search environment
-            -> RType       -- the goal type
+            -> TypeSkeleton       -- the goal type
             -> EncodeState -- intermediate encoding state
             -> [[Id]]      -- remaining paths
             -> PNSolver m (RProgram, EncodeState, [[Id]])
@@ -627,7 +626,10 @@ findProgram env dst st ps
             Right err -> firstCheckedOrError xs
 
     pickGeneralization ABottom target = return ABottom
-    pickGeneralization ty target = do
+    pickGeneralization ty target = do 
+        -- assume ty is the subtype of target, 
+        -- find a more fine-grained abstraction ty' of ty such that
+        -- ty' does not unify with target
         let bound = env ^. boundTypeVars
         ty' <- generalize bound ty
         let unifier = getUnifier bound [(ty', target)]
@@ -651,8 +653,8 @@ findProgram env dst st ps
         ifM (gets $ view isChecked)
             (return (Left btm))
             (do
-                let tyBtm' = toAbstractType $ stypeSubstitute tass $ shape tyBtm
-                let absDst = toAbstractType $ shape dst
+                let tyBtm' = toAbstractType $ typeSubstitute tass tyBtm
+                let absDst = toAbstractType dst
                 absBtm <- observeT $ pickGeneralization tyBtm' absDst
                 return (Right (btm, absBtm)))
 
@@ -695,7 +697,7 @@ findProgram env dst st ps
 
 findFirstN :: MonadIO m
             => Environment
-            -> RType
+            -> TypeSkeleton
             -> EncodeState
             -> [[Id]]
             -> Int
@@ -711,7 +713,7 @@ findFirstN env dst st ps n
         writeLog 2 "findFirstN" $ text "Current Solutions:" <+> pretty currentSols
         findFirstN env dst st' ps' (n - 1)
 
-runPNSolver :: MonadIO m => Environment -> RType -> PNSolver m ()
+runPNSolver :: MonadIO m => Environment -> TypeSkeleton -> PNSolver m ()
 runPNSolver env t = do
     writeLog 3 "runPNSolver" $ text $ show (allSymbols env)
     withTime TotalSearch $ initNet env
@@ -770,7 +772,7 @@ updateTy2Tr id f = do
 
 updateSrcTgt :: MonadIO m
             => Environment
-            -> RType
+            -> TypeSkeleton
             -> PNSolver m ([AbstractSkeleton], AbstractSkeleton)
 updateSrcTgt env dst = do
     -- reset source and destination types

@@ -139,7 +139,7 @@ runStmt_ modules line time = timeout time $ runInterpreter $ do
   setImports modules
   runStmt $ printf line
 
-runChecks :: Environment -> RType -> UProgram -> IO Bool
+runChecks :: Environment -> TypeSkeleton -> UProgram -> IO Bool
 runChecks env goalType prog = do
   list <- replicateM defaultNumChecks (runChecks' modules funcSig body)
   return $ or list

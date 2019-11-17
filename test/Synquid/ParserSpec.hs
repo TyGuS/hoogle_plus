@@ -3,7 +3,6 @@ module Synquid.ParserSpec (spec) where
 import Synquid.Parser
 import Synquid.Pretty () -- Instances
 import Types.Type
-import Synquid.Logic
 import Database.Util
 
 import Test.Hspec

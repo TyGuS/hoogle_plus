@@ -6,7 +6,6 @@ import Synquid.Pretty () -- Instances
 import Types.Type
 import Types.Program
 import Synquid.Type
-import Synquid.Logic
 import Database.Util
 
 import Test.Hspec
@@ -22,7 +21,6 @@ doParseType tyStr = flip evalState (initialPos "goal") $ runIndentParserT parseT
 
 anyTy program = Program{typeOf=AnyT, content=program}
 
--- separateFunctions :: String -> ([RType], RType)
 separateFunctions query = let
     res = either (\left -> error $ show left) id $ doParseType query
     in allBaseTypes res

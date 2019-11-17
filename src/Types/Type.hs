@@ -3,46 +3,35 @@
 module Types.Type where
 
 import Types.Common
-import Synquid.Logic
 
 import GHC.Generics
 import Data.Map (Map)
 
 
-data SchemaSkeleton r =
-  Monotype (TypeSkeleton r) |
-  ForallT Id (SchemaSkeleton r) | -- Type-polymorphic, each type variable may have some class constraints
-  ForallP PredSig (SchemaSkeleton r)    -- Predicate-polymorphic
+data SchemaSkeleton =
+  Monotype TypeSkeleton |
+  ForallT (Id, Kind) SchemaSkeleton -- Type-polymorphic, each type variable may have some class constraints
+  deriving (Eq, Ord, Generic)
+
+{- Type kind -}
+data Kind = KnStar | KnArr Kind Kind
   deriving (Eq, Ord, Generic)
 
 {- Type skeletons -}
-
-data BaseType r = 
-  BoolT | 
-  IntT | 
-  DatatypeT Id [TypeSkeleton r] [r] | 
-  TypeVarT Substitution Id
-  deriving (Eq, Ord, Generic)
-
--- | Type skeletons (parametrized by refinements)
-data TypeSkeleton r =
-  ScalarT (BaseType r) r |
-  FunctionT Id (TypeSkeleton r) (TypeSkeleton r) |
+data TypeSkeleton =
+  TypeVarT Id |
+  DatatypeT Id |
+  TyFunT TypeSkeleton TypeSkeleton |
+  TyAppT TypeSkeleton TypeSkeleton |
+  FunctionT Id TypeSkeleton TypeSkeleton |
   AnyT |
   BotT 
   deriving (Eq, Ord, Generic)
 
--- | Unrefined typed
-type SType = TypeSkeleton ()
-
--- | Refined types
-type RType = TypeSkeleton Formula
-
--- | Unrefined schemas
-type SSchema = SchemaSkeleton ()
-
--- | Refined schemas
-type RSchema = SchemaSkeleton Formula
-
+{- Type synonyms -}
 -- | Mapping from type variables to types
-type TypeSubstitution = Map Id RType
+type TypeSubstitution = Map Id TypeSkeleton
+-- second order kind
+type KnFst = KnArr KnStar KnStar
+-- third order kind
+type KnSec = KnArr KnStar (KnArr KnStar KnStar)

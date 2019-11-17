@@ -2,7 +2,6 @@ module Database.Util where
 
 import Types.Program
 import Types.Type
-import Synquid.Logic
 import Synquid.Error (Pos(Pos))
 import Synquid.Type
 
@@ -29,19 +28,14 @@ defaultLibrary = concat [
   defaultTypeclassInstances
   ]
 
+pairTy = TyAppT (TyAppT (DatatypeT "Pair" KnSec) (TypeVarT "a")) (TypeVarT "b")
+listTy = TyAppT (DatatypeT "List" KnFst) (TypeVarT "a")
+
 defaultFuncs = [
-    Pos (initialPos "fst") $ FuncDecl "fst" (Monotype $
-      (FunctionT "p" (ScalarT (
-        DatatypeT "Pair" [
-          ScalarT (TypeVarT Map.empty "a") ftrue,
-          ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) $
-        (ScalarT (TypeVarT Map.empty "a") ftrue)))
-  , Pos (initialPos "snd") $ FuncDecl "snd" (Monotype $
-      (FunctionT "p" (ScalarT (
-        DatatypeT "Pair" [
-          ScalarT (TypeVarT Map.empty "a") ftrue,
-          ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) $
-        (ScalarT (TypeVarT Map.empty "b") ftrue)))
+    Pos (initialPos "fst") $ FuncDecl "fst" (
+        Monotype $ (FunctionT "p" pairTy (TypeVarT "a")))
+  , Pos (initialPos "snd") $ FuncDecl "snd" (
+        Monotype $ (FunctionT "p" pairTy (TypeVarT "b")))
   ]
 
 defaultDts = [
@@ -50,27 +44,21 @@ defaultDts = [
   defaultFloat, defaultDouble, defaultTyApp, defaultFun]
 
 defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
-    ConstructorSig "Nil"  $
-      ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue
-  , ConstructorSig "Cons" $
-      FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue)
-      (FunctionT "xs"
-        (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue)
-      (ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue))
+    ConstructorSig "Nil" listTy
+  , ConstructorSig "Cons" $ 
+        FunctionT "x" (TypeVarT "a") (FunctionT "xs" listTy listTy)
   ]
 
 defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [] [
-    ConstructorSig "Pair" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) $
-      (FunctionT "y" (ScalarT (TypeVarT Map.empty "b") ftrue) $
-        (ScalarT (DatatypeT "Pair" [
-          ScalarT (TypeVarT Map.empty "a") ftrue,
-          ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue))
+    ConstructorSig "Pair" $ 
+        FunctionT "x" (TypeVarT "a") $
+        FunctionT "y" (TypeVarT "b") pairTy
   ]
 
 
-defaultFun = Pos (initialPos "Fun") $ DataDecl "Fun" ["a", "b"] [] []
+-- defaultFun = Pos (initialPos "Fun") $ DataDecl "Fun" ["a", "b"] [] []
 
-defaultTyApp = Pos (initialPos "TyApp") $ DataDecl "TyApp" ["a", "b"] [] []
+-- defaultTyApp = Pos (initialPos "TyApp") $ DataDecl "TyApp" ["a", "b"] [] []
 
 -- This is only a subset of those predefinted in Haskell:
 -- Full report: https://www.haskell.org/onlinereport/basic.html
@@ -103,33 +91,34 @@ defaultTypeclassInstances =
     ]
 
 
-mkInstance :: String -> RType -> Declaration
+mkInstance :: String -> TypeSkeleton -> Declaration
 mkInstance tyclassName instanceType = let
     instanceName = scalarName instanceType
     in Pos (initialPos "tcBuiltin") $
-        FuncDecl (printf "%s0%s%s" tyclassInstancePrefix tyclassName instanceName) $ Monotype $
-          ScalarT (DatatypeT (tyclassPrefix ++ tyclassName) [instanceType] []) ftrue
+        FuncDecl (printf "%s0%s%s" tyclassInstancePrefix tyclassName instanceName) $ 
+            Monotype $ TyAppT (DatatypeT (tyclassPrefix ++ tyclassName) KnStar) instanceType
 
 listInstance :: String -> Declaration
 listInstance tyclassName = let
     instanceType = mkTyVar "a"
-    listInstance = ScalarT (DatatypeT "List" [instanceType] []) ftrue
+    listInstance = TyAppT (DatatypeT "List" KnFst) instanceType
     listInstanceName = longScalarName listInstance
     instanceName = longScalarName instanceType
     in Pos (initialPos "tcBuiltin") $
-        FuncDecl (printf "%s0%s%s" tyclassInstancePrefix tyclassName listInstanceName) $ Monotype $
-          FunctionT "tc" instanceType $
-            ScalarT (DatatypeT (tyclassPrefix ++ tyclassName) [listInstance] []) ftrue
+        FuncDecl (printf "%s0%s%s" tyclassInstancePrefix tyclassName listInstanceName) $ 
+            Monotype $
+                FunctionT "tc" instanceType $
+                    TyAppT (DatatypeT (tyclassPrefix ++ tyclassName) KnStar) listInstance
 
-mkTyVar str = ScalarT (TypeVarT (Map.empty) str) ftrue
+mkTyVar = TypeVarT
 
-intType = ScalarT (DatatypeT "Int" [] []) ftrue
-boolType = ScalarT (DatatypeT "Bool" [] []) ftrue
-charType = ScalarT (DatatypeT "Char" [] []) ftrue
-maybeType = ScalarT (DatatypeT "Maybe" [] []) ftrue
-floatType = ScalarT (DatatypeT "Float" [] []) ftrue
-doubleType = ScalarT (DatatypeT "Double" [] []) ftrue
-unitType = ScalarT (DatatypeT "Unit" [] []) ftrue
+intType = DatatypeT "Int"
+boolType = DatatypeT "Bool"
+charType = DatatypeT "Char"
+
+floatType = DatatypeT "Float"
+doubleType = DatatypeT "Double"
+unitType = DatatypeT "Unit"
 
 defaultInt = Pos (initialPos "Int") $ DataDecl "Int" [] [] []
 defaultBool = Pos (initialPos "Bool") $ DataDecl "Bool" [] [] []

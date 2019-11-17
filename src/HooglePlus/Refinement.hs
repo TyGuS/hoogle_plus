@@ -29,7 +29,7 @@ import qualified Data.Set as Set
 import Data.Tuple (swap)
 import Text.Printf
 
-findSymbol :: MonadIO m => Environment -> Id -> PNSolver m RType
+findSymbol :: MonadIO m => Environment -> Id -> PNSolver m TypeSkeleton
 findSymbol env sym = do
     nameMap <- gets $ view nameMapping
     let name = fromMaybe sym (Map.lookup sym nameMap)
@@ -69,31 +69,6 @@ updateCover' bound t cover paren | isSubtypeOf bound paren t = cover'
         cover' = HashMap.insertWith Set.union t (Set.singleton paren) addedCurr
 updateCover' _ _ cover _ = cover
 
--- updateCover' :: [Id] -> AbstractCover -> [AbstractSkeleton] -> AbstractSkeleton -> AbstractSkeleton -> ([AbstractSkeleton], AbstractCover)
--- updateCover' bound cover intscts t paren | equalAbstract bound t paren = (intscts, cover)
--- updateCover' bound cover intscts t paren | isSubtypeOf bound t paren =
---     let children = HashMap.lookupDefault Set.empty paren cover
---         child_fun c (ints, acc) = updateCover' bound acc ints t c
---         (scts, updatedCover) = Set.foldr child_fun (intscts, cover) children
---         lower c = isSubtypeOf bound t c || isSubtypeOf bound c t
---         inSubtree = any lower (Set.toList children)
---         baseCover = if inSubtree
---                       then updatedCover
---                       else HashMap.insertWith Set.union paren (Set.singleton t) updatedCover
---         int_fun s (ints, acc) = updateCover' bound acc ints s rootNode
---      in foldr int_fun ([], baseCover) scts
--- updateCover' bound cover intscts t paren | isSubtypeOf bound paren t =
---     let parents = HashMap.keys $ HashMap.filter (Set.member paren) cover
---         rmParen = HashMap.map (Set.delete paren) cover
---         addCurr p = HashMap.insertWith Set.union p $ Set.singleton t
---         addedCurr = foldr addCurr rmParen parents
---         cover' = HashMap.insertWith Set.union t (Set.singleton paren) addedCurr
---      in (intscts, cover')
--- updateCover' bound cover intscts t paren =
---     let intsctMb = abstractIntersect bound t paren
---      in if isJust intsctMb then (fromJust intsctMb : intscts, cover)
---                            else (intscts, cover)
-
 propagate :: MonadIO m => Environment -> RProgram -> AbstractSkeleton -> PNSolver m ()
 -- | base case, when we reach the leaf of the AST
 propagate env p@(Program (PSymbol sym) t) upstream = do
@@ -114,20 +89,23 @@ propagate env p@(Program (PApp f args) _) upstream = do
     unless (isBot upstream) (propagate env (Program (PSymbol "x") AnyT) upstream)
     writeLog 3 "propagate" $ text "propagate" <+> pretty upstream <+> text "into" <+> pretty p
     t <- findSymbol env (removeLast '_' f)
-    let closedArgs = map (shape . typeOf) args
+    let closedArgs = map typeOf args
     let argConcs = map (compactAbstractType . toAbstractType) closedArgs
-    let absFun = toAbstractType $ shape t
+    let absFun = toAbstractType t
     abstractArgs <- observeT $ mostGeneral argConcs absFun
     mapM_ (uncurry $ propagate env) (zip args abstractArgs)
   where
     mostGeneral cArgs t = do
-        -- require the new abstraction of each argument type
-        -- implies its current abstraction
-        let bound = env ^. boundTypeVars
         cover <- gets (view abstractionCover)
+        let bound = env ^. boundTypeVars
+        -- if the argument has the concrete type ct
+        -- its current abstraction is at
+        -- we are finding a refined abstraction at' < at
+        -- such that ct < at' < at
+        currAbs <- lift $ map head <$> mapM (currentAbst bound cover) cArgs
         absArgs <- mapM (generalize bound) cArgs
-        curArgs <- lift $ map head <$> mapM (currentAbst bound cover) cArgs
-        guard (all (uncurry $ isSubtypeOf bound) (zip absArgs curArgs))
+        -- lift $ writeLog 3 "propagate" $ text "try" <+> pretty absArgs <+> text "from" <+> pretty cArgs <+> text "with currently" <+> pretty currAbs
+        guard ((all (uncurry $ isSubtypeOf bound)) (zip absArgs currAbs))
         lift $ writeLog 3 "propagate" $ text "get generalized types" <+> pretty absArgs <+> text "from" <+> pretty cArgs
         res <- lift $ applySemantic bound t absArgs
         lift $ writeLog 3 "propagate" $ text "apply" <+> pretty absArgs <+> text "to" <+> pretty t <+> text "gets" <+> pretty res
@@ -161,12 +139,12 @@ bottomUpCheck env (Program (PApp f args) typ) = do
     Right checkedArgs -> do
       t <- findSymbol env (removeLast '_' f)
       -- check function signature against each argument provided
-      let argVars = map shape (allArgTypes t)
-      let checkedArgTys = map (shape . typeOf) checkedArgs
+      let argVars = allArgTypes t
+      let checkedArgTys = map typeOf checkedArgs
       mapM_ (uncurry $ solveTypeConstraint env) (zip checkedArgTys argVars)
       -- we eagerly substitute the assignments into the return type of t
       tass <- gets (view typeAssignment)
-      let ret = addTrue $ stypeSubstitute tass (shape $ lastType t)
+      let ret = typeSubstitute tass (lastType t)
       -- if any of these checks returned false, this function application
       -- would produce a bottom type
       ifM (gets $ view isChecked)
@@ -186,7 +164,7 @@ bottomUpCheck env (Program (PApp f args) typ) = do
             (return $ Left checkedArg)
 bottomUpCheck env p@(Program (PFun x body) (FunctionT _ tArg tRet)) = do
     writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
-    body' <- bottomUpCheck (addVariable x (addTrue tArg) env) body
+    body' <- bottomUpCheck (addVariable x tArg) env) body
     let tBody = typeOf body'
     let t = FunctionT x tArg tBody
     ifM (gets $ view isChecked)
@@ -196,16 +174,16 @@ bottomUpCheck env p@(Program (PFun x body) _) = do
     writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
     id <- freshId "A"
     id' <- freshId "A"
-    let tArg = addTrue (ScalarT (TypeVarT Map.empty id) ())
-    let tRet = addTrue (ScalarT (TypeVarT Map.empty id') ())
+    let tArg = TypeVarT id
+    let tRet = TypeVarT id'
     bottomUpCheck env (Program (PFun x body)(FunctionT x tArg tRet))
 bottomUpCheck _ p = error $ "unhandled case for checking "
                           ++ show p ++ "::" ++ show (typeOf p)
 
-solveTypeConstraint :: MonadIO m => Environment -> SType -> SType -> PNSolver m ()
+solveTypeConstraint :: MonadIO m => Environment -> TypeSkeleton -> TypeSkeleton -> PNSolver m ()
 solveTypeConstraint _ AnyT _ = return ()
 solveTypeConstraint _ _ AnyT = return ()
-solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ id') _)
+solveTypeConstraint env tv@(TypeVarT id) tv'@(TypeVarT id')
   | id == id' = return ()
   | isBound env id && isBound env id' = modify $ set isChecked False
   | isBound env id = do
@@ -217,20 +195,20 @@ solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ 
             solveTypeConstraint env tv typ
         else unify env id' tv
   | otherwise = do
-    st <- get
-    if id `Map.member` (st ^. typeAssignment)
+    tass <- gets (view typeAssignment)
+    if id `Map.member` tass
         then do
             let typ = fromJust $ Map.lookup id $ st ^. typeAssignment
             writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty typ <+> text "==" <+> pretty tv'
             solveTypeConstraint env typ tv'
-        else if id' `Map.member` (st ^. typeAssignment)
+        else if id' `Map.member` tass
             then do
                 let typ = fromJust $ Map.lookup id' $ st ^. typeAssignment
                 writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tv <+> text "==" <+> pretty typ
                 solveTypeConstraint env tv typ
             else unify env id tv'
-solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t | isBound env id = modify $ set isChecked False
-solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t = do
+solveTypeConstraint env tv@(TypeVarT id) t | isBound env id = modify $ set isChecked False
+solveTypeConstraint env tv@(TypeVarT id) t = do
     st <- get
     writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tv <+> text "==" <+> pretty t
     if id `Map.member` (st ^. typeAssignment)
@@ -239,86 +217,64 @@ solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t = do
             writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty typ <+> text "==" <+> pretty t
             solveTypeConstraint env typ t
         else unify env id t
-solveTypeConstraint env t tv@(ScalarT (TypeVarT _ id) _) = solveTypeConstraint env tv t
+solveTypeConstraint env t tv@(TypeVarT id) = solveTypeConstraint env tv t
 solveTypeConstraint env (FunctionT _ tArg tRet) (FunctionT _ tArg' tRet') = do
     writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tArg <+> text "==" <+> pretty tArg'
     solveTypeConstraint env tArg tArg'
     writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tRet <+> text "==" <+> pretty tRet'
     solveTypeConstraint env tRet tRet'
-solveTypeConstraint env (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT id' tArgs' _) _) | id /= id' =
-    modify $ set isChecked False
-solveTypeConstraint env (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT id' tArgs' _) _) | id == id' =
-    solveTypeConstraint' env tArgs tArgs'
-  where
-    solveTypeConstraint' _ []  [] = return ()
-    solveTypeConstraint' env (ty:tys) (ty':tys') = do
-        writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty ty <+> text "==" <+> pretty ty'
-        solveTypeConstraint env ty ty'
-        checked <- gets $ view isChecked
-        -- if the checking between ty and ty' succeeds, proceed to others
-        when checked $ solveTypeConstraint' env tys tys'
+solveTypeConstraint env (DatatypeT id) (DatatypeT id') 
+    | id /= id' = modify $ set isChecked False
+    | id == id' = return ()
+solveTypeConstraint env (TyAppT tFun tArg) (TyAppT tFun' tArg') = do
+    solveTypeConstraint env tFun tFun'
+    ifM (gets $ view isChecked)
+        (solveTypeConstraint env tArg tArg')
+        (return ())
+solveTypeConstraint env (TyFunT tArg tRes) (TyFunT tArg' tRes') = do
+    solveTypeConstraint env tArg tArg'
+    ifM (gets $ view isChecked)
+        (solveTypeConstraint env tRes tRes')
+        (return ())
 solveTypeConstraint env t1 t2 = do
     writeLog 3 "solveTypeConstraint" $ text "unmatched types" <+> pretty t1 <+> text "and" <+> pretty t2
     modify $ set isChecked False
 
 -- | unify the type variable with some given type
 -- add the type assignment to our state
-unify :: MonadIO m => Environment -> Id -> SType -> PNSolver m ()
+unify :: MonadIO m => Environment -> Id -> TypeSkeleton -> PNSolver m ()
 unify env v t =
     if v `Set.member` typeVarsOf t
       then modify $ set isChecked False
       else do
         tass' <- gets $ view typeAssignment
         writeLog 3 "unify" $ text (show tass')
-        modify $ over typeAssignment (Map.map (stypeSubstitute (Map.singleton v t)))
+        modify $ over typeAssignment (Map.map (typeSubstitute (Map.singleton v t)))
         tass <- gets $ view typeAssignment
-        modify $ over typeAssignment (Map.insert v (stypeSubstitute tass t))
+        modify $ over typeAssignment (Map.insert v (typeSubstitute tass t))
 
 -- | generalize a closed concrete type into an abstract one
 generalize :: MonadIO m => [Id] -> AbstractSkeleton -> LogicT (PNSolver m) AbstractSkeleton
-generalize bound t@(AScalar (ATypeVarT id))
+generalize bound t@(ATypeVarT id)
   | id `notElem` bound = return t
   | otherwise = do
     v <- lift $ freshId "T"
-    return (AScalar (ATypeVarT v)) `mplus` return t
--- for datatype, we define the generalization order as follows:
--- (1) v
--- (2) datatype with all fresh type variables
--- (3) datatype with incrementally generalized inner types
-generalize bound t@(AScalar (ADatatypeT id args)) = do
+    return (ATypeVarT v) `mplus` return t
+generalize bound t@(ADatatypeT id k) = do
     v <- lift $ freshId "T"
-    return (AScalar (ATypeVarT v)) `mplus` freshVars `mplus` subsetTyps -- interleave
-  where
-    -- this search may explode when we have a large number of datatype parameters
-    patternOfLen n
-      | n == 0 = mzero
-      | n == 1 = return [n]
-      | n >  1 = do
-          let nextNumber l = 1 + maximum l
-          let candidates l = nextNumber l : nub l
-          prevPat <- patternOfLen (n - 1)
-          msum $ map (\c -> return (c:prevPat)) (candidates prevPat)
-
-    freshVars = do
-        let n = length args
-        pat <- patternOfLen n
-        let argNames = map (\i -> "T" ++ show i) pat
-        let args' = map (AScalar . ATypeVarT) argNames
-        absTy <- lift $ freshAbstract bound (AScalar (ADatatypeT id args'))
-        guard (isSubtypeOf bound t absTy)
-        lift $ writeLog 3 "generalize" $ text "generalize" <+> pretty t <+> text "into" <+> pretty absTy
-        return absTy
-
-    subsets [] = return []
-    subsets (arg:args) = do
-        args' <- subsets args
-        arg' <- generalize bound arg
-        return (arg':args')
-
-    subsetTyps = do
-        args' <- subsets args
-        return (AScalar (ADatatypeT id args'))
-
+    return (ATypeVarT v) `mplus` return t
+generalize bound t@(ATyAppT tFun tArg) = do
+    f <- generalize bound tFun
+    a <- generalize bound tArg
+    -- might abstracting some TyApp as a higher kinded type variable
+    -- [TODO] does this slow us down?
+    v <- lift $ freshId "T"
+    return (ATypeVarT v) `mplus` return (ATyAppT f a)
+generalize bound t@(ATyFunT tArg tRes) = do
+    a <- generalize bound tArg
+    r <- generalize bound tRes
+    v <- lift $ freshId "T"
+    return (ATypeVarT v) `mplus` return (ATyFunT a r)
 generalize bound (AFunctionT tArg tRes) = do
     tArg' <- generalize bound tArg
     tRes' <- generalize bound tRes

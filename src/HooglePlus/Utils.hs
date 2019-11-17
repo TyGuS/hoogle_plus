@@ -42,7 +42,7 @@ import Data.UUID.V4
 
 -- Converts the list of param types into a haskell function signature.
 -- Moves typeclass-looking things to the front in a context.
-mkFunctionSigStr :: [RType] -> String
+mkFunctionSigStr :: [TypeSkeleton] -> String
 mkFunctionSigStr args = addConstraints $ Prelude.foldr accumConstraints ([],[]) args
     where
         showSigs = intercalate " -> "
@@ -50,15 +50,13 @@ mkFunctionSigStr args = addConstraints $ Prelude.foldr accumConstraints ([],[]) 
         addConstraints ([], baseSigs) = showSigs baseSigs
         addConstraints (constraints, baseSigs) = "(" ++ (intercalate ", " constraints) ++ ") => " ++ showSigs baseSigs
 
-        accumConstraints :: RType -> ([String], [String]) -> ([String], [String])
-        accumConstraints (ScalarT (DatatypeT id [ScalarT (TypeVarT _ tyvarName) _] _) _) (constraints, baseSigs)
+        accumConstraints :: TypeSkeleton -> ([String], [String]) -> ([String], [String])
+        accumConstraints (TyAppT (DatatypeT id _) (TypeVarT tyvarName)) (constraints, baseSigs)
             | tyclassPrefix `isPrefixOf` id = let
                 classNameRegex = mkRegex $ tyclassPrefix ++ "([a-zA-Z]*)"
                 className = subRegex classNameRegex id "\\1"
                 constraint = className ++ " " ++ tyvarName
-                -- \(@@hplusTC@@([a-zA-Z]*) \(([a-z]*)\)\)
-                in
-                    (constraint:constraints, baseSigs)
+                in (constraint:constraints, baseSigs)
         accumConstraints otherTy (constraints, baseSigs) = let
             otherStr = if isFunctionType otherTy then wrapParen (show otherTy) else show otherTy
             in (constraints, otherStr:baseSigs)
@@ -106,7 +104,7 @@ printSolution solution = do
     putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
     putStrLn "************************************************"
 
-extractSolution :: Environment -> RType -> UProgram -> ([String], String, String, [(Id, RSchema)])
+extractSolution :: Environment -> TypeSkeleton -> UProgram -> ([String], String, String, [(Id, RSchema)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)
     where
         args = _arguments env

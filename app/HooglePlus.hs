@@ -2,7 +2,6 @@
 
 module Main (main) where
 
-import Synquid.Logic
 import Synquid.Type
 import Synquid.Program
 import Synquid.Error

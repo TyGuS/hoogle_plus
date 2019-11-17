@@ -120,7 +120,7 @@ checkStrictness tyclassCount body sig modules =
 
 -- validate type signiture, run demand analysis, and run filter test
 -- checks the end result type checks; all arguments are used; and that the program will not immediately fail
-runGhcChecks :: SearchParams -> Environment -> RType -> UProgram -> IO Bool
+runGhcChecks :: SearchParams -> Environment -> TypeSkeleton -> UProgram -> IO Bool
 runGhcChecks params env goalType prog = let
     -- constructs program and its type signature as strings
     (modules, funcSig, body, argList) = extractSolution env goalType prog
