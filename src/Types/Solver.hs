@@ -49,8 +49,9 @@ data SolverState = SolverState {
     _instanceCounts :: HashMap Id Int, -- Number of instantiations for a real-name, used in selecting representative
     _toRemove :: [Id],
     _useCount :: Map Id Int,
+    _encoder :: EncodeState,
     _messageChan :: Chan Message
-} deriving(Eq)
+}
 
 
 emptySolverState :: SolverState
@@ -80,6 +81,7 @@ emptySolverState = SolverState {
     _instanceCounts = HashMap.empty,
     _toRemove = [],
     _useCount = Map.empty,
+    _encoder = undefined,
     _messageChan = undefined
 }
 

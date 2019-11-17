@@ -194,8 +194,8 @@ resolveType (ScalarT (DatatypeT name tArgs pArgs) fml) = do
       fml' <- resolveTypeRefinement (toSort $ baseTypeOf t') fml
       return $ addRefinement t' fml'
     Just (DatatypeDef tParams _ _) -> do
-      when (length tArgs /= length tParams) $
-        throwResError $ text "Datatype" <+> text name <+> text "expected" <+> pretty (length tParams) <+> text "type arguments and got" <+> pretty (length tArgs)
+    --   when (length tArgs /= length tParams) $
+        -- throwResError $ text "Datatype" <+> text name <+> text "expected" <+> pretty (length tParams) <+> text "type arguments and got" <+> pretty (length tArgs)
       -- Resolve type arguments:
       tArgs' <- mapM resolveType tArgs
       -- Resolve predicate arguments:

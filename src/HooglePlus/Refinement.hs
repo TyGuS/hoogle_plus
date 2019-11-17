@@ -29,62 +29,6 @@ import qualified Data.Set as Set
 import Data.Tuple (swap)
 import Text.Printf
 
-distinguish :: MonadIO m => Environment -> SType -> SType -> PNSolver m (Maybe (SType, SType))
-distinguish env AnyT _ = return Nothing
-distinguish env _ AnyT = return Nothing
-distinguish env t1 t2 = do
-    tass <- gets $ view typeAssignment
-    let t1' = var2any env $ stypeSubstitute tass t1
-    let t2' = var2any env $ stypeSubstitute tass t2
-    distinguish' (env ^. boundTypeVars) t1' t2'
-
--- | t1 is the expected type, t2 is the actual type
-distinguish' :: MonadIO m => [Id] -> SType -> SType -> PNSolver m (Maybe (SType, SType))
-distinguish' _ t1 t2 | t1 == t2 = return Nothing
-distinguish' _ t1@(ScalarT (DatatypeT id1 tArgs1 _) _) t2@(ScalarT (DatatypeT id2 tArgs2 _) _) | id1 /= id2 = do
-    argNames1 <- mapM (\_ -> freshId "A") tArgs1
-    let freshArgs1 = map (\n -> ScalarT (TypeVarT Map.empty n) ()) argNames1
-    argNames2 <- mapM (\_ -> freshId "A") tArgs2
-    let freshArgs2 = map (\n -> ScalarT (TypeVarT Map.empty n) ()) argNames2
-    return (Just (ScalarT (DatatypeT id1 freshArgs1 []) (), ScalarT (DatatypeT id2 freshArgs2 []) ()))
-distinguish' tvs t1@(ScalarT (DatatypeT id1 tArgs1 _) _) t2@(ScalarT (DatatypeT id2 tArgs2 _) _) | id1 == id2 = do
-    diffs <- firstDifference tArgs1 tArgs2
-    case diffs of
-      ([], []) -> return Nothing
-      (ds1, ds2) -> return (Just (ScalarT (DatatypeT id1 ds1 []) (), ScalarT (DatatypeT id2 ds2 []) ()))
-  where
-    firstDifference [] [] = return ([], [])
-    firstDifference (arg:args) (arg':args') = do
-        currDiff <- distinguish' tvs arg arg'
-        case currDiff of
-            Nothing -> do
-                argsDiff <- firstDifference args args'
-                case argsDiff of
-                    ([],[]) -> return ([],[])
-                    (diffs1, diffs2) -> do
-                        a1 <- flip ScalarT () . TypeVarT Map.empty <$> freshId "A"
-                        a2 <- flip ScalarT () . TypeVarT Map.empty <$> freshId "A"
-                        return (a1:diffs1, a2:diffs2)
-            Just (t1, t2) -> do
-                argNames1 <- mapM (\_ -> freshId "A") args
-                let freshArgs1 = map (\n -> ScalarT (TypeVarT Map.empty n) ()) argNames1
-                argNames2 <- mapM (\_ -> freshId "A") args'
-                let freshArgs2 = map (\n -> ScalarT (TypeVarT Map.empty n) ()) argNames2
-                return (t1:freshArgs1, t2:freshArgs2)
-distinguish' tvs t1@(ScalarT TypeVarT {} _) t2@(ScalarT (DatatypeT id args _) _) = do
-    argNames <- mapM (\_ -> freshId "A") args
-    let args' = map (\n -> ScalarT (TypeVarT Map.empty n) ()) argNames
-    return (Just (t1, ScalarT (DatatypeT id args' []) ()))
-distinguish' tvs t1@(ScalarT DatatypeT {} _) t2@(ScalarT (TypeVarT _ id) _) | id `elem` tvs = do
-    diffs <- distinguish' tvs t2 t1
-    case diffs of
-      Nothing -> return Nothing
-      Just d -> return (Just (swap d))
-distinguish' tvs (ScalarT DatatypeT {} _) (ScalarT (TypeVarT _ id) _) = error "undecided actual type" -- return (Just (ScalarT (TypeVarT Map.empty id) ()))
-distinguish' tvs t1@(ScalarT (TypeVarT _ id1) _) t2@(ScalarT (TypeVarT _ id2) _) | id1 `elem` tvs || id2 `elem` tvs = return (Just (t1, t2))
-distinguish' tvs (ScalarT TypeVarT {} _) (ScalarT TypeVarT {} _) = return Nothing
-distinguish' _ t1 t2 = error $ printf "unhandled case for distinguish %s and %s" (show t1) (show t2)
-
 findSymbol :: MonadIO m => Environment -> Id -> PNSolver m RType
 findSymbol env sym = do
     nameMap <- gets $ view nameMapping
@@ -171,14 +115,19 @@ propagate env p@(Program (PApp f args) _) upstream = do
     writeLog 3 "propagate" $ text "propagate" <+> pretty upstream <+> text "into" <+> pretty p
     t <- findSymbol env (removeLast '_' f)
     let closedArgs = map (shape . typeOf) args
-    let argConcs = map toAbstractType closedArgs
+    let argConcs = map (compactAbstractType . toAbstractType) closedArgs
     let absFun = toAbstractType $ shape t
     abstractArgs <- observeT $ mostGeneral argConcs absFun
     mapM_ (uncurry $ propagate env) (zip args abstractArgs)
   where
     mostGeneral cArgs t = do
+        -- require the new abstraction of each argument type
+        -- implies its current abstraction
         let bound = env ^. boundTypeVars
+        cover <- gets (view abstractionCover)
         absArgs <- mapM (generalize bound) cArgs
+        curArgs <- lift $ map head <$> mapM (currentAbst bound cover) cArgs
+        guard (all (uncurry $ isSubtypeOf bound) (zip absArgs curArgs))
         lift $ writeLog 3 "propagate" $ text "get generalized types" <+> pretty absArgs <+> text "from" <+> pretty cArgs
         res <- lift $ applySemantic bound t absArgs
         lift $ writeLog 3 "propagate" $ text "apply" <+> pretty absArgs <+> text "to" <+> pretty t <+> text "gets" <+> pretty res

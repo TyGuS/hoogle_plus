@@ -17,7 +17,11 @@ data SchemaSkeleton r =
 
 {- Type skeletons -}
 
-data BaseType r = BoolT | IntT | DatatypeT Id [TypeSkeleton r] [r] | TypeVarT Substitution Id
+data BaseType r = 
+  BoolT | 
+  IntT | 
+  DatatypeT Id [TypeSkeleton r] [r] | 
+  TypeVarT Substitution Id
   deriving (Eq, Ord, Generic)
 
 -- | Type skeletons (parametrized by refinements)

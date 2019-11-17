@@ -443,20 +443,23 @@ resetEncoder env dst = do
     (loc, musters, rets, funcs, tid2tr) <- prepEncoderArgs env tgt
     liftIO $ encoderInit loc musters srcTypes rets funcs tid2tr incremental relevancy noClone
 
-incEncoder :: MonadIO m => Environment -> EncodeState -> PNSolver m EncodeState
-incEncoder env st = do
+incEncoder :: MonadIO m => Environment -> PNSolver m ()
+incEncoder env = do
     tgt <- gets (view targetType)
     src <- gets (view sourceTypes)
+    st <- gets (view encoder)
     (_, _, rets, funcs, _) <- prepEncoderArgs env tgt
-    liftIO $ execStateT (encoderInc funcs src rets) st
+    st <- liftIO $ execStateT (encoderInc funcs src rets) st
+    modify $ set encoder st
 
 findPath :: MonadIO m
          => Environment
          -> RType
-         -> EncodeState
-         -> PNSolver m ([Id], EncodeState)
-findPath env dst st = do
-    (res, st') <- withTime SolverTime (liftIO (encoderSolve st))
+         -> LogicT (PNSolver m) [Id]
+findPath env dst = do
+    st <- gets (view encoder)
+    (res, st') <- liftIO (encoderSolve st)
+    modify $ set encoder st'
     case res of
         [] -> do
             currSt <- get
@@ -467,14 +470,13 @@ findPath env dst st = do
                 liftIO $ writeChan mesgChan (MesgClose CSNoSolution)
                 error "cannot find a path")
             modify $ set currentLoc ((currSt ^. currentLoc) + 1)
-            st'' <- withTime EncodingTime (incEncoder env st')
-            findPath env dst st''
-        _  -> return (res, st')
+            lift $ withTime EncodingTime (incEncoder env)
+            findPath env dst
+        _  -> return res
 
 fixEncoder :: MonadIO m
            => Environment
            -> RType
-           -> EncodeState
            -> SplitInfo
            -> PNSolver m EncodeState
 fixEncoder env dst st info = do
@@ -493,23 +495,25 @@ fixEncoder env dst st info = do
 findProgram :: MonadIO m
             => Environment -- the search environment
             -> RType       -- the goal type
-            -> EncodeState -- intermediate encoding state
-            -> [[Id]]      -- remaining paths
-            -> PNSolver m (RProgram, EncodeState, [[Id]])
-findProgram env dst st ps
-    | not (null ps) = checkUntilFail st ps
-    | null ps = do
-        modify $ set splitTypes Set.empty
-        modify $ set typeAssignment Map.empty
-        writeLog 2 "findProgram" $ text "calling findProgram"
-        (path, st') <- findPath env dst st
-        writeLog 2 "findProgram" $ text "unfiltered path:" <+> pretty path
-        let usefulTrans = filter skipClone path
-        paths <- enumeratePath usefulTrans
-        writeLog 2 "findProgram" $ text "all possible paths" <+> pretty paths
-        checkUntilFail st' paths
+            -> LogicT (PNSolver m) RProgram
+findProgram env dst = do
+    modify $ set splitTypes Set.empty
+    modify $ set typeAssignment Map.empty
+    -- writeLog 2 "findProgram" $ text "calling findProgram"
+    path <- findPath env dst
+    lift $ writeLog 2 "findProgram" $ text "unfiltered path" <+> pretty path
+    ifte (once $ do
+            let usefulTrans = filter skipClone path
+            path <- enumeratePath usefulTrans
+            lift $ writeLog 2 "findProgram" $ text "try path" <+> pretty path
+            checkUntilFail st' path) 
+        handleResult 
+        findProgram env dst
   where
-    enumeratePath :: MonadIO m => [Id] -> PNSolver m [[Id]]
+    handleResult (Left r) = return r
+    handleResult (Right (st, err)) = nextSolution st err
+
+    enumeratePath :: MonadIO m => [Id] -> LogicT (PNSolver m) [Id]
     enumeratePath path = do
         ngm <- gets $ view nameToGroup
         gm <- gets $ view groupMap
@@ -538,7 +542,9 @@ findProgram env dst st ps
                                  lookupWithError "nameMapping" x nameMap)
                             p
                  in disrel || all (`elem` p') hoArgs
-        return $ filter filterPaths (sequence allPaths)
+        p <- sequence allPaths
+        guard (filterPaths p)
+        return p
 
     skipClone = not . isInfixOf "|clone"
 
@@ -583,13 +589,13 @@ findProgram env dst st ps
 
     checkUntilFail :: MonadIO m
                     => EncodeState
-                    -> [[Id]]
-                    -> PNSolver m (RProgram, EncodeState, [[Id]])
-    checkUntilFail st' [] = findProgram env dst (st' {prevChecked=True}) []
-    checkUntilFail st' (path:ps) = do
-        writeLog 1 "checkUntilFail" $ pretty path
-        codeResult <- fillSketch path
-        checkResult <- withTime TypeCheckTime $
+                    -> [Id]
+                    -> LogicT (PNSolver m) (Either RProgram (RProgram, AbstractSkeleton))
+    checkUntilFail st' path = do
+        lift $ writeLog 1 "checkUntilFail" $ pretty path
+        codeResult <- lift $ fillSketch path
+        -- TODO: Bug!!! We should return all the correct results
+        checkResult <- lift $ withTime TypeCheckTime $
                         firstCheckedOrError $
                         sortOn (Data.Ord.Down . length) $ 
                         Set.toList codeResult
@@ -598,12 +604,12 @@ findProgram env dst st ps
         placeNum <- getExperiment threshold
         cover <- gets $ view abstractionCover
         case checkResult of
-            Nothing -> checkUntilFail st' ps
+            Nothing -> mzero
             Just (Left code) -> do
-                mbSln <- checkSolution st' code
+                mbSln <- lift $ checkSolution st' code
                 case mbSln of
-                    Nothing -> checkUntilFail st' ps
-                    Just p -> return (p, st' {prevChecked = null ps}, ps)
+                    Nothing -> mzero
+                    Just p -> return $ Left p
             Just (Right err)
                 | not (doRefine rs) || (stop && coverSize cover >= placeNum) -> do
                     cover <- gets $ view abstractionCover
@@ -612,11 +618,8 @@ findProgram env dst st ps
                           numOfPlaces = Map.insert (iterations s + 1) (coverSize cover) (numOfPlaces s)
                         , numOfTransitions = Map.insert (iterations s + 1) (Set.size funcs) (numOfTransitions s)
                         })
-                    checkUntilFail st' ps
-                | otherwise -> do
-                    cover <- gets $ view abstractionCover
-                    funcs <- gets $ view activeSigs
-                    nextSolution st' err
+                    mzero
+                | otherwise -> return $ Right (st', err)
 
     firstCheckedOrError [] = return Nothing
     firstCheckedOrError [x] = Just <$> parseAndCheck x
@@ -676,7 +679,7 @@ findProgram env dst st ps
                            (numOfTransitions s)
                 })
         st' <- withTime EncodingTime (fixEncoder env dst st splitInfo)
-        findProgram env dst st' []
+        return st'
 
     checkSolution st code = do
         solutions <- gets $ view currentSolutions

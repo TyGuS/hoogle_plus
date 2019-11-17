@@ -234,26 +234,26 @@ applySemantic tvs fun args = do
     constraints <- zipWithM (typeConstraints tvs) cargs args'
     let constraints' = concat constraints
     -- writeLog 3 "applySemantic" $ text "solving constraints" <+> pretty constraints
-    if matchTc constraints'
-        then do
-            let unifier = getUnifier tvs constraints'
-            case unifier of
-                Nothing -> return [ABottom]
-                Just m -> do
-                    -- writeLog 3 "applySemantic" $ text "get unifier" <+> pretty (Map.toList m)
-                    cover <- gets (view abstractionCover)
-                    let substRes = abstractSubstitute m ret
-                    -- writeLog 3 "applySemantic" $ text "current cover" <+> text (show cover)
-                    currentAbst tvs cover substRes
+    if matchTc constraints' then do
+        let unifier = getUnifier tvs constraints'
+        case unifier of
+            Nothing -> return [ABottom]
+            Just m -> do
+                -- writeLog 3 "applySemantic" $ text "get unifier" <+> pretty (Map.toList m)
+                cover <- gets (view abstractionCover)
+                let substRes = abstractSubstitute m ret
+                -- writeLog 3 "applySemantic" $ text "current cover" <+> text (show cover)
+                currentAbst tvs cover substRes
         else return [ABottom]
   where
     matchTc [] = True
     matchTc (c:cs) = case c of
         (AScalar (ADatatypeT id1 _), AScalar (ADatatypeT id2 _)) ->
-            ((tyclassPrefix `isPrefixOf` id1) && (tyclassPrefix `isPrefixOf` id2)) ||
-            (not (tyclassPrefix `isPrefixOf` id1) && not (tyclassPrefix `isPrefixOf` id2))
-        (AScalar (ADatatypeT id _), _) -> not (tyclassPrefix `isPrefixOf` id)
-        (_, AScalar (ADatatypeT id _)) -> not (tyclassPrefix `isPrefixOf` id)
+            (((tyclassPrefix `isPrefixOf` id1) && (tyclassPrefix `isPrefixOf` id2)) ||
+            (not (tyclassPrefix `isPrefixOf` id1) && not (tyclassPrefix `isPrefixOf` id2))) &&
+            matchTc cs
+        (AScalar (ADatatypeT id _), _) -> not (tyclassPrefix `isPrefixOf` id) && matchTc cs
+        (_, AScalar (ADatatypeT id _)) -> not (tyclassPrefix `isPrefixOf` id) && matchTc cs
         _ -> matchTc cs
 
 compareAbstract :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Ordering
