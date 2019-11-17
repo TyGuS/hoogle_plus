@@ -98,6 +98,8 @@ defaultTypeclassInstances =
     , mkInstance "Ord" intType
     , mkInstance "Ord" floatType
     , mkInstance "Ord" doubleType
+    , mkInstance "Alternative" maybeType
+    , mkInstance "Monad" maybeType
     ]
 
 
@@ -124,7 +126,7 @@ mkTyVar str = ScalarT (TypeVarT (Map.empty) str) ftrue
 intType = ScalarT (DatatypeT "Int" [] []) ftrue
 boolType = ScalarT (DatatypeT "Bool" [] []) ftrue
 charType = ScalarT (DatatypeT "Char" [] []) ftrue
-
+maybeType = ScalarT (DatatypeT "Maybe" [] []) ftrue
 floatType = ScalarT (DatatypeT "Float" [] []) ftrue
 doubleType = ScalarT (DatatypeT "Double" [] []) ftrue
 unitType = ScalarT (DatatypeT "Unit" [] []) ftrue

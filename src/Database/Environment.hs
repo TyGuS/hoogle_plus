@@ -81,14 +81,14 @@ generateEnv genOpts = do
     instanceFunctions <- mapM (\(entry, id) -> evalStateT (DC.instanceToFunction entry id) 0) instanceTuples
 
     -- TODO: remove all higher kinded type instances
-    let instanceFunctions' = filter (\x -> not(or [(isInfixOf "Applicative" $ show x),(isInfixOf "Functor" $ show x),(isInfixOf "Monad" $ show x)])) instanceFunctions
+    -- let instanceFunctions' = filter (\x -> not(or [(isInfixOf "Applicative" $ show x),(isInfixOf "Functor" $ show x),(isInfixOf "Monad" $ show x)])) instanceFunctions
 
-    let declStrs = show (instanceFunctions' ++ ourDecls)
+    let declStrs = show (instanceFunctions ++ ourDecls)
     let removeParentheses = (\x -> LUtils.replace ")" "" $ LUtils.replace "(" "" x)
     let tcNames = nub $ map removeParentheses $ filter (\x -> isInfixOf tyclassPrefix x) (splitOn " " declStrs)
     let tcDecls = map (\x -> Pos (initialPos "") $ TP.DataDecl x ["a"] [] []) tcNames
 
-    let library = concat [ourDecls, dependencyEntries, instanceFunctions', tcDecls, defaultLibrary]
+    let library = concat [ourDecls, dependencyEntries, instanceFunctions, tcDecls, defaultLibrary]
     let hooglePlusDecls = DC.reorderDecls $ nubOrd $ library
 
     result <- case resolveDecls hooglePlusDecls moduleNames of
