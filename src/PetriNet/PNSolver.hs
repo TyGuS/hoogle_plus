@@ -37,6 +37,7 @@ import HooglePlus.Abstraction
 import HooglePlus.CodeFormer
 import HooglePlus.Refinement
 import HooglePlus.Stats
+import HooglePlus.Utils
 import PetriNet.AbstractType
 import HooglePlus.GHCChecker
 import PetriNet.PNEncoder
@@ -95,8 +96,8 @@ instantiateWith env typs id t = do
        then do -- this is hack, hope to get rid of it sometime
            first <- freshType (Monotype t)
            secod <- findSymbol env "snd"
-           fstSigs <- enumSigs $ toAbstractType $ shape first
-           sndSigs <- enumSigs $ toAbstractType $ shape secod
+           fstSigs <- enumSigs $ toAbstractType first
+           sndSigs <- enumSigs $ toAbstractType secod
            -- assertion, check they have same elements
            when (length fstSigs /= length sndSigs)
                 (error "fst and snd have different number of instantiations")
@@ -105,7 +106,7 @@ instantiateWith env typs id t = do
            mapM (mkNewSig pairProj) matches'
        else do
            ft <- freshType (Monotype t)
-           let t' = toAbstractType (shape ft)
+           let t' = toAbstractType ft
            rawSigs <- enumSigs t'
            let sigs = filter (\t -> noneInst instMap id t || diffInst bound instMap id t) rawSigs
            mapM (mkNewSig id) sigs
@@ -151,8 +152,8 @@ splitTransition env newAt fid = do
         let sndRet = ret
         fstType <- findSymbol env "fst"
         sndType <- findSymbol env "snd"
-        let first = toAbstractType $ shape fstType
-        let secod = toAbstractType $ shape sndType
+        let first = toAbstractType fstType
+        let secod = toAbstractType sndType
         let tvs = env ^. boundTypeVars
         fstRets <- concatMapM (applySemantic tvs first) args'
         sndRets <- concatMapM (applySemantic tvs secod) args'
@@ -176,7 +177,7 @@ splitTransition env newAt fid = do
         writeLog 3 "allSubsts'" $ pretty args'
         funType <- findSymbol env fid
         writeLog 3 "allSubsts'" $ text fid <+> text "::" <+> pretty funType
-        let absFunType = toAbstractType (shape funType)
+        let absFunType = toAbstractType funType
         let tvs = env ^. boundTypeVars
         rets <- concatMapM (applySemantic tvs absFunType) args'
         writeLog 3 "allSubsts'" $ text fid <+> text "returns" <+> pretty rets
@@ -270,7 +271,7 @@ addMusters arg = do
 -- | refine the current abstraction
 -- do the bidirectional type checking first, compare the two programs we get,
 -- with the type split information update the abstraction tree
-refineSemantic :: MonadIO m => Environment -> RProgram -> AbstractSkeleton -> PNSolver m SplitInfo
+refineSemantic :: MonadIO m => Environment -> TProgram -> AbstractSkeleton -> PNSolver m SplitInfo
 refineSemantic env prog at = do
     cover <- gets $ view abstractionCover
     writeLog 2 "instantiate" $ text "Current abstract types:" <+> text (show cover)
@@ -420,7 +421,7 @@ initNet env = withTime ConstructionTime $ do
   where
     abstractSymbol id sch = do
         t <- freshType sch
-        let absTy = toAbstractType (shape t)
+        let absTy = toAbstractType t
         return (id, absTy)
 
 addEncodedFunction :: MonadIO m => (Id, AbstractSkeleton) -> PNSolver m ()
@@ -494,7 +495,7 @@ findProgram :: MonadIO m
             -> TypeSkeleton       -- the goal type
             -> EncodeState -- intermediate encoding state
             -> [[Id]]      -- remaining paths
-            -> PNSolver m (RProgram, EncodeState, [[Id]])
+            -> PNSolver m (TProgram, EncodeState, [[Id]])
 findProgram env dst st ps
     | not (null ps) = checkUntilFail st ps
     | null ps = do
@@ -583,7 +584,7 @@ findProgram env dst st ps
     checkUntilFail :: MonadIO m
                     => EncodeState
                     -> [[Id]]
-                    -> PNSolver m (RProgram, EncodeState, [[Id]])
+                    -> PNSolver m (TProgram, EncodeState, [[Id]])
     checkUntilFail st' [] = findProgram env dst (st' {prevChecked=True}) []
     checkUntilFail st' (path:ps) = do
         writeLog 1 "checkUntilFail" $ pretty path
@@ -648,7 +649,7 @@ findProgram env dst st ps
         writeLog 3 "parseAndCheck" $ text "bottom up checking get program" <+> pretty (recoverNames mapping btm)
         checkStatus <- gets (view isChecked)
         let tyBtm = typeOf btm
-        when checkStatus (solveTypeConstraint env (shape tyBtm) (shape dst))
+        when checkStatus (solveTypeConstraint env tyBtm dst)
         tass <- gets (view typeAssignment)
         ifM (gets $ view isChecked)
             (return (Left btm))
@@ -732,7 +733,9 @@ writeSolution code = do
     liftIO $ writeChan msgChan (MesgP (code, stats'))
     -- liftIO $ printSolution code
     -- liftIO $ hFlush stdout
-    writeLog 1 "writeSolution" $ text (show stats')
+    -- writeLog 1 "writeSolution" $ text (show stats')
+    liftIO $ printSolution code
+    liftIO $ print stats'
 
 recoverNames :: Map Id Id -> Program t -> Program t
 recoverNames mapping (Program (PSymbol sym) t) =
@@ -778,14 +781,13 @@ updateSrcTgt env dst = do
     -- reset source and destination types
     let binds = env ^. boundTypeVars
     abstraction <- gets (view abstractionCover)
-    tgt <- currentAbst binds abstraction (toAbstractType (shape dst))
+    tgt <- currentAbst binds abstraction (toAbstractType dst)
     let tgt' = head tgt
     modify $ set targetType tgt'
 
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
     srcTypes <- mapM ( currentAbst binds abstraction
                      . toAbstractType
-                     . shape
                      . toMonotype) $ Map.elems foArgs
     let srcTypes' = map head srcTypes
     modify $ set sourceTypes srcTypes'
@@ -814,7 +816,7 @@ prepEncoderArgs env tgt = do
     writeLog 3 "prepEncoderArgs" $ text "current must firers" <+> pretty (HashMap.toList musters)
     return (loc, musters, rets, sigs, t2tr)
 
-foArgsOf :: Environment -> Map Id RSchema
+foArgsOf :: Environment -> Map Id SchemaSkeleton
 foArgsOf = Map.filter (not . isFunctionType . toMonotype) . _arguments
 
 noneInst instMap id t = not (HashMap.member (id, absFunArgs id t) instMap)

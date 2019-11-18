@@ -161,17 +161,17 @@ transformSolution goal queryResult = do
             | isFunctionType tArg = x ++ ": (" ++ showGoal tArg ++ ") -> " ++ showGoal tRes
             | tyclassArgBase `isPrefixOf` x = let
                 allTyclass tt = case tt of
-                                    FunctionT x' tArg' tRes' ->
-                                        if tyclassArgBase `isPrefixOf` x'
-                                            then let
-                                                ScalarT (DatatypeT id [ScalarT (TypeVarT _ tyvarName) _] _) _ = tArg'
-                                                (res, tRes'') = allTyclass tRes'
-                                                classNameRegex = mkRegex $ tyclassPrefix ++ "([a-zA-Z]*)"
-                                                className = subRegex classNameRegex id "\\1"
-                                                constraint = className ++ " " ++ tyvarName
-                                                in (constraint : res, tRes'')
-                                            else ([], tt)
-                                    _ -> ([], tt)
+                    FunctionT x' tArg' tRes' ->
+                        if tyclassArgBase `isPrefixOf` x'
+                            then let
+                                TyAppT (DatatypeT id) (TypeVarT tyvarName) = tArg'
+                                (res, tRes'') = allTyclass tRes'
+                                classNameRegex = mkRegex $ tyclassPrefix ++ "([a-zA-Z]*)"
+                                className = subRegex classNameRegex id "\\1"
+                                constraint = className ++ " " ++ tyvarName
+                                in (constraint : res, tRes'')
+                            else ([], tt)
+                    _ -> ([], tt)
                 (constraints, t') = allTyclass t
                 in "(" ++ intercalate ", " constraints ++ ") => " ++ showGoal t'
             | otherwise = x ++ ": " ++ showGoal tArg ++ " -> " ++ showGoal tRes

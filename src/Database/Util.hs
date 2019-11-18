@@ -28,8 +28,8 @@ defaultLibrary = concat [
   defaultTypeclassInstances
   ]
 
-pairTy = TyAppT (TyAppT (DatatypeT "Pair" KnSec) (TypeVarT "a")) (TypeVarT "b")
-listTy = TyAppT (DatatypeT "List" KnFst) (TypeVarT "a")
+pairTy = TyAppT (TyAppT (DatatypeT "Pair") (TypeVarT "a")) (TypeVarT "b")
+listTy = TyAppT (DatatypeT "List") (TypeVarT "a")
 
 defaultFuncs = [
     Pos (initialPos "fst") $ FuncDecl "fst" (
@@ -41,15 +41,15 @@ defaultFuncs = [
 defaultDts = [
   defaultList, defaultPair, defaultUnit,
   defaultInt, defaultBool, defaultChar,
-  defaultFloat, defaultDouble, defaultTyApp, defaultFun]
+  defaultFloat, defaultDouble]
 
-defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
+defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [
     ConstructorSig "Nil" listTy
   , ConstructorSig "Cons" $ 
         FunctionT "x" (TypeVarT "a") (FunctionT "xs" listTy listTy)
   ]
 
-defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [] [
+defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [
     ConstructorSig "Pair" $ 
         FunctionT "x" (TypeVarT "a") $
         FunctionT "y" (TypeVarT "b") pairTy
@@ -88,6 +88,7 @@ defaultTypeclassInstances =
     , mkInstance "Ord" doubleType
     , mkInstance "Alternative" maybeType
     , mkInstance "Monad" maybeType
+    , mkInstance "Applicative" maybeType
     ]
 
 
@@ -96,19 +97,19 @@ mkInstance tyclassName instanceType = let
     instanceName = scalarName instanceType
     in Pos (initialPos "tcBuiltin") $
         FuncDecl (printf "%s0%s%s" tyclassInstancePrefix tyclassName instanceName) $ 
-            Monotype $ TyAppT (DatatypeT (tyclassPrefix ++ tyclassName) KnStar) instanceType
+            Monotype $ TyAppT (DatatypeT (tyclassPrefix ++ tyclassName)) instanceType
 
 listInstance :: String -> Declaration
 listInstance tyclassName = let
     instanceType = mkTyVar "a"
-    listInstance = TyAppT (DatatypeT "List" KnFst) instanceType
+    listInstance = TyAppT (DatatypeT "List") instanceType
     listInstanceName = longScalarName listInstance
     instanceName = longScalarName instanceType
     in Pos (initialPos "tcBuiltin") $
         FuncDecl (printf "%s0%s%s" tyclassInstancePrefix tyclassName listInstanceName) $ 
             Monotype $
                 FunctionT "tc" instanceType $
-                    TyAppT (DatatypeT (tyclassPrefix ++ tyclassName) KnStar) listInstance
+                    TyAppT (DatatypeT (tyclassPrefix ++ tyclassName)) listInstance
 
 mkTyVar = TypeVarT
 
@@ -120,9 +121,11 @@ floatType = DatatypeT "Float"
 doubleType = DatatypeT "Double"
 unitType = DatatypeT "Unit"
 
-defaultInt = Pos (initialPos "Int") $ DataDecl "Int" [] [] []
-defaultBool = Pos (initialPos "Bool") $ DataDecl "Bool" [] [] []
-defaultChar = Pos (initialPos "Char") $ DataDecl "Char" [] [] []
-defaultFloat = Pos (initialPos "Float") $ DataDecl "Float" [] [] []
-defaultDouble = Pos (initialPos "Double") $ DataDecl "Double" [] [] []
-defaultUnit = Pos (initialPos "Unit") $ DataDecl "Unit" [] [] []
+maybeType = DatatypeT "Maybe"
+
+defaultInt = Pos (initialPos "Int") $ DataDecl "Int" [] []
+defaultBool = Pos (initialPos "Bool") $ DataDecl "Bool" [] []
+defaultChar = Pos (initialPos "Char") $ DataDecl "Char" [] []
+defaultFloat = Pos (initialPos "Float") $ DataDecl "Float" [] []
+defaultDouble = Pos (initialPos "Double") $ DataDecl "Double" [] []
+defaultUnit = Pos (initialPos "Unit") $ DataDecl "Unit" [] []

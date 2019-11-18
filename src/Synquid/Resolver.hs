@@ -3,10 +3,8 @@
 -- | Functions for processing the AST created by the Parser (eg filling in unknown types, verifying that refinement formulas evaluate to a boolean, etc.)
 module Synquid.Resolver (
     resolveDecls
-  , addAllVariables
   , substituteTypeSynonym
   , ResolverState (..)
-  , instantiateSorts
   , initResolverState
   , resolveSchema) where
 
@@ -15,7 +13,7 @@ import Synquid.Pretty
 import Synquid.Program
 import Synquid.Type
 import Synquid.Util
-import Types.Common hiding (varName)
+import Types.Common
 import Types.Generate
 import Types.Environment
 import Types.Program
@@ -66,9 +64,6 @@ resolveDecls declarations moduleNames =
             currentPosition .= pos
             pass decl
 
-addAllVariables :: [Formula] -> Environment -> Environment
-addAllVariables = flip (foldr (\(Var s x) -> addVariable x (fromSort s)))
-
 {- Implementation -}
 
 type Resolver a = StateT ResolverState (Except ErrorMessage) a
@@ -78,13 +73,9 @@ throwResError descr = do
     throwError $ ErrorMessage ResolutionError pos descr
 
 resolveDeclaration :: BareDeclaration -> Resolver ()
-resolveDeclaration (TypeDecl typeName typeVars typeBody) = do
+resolveDeclaration (TypeDecl typeSynonym typeBody) = do
     typeBody' <- resolveType typeBody
-    let extraTypeVars = typeVarsOf typeBody' Set.\\ Set.fromList typeVars
-    if Set.null extraTypeVars
-        then environment %= addTypeSynonym typeName typeVars typeBody'
-        else throwResError (text "Type variable(s)" <+> hsep (map text $ Set.toList extraTypeVars) <+>
-                text "in the definition of type synonym" <+> text typeName <+> text "are undefined")
+    environment %= addTypeSynonym typeSynonym typeBody'
 resolveDeclaration (FuncDecl funcName typeSchema) = addNewSignature funcName typeSchema
 resolveDeclaration (DataDecl dtName tParams ctors) = do
     let
@@ -93,20 +84,13 @@ resolveDeclaration (DataDecl dtName tParams ctors) = do
         _constructors = map constructorName ctors
         }
     environment %= addDatatype dtName datatype
-    mapM_ (\(ConstructorSig name typ) -> addNewSignature name typ) ctors
+    mapM_ (\(ConstructorSig name typ) -> addNewSignature name $ Monotype typ) ctors
 resolveDeclaration (SynthesisGoal name impl) = do
     syms <- uses environment allSymbols
     pos <- use currentPosition
     if Map.member name syms
         then goals %= (++ [(name, (impl, pos))])
         else throwResError (text "No specification found for synthesis goal" <+> text name)
-resolveDeclaration (MutualDecl names) = mapM_ addMutuals names
-    where
-        addMutuals name = do
-        goalMb <- uses goals (lookup name)
-        case goalMb of
-            Just _ -> mutuals %= Map.insert name (delete name names)
-            Nothing -> throwResError (text "Synthesis goal" <+> text name <+> text "in a mutual clause is undefined")
 
 resolveSignatures :: BareDeclaration -> Resolver ()
 resolveSignatures (FuncDecl name _)  = do
@@ -116,19 +100,14 @@ resolveSignatures (FuncDecl name _)  = do
     environment %= addPolyConstant name sch'
 resolveSignatures (DataDecl dtName tParams ctors) = mapM_ resolveConstructorSignature ctors
     where
-        resolveKind i
-            | i == 0 = KnStar
-            | i > 0 = KnArr KnStar (resolveKind (i - 1))
         resolveConstructorSignature (ConstructorSig name _) = do
             sch <- uses environment ((Map.! name) . allSymbols)
             sch' <- resolveSchema sch
-            let kn = resolveKind (length tParams)
-            let nominalType = foldr TyAppT (DatatypeT dtName kn) (map TypeVarT tParams)
+            let nominalType = foldl' TyAppT (DatatypeT dtName) (map TypeVarT tParams)
             let returnType = lastType (toMonotype sch')
             if nominalType == returnType
                 then environment %= addPolyConstant name sch'
                 else throwResError (commaSep [text "Constructor" <+> text name <+> text "must return type" <+> pretty nominalType, text "got" <+> pretty returnType])
-resolveSignatures (MeasureDecl measureName _ _ post defCases _) = error "measurewhat"
 resolveSignatures _                      = return ()
 
 {- Types -}
@@ -144,26 +123,31 @@ resolveSchema sch = do
         resolveSchema' (Monotype t) = Monotype <$> resolveType t
 
 resolveType :: TypeSkeleton -> Resolver TypeSkeleton
-resolveType t@(TypeVarT v k) = do
-    return t
-resolveType (DatatypeT name) = do
+resolveType t@(TypeVarT v) = return t
+resolveType t@(DatatypeT name) = do
     ds <- use $ environment . datatypes
     case Map.lookup name ds of
-        Nothing -> substituteTypeSynonym name >>= resolveType -- type synonyms should be substituted before this checking
+        Nothing -> do
+            trySynonym <- substituteTypeSynonym t
+            case trySynonym of
+                Nothing -> throwResError $ text name <+> text "is not a defined datatype"
+                Just t' -> resolveType t'
         Just (DatatypeDef tParams _) -> return $ DatatypeT name
-resolveType (TyAppT tFun tArg) = do
-    f <- resolveType tFun
-    a <- resolveType tArg
-    return $ TyAppT f a
+resolveType t@(TyAppT tFun tArg) = do
+    trySynonym <- substituteTypeSynonym t
+    case trySynonym of
+        Nothing -> do
+            f <- resolveType tFun
+            a <- resolveType tArg
+            return $ TyAppT f a
+        Just t' -> resolveType t'
 resolveType (TyFunT tArg tRes) = do
     a <- resolveType tArg
     r <- resolveType tRes
     return $ TyFunT a r
 resolveType (FunctionT x tArg tRes) =
-    if x == valueVarName
-        then throwResError $ text valueVarName <+> text "is a reserved variable name"
-        else if x == dontCare
-        then error $ unwords ["resolveType: blank in function type", show (FunctionT x tArg tRes)] -- Should never happen
+    if x == varName
+        then throwResError $ text varName <+> text "is a reserved variable name"
         else do
             tArg' <- resolveType tArg
             tRes' <- withLocalEnv $ do
@@ -181,9 +165,7 @@ addNewSignature name sch = do
 
 substituteTypeSynonym name = do
     tss <- use $ environment . typeSynonyms
-    case Map.lookup name tss of
-        Nothing -> throwResError $ text "Datatype or synonym" <+> text name <+> text "is undefined"
-        Just (tVars, t) -> return t
+    return $ Map.lookup name tss 
 
 -- | Perform an action and restore the initial environment
 withLocalEnv :: Resolver a -> Resolver a

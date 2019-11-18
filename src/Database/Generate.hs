@@ -16,7 +16,7 @@ import GHC.Generics
 import Control.Monad.Extra
 import Types.Type (SchemaSkeleton(..), TypeSkeleton(..))
 import Types.Generate
-import Synquid.Type (isFunctionType, lastType, toMonotype, shape, arity)
+import Synquid.Type (isFunctionType, lastType, toMonotype, arity)
 import qualified Synquid.Program as SP
 import Synquid.Pretty
 

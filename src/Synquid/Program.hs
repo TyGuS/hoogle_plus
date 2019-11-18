@@ -39,7 +39,7 @@ uHole = untyped PHole
 isHole (Program PHole _) = True
 isHole _ = False
 
-eraseTypes :: RProgram -> UProgram
+eraseTypes :: TProgram -> UProgram
 eraseTypes = fmap (const AnyT)
 
 symbolName (Program (PSymbol name) _) = name
@@ -57,17 +57,13 @@ hasHole (Program p _) = case p of
   PHole -> True
   _ -> False
 
-errorProgram = Program PErr (vart dontCare ftrue)
-isError (Program PErr _) = True
-isError _ = False
-
 {- Top-level definitions -}
 -- | All symbols in an environment
-allSymbols :: Environment -> Map Id RSchema
+allSymbols :: Environment -> Map Id SchemaSkeleton
 allSymbols env = env ^. symbols
 
 -- | 'lookupSymbol' @name env@ : type of symbol @name@ in @env@, including built-in constants
-lookupSymbol :: Id -> Int -> Environment -> Maybe RSchema
+lookupSymbol :: Id -> Int -> Environment -> Maybe SchemaSkeleton
 lookupSymbol name a env = Map.lookup name (allSymbols env)
 
 -- | 'isBound' @tv env@: is type variable @tv@ bound in @env@?
@@ -80,7 +76,7 @@ addArgument name t = (arguments %~ Map.insert name (Monotype t))
 addVariable :: Id -> TypeSkeleton -> Environment -> Environment
 addVariable name t = addPolyVariable name (Monotype t)
 
-addPolyVariable :: Id -> RSchema -> Environment -> Environment
+addPolyVariable :: Id -> SchemaSkeleton -> Environment -> Environment
 addPolyVariable name sch = symbols %~ Map.insert name sch
 
 -- | 'addConstant' @name t env@ : add type binding @name@ :: Monotype @t@ to @env@
@@ -99,8 +95,8 @@ removeVariable name env = case Map.lookup name (allSymbols env) of
   Nothing -> env
   Just sch -> over symbols (Map.delete name) . over constants (Set.delete name) $ env
 
-addTypeSynonym :: Id -> [Id] -> TypeSkeleton -> Environment -> Environment
-addTypeSynonym name tvs t = over typeSynonyms (Map.insert name (tvs, t))
+addTypeSynonym :: TypeSkeleton -> TypeSkeleton -> Environment -> Environment
+addTypeSynonym syn t = over typeSynonyms (Map.insert syn t)
 
 -- | 'addDatatype' @name env@ : add datatype @name@ to the environment
 addDatatype :: Id -> DatatypeDef -> Environment -> Environment

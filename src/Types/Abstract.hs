@@ -15,7 +15,7 @@ import Data.Hashable
 
 data AbstractSkeleton =
       ATypeVarT Id
-    | ADatatypeT Id Kind
+    | ADatatypeT Id
     | ATyAppT AbstractSkeleton AbstractSkeleton
     | ATyFunT AbstractSkeleton AbstractSkeleton
     | AFunctionT AbstractSkeleton AbstractSkeleton

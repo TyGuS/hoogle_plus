@@ -48,7 +48,7 @@ toErrorMessage err = ErrorMessage ParseError (errorPos err)
 {- Lexical analysis -}
 
 opNames :: [String]
-opNames = Map.elems unOpTokens ++ (Map.elems binOpTokens \\ keywords) ++ otherOps
+opNames = otherOps
 
 opStart :: [Char]
 opStart = nub (map head opNames)
@@ -98,11 +98,10 @@ parseDeclaration = attachPosBefore $
 parseTypeDecl :: Parser BareDeclaration
 parseTypeDecl = do
     reserved "type"
-    typeName <- parseTypeName
-    typeVars <- many parseIdentifier
+    typeName <- parseType
     reservedOp "="
     typeDef <- parseType
-    return $ TypeDecl typeName typeVars typeDef
+    return $ TypeDecl typeName typeDef
 
 fixArgName :: Int -> TypeSkeleton -> TypeSkeleton
 fixArgName _ typ = let (_, res) = fixArgName' 0 typ in res
@@ -155,7 +154,7 @@ parseTCName = do
     name <- parseTypeName
     typeArgs <- many (sameOrIndented >> parseArgType)
     let typeName = tyclassPrefix ++ name
-    return $ foldr TyAppT (DatatypeT typeName) typeArgs
+    return $ foldl' TyAppT (DatatypeT typeName) typeArgs
 
 parseTypeclasses :: Parser (TypeSkeleton -> TypeSkeleton)
 parseTypeclasses = do
@@ -201,7 +200,6 @@ parseArgType = choice [
 parseTypeAtom :: Parser TypeSkeleton
 parseTypeAtom = choice [
     try $ parens parseType,
-    parseScalarRefType,
     parseUnrefTypeNoArgs,
     parseListType,
     parsePairType
@@ -214,12 +212,12 @@ parseUnrefTypeNoArgs = choice [
 parseUnrefTypeWithArgs = do
     name <- parseTypeName
     typeArgs <- many (sameOrIndented >> parseTypeAtom)
-    return $ foldr TyAppT (DatatypeT name) typeArgs
+    return $ foldl' TyAppT (DatatypeT name) typeArgs
 
 parseUnrefHkType = do
     hkArg <- parseIdentifier
     args <- many1 (sameOrIndented >> parseTypeAtom)
-    return $ foldr TyAppT (TypeVarT hkArg) (map TypeVarT args)
+    return $ foldl' TyAppT (TypeVarT hkArg) args
 
 parseScalarUnrefType = parseUnrefTypeWithArgs <|> parseUnrefTypeNoArgs
 
@@ -234,28 +232,10 @@ parsePairType = do
         mkPair t p = TyAppT (TyAppT (DatatypeT "Pair") p) t
         initial (x:y:_) = TyAppT (TyAppT (DatatypeT "Pair") x) y
 
-{- Formulas -}
-
--- | Expression table
-exprTable mkUnary mkBinary withGhost = [
-    [unary Not, unary Neg],
-    [binary Times AssocLeft],
-    [binary Plus AssocLeft, binary Minus AssocLeft],
-    [binary Eq AssocNone, binary Neq AssocNone, binary Le AssocNone, binary Lt AssocNone, binary Ge AssocNone, binary Gt AssocNone]
-        ++ if withGhost then [binaryWord Member AssocNone] else [],
-    [binary And AssocLeft, binary Or AssocLeft],
-    [binary Implies AssocRight, binary Iff AssocRight]]
-    where
-        unary op = Prefix (reservedOp (unOpTokens Map.! op) >> return (mkUnary op))
-        binary op assoc = Infix (reservedOp (binOpTokens Map.! op) >> return (mkBinary op)) assoc
-        binaryWord op assoc = Infix (reserved (binOpTokens Map.! op) >> return (mkBinary op)) assoc
-
 {- Implementations -}
 
 parseImpl :: Parser UProgram
-parseImpl = withPos (parseError <|> parseFun <|> parseETerm)
-
-parseError = reserved "error" >> return (untyped PErr)
+parseImpl = withPos (parseFun <|> parseETerm)
 
 parseFun = do
     reservedOp "\\"
@@ -264,10 +244,8 @@ parseFun = do
     body <- parseImpl
     return $ untyped $ PFun x body
 
-parseETerm = buildExpressionParser (exprTable mkUnary mkBinary False) (choice [parseAppTerm, parseAtomTerm]) <?> "elimination term"
+parseETerm = choice [parseAppTerm, parseAtomTerm] <?> "elimination term"
     where
-        mkUnary op p = untyped $ PApp (unOpTokens Map.! op) [p]
-        mkBinary op p1 p2 = untyped $ PApp (binOpTokens Map.! op) [p1, p2]
         parseAppTerm = do
             f <- parseIdentifier
             args <- many (sameOrIndented >> (try parseAtomTerm <|> parens parseImpl))
@@ -304,7 +282,7 @@ parseIdentifier = try $ do
     name <- identifier
     if isTypeName name
         then unexpected ("capitalized " ++ show name)
-        else if name == dontCare then unexpected ("blank") else return name
+        else return name
 
 parseIdentifierOrBlank :: Parser Id
 parseIdentifierOrBlank = try $ do

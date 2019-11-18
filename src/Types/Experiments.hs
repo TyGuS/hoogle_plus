@@ -65,7 +65,7 @@ data TimeStatistics = TimeStatistics {
   numOfTransitions :: Map Int Int,
   numOfPlaces :: Map Int Int,
   duplicateSymbols :: [(Int, Int, Int)]
-} deriving(Show, Eq)
+} deriving(Eq)
 
 emptyTimeStats = TimeStatistics 0 0 0 0 0 0 0 0 0 Map.empty Map.empty []
 
@@ -116,7 +116,7 @@ data ExperimentCourse
 
 data Message
   = MesgClose CloseStatus
-  | MesgP (RProgram, TimeStatistics) -- Program with the stats associated with generating it
+  | MesgP (TProgram, TimeStatistics) -- Program with the stats associated with generating it
   | MesgS TimeStatistics
   | MesgLog Int String String -- Log level, tag, message
 

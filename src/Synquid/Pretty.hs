@@ -48,10 +48,7 @@ module Synquid.Pretty (
   prettySolution,
   -- * Highlighting
   plain,
-  errorDoc,
-  -- * Counting
-  typeNodeCount,
-  programNodeCount
+  errorDoc
 ) where
 
 import Types.Environment
@@ -60,7 +57,7 @@ import Types.Common
 import Types.Type
 import Types.Program
 import Types.Encoder
-
+import Types.Experiments
 import Synquid.Type
 import Synquid.Error
 import Synquid.Program
@@ -149,82 +146,6 @@ hlBrackets = enclose (parenDoc lbracket) (parenDoc rbracket)
 
 condHlParens b doc = if b then hlParens doc else doc
 
-{- Formulas -}
-
-instance Pretty Sort where
-  pretty IntS = text "Int"
-  pretty BoolS = text "Bool"
-  pretty (SetS el) = text "Set" <+> pretty el
-  pretty (VarS name) = text name
-  pretty (DataS name args) = text name <+> hsep (map (hlParens . pretty) args)
-  pretty AnyS = operator "?"
-
-instance Show Sort where
-  show = show . plain . pretty
-
-instance Pretty PredSig where
-  pretty (PredSig p argSorts resSort) = hlAngles $ text p <+> text "::" <+> hsep (map (\s -> pretty s <+> text "->") argSorts) <+> pretty resSort
-
-instance Pretty UnOp where
-  pretty op = operator $ unOpTokens Map.! op
-
-instance Show UnOp where
-  show = show . plain . pretty
-
-instance Pretty BinOp where
-  pretty op = operator $ binOpTokens Map.! op
-
-instance Show BinOp where
-  show = show . plain . pretty
-
--- | Binding power of a formula
-power :: Formula -> Int
-power (Pred _ _ []) = 10
-power (Cons _ _ []) = 10
-power Pred {} = 9
-power Cons {} = 9
-power Unary {} = 8
-power (Binary op _ _)
-  | op `elem` [Times, Intersect] = 7
-  | op `elem` [Plus, Minus, Union, Diff] = 6
-  | op `elem` [Eq, Neq, Lt, Le, Gt, Ge, Member, Subset] = 5
-  | op `elem` [And, Or] = 4
-  | op `elem` [Implies] = 3
-  | op `elem` [Iff] = 2
-power All {} = 1
-power Ite {} = 1
-power _ = 10
-
--- | Pretty-printed formula
-fmlDoc :: Formula -> Doc
-fmlDoc = fmlDocAt 0
-
--- | 'fmlDocAt' @n fml@ : print @expr@ in a context with binding power @n@
-fmlDocAt :: Int -> Formula -> Doc
-fmlDocAt n fml = condHlParens (n' <= n) (
-  case fml of
-    BoolLit b -> pretty b
-    IntLit i -> intLiteral i
-    SetLit s elems -> withSort (SetS s) (hlBrackets $ commaSep $ map fmlDoc elems)
-    SetComp (Var s x) e -> withSort (SetS s) (hlBrackets $ text x <> operator "|" <> pretty e)
-    Var s name -> withSort s $ if name == valueVarName then special name else text name
-    Unknown s name -> if Map.null s then text name else hMapDoc pretty pretty s <> text name
-    Unary op e -> pretty op <> fmlDocAt n' e
-    Binary op e1 e2 -> fmlDocAt n' e1 <+> pretty op <+> fmlDocAt n' e2
-    Ite e0 e1 e2 -> keyword "if" <+> fmlDoc e0 <+> keyword "then" <+> fmlDoc e1 <+> keyword "else" <+> fmlDoc e2
-    Pred b name args -> withSort b $ text name <+> hsep (map (fmlDocAt n') args)
-    Cons b name args -> withSort b $ hlParens (text name <+> hsep (map (fmlDocAt n') args))
-    All x e -> keyword "forall" <+> pretty x <+> operator "." <+> fmlDoc e
-  )
-  where
-    n' = power fml
-    withSort s doc = doc -- <> text ":" <> pretty s
-
-instance Pretty Formula where pretty = fmlDoc
-
-instance Show Formula where
-  show = show . plain . pretty
-
 instance Pretty a => Pretty (Set a) where
   pretty = pretty . Set.toList
 
@@ -233,12 +154,6 @@ instance (Pretty k, Pretty v) => Pretty (Map k v) where
 
 instance (Pretty k, Pretty v) => Pretty (HashMap k v) where
   pretty = pretty . HashMap.toList
-
-instance Pretty QSpace where
-  pretty space = braces $ commaSep $ map pretty $ view qualifiers space
-
-instance Show QSpace where
-  show = show . plain . pretty
 
 {- Types -}
 
@@ -262,13 +177,13 @@ prettyTypeAt :: Int -> TypeSkeleton -> Doc
 prettyTypeAt n t = condHlParens (n' <= n) (
     case t of
         TypeVarT v -> pretty v
-        DatatypeT dt k -> pretty dt <+> operator "::" <+> prettyType k
-        TyAppT (DatatypeT "List" _) tArg -> hlBrackets $ prettyType tArg
-        TyAppT (TyAppT (DatatypeT "Pair" _) t1) t2 -> hlParens $ prettyType t1 <+> operator "," <+> prettyType t2
-        TyAppT tFun tArg -> pretty tFun <+> pretty tArg
+        DatatypeT dt -> pretty dt
+        TyAppT (DatatypeT "List") tArg -> hlBrackets $ prettyType tArg
+        TyAppT (TyAppT (DatatypeT "Pair") t1) t2 -> hlParens $ prettyType t1 <+> operator "," <+> prettyType t2
+        TyAppT tFun tArg -> hlParens $ pretty tFun <+> pretty tArg
         TyFunT tArg tRes -> hlParens (pretty tArg <+> operator "->" <+> pretty tRes)
         AnyT -> text "_"
-        FunctionT x t1 t2 -> hlParens (prettyTypeAt n' t1 <+> operator "->" <+> prettyTypeAt 0 t2)
+        FunctionT x t1 t2 -> prettyTypeAt n' t1 <+> operator "->" <+> prettyTypeAt 0 t2
         BotT -> text "⊥"
     )
     where
@@ -293,7 +208,7 @@ prettyProgram (Program p typ) = case p of
     PSymbol "Cons" -> text "(:)"
     PSymbol "Pair" -> text "(,)"
     PSymbol s -> case asInteger s of
-                  Nothing -> if s == valueVarName then special s else text s
+                  Nothing -> if s == varName then special s else text s
                   Just n -> intLiteral n
     PApp f x -> let
       optParens p = case p of
@@ -305,12 +220,9 @@ prettyProgram (Program p typ) = case p of
                   "Pair" -> "(,)"
                   _      -> f
       prefix = hang tab $ text funName <+> hsep (map optParens x)
-      in if f `elem` Map.elems unOpTokens
-            then hang tab $ operator f <+> hsep (map optParens x)
-            else prefix
+      in prefix
     PFun x e -> nest 2 $ operator "\\" <> text x <+> operator "->" </> prettyProgram e
-    PHole -> if show (pretty typ) == dontCare then operator "??" else hlParens $ operator "?? ::" <+> pretty typ
-    PErr -> keyword "error"
+    PHole -> hlParens $ operator "?? ::" <+> pretty typ
   where
     withType doc t = doc -- <> text ":" <+> pretty t
 
@@ -341,16 +253,13 @@ prettySolution (Goal name _ _ _ _ _) prog = text name <+> operator "=" </> prett
 instance Pretty ConstructorSig where
   pretty (ConstructorSig name t) = text name <+> text "::" <+> pretty t
 
-prettyVarianceParam (predSig, contra) = pretty predSig <> (if contra then pretty Not else empty)
-
 instance Pretty BareDeclaration where
-  pretty (TypeDecl name tvs t) = keyword "type" <+> text name <+> hsep (map text tvs) <+> operator "=" <+> pretty t
+  pretty (TypeDecl syn t) = keyword "type" <+> pretty syn <+> operator "=" <+> pretty t
   pretty (FuncDecl name t) = text name <+> operator "::" <+> pretty t
-  pretty (DataDecl name tParams pParams ctors) = hang tab $
-    keyword "data" <+> text name <+> hsep (map text tParams) <+> hsep (map prettyVarianceParam pParams) <+> keyword "where"
+  pretty (DataDecl name tParams ctors) = hang tab $
+    keyword "data" <+> text name <+> hsep (map text tParams) <+> keyword "where"
     $+$ vsep (map pretty ctors)
   pretty (SynthesisGoal name impl) = text name <+> operator "=" <+> pretty impl
-  pretty (MutualDecl names) = keyword "mutual" <+> commaSep (map text names)
 
 instance Show BareDeclaration where
   show = show . plain . pretty
@@ -407,15 +316,11 @@ lfill w d        = case renderCompact d of
   spaces n | n <= 0    = empty
            | otherwise = text $ replicate n ' '
 
-instance Pretty AbstractBase where
-    pretty (ATypeVarT id) = text id
-    pretty (ADatatypeT id args) = text id <+> hsep (map pretty args)
-
-instance Show AbstractBase where
-    show = show . plain . pretty
-
 instance Pretty AbstractSkeleton where
-    pretty (AScalar b) = pretty b
+    pretty (ATypeVarT b) = pretty b
+    pretty (ADatatypeT id) = pretty id
+    pretty (ATyFunT tArg tRes) = hlParens (text "Fun" <+> pretty tArg <+> pretty tRes)
+    pretty (ATyAppT tFun tArg) = hlParens (pretty tFun <+> pretty tArg)
     pretty (AFunctionT tArg tRet) = hlParens (pretty tArg <+> operator "→" <+> pretty tRet)
     pretty ABottom = text "⊥"
 
@@ -436,4 +341,19 @@ instance Pretty FunctionCode where
         $+$ text "return types:" <+> hlBrackets (commaSep (map pretty rets)))
 
 instance Show FunctionCode where
+    show = show . plain . pretty
+
+instance Pretty TimeStatistics where
+  pretty (TimeStatistics et ct st cft rt tct ttt iter len ntr npl dsym) =
+      (text "Encoding time:" <+> pretty et)
+    $+$ (text "Solver time:" <+> pretty st)
+    $+$ (text "Refine time:" <+> pretty rt)
+    $+$ (text "Checker time:" <+> pretty tct)
+    $+$ (text "Total time:" <+> pretty ttt)
+    $+$ (text "Path length:" <+> pretty len)
+    $+$ (text "Transition #:" <+> text (show $ Map.elems ntr))
+    $+$ (text "Place #:" <+> text (show $ Map.elems npl))
+    $+$ (text "Duplicates:" <+> text (show $ dsym))
+  
+instance Show TimeStatistics where
     show = show . plain . pretty

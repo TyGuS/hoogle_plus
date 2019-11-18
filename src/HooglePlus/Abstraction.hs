@@ -18,6 +18,7 @@ import Data.List
 import Data.List.Extra
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Map (Map)
 import qualified Data.Map as Map
 import Control.Lens
 import qualified Data.Char as Char
@@ -25,38 +26,37 @@ import qualified Data.HashMap.Strict as HashMap
 import Text.Printf
 import Control.Monad.State
 
-firstLvAbs :: Environment -> [RSchema] -> AbstractCover
+firstLvAbs :: Environment -> [SchemaSkeleton] -> AbstractCover
 firstLvAbs env schs = Set.foldr (updateCover tvs) initCover dts
   where
     tvs = env ^. boundTypeVars
-    typs = map (shape . toMonotype) schs
+    typs = map toMonotype schs
     initCover = HashMap.singleton rootNode Set.empty
-    dts = Set.unions (map (allAbstractDts (env ^. boundTypeVars)) typs)
+    dts = Set.unions (map (allAbstractDts (env ^. boundTypeVars) (env ^. datatypes)) typs)
 
-allAbstractDts :: [Id] -> TypeSkeleton -> Set AbstractSkeleton
-allAbstractDts bound (TypeVarT v) | v `elem` bound = Set.singleton (ATypeVarT v)
-allAbstractDts bound (DatatypeT id k) = 
-    let (t, _) = fillDtArgs k 0
-    in Set.singleton (ATyAppT (ADatatypeT id k) t)
+allAbstractDts :: [Id] -> Map Id DatatypeDef -> TypeSkeleton -> Set AbstractSkeleton
+allAbstractDts bound _ (TypeVarT v) | v `elem` bound = Set.singleton (ATypeVarT v)
+allAbstractDts bound dts (DatatypeT id) = 
+    let kind = case Map.lookup id dts of
+                    Nothing -> error $ "Cannot find datatype " ++ id
+                    Just df -> length (df ^. typeParams)
+    in Set.singleton $ fillDtArgs (ADatatypeT id, kind)
     where
-        fillDtArgs (KnStar, i) = (ATypeVarT ("T" ++ show i), i+1)
-        fillDtArgs (KnArr k1 k2, i) = let
-            (t1, i') = fillDtArgs (k1, i)
-            (t2, i'') = fillDtArgs (k2, i')
-            in (ATyAppT t1 t2, i''+1)
-allAbstractDts bound (TyAppT tFun tArg) = funDts `Set.union` argDts
+        fillDtArgs (t, 0) = t
+        fillDtArgs (t, k) = fillDtArgs (ATyAppT t (ATypeVarT ("T" ++ show k)), k-1)
+allAbstractDts bound dts (TyAppT tFun tArg) = funDts `Set.union` argDts
     where
-        funDts = allAbstractDts bound tFun
-        argDts = allAbstractDts bound tArg
-allAbstractDts bound (TyFunT tArg tRes) = argDts `Set.union` resDts
+        funDts = allAbstractDts bound dts tFun
+        argDts = allAbstractDts bound dts tArg
+allAbstractDts bound dts (TyFunT tArg tRes) = argDts `Set.union` resDts
     where
-        argDts = allAbstractDts bound tArg
-        resDts = allAbstractDts bound tRes
-allAbstractDts bound (FunctionT _ tArg tRes) = argDts `Set.union` resDts
+        argDts = allAbstractDts bound dts tArg
+        resDts = allAbstractDts bound dts tRes
+allAbstractDts bound dts (FunctionT _ tArg tRes) = argDts `Set.union` resDts
     where
-        argDts = allAbstractDts bound tArg
-        resDts = allAbstractDts bound tRes
-allAbstractDts _ _ = Set.empty
+        argDts = allAbstractDts bound dts tArg
+        resDts = allAbstractDts bound dts tRes
+allAbstractDts _ _ _ = Set.empty
 
 -- Produce the most specific abstraction possible from the given types.
 specificAbstractionFromTypes :: Environment -> [SchemaSkeleton] -> AbstractCover

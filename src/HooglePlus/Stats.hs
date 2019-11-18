@@ -60,7 +60,3 @@ printStats = do
     liftIO $ putStrLn ("Number of transitions: " ++ show (map snd (Map.toAscList (numOfTransitions stats))))
     liftIO $ putStrLn ("Solution Depth: " ++ show depth)
     liftIO $ putStrLn "********************END STATISTICS****************************"
-
-
-printTime :: TimeStatistics -> IO ()
-printTime = pPrint

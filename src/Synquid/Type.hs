@@ -40,13 +40,13 @@ hasAny (FunctionT _ tArg tRes) = hasAny tArg || hasAny tRes
 hasAny _ = False
 
 scalarName :: TypeSkeleton -> String
-scalarName (DatatypeT name _) = name
+scalarName (DatatypeT name) = name
 scalarName (TypeVarT name) = name
 scalarName t = error $ "scalarName error: cannot be applied to nonscalar type "
 
-allDatatypes :: TypeSkeleton -> [String]
+allDatatypes :: TypeSkeleton -> Set String
 allDatatypes (FunctionT _ tArg tRet) = allDatatypes tArg `Set.union` allDatatypes tRet
-allDatatypes (DatatypeT id _) = Set.singleton id
+allDatatypes (DatatypeT id) = Set.singleton id
 allDatatypes (TypeVarT id) = Set.empty
 allDatatypes (TyAppT tFun tArg) = allDatatypes tFun `Set.union` allDatatypes tArg
 allDatatypes (TyFunT tArg tRes) = allDatatypes tArg `Set.union` allDatatypes tRes
@@ -55,19 +55,13 @@ arity :: TypeSkeleton -> Int
 arity (FunctionT _ _ t) = 1 + arity t
 arity _ = 0
 
-kindOf :: TypeSkeleton -> Kind
-kindOf (TyAppT _ _ k) = k
-kindOf (TypeVarT _ k) = k
-kindOf (DatatypeT _ k) = k
-kindOf _ = KnStar
-
 argKind :: Kind -> Kind
-argKind (TyArr k _) = k
+argKind (KnArr k _) = k
 argKind _ = error "Cannot get the kind arg from non-arrow kind"
 
 retKind :: Kind -> Kind
-retKind (TyArr _ k) = k
-argKind _ = error "Cannot get the kind ret from non-arrow kind"
+retKind (KnArr _ k) = k
+retKind _ = error "Cannot get the kind ret from non-arrow kind"
 
 mkKind :: Int -> Kind
 mkKind 0 = KnStar
@@ -90,18 +84,17 @@ allBaseTypes _ = error "allBaseTypes: applied to unsupported types"
 
 -- | Polymorphic type skeletons (parametrized by refinements)
 
-toMonotype :: SchemaSkeleton r -> TypeSkeleton r
+toMonotype :: SchemaSkeleton -> TypeSkeleton
 toMonotype (Monotype t) = t
 toMonotype (ForallT _ t) = toMonotype t
 
-boundVarsOf :: SchemaSkeleton r -> [Id]
+boundVarsOf :: SchemaSkeleton -> [Id]
 boundVarsOf (ForallT a sch) = a : boundVarsOf sch
 boundVarsOf _ = []
 
 typeSubstitute :: Map Id TypeSkeleton -> TypeSkeleton -> TypeSkeleton
-typeSubstitute subst t@(TypeVarT id) 
-    | id `Map.member` subst = fromJust $ Map.lookup id subst
-    | otherwise = t
+typeSubstitute subst t@(TypeVarT id) | id `Map.member` subst = 
+    fromJust $ Map.lookup id subst
 typeSubstitute subst (TyAppT tFun tArg) = TyAppT tFun' tArg'
     where
         tFun' = typeSubstitute subst tFun
@@ -109,12 +102,12 @@ typeSubstitute subst (TyAppT tFun tArg) = TyAppT tFun' tArg'
 typeSubstitute subst (TyFunT tArg tRes) = TyFunT tArg' tRes'
     where
         tArg' = typeSubstitute subst tArg
-        tRes' = typeSUbstitute subst tRes
+        tRes' = typeSubstitute subst tRes
 typeSubstitute subst (FunctionT x tArg tRes) = FunctionT x tArg' tRes'
     where
         tArg' = typeSubstitute subst tArg
         tRes' = typeSubstitute subst tRes
-stypeSubstitute subst t = t
+typeSubstitute subst t = t
 
 -- | 'typeVarsOf' @t@ : all type variables in @t@
 typeVarsOf :: TypeSkeleton -> Set Id
@@ -125,7 +118,7 @@ typeVarsOf (FunctionT _ tArg tRes) = typeVarsOf tArg `Set.union` typeVarsOf tRes
 typeVarsOf _ = Set.empty
 
 longScalarName :: TypeSkeleton -> String
-longScalarName (DatatypeT name _) = name ++ (concatMap longScalarName rs)
+longScalarName (DatatypeT name) = name
 longScalarName (TypeVarT name) = name
 longScalarName (TyAppT tFun _) = longScalarName tFun
 longScalarName t = error $ "longScalarName error: cannot be applied to nonscalar type "

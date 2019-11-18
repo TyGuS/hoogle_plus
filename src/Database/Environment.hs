@@ -82,7 +82,7 @@ generateEnv genOpts = do
     let declStrs = show (instanceFunctions ++ ourDecls)
     let removeParentheses = (\x -> LUtils.replace ")" "" $ LUtils.replace "(" "" x)
     let tcNames = nub $ map removeParentheses $ filter (\x -> isInfixOf tyclassPrefix x) (splitOn " " declStrs)
-    let tcDecls = map (\x -> Pos (initialPos "") $ TP.DataDecl x ["a"] [] []) tcNames
+    let tcDecls = map (\x -> Pos (initialPos "") $ TP.DataDecl x ["a"] []) tcNames
 
     let library = concat [ourDecls, dependencyEntries, instanceFunctions, tcDecls, defaultLibrary]
     let hooglePlusDecls = DC.reorderDecls $ nubOrd $ library
@@ -115,7 +115,7 @@ toFunType (ForallT x t) = ForallT x (toFunType t)
 toFunType (Monotype (FunctionT x tArg tRes)) = let
   tArg' = toMonotype $ toFunType $ Monotype tArg
   tRes' = toMonotype $ toFunType $ Monotype tRes
-  in Monotype $ ScalarT (TyFunT tArg' tRes')
+  in Monotype $ TyFunT tArg' tRes'
 toFunType t = t
 
 -- filesToEntries reads each file into map of module -> declartions

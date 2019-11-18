@@ -37,22 +37,19 @@ type TProgram = Program TypeSkeleton
 
 instance Serialize Environment
 instance Serialize DatatypeDef
-instance Serialize t => Serialize (Case t)
 instance Serialize t => Serialize (BareProgram t)
 instance Serialize t => Serialize (Program t)
-instance Serialize r => Serialize (TypeSkeleton r)
-instance Serialize r => Serialize (BaseType r)
-instance Serialize r => Serialize (SchemaSkeleton r)
+instance Serialize TypeSkeleton
+instance Serialize SchemaSkeleton
 
 -- | Constructor signature: name and type
 data ConstructorSig = ConstructorSig Id TypeSkeleton
   deriving (Eq, Ord)
 
 data BareDeclaration =
-  TypeDecl Id [Id] TypeSkeleton |                                  -- ^ Type name, variables, and definition
+  TypeDecl TypeSkeleton TypeSkeleton |                                  -- ^ Type name, variables, and definition
   FuncDecl Id SchemaSkeleton |                                     -- ^ Function name and signature
   DataDecl Id [Id] [ConstructorSig] |     -- ^ Datatype name, type parameters, and constructor definitions
-  MutualDecl [Id] |                                         -- ^ Mutual recursion group
   SynthesisGoal Id UProgram                                 -- ^ Name and template for the function to reconstruct
   deriving (Eq, Ord)
 

@@ -69,7 +69,7 @@ updateCover' bound t cover paren | isSubtypeOf bound paren t = cover'
         cover' = HashMap.insertWith Set.union t (Set.singleton paren) addedCurr
 updateCover' _ _ cover _ = cover
 
-propagate :: MonadIO m => Environment -> RProgram -> AbstractSkeleton -> PNSolver m ()
+propagate :: MonadIO m => Environment -> TProgram -> AbstractSkeleton -> PNSolver m ()
 -- | base case, when we reach the leaf of the AST
 propagate env p@(Program (PSymbol sym) t) upstream = do
     writeLog 3 "propagate" $ text "propagate" <+> pretty upstream <+> text "into" <+> pretty p
@@ -114,16 +114,16 @@ propagate env p@(Program (PApp f args) _) upstream = do
 -- | case for lambda functions
 propagate env (Program (PFun x body) (FunctionT _ tArg tRet))
               (AFunctionT atArg atRet) =
-    propagate (addVariable x (addTrue tArg) env) body atRet
+    propagate (addVariable x tArg env) body atRet
 propagate env (Program (PFun x body) t) (AFunctionT atArg atRet) = do
     id <- freshId "A"
-    let tArg = addTrue (ScalarT (TypeVarT Map.empty id) ())
-    propagate (addVariable x (addTrue tArg) env) body atRet
+    let tArg = (TypeVarT id)
+    propagate (addVariable x tArg env) body atRet
 propagate _ prog t = return ()
 
 -- bottom up check a program on the concrete type system
 -- at the same time, keep track of the abstract type for each node
-bottomUpCheck :: MonadIO m => Environment -> RProgram -> PNSolver m RProgram
+bottomUpCheck :: MonadIO m => Environment -> TProgram -> PNSolver m TProgram
 bottomUpCheck env p@(Program (PSymbol sym) typ) = do
     -- lookup the symbol type in current scope
     writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
@@ -164,7 +164,7 @@ bottomUpCheck env (Program (PApp f args) typ) = do
             (return $ Left checkedArg)
 bottomUpCheck env p@(Program (PFun x body) (FunctionT _ tArg tRet)) = do
     writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
-    body' <- bottomUpCheck (addVariable x tArg) env) body
+    body' <- bottomUpCheck (addVariable x tArg env) body
     let tBody = typeOf body'
     let t = FunctionT x tArg tBody
     ifM (gets $ view isChecked)
@@ -198,12 +198,12 @@ solveTypeConstraint env tv@(TypeVarT id) tv'@(TypeVarT id')
     tass <- gets (view typeAssignment)
     if id `Map.member` tass
         then do
-            let typ = fromJust $ Map.lookup id $ st ^. typeAssignment
+            let typ = fromJust $ Map.lookup id tass
             writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty typ <+> text "==" <+> pretty tv'
             solveTypeConstraint env typ tv'
         else if id' `Map.member` tass
             then do
-                let typ = fromJust $ Map.lookup id' $ st ^. typeAssignment
+                let typ = fromJust $ Map.lookup id' tass
                 writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tv <+> text "==" <+> pretty typ
                 solveTypeConstraint env tv typ
             else unify env id tv'
@@ -260,7 +260,7 @@ generalize bound t@(ATypeVarT id)
   | otherwise = do
     v <- lift $ freshId "T"
     return (ATypeVarT v) `mplus` return t
-generalize bound t@(ADatatypeT id k) = do
+generalize bound t@(ADatatypeT id) = do
     v <- lift $ freshId "T"
     return (ATypeVarT v) `mplus` return t
 generalize bound t@(ATyAppT tFun tArg) = do

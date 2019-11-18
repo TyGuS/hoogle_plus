@@ -67,7 +67,7 @@ def run_benchmark(name, query, opts, default_opts):
             print(Fore.RED + Style.BRIGHT + 'FAIL' + Style.RESET_ALL, end='\n')
             results[name] = SynthesisResult(name, (end - start), '-', '-', '-', '-', '-', '-')
         else: # Synthesis succeeded: code metrics from the output and record synthesis time
-            lastLines = os.popen("tail -n 12 %s" % LOGFILE).read().split('\n')
+            lastLines = os.popen("tail -n 11 %s" % LOGFILE).read().split('\n')
             solution = re.match(r"^SOLUTION: (.+)$", lastLines[0]).group(1)
             encoding_time = re.match(r"Encoding time: (\d+.*)$", lastLines[2]).group(1)
             solver_time = re.match(r"Solver time: (\d+.*)$", lastLines[3]).group(1)

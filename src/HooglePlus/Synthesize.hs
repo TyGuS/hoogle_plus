@@ -42,7 +42,7 @@ import Text.Parsec.Pos
 import Text.Printf (printf)
 
 
-updateEnvWithBoundTyVars :: RSchema -> Environment -> (Environment, TypeSkeleton)
+updateEnvWithBoundTyVars :: SchemaSkeleton -> Environment -> (Environment, TypeSkeleton)
 updateEnvWithBoundTyVars (Monotype ty) env = (env, ty)
 updateEnvWithBoundTyVars (ForallT x ty) env = updateEnvWithBoundTyVars ty (addTypeVar x env)
 

@@ -13,35 +13,7 @@ keywords = ["data", "else", "error", "False", "if", "in", "inline",
   "let", "match", "measure", "predicate", "qualifier", "termination",
   "then", "True", "type", "with", "where"
   ]
-
--- | Names of unary operators
-unOpTokens :: Map UnOp String
-unOpTokens = fromList [ (Neg, "-")
-                      , (Not, "!")
-                      ]
-
--- | Names of binary operators
-binOpTokens :: Map BinOp String
-binOpTokens = fromList [ (Times,     "*")
-                       , (Plus,      "+")
-                       , (Minus,     "-")
-                       , (Eq,        "==")
-                       , (Neq,       "!=")
-                       , (Lt,        "<")
-                       , (Le,        "<=")
-                       , (Gt,        ">")
-                       , (Ge,        ">=")
-                       , (And,       "&&")
-                       , (Or,        "||")
-                       , (Implies,   "==>")
-                       , (Iff,       "<==>")
-                       , (Union,     "+")
-                       , (Intersect, "*")
-                       , (Diff,      "-")
-                       , (Member,    "in")
-                       , (Subset,    "<=")
-                       ]
-
+  
 -- | Other operators
 otherOps :: [String]
 otherOps = ["::", ":", "->", "|", "=", "??", ",", ".", "\\"]

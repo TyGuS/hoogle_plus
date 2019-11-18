@@ -68,11 +68,6 @@ listDiff left right = Set.toList $ (Set.fromList left) `Set.difference` (Set.fro
 
 replaceId a b = Text.unpack . Text.replace (Text.pack a) (Text.pack b) . Text.pack
 
-var2any env t@(ScalarT (TypeVarT _ id) _) | isBound env id = t
-var2any env t@(ScalarT (TypeVarT _ id) _) = AnyT
-var2any env (ScalarT (DatatypeT id args l) r) = ScalarT (DatatypeT id (map (var2any env) args) l) r
-var2any env (FunctionT x tArg tRet) = FunctionT x (var2any env tArg) (var2any env tRet)
-
 freshId :: MonadIO m => Id -> PNSolver m Id
 freshId prefix = do
     indices <- gets (^. nameCounter)
@@ -81,12 +76,12 @@ freshId prefix = do
     return $ prefix ++ show idx
 
 -- | Replace all bound type variables with fresh free variables
-freshType :: MonadIO m => RSchema -> PNSolver m TypeSkeleton
+freshType :: MonadIO m => SchemaSkeleton -> PNSolver m TypeSkeleton
 freshType = freshType' Map.empty []
   where
     freshType' subst constraints (ForallT a sch) = do
         a' <- freshId "A"
-        freshType' (Map.insert a (vart a' ftrue) subst) (a':constraints) sch
+        freshType' (Map.insert a (TypeVarT a') subst) (a':constraints) sch
     freshType' subst constraints (Monotype t) = return (typeSubstitute subst t)
 
 freshAbstract :: MonadIO m => [Id] -> AbstractSkeleton -> PNSolver m AbstractSkeleton
@@ -102,18 +97,18 @@ freshAbstract bound t = do
             let t = ATypeVarT v
             return (Map.insert id t m, ATypeVarT v)
         freshAbstract' bound m (ATyAppT tFun tArg) = do
-            tFun' <- freshAbstract' bound m tFun
-            tArg' <- freshAbstract' bound m tArg
-            return (ATyAppT tFun' tArg')
+            (m', tFun') <- freshAbstract' bound m tFun
+            (m'', tArg') <- freshAbstract' bound m' tArg
+            return (m'', ATyAppT tFun' tArg')
         freshAbstract' bound m (ATyFunT tArg tRes) = do
-            tArg' <- freshAbstract' bound m tArg
-            tRes' <- freshAbstract' bound m tRes
-            return (ATyFunT tArg' tRes')
+            (m', tArg') <- freshAbstract' bound m tArg
+            (m'', tRes') <- freshAbstract' bound m' tRes
+            return (m'', ATyFunT tArg' tRes')
         freshAbstract' bound m (AFunctionT tArg tRes) = do
             (m', tArg') <- freshAbstract' bound m tArg
             (m'', tRes') <- freshAbstract' bound m' tRes
             return (m'', AFunctionT tArg' tRes')
-        freshAbstract' bound m t = return t
+        freshAbstract' bound m t = return (m, t)
 
 mkConstraint :: MonadIO m => [Id] -> Id -> AbstractSkeleton -> PNSolver m UnifConstraint
 mkConstraint bound v t = do

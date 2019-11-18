@@ -51,7 +51,7 @@ mkFunctionSigStr args = addConstraints $ Prelude.foldr accumConstraints ([],[]) 
         addConstraints (constraints, baseSigs) = "(" ++ (intercalate ", " constraints) ++ ") => " ++ showSigs baseSigs
 
         accumConstraints :: TypeSkeleton -> ([String], [String]) -> ([String], [String])
-        accumConstraints (TyAppT (DatatypeT id _) (TypeVarT tyvarName)) (constraints, baseSigs)
+        accumConstraints (TyAppT (DatatypeT id) (TypeVarT tyvarName)) (constraints, baseSigs)
             | tyclassPrefix `isPrefixOf` id = let
                 classNameRegex = mkRegex $ tyclassPrefix ++ "([a-zA-Z]*)"
                 className = subRegex classNameRegex id "\\1"
@@ -104,7 +104,7 @@ printSolution solution = do
     putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
     putStrLn "************************************************"
 
-extractSolution :: Environment -> TypeSkeleton -> UProgram -> ([String], String, String, [(Id, RSchema)])
+extractSolution :: Environment -> TypeSkeleton -> UProgram -> ([String], String, String, [(Id, SchemaSkeleton)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)
     where
         args = _arguments env

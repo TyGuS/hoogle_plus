@@ -31,7 +31,7 @@ data Environment = Environment {
   -- | Constant part:
   _constants :: Set Id,                    -- ^ Subset of symbols that are constants
   _datatypes :: Map Id DatatypeDef,        -- ^ Datatype definitions
-  _typeSynonyms :: Map Id ([Id], TypeSkeleton),   -- ^ Type synonym definitions
+  _typeSynonyms :: Map TypeSkeleton TypeSkeleton,   -- ^ Type synonym definitions
   _unresolvedConstants :: Map Id SchemaSkeleton,  -- ^ Unresolved types of components (used for reporting specifications with macros)
   _included_modules :: Set String,          -- ^ The set of modules any solution would need to import
   _typClassInstances :: [(String, String)],

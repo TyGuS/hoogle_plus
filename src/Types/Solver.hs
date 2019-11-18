@@ -18,7 +18,7 @@ import Types.Type
 import Types.Common
 import Types.Encoder
 
-rootNode = AScalar (ATypeVarT varName)
+rootNode = ATypeVarT varName
 pairProj = "pair_match"
 
 type AbstractCover = HashMap AbstractSkeleton (Set AbstractSkeleton)
@@ -29,7 +29,7 @@ data SolverState = SolverState {
     _typeAssignment :: Map Id TypeSkeleton,  -- current type assignment for each type variable
     _abstractionCover :: AbstractCover,
     _isChecked :: Bool, -- is the current state check passed
-    _currentSolutions :: [RProgram], -- type checked solutions
+    _currentSolutions :: [TProgram], -- type checked solutions
     _currentLoc :: Int, -- current solution depth
     _currentSigs :: Map Id AbstractSkeleton, -- current type signature groups
     _activeSigs :: Set Id,
@@ -66,7 +66,7 @@ emptySolverState = SolverState {
     _currentSigs = Map.empty,
     _activeSigs = Set.empty,
     _functionMap = HashMap.empty,
-    _targetType = AScalar (ATypeVarT varName),
+    _targetType = ATypeVarT varName,
     _sourceTypes = [],
     _mustFirers = HashMap.empty,
     _groupMap = Map.empty,

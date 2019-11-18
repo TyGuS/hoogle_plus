@@ -40,7 +40,7 @@ import Types.Type
 import qualified Types.Program as TP
 import qualified Data.Text as Text
 
-prependName :: Id -> Name l -> Id
+prependName :: Id -> Name l -> Name l
 prependName prefix name  = case name of
     Ident l var -> Ident l (prefix ++ "." ++ var)
     Symbol l var -> Ident l ("(" ++ prefix ++ "." ++ var ++ ")")
@@ -152,9 +152,9 @@ toSynquidSchema (TyForall _ _ (Just ctx) typ) = do -- if this type has some cont
     return $ Monotype (foldr go t classQuals)
     where
         go typClassArr acc = let
-            dt = ScalarT (DatatypeT (toTCDictName typClassArr) KnStar)
-            tv = ScalarT (TypeVarT (getTypeVar typClassArr))
-            in FunctionT "ATypeClassDict" (ScalarT (TyAppT dt tv)) acc
+            dt = DatatypeT (toTCDictName typClassArr)
+            tv = TypeVarT (getTypeVar typClassArr)
+            in FunctionT "ATypeClassDict" (TyAppT dt tv) acc
         toTCDictName (_, [tyclassName]) = fixTCName tyclassName
         toTCDictName _ = error "toTCDictName: Unhandled case"
         getTypeVar (tyVar, _) = tyVar
@@ -175,24 +175,24 @@ toSynquidSkeleton (TyKind _ typ _) = toSynquidSkeleton typ
 toSynquidSkeleton t@(TyCon _ name) = case name of
     Qual _ moduleName consName -> let
         qualName = moduleNameStr moduleName ++ "." ++ nameStr consName
-        in return $ ScalarT (DatatypeT qualName KnStar)
-    UnQual _ name -> return $ ScalarT (DatatypeT (nameStr name) KnStar)
-    Special _ name -> return $ ScalarT (DatatypeT (specialConsStr name) KnStar)
+        in return $ DatatypeT qualName
+    UnQual _ name -> return $ DatatypeT (nameStr name)
+    Special _ name -> return $ DatatypeT (specialConsStr name)
 toSynquidSkeleton (TyApp _ fun arg) = do
     f <- toSynquidSkeleton fun
     a <- toSynquidSkeleton arg
-    return $ ScalarT (TyAppT f a)
+    return $ TyAppT f a
 toSynquidSkeleton (TyVar _ name) = 
-    return $ ScalarT (TypeVarT (nameStr name))
+    return $ TypeVarT (nameStr name)
 toSynquidSkeleton (TyList _ typ) = do
     typ' <- toSynquidSkeleton typ
-    return $ ScalarT (TyAppT (DatatypeT "List" KnSec) typ')
+    return $ TyAppT (DatatypeT "List") typ'
 toSynquidSkeleton (TyTuple _ _ (f:s:ts)) = do
     f' <- toSynquidSkeleton f
     s' <- toSynquidSkeleton s
     pts <- mapM toSynquidSkeleton ts
-    let base = ScalarT (TyAppT (ScalarT $ TyAppT (DatatypeT "Pair" KnSec) fst) snd)
-    let mkPair a t = ScalarT (TyAppT (ScalarT $ TyAppT (DatatypeT "Pair" KnSec) a) t)
+    let base = TyAppT (TyAppT (DatatypeT "Pair") f') s'
+    let mkPair a t = TyAppT (TyAppT (DatatypeT "Pair") a) t
     let res = foldl' mkPair base pts
     return res
 toSynquidSkeleton t =
@@ -213,12 +213,12 @@ processConDecls [] = return []
 processConDecls (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
     case conDecl of
         ConDecl _ name typs -> do
-            typ <- toSynquidRType $ head typs
+            typ <- toSynquidSkeleton $ head typs
             if hasAny typ then processConDecls decls
                           else (:) (TP.ConstructorSig (nameStr name) typ) <$> processConDecls decls
         InfixConDecl _ typl name typr -> do
-            typl' <- toSynquidRType typl
-            typr' <- toSynquidRType typr
+            typl' <- toSynquidSkeleton typl
+            typr' <- toSynquidSkeleton typr
             if hasAny typl' || hasAny typr'
                 then processConDecls decls
                 else (:) (TP.ConstructorSig (nameStr name) (FunctionT "arg0" typl' typr')) <$> processConDecls decls
@@ -232,28 +232,29 @@ datatypeOfCon (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
         InfixConDecl _ typl name typr -> datatypeOf typl `Set.union` datatypeOf typr
         RecDecl _ name fields -> error "record declaration is not supported"
 
-toSynquidDecl :: (MonadIO m) => Entry -> StateT Int m Declaration
+toSynquidDecl :: MonadIO m => Entry -> StateT Int m Declaration
 toSynquidDecl (EDecl (TypeDecl _ head typ)) = do
-    typ' <- toSynquidRType typ
-    if hasAny typ' then return $ Pos (initialPos "") $ TP.QualifierDecl [] -- a fake conversion
-                   else return $ Pos (initialPos $ declHeadName head) $ TP.TypeDecl (declHeadName head) (declHeadVars head) typ'
-toSynquidDecl (EDecl (DataFamDecl a b head c)) = toSynquidDecl (EDecl (DataDecl a (DataType a) b head [] []))
+    typ' <- toSynquidSkeleton typ
+    let dt = DatatypeT (declHeadName head)
+    let synonym = foldl' TyAppT dt (map TypeVarT $ declHeadVars head)
+    return $ Pos (initialPos $ declHeadName head) $ TP.TypeDecl synonym typ'
+toSynquidDecl (EDecl (DataFamDecl a b head c)) = 
+    toSynquidDecl (EDecl (DataDecl a (DataType a) b head [] []))
 toSynquidDecl (EDecl (DataDecl _ _ _ head conDecls _)) = do
     constructors <- processConDecls conDecls
     let name = declHeadName head
     let vars = declHeadVars head
-    return $ Pos (initialPos name) $ TP.DataDecl name vars [] constructors
+    return $ Pos (initialPos name) $ TP.DataDecl name vars constructors
 toSynquidDecl (EDecl (TypeSig _ names typ)) = do
-    maybeSch <- toSynquidSchema typ
-    case maybeSch of
-        Nothing  -> return $ Pos (initialPos "") $ TP.QualifierDecl [] -- a fake conversion
-        Just sch -> return $ Pos (initialPos (nameStr $ names !! 0)) $ TP.FuncDecl (nameStr $ head names) (toSynquidRSchema sch)
+    sch <- toSynquidSchema typ
+    return $ Pos (initialPos (nameStr $ names !! 0)) 
+           $ TP.FuncDecl (nameStr $ head names) sch
 toSynquidDecl (EDecl (ClassDecl _ _ head _ _)) = do
     let name = fixTCName (declHeadName head)
     let vars = declHeadVars head
-    return $ Pos (initialPos "") $ TP.DataDecl name vars [] []
+    return $ Pos (initialPos "") $ TP.DataDecl name vars []
 toSynquidDecl decl = do
-    return $ Pos (initialPos "") $ TP.QualifierDecl [] -- [TODO] a fake conversion
+    return $ Pos (initialPos "") $ TP.TypeDecl (DatatypeT "Int") (DatatypeT "Int") -- [TODO] a fake conversion
 
 isInstance :: Entry -> Bool
 isInstance (EDecl (InstDecl _ _ _ _)) = True
@@ -268,17 +269,17 @@ instHeadName (IHApp _ head _) = instHeadName head
 getTyclassVars :: MonadIO m => InstHead () -> StateT Int m [TypeSkeleton]
 getTyclassVars (IHApp _ head typeVar) = do
     typeSkeletonArr <- getTyclassVars head
-    typeSkeleton <- (Data.List.head . fromJust) <$> toSynquidSkeleton typeVar
+    typeSkeleton <- toSynquidSkeleton typeVar
     return $ (typeSkeletonArr ++ [typeSkeleton])
 getTyclassVars (IHParen _ head) = getTyclassVars head
 getTyclassVars (IHCon _ _) = return []
 getTyclassVars _ = error "getTyclassDictName: case to be implemented"
 
 fixDataType :: TypeSkeleton -> TypeSkeleton
-fixDataType (ScalarT (DatatypeT name k)) =
+fixDataType (DatatypeT name) =
     let (_, name') = breakLast name
-        in ScalarT (DatatypeT name' k)
-fixDataType (ScalarT (TyAppT fun arg)) = ScalarT (TyAppT fun' arg')
+        in DatatypeT name'
+fixDataType (TyAppT fun arg) = TyAppT fun' arg'
     where
         fun' = fixDataType fun
         arg' = fixDataType arg
@@ -294,7 +295,7 @@ instanceToFunction (IRule _ _ ctx head) n = do
     tyVars <- getTyclassVars head
     let tyVars' = map fixDataType tyVars
     let 
-    let base = foldr mkApp (ScalarT (DatatypeT name) KnStar) tyVars'
+    let base = foldl' TyAppT (DatatypeT name) tyVars'
     let toDecl' = toDecl . Text.unpack $ Text.replace (Text.pack tyclassPrefix) (Text.pack "") (Text.pack name)
     case ctx of
         Nothing -> toDecl' base
@@ -309,14 +310,11 @@ instanceToFunction (IRule _ _ ctx head) n = do
         toDecl :: (MonadIO m) => String -> TypeSkeleton -> StateT Int m Declaration
         toDecl y x = return $ Pos (initialPos "") $ TP.FuncDecl (tyclassInstancePrefix ++ show n ++ y) $ Monotype x
 
-mkApp :: TypeSkeleton -> TypeSkeleton -> TypeSkeleton
-mkApp t1 t2 = ScalarT (TyAppT t1 t2)
-
 toArg :: MonadIO m => Asst () -> StateT Int m TypeSkeleton
 toArg x = do
     typeVars <- getTypeVars x
     let tyVars' = map fixDataType typeVars
-    return $ foldr mkApp (ScalarT (DatatypeT (toTCDictName x) KnStar)) tyVars'
+    return $ foldl' TyAppT (DatatypeT (toTCDictName x)) tyVars'
 
 getTyclassDictName :: InstHead l -> String
 getTyclassDictName (IHApp _ typeclass _) = fixTCName (instHeadName typeclass)
@@ -340,7 +338,7 @@ toTCDictName (ParenA _ asst) = toTCDictName asst
 toTCDictName _ = error "toTCDictName: Unhandled case"
 
 getTypeVars :: (MonadIO m) => Asst () -> StateT Int m [TypeSkeleton]
-getTypeVars (ClassA _ _ typeVars) = mapM (\x -> Data.List.head . fromJust <$> toSynquidSkeleton x) typeVars
+getTypeVars (ClassA _ _ typeVars) = mapM toSynquidSkeleton typeVars
 getTypeVars (ParenA _ asst) = getTypeVars asst
 getTypeVars _ = error "getTypeVars: Unhandled case"
 
@@ -352,14 +350,13 @@ getInstanceRule _ =  error "getInstanceRule: unexpected case"
 reorderDecls :: [Declaration] -> [Declaration]
 reorderDecls = Sort.sortOn toInt
   where
-    toInt (Pos _ (TP.TypeDecl "String" _ _)) = 1
-    toInt (Pos _ (TP.TypeDecl _ [] _)) = 2
+    toInt (Pos _ (TP.TypeDecl (DatatypeT "String") _)) = 1
+    toInt (Pos _ (TP.TypeDecl (DatatypeT _) _)) = 2
     toInt (Pos _ TP.TypeDecl {}) = 3
-    toInt (Pos _ (TP.DataDecl "List" _ _ _)) = 0
-    toInt (Pos _ (TP.DataDecl "Char" _ _ _)) = 0
-    toInt (Pos _ (TP.DataDecl _ [] _ _)) = 2
-    toInt (Pos _ TP.DataDecl {}) = 3
-    toInt (Pos _ TP.QualifierDecl {}) = 98
+    toInt (Pos _ (TP.DataDecl "List" _ _)) = 0
+    toInt (Pos _ (TP.DataDecl "Char" _ _)) = 0
+    toInt (Pos _ (TP.DataDecl _ [] _)) = 1
+    toInt (Pos _ TP.DataDecl {}) = 2
     toInt (Pos _ TP.FuncDecl {}) = 99
     toInt (Pos _ TP.SynthesisGoal {}) = 100
 
