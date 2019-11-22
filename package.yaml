@@ -85,6 +85,7 @@ executables:
     source-dirs: app
     ghc-options:
     - -rtsopts
+    - -auto-all
     - -O2
     dependencies:
     - HooglePlus

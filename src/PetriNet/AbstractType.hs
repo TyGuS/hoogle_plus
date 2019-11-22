@@ -78,9 +78,9 @@ decomposeHo (AFunctionT tArg tRet) = tArg : decomposeHo tRet
 decomposeHo t = [t]
 
 toAbstractType :: TypeSkeleton -> AbstractSkeleton
-toAbstractType (TypeVarT id) = ATypeVarT id
-toAbstractType (DatatypeT id) = ADatatypeT id
-toAbstractType (TyAppT fun arg) = ATyAppT fun' arg'
+toAbstractType (TypeVarT id k) = ATypeVarT id k
+toAbstractType (DatatypeT id k) = ADatatypeT id k
+toAbstractType (TyAppT fun arg k) = ATyAppT fun' arg' k
     where
         fun' = compactAbstractType (toAbstractType fun)
         arg' = compactAbstractType (toAbstractType arg)
@@ -92,7 +92,7 @@ toAbstractType (FunctionT _ tArg tRes) = AFunctionT tArg' tRes'
     where
         tArg' = toAbstractFun tArg
         tRes' = toAbstractType tRes
-toAbstractType AnyT = ATypeVarT varName
+toAbstractType AnyT = ATypeVarT varName KnStar
 toAbstractType BotT = ABottom
 
 toAbstractFun :: TypeSkeleton -> AbstractSkeleton
@@ -107,7 +107,7 @@ compactAbstractType (AFunctionT tArg tRes) = ATyFunT tArg' tRes'
     where
         tArg' = compactAbstractType tArg
         tRes' = compactAbstractType tRes
-compactAbstractType (ATyAppT tFun tArg) = ATyAppT tFun' tArg'
+compactAbstractType (ATyAppT tFun tArg k) = ATyAppT tFun' tArg' k
     where
         tFun' = compactAbstractType tFun
         tArg' = compactAbstractType tArg
@@ -128,7 +128,7 @@ checkUnification :: [Id]
                  -> AbstractSkeleton 
                  -> Maybe (Map Id AbstractSkeleton)
 checkUnification bound tass t1 t2 | t1 == t2 = Just tass
-checkUnification bound tass (ATypeVarT id) t | id `Map.member` tass =
+checkUnification bound tass (ATypeVarT id _) t | id `Map.member` tass =
     -- keep the most informative substitution, eagerly substitute into the final result
     case checkUnification bound tass assigned t of
         Nothing -> Nothing
@@ -138,29 +138,30 @@ checkUnification bound tass (ATypeVarT id) t | id `Map.member` tass =
     substed m = abstractSubstitute m assigned
     assigned = fromJust (Map.lookup id tass)
     unboundTv = case assigned of
-                  ATypeVarT v | v `notElem` bound -> Just v
+                  ATypeVarT v _ | v `notElem` bound -> Just v
                   _ -> Nothing
     substedTass u = Map.map (abstractSubstitute (Map.singleton id (substed u))) u
     updatedTass u = Map.insert id (substed u) (substedTass u)
-checkUnification bound tass t@(ATypeVarT id) t'@(ATypeVarT id')
+checkUnification bound tass t@(ATypeVarT id k) t'@(ATypeVarT id' k')
   | id `elem` bound && id' `elem` bound = Nothing
   | id `elem` bound && id' `notElem` bound = checkUnification bound tass t' t
   | id `notElem` bound && id `elem` abstractTypeVars t' = Nothing
   | id `notElem` bound = Just (Map.insert id t' tass)
-checkUnification bound tass (ATypeVarT id) t | id `elem` bound = Nothing
-checkUnification bound tass (ATypeVarT id) t | id `elem` abstractTypeVars t = Nothing
-checkUnification bound tass (ATypeVarT id) t = let
+checkUnification bound tass (ATypeVarT id _) t | id `elem` bound = Nothing
+checkUnification bound tass (ATypeVarT id _) t | id `elem` abstractTypeVars t = Nothing
+checkUnification bound tass (ATypeVarT id _) t = let
     tass' = Map.map (abstractSubstitute (Map.singleton id t)) tass
     tass'' = Map.insert id t tass'
     in if isValidSubst tass'' then Just tass'' else Nothing
-checkUnification bound tass t t'@(ATypeVarT id) = checkUnification bound tass t' t
-checkUnification bound tass (ADatatypeT id) (ADatatypeT id') 
-    | id /= id' = Nothing
-    | id == id' = return tass
-checkUnification bound tass (ATyAppT tFun tArg) (ATyAppT tFun' tArg') =
-    case checkUnification bound tass tFun tFun' of
+checkUnification bound tass t t'@(ATypeVarT {}) = checkUnification bound tass t' t
+checkUnification bound tass (ADatatypeT id k) (ADatatypeT id' k') 
+    | id /= id' || not (compareKind k k') = Nothing
+    | id == id' && compareKind k k' = return tass
+checkUnification bound tass (ATyAppT tFun tArg k) (ATyAppT tFun' tArg' k') 
+    | compareKind k k' = case checkUnification bound tass tFun tFun' of
         Nothing -> Nothing
         Just tass' -> checkUnification bound tass' tArg tArg'
+    | otherwise = Nothing
 checkUnification bound tass (ATyFunT tArg tRes) (ATyFunT tArg' tRes') =
     case checkUnification bound tass tArg tArg' of
         Nothing -> Nothing
@@ -199,10 +200,10 @@ abstractSubstitute tass typ =
         substed = foldr (uncurry abstractSubstitute') typ (Map.toList tass)
 
 abstractSubstitute' :: Id -> AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
-abstractSubstitute' id typ (ATypeVarT id') | id == id' = typ
+abstractSubstitute' id typ (ATypeVarT id' _) | id == id' = typ
 abstractSubstitute' id typ t@(ATypeVarT {}) = t
 abstractSubstitute' id typ t@(ADatatypeT {}) = t
-abstractSubstitute' id typ (ATyAppT tFun tArg) = ATyAppT tFun' tArg'
+abstractSubstitute' id typ (ATyAppT tFun tArg k) = ATyAppT tFun' tArg' k
     where
         tFun' = abstractSubstitute' id typ tFun
         tArg' = abstractSubstitute' id typ tArg
@@ -216,9 +217,9 @@ abstractSubstitute' id typ (AFunctionT tArg tRes) = AFunctionT tArg' tRes'
         tRes' = abstractSubstitute' id typ tRes
 
 abstractTypeVars :: AbstractSkeleton -> [Id]
-abstractTypeVars (ATypeVarT id) = [id]
+abstractTypeVars (ATypeVarT id _) = [id]
 abstractTypeVars (ATyFunT tArg tRes) = abstractTypeVars tArg ++ abstractTypeVars tRes
-abstractTypeVars (ATyAppT tFun tArg) = abstractTypeVars tFun ++ abstractTypeVars tArg
+abstractTypeVars (ATyAppT tFun tArg _) = abstractTypeVars tFun ++ abstractTypeVars tArg
 abstractTypeVars (AFunctionT tArg tRes) = abstractTypeVars tArg ++ abstractTypeVars tRes
 abstractTypeVars _ = []
 
@@ -293,12 +294,12 @@ applySemantic tvs fun args = do
   where
     matchTc [] = True
     matchTc (c:cs) = case c of
-        (ADatatypeT id1, ADatatypeT id2) ->
+        (ADatatypeT id1 _, ADatatypeT id2 _) ->
             (((tyclassPrefix `isPrefixOf` id1) && (tyclassPrefix `isPrefixOf` id2)) ||
             (not (tyclassPrefix `isPrefixOf` id1) && not (tyclassPrefix `isPrefixOf` id2))) &&
             matchTc cs
-        (ADatatypeT id, _) -> (not (tyclassPrefix `isPrefixOf` id)) && matchTc cs
-        (_, ADatatypeT id) -> (not (tyclassPrefix `isPrefixOf` id)) && matchTc cs
+        (ADatatypeT id _, _) -> (not (tyclassPrefix `isPrefixOf` id)) && matchTc cs
+        (_, ADatatypeT id _) -> (not (tyclassPrefix `isPrefixOf` id)) && matchTc cs
         _ -> matchTc cs
 
 compareAbstract :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Ordering

@@ -632,40 +632,40 @@ findProgram env dst st ps
         -- find a more fine-grained abstraction ty' of ty such that
         -- ty' does not unify with target
         let bound = env ^. boundTypeVars
-        ty' <- generalize bound ty
+        ty' <- generalize env ty
         let unifier = getUnifier bound [(ty', target)]
         guard (isNothing unifier)
         return ty'
 
     parseAndCheck code = do
-        modify $ set typeAssignment Map.empty
+        typeAssignment .= Map.empty
         let prog = case parseExp code of
                        ParseOk exp -> toSynquidProgram exp
                        ParseFailed loc err -> error err
-        mapping <- gets $ view nameMapping
+        mapping <- use nameMapping
         writeLog 1 "parseAndCheck" $ text "Find program" <+> pretty (recoverNames mapping prog)
-        modify $ set isChecked True
+        isChecked .= True
         btm <- bottomUpCheck env prog
         writeLog 3 "parseAndCheck" $ text "bottom up checking get program" <+> pretty (recoverNames mapping btm)
-        checkStatus <- gets (view isChecked)
         let tyBtm = typeOf btm
-        when checkStatus (solveTypeConstraint env tyBtm dst)
-        tass <- gets (view typeAssignment)
-        ifM (gets $ view isChecked)
+        ifM (use isChecked) (solveTypeConstraint env tyBtm dst) (return ())
+        ifM (use isChecked)
             (return (Left btm))
             (do
+                tass <- use typeAssignment
                 let tyBtm' = toAbstractType $ typeSubstitute tass tyBtm
                 let absDst = toAbstractType dst
+                writeLog 2 "parseAndCheck" $ text "get type" <+> pretty tyBtm' <+> text "but expect" <+> pretty absDst
                 absBtm <- observeT $ pickGeneralization tyBtm' absDst
                 return (Right (btm, absBtm)))
 
     nextSolution st (prog, at) = do
-        cover <- gets $ view abstractionCover
+        cover <- use abstractionCover
         splitInfo <- withTime RefinementTime (refineSemantic env prog at)
         -- add new places and transitions into the petri net
-        cover <- gets $ view abstractionCover
-        t2tr <- gets $ view type2transition
-        modify $ over solverStats (\s ->
+        cover <- use abstractionCover
+        t2tr <- use type2transition
+        solverStats %= (\s ->
             s   { iterations = iterations s + 1
                 , numOfPlaces =
                        Map.insert

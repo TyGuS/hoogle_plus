@@ -164,7 +164,7 @@ transformSolution goal queryResult = do
                     FunctionT x' tArg' tRes' ->
                         if tyclassArgBase `isPrefixOf` x'
                             then let
-                                TyAppT (DatatypeT id) (TypeVarT tyvarName) = tArg'
+                                TyAppT (DatatypeT id _) (TypeVarT tyvarName _) _ = tArg'
                                 (res, tRes'') = allTyclass tRes'
                                 classNameRegex = mkRegex $ tyclassPrefix ++ "([a-zA-Z]*)"
                                 className = subRegex classNameRegex id "\\1"

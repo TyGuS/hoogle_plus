@@ -176,11 +176,12 @@ typePower _ = 3
 prettyTypeAt :: Int -> TypeSkeleton -> Doc
 prettyTypeAt n t = condHlParens (n' <= n) (
     case t of
-        TypeVarT v -> pretty v
-        DatatypeT dt -> pretty dt
-        TyAppT (DatatypeT "List") tArg -> hlBrackets $ prettyType tArg
-        TyAppT (TyAppT (DatatypeT "Pair") t1) t2 -> hlParens $ prettyType t1 <+> operator "," <+> prettyType t2
-        TyAppT tFun tArg -> hlParens $ pretty tFun <+> pretty tArg
+        TypeVarT v k -> pretty v
+        DatatypeT dt k -> pretty dt
+        TyAppT (DatatypeT "List" knFst) tArg _ -> hlBrackets $ prettyType tArg
+        TyAppT (TyAppT (DatatypeT "Pair" knSec) t1 knFst) t2 KnStar -> 
+          hlParens $ prettyType t1 <+> operator "," <+> prettyType t2
+        TyAppT tFun tArg _ -> hlParens $ pretty tFun <+> pretty tArg
         TyFunT tArg tRes -> hlParens (pretty tArg <+> operator "->" <+> pretty tRes)
         AnyT -> text "_"
         FunctionT x t1 t2 -> prettyTypeAt n' t1 <+> operator "->" <+> prettyTypeAt 0 t2
@@ -199,6 +200,20 @@ instance Pretty SchemaSkeleton where
 
 instance Show SchemaSkeleton where
  show = show . plain . pretty
+
+prettyKind :: Kind -> Doc
+prettyKind (KnVar k) = pretty k
+prettyKind KnStar = operator "*"
+prettyKind (KnArr k1 k2) = case k1 of
+  KnArr _ _ -> hlParens (pretty k1) <+> operator "->" <+> pretty k2
+  _ -> pretty k1 <+> operator "->" <+> pretty k2
+prettyKind KnAny = text "k"
+
+instance Pretty Kind where
+  pretty = prettyKind
+
+instance Show Kind where
+  show = show . plain . pretty
 
 {- Programs -}
 
@@ -317,10 +332,10 @@ lfill w d        = case renderCompact d of
            | otherwise = text $ replicate n ' '
 
 instance Pretty AbstractSkeleton where
-    pretty (ATypeVarT b) = pretty b
-    pretty (ADatatypeT id) = pretty id
+    pretty (ATypeVarT b k) = hlParens $ pretty b <+> operator "::" <+> pretty k
+    pretty (ADatatypeT id k) = hlParens $ pretty id <+> operator "::" <+> pretty k
     pretty (ATyFunT tArg tRes) = hlParens (text "Fun" <+> pretty tArg <+> pretty tRes)
-    pretty (ATyAppT tFun tArg) = hlParens (pretty tFun <+> pretty tArg)
+    pretty (ATyAppT tFun tArg k) = hlParens $ pretty tFun <+> pretty tArg <+> pretty k
     pretty (AFunctionT tArg tRet) = hlParens (pretty tArg <+> operator "→" <+> pretty tRet)
     pretty ABottom = text "⊥"
 

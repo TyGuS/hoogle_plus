@@ -154,7 +154,8 @@ parseTCName = do
     name <- parseTypeName
     typeArgs <- many (sameOrIndented >> parseArgType)
     let typeName = tyclassPrefix ++ name
-    return $ foldl' TyAppT (DatatypeT typeName) typeArgs
+    let k = mkKind (length typeArgs)
+    return $ mkTyApp (DatatypeT typeName k) typeArgs
 
 parseTypeclasses :: Parser (TypeSkeleton -> TypeSkeleton)
 parseTypeclasses = do
@@ -206,31 +207,40 @@ parseTypeAtom = choice [
     ]
 
 parseUnrefTypeNoArgs = choice [
-    DatatypeT <$> parseTypeName,
-    TypeVarT <$> parseIdentifier]
+    (\t -> DatatypeT t KnAny) <$> parseTypeName,
+    (\t -> TypeVarT t KnAny) <$> parseIdentifier]
+
+mkTyApp t args = foldl' fold_fn base args
+    where
+        base = t
+        fold_fn acc t = case kindOf acc of
+            KnStar -> acc
+            KnArr k1 k2 -> TyAppT acc t k2
 
 parseUnrefTypeWithArgs = do
     name <- parseTypeName
     typeArgs <- many (sameOrIndented >> parseTypeAtom)
-    return $ foldl' TyAppT (DatatypeT name) typeArgs
+    let k = mkKind (length typeArgs)
+    return $ mkTyApp (DatatypeT name k) typeArgs
 
 parseUnrefHkType = do
     hkArg <- parseIdentifier
     args <- many1 (sameOrIndented >> parseTypeAtom)
-    return $ foldl' TyAppT (TypeVarT hkArg) args
+    let k = mkKind (length args)
+    return $ mkTyApp (TypeVarT hkArg k) args
 
 parseScalarUnrefType = parseUnrefTypeWithArgs <|> parseUnrefTypeNoArgs
 
 parseListType = do
     elemType <- brackets parseType
-    return $ TyAppT (DatatypeT "List") elemType
+    return $ TyAppT (DatatypeT "List" knFst) elemType KnStar
 
 parsePairType = do
     elemType <- parens (commaSep1 parseType)
     return $ foldr mkPair (initial elemType) (drop 2 elemType)
     where
-        mkPair t p = TyAppT (TyAppT (DatatypeT "Pair") p) t
-        initial (x:y:_) = TyAppT (TyAppT (DatatypeT "Pair") x) y
+        mkPair t p = TyAppT (TyAppT (DatatypeT "Pair" knSec) p knFst) t KnStar
+        initial (x:y:_) = TyAppT (TyAppT (DatatypeT "Pair" knSec) x knFst) y KnStar
 
 {- Implementations -}
 

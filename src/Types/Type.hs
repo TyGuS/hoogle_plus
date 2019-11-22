@@ -14,14 +14,15 @@ data SchemaSkeleton =
   deriving (Eq, Ord, Generic)
 
 {- Type kind -}
-data Kind = KnStar | KnArr Kind Kind
+data Kind = KnVar Id | KnAny | KnStar | KnArr Kind Kind
+  deriving (Eq, Ord, Generic)
 
 {- Type skeletons -}
 data TypeSkeleton =
-  TypeVarT Id |
-  DatatypeT Id |
+  TypeVarT Id Kind |
+  DatatypeT Id Kind |
   TyFunT TypeSkeleton TypeSkeleton |
-  TyAppT TypeSkeleton TypeSkeleton |
+  TyAppT TypeSkeleton TypeSkeleton Kind |
   FunctionT Id TypeSkeleton TypeSkeleton |
   AnyT |
   BotT 

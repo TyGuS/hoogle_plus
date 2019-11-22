@@ -10,7 +10,7 @@ module Database.Environment(
 import Data.Either
 import Data.Serialize (encode)
 import Data.List.Extra
-import Control.Lens ((^.))
+import Control.Lens
 import qualified Data.ByteString as B
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -87,24 +87,23 @@ generateEnv genOpts = do
     let library = concat [ourDecls, dependencyEntries, instanceFunctions, tcDecls, defaultLibrary]
     let hooglePlusDecls = DC.reorderDecls $ nubOrd $ library
 
-    print hooglePlusDecls
     result <- case resolveDecls hooglePlusDecls moduleNames of
        Left errMessage -> error $ show errMessage
        Right env -> do
-            let env' = env { _symbols = if useHO then env ^. symbols
-                                                else Map.filter (not . isHigherOrder . toMonotype) $ env ^. symbols,
-                           _included_modules = Set.fromList (moduleNames)
-                          }
+            let filterHO = if useHO then const True else not . isHigherOrder . toMonotype
+            let env' = over symbols (Map.filter filterHO) $
+                      set included_modules (Set.fromList moduleNames) env
             hofStr <- readFile pathToHo
             let hofNames = words hofStr
             -- get signatures
             let sigs = map (\f -> lookupWithError "env: symbols" f (env' ^. symbols)) hofNames
             -- transform into fun types and add into the environments
             let sigs' = zipWith (\n t -> (n ++ hoPostfix, toFunType t)) hofNames sigs
-            let env'' = env' { _symbols = Map.union (env' ^. symbols) (Map.fromList sigs')
-                             , _hoCandidates = map fst sigs' }
-            return env''
+            let env = set symbols (Map.union (env' ^. symbols) (Map.fromList sigs')) $
+                      set hoCandidates (map fst sigs') env'
+            return env
     printStats result
+    print (result ^. symbols)
     return result
    where
      filterEntries entries Nothing = entries

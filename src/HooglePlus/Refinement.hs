@@ -103,7 +103,7 @@ propagate env p@(Program (PApp f args) _) upstream = do
         -- we are finding a refined abstraction at' < at
         -- such that ct < at' < at
         currAbs <- lift $ map head <$> mapM (currentAbst bound cover) cArgs
-        absArgs <- mapM (generalize bound) cArgs
+        absArgs <- mapM (generalize env) cArgs
         -- lift $ writeLog 3 "propagate" $ text "try" <+> pretty absArgs <+> text "from" <+> pretty cArgs <+> text "with currently" <+> pretty currAbs
         guard ((all (uncurry $ isSubtypeOf bound)) (zip absArgs currAbs))
         lift $ writeLog 3 "propagate" $ text "get generalized types" <+> pretty absArgs <+> text "from" <+> pretty cArgs
@@ -117,7 +117,7 @@ propagate env (Program (PFun x body) (FunctionT _ tArg tRet))
     propagate (addVariable x tArg env) body atRet
 propagate env (Program (PFun x body) t) (AFunctionT atArg atRet) = do
     id <- freshId "A"
-    let tArg = (TypeVarT id)
+    let tArg = TypeVarT id KnStar
     propagate (addVariable x tArg env) body atRet
 propagate _ prog t = return ()
 
@@ -126,56 +126,56 @@ propagate _ prog t = return ()
 bottomUpCheck :: MonadIO m => Environment -> TProgram -> PNSolver m TProgram
 bottomUpCheck env p@(Program (PSymbol sym) typ) = do
     -- lookup the symbol type in current scope
-    writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
-    nameMap <- gets $ view nameMapping
+    nameMap <- use nameMapping
     let sym' = removeLast '_' sym
     let name = replaceId hoPostfix "" $ fromMaybe sym' (Map.lookup sym' nameMap)
     t <- findSymbol env name
+    writeLog 2 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p <+> text "get" <+> pretty t
     return (Program (PSymbol sym) t)
-bottomUpCheck env (Program (PApp f args) typ) = do
-  argResult <- checkArgs args
-  case argResult of
-    Left err -> return err
-    Right checkedArgs -> do
-      t <- findSymbol env (removeLast '_' f)
-      -- check function signature against each argument provided
-      let argVars = allArgTypes t
-      let checkedArgTys = map typeOf checkedArgs
-      mapM_ (uncurry $ solveTypeConstraint env) (zip checkedArgTys argVars)
-      -- we eagerly substitute the assignments into the return type of t
-      tass <- gets (view typeAssignment)
-      let ret = typeSubstitute tass (lastType t)
-      -- if any of these checks returned false, this function application
-      -- would produce a bottom type
-      ifM (gets $ view isChecked)
-          (return $ Program (PApp f checkedArgs) ret)
-          (return $ Program (PApp f checkedArgs) BotT)
+bottomUpCheck env p@(Program (PApp f args) typ) = do
+    argResult <- checkArgs args
+    case argResult of
+        Left err -> return err
+        Right checkedArgs -> do
+            t <- findSymbol env (removeLast '_' f)
+            -- check function signature against each argument provided
+            let argVars = allArgTypes t
+            let checkedArgTys = map typeOf checkedArgs
+            mapM_ (uncurry $ solveTypeConstraint env) (zip checkedArgTys argVars)
+            -- we eagerly substitute the assignments into the return type of t
+            tass <- use typeAssignment
+            let ret = typeSubstitute tass (lastType t)
+            -- if any of these checks returned false, this function application
+            -- would produce a bottom type
+            writeLog 2 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p <+> text "get" <+> pretty ret
+            ifM (use isChecked)
+                (return $ Program (PApp f checkedArgs) ret)
+                (return $ Program (PApp f checkedArgs) BotT)
   where
     checkArgs [] = return $ Right []
     checkArgs (arg:args) = do
         checkedArg <- bottomUpCheck env arg
-        ifM (gets $ view isChecked)
+        ifM (use isChecked)
             (do
-               checkedArgs <- checkArgs args
-               case checkedArgs of
-                 Left err -> return $ Left err
-                 Right args' -> return $ Right (checkedArg:args')
-            )
+                checkedArgs <- checkArgs args
+                case checkedArgs of
+                    Left err -> return $ Left err
+                    Right args' -> return $ Right (checkedArg:args'))
             (return $ Left checkedArg)
 bottomUpCheck env p@(Program (PFun x body) (FunctionT _ tArg tRet)) = do
     writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
     body' <- bottomUpCheck (addVariable x tArg env) body
     let tBody = typeOf body'
     let t = FunctionT x tArg tBody
-    ifM (gets $ view isChecked)
+    ifM (use isChecked)
         (return $ Program (PFun x body') t)
         (return body')
 bottomUpCheck env p@(Program (PFun x body) _) = do
     writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
     id <- freshId "A"
     id' <- freshId "A"
-    let tArg = TypeVarT id
-    let tRet = TypeVarT id'
+    let tArg = TypeVarT id KnStar
+    let tRet = TypeVarT id' KnStar
     bottomUpCheck env (Program (PFun x body)(FunctionT x tArg tRet))
 bottomUpCheck _ p = error $ "unhandled case for checking "
                           ++ show p ++ "::" ++ show (typeOf p)
@@ -183,9 +183,9 @@ bottomUpCheck _ p = error $ "unhandled case for checking "
 solveTypeConstraint :: MonadIO m => Environment -> TypeSkeleton -> TypeSkeleton -> PNSolver m ()
 solveTypeConstraint _ AnyT _ = return ()
 solveTypeConstraint _ _ AnyT = return ()
-solveTypeConstraint env tv@(TypeVarT id) tv'@(TypeVarT id')
-  | id == id' = return ()
-  | isBound env id && isBound env id' = modify $ set isChecked False
+solveTypeConstraint env tv@(TypeVarT id k) tv'@(TypeVarT id' k')
+  | id == id' && k == k' = return ()
+  | isBound env id && isBound env id' = isChecked .= False
   | isBound env id = do
     st <- get
     if id' `Map.member` (st ^. typeAssignment)
@@ -207,8 +207,8 @@ solveTypeConstraint env tv@(TypeVarT id) tv'@(TypeVarT id')
                 writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tv <+> text "==" <+> pretty typ
                 solveTypeConstraint env tv typ
             else unify env id tv'
-solveTypeConstraint env tv@(TypeVarT id) t | isBound env id = modify $ set isChecked False
-solveTypeConstraint env tv@(TypeVarT id) t = do
+solveTypeConstraint env tv@(TypeVarT id _) t | isBound env id = isChecked .= False
+solveTypeConstraint env tv@(TypeVarT id _) t = do
     st <- get
     writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tv <+> text "==" <+> pretty t
     if id `Map.member` (st ^. typeAssignment)
@@ -217,16 +217,18 @@ solveTypeConstraint env tv@(TypeVarT id) t = do
             writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty typ <+> text "==" <+> pretty t
             solveTypeConstraint env typ t
         else unify env id t
-solveTypeConstraint env t tv@(TypeVarT id) = solveTypeConstraint env tv t
+solveTypeConstraint env t tv@(TypeVarT id _) = solveTypeConstraint env tv t
 solveTypeConstraint env (FunctionT _ tArg tRet) (FunctionT _ tArg' tRet') = do
     writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tArg <+> text "==" <+> pretty tArg'
     solveTypeConstraint env tArg tArg'
     writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tRet <+> text "==" <+> pretty tRet'
     solveTypeConstraint env tRet tRet'
-solveTypeConstraint env (DatatypeT id) (DatatypeT id') 
-    | id /= id' = modify $ set isChecked False
-    | id == id' = return ()
-solveTypeConstraint env (TyAppT tFun tArg) (TyAppT tFun' tArg') = do
+solveTypeConstraint env (DatatypeT id k) (DatatypeT id' k') 
+    | id /= id' || not (compareKind k k') = do
+        writeLog 2 "solveTypeConstraint" $ text "Solving constraint" <+> pretty (DatatypeT id k) <+> text "==" <+> pretty (DatatypeT id' k')
+        isChecked .= False
+    | id == id' && compareKind k k' = return ()
+solveTypeConstraint env (TyAppT tFun tArg _) (TyAppT tFun' tArg' _) = do
     solveTypeConstraint env tFun tFun'
     ifM (gets $ view isChecked)
         (solveTypeConstraint env tArg tArg')
@@ -254,28 +256,28 @@ unify env v t =
         modify $ over typeAssignment (Map.insert v (typeSubstitute tass t))
 
 -- | generalize a closed concrete type into an abstract one
-generalize :: MonadIO m => [Id] -> AbstractSkeleton -> LogicT (PNSolver m) AbstractSkeleton
-generalize bound t@(ATypeVarT id)
-  | id `notElem` bound = return t
+generalize :: MonadIO m => Environment -> AbstractSkeleton -> LogicT (PNSolver m) AbstractSkeleton
+generalize env t@(ATypeVarT id k)
+  | id `notElem` (env ^. boundTypeVars) = return t
   | otherwise = do
     v <- lift $ freshId "T"
-    return (ATypeVarT v) `mplus` return t
-generalize bound t@(ADatatypeT id) = do
+    return (ATypeVarT v k) `mplus` return t
+generalize env t@(ADatatypeT id k) = do
     v <- lift $ freshId "T"
-    return (ATypeVarT v) `mplus` return t
-generalize bound t@(ATyAppT tFun tArg) = do
-    f <- generalize bound tFun
-    a <- generalize bound tArg
+    return (ATypeVarT v k) `mplus` return t
+generalize env t@(ATyAppT tFun tArg k) = do
+    f <- generalize env tFun
+    a <- generalize env tArg
     -- might abstracting some TyApp as a higher kinded type variable
     -- [TODO] does this slow us down?
     v <- lift $ freshId "T"
-    return (ATypeVarT v) `mplus` return (ATyAppT f a)
-generalize bound t@(ATyFunT tArg tRes) = do
-    a <- generalize bound tArg
-    r <- generalize bound tRes
+    return (ATypeVarT v k) `mplus` return (ATyAppT f a k)
+generalize env t@(ATyFunT tArg tRes) = do
+    a <- generalize env tArg
+    r <- generalize env tRes
     v <- lift $ freshId "T"
-    return (ATypeVarT v) `mplus` return (ATyFunT a r)
-generalize bound (AFunctionT tArg tRes) = do
-    tArg' <- generalize bound tArg
-    tRes' <- generalize bound tRes
+    return (ATypeVarT v KnStar) `mplus` return (ATyFunT a r)
+generalize env (AFunctionT tArg tRes) = do
+    tArg' <- generalize env tArg
+    tRes' <- generalize env tRes
     return (AFunctionT tArg' tRes')

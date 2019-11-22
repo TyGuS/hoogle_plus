@@ -14,14 +14,15 @@ import Data.Char
 import Data.Hashable
 
 data AbstractSkeleton =
-      ATypeVarT Id
-    | ADatatypeT Id
-    | ATyAppT AbstractSkeleton AbstractSkeleton
+      ATypeVarT Id Kind
+    | ADatatypeT Id Kind
+    | ATyAppT AbstractSkeleton AbstractSkeleton Kind
     | ATyFunT AbstractSkeleton AbstractSkeleton
     | AFunctionT AbstractSkeleton AbstractSkeleton
     | ABottom
     deriving (Eq, Ord, Generic)
 
+instance Hashable Kind
 instance Hashable AbstractSkeleton
 
 -- distinguish one type from a given general one

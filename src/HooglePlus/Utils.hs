@@ -51,7 +51,7 @@ mkFunctionSigStr args = addConstraints $ Prelude.foldr accumConstraints ([],[]) 
         addConstraints (constraints, baseSigs) = "(" ++ (intercalate ", " constraints) ++ ") => " ++ showSigs baseSigs
 
         accumConstraints :: TypeSkeleton -> ([String], [String]) -> ([String], [String])
-        accumConstraints (TyAppT (DatatypeT id) (TypeVarT tyvarName)) (constraints, baseSigs)
+        accumConstraints (TyAppT (DatatypeT id _) (TypeVarT tyvarName _) _) (constraints, baseSigs)
             | tyclassPrefix `isPrefixOf` id = let
                 classNameRegex = mkRegex $ tyclassPrefix ++ "([a-zA-Z]*)"
                 className = subRegex classNameRegex id "\\1"

@@ -39,6 +39,7 @@ instance Serialize Environment
 instance Serialize DatatypeDef
 instance Serialize t => Serialize (BareProgram t)
 instance Serialize t => Serialize (Program t)
+instance Serialize Kind
 instance Serialize TypeSkeleton
 instance Serialize SchemaSkeleton
 

@@ -18,7 +18,7 @@ import Types.Type
 import Types.Common
 import Types.Encoder
 
-rootNode = ATypeVarT varName
+rootNode = ATypeVarT varName KnStar
 pairProj = "pair_match"
 
 type AbstractCover = HashMap AbstractSkeleton (Set AbstractSkeleton)
@@ -66,7 +66,7 @@ emptySolverState = SolverState {
     _currentSigs = Map.empty,
     _activeSigs = Set.empty,
     _functionMap = HashMap.empty,
-    _targetType = ATypeVarT varName,
+    _targetType = ATypeVarT varName KnStar,
     _sourceTypes = [],
     _mustFirers = HashMap.empty,
     _groupMap = Map.empty,

@@ -35,16 +35,16 @@ firstLvAbs env schs = Set.foldr (updateCover tvs) initCover dts
     dts = Set.unions (map (allAbstractDts (env ^. boundTypeVars) (env ^. datatypes)) typs)
 
 allAbstractDts :: [Id] -> Map Id DatatypeDef -> TypeSkeleton -> Set AbstractSkeleton
-allAbstractDts bound _ (TypeVarT v) | v `elem` bound = Set.singleton (ATypeVarT v)
-allAbstractDts bound dts (DatatypeT id) = 
+allAbstractDts bound _ t@(TypeVarT v k) | v `elem` bound = Set.singleton (ATypeVarT v k)
+allAbstractDts bound dts (DatatypeT id k) = 
     let kind = case Map.lookup id dts of
                     Nothing -> error $ "Cannot find datatype " ++ id
                     Just df -> length (df ^. typeParams)
-    in Set.singleton $ fillDtArgs (ADatatypeT id, kind)
+    in Set.singleton $ fillDtArgs (ADatatypeT id k, mkKind kind)
     where
-        fillDtArgs (t, 0) = t
-        fillDtArgs (t, k) = fillDtArgs (ATyAppT t (ATypeVarT ("T" ++ show k)), k-1)
-allAbstractDts bound dts (TyAppT tFun tArg) = funDts `Set.union` argDts
+        fillDtArgs (t, KnStar) = t
+        fillDtArgs (t, KnArr k1 k2) = fillDtArgs (ATyAppT t (ATypeVarT ("T" ++ show k) KnStar) k2, k2)
+allAbstractDts bound dts (TyAppT tFun tArg _) = funDts `Set.union` argDts
     where
         funDts = allAbstractDts bound dts tFun
         argDts = allAbstractDts bound dts tArg
