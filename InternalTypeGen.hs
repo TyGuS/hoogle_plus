@@ -11,7 +11,7 @@ import Control.Applicative
 isEqualResult lhs rhs = case (lhs, rhs) of
   (CB.Value a, CB.Value b) -> a == b
   (CB.NonTermination, CB.NonTermination) -> True
-  (CB.Exception a, CB.Exception b) -> show a == show b
+  (CB.Exception _, CB.Exception _) -> True
   _ -> False
 
 isFailedResult result = case result of
