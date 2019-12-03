@@ -11,8 +11,8 @@ import Types.Common
 -- import Control.Monad.List
 import Data.Data
 import Control.Lens hiding (index, indices)
-import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Control.Exception
 
 {- Interface -}

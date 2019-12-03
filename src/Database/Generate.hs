@@ -7,7 +7,7 @@ import Language.Haskell.Exts
 import Data.Conduit
 import Data.Data
 import qualified Data.ByteString as B
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Char
 import Data.List.Extra

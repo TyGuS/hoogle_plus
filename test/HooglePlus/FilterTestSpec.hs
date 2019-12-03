@@ -6,7 +6,7 @@ import Text.Pretty.Simple
 import Text.Parsec.Pos
 import Control.Monad.State
 import Text.Parsec.Indent
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import Data.Either
 
 import HooglePlus.FilterTest

@@ -14,8 +14,8 @@ import Synquid.Util
 import Database.Util
 
 import Data.List
-import qualified Data.Map as Map
-import Data.Map (Map)
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
 
 import Control.Monad.State
 import Control.Applicative hiding ((<|>), many)

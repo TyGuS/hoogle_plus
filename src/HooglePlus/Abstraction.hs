@@ -18,8 +18,8 @@ import Data.List
 import Data.List.Extra
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Control.Lens
 import qualified Data.Char as Char
 import qualified Data.HashMap.Strict as HashMap

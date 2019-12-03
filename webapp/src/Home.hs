@@ -14,7 +14,7 @@ import Yesod.Form
 import Data.Text (Text)
 import Control.Monad (filterM)
 import Data.List
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Language.Haskell.Exts.Pretty
 

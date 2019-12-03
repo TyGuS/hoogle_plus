@@ -9,7 +9,7 @@ import Language.Haskell.Exts.SrcLoc
 import Language.Haskell.Exts.Syntax
 import Language.Haskell.Exts.Pretty
 import Test.QuickCheck
-import qualified Data.Map as Map hiding (map, foldr)
+import qualified Data.Map.Strict as Map hiding (map, foldr)
 import qualified Data.Set as Set hiding (map)
 import System.Timeout
 import Control.Monad

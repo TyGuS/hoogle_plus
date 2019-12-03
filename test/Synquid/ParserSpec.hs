@@ -10,7 +10,7 @@ import Text.Pretty.Simple
 import Text.Parsec.Pos
 import Control.Monad.State
 import Text.Parsec.Indent
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 
 
 doParseType tyStr = flip evalState (initialPos "goal") $ runIndentParserT parseTypeMbTypeclasses () "" tyStr

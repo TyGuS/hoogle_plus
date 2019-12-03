@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE BangPatterns #-}
 
 module PetriNet.Util where
 
@@ -16,9 +17,9 @@ import Synquid.Util
 
 import Data.Maybe
 import qualified Data.Text as Text
-import Data.Map (Map)
+import Data.Map.Strict (Map)
 import Data.Set (Set)
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -39,11 +40,11 @@ getExperiment exp = gets $ view (searchParams . exp)
 -------------------------------------------------------------------------------
 -- | helper functions
 -------------------------------------------------------------------------------
-writeLog :: MonadIO m => Int -> String -> Doc -> PNSolver m ()
+writeLog :: (MonadIO m, Monad (t m)) => Int -> String -> Doc -> t m ()
 writeLog level tag msg = do
-    mesgChan <- gets $ view messageChan
-    liftIO $ writeChan mesgChan (MesgLog level tag $ show $ plain msg)
-    -- if level <= 3 then trace (printf "[%s]: %s\n" tag (show $ plain msg)) $ return () else return ()
+    -- mesgChan <- gets $ view messageChan
+    -- liftIO $ writeChan mesgChan (MesgLog level tag $ show $ plain msg)
+    if level <= 0 then trace (printf "[%s]: %s\n" tag (show $ plain msg)) $ return () else return ()
 
 multiPermutation len elmts | len == 0 = [[]]
 multiPermutation len elmts | len == 1 = [[e] | e <- elmts]
@@ -79,11 +80,11 @@ freshId prefix = do
 freshType :: MonadIO m => SchemaSkeleton -> PNSolver m TypeSkeleton
 freshType = freshType' Map.empty []
   where
-    freshType' subst constraints (ForallT a sch) = do
+    freshType' !subst constraints (ForallT a sch) = do
         a' <- freshId "A"
         let k = fromJust $ getKind a $ toMonotype sch
         freshType' (Map.insert a (TypeVarT a' k) subst) (a':constraints) sch
-    freshType' subst constraints (Monotype t) = return (typeSubstitute subst t)
+    freshType' !subst constraints (Monotype t) = return (typeSubstitute subst t)
 
     getKind a (TypeVarT v k)
         | a == v = Just k
@@ -137,7 +138,7 @@ groupSignatures sigs = do
     let groupMap = Map.fromList $ map (\(gid, (_, ids)) -> (gid, ids)) signatureGroups
     let t2g = Map.fromList $ map (\(gid, (aty, _)) -> (aty, gid)) signatureGroups
     -- write out the info.
-    mesgChan <- gets $ view messageChan
+    -- mesgChan <- gets $ view messageChan
     modify $ over solverStats (\s -> s {
         duplicateSymbols = duplicateSymbols s ++ [(length sigLists, sum dupes, sum $ map length $ sigLists)]
     })

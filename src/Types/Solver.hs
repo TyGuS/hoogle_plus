@@ -1,8 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Types.Solver where
 
-import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.HashMap.Strict (HashMap)
@@ -49,8 +49,8 @@ data SolverState = SolverState {
     _instanceCounts :: HashMap Id Int, -- Number of instantiations for a real-name, used in selecting representative
     _toRemove :: [Id],
     _useCount :: Map Id Int,
-    _encoder :: EncodeState,
-    _messageChan :: Chan Message
+    _encoder :: EncodeState
+    -- _messageChan :: Chan Message
 }
 
 
@@ -81,8 +81,8 @@ emptySolverState = SolverState {
     _instanceCounts = HashMap.empty,
     _toRemove = [],
     _useCount = Map.empty,
-    _encoder = undefined,
-    _messageChan = undefined
+    _encoder = undefined
+    -- _messageChan = undefined
 }
 
 makeLenses ''SolverState

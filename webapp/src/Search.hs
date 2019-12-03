@@ -55,8 +55,8 @@ import Text.Regex.Posix.Wrap
 import Yesod.Core
 import Yesod.Core.Content
 import Yesod.Form
-import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Control.Lens
 import Data.IORef
 import Control.Concurrent.Async

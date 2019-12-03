@@ -22,8 +22,8 @@ import Control.Applicative
 import Control.Monad.Except
 import Control.Monad.State
 import Control.Lens
-import qualified Data.Map as Map
-import Data.Map (Map)
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
 import qualified Data.Set as Set
 import Data.Maybe
 import Data.Either hiding (fromRight)

@@ -8,7 +8,7 @@ import Synquid.Type
 import Text.Printf
 import Text.Parsec.Pos (initialPos)
 import qualified Data.Set as Set
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 
 tyclassPrefix = "@@hplusTC@@"
 tyclassInstancePrefix = "@@hplusTCInstance@@"
@@ -86,9 +86,9 @@ defaultTypeclassInstances =
     , mkInstance "Ord" intType
     , mkInstance "Ord" floatType
     , mkInstance "Ord" doubleType
-    , mkInstance "Alternative" maybeType
-    , mkInstance "Monad" maybeType
-    , mkInstance "Applicative" maybeType
+    -- , mkInstance "Alternative" maybeType
+    -- , mkInstance "Monad" maybeType
+    -- , mkInstance "Applicative" maybeType
     ]
 
 

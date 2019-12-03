@@ -34,7 +34,7 @@ import HscTypes
 import IdInfo
 import Outputable hiding (text, (<+>))
 import qualified CoreSyn as Syn
-import qualified Data.Map as Map hiding (map, foldr)
+import qualified Data.Map.Strict as Map hiding (map, foldr)
 import qualified Data.Set as Set hiding (map)
 import qualified Data.Text as Text
 import SimplCore (core2core)

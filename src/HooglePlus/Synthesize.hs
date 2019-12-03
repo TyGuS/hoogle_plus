@@ -29,8 +29,8 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Data.Either
 import Data.List
-import qualified Data.Map as Map
-import Data.Map (Map)
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
 import Data.Maybe
 import qualified Data.Set as Set
 import Data.Set (Set)
@@ -72,8 +72,8 @@ envToGoal env queryStr = do
 
       _ -> error "parse a signature for a none goal declaration"
 
-synthesize :: SearchParams -> Goal -> Chan Message -> IO ()
-synthesize searchParams goal messageChan = do
+synthesize :: SearchParams -> Goal -> IO ()
+synthesize searchParams goal = do
     let env' = gEnvironment goal
     let destinationType = lastType $ toMonotype $ gSpec goal
     let useHO = _useHO searchParams
@@ -109,12 +109,13 @@ synthesize searchParams goal messageChan = do
                           TyGarQ -> Abstraction.specificAbstractionFromTypes env args
                           NoGar -> Abstraction.specificAbstractionFromTypes env args
                           NoGar0 -> emptySolverState ^. abstractionCover
-                , _messageChan = messageChan
+                -- , _messageChan = messageChan
                 }
-    catch
-        (evalStateT (runPNSolver env destinationType) is)
-        (\e ->
-             writeChan messageChan (MesgLog 0 "error" (show e)) >>
-             writeChan messageChan (MesgClose (CSError e)) >>
-             error (show e))
-    -- return ()
+    evalStateT (runPNSolver env destinationType) is
+    -- catch
+    --     (evalStateT (runPNSolver env destinationType) is)
+    --     (\e ->
+    --          writeChan messageChan (MesgLog 0 "error" (show e)) >>
+    --          writeChan messageChan (MesgClose (CSError e)) >>
+    --          error (show e))
+    return ()

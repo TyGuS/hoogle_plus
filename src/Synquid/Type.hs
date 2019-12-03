@@ -12,8 +12,8 @@ import Data.Either
 import Data.List
 import qualified Data.Set as Set
 import Data.Set (Set)
-import qualified Data.Map as Map
-import Data.Map (Map)
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
 import Control.Monad
 import Control.Lens
 import GHC.Generics

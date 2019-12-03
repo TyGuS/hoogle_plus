@@ -4,7 +4,7 @@ module Types.Generate where
 import Types.Common
 
 import Language.Haskell.Exts (Decl)
-import Data.Map (Map)
+import Data.Map.Strict (Map)
 import qualified Language.Haskell.Exts.Syntax as HSE
 import Data.Data
 import Data.Typeable

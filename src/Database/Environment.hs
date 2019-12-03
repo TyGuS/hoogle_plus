@@ -12,8 +12,8 @@ import Data.Serialize (encode)
 import Data.List.Extra
 import Control.Lens
 import qualified Data.ByteString as B
-import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Control.Monad.State (evalStateT)
 import System.Exit (exitFailure)

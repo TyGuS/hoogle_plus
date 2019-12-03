@@ -242,9 +242,9 @@ executeSearch :: SynquidParams -> SearchParams  -> String -> IO ()
 executeSearch synquidParams searchParams query = do
   env <- readEnv
   goal <- envToGoal env query
-  messageChan <- newChan
-  forkIO $ synthesize searchParams goal messageChan
-  readChan messageChan >>= (handleMessages messageChan)
+  -- messageChan <- newChan
+  synthesize searchParams goal
+  -- readChan messageChan >>= handleMessages messageChan
   where
     logLevel = searchParams ^. explorerLogLevel
     readEnv = do
@@ -254,22 +254,21 @@ executeSearch synquidParams searchParams query = do
       envRes <- decode <$> B.readFile envPathIn
       case envRes of
         Left err -> error err
-        Right env ->
-          return env
+        Right env -> return env
 
-    handleMessages ch (MesgClose _) = when (logLevel > 0) (putStrLn "Search complete") >> return ()
-    handleMessages ch (MesgP (program, stats)) = do
-      when (logLevel > 0) $ printf "[writeStats]: %s\n" (show stats)
-      -- printSolution program
-      -- hFlush stdout
-      readChan ch >>= (handleMessages ch)
-    handleMessages ch (MesgS debug) = do
-      when (logLevel > 1) $ printf "[writeStats]: %s\n" (show debug)
-      readChan ch >>= (handleMessages ch)
-    handleMessages ch (MesgLog level tag msg) = do
-      when (level <= logLevel) (do
-        mapM (printf "[%s]: %s\n" tag) (lines msg)
-        hFlush stdout)
-      readChan ch >>= (handleMessages ch)
+    -- handleMessages ch (MesgClose _) = when (logLevel > 0) (putStrLn "Search complete") >> return ()
+    -- handleMessages ch (MesgP (program, stats)) = do
+    --   when (logLevel > 0) $ printf "[writeStats]: %s\n" (show stats)
+    --   -- printSolution program
+    --   -- hFlush stdout
+    --   readChan ch >>= (handleMessages ch)
+    -- handleMessages ch (MesgS debug) = do
+    --   when (logLevel > 1) $ printf "[writeStats]: %s\n" (show debug)
+    --   readChan ch >>= (handleMessages ch)
+    -- handleMessages ch (MesgLog level tag msg) = do
+    --   when (level <= logLevel) (do
+    --     mapM (printf "[%s]: %s\n" tag) (lines msg)
+    --     hFlush stdout)
+    --   readChan ch >>= (handleMessages ch)
 
 pdoc = printDoc Plain

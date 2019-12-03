@@ -201,7 +201,7 @@ solveAndGetModel = do
                     mapM_ (mkNot >=> assert) blocks
                 return []
               else do
-                -- liftIO $ print "unsat for change goal"
+                liftIO $ print "unsat for change goal"
                 -- try a more general return type
                 t2tr <- gets ty2tr
                 when incremental $ cancelConstraints "final"

@@ -10,7 +10,7 @@ import Control.Monad.State
 import System.CPUTime
 import Text.Printf
 import Control.Lens
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import Text.Pretty.Simple
 
 -- | wrap some action with time measuring and print out the execution time

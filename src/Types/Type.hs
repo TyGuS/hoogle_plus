@@ -5,7 +5,7 @@ module Types.Type where
 import Types.Common
 
 import GHC.Generics
-import Data.Map (Map)
+import Data.Map.Strict (Map)
 
 
 data SchemaSkeleton =

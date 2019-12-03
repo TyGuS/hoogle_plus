@@ -21,8 +21,8 @@ import Control.Monad.Logic
 import Control.Monad.State
 import qualified Data.HashMap.Strict as HashMap
 import Data.List
-import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Data.Maybe
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -187,15 +187,15 @@ solveTypeConstraint env tv@(TypeVarT id k) tv'@(TypeVarT id' k')
   | id == id' && k == k' = return ()
   | isBound env id && isBound env id' = isChecked .= False
   | isBound env id = do
-    st <- get
-    if id' `Map.member` (st ^. typeAssignment)
+    tass <- use typeAssignment
+    if id' `Map.member` tass
         then do
-            let typ = fromJust $ Map.lookup id' $ st ^. typeAssignment
+            let typ = fromJust $ Map.lookup id' tass
             writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty typ <+> text "==" <+> pretty tv
             solveTypeConstraint env tv typ
-        else unify env id' tv
+        else unify env id' k' tv
   | otherwise = do
-    tass <- gets (view typeAssignment)
+    tass <- use typeAssignment
     if id `Map.member` tass
         then do
             let typ = fromJust $ Map.lookup id tass
@@ -206,18 +206,18 @@ solveTypeConstraint env tv@(TypeVarT id k) tv'@(TypeVarT id' k')
                 let typ = fromJust $ Map.lookup id' tass
                 writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tv <+> text "==" <+> pretty typ
                 solveTypeConstraint env tv typ
-            else unify env id tv'
+            else unify env id k tv'
 solveTypeConstraint env tv@(TypeVarT id _) t | isBound env id = isChecked .= False
-solveTypeConstraint env tv@(TypeVarT id _) t = do
-    st <- get
+solveTypeConstraint env tv@(TypeVarT id k) t = do
+    tass <- use typeAssignment
     writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tv <+> text "==" <+> pretty t
-    if id `Map.member` (st ^. typeAssignment)
+    if id `Map.member` tass
         then do
-            let typ = fromJust $ Map.lookup id $ st ^. typeAssignment
+            let typ = fromJust $ Map.lookup id tass
             writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty typ <+> text "==" <+> pretty t
             solveTypeConstraint env typ t
-        else unify env id t
-solveTypeConstraint env t tv@(TypeVarT id _) = solveTypeConstraint env tv t
+        else unify env id k t
+solveTypeConstraint env t tv@(TypeVarT {}) = solveTypeConstraint env tv t
 solveTypeConstraint env (FunctionT _ tArg tRet) (FunctionT _ tArg' tRet') = do
     writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tArg <+> text "==" <+> pretty tArg'
     solveTypeConstraint env tArg tArg'
@@ -228,32 +228,34 @@ solveTypeConstraint env (DatatypeT id k) (DatatypeT id' k')
         writeLog 2 "solveTypeConstraint" $ text "Solving constraint" <+> pretty (DatatypeT id k) <+> text "==" <+> pretty (DatatypeT id' k')
         isChecked .= False
     | id == id' && compareKind k k' = return ()
-solveTypeConstraint env (TyAppT tFun tArg _) (TyAppT tFun' tArg' _) = do
-    solveTypeConstraint env tFun tFun'
-    ifM (gets $ view isChecked)
-        (solveTypeConstraint env tArg tArg')
-        (return ())
+solveTypeConstraint env (TyAppT tFun tArg k) (TyAppT tFun' tArg' k') 
+    | compareKind k k' = do
+        solveTypeConstraint env tFun tFun'
+        ifM (use isChecked)
+            (solveTypeConstraint env tArg tArg')
+            (return ())
 solveTypeConstraint env (TyFunT tArg tRes) (TyFunT tArg' tRes') = do
     solveTypeConstraint env tArg tArg'
-    ifM (gets $ view isChecked)
+    ifM (use isChecked)
         (solveTypeConstraint env tRes tRes')
         (return ())
 solveTypeConstraint env t1 t2 = do
     writeLog 3 "solveTypeConstraint" $ text "unmatched types" <+> pretty t1 <+> text "and" <+> pretty t2
-    modify $ set isChecked False
+    isChecked .= False
 
 -- | unify the type variable with some given type
 -- add the type assignment to our state
-unify :: MonadIO m => Environment -> Id -> TypeSkeleton -> PNSolver m ()
-unify env v t =
+unify :: MonadIO m => Environment -> Id -> Kind -> TypeSkeleton -> PNSolver m ()
+unify env v k t =
     if v `Set.member` typeVarsOf t
-      then modify $ set isChecked False
-      else do
+      then isChecked .= False
+      else if compareKind k (kindOf t) then do
         tass' <- gets $ view typeAssignment
         writeLog 3 "unify" $ text (show tass')
         modify $ over typeAssignment (Map.map (typeSubstitute (Map.singleton v t)))
         tass <- gets $ view typeAssignment
         modify $ over typeAssignment (Map.insert v (typeSubstitute tass t))
+        else isChecked .= False
 
 -- | generalize a closed concrete type into an abstract one
 generalize :: MonadIO m => Environment -> AbstractSkeleton -> LogicT (PNSolver m) AbstractSkeleton

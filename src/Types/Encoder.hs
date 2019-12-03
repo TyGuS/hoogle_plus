@@ -3,7 +3,7 @@ module Types.Encoder where
 
 import Data.Maybe
 import Data.HashMap.Strict (HashMap)
-import Data.Map (Map)
+import Data.Map.Strict (Map)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.HashMap.Strict as HashMap

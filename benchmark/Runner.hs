@@ -52,11 +52,12 @@ runExperiment setup (exp@(env, envName, q, params, paramName), (n, total)) = do
   printf "Running [%d/%d]: (%s-%s): %s\n" n total envName paramName queryStr
   let timeoutUs = expTimeout setup * 10^6 -- Timeout in microseconds
   goal <- envToGoal env queryStr
-  messageChan <- newChan
-  forkIO $ do
-    timeout timeoutUs $ synthesize params goal messageChan
-    writeChan messageChan (MesgClose CSTimeout) -- could possibly be putting a second close on the channel.
-  results <- (readChan messageChan >>= collectResults messageChan [])
+  -- messageChan <- newChan
+  -- forkIO $ do
+  timeout timeoutUs $ synthesize params goal
+    -- writeChan messageChan (MesgClose CSTimeout) -- could possibly be putting a second close on the channel.
+  -- results <- (readChan messageChan >>= collectResults messageChan [])
+  let results = []
   writeResult setup exp results
   return results
 

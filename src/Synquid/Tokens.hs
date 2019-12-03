@@ -4,7 +4,7 @@ module Synquid.Tokens where
 import Types.Common
 import Synquid.Util
 import Data.Maybe
-import Data.Map (Map, fromList)
+import Data.Map.Strict (Map, fromList)
 import Data.Char
 
 -- | Keywords
