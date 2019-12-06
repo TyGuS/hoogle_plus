@@ -118,6 +118,10 @@ addAllConstraints = do
     ocons <- gets optionalConstraints
     fcons <- gets finalConstraints
     bcons <- gets blockConstraints
+    -- liftIO $ putStrLn $ "size of persist constraints " ++ show (length pcons)
+    -- liftIO $ putStrLn $ "size of optional constraints " ++ show (length ocons)
+    -- liftIO $ putStrLn $ "size of final constraints " ++ show (length fcons)
+    -- liftIO $ putStrLn $ "size of block constraints " ++ show (length bcons)
     mapM_ assert pcons
     mapM_ assert ocons
     mapM_ assert fcons

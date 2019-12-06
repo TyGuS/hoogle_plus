@@ -44,7 +44,7 @@ writeLog :: (MonadIO m, Monad (t m)) => Int -> String -> Doc -> t m ()
 writeLog level tag msg = do
     -- mesgChan <- gets $ view messageChan
     -- liftIO $ writeChan mesgChan (MesgLog level tag $ show $ plain msg)
-    if level <= 0 then trace (printf "[%s]: %s\n" tag (show $ plain msg)) $ return () else return ()
+    if level <= 2 then trace (printf "[%s]: %s\n" tag (show $ plain msg)) $ return () else return ()
 
 multiPermutation len elmts | len == 0 = [[]]
 multiPermutation len elmts | len == 1 = [[e] | e <- elmts]

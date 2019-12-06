@@ -184,7 +184,7 @@ solveTypeConstraint :: MonadIO m => Environment -> TypeSkeleton -> TypeSkeleton 
 solveTypeConstraint _ AnyT _ = return ()
 solveTypeConstraint _ _ AnyT = return ()
 solveTypeConstraint env tv@(TypeVarT id k) tv'@(TypeVarT id' k')
-  | id == id' && k == k' = return ()
+  | id == id' && compareKind k k' = return ()
   | isBound env id && isBound env id' = isChecked .= False
   | isBound env id = do
     tass <- use typeAssignment

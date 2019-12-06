@@ -6805,3 +6805,6 @@ instance GHC.Float.RealFloat a => GHC.Float.Floating (Data.Complex.Complex a)
 instance Foreign.Storable.Storable a => Foreign.Storable.Storable (Data.Complex.Complex a)
 instance GHC.Base.Applicative Data.Complex.Complex
 instance GHC.Base.Monad Data.Complex.Complex
+module Control.Monad.State
+data StateT s m a
+runStateT :: StateT s m a -> s -> m (a, s)

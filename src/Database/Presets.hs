@@ -42,7 +42,8 @@ myModules = [
   "Text.Show",
   "GHC.List",
   "Data.Eq",
-  -- "Control.Monad",
+  "Control.Monad",
+  "Control.Monad.State",
   "Data.Function",
   -- ByteString
   "Data.ByteString.Lazy",
