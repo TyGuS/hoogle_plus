@@ -741,7 +741,7 @@ runPNSolver env t = do
     resetEncoder env t
     cnt <- getExperiment solutionCnt
     -- findFirstN env t st [] cnt
-    observeManyT cnt (findProgram env t)
+    withTime TotalSearch $ observeManyT cnt (findProgram env t)
     return ()
     -- msgChan <- gets $ view messageChan
     -- liftIO $ writeChan msgChan (MesgClose CSNormal)
