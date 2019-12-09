@@ -144,11 +144,13 @@ checkUnification bound tass (ATypeVarT id _) t | id `Map.member` tass =
     updatedTass u = Map.insert id (substed u) (substedTass u)
 checkUnification bound tass t@(ATypeVarT id k) t'@(ATypeVarT id' k')
   | id `elem` bound && id' `elem` bound = Nothing
+  | not (compareKind k k') = Nothing
   | id `elem` bound && id' `notElem` bound = checkUnification bound tass t' t
   | id `notElem` bound && id `elem` abstractTypeVars t' = Nothing
   | id `notElem` bound = Just (Map.insert id t' tass)
 checkUnification bound tass (ATypeVarT id _) t | id `elem` bound = Nothing
 checkUnification bound tass (ATypeVarT id _) t | id `elem` abstractTypeVars t = Nothing
+checkUnification bound tass (ATypeVarT _ k) (ADatatypeT _ k') | not (compareKind k k') = Nothing
 checkUnification bound tass (ATypeVarT id _) t = let
     tass' = Map.map (abstractSubstitute (Map.singleton id t)) tass
     tass'' = Map.insert id t tass'
