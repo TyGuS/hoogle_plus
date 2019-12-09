@@ -734,7 +734,7 @@ findProgram env dst = do
 --         writeLog 2 "findFirstN" $ text "Current Solutions:" <+> pretty currentSols
 --         findFirstN env dst st' ps' (n - 1)
 
-runPNSolver :: MonadIO m => Environment -> TypeSkeleton -> PNSolver m [TProgram]
+runPNSolver :: MonadIO m => Environment -> TypeSkeleton -> PNSolver m ()
 runPNSolver env t = do
     writeLog 3 "runPNSolver" $ text $ show (allSymbols env)
     initNet env
@@ -742,6 +742,8 @@ runPNSolver env t = do
     cnt <- getExperiment solutionCnt
     -- findFirstN env t st [] cnt
     withTime TotalSearch $ observeManyT cnt (findProgram env t)
+    stats <- gets $ view solverStats
+    liftIO $ print stats
     -- msgChan <- gets $ view messageChan
     -- liftIO $ writeChan msgChan (MesgClose CSNormal)
 
@@ -756,7 +758,6 @@ writeSolution code = do
     -- liftIO $ hFlush stdout
     -- writeLog 1 "writeSolution" $ text (show stats')
     liftIO $ printSolution code
-    liftIO $ print stats'
 
 recoverNames :: Map Id Id -> Program t -> Program t
 recoverNames mapping (Program (PSymbol sym) t) =
