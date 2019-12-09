@@ -17,6 +17,8 @@ import Types.Experiments
 import Types.Program
 import Types.Solver
 import Types.Type
+import Types.Abstract
+import HyperGraph.HyperExplorer
 
 import Control.Applicative ((<$>))
 import Control.Concurrent.Chan
@@ -74,6 +76,19 @@ envToGoal env queryStr = do
 
 synthesize :: SearchParams -> Goal -> IO ()
 synthesize searchParams goal = do
+    -- test hypergraph
+    let g = Map.fromList [ (Set.fromList [ATypeVarT "s" KnStar], [ (Set.fromList [ATypeVarT "s" KnStar], "f1", Set.fromList [ATypeVarT "1" KnStar]), (Set.fromList [ATypeVarT "s" KnStar], "f2", Set.fromList [ATypeVarT "2" KnStar]), (Set.fromList [ATypeVarT "s" KnStar], "", Set.fromList [ATypeVarT "2" KnStar, ATypeVarT "c" KnStar]) ])
+            , (Set.fromList [ATypeVarT "1" KnStar, ATypeVarT "2" KnStar], [ (Set.fromList [ATypeVarT "1" KnStar, ATypeVarT "2" KnStar], "", Set.fromList [ATypeVarT "3" KnStar]) ])
+            , (Set.fromList [ATypeVarT "2" KnStar], [ (Set.fromList [ATypeVarT "2" KnStar], "", Set.fromList [ATypeVarT "3" KnStar, ATypeVarT "4" KnStar]) ])
+            , (Set.fromList [ATypeVarT "3" KnStar], [ (Set.fromList [ATypeVarT "3" KnStar], "", Set.fromList [ATypeVarT "4" KnStar]) ])
+            , (Set.fromList [ATypeVarT "3" KnStar, ATypeVarT "4" KnStar], [ (Set.fromList [ATypeVarT "3" KnStar, ATypeVarT "4" KnStar], "", Set.fromList [ATypeVarT "t" KnStar]) ])
+            , (Set.fromList [ATypeVarT "4" KnStar], [ (Set.fromList [ATypeVarT "4" KnStar], "", Set.fromList [ATypeVarT "t" KnStar]) ])
+            , (Set.fromList [ATypeVarT "c" KnStar], [ (Set.fromList [ATypeVarT "c" KnStar], "", Set.fromList [ATypeVarT "4" KnStar, ATypeVarT "d" KnStar])])
+            , (Set.fromList [ATypeVarT "a" KnStar, ATypeVarT "1" KnStar], [ (Set.fromList [ATypeVarT "a" KnStar, ATypeVarT "1" KnStar], "", Set.fromList [ATypeVarT "b" KnStar])])
+            , (Set.fromList [ATypeVarT "b" KnStar], [ (Set.fromList [ATypeVarT "b" KnStar], "", Set.fromList [ATypeVarT "t" KnStar]), (Set.fromList [ATypeVarT "b" KnStar], "", Set.fromList [ATypeVarT "a" KnStar])]) ]
+    paths <- observeManyT (_solutionCnt searchParams) (getBFPath (ATypeVarT "s" KnStar) (ATypeVarT "t" KnStar) g)
+    print paths
+    error "stop"
     let env' = gEnvironment goal
     let destinationType = lastType $ toMonotype $ gSpec goal
     let useHO = _useHO searchParams

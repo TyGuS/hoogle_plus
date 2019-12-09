@@ -11,6 +11,8 @@ import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
 import Control.Monad.Logic
 import Data.List
+import Synquid.Pretty
+import Debug.Trace
 
 data Direction = Forward | Backward
 
@@ -27,18 +29,16 @@ visit dir s graph = go initLabels initTailCnts (Seq.singleton s)
            -> Map Edge Int -- count of edge tails
            -> Seq AbstractSkeleton -- bfs queue
            -> Map AbstractSkeleton Bool
-        go blabel tcnts q 
-            | Seq.null q = blabel
-            | otherwise = case Seq.viewl q of
-                Seq.EmptyL -> error "empty queue"
-                u Seq.:< remains -> let
-                    connectedGraph = Map.filterWithKey (\k _ -> Set.member u k) graph
-                    allEdges = concat (Map.elems graph)
-                    connectedEdges = case dir of
-                        Backward -> concat (Map.elems connectedGraph)
-                        Forward -> filter (\(_,_,hs) -> Set.member u hs) allEdges
-                    (tcnts', blabel', q') = foldr (updateQueue dir) (tcnts, blabel, remains) connectedEdges 
-                    in go blabel' tcnts' q'
+        go blabel tcnts q = case Seq.viewl q of
+            Seq.EmptyL -> blabel
+            u Seq.:< remains -> let
+                connectedGraph = Map.filterWithKey (\k _ -> Set.member u k) graph
+                allEdges = concat (Map.elems graph)
+                connectedEdges = case dir of
+                    Backward -> concat (Map.elems connectedGraph)
+                    Forward -> filter (\(_,_,hs) -> Set.member u hs) allEdges
+                (tcnts', blabel', q') = foldr (updateQueue dir) (tcnts, blabel, remains) connectedEdges 
+                in traceShow q' $ go blabel' tcnts' q'
 
         updateLabel :: AbstractSkeleton 
             -> (Map AbstractSkeleton Bool, Seq AbstractSkeleton)
@@ -76,18 +76,18 @@ frontier graph src dst = go graph
             blabel = bvisit src g
             flabel = fvisit dst g
             nodes = nodesOf g
-            (change', g') = foldr (updateFrontier blabel flabel) (False, g) nodes
+            (change, g') = foldr (updateFrontier blabel flabel) (False, g) nodes
             nodes' = nodesOf g'
             in if not (Set.member src nodes') || not (Set.member dst nodes')
                 then Map.empty
-                else if change' then go g' else g'
+                else if change then go g' else g'
 
         updateFrontier :: Map AbstractSkeleton Bool -- labels from bvisit
             -> Map AbstractSkeleton Bool -- labels from fvisit
             -> AbstractSkeleton -- current node (to be decided)
             -> (Bool, HyperGraph) -- accumulated pruned graph
             -> (Bool, HyperGraph)
-        updateFrontier blabel flabel v (change, g) = 
+        updateFrontier blabel flabel v (change, g) =
             if not (blabel Map.! v) || not (flabel Map.! v)
                 then (True, deleteNode v g)
                 else (change, g)
@@ -95,14 +95,21 @@ frontier graph src dst = go graph
 getBFPath :: AbstractSkeleton -> AbstractSkeleton -> HyperGraph -> LogicT IO HyperGraph
 getBFPath src dst graph = do
     let graph' = frontier graph src dst
+    liftIO $ print "frontier"
+    liftIO $ print graph'
+    liftIO $ print "frontier end"
     if Map.null graph'
         then return graph'
         else do
-            let nodes = Set.toList $ Set.delete src (Set.delete dst (nodesOf graph))
-            nodes <- perm nodes
+            let nodes = Set.toList $ Set.delete src (Set.delete dst (nodesOf graph'))
             let graph = foldr minimizeNode graph' nodes
+            -- graph <- return graph' `mplus` do
+            --     nodes <- perm nodes
+            --     liftIO $ print nodes
+            --     return (foldr minimizeNode graph' nodes)
             let edges = concat (Map.elems graph)
-            edges <- perm edges
+            -- edges <- perm edges
+            -- liftIO $ print edges
             let graph' = foldr minimizeEdge graph edges
             return graph'
     where
@@ -115,10 +122,10 @@ getBFPath src dst graph = do
         minimizeEdge :: Edge -> HyperGraph -> HyperGraph
         minimizeEdge e g = let
             g' = deleteEdge e g
-            blabel = bvisit src g'
+            blabel = traceShow ("delete " ++ show e ++ " get " ++ show g') (bvisit src g')
             flabel = fvisit dst g'
             visited v = blabel Map.! v && flabel Map.! v
-            in if all visited (nodesOf g) then g' else g
+            in traceShow (show blabel ++ show flabel) $ if all visited (nodesOf g') then g' else g
 
 {- Helper functions -}
 nodesOf :: HyperGraph -> Set AbstractSkeleton
@@ -127,12 +134,11 @@ nodesOf graph = Set.unions (concatMap (map nodesInEdges) (Map.elems graph))
         nodesInEdges (ts, f, hs) = ts `Set.union` hs
 
 deleteNode :: AbstractSkeleton -> HyperGraph -> HyperGraph
-deleteNode v = Map.filterWithKey notHasNode
+deleteNode v graph = Map.map (filter (not . edgeHasNode)) graph'
     where
+        graph' = Map.filterWithKey (\k _ -> not (Set.member v k)) graph
         edgeHasNode (tl, _, hd) = Set.member v tl || -- member of the edge tail
                                   Set.member v hd -- member of the edge head
-        notHasNode s es = not (Set.member v s || -- member of the key (tail)
-                               any edgeHasNode es) -- member of any edge
 
 deleteEdge :: Edge -> HyperGraph -> HyperGraph
 deleteEdge e g = Map.filter (not . null) (Map.map (delete e) g)
