@@ -124,7 +124,7 @@ instantiateWith env typs id t sigMap = do
         let bound = env ^. boundTypeVars
         let argNum = length (decompose typ) - 1
         let allArgCombs = multiPermutation argNum typs
-        applyRes <- concatMapM (applySemantic bound typ) allArgCombs
+        applyRes <- mapM (applySemantic bound typ) allArgCombs
         let resSigs = filter (not . isBot . fst) (zip applyRes allArgCombs)
         return $ map (uncurry $ foldr AFunctionT) resSigs
 
@@ -172,8 +172,8 @@ splitTransition env newAt sigMap fid = do
         let first = toAbstractType fstType
         let secod = toAbstractType sndType
         let tvs = env ^. boundTypeVars
-        fstRets <- concatMapM (applySemantic tvs first) args'
-        sndRets <- concatMapM (applySemantic tvs secod) args'
+        fstRets <- mapM (applySemantic tvs first) args'
+        sndRets <- mapM (applySemantic tvs secod) args'
         let sameFunc ([a], (fret, sret)) = equalAbstract tvs fret fstRet
                                          && equalAbstract tvs sret sndRet
                                          && a == head args
@@ -196,7 +196,7 @@ splitTransition env newAt sigMap fid = do
         writeLog 3 "allSubsts'" $ text fid <+> text "::" <+> pretty funType
         let absFunType = toAbstractType funType
         let tvs = env ^. boundTypeVars
-        rets <- concatMapM (applySemantic tvs absFunType) args'
+        rets <- mapM (applySemantic tvs absFunType) args'
         writeLog 3 "allSubsts'" $ text fid <+> text "returns" <+> pretty rets
         let validFunc (a, r) = not (equalAbstract tvs ret r && a == args) && not (isBot r)
         let funcs = filter validFunc (zip args' rets)
@@ -805,16 +805,14 @@ updateSrcTgt env dst = do
     let binds = env ^. boundTypeVars
     abstraction <- gets (view abstractionCover)
     tgt <- currentAbst binds abstraction (toAbstractType dst)
-    let tgt' = head tgt
-    modify $ set targetType tgt'
+    modify $ set targetType tgt
 
     let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
     srcTypes <- mapM ( currentAbst binds abstraction
                      . toAbstractType
                      . toMonotype) $ Map.elems foArgs
-    let srcTypes' = map head srcTypes
-    modify $ set sourceTypes srcTypes'
-    return (srcTypes', tgt')
+    modify $ set sourceTypes srcTypes
+    return (srcTypes, tgt)
 
 type EncoderArgs = (Int
                     , HashMap Id [Id]

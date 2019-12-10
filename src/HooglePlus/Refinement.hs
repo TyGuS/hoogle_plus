@@ -127,14 +127,14 @@ propagate env p@(Program (PApp f args) _) upstream = do
         -- its current abstraction is at
         -- we are finding a refined abstraction at' < at
         -- such that ct < at' < at
-        currAbs <- lift $ map head <$> mapM (currentAbst bound cover) cArgs
+        currAbs <- lift $ mapM (currentAbst bound cover) cArgs
         absArgs <- mapM (generalize env) cArgs
         -- lift $ writeLog 3 "propagate" $ text "try" <+> pretty absArgs <+> text "from" <+> pretty cArgs <+> text "with currently" <+> pretty currAbs
         guard ((all (uncurry $ isSubtypeOf bound)) (zip absArgs currAbs))
         lift $ writeLog 3 "propagate" $ text "get generalized types" <+> pretty absArgs <+> text "from" <+> pretty cArgs
         res <- lift $ applySemantic bound t absArgs
         lift $ writeLog 3 "propagate" $ text "apply" <+> pretty absArgs <+> text "to" <+> pretty t <+> text "gets" <+> pretty res
-        guard (any (\r -> isSubtypeOf bound r upstream) res)
+        guard (isSubtypeOf bound res upstream)
         return $ map compactAbstractType absArgs
 -- | case for lambda functions
 propagate env (Program (PFun x body) (FunctionT _ tArg tRet))
