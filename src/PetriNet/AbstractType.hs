@@ -144,11 +144,13 @@ checkUnification bound tass (ATypeVarT id _) t | id `Map.member` tass =
     updatedTass u = Map.insert id (substed u) (substedTass u)
 checkUnification bound tass t@(ATypeVarT id k) t'@(ATypeVarT id' k')
   | id `elem` bound && id' `elem` bound = Nothing
+  | not (compareKind k k') = Nothing
   | id `elem` bound && id' `notElem` bound = checkUnification bound tass t' t
   | id `notElem` bound && id `elem` abstractTypeVars t' = Nothing
   | id `notElem` bound = Just (Map.insert id t' tass)
 checkUnification bound tass (ATypeVarT id _) t | id `elem` bound = Nothing
 checkUnification bound tass (ATypeVarT id _) t | id `elem` abstractTypeVars t = Nothing
+checkUnification bound tass (ATypeVarT _ k) (ADatatypeT _ k') | not (compareKind k k') = Nothing
 checkUnification bound tass (ATypeVarT id _) t = let
     tass' = Map.map (abstractSubstitute (Map.singleton id t)) tass
     tass'' = Map.insert id t tass'
@@ -246,24 +248,42 @@ abstractIntersect bound t1 t2 =
     where
         unifier = getUnifier bound [(t1, t2)]
 
+-- -- | find the current most restrictive abstraction for a given type
+-- currentAbst :: MonadIO m => [Id] -> AbstractCover -> AbstractSkeleton -> PNSolver m [AbstractSkeleton]
+-- currentAbst tvs cover (AFunctionT tArg tRes) = do
+--     tArg' <- currentAbst tvs cover tArg
+--     tRes' <- currentAbst tvs cover tRes
+--     return $ [AFunctionT a r | a <- tArg', r <- tRes']
+-- currentAbst tvs cover at = do
+--     freshAt <- freshAbstract tvs at
+--     case currentAbst' freshAt rootNode of
+--         [] -> error $ "cannot find current abstraction for type " ++ show at
+--         ts -> return ts
+--     where
+--         currentAbst' at paren | isSubtypeOf tvs at paren = let 
+--             children = Set.toList $ HashMap.lookupDefault Set.empty paren cover
+--             inSubtree = any (isSubtypeOf tvs at) children
+--             in if inSubtree then concatMap (currentAbst' at) children
+--                             else [paren]
+--         currentAbst' at paren = []
 -- | find the current most restrictive abstraction for a given type
-currentAbst :: MonadIO m => [Id] -> AbstractCover -> AbstractSkeleton -> PNSolver m [AbstractSkeleton]
+currentAbst :: MonadIO m => [Id] -> AbstractCover -> AbstractSkeleton -> PNSolver m AbstractSkeleton
 currentAbst tvs cover (AFunctionT tArg tRes) = do
     tArg' <- currentAbst tvs cover tArg
     tRes' <- currentAbst tvs cover tRes
-    return $ [AFunctionT a r | a <- tArg', r <- tRes']
+    return $ AFunctionT tArg' tRes'
 currentAbst tvs cover at = do
     freshAt <- freshAbstract tvs at
     case currentAbst' freshAt rootNode of
-        [] -> error $ "cannot find current abstraction for type " ++ show at
-        ts -> return ts
-    where
-        currentAbst' at paren | isSubtypeOf tvs at paren = let 
-            children = Set.toList $ HashMap.lookupDefault Set.empty paren cover
-            inSubtree = any (isSubtypeOf tvs at) children
-            in if inSubtree then concatMap (currentAbst' at) children
-                            else [paren]
-        currentAbst' at paren = []
+        Nothing -> error $ "cannot find current abstraction for type " ++ show at
+        Just t -> return t
+  where
+    currentAbst' at paren | isSubtypeOf tvs at paren =
+      let children = Set.toList $ HashMap.lookupDefault Set.empty paren cover
+          inSubtree = any (isSubtypeOf tvs at) children
+       in if inSubtree then head $ filter isJust $ map (currentAbst' at) children
+                       else Just paren
+    currentAbst' at paren = Nothing
 
 -- | find the most general unifier between arguments
 -- and apply this unifier onto the return type
@@ -272,7 +292,7 @@ applySemantic :: MonadIO m
               => [Id] 
               -> AbstractSkeleton 
               -> [AbstractSkeleton] 
-              -> PNSolver m [AbstractSkeleton]
+              -> PNSolver m AbstractSkeleton
 applySemantic tvs fun args = do
     let cargs = init (decompose fun)
     let ret = last (decompose fun)
@@ -283,14 +303,14 @@ applySemantic tvs fun args = do
     if matchTc constraints' then do
         let unifier = getUnifier tvs constraints'
         case unifier of
-            Nothing -> return [ABottom]
+            Nothing -> return ABottom
             Just m -> do
                 -- writeLog 3 "applySemantic" $ text "get unifier" <+> pretty (Map.toList m)
                 cover <- gets (view abstractionCover)
                 let substRes = abstractSubstitute m ret
                 -- writeLog 3 "applySemantic" $ text "current cover" <+> text (show cover)
                 currentAbst tvs cover substRes
-        else return [ABottom]
+        else return ABottom
   where
     matchTc [] = True
     matchTc (c:cs) = case c of

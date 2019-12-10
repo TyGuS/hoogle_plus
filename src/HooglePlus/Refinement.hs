@@ -45,29 +45,54 @@ findSymbol env sym = do
 
 -- | add a new type into our cover and ensure all of them have proper lower bound
 updateCover :: [Id] -> AbstractSkeleton -> AbstractCover -> AbstractCover
-updateCover tvs t cover = updateCover' tvs t cover rootNode
+updateCover tvs t cover = let (_, cover') = updateCover' tvs cover [] t rootNode in cover'
 
--- | find which term subsumes the given one, there is no closed under meet
-updateCover' :: [Id] -> AbstractSkeleton -> AbstractCover -> AbstractSkeleton -> AbstractCover
-updateCover' bound t cover paren | isSubtypeOf bound t paren = 
-    if isSubtypeOf bound paren t 
-        then cover  -- t = paren
-        else cover' -- t <: paren 
-    where
-        children = Set.toList $ HashMap.lookupDefault Set.empty paren cover
+updateCover' :: [Id] -> AbstractCover -> [AbstractSkeleton] -> AbstractSkeleton -> AbstractSkeleton -> ([AbstractSkeleton], AbstractCover)
+updateCover' bound cover intscts t paren | equalAbstract bound t paren = (intscts, cover)
+updateCover' bound cover intscts t paren | isSubtypeOf bound t paren =
+    let children = HashMap.lookupDefault Set.empty paren cover
+        child_fun c (ints, acc) = updateCover' bound acc ints t c
+        (scts, updatedCover) = Set.foldr child_fun (intscts, cover) children
         lower c = isSubtypeOf bound t c || isSubtypeOf bound c t
-        inSubtree = any lower children
-        cover' = if inSubtree 
-            then foldl' (updateCover' bound t) cover children -- t <: child
-            else HashMap.insertWith Set.union paren (Set.singleton t) cover -- t is added as child of paren
-updateCover' bound t cover paren | isSubtypeOf bound paren t = cover'
-    where
-        grandparents = HashMap.keys $ HashMap.filter (Set.member paren) cover
+        inSubtree = any lower (Set.toList children)
+        baseCover = if inSubtree
+                      then updatedCover
+                      else HashMap.insertWith Set.union paren (Set.singleton t) updatedCover
+        int_fun s (ints, acc) = updateCover' bound acc ints s rootNode
+     in foldr int_fun ([], baseCover) scts
+updateCover' bound cover intscts t paren | isSubtypeOf bound paren t =
+    let parents = HashMap.keys $ HashMap.filter (Set.member paren) cover
         rmParen = HashMap.map (Set.delete paren) cover
         addCurr p = HashMap.insertWith Set.union p $ Set.singleton t
-        addedCurr = foldr addCurr rmParen grandparents -- add current type to all the grandparents and delete the parent
+        addedCurr = foldr addCurr rmParen parents
         cover' = HashMap.insertWith Set.union t (Set.singleton paren) addedCurr
-updateCover' _ _ cover _ = cover
+     in (intscts, cover')
+updateCover' bound cover intscts t paren =
+    let intsctMb = abstractIntersect bound t paren
+     in if isJust intsctMb then (fromJust intsctMb : intscts, cover)
+                           else (intscts, cover)
+
+-- -- | find which term subsumes the given one, there is no closed under meet
+-- updateCover' :: [Id] -> AbstractSkeleton -> AbstractCover -> AbstractSkeleton -> AbstractCover
+-- updateCover' bound t cover paren | isSubtypeOf bound t paren = 
+--     if isSubtypeOf bound paren t 
+--         then cover  -- t = paren
+--         else cover' -- t <: paren 
+--     where
+--         children = Set.toList $ HashMap.lookupDefault Set.empty paren cover
+--         lower c = isSubtypeOf bound t c || isSubtypeOf bound c t
+--         inSubtree = any lower children
+--         cover' = if inSubtree 
+--             then foldl' (updateCover' bound t) cover children -- t <: child
+--             else HashMap.insertWith Set.union paren (Set.singleton t) cover -- t is added as child of paren
+-- updateCover' bound t cover paren | isSubtypeOf bound paren t = cover'
+--     where
+--         grandparents = HashMap.keys $ HashMap.filter (Set.member paren) cover
+--         rmParen = HashMap.map (Set.delete paren) cover
+--         addCurr p = HashMap.insertWith Set.union p $ Set.singleton t
+--         addedCurr = foldr addCurr rmParen grandparents -- add current type to all the grandparents and delete the parent
+--         cover' = HashMap.insertWith Set.union t (Set.singleton paren) addedCurr
+-- updateCover' _ _ cover _ = cover
 
 propagate :: MonadIO m => Environment -> TProgram -> AbstractSkeleton -> PNSolver m ()
 -- | base case, when we reach the leaf of the AST
@@ -102,14 +127,14 @@ propagate env p@(Program (PApp f args) _) upstream = do
         -- its current abstraction is at
         -- we are finding a refined abstraction at' < at
         -- such that ct < at' < at
-        currAbs <- lift $ map head <$> mapM (currentAbst bound cover) cArgs
+        currAbs <- lift $ mapM (currentAbst bound cover) cArgs
         absArgs <- mapM (generalize env) cArgs
         -- lift $ writeLog 3 "propagate" $ text "try" <+> pretty absArgs <+> text "from" <+> pretty cArgs <+> text "with currently" <+> pretty currAbs
         guard ((all (uncurry $ isSubtypeOf bound)) (zip absArgs currAbs))
         lift $ writeLog 3 "propagate" $ text "get generalized types" <+> pretty absArgs <+> text "from" <+> pretty cArgs
         res <- lift $ applySemantic bound t absArgs
         lift $ writeLog 3 "propagate" $ text "apply" <+> pretty absArgs <+> text "to" <+> pretty t <+> text "gets" <+> pretty res
-        guard (any (\r -> isSubtypeOf bound r upstream) res)
+        guard (isSubtypeOf bound res upstream)
         return $ map compactAbstractType absArgs
 -- | case for lambda functions
 propagate env (Program (PFun x body) (FunctionT _ tArg tRet))
