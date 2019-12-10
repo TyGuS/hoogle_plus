@@ -702,7 +702,7 @@ findProgram env dst = do
                            (transitionNb st)
                            (numOfTransitions s)
                 })
-        use solverStats >>= liftIO . print
+        use solverStats >>= writeLog 1 "nextSolution" . pretty
         fixEncoder env dst splitInfo
 
     checkSolution code = do
