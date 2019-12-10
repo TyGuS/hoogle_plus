@@ -657,7 +657,10 @@ findProgram env dst = do
         let bound = env ^. boundTypeVars
         ty' <- generalize env ty
         let unifier = getUnifier bound [(ty', target)]
-        guard (isNothing unifier)
+        -- this is a generalization that does not subsume the target type
+        -- and this type is not in the cover already 
+        cover <- use abstractionCover
+        guard (isNothing unifier && not (existAbstract bound cover ty'))
         return ty'
 
     parseAndCheck code = do
