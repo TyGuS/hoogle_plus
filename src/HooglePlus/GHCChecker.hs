@@ -93,9 +93,7 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just lib
     -- on the singatures. That would be enough to show that the relevancy requirement is not met.
 
     case decl of
-        NonRec id rest -> do
-            -- liftIO $ printf "\nourDecl: %s\n" (showSDocUnsafe $ ppr decl)
-            return $ isStrict tyclassCount decl
+        NonRec id rest -> return $ isStrict tyclassCount decl
         _ -> error "checkStrictness: recursive expression found"
 
     where

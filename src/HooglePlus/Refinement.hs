@@ -261,6 +261,7 @@ solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ 
 solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t | isBound env id = modify $ set isChecked False
 solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t = do
     st <- get
+    writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tv <+> text "==" <+> pretty t
     if id `Map.member` (st ^. typeAssignment)
         then do
             let typ = fromJust $ Map.lookup id $ st ^. typeAssignment
@@ -291,11 +292,16 @@ solveTypeConstraint env t1 t2 = do
 
 -- | unify the type variable with some given type
 -- add the type assignment to our state
-unify :: (MonadIO m) => Environment -> Id -> SType -> PNSolver m ()
-unify env v t = do
-    modify $ over typeAssignment (Map.map (stypeSubstitute (Map.singleton v t)))
-    tass <- gets $ view typeAssignment
-    modify $ over typeAssignment (Map.insert v (stypeSubstitute tass t))
+unify :: MonadIO m => Environment -> Id -> SType -> PNSolver m ()
+unify env v t =
+    if v `Set.member` typeVarsOf t
+      then modify $ set isChecked False
+      else do
+        tass' <- gets $ view typeAssignment
+        writeLog 3 "unify" $ text (show tass')
+        modify $ over typeAssignment (Map.map (stypeSubstitute (Map.singleton v t)))
+        tass <- gets $ view typeAssignment
+        modify $ over typeAssignment (Map.insert v (stypeSubstitute tass t))
 
 -- | generalize a closed concrete type into an abstract one
 generalize :: MonadIO m => [Id] -> AbstractSkeleton -> LogicT (PNSolver m) AbstractSkeleton

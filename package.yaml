@@ -17,11 +17,13 @@ dependencies:
 - ansi-terminal
 - ansi-wl-pprint
 - array
+- async
 - base
 - bimap
 - bytestring
 - Cabal
 - cereal
+- ChasingBottoms
 - cmdargs
 - conduit
 - conduit-extra
@@ -49,11 +51,12 @@ dependencies:
 - pretty-simple
 - pretty-tree
 - process
+- QuickCheck
 - regex-compat
+- regex-posix
 - resourcet
 - safe
 - sort
-- split
 - split
 - stm
 - text
@@ -61,10 +64,9 @@ dependencies:
 - transformers
 - transformers-compat
 - unordered-containers
-- vector
 - uuid
-- QuickCheck
-- ChasingBottoms
+- vector
+- z3
 
 library:
   source-dirs:
@@ -94,6 +96,7 @@ executables:
     - webapp/app
     - webapp/src
     ghc-options:
+    - -O2
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N

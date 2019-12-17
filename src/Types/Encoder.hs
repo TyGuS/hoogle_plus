@@ -46,8 +46,7 @@ instance Ord FunctionCode where
 
 data Z3Env = Z3Env {
   envSolver  :: Z3.Solver,
-  envContext :: Z3.Context,
-  envOptimize :: Z3.Optimize
+  envContext :: Z3.Context
 }
 
 data EncodeState = EncodeState {
@@ -105,9 +104,8 @@ newEnv mbLogic opts =
   Z3.withConfig $ \cfg -> do
     setOpts cfg opts
     ctx <- Z3.mkContext cfg
-    opt <- Z3.mkOptimize ctx
     solver <- maybe (Z3.mkSolver ctx) (Z3.mkSolverForLogic ctx) mbLogic
-    return $ Z3Env solver ctx opt
+    return $ Z3Env solver ctx
 
 initialZ3Env = newEnv Nothing stdOpts
 
@@ -116,7 +114,6 @@ freshEnv ctx =
   Z3.withConfig $ \cfg -> do
     setOpts cfg stdOpts
     solver <- Z3.mkSolver ctx
-    opt <- Z3.mkOptimize ctx
-    return $ Z3Env solver ctx opt
+    return $ Z3Env solver ctx
 
 type Encoder = StateT EncodeState IO

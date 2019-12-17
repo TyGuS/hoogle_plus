@@ -1,5 +1,4 @@
-{-# LANGUAGE ViewPatterns, PatternGuards, TupleSections, OverloadedStrings, Rank2Types, DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ViewPatterns, PatternGuards, OverloadedStrings, Rank2Types #-}
 
 module Database.Generate where
 

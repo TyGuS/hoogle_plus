@@ -10,5 +10,6 @@ import Yesod.Core
 
 import Home
 import Search
+import Stop
 
 mkYesodDispatch "App" resourcesApp

@@ -22,10 +22,12 @@ import qualified Data.Map as Map
 import Data.Maybe
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Ord
 import Data.Tuple
 import Debug.Trace
 import Language.Haskell.Exts.Parser (ParseResult(..), parseExp)
 import Text.Printf
+import System.IO
 
 import Database.Convert
 import Database.Generate
@@ -535,7 +537,7 @@ findProgram env dst st ps
                                  replaceId hoPostfix "" $
                                  lookupWithError "nameMapping" x nameMap)
                             p
-                 in if disrel then True else all (`elem` p') hoArgs
+                 in disrel || all (`elem` p') hoArgs
         return $ filter filterPaths (sequence allPaths)
 
     skipClone = not . isInfixOf "|clone"
@@ -576,7 +578,7 @@ findProgram env dst st ps
             modify $ over useCount $ Map.insertWith (+) name 1) firedTrans
         let sigs = substPair $ substName firedTrans $ map (findFunction fm) reps
         writeLog 2 "fillSketch" $ text "found filtered sigs" <+> pretty sigs
-        let initialFormer = FormerState 0 HashMap.empty [] []
+        let initialFormer = FormerState HashMap.empty []
         withTime FormerTime $ generateCode initialFormer src args sigs
 
     checkUntilFail :: MonadIO m
@@ -589,7 +591,8 @@ findProgram env dst st ps
         codeResult <- fillSketch path
         checkResult <- withTime TypeCheckTime $
                         firstCheckedOrError $
-                        reverse $ sortOn length $ Set.toList codeResult
+                        sortOn (Data.Ord.Down . length) $ 
+                        Set.toList codeResult
         rs <- getExperiment refineStrategy
         stop <- getExperiment stopRefine
         placeNum <- getExperiment threshold
@@ -632,6 +635,7 @@ findProgram env dst st ps
         return ty'
 
     parseAndCheck code = do
+        modify $ set typeAssignment Map.empty
         let prog = case parseExp code of
                        ParseOk exp -> toSynquidProgram exp
                        ParseFailed loc err -> error err
@@ -719,6 +723,8 @@ writeSolution code = do
     msgChan <- gets $ view messageChan
     let stats' = stats {pathLength = loc}
     liftIO $ writeChan msgChan (MesgP (code, stats', undefined))
+    -- liftIO $ printSolution code
+    -- liftIO $ hFlush stdout
     writeLog 1 "writeSolution" $ text (show stats')
 
 recoverNames :: Map Id Id -> Program t -> Program t

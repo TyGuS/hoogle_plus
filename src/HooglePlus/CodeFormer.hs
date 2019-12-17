@@ -25,20 +25,11 @@ import Data.List.Split
 type Code = String
 type CodePieces = Set Code
 data FormerState = FormerState {
-    varCounter :: Int,
     typedTerms :: HashMap AbstractSkeleton CodePieces,
-    createdVars :: [Code],
     allSignatures :: [FunctionCode]
 }
 
 type CodeFormer = StateT FormerState IO
-
-newVar :: CodeFormer Code
-newVar = do
-    st <- get
-    let count = varCounter st
-    put $ st { varCounter = count + 1 }
-    return $ "x" ++ show count
 
 withParen :: Code -> Code
 withParen c = "(" ++ c ++ ")"
@@ -80,9 +71,7 @@ generateProgram :: [FunctionCode]      -- signatures used to generate program
 generateProgram signatures inputs argNames rets disrel = do
     -- prepare scalar variables
     st <- get
-    put $ st { varCounter = 0
-             , allSignatures = signatures
-             }
+    put $ st { allSignatures = signatures }
     mapM_ (uncurry addTypedArg) $ zip inputs argNames
     mapM_ applyFunction signatures
     termLib <- gets typedTerms
@@ -95,15 +84,6 @@ generateProgram signatures inputs argNames rets disrel = do
         let tterms = typedTerms st
         let newTerms = HashMap.insertWith Set.union input (Set.singleton argName) tterms
         put $ st { typedTerms = newTerms }
-
-    -- ignore the nested higher order arguments
-    addHOParams func = do
-        tterms <- gets typedTerms
-        mapM_ (mapM_ addHOParam . funParams) $ hoParams func
-
-    addHOParam fparam = do
-        argName <- newVar
-        addTypedArg fparam argName
 
     includeAllSymbols vars code =
         let fold_fn f (b, c) = if b && f `elem` c then (True, f `delete` c) else (False, c)

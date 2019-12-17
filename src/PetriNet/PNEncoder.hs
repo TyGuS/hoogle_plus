@@ -37,7 +37,6 @@ import Synquid.Pretty
 instance MonadZ3 Encoder where
     getSolver = gets (envSolver . z3env)
     getContext = gets (envContext . z3env)
-    getOptimize = gets (envOptimize . z3env)
 
 -- | create a new encoder in z3
 createEncoder :: [AbstractSkeleton] -> AbstractSkeleton -> [FunctionCode] -> Encoder ()
@@ -134,6 +133,7 @@ nonincrementalSolve = do
 
     addAllConstraints
     -- str <- solverToString
+    -- liftIO $ putStrLn str
     -- liftIO $ writeFile "constraint.z3" str
     check
 
@@ -181,11 +181,8 @@ solveAndGetModel = do
                                                                 , t <- [0..l]]
             blockTrs <- zipWithM blockTr [0..(l-1)] selected
             blockAss <- mkAnd (placed ++ blockTrs) >>= mkNot
-            modify $ \st -> st { block = blockAss }
-            unless incremental $ do
-                currEnv <- gets z3env
-                env <- liftIO $ freshEnv $ envContext currEnv
-                modify $ \st -> st { z3env = env }
+            modify $ \s -> s { block = blockAss }
+            unless incremental solverReset
             selectedNames <- getTrNames selected
             when incremental $ do
                 cancelConstraints "exclude"
@@ -193,12 +190,10 @@ solveAndGetModel = do
             return selectedNames
         Unsat -> do
             rets <- gets returnTyps
-            unless incremental $ do
-                currEnv <- gets z3env
-                env <- liftIO $ freshEnv $ envContext currEnv
-                modify $ \st -> st { z3env = env }
+            unless incremental solverReset
             if length rets == 1
               then do
+                -- liftIO $ print "unsat for increase length"
                 when incremental $ do
                     cancelConstraints "exclude"
                     cancelConstraints "final"
@@ -420,7 +415,7 @@ createVariables places transitions = do
 createConstraints :: [AbstractSkeleton] -> [FunctionCode] -> Encoder ()
 createConstraints places transitions = do
     -- prepare constraint parameters
-    liftIO $ print places
+    -- liftIO $ print places
     l <- gets loc
     let allTrans = [(t, tr) | t <- [0..(l-1)], tr <- transitions]
     let allPlaces = [(t, p) | t <- [0..(l-1)], p <- places]
