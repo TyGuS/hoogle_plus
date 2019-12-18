@@ -209,3 +209,18 @@ button {
     border-radius: 5px;
     cursor: pointer;
 }
+
+.solution-number {
+    width: 35px;
+}
+
+.copy-button {
+    width: auto;
+    padding-left: 0px;
+    padding-right: 0px;
+    border-radius: 5px;
+}
+
+#copy-image{
+    width: 24px;
+}

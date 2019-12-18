@@ -30,6 +30,28 @@ function generateUUID() { // Public Domain/MIT
     });
 }
 
+// sourced from: http://www.jomendez.com/2017/01/25/copy-clipboard-using-javascript/
+function copyToClipboard(text) {
+  if (window.clipboardData && window.clipboardData.setData) {
+  // IE specific code path to prevent textarea being shown while dialog is visible.
+    return clipboardData.setData("Text", text);
+  } else if (document.queryCommandSupported && document.queryCommandSupported("copy")) {
+    var textarea = document.createElement("textarea");
+    textarea.textContent = text;
+    textarea.style.position = "fixed";  // Prevent scrolling to bottom of page in MS Edge.
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+        return document.execCommand("copy"); // Security exception may be thrown by some browsers.
+    } catch (ex) {
+        console.warn("Copy to clipboard failed.", ex);
+        return false;
+    } finally {
+        document.body.removeChild(textarea);
+    }
+  }
+}
+
 $(function(){
     $('[data-toggle="tooltip"]').tooltip()
 
@@ -138,23 +160,37 @@ $(function(){
                               $("#loading").show()
                               $("#button-stop").removeAttr('disabled')
                               $("#button-addon2").attr('disabled','disabled')
-                              var badge = $("<span></span>")
+                              var right_div = $("<div></div>")
+                                              .append($("<h5></h5>")
+                                              .append($("<span></span>")
+                                              .append(data["solution"])));
+                              var solution_text = $("<span></span>")
+                                                  .append(data['solution']);
+                              var badge = $("<div></div>")
                                           .addClass("badge")
                                           .addClass("badge-primary")
-                                          .append(idx)
+                                          .append(idx);
+                              var copy_img = $("<img src='assets/copy.svg'>")
+                                             .attr("id", "copy-image");
+                              var copy_button = $("<button></button>")
+                                                .addClass("copy-button")
+                                                .click(() => copyToClipboard(solution_text.text()))
+                                                .append(copy_img)
+                                                .addClass("my-tooltip")
+                                                .attr("data-toggle","tooltip")
+                                                .attr("data-original-title", "Copy to clipboard")
+                                                .tooltip();
                               var sol_div = $("<div></div>")
                                            .addClass("d-flex")
                                            .addClass("flex-row")
                                            .addClass("list-group-item")
                                            .append($("<div></div>")
                                                    .addClass("left")
-                                                   .append(badge))
-                              var right_div = $("<div></div>")
-                                             .append($("<h5></h5>")
-                                                     .append($("<span></span>")
-                                                             .append(data["solution"])))
+                                                   .addClass("solution-number")
+                                                   .append(badge)
+                                                   .append(copy_button));
                               var pkg_div = $("<span></span>")
-                                           .addClass("packages")
+                                           .addClass("packages");
                               if(data["packages"].length != 0)
                                 pkg_div.append("Modules: ")
                               var packages = Object.values(data["packages"]).join(', ')
