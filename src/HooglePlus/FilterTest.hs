@@ -119,7 +119,7 @@ buildNotCrashProp solution funcSig =
       , printf "result <- run (%s %s);" "wrappedSolution" argLine
       , printf "assert (%s)" body
       , "} in"
-      , printf "quickCheckResult (%s)" propName]) :: String
+      , printf "quickCheckWithResult stdArgs { chatty = False } (%s)" propName]) :: String
 
 buildDupCheckProp :: (String, [String]) -> FunctionSignature -> Int -> String
 buildDupCheckProp (sol, otherSols) funcSig timeInMicro =
@@ -151,7 +151,7 @@ buildDupCheckProp (sol, otherSols) funcSig timeInMicro =
         ++ map formatBinding otherSols' ++
       [ printf "assert (Prelude.or $ Prelude.map (isEqualResult resultL) %s)" (formatBindingList otherSols')
       , "} in"
-      , printf "quickCheckResult dupProp"]) :: String
+      , printf "quickCheckWithResult stdArgs { chatty = False } dupProp"]) :: String
 
 runInterpreter' :: Int -> InterpreterT IO a -> IO (Either InterpreterError a) 
 runInterpreter' timeInMicro exec =

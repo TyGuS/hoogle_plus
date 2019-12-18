@@ -68,7 +68,7 @@ runQuery queryOpts tm = do
     env <- readEnv
     goal <- envToGoal env query
     hdl <- openFile uuid ReadWriteMode
-    proc <- spawnCommand $ printf "stack exec -- hplus \"%s\" --stop-refine --disable-filter --stop-threshold=10 --cnt=10 > %s" query uuid
+    proc <- spawnCommand $ printf "stack exec -- hplus \"%s\" --stop-refine --stop-threshold=10 --cnt=10 > %s" query uuid
     atomicModifyIORef tm (\m -> (Map.insert uuid (hdl, proc) m, ()))
     -- timeout the process after the time limit
     forkIO $ threadDelay time_limit >> terminateProcess proc >> endFile uuid hdl
@@ -200,7 +200,7 @@ postSearchR = do
                 program <- liftIO $ catch (hGetLine hdl) (\(e :: IOException) -> return "") -- if the handler is closed
                 if program == ""
                     then C.sinkNull >> liftIO (endFile uuid hdl)
-                    else if head program == '*' then collectResults goal uuid hdl else do -- skip the stars in the output
+                    else if not ("SOLUTION" `isPrefixOf` program) then collectResults goal uuid hdl else do -- skip everything except solution line
                         strProg <- liftIO $ transformSolution goal $ drop 10 program
                         let prog = strProg uuid
                         liftIO $ print (BChar.unpack $ Aeson.encode prog)
