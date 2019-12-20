@@ -52,3 +52,19 @@ First run `docker pull aaron069/hoogle-plus:v5`
 Then go to your hoogle_plus repo, run `docker run -v ./:/home/hoogle-plus -it aaron069/hoogle-plus:v5`
 If you want to redirect port on localhost:3000, add this flag: `-p 3000:3000` on above command.
 
+
+## Developing inside a Container
+
+The project could be developed inside a docker container with [Visual Studio Code Remote][vscode-remote],
+which has a configured Haskell development environment powered by HIE.
+Configurations for the development environment can be found [here](/.devcontainer).
+
+Simply clone and open the project with Visual Studio Code, then select _Reopen in Container_ in the pop-up menu.
+After VSCode set up the pre-defined container, we may build the project and run its unit tests with
+```bash
+$ stack build && stack test
+```
+
+[vscode-remote]: <https://code.visualstudio.com/docs/remote/containers>
+
+
