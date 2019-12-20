@@ -249,7 +249,6 @@ executeSearch synquidParams searchParams query = do
   workerS <- forkIO $ synthesize searchParams goal solverChan
   workerC <- forkIO $ check goal searchParams solverChan checkerChan
   readChan checkerChan >>= (handleMessages checkerChan)
-  return ()
   where
     logLevel = searchParams ^. explorerLogLevel
     readEnv = do
@@ -262,12 +261,14 @@ executeSearch synquidParams searchParams query = do
         Right env ->
           return env
 
-    handleMessages ch (MesgClose _) = putStrLn "Search complete" >> return ()
-    handleMessages ch (MesgP (program, stats)) = do
-      printf "[writeStats]: %s\n" (show stats)
-      printSolution program >> readChan ch >>= (handleMessages ch)
+    handleMessages ch (MesgClose _) = when (logLevel > 0) (putStrLn "Search complete") >> return ()
+    handleMessages ch (MesgP (program, stats, _)) = do
+      when (logLevel > 0) $ printf "[writeStats]: %s\n" (show stats)
+      printSolution program
+      hFlush stdout
+      readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgS debug) = do
-      printf "[writeStats]: %s\n" (show debug)
+      when (logLevel > 1) $ printf "[writeStats]: %s\n" (show debug)
       readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgLog level tag msg) = do
       when (level <= logLevel) (do

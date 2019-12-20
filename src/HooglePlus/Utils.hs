@@ -46,7 +46,8 @@ import Data.UUID.V4
 mkFunctionSigStr :: [RType] -> String
 mkFunctionSigStr args = addConstraints $ Prelude.foldr accumConstraints ([],[]) args
     where
-        showSigs sigs = intercalate " -> " sigs
+        showSigs = intercalate " -> "
+        wrapParen x = "(" ++ x ++ ")"
         addConstraints ([], baseSigs) = showSigs baseSigs
         addConstraints (constraints, baseSigs) = "(" ++ (intercalate ", " constraints) ++ ") => " ++ showSigs baseSigs
 
@@ -59,7 +60,9 @@ mkFunctionSigStr args = addConstraints $ Prelude.foldr accumConstraints ([],[]) 
                 -- \(@@hplusTC@@([a-zA-Z]*) \(([a-z]*)\)\)
                 in
                     (constraint:constraints, baseSigs)
-        accumConstraints otherTy (constraints, baseSigs) = (constraints, show otherTy:baseSigs)
+        accumConstraints otherTy (constraints, baseSigs) = let
+            otherStr = if isFunctionType otherTy then wrapParen (show otherTy) else show otherTy
+            in (constraints, otherStr:baseSigs)
 
 -- mkLambdaStr produces a oneline lambda expr str:
 -- (\x -> \y -> body))
@@ -77,7 +80,7 @@ mkLambdaStr args body = let
 toHaskellSolution :: String -> String
 toHaskellSolution bodyStr = let
     oneLineBody = unwords $ lines bodyStr
-    noTypeclasses = (removeTypeclasses) oneLineBody
+    noTypeclasses = removeTypeclasses oneLineBody
     in
         noTypeclasses
 
@@ -90,14 +93,14 @@ removeAll a b = unwords $ words $ go a b
             else input
 
 removeTypeclassArgs :: String -> String
-removeTypeclassArgs = removeAll (mkRegex (tyclassArgBase++"[0-9]+\\s?"))
+removeTypeclassArgs = removeAll (mkRegex (tyclassArgBase++"[0-9]+"))
 
 removeTypeclassInstances :: String -> String
 removeTypeclassInstances = removeAll (mkRegex (tyclassInstancePrefix ++ "[0-9]*[a-zA-Z]*"))
 
 removeTypeclasses = removeEmptyParens . removeTypeclassArgs . removeTypeclassInstances
     where
-        removeEmptyParens = removeAll (mkRegex "\\(\\s+\\)")
+        removeEmptyParens = removeAll (mkRegex "\\(\\ +\\)")
 
 printSolution solution = do
     putStrLn "*******************SOLUTION*********************"

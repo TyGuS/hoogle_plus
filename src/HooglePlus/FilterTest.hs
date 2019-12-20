@@ -1,4 +1,5 @@
-module HooglePlus.FilterTest (runChecks, checkSolutionNotCrash, checkDuplicates) where
+-- module HooglePlus.FilterTest (runChecks, checkSolutionNotCrash, checkDuplicates) where
+module HooglePlus.FilterTest where
 
 import Language.Haskell.Interpreter hiding (get)
 import Language.Haskell.Interpreter.Unsafe
@@ -84,82 +85,116 @@ toInnerType (FunctionSignature _ argsType returnType) =
       f (ArgTypeApp l r) = ArgTypeApp (f l) (f r)
       f (ArgTypeFunc l r) = ArgTypeFunc (f l) (f r)
 
--- generate first-order values from QuickCheck
-generateRandomValue :: [String] -> [String] -> IO [String]
-generateRandomValue imports typeNames = do
-  srcPath <- getDataFileName "InternalTypeGen.hs"
-  result <- runInterpreter $ do {
-    loadModules [srcPath];
-    setTopLevelModules ["InternalTypeGen"];
-    setImports imports;
+buildFunctionWrapper :: String -> String -> String -> Int -> String
+buildFunctionWrapper = buildFunctionWrapper' "wrappedSolution"
 
-    mapM (\x -> interpret (fmtLine x) (as :: IO String) >>= liftIO) typeNames
-  }
+buildFunctionWrapper' :: String -> String -> String -> String -> Int -> String
+buildFunctionWrapper' wrapperName solution solutionType solutionParams timeInMicro =
+  unwords
+  [ formatSolution solution solutionType
+  , formatWrapper timeInMicro solutionParams]
+  where
 
+    formatSolution solution typeStr =
+      printf "let sol_%s = ((%s) :: %s) in" wrapperName solution typeStr :: String
+    formatWrapper timeInMicro params =
+      printf "let %s %s = (CB.timeOutMicro' %d (CB.approxShow %d (sol_%s %s))) in" wrapperName params timeInMicro defaultMaxOutputLength wrapperName params :: String
+
+buildNotCrashProp :: String -> FunctionSignature -> (String, String)
+buildNotCrashProp solution funcSig =
+
+  ( formatAlwaysFailProp argLine argDecl wrapper
+  , formatNeverFailProp argLine argDecl wrapper)
+  where
+    (argLine, argDecl) = toParamListDecl (_argsType funcSig)
+
+    wrapper = buildFunctionWrapper solution (show funcSig) argLine defaultTimeoutMicro
+
+    formatAlwaysFailProp = formatProp "propAlwaysFail" "isFailedResult result"
+    formatNeverFailProp = formatProp "propNeverFail" "not $ isFailedResult result"
+
+    formatProp propName body argLine argDecl wrappedSolution = unwords
+      ([wrappedSolution] ++
+      [ printf "let %s %s = monadicIO $ do {" propName argDecl
+      , printf "result <- run (%s %s);" "wrappedSolution" argLine
+      , printf "assert (%s)" body
+      , "} in"
+      , printf "quickCheckWithResult stdArgs { chatty = False } (%s)" propName]) :: String
+
+buildDupCheckProp :: (String, [String]) -> FunctionSignature -> Int -> String
+buildDupCheckProp (sol, otherSols) funcSig timeInMicro =
+
+  unwords [wrapperLhs, unwords wrapperSols, formatProp wrapperLhs wrapperSols argLine argDecl]
+  where
+    (argLine, argDecl) = toParamListDecl (_argsType funcSig)
+    solutionType = show funcSig
+
+    wrapFunc name sol = buildFunctionWrapper' name sol solutionType argLine timeInMicro
+
+    otherSols' = zip [0..] otherSols
+    wrapperLhs = wrapFunc "lhs" sol
+    wrapperSols = map (\(i, sol) -> wrapFunc (printf "sol_%d" i) sol) otherSols'
+
+    formatBinding :: (Int, String) -> String
+    formatBinding (i, _) = printf "result_%d <- run (sol_%d %s);" i i argLine :: String
+
+    formatBindingItem :: (Int, String) -> String
+    formatBindingItem (i, _) = printf "result_%d" i :: String
+
+    formatBindingList sols =
+      let items = intercalate "," $ map formatBindingItem sols in
+        printf "[%s]" items :: String
+
+    formatProp wLhs wRhs argLine argDecl = unwords
+      ([ printf "let dupProp %s = monadicIO $ do {" argDecl 
+      , printf "resultL <- run (lhs %s);" argLine]
+        ++ map formatBinding otherSols' ++
+      [ printf "assert (Prelude.or $ Prelude.map (isEqualResult resultL) %s)" (formatBindingList otherSols')
+      , "} in"
+      , printf "quickCheckWithResult stdArgs { chatty = False } dupProp"]) :: String
+
+runInterpreter' :: Int -> InterpreterT IO a -> IO (Either InterpreterError a) 
+runInterpreter' timeInMicro exec =
+
+  toResult <$> timeout timeInMicro execute
+  where
+    execute = do
+      srcPath <- getDataFileName "InternalTypeGen.hs"
+      unsafeRunInterpreterWithArgs ["-fno-omit-yields"] $ do
+    
+        loadModules [srcPath]
+        setTopLevelModules ["InternalTypeGen"]
+    
+        exec
+
+    toResult Nothing = Left $ UnknownError "timeout"
+    toResult (Just v) = v 
+
+
+validateSolution :: [String] -> String -> FunctionSignature -> Int -> IO (Either InterpreterError FunctionCrashKind)
+validateSolution modules solution funcSig time = do
+  result <- runInterpreter' defaultInterpreterTimeoutMicro $ do
+    setImportsQ (zip modules (repeat Nothing) ++ quickCheckModules)
+
+    let (alwaysFailProp, neverFailProp) = buildNotCrashProp solution funcSig
+
+    alwaysFailResult <- interpret alwaysFailProp (as :: IO Result) >>= liftIO
+    neverFailResult <- interpret neverFailProp (as :: IO Result) >>= liftIO
+
+    return (alwaysFailResult, neverFailResult)
   case result of
-    Left err -> putStrLn (displayException err) >> return ["error \"unable to generate input\""]
-    Right res -> return $ map (printf "(%s)") res
-  where
-    fmtLine typeName = printf "show <$> generate (arbitrary :: Gen (%s))" typeName :: String
+    Left err -> return $ Left err
+    Right (Success{}, _) -> return $ Right AlwaysFail
+    Right (_, Success{}) -> return $ Right AlwaysSucceed
+    Right _ -> return $ Right PartialFunction
 
--- map custom seed and size to value of arbitrary type
-generateRandomValueWith :: Arbitrary a => Int -> Int -> a
-generateRandomValueWith seed = unGen arbitrary (mkQCGen seed)
+compareSolution :: [String] -> String -> [String] -> FunctionSignature -> Int -> IO (Either InterpreterError Result)
+compareSolution modules solution otherSolutions funcSig time = do
+  runInterpreter' defaultInterpreterTimeoutMicro $ do
+    setImportsQ (zip modules (repeat Nothing) ++ quickCheckModules)
 
--- generate test input as line of code
-generateTestInput :: [String] -> FunctionSignature -> IO GeneratedInput
-generateTestInput imports funcSig = do
-
-  hoArgs <- transformHOs hoArgTypes
-  foArgs <- transformFOs foArgTypes
-
-  let args = sortBy (\(l, _) (r, _) -> compare l r) (hoArgs ++ foArgs)
-  return $ map snd args
-
-  where
-
-    argTypeIndexed :: [(Int, ArgumentType)]
-    argTypeIndexed = zip [1..] (_argsType funcSig)
-    hoArgTypes = filter (isHigherOrderArgument . snd) argTypeIndexed
-    foArgTypes = filter (not . isHigherOrderArgument . snd) argTypeIndexed
-
-    transformHOs hoArgTypes =
-      zip indexes <$> mapM f (zip [1..] hoArgTypes)
-      where
-        indexes = map fst hoArgTypes
-        f (index, (_, argType)) = do
-          seed <- generate arbitrary :: IO Int
-          size <- generate arbitrary :: IO Int
-          
-          let typeStr = show argType
-          return (HigherOrder typeStr index seed size)
-
-    transformFOs foArgTypes =
-      let indexes = map fst foArgTypes in
-      let argTypeStrs = map (show . snd) foArgTypes in
-      let generatedValues = generateRandomValue imports argTypeStrs in
-        zip indexes . map Value <$> generatedValues
-
-evalHOF_ :: [String] -> [String] -> String -> Int -> IO (Maybe (Either InterpreterError String))
-evalHOF_ modules inits line time = handleAnyException $ timeout time $ do
-  srcPath <- getDataFileName "InternalTypeGen.hs"
-  result <- unsafeRunInterpreterWithArgs ["-fno-omit-yields"] $ do
-
-    loadModules [srcPath]
-    setTopLevelModules ["InternalTypeGen"]
-    setImports (quickCheckModules ++ modules)
-
-    mapM_ runStmt inits
-    eval line
-  case result of
-    Right val -> do
-      let output = (fst . splitAt defaultMaxOutputLength) val
-      if "*** Exception" `isInfixOf` output
-        then (return . Left . UnknownError) val
-        else (return . Right) output
-    _ -> return result
-  where
-    quickCheckModules = ["Test.QuickCheck", "Test.QuickCheck.Gen", "Test.QuickCheck.Random"]
+    let prop = buildDupCheckProp (solution, otherSolutions) funcSig time
+    interpret prop (as :: IO Result) >>= liftIO
 
 runChecks :: MonadIO m => Environment -> RType -> UProgram -> FilterTest m Bool
 runChecks env goalType prog =
@@ -171,91 +206,68 @@ runChecks env goalType prog =
              , checkDuplicates]
 
 checkSolutionNotCrash :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
-checkSolutionNotCrash modules sigStr body = or <$> liftIO executeCheck
+checkSolutionNotCrash modules sigStr body = liftIO executeCheck
   where
+    handleNotSupported = (`catch` ((\ex -> print ex >> return True) :: NotSupportedException -> IO Bool))
     executeCheck = handleNotSupported $ do
       let funcSig = (instantiateSignature . parseTypeString) sigStr
-      replicateM defaultNumChecks (check funcSig)
 
-    check funcSig = do
-      input <- generateTestInput modules funcSig
-      let (inits, arg) = formatGenInputInitialization input
-      let expression = fmtFunction_ body (show funcSig) arg
-
-      let hos = filterHigherOrder_ funcSig
-      result <- evalHOF_ modules inits expression defaultTimeoutMicro
-
+      result <- validateSolution modules body funcSig defaultTimeoutMicro
       case result of
-        Nothing -> putStrLn "Timeout in running always-fail detection" >> return True
-        Just (Left err) -> putStrLn (displayException err) >> return False
-        Just (Right res) -> return (seq res True)
-
-handleNotSupported = (`catch` ((\ex -> print ex >> return [True]) :: NotSupportedException -> IO [Bool]))
-
--- some timeout happened to raise an exception with "timeout" keyword
--- turn it into Nothing rather than have it as exception
-handleAnyException :: IO (Maybe (Either InterpreterError a)) -> IO (Maybe (Either InterpreterError a))
-handleAnyException = (`catch` (return . handler . (show :: SomeException -> String)))
-  where
-    handler ex  | "timeout" `isInfixOf` ex = Nothing
-                | otherwise = (Just . Left. UnknownError) ex
-fmtFunction_ = printf "((%s) :: %s) %s" :: String -> String -> String -> String
-fmtPureHO name typeStr seed size =
-  printf "(%s) <- pure (((unGen arbitrary (mkQCGen (%d)) (%d)) :: (%s)))" name seed size typeStr :: String
-
--- returns (init statements for HOs, line of arguments value)
-formatGenInputInitialization :: GeneratedInput -> ([String], String)
-formatGenInputInitialization generated =
-  (,) (map genStmtHO $ filter isHO generated) (unwords $ map show generated)
-  where
-    genStmtHO (HigherOrder tipe index seed size) =
-      fmtPureHO (formatHigherOrderArgument index) tipe seed size
-    
-    isHO HigherOrder {} = True
-    isHO _ = False
-
-isHigherOrderArgument :: ArgumentType -> Bool
-isHigherOrderArgument (ArgTypeFunc _ _) = True
-isHigherOrderArgument (ArgTypeList sub) = isHigherOrderArgument sub
-isHigherOrderArgument (ArgTypeApp l r) = any isHigherOrderArgument [l, r]
-isHigherOrderArgument (ArgTypeTuple types) = any isHigherOrderArgument types
-isHigherOrderArgument _ = False
-
-filterHigherOrder_ :: FunctionSignature -> [String]
-filterHigherOrder_ funcSig = map show $ filter isHigherOrderArgument $ _argsType funcSig
+        Left err -> print err >> return True
+        Right AlwaysFail -> return False
+        Right _ -> return True
 
 checkDuplicates :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
-checkDuplicates modules sigStr body = do
-  st <- get
-  case sampleResults st of
-    Nothing -> do
+checkDuplicates modules sigStr solution = do
+  FilterState is solns <- get
 
-      inputs <- liftIO $ generateInputs modules funcSig
+  result <- liftIO $ compareSolution modules solution solns funcSig defaultTimeoutMicro
 
-      modify $ \st -> st { sampleResults = Just (SampleResult inputs []) }
-      checkDuplicates modules sigStr body
-    Just (SampleResult inputs results) -> do
-      evals <- liftIO $ evalResults inputs body
-      let isDuplicated = evals `elem` results
-      let results' = if isDuplicated then results else evals:results
-
-      modify $ \st -> st { sampleResults = Just $ SampleResult inputs results'}
-      return $ not isDuplicated
-
-      where
-        evalResults inputs body = mapM evalWithArg inputs
-
-        evalWithArg :: GeneratedInput -> IO SampleResultItem
-        evalWithArg input = 
-          let (inits, arg) = formatGenInputInitialization input in
-          liftM2 (,)
-            (pure arg)
-            (show <$> evalHOF_ modules inits (fmtFunction_ body (show funcSig) arg) defaultTimeoutMicro) 
-        
+  case result of
+    Left err -> do
+      liftIO $ print err
+      modify $ const FilterState {inputs = is, solutions = solution:solns}
+      return True
+    Right Failure{failingTestCase = c} -> do
+      modify $ const FilterState {inputs = c:is, solutions = solution:solns}
+      return True
+    _ -> return False
 
   where
     funcSig = (instantiateSignature . parseTypeString) sigStr
-    hos = filterHigherOrder_ funcSig
 
-    generateInputs :: [String] -> FunctionSignature -> IO [GeneratedInput]
-    generateInputs modules funcSig = replicateM defaultNumChecks (generateTestInput modules funcSig)
+toParamListDecl :: [ArgumentType] -> (String, String)
+toParamListDecl args =
+
+  (plainArgLine, declArgLine)
+
+  where
+    n = length args
+    indexedArgs = zip [1..n] args
+
+    plainArgLine = unwords $ map (formatParam . fst) indexedArgs
+    declArgLine = unwords $ map toDecl indexedArgs
+    
+    computeAppDepth (ArgTypeFunc l r) =
+      case r of
+        ArgTypeFunc _ _ -> 1 + computeAppDepth r
+        _ -> 1
+    computeAppDepth invalid = error $ printf "Invalid argument for computeAppDepth: %s" (show invalid)
+
+    formatParam = printf "arg_%d" :: Int -> String
+
+    toDecl :: (Int, ArgumentType) -> String
+    toDecl (index, tipe@(ArgTypeFunc l r)) =
+
+      printf "(%s arg_%d)" pattern index
+      where
+        pattern = case computeAppDepth tipe of
+          1 -> "Fn"
+          2 -> "Fn2"
+          3 -> "Fn3"
+          _ -> error "Unsupported higher-order function"
+    
+    toDecl (index, _) = formatParam index
+      
+      

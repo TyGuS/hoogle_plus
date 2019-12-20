@@ -6,11 +6,17 @@ import Data.Typeable
 import Text.Printf
 import Data.List (intercalate)
 
-defaultTimeoutMicro = 1 * 10^6 :: Int
-defaultNumChecks = 5 :: Int
+defaultTimeoutMicro = 5 * 10^4 :: Int
+defaultInterpreterTimeoutMicro = 60 * 10^6 :: Int
 defaultMaxOutputLength = 100 :: Int
 
-formatHigherOrderArgument = printf "(hof_%d)" :: Int -> String
+quickCheckModules =
+  zip [ "Test.QuickCheck"
+  , "Test.QuickCheck.Gen"
+  , "Test.QuickCheck.Random"
+  , "Test.QuickCheck.Monadic" ] (repeat Nothing)
+
+  ++ [("Test.ChasingBottoms", Just "CB")]
 
 supportedInnerType =
   [ "Int"
@@ -18,6 +24,12 @@ supportedInnerType =
   , "Double"
   , "Char"
   , "String" ]
+
+data FunctionCrashKind = 
+    AlwaysSucceed
+  | AlwaysFail
+  | PartialFunction
+  deriving (Show)
 
 data ArgumentType =
     Concrete    String
@@ -32,7 +44,7 @@ instance Show ArgumentType where
   show (Concrete    name) = name
   show (Polymorphic name) = name
   show (ArgTypeList sub)  = printf "[%s]" (show sub)
-  show (ArgTypeApp  l r)  = printf "(%s) %s"  (show l) (show r)
+  show (ArgTypeApp  l r)  = printf "((%s) (%s))"  (show l) (show r)
   show (ArgTypeTuple types) =
     (printf "(%s)" . intercalate ", " . map show) types
   show (ArgTypeFunc src dst) = printf "((%s) -> (%s))" (show src) (show dst)
@@ -60,29 +72,14 @@ instance Show FunctionSignature where
         constraintsExpr = (intercalate ", " . map show) constraints
         argsExpr = (intercalate " -> " . map show) (argsType ++ [returnType])
 
-data GeneratedArg =
-    Value String
-  | HigherOrder String Int Int Int
-  deriving (Eq)
-
-instance Show GeneratedArg where
-  show (Value val) = val
-  show (HigherOrder _ index _ _) = formatHigherOrderArgument index
-
-type GeneratedInput = [GeneratedArg]
-
-type SampleResultItem = (String, String)
-data SampleResult = SampleResult {
-  _inputs :: [GeneratedInput],
-  _results :: [[SampleResultItem]]
+data FilterState = FilterState {
+  inputs :: [[String]],
+  solutions :: [String]
 } deriving (Eq, Show)
 
-newtype FilterState = FilterState
-  { sampleResults :: Maybe SampleResult }
-  deriving (Eq, Show)
-
 emptyFilterState = FilterState {
-  sampleResults = Nothing
+  inputs = [],
+  solutions = []
 }
 
 type FilterTest m = StateT FilterState m

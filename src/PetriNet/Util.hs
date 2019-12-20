@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, NamedFieldPuns #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module PetriNet.Util where
 
@@ -33,6 +33,7 @@ import Control.Concurrent.Chan
 import Data.Hashable
 import Control.Monad.ST (runST, ST)
 import Data.Array.ST (STArray, readArray, writeArray, newListArray, getElems)
+import Debug.Trace
 
 getExperiment exp = gets $ view (searchParams . exp)
 
@@ -43,6 +44,7 @@ writeLog :: MonadIO m => Int -> String -> Doc -> PNSolver m ()
 writeLog level tag msg = do
     mesgChan <- gets $ view messageChan
     liftIO $ writeChan mesgChan (MesgLog level tag $ show $ plain msg)
+    -- if level <= 3 then trace (printf "[%s]: %s\n" tag (show $ plain msg)) $ return () else return ()
 
 multiPermutation len elmts | len == 0 = [[]]
 multiPermutation len elmts | len == 1 = [[e] | e <- elmts]
@@ -128,10 +130,9 @@ groupSignatures sigs = do
     let groupMap = Map.fromList $ map (\(gid, (_, ids)) -> (gid, ids)) signatureGroups
     let t2g = Map.fromList $ map (\(gid, (aty, _)) -> (aty, gid)) signatureGroups
     -- write out the info.
-    mesgChan <- view messageChan <$> get
+    mesgChan <- gets $ view messageChan
     modify $ over solverStats (\s -> s {
         duplicateSymbols = duplicateSymbols s ++ [(length sigLists, sum dupes, sum $ map length $ sigLists)]
     })
-    stats <- view solverStats <$> get
-    liftIO $ writeChan mesgChan (MesgS stats)
+    stats <- gets $ view solverStats
     return (t2g, groupMap)

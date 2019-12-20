@@ -132,8 +132,8 @@ collectResults ch xs (MesgClose (CSError err)) = let
     _ -> emptyTimeStats
   in return ((Left errTy, stats):xs)
 collectResults ch res@((Left err, _):_) _ = return res
-collectResults ch ((Right Nothing, _):xs) (MesgP (p, ts)) = printSolution p >> readChan ch >>= collectResults ch ((Right $ Just p, ts):xs)
-collectResults ch xs (MesgP (p, ts)) = printSolution p >> readChan ch >>= collectResults ch ((Right $ Just p, ts):xs)
+collectResults ch ((Right Nothing, _):xs) (MesgP (p, ts, _)) = printSolution p >> readChan ch >>= collectResults ch ((Right $ Just p, ts):xs)
+collectResults ch xs (MesgP (p, ts, _)) = printSolution p >> readChan ch >>= collectResults ch ((Right $ Just p, ts):xs)
 collectResults ch ((Right Nothing, _):xs) (MesgS ts) = readChan ch >>= collectResults ch ((Right Nothing, ts):xs)
 collectResults ch xs (MesgS ts) = readChan ch >>= collectResults ch ((Right Nothing, ts):xs)
 collectResults ch xs _ = readChan ch >>= collectResults ch xs

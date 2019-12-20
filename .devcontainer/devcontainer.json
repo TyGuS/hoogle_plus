@@ -1,0 +1,10 @@
+{
+    "name": "H+ w/ HIE(G) 0.11",
+    "image": "mistzzt/hoogle_plus_dev:latest",
+
+    "extensions": [
+        "eamodio.gitlens",
+        "alanz.vscode-hie-server",
+        "aaron-bond.better-comments"
+    ]
+}

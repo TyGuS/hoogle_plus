@@ -1,0 +1,211 @@
+html {
+    color: rgba(0, 0, 0, .8);
+}
+
+body {
+    padding-top: 2em;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    width: 75% !important;
+}
+
+form {
+    display: -moz-box;
+    display: flex;
+    margin-bottom: 2em;
+}
+
+form input {
+    width: 40em;
+    margin-right: 2em;
+}
+
+pre {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+div#loading {
+    margin-top: 2em;
+    text-align: center;
+    vertical-align: middle;
+}
+
+div#demo {
+    margin-top: 5em;
+    margin-left: auto;
+    margin-right: auto;
+    vertical-align: middle;
+}
+
+div#demo h5 {
+    margin-bottom: 0;
+}
+
+button {
+    margin-right: 1em;
+}
+
+@media screen and (max-width:992px) {
+    form {
+        flex-direction: row;
+    }
+
+}
+
+.body {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: row;
+}
+
+.body > .left {
+    width: 70%;
+    margin-right: 2em;
+}
+
+.body > .right {
+    width: 30%;
+    font-size: 10pt;
+}
+
+.card-body {
+    overflow: scroll;
+}
+
+.card-header h5 {
+    font-size: 12pt;
+}
+
+.hplus_font {
+    font-family: 'Roboto Condensed', sans-serif;
+    color: #59057B;
+}
+
+.hplus_result {
+    margin-top: 2em;
+    margin-bottom: 2em;
+}
+
+.hplus_card {
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background: #fff;
+    box-shadow: 0 2px 4px 0 rgba(0, 0, 0, .2);
+    transition: all .2s ease-out;
+    border: 1px solid rgba(0, 0, 0, .125);
+    border-radius: .25rem;
+}
+
+.hplus_card:hover {
+    box-shadow: 0 8px 16px 0 rgba(0, 0, 0, .2)
+}
+
+.hplus_card p, .code {
+    font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+    margin-bottom: 1em;
+}
+
+.btn {
+    border: 1px solid rgba(0, 0, 0, .125);
+}
+
+.md-accordion .card .fa-angle-down {
+    float: right;
+}
+
+.packages {
+    color: rgba(0, 0, 0, .75);
+}
+
+.d-flex > .left {
+    margin-right: 1em;
+}
+
+.badge {
+    position: relative;
+    top: -0.2em;
+}
+
+.footer-style {
+    color: white;
+    background-color: #1b3764;
+    display: flex;
+    align-items: center;
+    height: 10vh;
+    margin-top: 2em;
+}
+
+.lds-facebook {
+    display: block;
+    position: relative;
+    width: 64px;
+    height: 64px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.lds-facebook > div {
+    display: inline-block;
+    position: absolute;
+    left: 6px;
+    width: 13px;
+    background: #007bff;
+    animation: lds-facebook 1.2s cubic-bezier(0, 0.5, 0.5, 1) infinite;
+}
+
+.lds-facebook > div:nth-child(1) {
+    left: 6px;
+    animation-delay: -0.24s;
+}
+
+.lds-facebook > div:nth-child(2) {
+    left: 26px;
+    animation-delay: -0.12s;
+}
+
+.lds-facebook > div:nth-child(3) {
+    left: 45px;
+    animation-delay: 0;
+}
+
+@keyframes lds-facebook {
+    0% {
+        top: 6px;
+        height: 51px;
+    }
+
+    50%, 100% {
+        top: 19px;
+        height: 26px;
+    }
+
+}
+
+.hplus_result > h5{
+    font-size: 75%;
+}
+
+.tooltip{
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.tooltip-inner {
+    max-width: 500px !important;
+}
+
+.my-tooltip{
+    padding: 0 2.5px 1px 2.5px;
+}
+
+.my-tooltip:hover {
+    background: #e83e8c;
+    color: #fff;
+    transition: background .3s, color .3s;
+    border-radius: 5px;
+    cursor: pointer;
+}

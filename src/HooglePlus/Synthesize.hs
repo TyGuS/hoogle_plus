@@ -56,14 +56,18 @@ envToGoal env queryStr = do
         let goal = Goal id env sch uprog 3 $ initialPos "goal"
         let spec = runExcept $ evalStateT (resolveSchema (gSpec goal)) (initResolverState { _environment = env })
         case spec of
-          Right sp -> return $ goal { gEnvironment = env, gSpec = sp }
+          Right sp -> do
+            let (env', monospec) = updateEnvWithBoundTyVars sp env
+            let (env'', destinationType) = updateEnvWithSpecArgs monospec env'
+            return $ goal { gEnvironment = env'', gSpec = sp }
           Left parseErr -> putDoc (pretty parseErr) >> putDoc empty >> exitFailure
 
       _ -> error "parse a signature for a none goal declaration"
 
 synthesize :: SearchParams -> Goal -> Chan Message -> IO ()
 synthesize searchParams goal messageChan = do
-    let (env', destinationType) = preprocessEnvFromGoal goal
+    let env' = gEnvironment goal
+    let destinationType = lastType $ toMonotype $ gSpec goal
     let useHO = _useHO searchParams
     let rawSyms = env' ^. symbols
     let hoCands = env' ^. hoCandidates
@@ -83,7 +87,7 @@ synthesize searchParams goal messageChan = do
                 return $
                     env'
                         {_symbols = Map.withoutKeys syms $ Set.fromList hoCands, _hoCandidates = []}
-    putStrLn $ "Component number: " ++ show (Map.size $ allSymbols env)
+    -- putStrLn $ "Component number: " ++ show (Map.size $ allSymbols env)
     let args = Monotype destinationType : Map.elems (env ^. arguments)
   -- start with all the datatypes defined in the components, first level abstraction
     let rs = _refineStrategy searchParams
@@ -103,6 +107,6 @@ synthesize searchParams goal messageChan = do
         (evalStateT (runPNSolver env destinationType) is)
         (\e ->
              writeChan messageChan (MesgLog 0 "error" (show e)) >>
-             writeChan messageChan (MesgClose (CSError e)))
-    return ()
-
+             writeChan messageChan (MesgClose (CSError e)) >>
+             error (show e))
+    -- return ()
