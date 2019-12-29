@@ -7,7 +7,7 @@ import Control.Applicative
 import Control.Monad
 import Data.List (isInfixOf)
 import Data.Map (Map)
-import Data.Universe
+import Data.Universe hiding (Show)
 
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen

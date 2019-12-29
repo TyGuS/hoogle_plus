@@ -14,16 +14,10 @@ quickCheckModules =
   zip [ "Test.QuickCheck"
   , "Test.QuickCheck.Gen"
   , "Test.QuickCheck.Random"
-  , "Test.QuickCheck.Monadic" ] (repeat Nothing)
+  , "Test.QuickCheck.Monadic"
+  , "Text.Show.Functions" ] (repeat Nothing)
 
   ++ [("Test.ChasingBottoms", Just "CB")]
-
-supportedInnerType =
-  [ "Int"
-  , "Float"
-  , "Double"
-  , "Char"
-  , "String" ]
 
 data FunctionCrashDesc = 
     AlwaysSucceed String

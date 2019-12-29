@@ -61,7 +61,6 @@ parseTypeString input = FunctionSignature constraints argsType returnType
     extractConstraints constraints (CxTuple _ list) = foldr ((++) . extractQualified) constraints list
 
 -- instantiate polymorphic types in function signature with `Int`
--- * note that constraints were ignored since we only use `Int` now
 instantiateSignature :: FunctionSignature -> FunctionSignature
 instantiateSignature (FunctionSignature _ argsType returnType) =
   FunctionSignature [] (map instantiate argsType) (instantiate returnType)
@@ -72,18 +71,6 @@ instantiateSignature (FunctionSignature _ argsType returnType) =
       instantiate (ArgTypeTuple types) = ArgTypeTuple (map instantiate types)
       instantiate (ArgTypeApp l r) = ArgTypeApp (instantiate l) (instantiate r)
       instantiate (ArgTypeFunc l r) = ArgTypeFunc (instantiate l) (instantiate r)
-
-toInnerType :: FunctionSignature -> FunctionSignature
-toInnerType (FunctionSignature _ argsType returnType) =
-  FunctionSignature [] (map f argsType) (f returnType)
-    where
-      f sig@(Concrete name)
-        | name `elem` supportedInnerType = Concrete (printf "(Internal (%s))" name)
-        | otherwise = sig
-      f (ArgTypeList sub) = ArgTypeList $ f sub
-      f (ArgTypeTuple types) = ArgTypeTuple (map f types)
-      f (ArgTypeApp l r) = ArgTypeApp (f l) (f r)
-      f (ArgTypeFunc l r) = ArgTypeFunc (f l) (f r)
 
 buildFunctionWrapper :: String -> String -> String -> Int -> String
 buildFunctionWrapper = buildFunctionWrapper' "wrappedSolution"
@@ -278,6 +265,6 @@ toParamListDecl args =
           3 -> "Fn3"
           _ -> error "Unsupported higher-order function"
     
-    toDecl (index, _) = formatParam index
+    toDecl (index, _) = printf "(Val arg_%d)" index
       
       
