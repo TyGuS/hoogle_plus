@@ -13,16 +13,18 @@ import Data.Serialize
 import Data.Char
 import Data.Hashable
 
+data AbstractBase =
+      ATypeVarT Id
+    | ADatatypeT Id [AbstractSkeleton]
+    deriving (Eq, Ord, Generic)
+
 data AbstractSkeleton =
-      ATypeVarT Id Kind
-    | ADatatypeT Id Kind
-    | ATyAppT AbstractSkeleton AbstractSkeleton Kind
-    | ATyFunT AbstractSkeleton AbstractSkeleton
+      AScalar AbstractBase
     | AFunctionT AbstractSkeleton AbstractSkeleton
     | ABottom
     deriving (Eq, Ord, Generic)
 
-instance Hashable Kind
+instance Hashable AbstractBase
 instance Hashable AbstractSkeleton
 
 -- distinguish one type from a given general one
@@ -33,5 +35,6 @@ data SplitInfo = SplitInfo {
     removedTrans :: [Id],
     newTrans :: [Id]
 } deriving (Eq, Ord)
+
 
 type UnifConstraint = (AbstractSkeleton, AbstractSkeleton)

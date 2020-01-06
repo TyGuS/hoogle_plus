@@ -13,12 +13,13 @@ import Database.Util
 
 import Control.Lens
 import GHC.Generics
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.HashMap.Strict as HashMap
 import Data.Aeson
+import Data.Char
 import Data.Maybe
 import Data.Either (isLeft)
 import Data.List
@@ -58,11 +59,11 @@ lastAbstract (AFunctionT _ tRet) = lastAbstract tRet
 lastAbstract t = t
 
 abstractParamList :: AbstractSkeleton -> [AbstractSkeleton]
+abstractParamList t@AScalar {} = [t]
 abstractParamList (AFunctionT tArg tFun) =
     case tFun of
-        AFunctionT {} -> tArg : abstractParamList tFun
-        _ -> [tArg]
-abstractParamList t = [t]
+        AScalar _  -> [tArg]
+        _          -> tArg : abstractParamList tFun
 
 absFunArgs :: Id -> AbstractSkeleton -> [AbstractSkeleton]
 absFunArgs id (AFunctionT tArg tRes) | id == "pair_match" = [tArg]
@@ -71,20 +72,23 @@ absFunArgs _ t = []
 
 decompose :: AbstractSkeleton -> [AbstractSkeleton]
 decompose (AFunctionT tArg tRet) = decompose tArg ++ decompose tRet
-decompose t = [t]
+decompose t@AScalar {} = [t]
 
 decomposeHo :: AbstractSkeleton -> [AbstractSkeleton]
 decomposeHo (AFunctionT tArg tRet) = tArg : decomposeHo tRet
 decomposeHo t = [t]
 
 toAbstractType :: TypeSkeleton -> AbstractSkeleton
-toAbstractType (TypeVarT id k) = ATypeVarT id k
-toAbstractType (DatatypeT id k) = ADatatypeT id k
-toAbstractType (TyAppT fun arg k) = ATyAppT fun' arg' k
+toAbstractType (TypeVarT id _) = AScalar (ATypeVarT id)
+toAbstractType (DatatypeT id _) = AScalar (ADatatypeT id [])
+toAbstractType (TyAppT fun arg _) = AScalar (ADatatypeT id (args ++ [arg']))
     where
-        fun' = compactAbstractType (toAbstractType fun)
+        AScalar (ADatatypeT id args) = 
+            case compactAbstractType (toAbstractType fun) of
+                AScalar (ATypeVarT v) -> AScalar (ADatatypeT v [])
+                t -> t
         arg' = compactAbstractType (toAbstractType arg)
-toAbstractType (TyFunT fun res) = ATyFunT fun' res'
+toAbstractType (TyFunT fun res) = AScalar (ADatatypeT "Fun" [fun', res'])
     where
         fun' = compactAbstractType (toAbstractType fun)
         res' = compactAbstractType (toAbstractType res)
@@ -92,28 +96,22 @@ toAbstractType (FunctionT _ tArg tRes) = AFunctionT tArg' tRes'
     where
         tArg' = toAbstractFun tArg
         tRes' = toAbstractType tRes
-toAbstractType AnyT = ATypeVarT varName KnStar
+toAbstractType AnyT = AScalar (ATypeVarT varName)
 toAbstractType BotT = ABottom
 
 toAbstractFun :: TypeSkeleton -> AbstractSkeleton
-toAbstractFun (FunctionT _ tArg tRes) = ATyFunT tArg' tRes'
+toAbstractFun (FunctionT _ tArg tRes) = AScalar (ADatatypeT "Fun" [tArg', tRes'])
     where
         tArg' = toAbstractFun tArg
         tRes' = toAbstractFun tRes
 toAbstractFun t = toAbstractType t
 
 compactAbstractType :: AbstractSkeleton -> AbstractSkeleton
-compactAbstractType (AFunctionT tArg tRes) = ATyFunT tArg' tRes'
-    where
-        tArg' = compactAbstractType tArg
-        tRes' = compactAbstractType tRes
-compactAbstractType (ATyAppT tFun tArg k) = ATyAppT tFun' tArg' k
-    where
-        tFun' = compactAbstractType tFun
-        tArg' = compactAbstractType tArg
+compactAbstractType (AFunctionT tArg tRes) = AScalar $ ADatatypeT "Fun" [compactAbstractType tArg, compactAbstractType tRes]
+compactAbstractType (AScalar (ADatatypeT dt args)) = AScalar (ADatatypeT dt $ map compactAbstractType args)
 compactAbstractType t = t
 
--- this is not subtype relation, but subsumption relation
+-- this is not subtype relation!!!
 isSubtypeOf :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Bool
 isSubtypeOf bound t1 t2 = isJust unifier
   where
@@ -122,13 +120,12 @@ isSubtypeOf bound t1 t2 = isJust unifier
 isValidSubst :: Map Id AbstractSkeleton -> Bool
 isValidSubst m = all (\(id, t) -> id `notElem` abstractTypeVars t) (Map.toList m)
 
-checkUnification :: [Id] 
-                 -> Map Id AbstractSkeleton 
-                 -> AbstractSkeleton 
-                 -> AbstractSkeleton 
-                 -> Maybe (Map Id AbstractSkeleton)
+isBound :: Id -> [Id] -> Bool
+isBound id bound = (id `elem` bound) || isUpper (head id) || tyclassPrefix `isPrefixOf` id
+
+checkUnification :: [Id] -> Map Id AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton -> Maybe (Map Id AbstractSkeleton)
 checkUnification bound tass t1 t2 | t1 == t2 = Just tass
-checkUnification bound tass (ATypeVarT id _) t | id `Map.member` tass =
+checkUnification bound tass (AScalar (ATypeVarT id)) t | id `Map.member` tass =
     -- keep the most informative substitution, eagerly substitute into the final result
     case checkUnification bound tass assigned t of
         Nothing -> Nothing
@@ -138,40 +135,35 @@ checkUnification bound tass (ATypeVarT id _) t | id `Map.member` tass =
     substed m = abstractSubstitute m assigned
     assigned = fromJust (Map.lookup id tass)
     unboundTv = case assigned of
-                  ATypeVarT v _ | v `notElem` bound -> Just v
+                  AScalar (ATypeVarT v) | v `notElem` bound -> Just v
                   _ -> Nothing
     substedTass u = Map.map (abstractSubstitute (Map.singleton id (substed u))) u
     updatedTass u = Map.insert id (substed u) (substedTass u)
-checkUnification bound tass t@(ATypeVarT id k) t'@(ATypeVarT id' k')
-  | id `elem` bound && id' `elem` bound = Nothing
-  | not (compareKind k k') = Nothing
-  | id `elem` bound && id' `notElem` bound = checkUnification bound tass t' t
-  | id `notElem` bound && id `elem` abstractTypeVars t' = Nothing
-  | id `notElem` bound = Just (Map.insert id t' tass)
-checkUnification bound tass (ATypeVarT id _) t | id `elem` bound = Nothing
-checkUnification bound tass (ATypeVarT id _) t | id `elem` abstractTypeVars t = Nothing
-checkUnification bound tass (ATypeVarT _ k) (ADatatypeT _ k') | not (compareKind k k') = Nothing
-checkUnification bound tass (ATypeVarT id _) t = let
+checkUnification bound tass t@(AScalar (ATypeVarT id)) t'@(AScalar (ATypeVarT id')) 
+  | isBound id bound && isBound id' bound = Nothing
+  | isBound id bound = checkUnification bound tass t' t
+  | not (isBound id bound) && id `elem` abstractTypeVars t' = Nothing
+  | not (isBound id bound) = Just (Map.insert id t' tass)
+checkUnification bound tass (AScalar (ATypeVarT id)) t | isBound id bound = Nothing
+checkUnification bound tass t@(AScalar ADatatypeT {}) t'@(AScalar (ATypeVarT id)) = checkUnification bound tass t' t
+checkUnification bound tass (AScalar (ATypeVarT id)) t | id `elem` abstractTypeVars t = Nothing
+checkUnification bound tass (AScalar (ATypeVarT id)) t = let
     tass' = Map.map (abstractSubstitute (Map.singleton id t)) tass
     tass'' = Map.insert id t tass'
     in if isValidSubst tass'' then Just tass'' else Nothing
-checkUnification bound tass t t'@(ATypeVarT {}) = checkUnification bound tass t' t
-checkUnification bound tass (ADatatypeT id k) (ADatatypeT id' k') 
-    | id /= id' || not (compareKind k k') = Nothing
-    | id == id' && compareKind k k' = return tass
-checkUnification bound tass (ATyAppT tFun tArg k) (ATyAppT tFun' tArg' k') 
-    | compareKind k k' = case checkUnification bound tass tFun tFun' of
-        Nothing -> Nothing
-        Just tass' -> checkUnification bound tass' tArg tArg'
-    | otherwise = Nothing
-checkUnification bound tass (ATyFunT tArg tRes) (ATyFunT tArg' tRes') =
-    case checkUnification bound tass tArg tArg' of
-        Nothing -> Nothing
-        Just tass' -> checkUnification bound tass' tRes tRes'
-checkUnification bound tass (AFunctionT tArg tRes) (AFunctionT tArg' tRes') =
-    case checkUnification bound tass tArg tArg' of
-        Nothing -> Nothing
-        Just tass' -> checkUnification bound tass' tRes tRes'
+checkUnification bound tass (AScalar (ADatatypeT id tArgs)) (AScalar (ADatatypeT id' tArgs')) 
+    | id == id' = checkArgs tass tArgs tArgs'
+    | not (isBound id bound && isBound id' bound) && (length tArgs == length tArgs') =
+        case checkUnification bound tass (AScalar (ATypeVarT id)) (AScalar (ATypeVarT id')) of
+            Nothing -> Nothing
+            Just m -> checkArgs m tArgs tArgs'
+    | id /= id' = Nothing
+    where
+        checkArgs m [] [] = Just m
+        checkArgs m (arg:args) (arg':args') =
+            case checkUnification bound m arg arg' of
+                Nothing -> Nothing
+                Just m' -> checkArgs m' args args'
 checkUnification bound tass _ _ = Nothing
 
 typeConstraints :: MonadIO m => [Id] -> AbstractSkeleton -> AbstractSkeleton -> PNSolver m [UnifConstraint]
@@ -198,30 +190,21 @@ abstractSubstitute :: Map Id AbstractSkeleton -> AbstractSkeleton -> AbstractSke
 abstractSubstitute tass typ = 
     if substed /= typ then abstractSubstitute tass substed
                       else substed
-    where
-        substed = foldr (uncurry abstractSubstitute') typ (Map.toList tass)
+  where
+    substed = foldr (uncurry abstractSubstitute') typ (Map.toList tass)
 
 abstractSubstitute' :: Id -> AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
-abstractSubstitute' id typ (ATypeVarT id' _) | id == id' = typ
-abstractSubstitute' id typ t@(ATypeVarT {}) = t
-abstractSubstitute' id typ t@(ADatatypeT {}) = t
-abstractSubstitute' id typ (ATyAppT tFun tArg k) = ATyAppT tFun' tArg' k
-    where
-        tFun' = abstractSubstitute' id typ tFun
-        tArg' = abstractSubstitute' id typ tArg
-abstractSubstitute' id typ (ATyFunT tArg tRes) = ATyFunT tArg' tRes'
-    where
-        tArg' = abstractSubstitute' id typ tArg
-        tRes' = abstractSubstitute' id typ tRes
+abstractSubstitute' id typ (AScalar (ATypeVarT id')) | id == id' = typ
+abstractSubstitute' id typ t@(AScalar ATypeVarT {}) = t
+abstractSubstitute' id typ (AScalar (ADatatypeT id' args)) = AScalar (ADatatypeT id' (map (abstractSubstitute' id typ) args))
 abstractSubstitute' id typ (AFunctionT tArg tRes) = AFunctionT tArg' tRes'
-    where
-        tArg' = abstractSubstitute' id typ tArg
-        tRes' = abstractSubstitute' id typ tRes
+  where
+    tArg' = abstractSubstitute' id typ tArg
+    tRes' = abstractSubstitute' id typ tRes
 
 abstractTypeVars :: AbstractSkeleton -> [Id]
-abstractTypeVars (ATypeVarT id _) = [id]
-abstractTypeVars (ATyFunT tArg tRes) = abstractTypeVars tArg ++ abstractTypeVars tRes
-abstractTypeVars (ATyAppT tFun tArg _) = abstractTypeVars tFun ++ abstractTypeVars tArg
+abstractTypeVars (AScalar (ATypeVarT id)) = [id]
+abstractTypeVars (AScalar (ADatatypeT id args)) = concatMap abstractTypeVars args 
 abstractTypeVars (AFunctionT tArg tRes) = abstractTypeVars tArg ++ abstractTypeVars tRes
 abstractTypeVars _ = []
 
@@ -233,39 +216,19 @@ equalSplit tvs s1 s2 = fst s1 == fst s2 && equalAbstract tvs (snd s1) (snd s2)
 
 existAbstract :: [Id] -> AbstractCover -> AbstractSkeleton -> Bool
 existAbstract tvs cover t = existAbstract' rootNode
-    where
-        existAbstract' paren | equalAbstract tvs paren t = True
-        existAbstract' paren | isSubtypeOf tvs t paren = let
-            children = Set.toList $ HashMap.lookupDefault Set.empty paren cover
-            in any existAbstract' children
-        existAbstract' paren = False
+  where
+    existAbstract' paren | equalAbstract tvs paren t = True
+    existAbstract' paren | isSubtypeOf tvs t paren = any existAbstract' (Set.toList $ HashMap.lookupDefault Set.empty paren cover)
+    existAbstract' paren = False
 
 abstractIntersect :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Maybe AbstractSkeleton
 abstractIntersect bound t1 t2 = 
     case unifier of
-        Nothing -> Nothing
-        Just u -> Just $ abstractSubstitute u t1 
-    where
-        unifier = getUnifier bound [(t1, t2)]
+      Nothing -> Nothing
+      Just u -> Just $ abstractSubstitute u t1 
+  where
+    unifier = getUnifier bound [(t1, t2)]
 
--- -- | find the current most restrictive abstraction for a given type
--- currentAbst :: MonadIO m => [Id] -> AbstractCover -> AbstractSkeleton -> PNSolver m [AbstractSkeleton]
--- currentAbst tvs cover (AFunctionT tArg tRes) = do
---     tArg' <- currentAbst tvs cover tArg
---     tRes' <- currentAbst tvs cover tRes
---     return $ [AFunctionT a r | a <- tArg', r <- tRes']
--- currentAbst tvs cover at = do
---     freshAt <- freshAbstract tvs at
---     case currentAbst' freshAt rootNode of
---         [] -> error $ "cannot find current abstraction for type " ++ show at
---         ts -> return ts
---     where
---         currentAbst' at paren | isSubtypeOf tvs at paren = let 
---             children = Set.toList $ HashMap.lookupDefault Set.empty paren cover
---             inSubtree = any (isSubtypeOf tvs at) children
---             in if inSubtree then concatMap (currentAbst' at) children
---                             else [paren]
---         currentAbst' at paren = []
 -- | find the current most restrictive abstraction for a given type
 currentAbst :: MonadIO m => [Id] -> AbstractCover -> AbstractSkeleton -> PNSolver m AbstractSkeleton
 currentAbst tvs cover (AFunctionT tArg tRes) = do
@@ -285,42 +248,22 @@ currentAbst tvs cover at = do
                        else Just paren
     currentAbst' at paren = Nothing
 
--- | find the most general unifier between arguments
--- and apply this unifier onto the return type
--- a special case for type
-applySemantic :: MonadIO m 
-              => [Id] 
-              -> AbstractSkeleton 
-              -> [AbstractSkeleton] 
-              -> PNSolver m AbstractSkeleton
+applySemantic :: MonadIO m => [Id] -> AbstractSkeleton -> [AbstractSkeleton] -> PNSolver m AbstractSkeleton
 applySemantic tvs fun args = do
     let cargs = init (decompose fun)
     let ret = last (decompose fun)
     let args' = map compactAbstractType args
     constraints <- zipWithM (typeConstraints tvs) cargs args'
-    let constraints' = concat constraints
     -- writeLog 3 "applySemantic" $ text "solving constraints" <+> pretty constraints
-    if matchTc constraints' then do
-        let unifier = getUnifier tvs constraints'
-        case unifier of
-            Nothing -> return ABottom
-            Just m -> do
-                -- writeLog 3 "applySemantic" $ text "get unifier" <+> pretty (Map.toList m)
-                cover <- gets (view abstractionCover)
-                let substRes = abstractSubstitute m ret
-                -- writeLog 3 "applySemantic" $ text "current cover" <+> text (show cover)
-                currentAbst tvs cover substRes
-        else return ABottom
-  where
-    matchTc [] = True
-    matchTc (c:cs) = case c of
-        (ADatatypeT id1 _, ADatatypeT id2 _) ->
-            (((tyclassPrefix `isPrefixOf` id1) && (tyclassPrefix `isPrefixOf` id2)) ||
-            (not (tyclassPrefix `isPrefixOf` id1) && not (tyclassPrefix `isPrefixOf` id2))) &&
-            matchTc cs
-        (ADatatypeT id _, _) -> (not (tyclassPrefix `isPrefixOf` id)) && matchTc cs
-        (_, ADatatypeT id _) -> (not (tyclassPrefix `isPrefixOf` id)) && matchTc cs
-        _ -> matchTc cs
+    let unifier = getUnifier tvs (concat constraints)
+    case unifier of
+        Nothing -> return ABottom
+        Just m -> do
+            -- writeLog 3 "applySemantic" $ text "get unifier" <+> pretty (Map.toList m)
+            cover <- gets (view abstractionCover)
+            let substRes = abstractSubstitute m ret
+            -- writeLog 3 "applySemantic" $ text "current cover" <+> text (show cover)
+            currentAbst tvs cover substRes
 
 compareAbstract :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Ordering
 compareAbstract tvs t1 t2 | isSubtypeOf tvs t1 t2 && isSubtypeOf tvs t2 t1 = EQ

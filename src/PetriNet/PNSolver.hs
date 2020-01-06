@@ -655,7 +655,7 @@ findProgram env dst = do
         -- find a more fine-grained abstraction ty' of ty such that
         -- ty' does not unify with target
         let bound = env ^. boundTypeVars
-        ty' <- generalize env ty
+        ty' <- generalize (env ^. boundTypeVars) ty
         let unifier = getUnifier bound [(ty', target)]
         guard (isNothing unifier)
         return ty'

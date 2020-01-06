@@ -3,7 +3,7 @@ module HooglePlus.Refinement where
 
 import Database.Convert
 import Database.Util
-import PetriNet.AbstractType
+import PetriNet.AbstractType hiding (isBound)
 import PetriNet.Util
 import Synquid.Pretty
 import Synquid.Program
@@ -128,7 +128,7 @@ propagate env p@(Program (PApp f args) _) upstream = do
         -- we are finding a refined abstraction at' < at
         -- such that ct < at' < at
         currAbs <- lift $ mapM (currentAbst bound cover) cArgs
-        absArgs <- mapM (generalize env) cArgs
+        absArgs <- mapM (generalize (env ^. boundTypeVars)) cArgs
         -- lift $ writeLog 3 "propagate" $ text "try" <+> pretty absArgs <+> text "from" <+> pretty cArgs <+> text "with currently" <+> pretty currAbs
         guard ((all (uncurry $ isSubtypeOf bound)) (zip absArgs currAbs))
         lift $ writeLog 3 "propagate" $ text "get generalized types" <+> pretty absArgs <+> text "from" <+> pretty cArgs
@@ -141,7 +141,7 @@ propagate env (Program (PFun x body) (FunctionT _ tArg tRet))
               (AFunctionT atArg atRet) =
     propagate (addVariable x tArg env) body atRet
 propagate env (Program (PFun x body) t) (AFunctionT atArg atRet) = do
-    id <- freshId "A"
+    id <- freshId "t"
     let tArg = TypeVarT id KnStar
     propagate (addVariable x tArg env) body atRet
 propagate _ prog t = return ()
@@ -197,8 +197,8 @@ bottomUpCheck env p@(Program (PFun x body) (FunctionT _ tArg tRet)) = do
         (return body')
 bottomUpCheck env p@(Program (PFun x body) _) = do
     writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
-    id <- freshId "A"
-    id' <- freshId "A"
+    id <- freshId "t"
+    id' <- freshId "t"
     let tArg = TypeVarT id KnStar
     let tRet = TypeVarT id' KnStar
     bottomUpCheck env (Program (PFun x body)(FunctionT x tArg tRet))
@@ -283,28 +283,51 @@ unify env v k t =
         else isChecked .= False
 
 -- | generalize a closed concrete type into an abstract one
-generalize :: MonadIO m => Environment -> AbstractSkeleton -> LogicT (PNSolver m) AbstractSkeleton
-generalize env t@(ATypeVarT id k)
-  | id `notElem` (env ^. boundTypeVars) = return t
+generalize :: MonadIO m => [Id] -> AbstractSkeleton -> LogicT (PNSolver m) AbstractSkeleton
+generalize bound t@(AScalar (ATypeVarT id))
+  | id `notElem` bound = return t
   | otherwise = do
-    v <- lift $ freshId "T"
-    return (ATypeVarT v k) `mplus` return t
-generalize env t@(ADatatypeT id k) = do
-    v <- lift $ freshId "T"
-    return (ATypeVarT v k) `mplus` return t
-generalize env t@(ATyAppT tFun tArg k) = do
-    f <- generalize env tFun
-    a <- generalize env tArg
-    -- might abstracting some TyApp as a higher kinded type variable
-    -- [TODO] does this slow us down?
-    v <- lift $ freshId "T"
-    return (ATypeVarT v k) `mplus` return (ATyAppT f a k)
-generalize env t@(ATyFunT tArg tRes) = do
-    a <- generalize env tArg
-    r <- generalize env tRes
-    v <- lift $ freshId "T"
-    return (ATypeVarT v KnStar) `mplus` return (ATyFunT a r)
-generalize env (AFunctionT tArg tRes) = do
-    tArg' <- generalize env tArg
-    tRes' <- generalize env tRes
+    v <- lift $ freshId "t"
+    return (AScalar (ATypeVarT v)) `mplus` return t
+-- for datatype, we define the generalization order as follows:
+-- (1) v
+-- (2) datatype with all fresh type variables
+-- (3) datatype with incrementally generalized inner types
+generalize bound t@(AScalar (ADatatypeT id args)) = do
+    v <- lift $ freshId "t"
+    return (AScalar (ATypeVarT v)) `mplus` freshVars `mplus` subsetTyps -- interleave
+  where
+    -- this search may explode when we have a large number of datatype parameters
+    patternOfLen n
+      | n == 0 = mzero
+      | n == 1 = return [n]
+      | n >  1 = do
+          let nextNumber l = 1 + maximum l
+          let candidates l = nextNumber l : nub l
+          prevPat <- patternOfLen (n - 1)
+          msum $ map (\c -> return (c:prevPat)) (candidates prevPat)
+
+    freshVars = do
+        let n = length args
+        pat <- patternOfLen n
+        let argNames = map (\i -> "t" ++ show i) pat
+        let args' = map (AScalar . ATypeVarT) argNames
+        absTy <- lift $ freshAbstract bound (AScalar (ADatatypeT id args'))
+        guard (isSubtypeOf bound t absTy)
+        lift $ writeLog 3 "generalize" $ text "generalize" <+> pretty t <+> text "into" <+> pretty absTy
+        return absTy
+
+    subsets [] = return []
+    subsets (arg:args) = do
+        args' <- subsets args
+        arg' <- generalize bound arg
+        return (arg':args')
+
+    subsetTyps = do
+        args' <- subsets args
+        return (AScalar (ADatatypeT id args'))
+
+generalize bound (AFunctionT tArg tRes) = do
+    tArg' <- generalize bound tArg
+    tRes' <- generalize bound tRes
     return (AFunctionT tArg' tRes')

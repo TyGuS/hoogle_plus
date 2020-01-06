@@ -331,11 +331,15 @@ lfill w d        = case renderCompact d of
   spaces n | n <= 0    = empty
            | otherwise = text $ replicate n ' '
 
+instance Pretty AbstractBase where
+    pretty (ATypeVarT id) = text id
+    pretty (ADatatypeT id args) = text id <+> hsep (map pretty args)
+
+instance Show AbstractBase where
+    show = show . plain . pretty
+
 instance Pretty AbstractSkeleton where
-    pretty (ATypeVarT b k) = hlParens $ pretty b <+> operator "::" <+> pretty k
-    pretty (ADatatypeT id k) = hlParens $ pretty id <+> operator "::" <+> pretty k
-    pretty (ATyFunT tArg tRes) = hlParens (text "Fun" <+> pretty tArg <+> pretty tRes)
-    pretty (ATyAppT tFun tArg k) = hlParens $ pretty tFun <+> pretty tArg <+> pretty k
+    pretty (AScalar b) = pretty b
     pretty (AFunctionT tArg tRet) = hlParens (pretty tArg <+> operator "→" <+> pretty tRet)
     pretty ABottom = text "⊥"
 

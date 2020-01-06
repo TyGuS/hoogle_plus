@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE BangPatterns #-}
 
 module PetriNet.Util where
 
@@ -17,9 +16,9 @@ import Synquid.Util
 
 import Data.Maybe
 import qualified Data.Text as Text
-import Data.Map.Strict (Map)
+import Data.Map (Map)
 import Data.Set (Set)
-import qualified Data.Map.Strict as Map
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -40,6 +39,7 @@ getExperiment exp = gets $ view (searchParams . exp)
 -------------------------------------------------------------------------------
 -- | helper functions
 -------------------------------------------------------------------------------
+-- writeLog :: MonadIO m => Int -> String -> Doc -> PNSolver m ()
 writeLog :: (MonadIO m, Monad (t m)) => Int -> String -> Doc -> t m ()
 writeLog level tag msg = do
     -- mesgChan <- gets $ view messageChan
@@ -80,11 +80,11 @@ freshId prefix = do
 freshType :: MonadIO m => SchemaSkeleton -> PNSolver m TypeSkeleton
 freshType = freshType' Map.empty []
   where
-    freshType' !subst constraints (ForallT a sch) = do
-        a' <- freshId "A"
+    freshType' subst constraints (ForallT a sch) = do
+        a' <- freshId "t"
         let k = fromJust $ getKind a $ toMonotype sch
         freshType' (Map.insert a (TypeVarT a' k) subst) (a':constraints) sch
-    freshType' !subst constraints (Monotype t) = return (typeSubstitute subst t)
+    freshType' subst constraints (Monotype t) = return (typeSubstitute subst t)
 
     getKind a (TypeVarT v k)
         | a == v = Just k
@@ -98,32 +98,28 @@ freshAbstract :: MonadIO m => [Id] -> AbstractSkeleton -> PNSolver m AbstractSke
 freshAbstract bound t = do
     (_, t') <- freshAbstract' bound Map.empty t
     return t'
-    where
-        freshAbstract' bound m t@(ATypeVarT id _) | id `elem` bound = return (m, t)
-        freshAbstract' bound m (ATypeVarT id _) | id `Map.member` m =
-            return (m, fromJust (Map.lookup id m))
-        freshAbstract' bound m (ATypeVarT id k) = do
-            v <- freshId "A"
-            let t = ATypeVarT v k
-            return (Map.insert id t m, t)
-        freshAbstract' bound m (ATyAppT tFun tArg k) = do
-            (m', tFun') <- freshAbstract' bound m tFun
-            (m'', tArg') <- freshAbstract' bound m' tArg
-            return (m'', ATyAppT tFun' tArg' k)
-        freshAbstract' bound m (ATyFunT tArg tRes) = do
-            (m', tArg') <- freshAbstract' bound m tArg
-            (m'', tRes') <- freshAbstract' bound m' tRes
-            return (m'', ATyFunT tArg' tRes')
-        freshAbstract' bound m (AFunctionT tArg tRes) = do
-            (m', tArg') <- freshAbstract' bound m tArg
-            (m'', tRes') <- freshAbstract' bound m' tRes
-            return (m'', AFunctionT tArg' tRes')
-        freshAbstract' bound m t = return (m, t)
+  where
+    freshAbstract' bound m t@(AScalar (ATypeVarT id)) | id `elem` bound = return (m, t)
+    freshAbstract' bound m (AScalar (ATypeVarT id)) | id `Map.member` m =
+        return (m, fromJust (Map.lookup id m))
+    freshAbstract' bound m (AScalar (ATypeVarT id)) = do
+        v <- freshId "t"
+        let t = AScalar (ATypeVarT v)
+        return (Map.insert id t m, AScalar (ATypeVarT v))
+    freshAbstract' bound m (AScalar (ADatatypeT id args)) = do
+        (m', args') <- foldM (\(accm, acct) t -> do
+            (m', t') <- freshAbstract' bound accm t
+            return (m', acct++[t'])) (m,[]) args
+        return (m', AScalar (ADatatypeT id args'))
+    freshAbstract' bound m (AFunctionT tArg tRes) = do
+        (m', tArg') <- freshAbstract' bound m tArg
+        (m'', tRes') <- freshAbstract' bound m' tRes
+        return (m'', AFunctionT tArg' tRes')
 
 mkConstraint :: MonadIO m => [Id] -> Id -> AbstractSkeleton -> PNSolver m UnifConstraint
 mkConstraint bound v t = do
     t' <- freshAbstract bound t
-    return (ATypeVarT v KnStar, t')
+    return (AScalar (ATypeVarT v), t')
 
 groupSignatures :: MonadIO m => Map Id FunctionCode -> PNSolver m (Map FunctionCode GroupId, Map GroupId (Set Id))
 groupSignatures sigs = do
