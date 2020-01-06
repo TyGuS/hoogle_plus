@@ -95,12 +95,13 @@ frontier graph src dst = go graph
 getBFPath :: AbstractSkeleton -> AbstractSkeleton -> HyperGraph -> LogicT IO HyperGraph
 getBFPath src dst graph = do
     let graph' = frontier graph src dst
-    liftIO $ print "frontier"
-    liftIO $ print graph'
-    liftIO $ print "frontier end"
+    -- liftIO $ print "frontier"
+    -- liftIO $ print graph'
+    -- liftIO $ print "frontier end"
     if Map.null graph'
         then return graph'
         else do
+            -- find the minimal hyperpath in the given hypergraph
             let nodes = Set.toList $ Set.delete src (Set.delete dst (nodesOf graph'))
             let graph = foldr minimizeNode graph' nodes
             -- graph <- return graph' `mplus` do
@@ -126,6 +127,19 @@ getBFPath src dst graph = do
             flabel = fvisit dst g'
             visited v = blabel Map.! v && flabel Map.! v
             in traceShow (show blabel ++ show flabel) $ if all visited (nodesOf g') then g' else g
+
+nextShortestPath :: HyperGraph -> LogicT IO HyperGraph
+nextShortestPath graph = do
+    -- sort the edges in topological order
+    let edges = topoSort graph
+    e <- getOne edges
+    let graph' = deleteEdge e graph
+    undefined
+    where
+        getOne [] = mzero
+        getOne (x:xs) = return x `mplus` getOne xs
+
+        topoSort = undefined
 
 {- Helper functions -}
 nodesOf :: HyperGraph -> Set AbstractSkeleton
