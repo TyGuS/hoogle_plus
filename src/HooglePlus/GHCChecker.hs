@@ -122,32 +122,16 @@ checkStrictness tyclassCount body sig modules =
         (\(SomeException _) -> return False)
         (checkStrictness' tyclassCount body sig modules)
 
-check :: Goal -> SearchParams -> Chan Message -> Chan Message -> IO ()
-check goal searchParams solverChan checkerChan = catch
-    (evalStateT (check_ goal searchParams solverChan checkerChan) emptyFilterState)
+check :: Goal -> SearchParams -> UProgram -> IO ()
+check goal searchParams prog = catch
+    (evalStateT (check_ goal searchParams prog) emptyFilterState)
     (\err ->
         writeChan checkerChan (MesgLog 0 "filterCheck" ("error: " ++ show err)) >>
         writeChan checkerChan (MesgClose (CSError err)))
 
-check_ :: MonadIO m => Goal -> SearchParams -> Chan Message -> Chan Message -> FilterTest m ()
-check_ goal searchParams solverChan checkerChan = do
-    msg <- liftIO $ readChan solverChan
-    handleMessages solverChan checkerChan msg
-    return ()
+check_ :: MonadIO m => Goal -> SearchParams -> UProgram -> FilterTest m ()
+check_ goal searchParams program = executeCheck program
     where
-        handleMessages solverChan checkChan msg =
-            case msg of
-                (MesgP (program, stats, _)) -> do
-                    programPassedChecks <- executeCheck program
-                    state <- get
-                    if programPassedChecks then (bypass (MesgP (program, stats, state))) >> next else next
-                (MesgClose _) -> bypass msg
-                _ -> (bypass msg) >> next
-
-            where
-                next = (liftIO . readChan) solverChan >>= handleMessages solverChan checkerChan
-                bypass message = liftIO $ writeChan checkerChan message
-
         (env, destType) = preprocessEnvFromGoal goal
         executeCheck = runGhcChecks searchParams env destType
 

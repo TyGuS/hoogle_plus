@@ -683,7 +683,7 @@ findProgram env dst st ps
         mapping <- gets $ view nameMapping
         let code' = recoverNames mapping code
         params <- gets $ view searchParams
-        if (code' `elem` solutions) 
+        if (code' `elem` solutions) || not (check goal searchParams code')
             then return Nothing
             else return $ Just code'
 
