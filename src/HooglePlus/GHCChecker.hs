@@ -122,14 +122,14 @@ checkStrictness tyclassCount body sig modules =
         (\(SomeException _) -> return False)
         (checkStrictness' tyclassCount body sig modules)
 
-check :: Goal -> SearchParams -> UProgram -> IO ()
-check goal searchParams prog = catch
+check :: Goal -> SearchParams -> UProgram -> IO Bool
+check goal searchParams prog = -- catch
     (evalStateT (check_ goal searchParams prog) emptyFilterState)
-    (\err ->
-        writeChan checkerChan (MesgLog 0 "filterCheck" ("error: " ++ show err)) >>
-        writeChan checkerChan (MesgClose (CSError err)))
+    -- (\err ->
+    --     writeChan checkerChan (MesgLog 0 "filterCheck" ("error: " ++ show err)) >>
+    --     writeChan checkerChan (MesgClose (CSError err)))
 
-check_ :: MonadIO m => Goal -> SearchParams -> UProgram -> FilterTest m ()
+check_ :: MonadIO m => Goal -> SearchParams -> UProgram -> FilterTest m Bool
 check_ goal searchParams program = executeCheck program
     where
         (env, destType) = preprocessEnvFromGoal goal
