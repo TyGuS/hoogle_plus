@@ -247,8 +247,7 @@ executeSearch synquidParams searchParams query = do
   solverChan <- newChan
   checkerChan <- newChan
   workerS <- forkIO $ synthesize searchParams goal solverChan
-  workerC <- forkIO $ check goal searchParams solverChan checkerChan
-  readChan checkerChan >>= (handleMessages checkerChan)
+  readChan solverChan >>= (handleMessages solverChan)
   where
     logLevel = searchParams ^. explorerLogLevel
     readEnv = do
