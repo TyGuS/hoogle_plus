@@ -725,8 +725,9 @@ writeSolution code = do
     stats <- gets $ view solverStats
     loc <- gets $ view currentLoc
     msgChan <- gets $ view messageChan
+    fState <- gets $ view filterState
     let stats' = stats {pathLength = loc}
-    liftIO $ writeChan msgChan (MesgP (code, stats', undefined))
+    liftIO $ writeChan msgChan (MesgP (code, stats', fState))
     -- liftIO $ printSolution code
     -- liftIO $ hFlush stdout
     writeLog 1 "writeSolution" $ text (show stats')
