@@ -7,7 +7,7 @@ import Text.Printf
 import Data.List (intercalate)
 
 defaultTimeoutMicro = 5 * 10^4 :: Int
-defaultInterpreterTimeoutMicro = 60 * 10^6 :: Int
+defaultInterpreterTimeoutMicro = 5 * 10^6 :: Int
 defaultMaxOutputLength = 100 :: Int
 
 quickCheckModules =
