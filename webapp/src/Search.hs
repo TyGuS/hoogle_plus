@@ -61,16 +61,28 @@ import Control.Lens
 import Data.IORef
 import Control.Concurrent.Async
 
-runCmd = "stack exec -- hplus \"%s\"  --stop-refine --stop-threshold=10 --cnt=10 > %s"
+runCmd = "stack exec -- hplus \"%s\" --stop-refine --disable-filter --stop-threshold=10 --cnt=10 > %s"
+
+checkInput :: String -> String
+checkInput str = let
+  badInput = "\\\"';&${}@#"
+  in if (hasAny badInput str)
+        then error "suspect input"
+        else str
+    where
+      -- Thanks: https://hackage.haskell.org/package/MissingH-1.4.2.1/docs/src/Data.List.Utils.html#hasAny
+      hasAny [] _          = False             -- An empty search list: always false
+      hasAny _ []          = False             -- An empty list to scan: always false
+      hasAny search (x:xs) = if x `elem` search then True else hasAny search xs
 
 runQuery :: TygarQuery -> IORef (Map String (Handle, ProcessHandle)) -> IO (Handle, Goal)
 runQuery queryOpts tm = do
-    let query = typeSignature queryOpts
-    let uuid = query_uuid queryOpts
+    let query = checkInput $ typeSignature queryOpts
+    let uuid = checkInput $ query_uuid queryOpts
     env <- readEnv
     goal <- envToGoal env query
     hdl <- openFile uuid ReadWriteMode
-    proc <- spawnCommand $ printf rmCmd query uuid
+    proc <- spawnCommand $ printf runCmd query uuid
     atomicModifyIORef tm (\m -> (Map.insert uuid (hdl, proc) m, ()))
     -- timeout the process after the time limit
     forkIO $ threadDelay time_limit >> terminateProcess proc >> endFile uuid hdl
