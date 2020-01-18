@@ -34,6 +34,7 @@ import Control.Monad
 import Data.Bits
 import Data.ByteString.Lazy.Builder
 import Data.List
+import qualified Data.Set as Set
 import qualified Data.Aeson as Aeson
 import Data.Serialize
 import Data.Text (unpack)
@@ -65,15 +66,12 @@ runCmd = "stack exec -- hplus \"%s\" --stop-refine --disable-filter --stop-thres
 
 checkInput :: String -> String
 checkInput str = let
-  badInput = "\\\"';&${}@#"
-  in if (hasAny badInput str)
+  okInput = Set.fromList "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789()-> :=[],"
+  input = Set.fromList str
+  inputMinusOk = Set.difference input okInput
+  in if (not $ Set.null inputMinusOk)
         then error "suspect input"
         else str
-    where
-      -- Thanks: https://hackage.haskell.org/package/MissingH-1.4.2.1/docs/src/Data.List.Utils.html#hasAny
-      hasAny [] _          = False             -- An empty search list: always false
-      hasAny _ []          = False             -- An empty list to scan: always false
-      hasAny search (x:xs) = if x `elem` search then True else hasAny search xs
 
 runQuery :: TygarQuery -> IORef (Map String (Handle, ProcessHandle)) -> IO (Handle, Goal)
 runQuery queryOpts tm = do
