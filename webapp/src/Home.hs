@@ -43,7 +43,7 @@ getHomeR =
         mcurrentRoute <- getCurrentRoute
         let candidates = [] :: [String]
         db <- liftIO getDatabase
-        setTitle "TYGAR Demo - Home"
+        setTitle "Hoogle+ - Home"
         addScriptRemote "https://use.fontawesome.com/releases/v5.9.0/js/all.js"
         addScriptRemote "https://code.jquery.com/jquery-3.4.1.min.js"
         addScriptRemote "https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js"

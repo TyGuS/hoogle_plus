@@ -61,6 +61,8 @@ import Control.Lens
 import Data.IORef
 import Control.Concurrent.Async
 
+runCmd = "stack exec -- hplus \"%s\"  --stop-refine --stop-threshold=10 --cnt=10 > %s"
+
 runQuery :: TygarQuery -> IORef (Map String (Handle, ProcessHandle)) -> IO (Handle, Goal)
 runQuery queryOpts tm = do
     let query = typeSignature queryOpts
@@ -68,7 +70,7 @@ runQuery queryOpts tm = do
     env <- readEnv
     goal <- envToGoal env query
     hdl <- openFile uuid ReadWriteMode
-    proc <- spawnCommand $ printf "stack exec -- hplus \"%s\" --stop-refine --disable-filter --stop-threshold=10 --cnt=10 > %s" query uuid
+    proc <- spawnCommand $ printf rmCmd query uuid
     atomicModifyIORef tm (\m -> (Map.insert uuid (hdl, proc) m, ()))
     -- timeout the process after the time limit
     forkIO $ threadDelay time_limit >> terminateProcess proc >> endFile uuid hdl
@@ -131,7 +133,7 @@ transformSolution goal queryResult = do
             | tyclassArgBase `isPrefixOf` s || tyclassInstancePrefix `isPrefixOf` s = ""
             | otherwise = case lookupSymbol s 0 env of
                  Just sch -> printf tooltip s (removeTypeclasses $ show (toMonotype sch)) s
-                 Nothing -> let s' = "(" ++ s ++ ")" in 
+                 Nothing -> let s' = "(" ++ s ++ ")" in
                      case lookupSymbol s' 0 env of
                          Just sch -> printf tooltip s' (removeTypeclasses $ show (toMonotype sch)) s'
                          Nothing -> error $ "cannot find symbol " ++ s
@@ -144,7 +146,7 @@ transformSolution goal queryResult = do
                 "Pair" -> printf tooltip ("(,)" :: String) ("a -> b -> (a, b)" :: String) ("(,)" :: String)
                 _      -> case lookupSymbol f 0 env of
                      Just sch -> printf tooltip f (removeTypeclasses $ show (toMonotype sch)) f
-                     Nothing -> let f' = "(" ++ f ++ ")" in 
+                     Nothing -> let f' = "(" ++ f ++ ")" in
                          case lookupSymbol f' 0 env of
                              Just sch -> printf tooltip f' (removeTypeclasses $ show (toMonotype sch)) f'
                              Nothing -> error $ "cannot find symbol " ++ f
@@ -189,7 +191,7 @@ postSearchR = do
     yesod <- getYesod
     (hdl, goal) <- liftIO $ runQuery queryOpts $ threadMap yesod
     -- respondSource typeJson $ liftIO (readChan chan) >>= collectResults goal (query_uuid queryOpts) chan
-    -- hdl <- liftIO $ openFile "test.txt" ReadWriteMode 
+    -- hdl <- liftIO $ openFile "test.txt" ReadWriteMode
     -- liftIO $ forkIO $ testRead hdl
     liftIO $ print "get handler and prepare response"
     respondSource typeJson $ collectResults goal (query_uuid queryOpts) hdl
