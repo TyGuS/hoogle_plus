@@ -34,6 +34,7 @@ import Control.Monad
 import Data.Bits
 import Data.ByteString.Lazy.Builder
 import Data.List
+import qualified Data.Set as Set
 import qualified Data.Aeson as Aeson
 import Data.Serialize
 import Data.Text (unpack)
@@ -61,14 +62,25 @@ import Control.Lens
 import Data.IORef
 import Control.Concurrent.Async
 
+runCmd = "stack exec -- hplus \"%s\" --stop-refine --disable-filter --stop-threshold=10 --cnt=10 > %s"
+
+checkInput :: String -> String
+checkInput str = let
+  okInput = Set.fromList "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789()-> :=[],"
+  input = Set.fromList str
+  inputMinusOk = Set.difference input okInput
+  in if (not $ Set.null inputMinusOk)
+        then error "suspect input"
+        else str
+
 runQuery :: TygarQuery -> IORef (Map String (Handle, ProcessHandle)) -> IO (Handle, Goal)
 runQuery queryOpts tm = do
-    let query = typeSignature queryOpts
-    let uuid = query_uuid queryOpts
+    let query = checkInput $ typeSignature queryOpts
+    let uuid = checkInput $ query_uuid queryOpts
     env <- readEnv
     goal <- envToGoal env query
     hdl <- openFile uuid ReadWriteMode
-    proc <- spawnCommand $ printf "stack exec -- hplus \"%s\" --stop-refine --stop-threshold=10 --cnt=10 > %s" query uuid
+    proc <- spawnCommand $ printf runCmd query uuid
     atomicModifyIORef tm (\m -> (Map.insert uuid (hdl, proc) m, ()))
     -- timeout the process after the time limit
     forkIO $ threadDelay time_limit >> terminateProcess proc >> endFile uuid hdl
@@ -131,7 +143,7 @@ transformSolution goal queryResult = do
             | tyclassArgBase `isPrefixOf` s || tyclassInstancePrefix `isPrefixOf` s = ""
             | otherwise = case lookupSymbol s 0 env of
                  Just sch -> printf tooltip s (removeTypeclasses $ show (toMonotype sch)) s
-                 Nothing -> let s' = "(" ++ s ++ ")" in 
+                 Nothing -> let s' = "(" ++ s ++ ")" in
                      case lookupSymbol s' 0 env of
                          Just sch -> printf tooltip s' (removeTypeclasses $ show (toMonotype sch)) s'
                          Nothing -> error $ "cannot find symbol " ++ s
@@ -144,7 +156,7 @@ transformSolution goal queryResult = do
                 "Pair" -> printf tooltip ("(,)" :: String) ("a -> b -> (a, b)" :: String) ("(,)" :: String)
                 _      -> case lookupSymbol f 0 env of
                      Just sch -> printf tooltip f (removeTypeclasses $ show (toMonotype sch)) f
-                     Nothing -> let f' = "(" ++ f ++ ")" in 
+                     Nothing -> let f' = "(" ++ f ++ ")" in
                          case lookupSymbol f' 0 env of
                              Just sch -> printf tooltip f' (removeTypeclasses $ show (toMonotype sch)) f'
                              Nothing -> error $ "cannot find symbol " ++ f
@@ -189,7 +201,7 @@ postSearchR = do
     yesod <- getYesod
     (hdl, goal) <- liftIO $ runQuery queryOpts $ threadMap yesod
     -- respondSource typeJson $ liftIO (readChan chan) >>= collectResults goal (query_uuid queryOpts) chan
-    -- hdl <- liftIO $ openFile "test.txt" ReadWriteMode 
+    -- hdl <- liftIO $ openFile "test.txt" ReadWriteMode
     -- liftIO $ forkIO $ testRead hdl
     liftIO $ print "get handler and prepare response"
     respondSource typeJson $ collectResults goal (query_uuid queryOpts) hdl
@@ -200,7 +212,7 @@ postSearchR = do
                 program <- liftIO $ catch (hGetLine hdl) (\(e :: IOException) -> return "") -- if the handler is closed
                 if program == ""
                     then C.sinkNull >> liftIO (endFile uuid hdl)
-                    else if not ("SOLUTION" `isPrefixOf` program) then collectResults goal uuid hdl else do -- skip everything except solution line
+                    else if head program == '*' then collectResults goal uuid hdl else do -- skip the stars in the output
                         strProg <- liftIO $ transformSolution goal $ drop 10 program
                         let prog = strProg uuid
                         liftIO $ print (BChar.unpack $ Aeson.encode prog)

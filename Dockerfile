@@ -27,17 +27,17 @@ RUN stack upgrade
 ENV PATH="/root/.local/bin:${PATH}"
 
 # Get HooglePlus
-RUN cd /home; git clone https://github.com/davidmrdavid/hoogle_plus.git
-RUN cd /home/hoogle_plus && git checkout origin/webapp
-RUN cd /home/hoogle_plus && stack build
+# RUN cd /home; git clone https://github.com/davidmrdavid/hoogle_plus.git
+# RUN cd /home/hoogle_plus && git checkout origin/webapp
+# RUN cd /home/hoogle_plus && stack build
 
 # Start with bash
-RUN cd /home/hoogle_plus && stack exec -- hplus generate --preset=icfppartial
-RUN mkdir -p /var/log/hplus
+# RUN cd /home/hoogle_plus && stack exec -- hplus generate --preset=icfppartial
+# RUN mkdir -p /var/log/hplus
 
-CMD cd /home/hoogle_plus && stack run webapp >> /var/log/hplus/run.log
+# CMD cd /home/hoogle_plus && stack run webapp >> /var/log/hplus/run.log
 
-HEALTHCHECK CMD curl --fail http://localhost:3000/ || exit 1
+# HEALTHCHECK CMD curl --fail http://localhost:3000/ || exit 1
 
 # To start the image, please mount the source file directory to /home/hoogle_plus
 # docker run -v PATH_TO_HOOGLE_PLUS_SOURCE:/home/hoogle_plus -it hoogle_plus
