@@ -7,7 +7,7 @@ To build this project, you need to have z3-4.7.1.
 ## usage
 Execute in the `hoogle_plus` directory:
 ```
-stack exec -- hplus generate --preset icfptotal
+stack exec -- hplus generate --preset totalfunctions
 stack exec -- hplus [DESIRED TYPE] [OPTIONAL ARGS]
 ```
 
@@ -29,12 +29,12 @@ You need to generate the component library that's used for synthesis.
 
 For the components that are only total functions used in the ICFP submission use:
 ```
-stack exec -- hplus generate --preset icfptotal
+stack exec -- hplus generate --preset totalfunctions
 ```
 
 For the superset of components to ICFP total that includes partial functions like `head`:
 ```
-stack exec -- hplus generate --preset icfppartial
+stack exec -- hplus generate --preset partialfunctions
 ```
 
 If you have your own file(s) you want to use, you may specify them. You will then use all the modules within the files. At this time you may not filter within the file:

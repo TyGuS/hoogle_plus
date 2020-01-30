@@ -157,7 +157,7 @@ toRow currentExp (name, rss) =
     spaceList xs = intercalate ", " $ splitBy ',' $ show xs
 
     mbqr = findwhere expTyGarQ rss
-    mbqrOld = find (\x -> (paramName x == expTyGarQ && envName x == (show ICFPPartial))) rss
+    mbqrOld = find (\x -> (paramName x == expTyGarQ && envName x == (show PartialFunctions))) rss
     mbqrNew = find (\x -> (paramName x == expTyGarQ && envName x == (show POPL))) rss
     mbzero = findwhere expTyGar0 rss
     mbbaseline = findwhere expSypetClone rss

@@ -32,7 +32,7 @@ RUN cd /home/hoogle_plus && git checkout origin/webapp
 RUN cd /home/hoogle_plus && stack build
 
 # Start with bash
-RUN cd /home/hoogle_plus && stack exec -- hplus generate --preset=icfppartial
+RUN cd /home/hoogle_plus && stack exec -- hplus generate --preset=partialfunctions
 RUN mkdir -p /var/log/hplus
 
 CMD cd /home/hoogle_plus && stack run webapp >> /var/log/hplus/run.log
