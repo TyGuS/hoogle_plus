@@ -104,6 +104,7 @@ executables:
     - HooglePlus
     - yesod-core
     - yesod-form
+    - yesod-static
     - shakespeare
   evaluation:
     main: Benchmark.hs
