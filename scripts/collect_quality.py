@@ -11,8 +11,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 DATA_DIR = "tmp/run_qual/tsv"
-OUTPUT_FILE = "collected.csv"
-OUTPUT_TEX = "result.tex"
+OUTPUT_FILE = "quality.csv"
+OUTPUT_TEX = "quality_solutions.tex"
 quality_map = "data/quality-map.csv"
 name_regex = r'(.*)\+(.*)\.tsv'
 
@@ -140,7 +140,7 @@ class CollectTSVs():
         for idx in range(len(keys_list)):
             query_name = keys_list[idx]
             query_group = per_query[query_name]
-            table.append(self.mk_row(idx, query_group, query_name))
+            table.append(self.mk_row(idx +1, query_group, query_name))
         return table
 
     def header(self):
