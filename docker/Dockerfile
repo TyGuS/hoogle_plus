@@ -13,27 +13,28 @@ ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
 # install z3
-RUN apt-get install -y git
-RUN apt-get install -y build-essential
-RUN apt-get install -y python
+RUN apt-get install -y git build-essential python
 RUN cd /home; git clone https://github.com/Z3Prover/z3.git
 RUN cd /home/z3; git checkout z3-4.8.1; python scripts/mk_make.py; cd build; make; make install
 
 # install haskell stack tool
-RUN apt-get install -y libtinfo-dev
-RUN apt-get install -y zlib1g-dev
-RUN apt-get install -y haskell-stack
+RUN apt-get install -y libtinfo-dev zlib1g-dev haskell-stack
 RUN stack upgrade
 ENV PATH="/root/.local/bin:${PATH}"
 
+# Get tools for the evaluation
+RUN apt-get install -y python3 python3-pip
+RUN pip3 install --user PyYAML numpy tabulate matplotlib argparse
+
 # Get HooglePlus
 RUN cd /home; git clone https://github.com/davidmrdavid/hoogle_plus.git
-RUN cd /home/hoogle_plus && git checkout origin/webapp
+RUN cd /home/hoogle_plus && git checkout origin/master
 RUN cd /home/hoogle_plus && stack build
 
 # Start with bash
 RUN cd /home/hoogle_plus && stack exec -- hplus generate --preset=partialfunctions
 RUN mkdir -p /var/log/hplus
+
 
 CMD cd /home/hoogle_plus && stack run webapp >> /var/log/hplus/run.log
 

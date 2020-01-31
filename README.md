@@ -1,6 +1,52 @@
 # hoogle_plus
 Type-driven, component based synthesis, showcasing TYpe Guided Abstract Refinement (TYGAR).
 
+# Using Evaluation Docker Image
+## System Prerequisites:
+- Docker
+- Latex (for compiling completed evaluation results)
+
+## Evaluation Results
+H+ will rerun its evaluation to produce five files:
+- `table.tex` and `table_results.tex` These are the latex files to produce the table seen in the evaluation section of the paper.
+You will need use your system's latex installation `pdflatex table.tex` to combine them.
+- `major_variants.pdf` This is a plot of the 4 major search strategies (TYGARQ, TYGARQB10, TYGAR0, NOGAR)
+- `bounded_variants.pdf` This is a plot of the 4 bounded abstraction searches (TYGARQB5, 10, 15, 20)
+- `quality.csv` This is a CSV of the top 5 solutions for each benchmark produced within 120 seconds.
+It is easiest to view this file by importing it into a Google Sheets spreadsheet.
+
+There is also an executable you may interact with, `hplus`.
+
+## Re-running the evaluation
+First we must build a docker image:
+1. Build it with `docker build --tag hoogleplus_aec:latest .` (This can take between 40 minutes and 2 hours)
+2. Run the docker file interactively with a desired output directory.
+Hoogle+ will put the evaluation results into that directory.
+```
+docker run -v /absolute/path/to/output/dir:/output -it hoogleplus_aec:latest /bin/bash
+```
+3. Now navigate to the internal hoogle plus directory: `cd /home/hoogle_plus`
+4. Run the evaluation script: `./evaluation.sh` (This can take about 150 minutes). Don't feel like waiting that long? Use `./evaluation-short.sh`. This should take ~5 minutes. It relies on a smaller set of benchmarks, only 3. You may wish to modify `benchmark/suites/aec-short.yml` adding more in as you like from the master set, located at `benchmark/suites/working.yml`.
+
+At this point, you should have 5 new files in your output directory.
+These are the results of the evaluation.
+
+## Usage
+```
+stack exec -- hplus "Maybe a -> [a] -> a"
+```
+Replace the type query with whatever your heart fancies.
+The default search mode is `TYGARAQ` as described in the paper: unbounded abstraction refinement.
+
+You may try searches with different variants with the following command line args:
+- TYGARQ: Unbounded abstraction refinement. This is the default mode. The initial abstract cover are the types in the query.
+- TYGARQ0: Unbounded abstraction refinmenet. The initial abstract cover is empty. Use `stack exec -- hplus --use-refine=tygar0 "<query>"`
+- NOGAR: No refinement. Use `stack exec -- hplus --use-refine=nogar "<query>"`
+- TYGARQB: Bounded abstraction refinement. Use `stack exec -- hplus --stop-refine=True --stop-threshold=10 "<query>"`. Replace `10` with any number. This is the maximum refinements HooglePlus will make.
+
+
+# Building from scratch, for the developers
+
 ## build
 To build this project, you need to have z3-4.7.1.
 
@@ -21,21 +67,22 @@ stack exec -- hplus [DESIRED TYPE] [OPTIONAL ARGS]
 ## Artifacts
 You may run any of these with `stack exec -- <artifactname>`:
 - `hplus` : This is the CLI for running single queries
-- `evaluation`: For re-running the evaluation script and getting a sense of the overall performance.
 - `webapp`: Hosts a simple web interface at localhost:3000
 
 ## Sample genererate:
 You need to generate the component library that's used for synthesis.
 
-For the components that are only total functions used in the ICFP submission use:
+Use our bigger set of components here:
+```
+stack exec -- hplus generate --preset partialfunctions
+```
+
+If you would just like to consider functions that are total (i.e., well defined
+on all inputs), use:
 ```
 stack exec -- hplus generate --preset totalfunctions
 ```
 
-For the superset of components to ICFP total that includes partial functions like `head`:
-```
-stack exec -- hplus generate --preset partialfunctions
-```
 
 If you have your own file(s) you want to use, you may specify them. You will then use all the modules within the files. At this time you may not filter within the file:
 ```

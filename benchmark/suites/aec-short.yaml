@@ -1,0 +1,14 @@
+- name: fromFirstMaybes
+  query: "a -> [Maybe a] -> a"
+  solution: fromMaybe x (listToMaybe (catMaybes xs))
+  source: "original"
+
+- name: applyNtimes
+  query: "(a->a) -> a -> Int -> a"
+  solution: GHC.List.foldr Prelude.app x (GHC.List.replicate n f)
+  source: "hoogle"
+
+- name: lookup
+  query: "Eq a => [(a,b)] -> a -> b"
+  solution: Data.Maybe.fromJust (GHC.List.lookup arg0 arg1)
+  source: "hoogle"

@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 DATA_DIR = "tmp/run_each/tsv/"
 OUTPUT_FILE = "collected.csv"
-OUTPUT_TEX = "result.tex"
+OUTPUT_TEX = "table_results.tex"
 quality_map = "data/quality-map.csv"
 name_regex = r'(.*)\+(.*)\.tsv'
 
@@ -256,10 +256,10 @@ def mk_plot(per_query):
         per_exp[exp] = sorted(per_exp[exp])
 
     plot1 = {
-        "tygar" : per_exp["tygarq"],
-        "hybrid" : per_exp["tygarqb10"],
-        # "tygar0" : per_exp["tygar0"],
-        "enumeration" : per_exp["nogar"],
+        "tygarq" : per_exp["tygarq"],
+        "tygarqb10" : per_exp["tygarqb10"],
+        "tygar0" : per_exp["tygar0"],
+        "nogar" : per_exp["nogar"],
     }
     keys_list = list(plot1.keys())
     markers = [".", "v", "^", "+", "<", ">", "p", "x", "1", "2", "3", "4"]
@@ -272,28 +272,28 @@ def mk_plot(per_query):
     plt.legend(loc=0, prop={'size': 10})
     plt.xlabel("Seconds")
     plt.ylabel("Benchmarks solved")
-    plt.savefig("hoogle_plus.pdf")
+    plt.savefig("major_variants.pdf")
     plt.clf()
 
-    # plot2 = {
-    #     "tygarqb5" : per_exp["tygarqb5"],
-    #     "tygarqb10" : per_exp["tygarqb10"],
-    #     "tygarqb15" : per_exp["tygarqb15"],
-    #     "tygarqb20" : per_exp["tygarqb20"],
-    # }
-    # keys_list = list(plot2.keys())
-    # markers = [".", "v", "^", "+", "<", ">", "p", "x", "1", "2", "3", "4"]
-    # for key_id in range(len(keys_list)):
-    #     exp = keys_list[key_id]
-    #     values = plot2[exp]
-    #     ys = range(0,len(values))
-    #     m = markers[key_id]
-    #     plt.plot(values, ys, marker=m, label=exp)
-    # plt.legend(loc=0, prop={'size': 10})
-    # plt.xlabel("seconds")
-    # plt.ylabel("benchmarks solved")
-    # plt.savefig("bounds.pdf")
-    # plt.clf()
+    plot2 = {
+        "tygarqb5" : per_exp["tygarqb5"],
+        "tygarqb10" : per_exp["tygarqb10"],
+        "tygarqb15" : per_exp["tygarqb15"],
+        "tygarqb20" : per_exp["tygarqb20"],
+    }
+    keys_list = list(plot2.keys())
+    markers = [".", "v", "^", "+", "<", ">", "p", "x", "1", "2", "3", "4"]
+    for key_id in range(len(keys_list)):
+        exp = keys_list[key_id]
+        values = plot2[exp]
+        ys = range(0,len(values))
+        m = markers[key_id]
+        plt.plot(values, ys, marker=m, label=exp)
+    plt.legend(loc=0, prop={'size': 10})
+    plt.xlabel("seconds")
+    plt.ylabel("benchmarks solved")
+    plt.savefig("bound_variants.pdf")
+    plt.clf()
 
 
 def safeGet(dct, exp, field):
@@ -306,9 +306,9 @@ def main():
     ctsv = CollectTSVs()
     per_query = ctsv.gather_files()
     mk_plot(per_query)
-    # table = ctsv.mk_table(per_query)
+    table = ctsv.mk_table(per_query)
     # ctsv.write_csv(table)
-    # ctsv.write_latex(table)
+    ctsv.write_latex(table)
 
 if __name__ == '__main__':
     main()
