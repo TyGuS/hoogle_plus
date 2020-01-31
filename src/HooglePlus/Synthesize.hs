@@ -22,6 +22,7 @@ import Types.Experiments
 import Types.Program
 import Types.Solver
 import Types.Type
+import Selector.CompSelector
 
 import Control.Applicative ((<$>))
 import Control.Concurrent.Chan
@@ -73,8 +74,10 @@ envToGoal env queryStr = do
 
 synthesize :: SearchParams -> Goal -> Chan Message -> IO ()
 synthesize searchParams goal messageChan = do
-    let env' = gEnvironment goal
-    let destinationType = lastType $ toMonotype $ gSpec goal
+    let env = gEnvironment goal
+    let query = toMonotype (gSpec goal)
+    let env' = if (searchParams ^. selectComp) then selectByType query env else env
+    let destinationType = lastType query
     let useHO = _useHO searchParams
     let rawSyms = env' ^. symbols
     let hoCands = env' ^. hoCandidates
@@ -110,6 +113,9 @@ synthesize searchParams goal messageChan = do
                           NoGar0 -> emptySolverState ^. abstractionCover
                 , _messageChan = messageChan
                 }
+    
+    print $ "# of components " ++ show (Map.size (env ^. symbols))
+    print $ "components: " ++ show (Map.keys (env ^. symbols))
     catch
         (evalStateT (runPNSolver env destinationType) is)
         (\e ->

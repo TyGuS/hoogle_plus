@@ -515,7 +515,7 @@ instance Pretty BareDeclaration where
         keyword "type" <+> text name <+> hsep (map text tvs) <+> operator "=" <+> pretty t
     pretty (QualifierDecl fmls) = keyword "qualifier" <+> hlBraces (commaSep $ map pretty fmls)
     pretty (FuncDecl name t) = text name <+> operator "::" <+> pretty t
-    pretty (DataDecl name tParams pParams ctors) =
+    pretty (DataDecl _ name tParams pParams ctors) =
         hang tab $
         keyword "data" <+>
         text name <+>

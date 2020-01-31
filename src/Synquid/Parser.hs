@@ -161,7 +161,7 @@ parseDataDecl = do
     tParams <- many (sameOrIndented >> parseIdentifier)
     pParams <- many (sameOrIndented >> parsePredParam)
     constructors <- option [] (reserved "where" >> indented >> block parseConstructorSig)
-    return $ DataDecl typeName tParams pParams constructors
+    return $ DataDecl "" typeName tParams pParams constructors
   where
     parsePredParam = do
         p <- angles parsePredSig

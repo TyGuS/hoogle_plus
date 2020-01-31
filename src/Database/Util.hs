@@ -78,6 +78,7 @@ defaultDts =
 defaultList =
     Pos (initialPos "List") $
     DataDecl
+        "GHC.List"
         "List"
         ["a"]
         []
@@ -96,6 +97,7 @@ defaultList =
 defaultPair =
     Pos (initialPos "Pair") $
     DataDecl
+        "Data.Tuple"
         "Pair"
         ["a", "b"]
         []
@@ -112,7 +114,7 @@ defaultPair =
                 ftrue))
         ]
 
-defaultFun = [Pos (initialPos "Fun") $ DataDecl "Fun" ["a", "b"] [] []]
+defaultFun = [Pos (initialPos "Fun") $ DataDecl "" "Fun" ["a", "b"] [] []]
 
 -- This is only a subset of those predefinted in Haskell:
 -- Full report: https://www.haskell.org/onlinereport/basic.html
@@ -175,14 +177,14 @@ doubleType = ScalarT (DatatypeT "Double" [] []) ftrue
 
 unitType = ScalarT (DatatypeT "Unit" [] []) ftrue
 
-defaultInt = Pos (initialPos "Int") $ DataDecl "Int" [] [] []
+defaultInt = Pos (initialPos "Int") $ DataDecl "Data.Int" "Int" [] [] []
 
-defaultBool = Pos (initialPos "Bool") $ DataDecl "Bool" [] [] []
+defaultBool = Pos (initialPos "Bool") $ DataDecl "Data.Bool" "Bool" [] [] []
 
-defaultChar = Pos (initialPos "Char") $ DataDecl "Char" [] [] []
+defaultChar = Pos (initialPos "Char") $ DataDecl "" "Char" [] [] []
 
-defaultFloat = Pos (initialPos "Float") $ DataDecl "Float" [] [] []
+defaultFloat = Pos (initialPos "Float") $ DataDecl "" "Float" [] [] []
 
-defaultDouble = Pos (initialPos "Double") $ DataDecl "Double" [] [] []
+defaultDouble = Pos (initialPos "Double") $ DataDecl "" "Double" [] [] []
 
-defaultUnit = Pos (initialPos "Unit") $ DataDecl "Unit" [] [] []
+defaultUnit = Pos (initialPos "Unit") $ DataDecl "" "Unit" [] [] []

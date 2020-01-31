@@ -104,13 +104,14 @@ resolveDeclaration (TypeDecl typeName typeVars typeBody) = do
                   text typeName <+>
                   text "are undefined")
 resolveDeclaration (FuncDecl funcName typeSchema) = addNewSignature funcName typeSchema
-resolveDeclaration (DataDecl dtName tParams pVarParams ctors) = do
+resolveDeclaration (DataDecl mdl dtName tParams pVarParams ctors) = do
     let (pParams, pVariances) = unzip pVarParams
         datatype =
             DatatypeDef
                 { _typeParams = tParams
                 , _predVariances = pVariances
                 , _constructors = map constructorName ctors
+                , _srcModule = mdl
                 }
     environment %= addDatatype dtName datatype
     let addPreds typ = foldl (flip ForallP) (Monotype typ) pParams
@@ -156,7 +157,7 @@ resolveSignatures (FuncDecl name _) = do
     sch' <- resolveSchema sch
     environment %= removeVariable name
     environment %= addPolyConstant name sch'
-resolveSignatures (DataDecl dtName tParams pParams ctors) = mapM_ resolveConstructorSignature ctors
+resolveSignatures (DataDecl _ dtName tParams pParams ctors) = mapM_ resolveConstructorSignature ctors
   where
     resolveConstructorSignature (ConstructorSig name _) = do
         sch <- uses environment ((Map.! name) . allSymbols)
@@ -221,7 +222,7 @@ resolveType (ScalarT (DatatypeT name tArgs pArgs) fml) = do
             t' <- substituteTypeSynonym name tArgs >>= resolveType
             fml' <- resolveTypeRefinement (toSort $ baseTypeOf t') fml
             return $ addRefinement t' fml'
-        Just (DatatypeDef tParams _ _) -> do
+        Just (DatatypeDef tParams _ _ _) -> do
             when (length tArgs /= length tParams) $ throwResError $ text "Datatype" <+> text name <+>
                 text "expected" <+>
                 pretty (length tParams) <+>
@@ -270,7 +271,7 @@ resolveSort s@(DataS name sArgs) = do
         Nothing ->
             throwResError $ text "Datatype" <+> text name <+> text "is undefined in sort" <+>
             pretty s
-        Just (DatatypeDef tParams _ _) -> do
+        Just (DatatypeDef tParams _ _ _) -> do
             let n = length tParams
             when (length sArgs /= n) $ throwResError $ text "Datatype" <+> text name <+>
                 text "expected" <+>

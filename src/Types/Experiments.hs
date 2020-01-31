@@ -51,6 +51,7 @@ data SearchParams =
         , _disableCopy :: Bool
         , _disableBlack :: Bool
         , _disableFilter :: Bool
+        , _selectComp :: Bool
         }
     deriving (Eq, Show)
 
@@ -103,6 +104,7 @@ defaultSearchParams =
         , _disableCopy = False
         , _disableBlack = False
         , _disableFilter = False
+        , _selectComp = False
         }
 
 type ExperimentName = String

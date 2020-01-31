@@ -297,22 +297,22 @@ datatypeOfCon (decl:decls) =
             InfixConDecl _ typl name typr -> datatypeOf typl `Set.union` datatypeOf typr
             RecDecl _ name fields -> error "record declaration is not supported"
 
-toSynquidDecl :: (MonadIO m) => Entry -> StateT Int m Declaration
-toSynquidDecl (EDecl (TypeDecl _ head typ)) = do
+toSynquidDecl :: (MonadIO m) => Id -> Entry -> StateT Int m Declaration
+toSynquidDecl _ (EDecl (TypeDecl _ head typ)) = do
     typ' <- toSynquidRType typ
     if hasAny typ'
         then return $ Pos (initialPos "") $ TP.QualifierDecl [] -- a fake conversion
         else return $
              Pos (initialPos $ declHeadName head) $
              TP.TypeDecl (declHeadName head) (declHeadVars head) typ'
-toSynquidDecl (EDecl (DataFamDecl a b head c)) =
-    toSynquidDecl (EDecl (DataDecl a (DataType a) b head [] []))
-toSynquidDecl (EDecl (DataDecl _ _ _ head conDecls _)) = do
+toSynquidDecl mdl (EDecl (DataFamDecl a b head c)) =
+    toSynquidDecl mdl (EDecl (DataDecl a (DataType a) b head [] []))
+toSynquidDecl mdl (EDecl (DataDecl _ _ _ head conDecls _)) = do
     constructors <- processConDecls conDecls
     let name = declHeadName head
     let vars = declHeadVars head
-    return $ Pos (initialPos name) $ TP.DataDecl name vars [] constructors
-toSynquidDecl (EDecl (TypeSig _ names typ)) = do
+    return $ Pos (initialPos name) $ TP.DataDecl mdl name vars [] constructors
+toSynquidDecl _ (EDecl (TypeSig _ names typ)) = do
     maybeSch <- toSynquidSchema typ
     case maybeSch of
         Nothing -> return $ Pos (initialPos "") $ TP.QualifierDecl [] -- a fake conversion
@@ -320,11 +320,11 @@ toSynquidDecl (EDecl (TypeSig _ names typ)) = do
             return $
             Pos (initialPos (nameStr $ names !! 0)) $
             TP.FuncDecl (nameStr $ head names) (toSynquidRSchema sch)
-toSynquidDecl (EDecl (ClassDecl _ _ head _ _)) = do
+toSynquidDecl mdl (EDecl (ClassDecl _ _ head _ _)) = do
     let name = fixTCName (declHeadName head)
     let vars = declHeadVars head
-    return $ Pos (initialPos "") $ TP.DataDecl name vars [] []
-toSynquidDecl decl = do
+    return $ Pos (initialPos "") $ TP.DataDecl mdl name vars [] []
+toSynquidDecl _ decl = do
     return $ Pos (initialPos "") $ TP.QualifierDecl [] -- [TODO] a fake conversion
 
 isInstance :: Entry -> Bool
@@ -425,9 +425,9 @@ reorderDecls = Sort.sortOn toInt
     toInt (Pos _ (TP.TypeDecl "String" _ _)) = 1
     toInt (Pos _ (TP.TypeDecl _ [] _)) = 2
     toInt (Pos _ TP.TypeDecl {}) = 3
-    toInt (Pos _ (TP.DataDecl "List" _ _ _)) = 0
-    toInt (Pos _ (TP.DataDecl "Char" _ _ _)) = 0
-    toInt (Pos _ (TP.DataDecl _ [] _ _)) = 2
+    toInt (Pos _ (TP.DataDecl _ "List" _ _ _)) = 0
+    toInt (Pos _ (TP.DataDecl _ "Char" _ _ _)) = 0
+    toInt (Pos _ (TP.DataDecl _ _ [] _ _)) = 2
     toInt (Pos _ TP.DataDecl {}) = 3
     toInt (Pos _ TP.QualifierDecl {}) = 98
     toInt (Pos _ TP.FuncDecl {}) = 99

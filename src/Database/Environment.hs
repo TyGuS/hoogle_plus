@@ -8,7 +8,7 @@ module Database.Environment
     , filesToEntries
     ) where
 
-import Control.Lens ((^.))
+import Control.Lens
 import Control.Monad.State (evalStateT)
 import qualified Data.ByteString as B
 import Data.Either
@@ -32,6 +32,7 @@ import Synquid.Pretty as Pretty
 import Synquid.Resolver (resolveDecls)
 import Synquid.Type (isHigherOrder, toMonotype)
 import Synquid.Util
+import Types.Common
 import Types.Environment
 import Types.Generate
 import Types.Program (BareDeclaration(..), ConstructorSig(..), Declaration(..))
@@ -47,7 +48,7 @@ getDeps :: PackageFetchOpts -> Map MdlName [Entry] -> [Entry] -> IO [Declaration
 getDeps Local {files = f} allEntries ourEntries = do
     let dependentEntries =
             DC.entryDependencies allEntries ourEntries (concat $ Map.elems allEntries)
-    nubOrd <$> mapM (flip evalStateT 0 . DC.toSynquidDecl) dependentEntries
+    nubOrd <$> mapM (flip evalStateT 0 . DC.toSynquidDecl "") dependentEntries
 getDeps Hackage {packages = ps} allEntries ourEntries = do
     pkgsDeps <-
         mapM
@@ -57,36 +58,33 @@ getDeps Hackage {packages = ps} allEntries ourEntries = do
                      concatMap (concat . Map.elems) <$>
                      (mapM (flip DC.readDeclarations Nothing) pkgDeps)
                  let dependentEntries = DC.entryDependencies allEntries ourEntries entriesFromDeps
-                 mapM (flip evalStateT 0 . DC.toSynquidDecl) dependentEntries)
+                 mapM (flip evalStateT 0 . DC.toSynquidDecl "") dependentEntries)
             ps
     return $ nubOrd $ concat pkgsDeps
 
-generateEnv :: GenerationOpts -> IO Environment
-generateEnv genOpts = do
-    let useHO = enableHOF genOpts
-    let pkgOpts = pkgFetchOpts genOpts
-    let mdls = modules genOpts
-    let pathToHo = hoPath genOpts
-    let mbModuleNames =
-            if length mdls > 0
-                then Just mdls
-                else Nothing
-    pkgFiles <- getFiles pkgOpts
-    allEntriesByMdl <- filesToEntries pkgFiles True
-    DD.cleanTmpFiles pkgOpts pkgFiles
-    let entriesByMdl = filterEntries allEntriesByMdl mbModuleNames
-    let ourEntries = nubOrd $ concat $ Map.elems entriesByMdl
-    dependencyEntries <- getDeps pkgOpts allEntriesByMdl ourEntries
-    let moduleNames = Map.keys entriesByMdl
-    let allCompleteEntries = concat (Map.elems entriesByMdl)
-    let allEntries = nubOrd allCompleteEntries
-    ourDecls <- mapM (\(entry) -> (evalStateT (DC.toSynquidDecl entry) 0)) allEntries
-    let instanceDecls = filter (\entry -> DC.isInstance entry) allEntries
+entriesToDecls :: Map Id [Entry] -> IO [TP.Declaration]
+entriesToDecls m = do
+    maps <- mapM entriesToDecls' (Map.toList m)
+    return (concat maps)
+    where
+        entriesToDecls' :: (Id, [Entry]) -> IO [TP.Declaration]
+        entriesToDecls' (mdl, entries) =
+            mapM (\entry -> evalStateT (DC.toSynquidDecl mdl entry) 0) entries
+
+instanceToDecls :: [Entry] -> IO [TP.Declaration]
+instanceToDecls entries = do
+    let instanceDecls = filter DC.isInstance entries
     let instanceRules = map DC.getInstanceRule instanceDecls
     let transitionIds = [0 .. length instanceRules]
     let instanceTuples = zip instanceRules transitionIds
-    instanceFunctions <-
-        mapM (\(entry, id) -> evalStateT (DC.instanceToFunction entry id) 0) instanceTuples
+    mapM instanceToDecls' instanceTuples
+    where
+        instanceToDecls' (entry, id) = 
+            evalStateT (DC.instanceToFunction entry id) 0
+
+tcToDecls :: [TP.Declaration] -> [Entry] -> IO ([TP.Declaration], [TP.Declaration])
+tcToDecls ourDecls entries = do
+    instanceFunctions <- instanceToDecls entries
     -- TODO: remove all higher kinded type instances
     let instanceFunctions' =
             filter
@@ -98,38 +96,51 @@ generateEnv genOpts = do
                               ]))
                 instanceFunctions
     let declStrs = show (instanceFunctions' ++ ourDecls)
-    let removeParentheses = (\x -> LUtils.replace ")" "" $ LUtils.replace "(" "" x)
+    let removeParentheses x = LUtils.replace ")" "" $ LUtils.replace "(" "" x
     let tcNames =
             nub $
-            map removeParentheses $ filter (\x -> isInfixOf tyclassPrefix x) (splitOn " " declStrs)
-    let tcDecls = map (\x -> Pos (initialPos "") $ TP.DataDecl x ["a"] [] []) tcNames
-    let library = concat [ourDecls, dependencyEntries, instanceFunctions', tcDecls, defaultLibrary]
+            map removeParentheses $ filter (isInfixOf tyclassPrefix) (splitOn " " declStrs)
+    let mkDecl x = Pos (initialPos "") $ TP.DataDecl "" x ["a"] [] []
+    return $ (instanceFunctions', map mkDecl tcNames)
+
+filterEnv :: GenerationOpts -> [Id] -> Environment -> IO Environment
+filterEnv genOpts moduleNames env = do
+    let useHO = enableHOF genOpts
+    let pathToHo = hoPath genOpts
+    let filterFun = if useHO then const True else (not . isHigherOrder . toMonotype)
+    let filteredSymbols = Map.filter filterFun (env ^. symbols)
+    let envFiltered = symbols .~ filteredSymbols $ env
+    let envUpdated = included_modules .~ (Set.fromList (moduleNames)) $ envFiltered
+    hofStr <- readFile pathToHo
+    let hofNames = words hofStr
+    -- get signatures
+    let sigs = map (\f -> lookupWithError "env: symbols" f (envUpdated ^. symbols)) hofNames
+    -- transform into fun types and add into the environments
+    let sigs' = zipWith (\n t -> (n ++ hoPostfix, toFunType t)) hofNames sigs
+    let envHofSym = symbols %~ Map.union (Map.fromList sigs') $ envUpdated
+    let envHofCands = hoCandidates .~ map fst sigs' $ envHofSym
+    return envHofCands
+
+generateEnv :: GenerationOpts -> IO Environment
+generateEnv genOpts = do
+    let pkgOpts = pkgFetchOpts genOpts
+    let mdls = modules genOpts
+    let mbModuleNames = if length mdls > 0 then Just mdls else Nothing
+    pkgFiles <- getFiles pkgOpts
+    allEntriesByMdl <- filesToEntries pkgFiles True
+    DD.cleanTmpFiles pkgOpts pkgFiles
+    let entriesByMdl = filterEntries allEntriesByMdl mbModuleNames
+    let allEntries = nubOrd $ concat $ Map.elems entriesByMdl
+    dependencyEntries <- getDeps pkgOpts allEntriesByMdl allEntries
+    let moduleNames = Map.keys entriesByMdl
+    ourDecls <- entriesToDecls entriesByMdl
+    (instanceFunctions, tcDecls) <- tcToDecls ourDecls allEntries
+    let library = concat [ourDecls, dependencyEntries, instanceFunctions, tcDecls, defaultLibrary]
     let hooglePlusDecls = DC.reorderDecls $ nubOrd $ library
     result <-
         case resolveDecls hooglePlusDecls moduleNames of
             Left errMessage -> error $ show errMessage
-            Right env -> do
-                let env' =
-                        env
-                            { _symbols =
-                                  if useHO
-                                      then env ^. symbols
-                                      else Map.filter (not . isHigherOrder . toMonotype) $
-                                           env ^. symbols
-                            , _included_modules = Set.fromList (moduleNames)
-                            }
-                hofStr <- readFile pathToHo
-                let hofNames = words hofStr
-            -- get signatures
-                let sigs = map (\f -> lookupWithError "env: symbols" f (env' ^. symbols)) hofNames
-            -- transform into fun types and add into the environments
-                let sigs' = zipWith (\n t -> (n ++ hoPostfix, toFunType t)) hofNames sigs
-                let env'' =
-                        env'
-                            { _symbols = Map.union (env' ^. symbols) (Map.fromList sigs')
-                            , _hoCandidates = map fst sigs'
-                            }
-                return env''
+            Right env -> filterEnv genOpts moduleNames env
     printStats result
     return result
   where

@@ -76,15 +76,6 @@ data MeasureDef =
 
 makeLenses ''MeasureDef
 
-data Metadata =
-    Metadata
-        { _distFromGoal :: Int
-        , _mWeight :: Double
-        }
-    deriving (Eq, Show, Generic)
-
-makeLenses ''Metadata
-
 instance Serialize Formula
 
 instance Serialize Sort
@@ -102,8 +93,6 @@ instance Serialize DatatypeDef
 instance Serialize MeasureCase
 
 instance Serialize MeasureDef
-
-instance Serialize Metadata
 
 instance Serialize t => Serialize (Case t)
 
@@ -125,7 +114,7 @@ data ConstructorSig =
 data BareDeclaration
     = TypeDecl Id [Id] RType -- ^ Type name, variables, and definition
     | FuncDecl Id RSchema -- ^ Function name and signature
-    | DataDecl Id [Id] [(PredSig, Bool)] [ConstructorSig] -- ^ Datatype name, type parameters, predicate parameters, and constructor definitions
+    | DataDecl Id Id [Id] [(PredSig, Bool)] [ConstructorSig] -- ^ Datatype module, Datatype name, type parameters, predicate parameters, and constructor definitions
     | MeasureDecl Id Sort Sort Formula [MeasureCase] Bool -- ^ Measure name, input sort, output sort, postcondition, definition cases, and whether this is a termination metric
     | PredDecl PredSig -- ^ Module-level predicate
     | QualifierDecl [Formula] -- ^ Qualifiers
