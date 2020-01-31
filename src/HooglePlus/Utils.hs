@@ -5,6 +5,7 @@ import Types.Environment
 import Types.Program
 import Types.Type
 import Types.Experiments
+import Types.Filtering
 import Synquid.Type
 import Synquid.Util hiding (fromRight)
 import Synquid.Pretty as Pretty
@@ -106,6 +107,9 @@ printSolution solution = do
     putStrLn "*******************SOLUTION*********************"
     putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
     putStrLn "************************************************"
+
+printFilter (FilterState [] [] []) = return ()
+printFilter (FilterState _ _ ((_, x):_)) = putStrLn $ "Sample behavior: " ++ show x
 
 extractSolution :: Environment -> RType -> UProgram -> ([String], String, String, [(Id, RSchema)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)

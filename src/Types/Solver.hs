@@ -50,6 +50,7 @@ data SolverState = SolverState {
     _instanceCounts :: HashMap Id Int, -- Number of instantiations for a real-name, used in selecting representative
     _toRemove :: [Id],
     _useCount :: Map Id Int,
+    _filterState :: FilterState,
     _messageChan :: Chan Message
 } deriving(Eq)
 
@@ -81,7 +82,8 @@ emptySolverState = SolverState {
     _instanceCounts = HashMap.empty,
     _toRemove = [],
     _useCount = Map.empty,
-    _messageChan = undefined
+    _messageChan = undefined,
+    _filterState = emptyFilterState
 }
 
 makeLenses ''SolverState

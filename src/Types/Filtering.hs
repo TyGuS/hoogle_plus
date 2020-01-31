@@ -7,29 +7,30 @@ import Text.Printf
 import Data.List (intercalate)
 
 defaultTimeoutMicro = 5 * 10^4 :: Int
-defaultInterpreterTimeoutMicro = 60 * 10^6 :: Int
+defaultInterpreterTimeoutMicro = 4 * 10^6 :: Int
 defaultMaxOutputLength = 100 :: Int
 
 quickCheckModules =
   zip [ "Test.QuickCheck"
   , "Test.QuickCheck.Gen"
   , "Test.QuickCheck.Random"
-  , "Test.QuickCheck.Monadic" ] (repeat Nothing)
+  , "Test.QuickCheck.Monadic"
+  , "Text.Show.Functions" ] (repeat Nothing)
 
   ++ [("Test.ChasingBottoms", Just "CB")]
 
-supportedInnerType =
-  [ "Int"
-  , "Float"
-  , "Double"
-  , "Char"
-  , "String" ]
+data FunctionCrashDesc = 
+    AlwaysSucceed String
+  | AlwaysFail String
+  | PartialFunction String String
+  | UnableToCheck String
+  deriving (Eq)
 
-data FunctionCrashKind = 
-    AlwaysSucceed
-  | AlwaysFail
-  | PartialFunction
-  deriving (Show)
+instance Show FunctionCrashDesc where
+  show (AlwaysSucceed i) = "Total: " ++ i
+  show (AlwaysFail i) = "Fail: " ++ i
+  show (PartialFunction s f) = "Partial: succeeds on " ++ s ++ "; fails on " ++ f
+  show (UnableToCheck ex) = "Exception: " ++ ex
 
 data ArgumentType =
     Concrete    String
@@ -74,12 +75,14 @@ instance Show FunctionSignature where
 
 data FilterState = FilterState {
   inputs :: [[String]],
-  solutions :: [String]
+  solutions :: [String],
+  solutionExamples :: [(String, FunctionCrashDesc)]
 } deriving (Eq, Show)
 
 emptyFilterState = FilterState {
   inputs = [],
-  solutions = []
+  solutions = [],
+  solutionExamples = []
 }
 
 type FilterTest m = StateT FilterState m

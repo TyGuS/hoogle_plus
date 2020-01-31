@@ -61,7 +61,6 @@ parseTypeString input = FunctionSignature constraints argsType returnType
     extractConstraints constraints (CxTuple _ list) = foldr ((++) . extractQualified) constraints list
 
 -- instantiate polymorphic types in function signature with `Int`
--- * note that constraints were ignored since we only use `Int` now
 instantiateSignature :: FunctionSignature -> FunctionSignature
 instantiateSignature (FunctionSignature _ argsType returnType) =
   FunctionSignature [] (map instantiate argsType) (instantiate returnType)
@@ -72,18 +71,6 @@ instantiateSignature (FunctionSignature _ argsType returnType) =
       instantiate (ArgTypeTuple types) = ArgTypeTuple (map instantiate types)
       instantiate (ArgTypeApp l r) = ArgTypeApp (instantiate l) (instantiate r)
       instantiate (ArgTypeFunc l r) = ArgTypeFunc (instantiate l) (instantiate r)
-
-toInnerType :: FunctionSignature -> FunctionSignature
-toInnerType (FunctionSignature _ argsType returnType) =
-  FunctionSignature [] (map f argsType) (f returnType)
-    where
-      f sig@(Concrete name)
-        | name `elem` supportedInnerType = Concrete (printf "(Internal (%s))" name)
-        | otherwise = sig
-      f (ArgTypeList sub) = ArgTypeList $ f sub
-      f (ArgTypeTuple types) = ArgTypeTuple (map f types)
-      f (ArgTypeApp l r) = ArgTypeApp (f l) (f r)
-      f (ArgTypeFunc l r) = ArgTypeFunc (f l) (f r)
 
 buildFunctionWrapper :: String -> String -> String -> Int -> String
 buildFunctionWrapper = buildFunctionWrapper' "wrappedSolution"
@@ -171,7 +158,7 @@ runInterpreter' timeInMicro exec =
     toResult (Just v) = v 
 
 
-validateSolution :: [String] -> String -> FunctionSignature -> Int -> IO (Either InterpreterError FunctionCrashKind)
+validateSolution :: [String] -> String -> FunctionSignature -> Int -> IO (Either InterpreterError FunctionCrashDesc)
 validateSolution modules solution funcSig time = do
   result <- runInterpreter' defaultInterpreterTimeoutMicro $ do
     setImportsQ (zip modules (repeat Nothing) ++ quickCheckModules)
@@ -184,9 +171,12 @@ validateSolution modules solution funcSig time = do
     return (alwaysFailResult, neverFailResult)
   case result of
     Left err -> return $ Left err
-    Right (Success{}, _) -> return $ Right AlwaysFail
-    Right (_, Success{}) -> return $ Right AlwaysSucceed
-    Right _ -> return $ Right PartialFunction
+    Right (Success{}, rf@Failure{}) -> return $ Right $ AlwaysFail $ caseToString rf
+    Right (rs@Failure{}, Success{}) -> return $ Right $ AlwaysSucceed $ caseToString rs
+    Right (rs@Failure{}, rf@Failure{}) -> return $ Right $ PartialFunction (caseToString rs) (caseToString rf)
+
+  where
+    caseToString Failure{failingTestCase=c} = unwords c
 
 compareSolution :: [String] -> String -> [String] -> FunctionSignature -> Int -> IO (Either InterpreterError Result)
 compareSolution modules solution otherSolutions funcSig time = do
@@ -206,31 +196,38 @@ runChecks env goalType prog =
              , checkDuplicates]
 
 checkSolutionNotCrash :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
-checkSolutionNotCrash modules sigStr body = liftIO executeCheck
+checkSolutionNotCrash modules sigStr body = do
+  fs@(FilterState _ _ samples) <- get
+  result <- liftIO $ executeCheck
+
+  let (pass, desc) = case result of
+                          Left err -> (True, UnableToCheck (show err))
+                          Right desc@(AlwaysFail _) -> (False, desc)
+                          Right desc -> (True, desc)
+
+  modify $ const fs {solutionExamples = (body, desc):samples};
+  return pass
+
   where
-    handleNotSupported = (`catch` ((\ex -> print ex >> return True) :: NotSupportedException -> IO Bool))
+    handleNotSupported = (`catch` ((\ex -> return (Left ((UnknownError $ show ex)))) :: NotSupportedException -> IO (Either InterpreterError FunctionCrashDesc)))
     executeCheck = handleNotSupported $ do
       let funcSig = (instantiateSignature . parseTypeString) sigStr
-
-      result <- validateSolution modules body funcSig defaultTimeoutMicro
-      case result of
-        Left err -> print err >> return True
-        Right AlwaysFail -> return False
-        Right _ -> return True
+      validateSolution modules body funcSig defaultTimeoutMicro
+      
 
 checkDuplicates :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
 checkDuplicates modules sigStr solution = do
-  FilterState is solns <- get
+  fs@(FilterState is solns _) <- get
 
   result <- liftIO $ compareSolution modules solution solns funcSig defaultTimeoutMicro
 
   case result of
     Left err -> do
       liftIO $ print err
-      modify $ const FilterState {inputs = is, solutions = solution:solns}
+      modify $ const fs {solutions = solution:solns}
       return True
     Right Failure{failingTestCase = c} -> do
-      modify $ const FilterState {inputs = c:is, solutions = solution:solns}
+      modify $ const fs {inputs = c:is, solutions = solution:solns}
       return True
     _ -> return False
 
@@ -268,6 +265,6 @@ toParamListDecl args =
           3 -> "Fn3"
           _ -> error "Unsupported higher-order function"
     
-    toDecl (index, _) = formatParam index
+    toDecl (index, _) = printf "(Val arg_%d)" index
       
       

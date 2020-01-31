@@ -683,7 +683,11 @@ findProgram env dst st ps
         mapping <- gets $ view nameMapping
         let code' = recoverNames mapping code
         params <- gets $ view searchParams
-        if (code' `elem` solutions) 
+        fState <- gets $ view filterState
+        (passedCheck, fState') <-
+            withTime TypeCheckTime (liftIO $ runStateT (runGhcChecks params env dst code') fState)
+        modify $ set filterState fState'
+        if (code' `elem` solutions) || not passedCheck
             then return Nothing
             else return $ Just code'
 
@@ -721,8 +725,9 @@ writeSolution code = do
     stats <- gets $ view solverStats
     loc <- gets $ view currentLoc
     msgChan <- gets $ view messageChan
+    fState <- gets $ view filterState
     let stats' = stats {pathLength = loc}
-    liftIO $ writeChan msgChan (MesgP (code, stats', undefined))
+    liftIO $ writeChan msgChan (MesgP (code, stats', fState))
     -- liftIO $ printSolution code
     -- liftIO $ hFlush stdout
     writeLog 1 "writeSolution" $ text (show stats')
