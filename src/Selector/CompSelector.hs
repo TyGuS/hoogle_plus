@@ -16,7 +16,7 @@ selectByType :: RType -> Environment -> Environment
 selectByType query env = let
     dts = allDatatypes query
     defs = Set.map ((env ^. datatypes) Map.!) dts
-    mdls = "Data.Function" : Map.keys (env ^. arguments) ++ Set.toList (Set.map _srcModule defs)
+    mdls = "Data.Function" : "Data.Bool" : Map.keys (env ^. arguments) ++ Set.toList (Set.map _srcModule defs)
     updatedSymbol = symbols %~ (Map.filterWithKey (\k _ -> inModules mdls k)) $ env
     updatedEnv = typeClasses %~ (Map.filterWithKey (\k _ -> k `Set.member` dts)) $ updatedSymbol
     in traceShow mdls updatedEnv

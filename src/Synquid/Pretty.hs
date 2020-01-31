@@ -385,9 +385,9 @@ prettyCase cas =
 prettyProgram :: (Pretty t) => Program t -> Doc
 prettyProgram (Program p typ) =
     case p of
-        PSymbol "Nil" -> text "[]"
-        PSymbol "Cons" -> text "(:)"
-        PSymbol "Pair" -> text "(,)"
+        PSymbol "GHC.List.Nil" -> text "[]"
+        PSymbol "GHC.List.Cons" -> text "(:)"
+        PSymbol "Data.Tuple.Pair" -> text "(,)"
         PSymbol s ->
             case asInteger s of
                 Nothing ->
@@ -403,8 +403,8 @@ prettyProgram (Program p typ) =
                         _ -> hlParens (prettyProgram p)
                 funName =
                     case f of
-                        "Cons" -> "(:)"
-                        "Pair" -> "(,)"
+                        "GHC.List.Cons" -> "(:)"
+                        "Data.Tuple.Pair" -> "(,)"
                         _ -> f
                 prefix = hang tab $ text funName <+> hsep (map optParens x)
              in if f `elem` Map.elems unOpTokens

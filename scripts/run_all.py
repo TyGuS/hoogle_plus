@@ -63,10 +63,10 @@ def run_benchmark(name, query, opts, default_opts):
         end = time.time()
 
         print('{0:0.2f}'.format(end - start), end=' ')
-        # if return_code: # Synthesis failed
-        #     print(Fore.RED + Style.BRIGHT + 'FAIL' + Style.RESET_ALL, end='\n')
+        if return_code: # Synthesis failed
+            print(Fore.RED + Style.BRIGHT + 'FAIL' + Style.RESET_ALL, end='\n')
         #     results[name] = SynthesisResult(name, (end - start), '-', '-', '-', '-', '-', '-')
-        # else: # Synthesis succeeded: code metrics from the output and record synthesis time
+        else: # Synthesis succeeded: code metrics from the output and record synthesis time
         #     lastLines = os.popen("tail -n 12 %s" % LOGFILE).read().split('\n')
         #     solution = re.match(r"^SOLUTION: (.+)$", lastLines[0]).group(1)
         #     encoding_time = re.match(r"Encoding time: (\d+.*)$", lastLines[2]).group(1)
@@ -76,7 +76,7 @@ def run_benchmark(name, query, opts, default_opts):
         #     total_time = re.match(r"Total time: (\d+.*)$", lastLines[6]).group(1)
         #     path_len = re.match(r"Path length: (\d+)$", lastLines[7]).group(1)
         #     results[name] = SynthesisResult(name, total_time, solution, encoding_time, solver_time, refine_time, checker_time, path_len)
-        #     print(Fore.GREEN + Style.BRIGHT + 'OK' + Style.RESET_ALL, end='\n')
+            print(Fore.GREEN + Style.BRIGHT + 'OK' + Style.RESET_ALL, end='\n')
 
         # variant_options = [   # Command-line options to use for each variant of Synquid
         #     ('def', default_opts)

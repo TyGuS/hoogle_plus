@@ -82,9 +82,9 @@ defaultList =
         "List"
         ["a"]
         []
-        [ ConstructorSig "Nil" $
+        [ ConstructorSig "GHC.List.Nil" $
           ScalarT (DatatypeT "List" [ScalarT (TypeVarT Map.empty "a") ftrue] []) ftrue
-        , ConstructorSig "Cons" $
+        , ConstructorSig "GHC.List.Cons" $
           FunctionT
               "x"
               (ScalarT (TypeVarT Map.empty "a") ftrue)
@@ -101,7 +101,7 @@ defaultPair =
         "Pair"
         ["a", "b"]
         []
-        [ ConstructorSig "Pair" $
+        [ ConstructorSig "Data.Tuple.Pair" $
           FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) $
           (FunctionT "y" (ScalarT (TypeVarT Map.empty "b") ftrue) $
            (ScalarT
