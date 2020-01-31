@@ -1,31 +1,33 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+
 module Database.Convert where
 
-import Language.Haskell.Exts hiding (PApp)
-import qualified Data.Set as Set
-import Data.Set (Set)
-import qualified Data.Map as Map
-import Data.Map (Map)
+import Control.Applicative
+import Control.Monad.State
+import Data.Either
+import Data.Foldable
 import qualified Data.HashMap.Strict as HashMap
 import Data.HashMap.Strict (HashMap)
 import Data.Hashable
 import Data.List
-import Data.Maybe
-import Data.Either
-import Data.Ord
-import Data.Foldable
-import Control.Applicative
-import qualified Data.Sort as Sort
 import Data.List.Split
-import Control.Monad.State
-import Text.Parsec.Pos
-import Distribution.Verbosity
+import qualified Data.Map as Map
+import Data.Map (Map)
+import Data.Maybe
+import Data.Ord
+import qualified Data.Set as Set
+import Data.Set (Set)
+import qualified Data.Sort as Sort
+import Distribution.Package
 import Distribution.PackageDescription hiding (Var)
 import Distribution.PackageDescription.Parsec
-import Distribution.Package
+import Distribution.Verbosity
+import Language.Haskell.Exts hiding (PApp)
 import System.Directory
 import System.IO
+import Text.Parsec.Pos
 
+import qualified Data.Text as Text
 import Database.Download
 import Database.Generate
 import Database.Util
@@ -34,20 +36,21 @@ import Synquid.Logic hiding (Var)
 import Synquid.Type
 import Synquid.Util
 import Types.Common
-import Types.Generate
 import Types.Environment
-import Types.Program (BareDeclaration, Declaration, BareProgram(..), UProgram, Program(..))
-import Types.Type
+import Types.Generate
+import Types.Program (BareDeclaration, BareProgram(..), Declaration, Program(..), UProgram)
 import qualified Types.Program as TP
-import qualified Data.Text as Text
+import Types.Type
 
-prependName prefix name  = case name of
-    Ident l var -> Ident l (prefix ++ "." ++ var)
-    Symbol l var -> Ident l ("(" ++ prefix ++ "." ++ var ++ ")")
+prependName prefix name =
+    case name of
+        Ident l var -> Ident l (prefix ++ "." ++ var)
+        Symbol l var -> Ident l ("(" ++ prefix ++ "." ++ var ++ ")")
 
-nameStr name = case name of
-    Ident _ var -> var
-    Symbol _ sym -> sym
+nameStr name =
+    case name of
+        Ident _ var -> var
+        Symbol _ sym -> sym
 
 isIdentity (Ident _ _) = True
 isIdentity (Symbol _ _) = False
@@ -64,10 +67,11 @@ declHeadVars (DHInfix _ bvar name) = [varsFromBind bvar]
 declHeadVars (DHParen _ head) = declHeadVars head
 declHeadVars (DHApp _ head bvar) = varsFromBind bvar : declHeadVars head
 
-qnameStr name = case name of
-    Qual _ moduleName consName -> moduleNameStr moduleName ++ "." ++ nameStr consName
-    UnQual _ name -> nameStr name
-    Special _ name -> specialConsStr name
+qnameStr name =
+    case name of
+        Qual _ moduleName consName -> moduleNameStr moduleName ++ "." ++ nameStr consName
+        UnQual _ name -> nameStr name
+        Special _ name -> specialConsStr name
 
 consStr (TyCon _ name) = qnameStr name
 consStr (TyApp _ fun arg) = consStr fun
@@ -98,12 +102,14 @@ allTypeVars _ = Set.empty
 
 datatypeOf (TyForall _ _ _ typ) = datatypeOf typ
 datatypeOf (TyFun _ arg ret) = datatypeOf arg `Set.union` datatypeOf ret
-datatypeOf (TyTuple _ _ typs) = foldr (\t vars -> vars `Set.union` datatypeOf t) (Set.singleton "Pair") typs
+datatypeOf (TyTuple _ _ typs) =
+    foldr (\t vars -> vars `Set.union` datatypeOf t) (Set.singleton "Pair") typs
 -- datatypeOf (TyUnboxedSum _ typs) = foldr (\t vars -> vars `Set.union` datatypeOf t) Set.empty typs
 datatypeOf (TyList _ typ) = Set.singleton "List" `Set.union` datatypeOf typ
 datatypeOf (TyApp _ fun arg) = datatypeOf fun `Set.union` datatypeOf arg
 datatypeOf (TyVar _ name) = Set.empty
-datatypeOf t@(TyCon _ name) | Special _ _ <- name = Set.empty
+datatypeOf t@(TyCon _ name)
+    | Special _ _ <- name = Set.empty
 datatypeOf t@(TyCon _ name) = Set.singleton $ consStr t
 datatypeOf (TyParen _ typ) = datatypeOf typ
 datatypeOf (TyInfix _ typ1 _ typ2) = datatypeOf typ1 `Set.union` datatypeOf typ2
@@ -113,49 +119,67 @@ datatypeOf _ = Set.empty
 
 matchDtWithCons :: [Entry] -> [Entry]
 matchDtWithCons [] = []
-matchDtWithCons (decl:decls) = case decl of
-    EDecl (DataDecl a b c hd conDecls d) -> case decls of
-        [] -> decl : matchDtWithCons decls
-        decl':decls' | EDecl (TypeSig _ names typ) <- decl' -> if nameStr (head names) == declHeadName hd
-                                                                   then let conDecl = QualConDecl a Nothing c (ConDecl a (head names) [typ])
-                                                                        in EDecl (DataDecl a b c hd (conDecl:conDecls) d) : matchDtWithCons decls'
-                                                                   else decl : matchDtWithCons decls
-                     | otherwise -> decl : matchDtWithCons decls
-    _ -> decl : matchDtWithCons decls
+matchDtWithCons (decl:decls) =
+    case decl of
+        EDecl (DataDecl a b c hd conDecls d) ->
+            case decls of
+                [] -> decl : matchDtWithCons decls
+                decl':decls'
+                    | EDecl (TypeSig _ names typ) <- decl' ->
+                        if nameStr (head names) == declHeadName hd
+                            then let conDecl =
+                                         QualConDecl a Nothing c (ConDecl a (head names) [typ])
+                                  in EDecl (DataDecl a b c hd (conDecl : conDecls) d) :
+                                     matchDtWithCons decls'
+                            else decl : matchDtWithCons decls
+                    | otherwise -> decl : matchDtWithCons decls
+        _ -> decl : matchDtWithCons decls
 
 resolveContext :: (MonadIO m) => Context () -> StateT Int m [(Id, [Id])]
 resolveContext (CxSingle _ asst) = resolveAsst asst
 resolveContext (CxTuple _ assts) = groupTuples . concat <$> mapM resolveAsst assts
-resolveContext (CxEmpty _)       = return []
+resolveContext (CxEmpty _) = return []
 
 resolveAsst :: (MonadIO m) => Asst () -> StateT Int m [(Id, [Id])]
-resolveAsst a@(ClassA _ qname typs) = if Set.null tyVars then return [] else return [(Set.findMin tyVars, [qnameStr qname])]
+resolveAsst a@(ClassA _ qname typs) =
+    if Set.null tyVars
+        then return []
+        else return [(Set.findMin tyVars, [qnameStr qname])]
   where
     tyVars = Set.unions $ map allTypeVars typs
 resolveAsst (ParenA _ asst) = resolveAsst asst
 resolveAsst a = error $ "Unknown " ++ show a
 
 toSynquidSchema :: (MonadIO m) => Type () -> StateT Int m (Maybe SSchema)
-toSynquidSchema (TyForall _ _ (Just ctx) typ) = do -- if this type has some context
+toSynquidSchema (TyForall _ _ (Just ctx) typ) -- if this type has some context
+ = do
     mbTyps <- toSynquidSkeleton typ
     case mbTyps of
         Nothing -> return Nothing
         Just [] -> return Nothing
-        Just (typ:_)  -> do
+        Just (typ:_) -> do
             classQuals <- resolveContext ctx
             return $ Just $ (Monotype (foldr go (typ) classQuals))
-    where
-        go typClassArr acc = FunctionT "ATypeClassDict" (ScalarT (DatatypeT (toTCDictName typClassArr) [ScalarT (TypeVarT Map.empty (getTypeVar typClassArr)) ()] []) ()) acc
-        toTCDictName (_, [tyclassName]) = fixTCName tyclassName
-        toTCDictName _ = error "toTCDictName: Unhandled case"
-        getTypeVar (tyVar, _) = tyVar
-
+  where
+    go typClassArr acc =
+        FunctionT
+            "ATypeClassDict"
+            (ScalarT
+                 (DatatypeT
+                      (toTCDictName typClassArr)
+                      [ScalarT (TypeVarT Map.empty (getTypeVar typClassArr)) ()]
+                      [])
+                 ())
+            acc
+    toTCDictName (_, [tyclassName]) = fixTCName tyclassName
+    toTCDictName _ = error "toTCDictName: Unhandled case"
+    getTypeVar (tyVar, _) = tyVar
 toSynquidSchema typ = do
     mbTyps <- toSynquidSkeleton typ
     case mbTyps of
         Nothing -> return Nothing
         Just [] -> return Nothing
-        Just (typ:_)  -> return $ Just . Monotype $ typ
+        Just (typ:_) -> return $ Just . Monotype $ typ
 
 toSynquidSkeleton :: (MonadIO m) => Type () -> StateT Int m (Maybe [SType])
 toSynquidSkeleton t@(TyForall _ _ _ typ) = toSynquidSkeleton typ
@@ -166,14 +190,18 @@ toSynquidSkeleton (TyFun _ arg ret) = do
     ret' <- toSynquidSkeleton ret
     arg' <- toSynquidSkeleton arg
     case (arg', ret') of
-        (Just (a:_), Just (r:_)) -> return $ Just [FunctionT ("arg"++show counter) a r]
+        (Just (a:_), Just (r:_)) -> return $ Just [FunctionT ("arg" ++ show counter) a r]
         _ -> return Nothing
 toSynquidSkeleton (TyParen _ typ) = toSynquidSkeleton typ
 toSynquidSkeleton (TyKind _ typ _) = toSynquidSkeleton typ
-toSynquidSkeleton t@(TyCon _ name) = case name of
-    Qual _ moduleName consName -> return $ Just [ScalarT (DatatypeT (moduleNameStr moduleName ++ "." ++ nameStr consName) [] []) ()]
-    UnQual _ name -> return $ Just [ScalarT (DatatypeT (nameStr name) [] []) ()]
-    Special _ name -> return $ Just [ScalarT (DatatypeT (specialConsStr name) [] []) ()]
+toSynquidSkeleton t@(TyCon _ name) =
+    case name of
+        Qual _ moduleName consName ->
+            return $
+            Just
+                [ScalarT (DatatypeT (moduleNameStr moduleName ++ "." ++ nameStr consName) [] []) ()]
+        UnQual _ name -> return $ Just [ScalarT (DatatypeT (nameStr name) [] []) ()]
+        Special _ name -> return $ Just [ScalarT (DatatypeT (specialConsStr name) [] []) ()]
 toSynquidSkeleton (TyApp _ fun arg)
     | (TyCon _ name) <- fun = constructTyp
     | (TyApp _ fun' arg') <- fun = constructTyp
@@ -188,7 +216,7 @@ toSynquidSkeleton (TyApp _ fun arg)
         let toTys (ScalarT (DatatypeT id tys _) _:_) = (id, tys)
         let idTys = toTys <$> mbdt
         args <- toSynquidSkeleton arg
-        return $ liftA2 (\(id,t) a -> [ScalarT (DatatypeT id (t ++ a) []) ()]) idTys args
+        return $ liftA2 (\(id, t) a -> [ScalarT (DatatypeT id (t ++ a) []) ()]) idTys args
 toSynquidSkeleton (TyVar _ name) = return $ Just [ScalarT (TypeVarT Map.empty (nameStr name)) ()]
 toSynquidSkeleton (TyList _ typ) = do
     typ' <- toSynquidSkeleton typ
@@ -200,7 +228,7 @@ toSynquidSkeleton (TyTuple _ _ (f:s:ts)) = do
     case (mbfst, mbsnd) of
         (Just fst, Just snd) -> do
             let base = ScalarT (DatatypeT "Pair" (fst ++ snd) []) ()
-            let res = foldl' (\a (Just t) -> ScalarT (DatatypeT "Pair" (a:t) []) ()) base pts
+            let res = foldl' (\a (Just t) -> ScalarT (DatatypeT "Pair" (a : t) []) ()) base pts
             return $ Just [res]
         _ -> return Nothing
 toSynquidSkeleton t = do
@@ -211,7 +239,8 @@ varsFromBind (KindedVar _ name _) = nameStr name
 varsFromBind (UnkindedVar _ name) = nameStr name
 
 -- | Add true as the refinement to convert all types into RType
-addTrue (ScalarT (DatatypeT name tArgs pArgs) _) = ScalarT (DatatypeT name (map addTrue tArgs) []) ftrue
+addTrue (ScalarT (DatatypeT name tArgs pArgs) _) =
+    ScalarT (DatatypeT name (map addTrue tArgs) []) ftrue
 addTrue (ScalarT IntT _) = ScalarT IntT ftrue
 addTrue (ScalarT BoolT _) = ScalarT BoolT ftrue
 addTrue (ScalarT (TypeVarT vSubst a) _) = ScalarT (TypeVarT vSubst a) ftrue
@@ -232,41 +261,52 @@ toSynquidRSchema (ForallT a typ) = ForallT a (toSynquidRSchema typ)
 
 addPrelude :: [Entry] -> [Entry]
 addPrelude [] = []
-addPrelude (decl:decls) = case decl of
-    EModule mdl -> if mdl == "GHC.OldList" then takeWhile (not . isModule) decls else addPrelude decls
-    _ -> addPrelude decls
+addPrelude (decl:decls) =
+    case decl of
+        EModule mdl ->
+            if mdl == "GHC.OldList"
+                then takeWhile (not . isModule) decls
+                else addPrelude decls
+        _ -> addPrelude decls
 
 processConDecls :: (MonadIO m) => [QualConDecl ()] -> StateT Int m [TP.ConstructorSig]
 processConDecls [] = return []
-processConDecls (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
-    case conDecl of
-        ConDecl _ name typs -> do
-            typ <- toSynquidRType $ head typs
-            if hasAny typ then processConDecls decls
-                          else (:) (TP.ConstructorSig (nameStr name) typ) <$> processConDecls decls
-        InfixConDecl _ typl name typr -> do
-            typl' <- toSynquidRType typl
-            typr' <- toSynquidRType typr
-            if hasAny typl' || hasAny typr'
-                then processConDecls decls
-                else (:) (TP.ConstructorSig (nameStr name) (FunctionT "arg0" typl' typr')) <$> processConDecls decls
-        RecDecl _ name fields -> error "record declaration is not supported"
+processConDecls (decl:decls) =
+    let QualConDecl _ _ _ conDecl = decl
+     in case conDecl of
+            ConDecl _ name typs -> do
+                typ <- toSynquidRType $ head typs
+                if hasAny typ
+                    then processConDecls decls
+                    else (:) (TP.ConstructorSig (nameStr name) typ) <$> processConDecls decls
+            InfixConDecl _ typl name typr -> do
+                typl' <- toSynquidRType typl
+                typr' <- toSynquidRType typr
+                if hasAny typl' || hasAny typr'
+                    then processConDecls decls
+                    else (:) (TP.ConstructorSig (nameStr name) (FunctionT "arg0" typl' typr')) <$>
+                         processConDecls decls
+            RecDecl _ name fields -> error "record declaration is not supported"
 
 datatypeOfCon :: [QualConDecl ()] -> Set Id
 datatypeOfCon [] = Set.empty
-datatypeOfCon (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
-    case conDecl of
-        ConDecl _ name typs -> Set.unions $ map datatypeOf typs
-        InfixConDecl _ typl name typr -> datatypeOf typl `Set.union` datatypeOf typr
-        RecDecl _ name fields -> error "record declaration is not supported"
-
+datatypeOfCon (decl:decls) =
+    let QualConDecl _ _ _ conDecl = decl
+     in case conDecl of
+            ConDecl _ name typs -> Set.unions $ map datatypeOf typs
+            InfixConDecl _ typl name typr -> datatypeOf typl `Set.union` datatypeOf typr
+            RecDecl _ name fields -> error "record declaration is not supported"
 
 toSynquidDecl :: (MonadIO m) => Entry -> StateT Int m Declaration
 toSynquidDecl (EDecl (TypeDecl _ head typ)) = do
     typ' <- toSynquidRType typ
-    if hasAny typ' then return $ Pos (initialPos "") $ TP.QualifierDecl [] -- a fake conversion
-                   else return $ Pos (initialPos $ declHeadName head) $ TP.TypeDecl (declHeadName head) (declHeadVars head) typ'
-toSynquidDecl (EDecl (DataFamDecl a b head c)) = toSynquidDecl (EDecl (DataDecl a (DataType a) b head [] []))
+    if hasAny typ'
+        then return $ Pos (initialPos "") $ TP.QualifierDecl [] -- a fake conversion
+        else return $
+             Pos (initialPos $ declHeadName head) $
+             TP.TypeDecl (declHeadName head) (declHeadVars head) typ'
+toSynquidDecl (EDecl (DataFamDecl a b head c)) =
+    toSynquidDecl (EDecl (DataDecl a (DataType a) b head [] []))
 toSynquidDecl (EDecl (DataDecl _ _ _ head conDecls _)) = do
     constructors <- processConDecls conDecls
     let name = declHeadName head
@@ -275,8 +315,11 @@ toSynquidDecl (EDecl (DataDecl _ _ _ head conDecls _)) = do
 toSynquidDecl (EDecl (TypeSig _ names typ)) = do
     maybeSch <- toSynquidSchema typ
     case maybeSch of
-        Nothing  -> return $ Pos (initialPos "") $ TP.QualifierDecl [] -- a fake conversion
-        Just sch -> return $ Pos (initialPos (nameStr $ names !! 0)) $ TP.FuncDecl (nameStr $ head names) (toSynquidRSchema sch)
+        Nothing -> return $ Pos (initialPos "") $ TP.QualifierDecl [] -- a fake conversion
+        Just sch ->
+            return $
+            Pos (initialPos (nameStr $ names !! 0)) $
+            TP.FuncDecl (nameStr $ head names) (toSynquidRSchema sch)
 toSynquidDecl (EDecl (ClassDecl _ _ head _ _)) = do
     let name = fixTCName (declHeadName head)
     let vars = declHeadVars head
@@ -294,7 +337,6 @@ instHeadName (IHInfix _ bvar name) = qnameStr name
 instHeadName (IHParen _ head) = instHeadName head
 instHeadName (IHApp _ head _) = instHeadName head
 
-
 getTyclassVars :: (MonadIO m) => InstHead () -> StateT Int m [SType]
 getTyclassVars (IHApp _ head typeVar) = do
     typeSkeletonArr <- getTyclassVars head
@@ -304,10 +346,9 @@ getTyclassVars (IHParen _ head) = getTyclassVars head
 getTyclassVars (IHCon _ _) = return []
 getTyclassVars _ = error "getTyclassDictName: case to be implemented"
 
-
 fixDataType (ScalarT (DatatypeT name vars refs) ref) =
     let (_, name') = breakLast name
-        in (ScalarT (DatatypeT name' vars refs) ref)
+     in (ScalarT (DatatypeT name' vars refs) ref)
 fixDataType x = x
 
 -- FIRST KIND: instance Show Int              >>> __hplusTCTransition__Show Int
@@ -320,19 +361,24 @@ instanceToFunction (IRule _ _ ctx head) n = do
     tyVars <- getTyclassVars head
     let tyVars' = map (\x -> fixDataType x) tyVars
     let base = ScalarT (DatatypeT name tyVars' []) ()
-    let toDecl' = toDecl (Text.unpack $ Text.replace (Text.pack(tyclassPrefix)) (Text.pack ("")) $ Text.pack name)
+    let toDecl' =
+            toDecl
+                (Text.unpack $
+                 Text.replace (Text.pack (tyclassPrefix)) (Text.pack ("")) $ Text.pack name)
     case ctx of
         Nothing -> toDecl' =<< foldrM go base []
         Just (CxTuple _ tyclassConds) -> toDecl' =<< foldrM go base tyclassConds
         Just (CxSingle _ tyclassCond) -> toDecl' =<< foldrM go base [tyclassCond]
         _ -> error "instanceToFunction: Unhandled case"
-    where
-        go e acc = do
-            arg <- toArg e
-            return $ FunctionT "" arg acc
-        toDecl :: (MonadIO m) => String -> SType -> StateT Int m Declaration
-        toDecl y x = return $ Pos (initialPos "") $ TP.FuncDecl (tyclassInstancePrefix ++ (show n) ++ (y)) $ toSynquidRSchema $ Monotype x
-
+  where
+    go e acc = do
+        arg <- toArg e
+        return $ FunctionT "" arg acc
+    toDecl :: (MonadIO m) => String -> SType -> StateT Int m Declaration
+    toDecl y x =
+        return $
+        Pos (initialPos "") $
+        TP.FuncDecl (tyclassInstancePrefix ++ (show n) ++ (y)) $ toSynquidRSchema $ Monotype x
 
 toArg :: (MonadIO m) => Asst () -> StateT Int m SType
 toArg x = do
@@ -349,10 +395,12 @@ fixTCName :: String -> String
 fixTCName str =
     let (_, end) = breakLast str
         end' = tyclassPrefix ++ end
-        in end'
+     in end'
 
 breakLast :: String -> (String, String)
-breakLast str = (reverse (drop 1 y), reverse x) where (x, y) = break (== '.') $ reverse str
+breakLast str = (reverse (drop 1 y), reverse x)
+  where
+    (x, y) = break (== '.') $ reverse str
 
 toTCDictName :: Asst l -> String
 toTCDictName (ClassA _ declName _) = fixTCName (qnameStr declName)
@@ -360,14 +408,16 @@ toTCDictName (ParenA _ asst) = toTCDictName asst
 toTCDictName _ = error "toTCDictName: Unhandled case"
 
 getTypeVars :: (MonadIO m) => Asst () -> StateT Int m [SType]
-getTypeVars (ClassA _ _ typeVars) = mapM (\x -> Data.List.head . fromJust <$> toSynquidSkeleton x) typeVars
+getTypeVars (ClassA _ _ typeVars) =
+    mapM (\x -> Data.List.head . fromJust <$> toSynquidSkeleton x) typeVars
 getTypeVars (ParenA _ asst) = getTypeVars asst
 getTypeVars _ = error "getTypeVars: Unhandled case"
 
 getInstanceRule :: Entry -> InstRule ()
-getInstanceRule (EDecl (InstDecl x1 x2 (IParen _ instanceRule) x3)) = getInstanceRule (EDecl (InstDecl x1 x2 instanceRule x3))
+getInstanceRule (EDecl (InstDecl x1 x2 (IParen _ instanceRule) x3)) =
+    getInstanceRule (EDecl (InstDecl x1 x2 instanceRule x3))
 getInstanceRule (EDecl (InstDecl _ _ instanceRule@(IRule _ _ _ _) _)) = instanceRule
-getInstanceRule _ =  error "getInstanceRule: unexpected case"
+getInstanceRule _ = error "getInstanceRule: unexpected case"
 
 reorderDecls :: [Declaration] -> [Declaration]
 reorderDecls = Sort.sortOn toInt
@@ -385,13 +435,21 @@ reorderDecls = Sort.sortOn toInt
 
 renameSigs :: Bool -> String -> [Entry] -> Map Id [Entry]
 renameSigs _ _ [] = Map.empty
-renameSigs renameFunc currModule (decl:decls) = case decl of
-    EModule mdl -> Map.insertWith (++) mdl [decl] (renameSigs renameFunc mdl decls)
-    EPackage _ -> renameSigs renameFunc currModule decls
-    EDecl (TypeSig loc names ty) -> let
-      newNames = if renameFunc then map (prependName currModule) names else names
-      in Map.insertWith (++) currModule [EDecl (TypeSig loc newNames ty)] (renameSigs renameFunc currModule decls)
-    _ -> Map.insertWith (++) currModule [decl] (renameSigs renameFunc currModule decls)
+renameSigs renameFunc currModule (decl:decls) =
+    case decl of
+        EModule mdl -> Map.insertWith (++) mdl [decl] (renameSigs renameFunc mdl decls)
+        EPackage _ -> renameSigs renameFunc currModule decls
+        EDecl (TypeSig loc names ty) ->
+            let newNames =
+                    if renameFunc
+                        then map (prependName currModule) names
+                        else names
+             in Map.insertWith
+                    (++)
+                    currModule
+                    [EDecl (TypeSig loc newNames ty)]
+                    (renameSigs renameFunc currModule decls)
+        _ -> Map.insertWith (++) currModule [decl] (renameSigs renameFunc currModule decls)
 
 readDeclarations :: PkgName -> Maybe Version -> IO (Map Id [Entry])
 readDeclarations pkg version = do
@@ -405,13 +463,12 @@ readDeclarations pkg version = do
 
 readDeclarationsFromFile :: FilePath -> Bool -> IO (Map MdlName [Entry])
 readDeclarationsFromFile fp renameFunc = do
-    h   <- openFile fp ReadMode
+    h <- openFile fp ReadMode
     hSetEncoding h utf8
-    s   <- hGetContents h
+    s <- hGetContents h
     let fileLines = lines s
     let code = concat $ rights $ map parseLine fileLines
     return $ renameSigs renameFunc "" code
-
 
 packageDependencies :: PkgName -> Bool -> IO [PkgName]
 packageDependencies pkg toDownload = do
@@ -422,15 +479,19 @@ packageDependencies pkg toDownload = do
         Just (CondNode _ dependencies _) -> do
             let dps = map dependentPkg dependencies
             -- download necessary files to resolve package dependencies
-            foldrM (\fname existDps ->
-                ifM (if toDownload
-                        then do
-                          gotFile <- isJust <$> downloadFile fname Nothing
-                          gotCabal <- isJust <$> downloadCabal fname Nothing
-                          return (gotFile && gotCabal)
-                        else doesFileExist $ downloadDir ++ fname ++ ".txt")
-                    (return $ fname:existDps)
-                    (return existDps)) [] dps
+            foldrM
+                (\fname existDps ->
+                     ifM
+                         (if toDownload
+                              then do
+                                  gotFile <- isJust <$> downloadFile fname Nothing
+                                  gotCabal <- isJust <$> downloadCabal fname Nothing
+                                  return (gotFile && gotCabal)
+                              else doesFileExist $ downloadDir ++ fname ++ ".txt")
+                         (return $ fname : existDps)
+                         (return existDps))
+                []
+                dps
   where
     dependentPkg (Dependency name _) = unPackageName name
 
@@ -438,10 +499,11 @@ declMap :: [Entry] -> Map Id Entry
 declMap decls = foldr (\d -> Map.insert (getDeclName d) d) Map.empty $ filter isDataDecl decls
 
 dependsOn :: Entry -> (Id, Set Id)
-dependsOn decl = case decl of
-    EDecl (DataDecl _ _ _ head conDecls _) -> (declHeadName head, datatypeOfCon conDecls)
-    EDecl (TypeDecl _ head ty) -> (declHeadName head, datatypeOf ty)
-    _ -> error "[In `dependsOn`] Please filter before calling this function"
+dependsOn decl =
+    case decl of
+        EDecl (DataDecl _ _ _ head conDecls _) -> (declHeadName head, datatypeOfCon conDecls)
+        EDecl (TypeDecl _ head ty) -> (declHeadName head, datatypeOf ty)
+        _ -> error "[In `dependsOn`] Please filter before calling this function"
 
 dependencyGraph :: [Entry] -> Map Id (Set Id)
 dependencyGraph = foldr (uncurry Map.insert . dependsOn) Map.empty . filter isDataDecl
@@ -453,33 +515,34 @@ topoSort :: Map Id (Set Id) -> [Id]
 topoSort graph = reverse $ topoSortHelper (nodesOf graph) Set.empty graph
   where
     topoSortHelper [] _ graph = []
-    topoSortHelper (v:vs) visited graph = if Set.member v visited
-        then topoSortHelper vs visited graph
-        else topoSortHelper vs (Set.insert v visited) graph ++
-                v:topoSortHelper (Set.toList (Map.findWithDefault Set.empty v graph)) visited graph
+    topoSortHelper (v:vs) visited graph =
+        if Set.member v visited
+            then topoSortHelper vs visited graph
+            else topoSortHelper vs (Set.insert v visited) graph ++
+                 v :
+                 topoSortHelper (Set.toList (Map.findWithDefault Set.empty v graph)) visited graph
 
 dependencyClosure :: [Id] -> [Id] -> [(Id, Entry)] -> [Entry]
-dependencyClosure definedDts allDts theirDts = let
-    undefinedDts = allDts >.> definedDts
-    in if not (null undefinedDts)
-        then let
-            foreignDts = filter ((`elem` undefinedDts) . fst) theirDts
-            newDecls = nub $ map snd foreignDts
-            newAddedDts = Set.toList $ Set.unions $ map getDeclTy newDecls
-            in newDecls ++ dependencyClosure allDts newAddedDts theirDts
-        else []
+dependencyClosure definedDts allDts theirDts =
+    let undefinedDts = allDts >.> definedDts
+     in if not (null undefinedDts)
+            then let foreignDts = filter ((`elem` undefinedDts) . fst) theirDts
+                     newDecls = nub $ map snd foreignDts
+                     newAddedDts = Set.toList $ Set.unions $ map getDeclTy newDecls
+                  in newDecls ++ dependencyClosure allDts newAddedDts theirDts
+            else []
 
 -- entryDependencies will look for the missing type declarations in `ourEntries`
 -- by first checking `allEntries`, then looking at `dpDecls`
 entryDependencies :: Map Id [Entry] -> [Entry] -> [Entry] -> [Entry]
-entryDependencies allEntries ourEntries dpDecls = let
-    myDtDefs = (dtDefsIn . concat . Map.elems) allEntries
-    closedDecls = dependencyClosure myDefinedDts myDts (theirDts ++ myDtDefs)
-    allDecls = closedDecls
-    sortedIds = topoSort $ dependencyGraph allDecls
-    in
-    matchDtWithCons $ map (\id -> fromMaybe (error $ "cannot find " ++ id) (Map.lookup id $ declMap allDecls))
-                    $ nub $ sortedIds >.> ["List", "Pair"]
+entryDependencies allEntries ourEntries dpDecls =
+    let myDtDefs = (dtDefsIn . concat . Map.elems) allEntries
+        closedDecls = dependencyClosure myDefinedDts myDts (theirDts ++ myDtDefs)
+        allDecls = closedDecls
+        sortedIds = topoSort $ dependencyGraph allDecls
+     in matchDtWithCons $
+        map (\id -> fromMaybe (error $ "cannot find " ++ id) (Map.lookup id $ declMap allDecls)) $
+        nub $ sortedIds >.> ["List", "Pair"]
   where
     myDts = dtNamesIn ourEntries
     myDefinedDts = definedDtsIn ourEntries
@@ -491,10 +554,11 @@ declDependencies pkgName decls dpDecls = do
     return $ entryDependencies entries decls dpDecls
 
 isDataDecl :: Entry -> Bool
-isDataDecl decl = case decl of
-    EDecl DataDecl {} -> True
-    EDecl TypeDecl {} -> True
-    _ -> False
+isDataDecl decl =
+    case decl of
+        EDecl DataDecl {} -> True
+        EDecl TypeDecl {} -> True
+        _ -> False
 
 isModule :: Entry -> Bool
 isModule (EModule _) = True
@@ -508,10 +572,10 @@ packageDtDefs :: PkgName -> IO [(Id, Entry)]
 packageDtDefs pkg = do
     decls <- concat . Map.elems <$> readDeclarations pkg Nothing
     -- It relies on the order of definitions exist in the source file
-    return $ foldr (\decl -> ((dtNameOf decl, decl):)) [] $ filter isDataDecl decls
+    return $ foldr (\decl -> ((dtNameOf decl, decl) :)) [] $ filter isDataDecl decls
 
 dtDefsIn :: [Entry] -> [(Id, Entry)]
-dtDefsIn decls = foldr (\decl -> ((dtNameOf decl, decl):)) [] $ filter isDataDecl decls
+dtDefsIn decls = foldr (\decl -> ((dtNameOf decl, decl) :)) [] $ filter isDataDecl decls
 
 getDeclTy :: Entry -> Set Id
 getDeclTy (EDecl (TypeSig _ names ty)) = datatypeOf ty
@@ -528,7 +592,6 @@ getDeclName _ = ""
 -- packageDtNames pkg = do
 --     decls <- readDeclarations pkg Nothing
 --     return $ Set.toList $ Set.unions $ map getDeclTy decls
-
 dtNamesIn :: [Entry] -> [Id]
 dtNamesIn decls = Set.toList $ Set.unions $ map getDeclTy decls
 
@@ -537,7 +600,6 @@ definedDtsIn decls = map dtNameOf $ filter isDataDecl decls
 
 -- definedDts :: [Entry] -> IO [Id]
 -- definedDts decls = map dtNameOf $ filter isDataDecl decls
-
 toSynquidProgram :: Exp SrcSpanInfo -> UProgram
 toSynquidProgram (Lambda _ pats body) =
     foldr (\(PVar _ name) p -> Program (PFun (nameStr name) p) AnyT) (toSynquidProgram body) pats
@@ -545,13 +607,13 @@ toSynquidProgram (Var _ qname) = Program (PSymbol (qnameStr qname)) AnyT
 toSynquidProgram (App _ fun arg) =
     let synFun = toSynquidProgram fun
      in case content synFun of
-          PSymbol f -> Program (PApp f [toSynquidProgram arg]) AnyT
-          PApp f args -> Program (PApp f (args ++ [toSynquidProgram arg])) AnyT
-          _ -> error "unrecognized function type"
+            PSymbol f -> Program (PApp f [toSynquidProgram arg]) AnyT
+            PApp f args -> Program (PApp f (args ++ [toSynquidProgram arg])) AnyT
+            _ -> error "unrecognized function type"
 toSynquidProgram (Paren _ e) = toSynquidProgram e
 toSynquidProgram (Con _ qname) = Program (PSymbol (qnameStr qname)) AnyT
-toSynquidProgram (List _ elmts) = let
-    args = map toSynquidProgram elmts
-    mkCons e acc = Program (PApp "Cons" [e, acc]) AnyT
-    in foldr mkCons (Program (PSymbol "Nil") AnyT) args
+toSynquidProgram (List _ elmts) =
+    let args = map toSynquidProgram elmts
+        mkCons e acc = Program (PApp "Cons" [e, acc]) AnyT
+     in foldr mkCons (Program (PSymbol "Nil") AnyT) args
 toSynquidProgram e = error $ show e

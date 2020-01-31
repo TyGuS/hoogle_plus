@@ -6,6 +6,7 @@ This should have no dependencies on any other files in this project. This should
 the Top Level module.
 -}
 type Id = String
+
 type GroupId = String
 
 varName = "_v"

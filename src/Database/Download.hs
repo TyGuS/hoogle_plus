@@ -2,26 +2,27 @@
 
 module Database.Download where
 
-import Data.Conduit.Binary (sinkFile) -- Exported from the package conduit-extra
-import Network.HTTP.Conduit
-import Data.Conduit (runConduit, (.|), ($$+-))
+import Control.Monad.Extra
 import Control.Monad.Trans.Resource (runResourceT)
-import qualified Data.ByteString.Lazy as L
 import Data.Aeson
+import qualified Data.ByteString.Lazy as L
+import Data.Conduit (($$+-), (.|), runConduit)
+import Data.Conduit.Binary (sinkFile) -- Exported from the package conduit-extra
 import qualified Data.Map as Map
 import Data.Map (Map)
-import GHC.Generics
 import Data.Maybe
+import GHC.Generics
+import Network.HTTP.Conduit
 import Network.HTTP.Types.Status
-import Control.Monad.Extra
 import System.Directory
 import System.IO
 
-import Types.Generate
 import Database.Util
 import Synquid.Util (getTmpDir)
+import Types.Generate
 
 docVersionsUrl = "https://hackage.haskell.org/packages/docs"
+
 docDownloadUrl = "https://hackage.haskell.org/package/"
 
 -- | check whether the doc of the given version is available by querying to https://hackage.haskell.org/packages/docs
@@ -33,14 +34,16 @@ checkVersion pkg version = do
     let res = decode availability :: Maybe [(String, Bool)] -- the JSON format here is a list of (String, Bool) tuples
     case res of
         Nothing -> error "Connection error"
-        Just arr | Map.findWithDefault False vpkg $ Map.fromList arr -> hPutStrLn stderr "package is available" >> return True
-                 | otherwise -> error $ vpkg ++ " is not available"
+        Just arr
+            | Map.findWithDefault False vpkg $ Map.fromList arr ->
+                hPutStrLn stderr "package is available" >> return True
+            | otherwise -> error $ vpkg ++ " is not available"
 
 packageNameWithVersion :: PkgName -> Maybe Version -> IO PkgName
-packageNameWithVersion pkg version = case version of
-    Nothing -> return pkg
-    Just v  -> ifM (checkVersion pkg v) (return $ pkg ++ "-" ++ v) (return pkg)
-
+packageNameWithVersion pkg version =
+    case version of
+        Nothing -> return pkg
+        Just v -> ifM (checkVersion pkg v) (return $ pkg ++ "-" ++ v) (return pkg)
 
 -- getPkg downloads packages and their dependencies to files.
 getPkg :: String -> IO [FilePath]
@@ -50,7 +53,6 @@ getPkg pkgName = do
     if isNothing filePath || isNothing cabalPath
         then error $ "Problem downloading docs for: " ++ pkgName
         else return $ [fromJust filePath]
-
 
 downloadFile :: PkgName -> Maybe Version -> IO (Maybe FilePath)
 downloadFile pkg version = do
@@ -67,7 +69,8 @@ downloadFile pkg version = do
                 response <- http request manager
                 if responseStatus response /= ok200
                     then return Nothing -- error "Connection Error"
-                    else runConduit (responseBody response .| sinkFile filepath) >> return (Just filepath)
+                    else runConduit (responseBody response .| sinkFile filepath) >>
+                         return (Just filepath)
         else return (Just filepath)
 
 downloadCabal :: PkgName -> Maybe Version -> IO (Maybe FilePath)
@@ -85,11 +88,13 @@ downloadCabal pkg version = do
                 response <- http request manager
                 if responseStatus response /= ok200
                     then return Nothing -- error "Connection Error"
-                    else runConduit (responseBody response .| sinkFile (downloadDir ++ pkg ++ ".cabal")) >> return (Just filepath)
+                    else runConduit
+                             (responseBody response .| sinkFile (downloadDir ++ pkg ++ ".cabal")) >>
+                         return (Just filepath)
         else return (Just filepath)
 
 cleanTmpFiles :: PackageFetchOpts -> [FilePath] -> IO ()
 cleanTmpFiles (Local {}) _ = return ()
-cleanTmpFiles (Hackage{}) fs = do
+cleanTmpFiles (Hackage {}) fs = do
     mapM_ removeFile fs
     return ()

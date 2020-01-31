@@ -1,8 +1,12 @@
-module HooglePlus.Synthesize(synthesize, envToGoal) where
+module HooglePlus.Synthesize
+    ( synthesize
+    , envToGoal
+    ) where
 
 import Database.Environment
 import Database.Util
 import qualified HooglePlus.Abstraction as Abstraction
+import HooglePlus.Utils
 import PetriNet.PNSolver
 import Synquid.Error
 import Synquid.Logic
@@ -18,7 +22,6 @@ import Types.Experiments
 import Types.Program
 import Types.Solver
 import Types.Type
-import HooglePlus.Utils
 
 import Control.Applicative ((<$>))
 import Control.Concurrent.Chan
@@ -43,26 +46,30 @@ import Text.Parsec.Indent
 import Text.Parsec.Pos
 import Text.Printf (printf)
 
-
 envToGoal :: Environment -> String -> IO Goal
 envToGoal env queryStr = do
-  let transformedSig = "goal :: " ++ queryStr ++ "\ngoal = ??"
-  let parseResult = flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" transformedSig
-  case parseResult of
-    Left parseErr -> putDoc (pretty $ toErrorMessage parseErr) >> putDoc empty >> error "uh oh"
-    Right (funcDecl:decl:_) -> case decl of
-      Pos _ (SynthesisGoal id uprog) -> do
-        let Pos _ (FuncDecl _ sch) = funcDecl
-        let goal = Goal id env sch uprog 3 $ initialPos "goal"
-        let spec = runExcept $ evalStateT (resolveSchema (gSpec goal)) (initResolverState { _environment = env })
-        case spec of
-          Right sp -> do
-            let (env', monospec) = updateEnvWithBoundTyVars sp env
-            let (env'', destinationType) = updateEnvWithSpecArgs monospec env'
-            return $ goal { gEnvironment = env'', gSpec = sp }
-          Left parseErr -> putDoc (pretty parseErr) >> putDoc empty >> exitFailure
-
-      _ -> error "parse a signature for a none goal declaration"
+    let transformedSig = "goal :: " ++ queryStr ++ "\ngoal = ??"
+    let parseResult =
+            flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" transformedSig
+    case parseResult of
+        Left parseErr -> putDoc (pretty $ toErrorMessage parseErr) >> putDoc empty >> error "uh oh"
+        Right (funcDecl:decl:_) ->
+            case decl of
+                Pos _ (SynthesisGoal id uprog) -> do
+                    let Pos _ (FuncDecl _ sch) = funcDecl
+                    let goal = Goal id env sch uprog 3 $ initialPos "goal"
+                    let spec =
+                            runExcept $
+                            evalStateT
+                                (resolveSchema (gSpec goal))
+                                (initResolverState {_environment = env})
+                    case spec of
+                        Right sp -> do
+                            let (env', monospec) = updateEnvWithBoundTyVars sp env
+                            let (env'', destinationType) = updateEnvWithSpecArgs monospec env'
+                            return $ goal {gEnvironment = env'', gSpec = sp}
+                        Left parseErr -> putDoc (pretty parseErr) >> putDoc empty >> exitFailure
+                _ -> error "parse a signature for a none goal declaration"
 
 synthesize :: SearchParams -> Goal -> Chan Message -> IO ()
 synthesize searchParams goal messageChan = do

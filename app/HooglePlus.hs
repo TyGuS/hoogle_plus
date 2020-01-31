@@ -9,7 +9,6 @@ import Synquid.Error
 import Synquid.Pretty
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Resolver (resolveDecls, ResolverState (..), initResolverState, resolveSchema)
-import Synquid.SolverMonad
 import Types.Generate hiding (files)
 import Types.Experiments
 import Types.Environment

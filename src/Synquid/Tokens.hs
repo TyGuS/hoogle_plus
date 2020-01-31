@@ -1,47 +1,63 @@
 -- | Lexems of the Synquid language
 module Synquid.Tokens where
 
-import Synquid.Logic
-import Types.Common
-import Synquid.Util
-import Data.Maybe
-import Data.Map (Map, fromList)
 import Data.Char
+import Data.Map (Map, fromList)
+import Data.Maybe
+import Synquid.Logic
+import Synquid.Util
+import Types.Common
 
 -- | Keywords
 keywords :: [String]
-keywords = ["data", "else", "error", "False", "if", "in", "inline",
-  "let", "match", "measure", "predicate", "qualifier", "termination",
-  "then", "True", "type", "with", "where"
-  ]
+keywords =
+    [ "data"
+    , "else"
+    , "error"
+    , "False"
+    , "if"
+    , "in"
+    , "inline"
+    , "let"
+    , "match"
+    , "measure"
+    , "predicate"
+    , "qualifier"
+    , "termination"
+    , "then"
+    , "True"
+    , "type"
+    , "with"
+    , "where"
+    ]
 
 -- | Names of unary operators
 unOpTokens :: Map UnOp String
-unOpTokens = fromList [ (Neg, "-")
-                      , (Not, "!")
-                      ]
+unOpTokens = fromList [(Neg, "-"), (Not, "!")]
 
 -- | Names of binary operators
 binOpTokens :: Map BinOp String
-binOpTokens = fromList [ (Times,     "*")
-                       , (Plus,      "+")
-                       , (Minus,     "-")
-                       , (Eq,        "==")
-                       , (Neq,       "!=")
-                       , (Lt,        "<")
-                       , (Le,        "<=")
-                       , (Gt,        ">")
-                       , (Ge,        ">=")
-                       , (And,       "&&")
-                       , (Or,        "||")
-                       , (Implies,   "==>")
-                       , (Iff,       "<==>")
-                       , (Union,     "+")
-                       , (Intersect, "*")
-                       , (Diff,      "-")
-                       , (Member,    "in")
-                       , (Subset,    "<=")
-                       ]
+binOpTokens =
+    fromList
+        [ (Times, "*")
+        , (Plus, "+")
+        , (Minus, "-")
+        , (Eq, "==")
+        , (Neq, "!=")
+        , (Lt, "<")
+        , (Le, "<=")
+        , (Gt, ">")
+        , (Ge, ">=")
+        , (And, "&&")
+        , (Or, "||")
+        , (Implies, "==>")
+        , (Iff, "<==>")
+        , (Union, "+")
+        , (Intersect, "*")
+        , (Diff, "-")
+        , (Member, "in")
+        , (Subset, "<=")
+        ]
 
 -- | Other operators
 otherOps :: [String]
@@ -49,10 +65,13 @@ otherOps = ["::", ":", "->", "|", "=", "??", ",", ".", "\\"]
 
 -- | Characters allowed in identifiers (in addition to letters and digits)
 identifierChars = "_'"
+
 -- | Start of a multi-line comment
 commentStart = "{-"
+
 -- | End of a multi-line comment
 commentEnd = "-}"
+
 -- | Start of a single-line comment
 commentLine = "--"
 
@@ -60,4 +79,5 @@ commentLine = "--"
 isLiteral str = isJust (asInteger str) || str == "True" || str == "False"
 
 isTypeName str = isUpper $ head str
+
 isIdentifier str = isLower $ head str

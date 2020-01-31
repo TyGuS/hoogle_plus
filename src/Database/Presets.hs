@@ -1,52 +1,67 @@
 module Database.Presets where
 
-import Types.Generate
-import Types.Experiments
 import Types.Environment
+import Types.Experiments
+import Types.Generate
 
 getOptsFromPreset :: Preset -> GenerationOpts
 getOptsFromPreset ICFPTotal = genOptsTier1
 getOptsFromPreset ICFPPartial = genOptsTier2
 getOptsFromPreset POPL = poplWithTypeclasses
 
-genOptsTier1 = defaultGenerationOpts {
-  modules = myModules,
-  pkgFetchOpts = Local {
-      files = ["libraries/tier1/base.txt", "libraries/tier1/bytestring.txt", "libraries/ghc-prim.txt"]
-      }
-  }
+genOptsTier1 =
+    defaultGenerationOpts
+        { modules = myModules
+        , pkgFetchOpts =
+              Local
+                  { files =
+                        [ "libraries/tier1/base.txt"
+                        , "libraries/tier1/bytestring.txt"
+                        , "libraries/ghc-prim.txt"
+                        ]
+                  }
+        }
 
-genOptsTier2 = genOptsTier1 {
-  modules = myModules,
-  pkgFetchOpts = Local {
-      files = ["libraries/base.txt", "libraries/bytestring.txt", "libraries/ghc-prim.txt"]
-      }
-  }
+genOptsTier2 =
+    genOptsTier1
+        { modules = myModules
+        , pkgFetchOpts =
+              Local
+                  { files =
+                        ["libraries/base.txt", "libraries/bytestring.txt", "libraries/ghc-prim.txt"]
+                  }
+        }
 
-poplWithTypeclasses = defaultGenerationOpts {
-  modules = poplModules,
-  pkgFetchOpts = Local {
-    files = ["libraries/customPrelude.txt", "libraries/ghc-prim.txt",
-             "libraries/containers.txt"]
-  }
-}
+poplWithTypeclasses =
+    defaultGenerationOpts
+        { modules = poplModules
+        , pkgFetchOpts =
+              Local
+                  { files =
+                        [ "libraries/customPrelude.txt"
+                        , "libraries/ghc-prim.txt"
+                        , "libraries/containers.txt"
+                        ]
+                  }
+        }
 
-myModules = [
+myModules
   -- base
-  "Data.Int",
-  "Data.Bool",
-  "Data.Maybe",
-  "Data.Either",
-  "Data.Tuple",
-  "GHC.Char",
-  "Text.Show",
-  "GHC.List",
-  "Data.Eq",
-  "Data.Function",
+ =
+    [ "Data.Int"
+    , "Data.Bool"
+    , "Data.Maybe"
+    , "Data.Either"
+    , "Data.Tuple"
+    , "GHC.Char"
+    , "Text.Show"
+    , "GHC.List"
+    , "Data.Eq"
+    , "Data.Function"
   -- ByteString
-  "Data.ByteString.Lazy",
-  "Data.ByteString.Builder"
-  ]
+    , "Data.ByteString.Lazy"
+    , "Data.ByteString.Builder"
+    ]
 
 poplModules = error "use icfppartial for popl"
   -- [
