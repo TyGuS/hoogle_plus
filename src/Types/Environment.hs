@@ -17,7 +17,8 @@ import Control.Lens
 data DatatypeDef = DatatypeDef {
   _typeParams :: [Id],              -- ^ Type parameters
   _predVariances :: [Bool],         -- ^ For each predicate parameter, whether it is contravariant
-  _constructors :: [Id]            -- ^ Constructor names
+  _constructors :: [Id],            -- ^ Constructor names
+  _srcModule :: Id                  -- ^ Definition module name
 } deriving (Eq, Ord, Generic, Show)
 
 makeLenses ''DatatypeDef
