@@ -1,0 +1,13 @@
+{
+  "AWSEBDockerrunVersion": "1",
+  "Logging": "/var/log/hplus/",
+  "Image": {
+  	"Update": "false"
+  },
+  "Ports": [
+    {
+      "ContainerPort": 3000,
+      "HostPort": 3000
+    }
+  ]
+}

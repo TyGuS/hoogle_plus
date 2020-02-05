@@ -39,3 +39,8 @@ hplus.code-workspace
 .vscode
 benchmark/suites/working.yml
 *.iml
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
