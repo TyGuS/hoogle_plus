@@ -51,7 +51,6 @@ dependencies:
 - pretty-simple
 - pretty-tree
 - process
-- QuickCheck
 - regex-compat
 - regex-posix
 - resourcet
@@ -64,7 +63,6 @@ dependencies:
 - time
 - transformers
 - transformers-compat
-- universe
 - unordered-containers
 - uuid
 - vector
