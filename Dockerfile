@@ -27,7 +27,8 @@ RUN apt-get install -y python3 python3-pip
 RUN pip3 install --user PyYAML numpy tabulate matplotlib argparse
 
 # Get HooglePlus
-COPY . /home/hoogle_plus/
+RUN cd /home; git clone https://github.com/davidmrdavid/hoogle_plus.git
+RUN cd /home/hoogle_plus && git checkout origin/master
 RUN cd /home/hoogle_plus && stack build
 
 # Start with bash
