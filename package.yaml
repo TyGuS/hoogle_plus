@@ -56,6 +56,7 @@ dependencies:
 - regex-posix
 - resourcet
 - safe
+- smallcheck
 - sort
 - split
 - stm
@@ -63,11 +64,11 @@ dependencies:
 - time
 - transformers
 - transformers-compat
+- universe
 - unordered-containers
 - uuid
 - vector
 - z3
-- universe
 
 library:
   source-dirs:

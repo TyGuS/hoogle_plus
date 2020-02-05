@@ -18,9 +18,7 @@ import Control.Monad.State
 import Data.Maybe
 import Data.Typeable
 
-import Test.QuickCheck
-import Test.QuickCheck.Gen
-import Test.QuickCheck.Random
+import Test.SmallCheck.Drivers
 
 import HooglePlus.Utils
 import Types.Environment
@@ -97,16 +95,13 @@ buildNotCrashProp solution funcSig =
 
     wrapper = buildFunctionWrapper solution (show funcSig) argLine defaultTimeoutMicro
 
-    formatAlwaysFailProp = formatProp "propAlwaysFail" "isFailedResult result"
-    formatNeverFailProp = formatProp "propNeverFail" "not $ isFailedResult result"
+    formatAlwaysFailProp = formatProp "propAlwaysFail" "isFailedResult"
+    formatNeverFailProp = formatProp "propNeverFail" "not <$> isFailedResult"
 
     formatProp propName body argLine argDecl wrappedSolution = unwords
       ([wrappedSolution] ++
-      [ printf "let %s %s = monadicIO $ do {" propName argDecl
-      , printf "result <- run (%s %s);" "wrappedSolution" argLine
-      , printf "assert (%s)" body
-      , "} in"
-      , printf "quickCheckWithResult stdArgs { chatty = False } (%s)" propName]) :: String
+      [ printf "let %s %s = monadic (%s <$> %s %s) in" propName argDecl body "wrappedSolution" argLine
+      , printf "smallCheckM 10 (%s)" propName]) :: String
 
 buildDupCheckProp :: (String, [String]) -> FunctionSignature -> Int -> String
 buildDupCheckProp (sol, otherSols) funcSig timeInMicro =
@@ -133,7 +128,7 @@ buildDupCheckProp (sol, otherSols) funcSig timeInMicro =
         printf "[%s]" items :: String
 
     formatProp wLhs wRhs argLine argDecl = unwords
-      ([ printf "let dupProp %s = monadicIO $ do {" argDecl 
+      ([ printf "let dupProp %s = monadic $ do {" argDecl 
       , printf "resultL <- run (lhs %s);" argLine]
         ++ map formatBinding otherSols' ++
       [ printf "assert (Prelude.or $ Prelude.map (isEqualResult resultL) %s)" (formatBindingList otherSols')
@@ -161,30 +156,30 @@ runInterpreter' timeInMicro exec =
 validateSolution :: [String] -> String -> FunctionSignature -> Int -> IO (Either InterpreterError FunctionCrashDesc)
 validateSolution modules solution funcSig time = do
   result <- runInterpreter' defaultInterpreterTimeoutMicro $ do
-    setImportsQ (zip modules (repeat Nothing) ++ quickCheckModules)
+    setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
 
     let (alwaysFailProp, neverFailProp) = buildNotCrashProp solution funcSig
 
-    alwaysFailResult <- interpret alwaysFailProp (as :: IO Result) >>= liftIO
-    neverFailResult <- interpret neverFailProp (as :: IO Result) >>= liftIO
+    alwaysFailResult <- interpret alwaysFailProp (as :: IO SmallCheckResult) >>= liftIO
+    neverFailResult <- interpret neverFailProp (as :: IO SmallCheckResult) >>= liftIO
 
     return (alwaysFailResult, neverFailResult)
   case result of
     Left err -> return $ Left err
-    Right (Success{}, rf@Failure{}) -> return $ Right $ AlwaysFail $ caseToString rf
-    Right (rs@Failure{}, Success{}) -> return $ Right $ AlwaysSucceed $ caseToString rs
-    Right (rs@Failure{}, rf@Failure{}) -> return $ Right $ PartialFunction (caseToString rs) (caseToString rf)
+    Right (Nothing, failResult) -> return $ Right $ AlwaysFail $ caseToString failResult
+    Right (succeedResult, Nothing) -> return $ Right $ AlwaysSucceed $ caseToString succeedResult
+    Right (succeedResult, failResult) -> return $ Right (PartialFunction (caseToString succeedResult) (caseToString failResult))
 
   where
-    caseToString Failure{failingTestCase=c} = unwords c
+    caseToString (Just (CounterExample args _)) = unwords args
 
-compareSolution :: [String] -> String -> [String] -> FunctionSignature -> Int -> IO (Either InterpreterError Result)
+compareSolution :: [String] -> String -> [String] -> FunctionSignature -> Int -> IO (Either InterpreterError SmallCheckResult)
 compareSolution modules solution otherSolutions funcSig time = do
   runInterpreter' defaultInterpreterTimeoutMicro $ do
-    setImportsQ (zip modules (repeat Nothing) ++ quickCheckModules)
+    setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
 
     let prop = buildDupCheckProp (solution, otherSolutions) funcSig time
-    interpret prop (as :: IO Result) >>= liftIO
+    interpret prop (as :: IO SmallCheckResult) >>= liftIO
 
 runChecks :: MonadIO m => Environment -> RType -> UProgram -> FilterTest m Bool
 runChecks env goalType prog =
@@ -226,8 +221,8 @@ checkDuplicates modules sigStr solution = do
       liftIO $ print err
       modify $ const fs {solutions = solution:solns}
       return True
-    Right Failure{failingTestCase = c} -> do
-      modify $ const fs {inputs = c:is, solutions = solution:solns}
+    Right (Just (CounterExample args _)) -> do
+      modify $ const fs {inputs = ["todo"]:is, solutions = solution:solns}
       return True
     _ -> return False
 
@@ -265,6 +260,8 @@ toParamListDecl args =
           3 -> "Fn3"
           _ -> error "Unsupported higher-order function"
     
-    toDecl (index, _) = printf "(Val arg_%d)" index
+    -- todo: previously we use _Universal_ to restrict range
+    -- but now we don't necessarily need it. Consider remove
+    toDecl (index, _) = printf "(arg_%d)" index
       
       
