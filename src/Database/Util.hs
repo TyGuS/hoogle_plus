@@ -31,38 +31,39 @@ xs >.> ys =
 
 defaultLibrary = concat [defaultFuncs, defaultFun, defaultDts, defaultTypeclassInstances]
 
-defaultFuncs =
-    [ Pos (initialPos "fst") $
-      FuncDecl
-          "fst"
-          (Monotype $
-           (FunctionT
-                "p"
-                (ScalarT
-                     (DatatypeT
-                          "Pair"
-                          [ ScalarT (TypeVarT Map.empty "a") ftrue
-                          , ScalarT (TypeVarT Map.empty "b") ftrue
-                          ]
-                          [])
-                     ftrue) $
-            (ScalarT (TypeVarT Map.empty "a") ftrue)))
-    , Pos (initialPos "snd") $
-      FuncDecl
-          "snd"
-          (Monotype $
-           (FunctionT
-                "p"
-                (ScalarT
-                     (DatatypeT
-                          "Pair"
-                          [ ScalarT (TypeVarT Map.empty "a") ftrue
-                          , ScalarT (TypeVarT Map.empty "b") ftrue
-                          ]
-                          [])
-                     ftrue) $
-            (ScalarT (TypeVarT Map.empty "b") ftrue)))
-    ]
+defaultFuncs = []
+-- defaultFuncs =
+--     [ Pos (initialPos "fst") $
+--       FuncDecl
+--           "fst"
+--           (Monotype $
+--            (FunctionT
+--                 "p"
+--                 (ScalarT
+--                      (DatatypeT
+--                           "Pair"
+--                           [ ScalarT (TypeVarT Map.empty "a") ftrue
+--                           , ScalarT (TypeVarT Map.empty "b") ftrue
+--                           ]
+--                           [])
+--                      ftrue) $
+--             (ScalarT (TypeVarT Map.empty "a") ftrue)))
+--     , Pos (initialPos "snd") $
+--       FuncDecl
+--           "snd"
+--           (Monotype $
+--            (FunctionT
+--                 "p"
+--                 (ScalarT
+--                      (DatatypeT
+--                           "Pair"
+--                           [ ScalarT (TypeVarT Map.empty "a") ftrue
+--                           , ScalarT (TypeVarT Map.empty "b") ftrue
+--                           ]
+--                           [])
+--                      ftrue) $
+--             (ScalarT (TypeVarT Map.empty "b") ftrue)))
+--     ]
 
 defaultDts =
     [ defaultList

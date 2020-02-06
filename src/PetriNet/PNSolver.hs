@@ -100,15 +100,15 @@ instantiateWith ::
     -> PNSolver m [(Id, AbstractSkeleton)]
 -- skip "snd" function, it would be handled together with "fst"
 instantiateWith env typs id t
-    | id == "snd" = return []
+    | id == "Data.Tuple.snd" = return []
 instantiateWith env typs id t = do
     instMap <- gets (view instanceMapping)
     let bound = env ^. boundTypeVars
-    if id == "fst"
+    if id == "Data.Tuple.fst"
                -- this is hack, hope to get rid of it sometime
         then do
             first <- freshType (Monotype t)
-            secod <- findSymbol env "snd"
+            secod <- findSymbol env "Data.Tuple.snd"
             fstSigs <- enumSigs $ toAbstractType $ shape first
             sndSigs <- enumSigs $ toAbstractType $ shape secod
            -- assertion, check they have same elements
@@ -170,8 +170,8 @@ splitTransition env newAt fid = do
             let args' = enumArgs parents (take 1 args)
             let fstRet = args !! 1
             let sndRet = ret
-            fstType <- findSymbol env "fst"
-            sndType <- findSymbol env "snd"
+            fstType <- findSymbol env "Data.Tuple.fst"
+            sndType <- findSymbol env "Data.Tuple.snd"
             let first = toAbstractType $ shape fstType
             let secod = toAbstractType $ shape sndType
             let tvs = env ^. boundTypeVars
@@ -566,10 +566,10 @@ findProgram env dst st ps
     substPair (x:xs) =
         if pairProj `isPrefixOf` funName x
             then (x
-                      { funName = replaceId pairProj "fst" (funName x)
+                      { funName = replaceId pairProj "Data.Tuple.fst" (funName x)
                       , funReturn = [head (funReturn x)]
                       }) :
-                 (x {funName = replaceId pairProj "snd" (funName x), funReturn = [funReturn x !! 1]}) :
+                 (x {funName = replaceId pairProj "Data.Tuple.snd" (funName x), funReturn = [funReturn x !! 1]}) :
                  substPair xs
             else x : substPair xs
     substName [] [] = []
@@ -837,7 +837,7 @@ getGroupRep name = do
 
 assemblePair :: AbstractSkeleton -> AbstractSkeleton -> AbstractSkeleton
 assemblePair first secod
-    | absFunArgs "fst" first == absFunArgs "snd" secod =
+    | absFunArgs "Data.Tuple.fst" first == absFunArgs "Data.Tuple.snd" secod =
         let AFunctionT p f = first
             AFunctionT _ s = secod
          in AFunctionT p (AFunctionT f s)
