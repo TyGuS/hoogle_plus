@@ -191,7 +191,7 @@ runChecks env goalType prog =
 checkSolutionNotCrash :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
 checkSolutionNotCrash modules sigStr body = do
   fs@(FilterState _ _ samples) <- get
-  result <- liftIO $ executeCheck
+  result <- liftIO executeCheck
 
   let (pass, desc) = case result of
                           Left err -> (True, UnableToCheck (show err))

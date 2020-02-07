@@ -9,8 +9,8 @@ import Data.List (intercalate)
 import Test.SmallCheck.Drivers
 
 defaultTimeoutMicro = 5 * 10^4 :: Int
-defaultDepth = 2 :: Int
-defaultInterpreterTimeoutMicro = 3 * 10^6 :: Int
+defaultDepth = 3 :: Int
+defaultInterpreterTimeoutMicro = 2 * 10^6 :: Int
 defaultMaxOutputLength = 100 :: Int
 
 frameworkModules =
