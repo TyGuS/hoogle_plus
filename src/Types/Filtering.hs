@@ -9,8 +9,8 @@ import Data.List (intercalate)
 import Test.SmallCheck.Drivers
 
 defaultTimeoutMicro = 5 * 10^4 :: Int
-defaultDepth = 3 :: Int
-defaultInterpreterTimeoutMicro = 5 * 10^6 :: Int
+defaultDepth = 2 :: Int
+defaultInterpreterTimeoutMicro = 3 * 10^6 :: Int
 defaultMaxOutputLength = 100 :: Int
 
 frameworkModules =
@@ -20,6 +20,7 @@ frameworkModules =
   ++ [("Test.ChasingBottoms", Just "CB")]
 
 type SmallCheckResult = Maybe PropertyFailure
+type DistinguishedInput = (String, String)
 
 data FunctionCrashDesc = 
     AlwaysSucceed String
@@ -76,7 +77,7 @@ instance Show FunctionSignature where
         argsExpr = (intercalate " -> " . map show) (argsType ++ [returnType])
 
 data FilterState = FilterState {
-  inputs :: [[String]],
+  inputs :: [DistinguishedInput],
   solutions :: [String],
   solutionExamples :: [(String, FunctionCrashDesc)]
 } deriving (Eq, Show)

@@ -116,10 +116,10 @@ buildDupCheckProp (sol, otherSols) funcSig timeInMicro depth =
     wrapperSols = map (\(i, sol) -> wrapFunc (printf "result_%d" i) sol) otherSols'
 
     formatProp = unwords
-      [ printf "let dupProp = exists $ \\%s -> monadic $ do {" argDecl
+      [ printf "let dupProp = existsUnique $ \\%s -> monadic $ do {" argDecl
       , printf "evaluated <- mapM (\\f -> f %s) (%s);" argLine (formatResultList otherSols')
       , printf "resultL <- lhs %s;" argLine
-      , printf "return $ not (resultL `elem` evaluated)"
+      , printf "return $ not (resultL `Prelude.elem` evaluated)"
       , "} in"
       , printf "smallCheckM %d dupProp" depth] :: String
 
@@ -149,23 +149,27 @@ runInterpreter' timeInMicro exec =
 
 validateSolution :: [String] -> String -> FunctionSignature -> Int -> IO (Either InterpreterError FunctionCrashDesc)
 validateSolution modules solution funcSig time = do
-  result <- runInterpreter' defaultInterpreterTimeoutMicro $ do
-    setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
+  resultF <- run alwaysFailProp
+  resultS <- run neverFailProp
 
-    let (alwaysFailProp, neverFailProp) = buildNotCrashProp solution funcSig
+  case resultF of
+    Left (UnknownError "timeout") -> return $ Right $ AlwaysFail $ caseToString resultS
+    Right Nothing -> return $ Right $ AlwaysFail $ caseToString resultS
+    _ -> case resultS of
+          Left (UnknownError "timeout") -> return $ Right $ AlwaysSucceed $ caseToString resultF
+          Right Nothing -> return $ Right $ AlwaysSucceed $ caseToString resultF
 
-    alwaysFailResult <- interpret alwaysFailProp (as :: IO SmallCheckResult) >>= liftIO
-    neverFailResult <- interpret neverFailProp (as :: IO SmallCheckResult) >>= liftIO
-
-    return (alwaysFailResult, neverFailResult)
-  case result of
-    Left err -> return $ Left err
-    Right (Nothing, failResult) -> return $ Right $ AlwaysFail $ caseToString failResult
-    Right (succeedResult, Nothing) -> return $ Right $ AlwaysSucceed $ caseToString succeedResult
-    Right (succeedResult, failResult) -> return $ Right (PartialFunction (caseToString succeedResult) (caseToString failResult))
+          Right (Just (CounterExample _ _)) -> return $ Right $ PartialFunction (caseToString resultF) (caseToString resultS)
+          _ -> return $ Left $ UnknownError "nonexhaustive pattern"
 
   where
-    caseToString (Just (CounterExample args _)) = unwords args
+    (alwaysFailProp, neverFailProp) = buildNotCrashProp solution funcSig
+    run prop = runInterpreter' defaultInterpreterTimeoutMicro $ do
+      setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
+      interpret prop (as :: IO SmallCheckResult) >>= liftIO
+
+    caseToString (Right (Just (CounterExample args _))) = unwords args
+    caseToString _ = "N/A"
 
 compareSolution :: [String] -> String -> [String] -> FunctionSignature -> Int -> IO (Either InterpreterError SmallCheckResult)
 compareSolution modules solution otherSolutions funcSig time =
@@ -198,7 +202,7 @@ checkSolutionNotCrash modules sigStr body = do
   return pass
 
   where
-    handleNotSupported = (`catch` ((\ex -> return (Left ((UnknownError $ show ex)))) :: NotSupportedException -> IO (Either InterpreterError FunctionCrashDesc)))
+    handleNotSupported = (`catch` ((\ex -> return (Left (UnknownError $ show ex))) :: NotSupportedException -> IO (Either InterpreterError FunctionCrashDesc)))
     executeCheck = handleNotSupported $ do
       let funcSig = (instantiateSignature . parseTypeString) sigStr
       validateSolution modules body funcSig defaultTimeoutMicro
@@ -216,14 +220,19 @@ checkDuplicates modules sigStr solution = do
       liftIO $ print err
       modify $ const fs {solutions = solution:solns}
       return True
-    Right (Just NotExist) -> return False
-    Right Nothing -> do
-      modify $ const fs {inputs = ["todo"]:is, solutions = solution:solns}
+
+    Right r@(Just AtLeastTwo {}) -> do
+      modify $ const fs {inputs = caseToString r : is, solutions = solution : solns}
       return True
+
+    Right (Just NotExist) -> return False
+    Right Nothing -> return False
     _ -> return False
 
   where
     funcSig = (instantiateSignature . parseTypeString) sigStr
+
+    caseToString (Just (AtLeastTwo i_1 _ i_2 _)) = (unwords i_1, unwords i_2)
 
 toParamListDecl :: [ArgumentType] -> (String, String)
 toParamListDecl args =
