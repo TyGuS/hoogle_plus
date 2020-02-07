@@ -103,37 +103,31 @@ buildNotCrashProp solution funcSig =
       [ printf "let %s %s = monadic (%s <$> %s %s) in" propName argDecl body "wrappedSolution" argLine
       , printf "smallCheckM 10 (%s)" propName]) :: String
 
-buildDupCheckProp :: (String, [String]) -> FunctionSignature -> Int -> String
-buildDupCheckProp (sol, otherSols) funcSig timeInMicro =
+buildDupCheckProp :: (String, [String]) -> FunctionSignature -> Int -> Int -> String
+buildDupCheckProp (sol, otherSols) funcSig timeInMicro depth =
 
-  unwords [wrapperLhs, unwords wrapperSols, formatProp wrapperLhs wrapperSols argLine argDecl]
+  unwords [wrapperLhs, unwords wrapperSols, formatProp]
   where
     (argLine, argDecl) = toParamListDecl (_argsType funcSig)
     solutionType = show funcSig
 
-    wrapFunc name sol = buildFunctionWrapper' name sol solutionType argLine timeInMicro
-
-    otherSols' = zip [0..] otherSols
+    otherSols' = zip [0..] otherSols :: [(Int, String)]
     wrapperLhs = wrapFunc "lhs" sol
-    wrapperSols = map (\(i, sol) -> wrapFunc (printf "sol_%d" i) sol) otherSols'
+    wrapperSols = map (\(i, sol) -> wrapFunc (printf "result_%d" i) sol) otherSols'
 
-    formatBinding :: (Int, String) -> String
-    formatBinding (i, _) = printf "result_%d <- run (sol_%d %s);" i i argLine :: String
-
-    formatBindingItem :: (Int, String) -> String
-    formatBindingItem (i, _) = printf "result_%d" i :: String
-
-    formatBindingList sols =
-      let items = intercalate "," $ map formatBindingItem sols in
-        printf "[%s]" items :: String
-
-    formatProp wLhs wRhs argLine argDecl = unwords
-      ([ printf "let dupProp %s = monadic $ do {" argDecl 
-      , printf "resultL <- run (lhs %s);" argLine]
-        ++ map formatBinding otherSols' ++
-      [ printf "assert (Prelude.or $ Prelude.map (isEqualResult resultL) %s)" (formatBindingList otherSols')
+    formatProp = unwords
+      [ printf "let dupProp = exists $ \\%s -> monadic $ do {" argDecl
+      , printf "evaluated <- mapM (\\f -> f %s) (%s);" argLine (formatResultList otherSols')
+      , printf "resultL <- lhs %s;" argLine
+      , printf "return $ not (resultL `elem` evaluated)"
       , "} in"
-      , printf "quickCheckWithResult stdArgs { chatty = False } dupProp"]) :: String
+      , printf "smallCheckM %d dupProp" depth] :: String
+
+    wrapFunc name sol = buildFunctionWrapper' name sol solutionType argLine timeInMicro
+    formatResultList results =
+      let items = intercalate "," $ map format results in
+        printf "[%s]" items :: String
+      where format (i, _) = printf "result_%d" i :: String
 
 runInterpreter' :: Int -> InterpreterT IO a -> IO (Either InterpreterError a) 
 runInterpreter' timeInMicro exec =
@@ -174,11 +168,11 @@ validateSolution modules solution funcSig time = do
     caseToString (Just (CounterExample args _)) = unwords args
 
 compareSolution :: [String] -> String -> [String] -> FunctionSignature -> Int -> IO (Either InterpreterError SmallCheckResult)
-compareSolution modules solution otherSolutions funcSig time = do
+compareSolution modules solution otherSolutions funcSig time =
   runInterpreter' defaultInterpreterTimeoutMicro $ do
     setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
 
-    let prop = buildDupCheckProp (solution, otherSolutions) funcSig time
+    let prop = buildDupCheckProp (solution, otherSolutions) funcSig time defaultDepth
     interpret prop (as :: IO SmallCheckResult) >>= liftIO
 
 runChecks :: MonadIO m => Environment -> RType -> UProgram -> FilterTest m Bool
@@ -217,11 +211,13 @@ checkDuplicates modules sigStr solution = do
   result <- liftIO $ compareSolution modules solution solns funcSig defaultTimeoutMicro
 
   case result of
+    Left (UnknownError "timeout") -> return False
     Left err -> do
       liftIO $ print err
       modify $ const fs {solutions = solution:solns}
       return True
-    Right (Just (CounterExample args _)) -> do
+    Right (Just NotExist) -> return False
+    Right Nothing -> do
       modify $ const fs {inputs = ["todo"]:is, solutions = solution:solns}
       return True
     _ -> return False
@@ -240,28 +236,10 @@ toParamListDecl args =
 
     plainArgLine = unwords $ map (formatParam . fst) indexedArgs
     declArgLine = unwords $ map toDecl indexedArgs
-    
-    computeAppDepth (ArgTypeFunc l r) =
-      case r of
-        ArgTypeFunc _ _ -> 1 + computeAppDepth r
-        _ -> 1
-    computeAppDepth invalid = error $ printf "Invalid argument for computeAppDepth: %s" (show invalid)
 
     formatParam = printf "arg_%d" :: Int -> String
 
     toDecl :: (Int, ArgumentType) -> String
-    toDecl (index, tipe@(ArgTypeFunc l r)) =
-
-      printf "(%s arg_%d)" pattern index
-      where
-        pattern = case computeAppDepth tipe of
-          1 -> "Fn"
-          2 -> "Fn2"
-          3 -> "Fn3"
-          _ -> error "Unsupported higher-order function"
-    
-    -- todo: previously we use _Universal_ to restrict range
-    -- but now we don't necessarily need it. Consider remove
     toDecl (index, _) = printf "(arg_%d)" index
       
       
