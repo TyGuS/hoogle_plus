@@ -51,11 +51,11 @@ dependencies:
 - pretty-simple
 - pretty-tree
 - process
-- QuickCheck
 - regex-compat
 - regex-posix
 - resourcet
 - safe
+- smallcheck
 - sort
 - split
 - stm
@@ -67,7 +67,6 @@ dependencies:
 - uuid
 - vector
 - z3
-- universe
 
 library:
   source-dirs:

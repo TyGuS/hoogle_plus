@@ -6,18 +6,21 @@ import Data.Typeable
 import Text.Printf
 import Data.List (intercalate)
 
+import Test.SmallCheck.Drivers
+
 defaultTimeoutMicro = 5 * 10^4 :: Int
-defaultInterpreterTimeoutMicro = 4 * 10^6 :: Int
+defaultDepth = 3 :: Int
+defaultInterpreterTimeoutMicro = 2 * 10^6 :: Int
 defaultMaxOutputLength = 100 :: Int
 
-quickCheckModules =
-  zip [ "Test.QuickCheck"
-  , "Test.QuickCheck.Gen"
-  , "Test.QuickCheck.Random"
-  , "Test.QuickCheck.Monadic"
-  , "Text.Show.Functions" ] (repeat Nothing)
+frameworkModules =
+  zip [ "Test.SmallCheck"
+  , "Test.SmallCheck.Drivers" ] (repeat Nothing)
 
   ++ [("Test.ChasingBottoms", Just "CB")]
+
+type SmallCheckResult = Maybe PropertyFailure
+type DistinguishedInput = (String, String)
 
 data FunctionCrashDesc = 
     AlwaysSucceed String
@@ -74,7 +77,7 @@ instance Show FunctionSignature where
         argsExpr = (intercalate " -> " . map show) (argsType ++ [returnType])
 
 data FilterState = FilterState {
-  inputs :: [[String]],
+  inputs :: [DistinguishedInput],
   solutions :: [String],
   solutionExamples :: [(String, FunctionCrashDesc)]
 } deriving (Eq, Show)
