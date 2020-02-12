@@ -109,6 +109,9 @@ printSolution solution = do
     putStrLn "************************************************"
 
 printFilter (FilterState [] [] []) = return ()
+printFilter (FilterState ((s_1, s_2):xs) _ ((_, x): _)) = do
+    putStrLn $ "Sample behavior: " ++ show x
+    putStrLn $ "Differentiated input: " ++ s_1 ++ " and " ++ s_2
 printFilter (FilterState _ _ ((_, x):_)) = putStrLn $ "Sample behavior: " ++ show x
 
 extractSolution :: Environment -> RType -> UProgram -> ([String], String, String, [(Id, RSchema)])
