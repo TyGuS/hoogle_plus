@@ -213,7 +213,6 @@ checkDuplicates modules sigStr solution = do
   fs@(FilterState is solns _) <- get
 
   result <- liftIO $ compareSolution modules solution solns funcSig defaultTimeoutMicro
-
   case result of
     Left (UnknownError "timeout") -> return False
     Left err -> do
@@ -222,7 +221,10 @@ checkDuplicates modules sigStr solution = do
       return True
 
     Right r@(Just AtLeastTwo {}) -> do
-      modify $ const fs {inputs = caseToString r : is, solutions = solution : solns}
+      modify $ const fs {
+        inputs = if null solns then is else caseToString r : is,
+        solutions = solution : solns
+      }
       return True
 
     Right (Just NotExist) -> return False
