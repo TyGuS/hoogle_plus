@@ -2,3 +2,4 @@
 .elasticbeanstalk/*
 .git
 .gitignore
+.stack-work
