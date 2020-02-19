@@ -23,17 +23,17 @@ type SmallCheckResult = Maybe PropertyFailure
 type DistinguishedInput = (String, String)
 
 data FunctionCrashDesc = 
-    AlwaysSucceed String
-  | AlwaysFail String
-  | PartialFunction String String
-  | UnableToCheck String
+    AlwaysSucceed [String]
+  | AlwaysFail [String]
+  | PartialFunction [String] [String]
+  | UnableToCheck [String]
   deriving (Eq)
 
 instance Show FunctionCrashDesc where
-  show (AlwaysSucceed i) = "Total: " ++ i
-  show (AlwaysFail i) = "Fail: " ++ i
-  show (PartialFunction s f) = "Partial: succeeds on " ++ s ++ "; fails on " ++ f
-  show (UnableToCheck ex) = "Exception: " ++ ex
+  show (AlwaysSucceed i) = "Total: " ++ show i
+  show (AlwaysFail i) = "Fail: " ++ show i
+  show (PartialFunction s f) = "Partial: succeeds on " ++ show s ++ "; fails on " ++ show f
+  show (UnableToCheck ex) = "Exception: " ++ show ex
 
 data ArgumentType =
     Concrete    String
@@ -79,7 +79,7 @@ instance Show FunctionSignature where
 data FilterState = FilterState {
   inputs :: [DistinguishedInput],
   solutions :: [String],
-  solutionExamples :: [(String, FunctionCrashDesc)]
+  solutionExamples :: [(String, [String])]
 } deriving (Eq, Show)
 
 emptyFilterState = FilterState {

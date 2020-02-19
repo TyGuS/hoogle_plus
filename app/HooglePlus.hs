@@ -28,6 +28,7 @@ import HooglePlus.Stats
 import Types.Encoder
 import HooglePlus.GHCChecker
 import HooglePlus.Utils
+import Types.Filtering
 
 import Control.Monad
 import Control.Lens ((^.))
@@ -264,7 +265,7 @@ executeSearch synquidParams searchParams query = do
     handleMessages ch (MesgP (program, stats, fs)) = do
       when (logLevel > 0) $ printf "[writeStats]: %s\n" (show stats)
       printSolution program
-      printFilter fs
+      putStrLn $ printFilter fs
       hFlush stdout
       readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgS debug) = do
