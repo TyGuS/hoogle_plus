@@ -201,20 +201,27 @@ checkSolutionNotCrash modules sigStr body = do
 
   let (pass, desc) = case result of
                           Left err -> (True, [])
-                          Right (AlwaysFail examples) -> (False, [])
-                          Right (AlwaysSucceed examples) -> (True, examples)
-                          Right (PartialFunction examples _) -> (True, examples)
+                          Right (AlwaysFail example) -> (False, [])
+                          Right (AlwaysSucceed example) -> (True, example)
+                          Right (PartialFunction example _) -> (True, example)
 
+  if not $ null desc
+    then do {
+      result <- liftIO $ getOutput modules desc body funcSig;
+      case result of
+        Right io -> do
+          modify $ const fs {solutionExamples = (body, io):samples};
+          return pass
+        _ -> return pass
+    }
+    else
+      return pass
                           
-  -- todo: call `getOutput` here and append examples
-  -- modify $ const fs {solutionExamples = if null desc then samples else (body, desc):samples};
-  return pass
 
   where
     handleNotSupported = (`catch` ((\ex -> return (Left (UnknownError $ show ex))) :: NotSupportedException -> IO (Either InterpreterError FunctionCrashDesc)))
-    executeCheck = handleNotSupported $ do
-      let funcSig = (instantiateSignature . parseTypeString) sigStr
-      validateSolution modules body funcSig defaultTimeoutMicro
+    funcSig = (instantiateSignature . parseTypeString) sigStr
+    executeCheck = handleNotSupported $ validateSolution modules body funcSig defaultTimeoutMicro
       
 
 checkDuplicates :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
@@ -280,12 +287,12 @@ getOutput modules sampleInput solution funcSig =
       let sampleInput' = unwords sampleInput
       let solType = show funcSig
       let solWrapper = buildFunctionWrapper "wrappedSolution" solution solType argLine defaultTimeoutMicro 
-      let template = unwords ["%s catch ((++) (words \"%s\") . (: []) <$>",
-                              "evaluate (show $ sol_wrappedSolution %s))",
-                              "(\\(e :: SomeException) -> return [])"]
-      let prog = printf template solWrapper sampleInput' sampleInput'
+      let template = unwords ["%s catch",
+                              "(evaluate (show $ sol_wrappedSolution %s))",
+                              "(\\(e :: SomeException) -> return (show e))"]
+      let prog = printf template solWrapper sampleInput'
       set [languageExtensions := [ScopedTypeVariables]]
       setImportsQ (zip ("Control.Exception":modules) (repeat Nothing))
       
-      val <- interpret prog (as :: IO [String]) >>= liftIO
-      return (if null val then ([], "") else (init val, last val))
+      val <- interpret prog (as :: IO String) >>= liftIO
+      return (sampleInput, val)
