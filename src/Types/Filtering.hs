@@ -20,19 +20,28 @@ frameworkModules =
   ++ [("Test.ChasingBottoms", Just "CB")]
 
 type SmallCheckResult = Maybe PropertyFailure
-type DistinguishedInput = (String, String)
+
+-- [arg0, arg1, arg2, ...] :: SampleInput
+type SampleInput = [String]
+
+-- sample input generated during duplicate-check phase
+-- currently we can only generate two as a tuple
+type DistinguishedInput = (SampleInput, SampleInput)
+
+-- input-output pair
+type IOExample = (SampleInput, String)
 
 data FunctionCrashDesc = 
-    AlwaysSucceed [String]
-  | AlwaysFail [String]
-  | PartialFunction [String] [String]
-  | UnableToCheck [String]
+    AlwaysSucceed SampleInput
+  | AlwaysFail SampleInput
+  | PartialFunction SampleInput SampleInput
+  | UnableToCheck SampleInput
   deriving (Eq)
 
 instance Show FunctionCrashDesc where
-  show (AlwaysSucceed i) = "Total: " ++ show i
-  show (AlwaysFail i) = "Fail: " ++ show i
-  show (PartialFunction s f) = "Partial: succeeds on " ++ show s ++ "; fails on " ++ show f
+  show (AlwaysSucceed i) = "Total: " ++ (unwords i)
+  show (AlwaysFail i) = "Fail: " ++ (unwords i)
+  show (PartialFunction s f) = "Partial: succeeds on " ++ (unwords s) ++ "; fails on " ++ (unwords f)
   show (UnableToCheck ex) = "Exception: " ++ show ex
 
 data ArgumentType =
@@ -79,7 +88,7 @@ instance Show FunctionSignature where
 data FilterState = FilterState {
   inputs :: [DistinguishedInput],
   solutions :: [String],
-  solutionExamples :: [(String, [String])]
+  solutionExamples :: [(String, IOExample)]
 } deriving (Eq, Show)
 
 emptyFilterState = FilterState {

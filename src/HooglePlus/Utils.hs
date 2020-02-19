@@ -118,8 +118,9 @@ printFilter (FilterState ((s_1, s_2):xs) _ ((_, x): _)) = do
 printFilter (FilterState _ _ ((_, x):_)) = putStrLn $ "Sample behavior: " ++ show x
 -}
 
-printIO [] = "error????"
-printIO xs = printf "%s ==> %s" (unwords $ init xs) (last xs)
+printIO :: IOExample -> String
+printIO ([], _) = "error????"
+printIO (is, os) = printf "%s ==> %s" (unwords is) os
 
 printFilter (FilterState _ _ samples) = intercalate "\n" (map printOneSol sampleMap)
     where
