@@ -17,6 +17,7 @@ import Database.Util
 import Data.List
 import qualified Data.Map as Map
 import Data.Map (Map)
+import Data.Char
 
 import Control.Monad.State
 import Control.Applicative hiding ((<|>), many)
@@ -111,18 +112,36 @@ parseTypeDecl = do
   return $ TypeDecl typeName typeVars typeDef
   where
 
+checkNum :: [Char] -> Bool
+checkNum [] = True
+checkNum (n:ns) = if isDigit n then checkNum ns else False
+
+fixIndex :: RType -> Int
+fixIndex (FunctionT n a r) = 
+  if ("arg" `isPrefixOf` n) 
+    then 
+      (let num = drop 3 n in
+        (if checkNum num 
+          then
+            max (read num::Int) (max (fixIndex a) (fixIndex r))
+          else
+            0))
+    else 
+      0
+fixIndex _ = 0
+
 fixArgName :: Int -> RType -> RType
-fixArgName _ typ = let (_, res) = fixArgName' 0 typ in res
+fixArgName _ typ = let (_, res) = fixArgName' ((fixIndex typ) + 1) typ in res
   where
     fixArgName' idx (FunctionT x tArg tRes)
-      | "@@arg" `isPrefixOf` x = let
-          (idx', tArg') = fixArgName' (idx + 1) tArg
-          (idx'', tRes') = fixArgName' idx' tRes
-          in (idx'', FunctionT ("arg"++show idx) tArg' tRes')
+      | x == "" = let
+          -- (idx', tArg') = fixArgName' (idx + 1) tArg
+          (idx'', tRes') = fixArgName' (idx + 1) tRes
+          in (idx'', FunctionT ("arg"++show idx) tArg tRes')
       | otherwise = let
-          (idx', tArg') = fixArgName' idx tArg
-          (idx'', tRes') = fixArgName' idx' tRes
-          in (idx'', FunctionT x tArg' tRes')
+          -- (idx', tArg') = fixArgName' idx tArg
+          (idx'', tRes') = fixArgName' idx tRes
+          in (idx'', FunctionT x tArg tRes')
     fixArgName' idx t = (idx, t)
 
 parseDataDecl :: Parser BareDeclaration
@@ -244,6 +263,7 @@ parseFunctionTypeWithArg = do
 
 -- | Parse top-level type that does not start with an argument name
 -- and thus could be a scalar or a function type depending on whether followed by ->
+----------------------------------------------------------------------------------------------------------------------------------------------------
 parseFunctionTypeMb = do
   argType <- parseUnrefTypeWithArgs <|> parseTypeAtom
   parseFunctionRest argType <|> return argType
@@ -251,7 +271,7 @@ parseFunctionTypeMb = do
     parseFunctionRest argType = do
       reservedOp "->"
       returnType <- parseType
-      return $ FunctionT ("@@arg" ++ show (arity returnType)) argType returnType
+      return $ FunctionT "" argType returnType
 
 parseTypeAtom :: Parser RType
 parseTypeAtom = choice [

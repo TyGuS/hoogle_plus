@@ -174,6 +174,7 @@ transformSolution goal queryResult = do
                                     _ -> ([], tt)
                 (constraints, t') = allTyclass t
                 in "(" ++ intercalate ", " constraints ++ ") => " ++ showGoal t'
+            | x == "" = showGoal tArg ++ " -> " ++ showGoal tRes
             | otherwise = x ++ ": " ++ showGoal tArg ++ " -> " ++ showGoal tRes
         showGoal t = show t
 
