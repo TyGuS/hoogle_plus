@@ -9,7 +9,7 @@
     <div .body>
         <div .left>
             <form id="theForm" method=post action="search">
-                <input #signature type=text, class="form-control", placeholder="Search by type singature!">
+                <input #signature type=text, class="form-control", placeholder="Search by type signature!">
                 <button .btn .btn-outline-primary type="submit" id="button-addon2">
                     Search
                 <button .btn .btn-outline-primary type="button" id="button-stop">

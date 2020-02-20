@@ -127,7 +127,7 @@ fixIndex (FunctionT n a r) =
           else
             0))
     else 
-      0
+      max (fixIndex a) (fixIndex r)
 fixIndex _ = 0
 
 fixArgName :: Int -> RType -> RType
