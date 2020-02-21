@@ -68,6 +68,7 @@ dependencies:
 - uuid
 - vector
 - z3
+- silently
 
 library:
   source-dirs:

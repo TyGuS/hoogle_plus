@@ -9,7 +9,7 @@ import Data.List (intercalate)
 import Test.SmallCheck.Drivers
 
 defaultTimeoutMicro = 5 * 10^4 :: Int
-defaultDepth = 3 :: Int
+defaultDepth = 5 :: Int
 defaultInterpreterTimeoutMicro = 2 * 10^6 :: Int
 defaultMaxOutputLength = 100 :: Int
 
@@ -17,11 +17,12 @@ frameworkModules =
   zip [ "Test.SmallCheck"
   , "Test.SmallCheck.Drivers"
   , "Test.LeanCheck.Function.ShowFunction"
+  , "System.IO.Silently"
   , "Control.Exception" ] (repeat Nothing)
 
   ++ [("Test.ChasingBottoms", Just "CB")]
 
-type SmallCheckResult = Maybe PropertyFailure
+type SmallCheckResult = (String, Maybe PropertyFailure)
 
 -- [arg0, arg1, arg2, ...] :: SampleInput
 type SampleInput = [String]
@@ -31,7 +32,7 @@ type SampleInput = [String]
 type DistinguishedInput = (SampleInput, SampleInput)
 
 -- input-output pair
-type IOExample = (SampleInput, String)
+type IOExample = (String, String)
 
 data FunctionCrashDesc = 
     AlwaysSucceed SampleInput

@@ -24,3 +24,11 @@ newtype Inner a = Inner a deriving (Eq)
 instance SS.Serial m a => SS.Serial m (Inner a) where series = SS.newtypeCons Inner
 instance (SF.ShowFunction a) => Show (Inner a) where
   show (Inner fcn) = SF.showFunctionLine 4 fcn
+
+formOutput :: [String] -> CB.Result String -> String
+formOutput args ret = unwords args ++ " ==> " ++ ret'
+  where ret' = case ret of
+                CB.Value a | "_|_" `isInfixOf` a -> "bottom"
+                CB.Value a -> a
+                CB.NonTermination -> "diverge"
+                CB.Exception ex -> show ex

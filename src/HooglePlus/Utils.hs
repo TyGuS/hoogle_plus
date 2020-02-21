@@ -110,16 +110,7 @@ printSolution solution = do
     putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
     putStrLn "************************************************"
 
-printIO :: IOExample -> String
-printIO ([], _) = "error????"
-printIO (is, os) = printf "%s ==> %s" (unwords is) os
-
-printFilter (FilterState _ solns samples) = intercalate "\n" (map printOneSol sampleMap)
-    where
-        sampleGroup = groupBy (\x y -> fst x == fst y) (sortOn fst samples)
-        sampleMap = map ((\(x, y) -> (head x, nub y)) . unzip) sampleGroup 
-        sampleMap' = filter (\(s, _) -> s `elem` solns) sampleMap
-        printOneSol (s, ios) = printf "%s\n%s" s (unlines $ map printIO ios)
+printFilter (FilterState _ solns samples) = "todo: print Filter"
 
 extractSolution :: Environment -> RType -> UProgram -> ([String], String, String, [(Id, RSchema)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)
