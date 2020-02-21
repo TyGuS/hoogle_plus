@@ -110,22 +110,15 @@ printSolution solution = do
     putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
     putStrLn "************************************************"
 
-{-
-printFilter (FilterState [] [] []) = return ()
-printFilter (FilterState ((s_1, s_2):xs) _ ((_, x): _)) = do
-    putStrLn $ "Sample behavior: " ++ show x
-    putStrLn $ "Differentiated input: " ++ s_1 ++ " and " ++ s_2
-printFilter (FilterState _ _ ((_, x):_)) = putStrLn $ "Sample behavior: " ++ show x
--}
-
 printIO :: IOExample -> String
 printIO ([], _) = "error????"
 printIO (is, os) = printf "%s ==> %s" (unwords is) os
 
-printFilter (FilterState _ _ samples) = intercalate "\n" (map printOneSol sampleMap)
+printFilter (FilterState _ solns samples) = intercalate "\n" (map printOneSol sampleMap)
     where
         sampleGroup = groupBy (\x y -> fst x == fst y) (sortOn fst samples)
         sampleMap = map ((\(x, y) -> (head x, nub y)) . unzip) sampleGroup 
+        sampleMap' = filter (\(s, _) -> s `elem` solns) sampleMap
         printOneSol (s, ios) = printf "%s\n%s" s (unlines $ map printIO ios)
 
 extractSolution :: Environment -> RType -> UProgram -> ([String], String, String, [(Id, RSchema)])

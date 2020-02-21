@@ -72,19 +72,19 @@ instantiateSignature (FunctionSignature _ argsType returnType) =
       instantiate (ArgTypeApp l r) = ArgTypeApp (instantiate l) (instantiate r)
       instantiate (ArgTypeFunc l r) = ArgTypeFunc (instantiate l) (instantiate r)
 
-buildFunctionWrapper :: String -> String -> String -> String -> Int -> String
-buildFunctionWrapper wrapperName solution solutionType solutionParams timeInMicro = 
+buildFunctionWrapper :: String -> String -> String -> String -> String -> Int -> String
+buildFunctionWrapper wrapperName solution solutionType paramDecl argLine timeInMicro = 
     unwords [ buildLetFunction wrapperName solution solutionType
-            , buildTimeoutWrapper wrapperName solutionParams timeInMicro
+            , buildTimeoutWrapper wrapperName paramDecl argLine timeInMicro
             ]
   where
     buildLetFunction :: String -> String -> String -> String
     buildLetFunction wrapperName solution solutionType = 
       printf "let sol_%s = ((%s) :: %s) in" wrapperName solution solutionType :: String
 
-    buildTimeoutWrapper :: String -> String -> Int -> String
-    buildTimeoutWrapper wrapperName params timeInMicro =
-      printf "let %s %s = (CB.timeOutMicro' %d (CB.approxShow %d (sol_%s %s))) in" wrapperName params timeInMicro defaultMaxOutputLength wrapperName params :: String
+    buildTimeoutWrapper :: String -> String -> String -> Int -> String
+    buildTimeoutWrapper wrapperName paramDecl argLine timeInMicro =
+      printf "let %s %s = (CB.timeOutMicro' %d (CB.approxShow %d (sol_%s %s))) in" wrapperName argLine timeInMicro defaultMaxOutputLength wrapperName argLine :: String
 
 buildNotCrashProp :: String -> FunctionSignature -> (String, String)
 buildNotCrashProp solution funcSig =
@@ -94,7 +94,7 @@ buildNotCrashProp solution funcSig =
   where
     (argLine, argDecl) = toParamListDecl (_argsType funcSig)
 
-    wrapper = buildFunctionWrapper "wrappedSolution" solution (show funcSig) argLine defaultTimeoutMicro
+    wrapper = buildFunctionWrapper "wrappedSolution" solution (show funcSig) argDecl argLine defaultTimeoutMicro
 
     formatAlwaysFailProp = formatProp "propAlwaysFail" "isFailedResult"
     formatNeverFailProp = formatProp "propNeverFail" "not <$> isFailedResult"
@@ -124,7 +124,7 @@ buildDupCheckProp (sol, otherSols) funcSig timeInMicro depth =
       , "} in"
       , printf "smallCheckM %d dupProp" depth] :: String
 
-    wrapFunc name sol = buildFunctionWrapper name sol solutionType argLine timeInMicro 
+    wrapFunc name sol = buildFunctionWrapper name sol solutionType argDecl argLine timeInMicro 
     formatResultList results =
       let items = intercalate "," $ map format results in
         printf "[%s]" items :: String
@@ -149,6 +149,8 @@ runInterpreter' timeInMicro exec =
 
 validateSolution :: [String] -> String -> FunctionSignature -> Int -> IO (Either InterpreterError FunctionCrashDesc)
 validateSolution modules solution funcSig time = do
+  -- * note: we run different instances of interpreter here as one may timeout
+  -- * we don't want the timeout one affects the other
   resultF <- run alwaysFailProp
   resultS <- run neverFailProp
 
@@ -172,6 +174,7 @@ validateSolution modules solution funcSig time = do
           Right Nothing -> Right $ AlwaysSucceed $ caseToInput resultF
 
           Right (Just (CounterExample _ _)) -> Right $ PartialFunction (caseToInput resultF) (caseToInput resultS)
+          _ -> error (show resultF ++ "???" ++ show resultS)
 
     caseToInput :: Either InterpreterError SmallCheckResult -> SampleInput
     caseToInput (Right (Just (CounterExample args _))) = args
@@ -277,22 +280,23 @@ toParamListDecl args =
     formatParam = printf "arg_%d" :: Int -> String
 
     toDecl :: (Int, ArgumentType) -> String
-    toDecl (index, _) = printf "(arg_%d)" index
+    toDecl (index, _) = printf "(Inner arg_%d)" index
       
       
 getOutput :: [String] -> SampleInput -> String -> FunctionSignature -> IO (Either InterpreterError IOExample)
 getOutput modules sampleInput solution funcSig =
     runInterpreter' defaultInterpreterTimeoutMicro $ do
-      let (argLine, _) = toParamListDecl (_argsType funcSig)
+      let (argLine, paramDecl) = toParamListDecl (_argsType funcSig)
       let sampleInput' = unwords sampleInput
       let solType = show funcSig
-      let solWrapper = buildFunctionWrapper "wrappedSolution" solution solType argLine defaultTimeoutMicro 
+      let solWrapper = buildFunctionWrapper "wrappedSolution" solution solType paramDecl argLine defaultTimeoutMicro 
       let template = unwords ["%s catch",
                               "(evaluate (show $ sol_wrappedSolution %s))",
                               "(\\(e :: SomeException) -> return (show e))"]
       let prog = printf template solWrapper sampleInput'
+      liftIO $ putStrLn prog
       set [languageExtensions := [ScopedTypeVariables]]
-      setImportsQ (zip ("Control.Exception":modules) (repeat Nothing))
+      setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
       
       val <- interpret prog (as :: IO String) >>= liftIO
       return (sampleInput, val)

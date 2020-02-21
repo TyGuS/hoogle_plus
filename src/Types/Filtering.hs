@@ -15,7 +15,9 @@ defaultMaxOutputLength = 100 :: Int
 
 frameworkModules =
   zip [ "Test.SmallCheck"
-  , "Test.SmallCheck.Drivers" ] (repeat Nothing)
+  , "Test.SmallCheck.Drivers"
+  , "Test.LeanCheck.Function.ShowFunction"
+  , "Control.Exception" ] (repeat Nothing)
 
   ++ [("Test.ChasingBottoms", Just "CB")]
 
