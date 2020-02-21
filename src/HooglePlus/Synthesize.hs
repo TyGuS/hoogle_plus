@@ -79,6 +79,9 @@ synthesize searchParams goal messageChan = do
     env <-
         if useHO -- add higher order query arguments
             then do
+    --------------------------
+    -- IGNORE PARTS BELOW THIS
+    --------------------------
                 let args = env' ^. arguments
                 let hoArgs = Map.filter (isFunctionType . toMonotype) args
                 let hoFuns = map (\(k, v) -> (k ++ hoPostfix, toFunType v)) (Map.toList hoArgs)
@@ -87,6 +90,9 @@ synthesize searchParams goal messageChan = do
                         { _symbols = rawSyms `Map.union` Map.fromList hoFuns
                         , _hoCandidates = hoCands ++ map fst hoFuns
                         }
+    --------------------------
+    -- IGNORE PARTS ABOVE THIS
+    --------------------------
             else do
                 let syms = Map.filter (not . isHigherOrder . toMonotype) rawSyms
                 return $
