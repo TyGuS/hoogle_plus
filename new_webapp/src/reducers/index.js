@@ -5,7 +5,14 @@ const initialState = {
         {
             code: "\\arg0 arg1-> replicate arg0 arg1",
             examples: [
-                ["x", "2", "xx"]
+                ["x", "2", "xx"],
+                ["x", "0", ""],
+            ]
+        },
+        {
+            code: "\\arg0 arg1-> replicate2 arg0 arg1",
+            examples: [
+                ["y", "3", "yyy"]
             ]
         }
     ]
