@@ -15,25 +15,36 @@ defaultMaxOutputLength = 100 :: Int
 
 frameworkModules =
   zip [ "Test.SmallCheck"
-  , "Test.SmallCheck.Drivers" ] (repeat Nothing)
+  , "Test.SmallCheck.Drivers"
+  , "Test.LeanCheck.Function.ShowFunction"
+  , "Control.Exception" ] (repeat Nothing)
 
   ++ [("Test.ChasingBottoms", Just "CB")]
 
 type SmallCheckResult = Maybe PropertyFailure
-type DistinguishedInput = (String, String)
+
+-- [arg0, arg1, arg2, ...] :: SampleInput
+type SampleInput = [String]
+
+-- sample input generated during duplicate-check phase
+-- currently we can only generate two as a tuple
+type DistinguishedInput = (SampleInput, SampleInput)
+
+-- input-output pair
+type IOExample = (SampleInput, String)
 
 data FunctionCrashDesc = 
-    AlwaysSucceed String
-  | AlwaysFail String
-  | PartialFunction String String
-  | UnableToCheck String
+    AlwaysSucceed SampleInput
+  | AlwaysFail SampleInput
+  | PartialFunction SampleInput SampleInput
+  | UnableToCheck SampleInput
   deriving (Eq)
 
 instance Show FunctionCrashDesc where
-  show (AlwaysSucceed i) = "Total: " ++ i
-  show (AlwaysFail i) = "Fail: " ++ i
-  show (PartialFunction s f) = "Partial: succeeds on " ++ s ++ "; fails on " ++ f
-  show (UnableToCheck ex) = "Exception: " ++ ex
+  show (AlwaysSucceed i) = "Total: " ++ (unwords i)
+  show (AlwaysFail i) = "Fail: " ++ (unwords i)
+  show (PartialFunction s f) = "Partial: succeeds on " ++ (unwords s) ++ "; fails on " ++ (unwords f)
+  show (UnableToCheck ex) = "Exception: " ++ show ex
 
 data ArgumentType =
     Concrete    String
@@ -79,7 +90,7 @@ instance Show FunctionSignature where
 data FilterState = FilterState {
   inputs :: [DistinguishedInput],
   solutions :: [String],
-  solutionExamples :: [(String, FunctionCrashDesc)]
+  solutionExamples :: [(String, IOExample)]
 } deriving (Eq, Show)
 
 emptyFilterState = FilterState {

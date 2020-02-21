@@ -41,6 +41,7 @@ dependencies:
 - http-conduit
 - http-types
 - indents
+- leancheck
 - lens
 - logict
 - MissingH

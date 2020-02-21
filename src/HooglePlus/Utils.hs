@@ -17,8 +17,9 @@ import Control.Monad.Trans
 import CorePrep
 import CoreSyn
 import Data.Data
+import Data.Ord
 import Data.Either
-import Data.List (isInfixOf, isPrefixOf, intercalate)
+import Data.List (nub, sortOn, groupBy, isInfixOf, isPrefixOf, intercalate)
 import Data.List.Split (splitOn)
 import Data.Maybe
 import Data.Typeable
@@ -41,6 +42,7 @@ import Text.Printf
 import Text.Regex
 import Var hiding (Id)
 import Data.UUID.V4
+import Debug.Trace
 
 -- Converts the list of param types into a haskell function signature.
 -- Moves typeclass-looking things to the front in a context.
@@ -108,11 +110,16 @@ printSolution solution = do
     putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
     putStrLn "************************************************"
 
-printFilter (FilterState [] [] []) = return ()
-printFilter (FilterState ((s_1, s_2):xs) _ ((_, x): _)) = do
-    putStrLn $ "Sample behavior: " ++ show x
-    putStrLn $ "Differentiated input: " ++ s_1 ++ " and " ++ s_2
-printFilter (FilterState _ _ ((_, x):_)) = putStrLn $ "Sample behavior: " ++ show x
+printIO :: IOExample -> String
+printIO ([], _) = "error????"
+printIO (is, os) = printf "%s ==> %s" (unwords is) os
+
+printFilter (FilterState _ solns samples) = intercalate "\n" (map printOneSol sampleMap)
+    where
+        sampleGroup = groupBy (\x y -> fst x == fst y) (sortOn fst samples)
+        sampleMap = map ((\(x, y) -> (head x, nub y)) . unzip) sampleGroup 
+        sampleMap' = filter (\(s, _) -> s `elem` solns) sampleMap
+        printOneSol (s, ios) = printf "%s\n%s" s (unlines $ map printIO ios)
 
 extractSolution :: Environment -> RType -> UProgram -> ([String], String, String, [(Id, RSchema)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)
