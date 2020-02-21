@@ -96,7 +96,7 @@ class CollectTSVs():
 
     def average_query(self, query_name, exp_name, results):
         numerics = ["totalTime", "constructionTime", "solverTime",
-            "typeCheckerTime", "numOfTransitions"]
+            "typeCheckerTime", "numOfTransitions-trial"]
         average_result = {}
         for numeric in numerics:
             values = []
