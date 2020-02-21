@@ -1,0 +1,48 @@
+route: /search/type
+method: POST
+args: {
+    "id": str,
+    "typeSignature": str,
+    "facts": [
+        [str] # (num of args + 1)
+        ]
+    }
+returns:
+    {
+        "id": uuid-str
+        "results": [
+            {
+                "candidate": ast,
+                "examples": [[str]]
+            }
+        ]
+    }
+
+route: /search/example
+method: POST
+args: {
+    "id": str,
+    "facts": [
+        [str] # (num of args + 1)
+        ]
+    }
+returns:
+    { "typeCandidates": [str] }
+
+route: /stop
+method: POST
+args: {"id": str}
+returns: None
+
+route: /examples
+method: POST
+args: {
+    "id": str,
+    "typeSignature": str,
+    "candidate": str
+    }
+returns: {
+    "examples": [[str]]
+    }
+
+
