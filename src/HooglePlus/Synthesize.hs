@@ -99,7 +99,8 @@ synthesize searchParams goal messageChan = do
                     env'
                         {_symbols = Map.withoutKeys syms $ Set.fromList hoCands, _hoCandidates = []}
     putStrLn $ "Component number: " ++ show (Map.size $ allSymbols env)
-    let args = Monotype destinationType : Map.elems (env ^. arguments)
+    putStrLn $ "Hello world"
+    {- let args = Monotype destinationType : Map.elems (env ^. arguments)
   -- start with all the datatypes defined in the components, first level abstraction
     let rs = _refineStrategy searchParams
     let is =
@@ -119,5 +120,5 @@ synthesize searchParams goal messageChan = do
         (\e ->
              writeChan messageChan (MesgLog 0 "error" (show e)) >>
              writeChan messageChan (MesgClose (CSError e)))
-    return ()
+    return () -}
 
