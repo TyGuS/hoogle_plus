@@ -197,16 +197,6 @@ filterAnsi :: String -> String
 filterAnsi line = subRegex ansiRegex stripped ""
   where stripped = filter (/= '\ESC') line
 
-removeLast :: Char -> String -> String
-removeLast c1 = snd . remLast
-  where
-    remLast :: String -> (Bool, String)
-    remLast [] = (False, [])
-    remLast (c2:cs) =
-      case remLast cs of
-        (True, cs') -> (True, c2:cs')
-        (False, cs') -> if c1 == c2 then (True, []) else (False, c2:cs')
-
 groupTuples :: (Eq a, Ord a) => [(a, [b])] -> [(a, [b])]
 groupTuples = map (\l -> (fst . head $ l, concatMap snd l)) . groupBy ((==) `on` fst)
           . sortBy (comparing fst)

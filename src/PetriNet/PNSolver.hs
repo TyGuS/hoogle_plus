@@ -36,6 +36,7 @@ import HooglePlus.Abstraction
 import HooglePlus.CodeFormer
 import HooglePlus.Refinement
 import HooglePlus.Stats
+import HooglePlus.TypeChecker
 import PetriNet.AbstractType
 import HooglePlus.GHCChecker
 import HooglePlus.FilterTest
@@ -642,11 +643,11 @@ findProgram env dst st ps
         mapping <- gets $ view nameMapping
         writeLog 1 "parseAndCheck" $ text "Find program" <+> pretty (recoverNames mapping prog)
         modify $ set isChecked True
-        btm <- bottomUpCheck env prog
+        btm <- runInChecker $ bottomUpCheck env prog
         writeLog 3 "parseAndCheck" $ text "bottom up checking get program" <+> pretty (recoverNames mapping btm)
         checkStatus <- gets (view isChecked)
         let tyBtm = typeOf btm
-        when checkStatus (solveTypeConstraint env (shape tyBtm) (shape dst))
+        when checkStatus (runInChecker $ solveTypeConstraint env (shape tyBtm) (shape dst))
         tass <- gets (view typeAssignment)
         ifM (gets $ view isChecked)
             (return (Left btm))

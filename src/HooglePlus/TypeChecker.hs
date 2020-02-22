@@ -1,11 +1,26 @@
 module HooglePlus.TypeChecker where
 
+import Database.Convert
+import Database.Util
 import Types.TypeChecker
 import Types.Environment
 import Types.Type
 import Types.Program
+import Types.CheckMonad
+import Types.Common
+import Synquid.Type
+import Synquid.Pretty
+import Synquid.Program
+import PetriNet.Util
 
 import Control.Monad.State
+import Control.Lens
+import Control.Monad.Extra
+import Data.Map (Map)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import Text.Pretty.Simple
+import Data.Maybe
 
 -- bottom up check a program on the concrete type system
 -- at the same time, keep track of the abstract type for each node
@@ -74,33 +89,33 @@ solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ 
   | id == id' = return ()
   | isBound env id && isBound env id' = modify $ set isChecked False
   | isBound env id = do
-    st <- get
-    if id' `Map.member` (st ^. typeAssignment)
+    tass <- gets (view typeAssignment)
+    if id' `Map.member` tass
         then do
-            let typ = fromJust $ Map.lookup id' $ st ^. typeAssignment
+            let typ = fromJust $ Map.lookup id' tass
             writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty typ <+> text "==" <+> pretty tv
             solveTypeConstraint env tv typ
         else unify env id' tv
   | otherwise = do
-    st <- get
-    if id `Map.member` (st ^. typeAssignment)
+    tass <- gets (view typeAssignment)
+    if id `Map.member` tass
         then do
-            let typ = fromJust $ Map.lookup id $ st ^. typeAssignment
+            let typ = fromJust $ Map.lookup id tass
             writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty typ <+> text "==" <+> pretty tv'
             solveTypeConstraint env typ tv'
-        else if id' `Map.member` (st ^. typeAssignment)
+        else if id' `Map.member` tass
             then do
-                let typ = fromJust $ Map.lookup id' $ st ^. typeAssignment
+                let typ = fromJust $ Map.lookup id' tass
                 writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tv <+> text "==" <+> pretty typ
                 solveTypeConstraint env tv typ
             else unify env id tv'
 solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t | isBound env id = modify $ set isChecked False
 solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t = do
-    st <- get
+    tass <- gets (view typeAssignment)
     writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tv <+> text "==" <+> pretty t
-    if id `Map.member` (st ^. typeAssignment)
+    if id `Map.member` tass
         then do
-            let typ = fromJust $ Map.lookup id $ st ^. typeAssignment
+            let typ = fromJust $ Map.lookup id tass
             writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty typ <+> text "==" <+> pretty t
             solveTypeConstraint env typ t
         else unify env id t
@@ -119,7 +134,7 @@ solveTypeConstraint env (ScalarT (DatatypeT id tArgs _) _) (ScalarT (DatatypeT i
     solveTypeConstraint' env (ty:tys) (ty':tys') = do
         writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty ty <+> text "==" <+> pretty ty'
         solveTypeConstraint env ty ty'
-        checked <- gets $ view isChecked
+        checked <- gets (view isChecked)
         -- if the checking between ty and ty' succeeds, proceed to others
         when checked $ solveTypeConstraint' env tys tys'
 solveTypeConstraint env t1 t2 = do
@@ -128,13 +143,14 @@ solveTypeConstraint env t1 t2 = do
 
 -- | unify the type variable with some given type
 -- add the type assignment to our state
-unify :: MonadIO m => Environment -> Id -> SType -> PNSolver m ()
+unify :: MonadIO m => Environment -> Id -> SType -> Checker m ()
 unify env v t =
     if v `Set.member` typeVarsOf t
       then modify $ set isChecked False
       else do
-        tass' <- gets $ view typeAssignment
+        tass' <- gets (view typeAssignment)
         writeLog 3 "unify" $ text (show tass')
         modify $ over typeAssignment (Map.map (stypeSubstitute (Map.singleton v t)))
-        tass <- gets $ view typeAssignment
+        tass <- gets (view typeAssignment)
         modify $ over typeAssignment (Map.insert v (stypeSubstitute tass t))
+

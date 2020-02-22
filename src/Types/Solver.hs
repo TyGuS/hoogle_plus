@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 module Types.Solver where
 
 import Data.Map (Map)
@@ -18,6 +19,7 @@ import Types.Type
 import Types.Common
 import Types.Encoder
 import Types.Filtering
+import Types.CheckMonad
 
 rootNode = AScalar (ATypeVarT varName)
 pairProj = "pair_match"
@@ -87,3 +89,12 @@ emptySolverState = SolverState {
 makeLenses ''SolverState
 
 type PNSolver m = StateT SolverState m
+
+instance Monad m => CheckMonad (PNSolver m) where
+    getNameCounter = gets (view nameCounter)
+    setNameCounter nc = modify (set nameCounter nc)
+    getNameMapping = gets (view nameMapping)
+    setNameMapping nm = modify (set nameMapping nm)
+    getIsChecked = gets (view isChecked)
+    setIsChecked c = modify (set isChecked c)
+    getMessageChan = gets (view messageChan)

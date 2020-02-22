@@ -1,5 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
-
+{-# LANGUAGE FlexibleContexts #-} 
 module PetriNet.Util where
 
 import Types.Type
@@ -7,8 +6,12 @@ import Types.Common
 import Types.Solver
 import Types.Abstract
 import Types.Experiments
+import Types.Environment
 import Types.Program
 import Types.Encoder
+import Types.CheckMonad
+import Types.TypeChecker (Checker)
+import qualified Types.TypeChecker as Checker
 import Synquid.Program
 import Synquid.Logic hiding (varName)
 import Synquid.Type
@@ -40,9 +43,9 @@ getExperiment exp = gets $ view (searchParams . exp)
 -------------------------------------------------------------------------------
 -- | helper functions
 -------------------------------------------------------------------------------
-writeLog :: MonadIO m => Int -> String -> Doc -> PNSolver m ()
+writeLog :: (CheckMonad (t m), MonadIO (t m), MonadIO m) => Int -> String -> Doc -> t m ()
 writeLog level tag msg = do
-    mesgChan <- gets $ view messageChan
+    mesgChan <- getMessageChan
     liftIO $ writeChan mesgChan (MesgLog level tag $ show $ plain msg)
     -- if level <= 3 then trace (printf "[%s]: %s\n" tag (show $ plain msg)) $ return () else return ()
 
@@ -74,21 +77,50 @@ var2any env t@(ScalarT (TypeVarT _ id) _) = AnyT
 var2any env (ScalarT (DatatypeT id args l) r) = ScalarT (DatatypeT id (map (var2any env) args) l) r
 var2any env (FunctionT x tArg tRet) = FunctionT x (var2any env tArg) (var2any env tRet)
 
-freshId :: MonadIO m => Id -> PNSolver m Id
+freshId :: (CheckMonad (t m), MonadIO m) => Id -> t m Id
 freshId prefix = do
-    indices <- gets (^. nameCounter)
+    indices <- getNameCounter
     let idx = Map.findWithDefault 0 prefix indices
-    modify (over nameCounter $ Map.insert prefix (idx+1))
+    setNameCounter $ Map.insert prefix (idx+1) indices
     return $ prefix ++ show idx
 
 -- | Replace all bound type variables with fresh free variables
-freshType :: MonadIO m => RSchema -> PNSolver m RType
+freshType :: (CheckMonad (t m), MonadIO m) => RSchema -> t m RType
 freshType = freshType' Map.empty []
   where
     freshType' subst constraints (ForallT a sch) = do
         a' <- freshId "A"
         freshType' (Map.insert a (vart a' ftrue) subst) (a':constraints) sch
     freshType' subst constraints (Monotype t) = return (typeSubstitute subst t)
+
+findSymbol :: (CheckMonad (t m), MonadIO (t m), MonadIO m) => Environment -> Id -> t m RType
+findSymbol env sym = do
+    nameMap <- getNameMapping
+    let name = fromMaybe sym (Map.lookup sym nameMap)
+    case lookupSymbol name 0 env of
+        Nothing ->
+            case lookupSymbol ("(" ++ name ++ ")") 0 env of
+                Nothing -> do
+                    setIsChecked False
+                    writeLog 2 "findSymbol" $ text "cannot find symbol" <+> text name <+> text "in the current environment"
+                    return AnyT
+                Just sch -> freshType sch
+        Just sch -> freshType sch
+
+runInChecker :: MonadIO m => Checker m a -> PNSolver m a
+runInChecker checker = do
+    st <- get
+    let typingState = Checker.CheckerState (st ^. nameCounter) 
+                                           (st ^. isChecked) 
+                                           (st ^. typeAssignment) 
+                                           (st ^. nameMapping)
+                                           (st ^. messageChan)
+    (a, s) <- lift $ runStateT checker typingState
+    modify $ set nameCounter (s ^. Checker.nameCounter)
+    modify $ set isChecked (s ^. Checker.isChecked)
+    modify $ set typeAssignment (s ^. Checker.typeAssignment)
+    modify $ set nameMapping (s ^. Checker.nameMapping)
+    return a
 
 freshAbstract :: MonadIO m => [Id] -> AbstractSkeleton -> PNSolver m AbstractSkeleton
 freshAbstract bound t = do
@@ -136,3 +168,14 @@ groupSignatures sigs = do
     })
     stats <- gets $ view solverStats
     return (t2g, groupMap)
+
+removeLast :: Char -> String -> String
+removeLast c1 = snd . remLast
+  where
+    remLast :: String -> (Bool, String)
+    remLast [] = (False, [])
+    remLast (c2:cs) =
+      case remLast cs of
+        (True, cs') -> (True, c2:cs')
+        (False, cs') -> if c1 == c2 then (True, []) else (False, c2:cs')
+

@@ -19,6 +19,7 @@ import Types.Program
 import Types.Solver
 import Types.Type
 import HooglePlus.Utils
+import Examples.ExampleChecker
 
 import Control.Applicative ((<$>))
 import Control.Concurrent.Chan
@@ -66,6 +67,8 @@ envToGoal env queryStr = do
 
 synthesize :: SearchParams -> Goal -> Chan Message -> IO ()
 synthesize searchParams goal messageChan = do
+    parseExample ["[1,2,3]", "1", "'a'", "1.2", "Just 1", "Nothing", "\\x -> x + 1"]
+    error "stop after parsing"
     let env' = gEnvironment goal
     let destinationType = lastType $ toMonotype $ gSpec goal
     let useHO = _useHO searchParams

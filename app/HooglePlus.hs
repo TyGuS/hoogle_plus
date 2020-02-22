@@ -9,13 +9,11 @@ import Synquid.Error
 import Synquid.Pretty
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Resolver (resolveDecls, ResolverState (..), initResolverState, resolveSchema)
-import Synquid.SolverMonad
 import Types.Generate hiding (files)
 import Types.Experiments
 import Types.Environment
 import Types.Program
 import Types.Solver
-import Synquid.HtmlOutput
 import Database.Presets
 import Database.Environment
 import Database.Convert
@@ -214,18 +212,6 @@ mode = cmdArgsMode $ modes [synt, generate] &=
   program programName &=
   summary (programName ++ " v" ++ versionName ++ ", " ++ showGregorian releaseDate)
 
--- | Output format
-data OutputFormat = Plain -- ^ Plain text
-  | Ansi -- ^ Text with ANSI-terminal special characters
-  | Html -- ^ HTML
-  deriving (Typeable, Data, Eq, Show)
-
--- | 'printDoc' @format doc@ : print @doc@ to the console using @format@
-printDoc :: OutputFormat -> Doc -> IO()
-printDoc Plain doc = putDoc (plain doc) >> putStr "\n"
-printDoc Ansi doc = putDoc doc >> putStr "\n"
-printDoc Html doc = putStr (showDocHtml (renderPretty 0.4 100 doc))
-
 -- | Parameters of the synthesis
 data SynquidParams = SynquidParams {
     envPath :: String -- ^ Path to the environment file
@@ -275,5 +261,3 @@ executeSearch synquidParams searchParams query = do
         mapM (printf "[%s]: %s\n" tag) (lines msg)
         hFlush stdout)
       readChan ch >>= (handleMessages ch)
-
-pdoc = printDoc Plain
