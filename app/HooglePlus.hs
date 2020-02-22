@@ -26,6 +26,7 @@ import HooglePlus.Stats
 import Types.Encoder
 import HooglePlus.GHCChecker
 import HooglePlus.Utils
+import Examples.ExampleChecker
 
 import Control.Monad
 import Control.Lens ((^.))
@@ -228,6 +229,7 @@ precomputeGraph opts = generateEnv opts >>= writeEnv (Types.Generate.envPath opt
 -- | Parse and resolve file, then synthesize the specified goals
 executeSearch :: SynquidParams -> SearchParams  -> String -> IO ()
 executeSearch synquidParams searchParams query = do
+  parseExample ["[1,2,3]", "Just 2", "Nothing", "\\x -> x : []"]
   env <- readEnv
   goal <- envToGoal env query
   solverChan <- newChan
