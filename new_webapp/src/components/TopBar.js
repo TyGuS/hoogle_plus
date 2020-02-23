@@ -1,13 +1,15 @@
 import React from "react";
+import FactTable from "./FactTable";
 
 export const TopBar = () => (
     <div>
-    <h1 class="hplus_font">
-          <a href="." class="nav-link" id="home">Hoogle+</a>
+    <h1 className="hplus_font">
+          <a href="." className="nav-link" id="home">Hoogle+</a>
           <br></br>
           </h1>
     <h5> Welcome to the Hoogle+ Demo </h5>
     <p> {flavorText} </p>
+    <FactTable/>
     </div>
 );
 

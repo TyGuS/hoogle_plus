@@ -1,6 +1,7 @@
 import React, {Component } from "react";
 import {connect} from "react-redux";
 import {sendSearch} from "../actions/index";
+import Facts from "./Facts";
 
 const mapDispatchToProps = (dispatch) => {
     return {
@@ -28,10 +29,12 @@ class ConnectedSearchBar extends Component {
 
     render() {
         return (
+            <div>
             <form onSubmit={this.handleSubmit}>
                 <input type="text" name="value" value={this.state.value} onChange={this.handleChange}/>
                 <input type="submit" value="Search" />
             </form>
+            </div>
         );
     }
 }
