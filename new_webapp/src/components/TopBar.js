@@ -1,5 +1,4 @@
 import React from "react";
-import FactTable from "./FactTable";
 
 export const TopBar = () => (
     <div>
@@ -9,7 +8,6 @@ export const TopBar = () => (
           </h1>
     <h5> Welcome to the Hoogle+ Demo </h5>
     <p> {flavorText} </p>
-    <FactTable/>
     </div>
 );
 

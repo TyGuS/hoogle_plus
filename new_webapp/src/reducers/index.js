@@ -2,7 +2,7 @@ import * as Consts from "../constants/action-types";
 import { combineReducers } from "redux";
 
 const initialState = {
-    arguments: 2,
+    numArgs: 2,
     searchingStatus: Consts.DONE,
     facts: {
         editingCells: [],

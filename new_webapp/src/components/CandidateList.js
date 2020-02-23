@@ -1,20 +1,27 @@
 import React from "react";
 import { connect } from "react-redux";
-import Candidate from "./Candidate";
+import Example from "./Example";
+import UsageTable from "./UsageTable";
 
 const mapStateToProps = state => {
     return {
-        candidates: state.candidates
+        candidates: state.candidates,
+        numArgs: state.numArgs,
     };
 }
 
-const CandidateListBase = ({candidates}) => (
-    <ul>
-        {candidates.map((c, idx) => (
-            <Candidate key={idx} idx={idx + 1} {...c}>
-            </Candidate>
+const CandidateListBase = ({candidates, numArgs}) => (
+    <div>
+        {candidates.map(({code, examples}, idx) => (
+            <div key={idx}>
+                <div>{idx + 1}: Candidate: <code>{code}</code></div>
+                <UsageTable
+                    rows={examples}
+                    numColumns={numArgs + 1}
+                />
+            </div>
         ))}
-    </ul>
+    </div>
 );
 
 const CandidateList = connect(mapStateToProps)(CandidateListBase);

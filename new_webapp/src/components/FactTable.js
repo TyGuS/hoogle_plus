@@ -10,11 +10,6 @@ import {
 import { connect } from 'react-redux';
 import { setFacts, setEditingCells } from '../actions';
 
-// import {
-//   generateRows,
-//   defaultColumnValues,
-// } from '../../../demo-data/generator';
-
 const getRowId = row => row.id;
 
 const FocusableCell = ({ onClick, ...restProps }) => (
@@ -23,7 +18,7 @@ const FocusableCell = ({ onClick, ...restProps }) => (
 
 const mapStateToProps = (state) => {
   return {
-    numColumns: state.arguments + 1,
+    numColumns: state.numArgs + 1,
     rows: generateRows(state.facts.rows),
     editingCells: state.facts.editingCells,
   }
@@ -54,14 +49,7 @@ const generateRows = (facts) => {
   //     arg0: "foo",
   //     arg1: "bar",
   //     arg2: "bax"
-  //   },
-  //   {
-  //     id: 1,
-  //     arg0: "foo",
-  //     arg1: "bar",
-  //     arg2: "bax"
-  //   }
-  // ]
+  //   }]
 }
 
 const FactTableBase = ({numColumns, rows, setFacts, editingCells, setEditingCells}) => {
@@ -70,11 +58,6 @@ const FactTableBase = ({numColumns, rows, setFacts, editingCells, setEditingCell
     cols = cols.concat({name: "arg" + index, title: "arg" + index});
   }
   const [columns] = useState(cols);
-//   const [rows, setRows] = useState(generateRows({
-//     columnValues: { id: ({ index }) => index, ...defaultColumnValues },
-//     length: 8,
-//   }));
-  // const [editingCells, setEditingCells] = useState([]);
 
   const commitChanges = ({ added, changed, deleted }) => {
     let changedRows;
