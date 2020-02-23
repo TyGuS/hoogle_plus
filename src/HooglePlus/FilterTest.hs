@@ -170,23 +170,25 @@ validateSolution modules solution funcSig time = do
       Either InterpreterError SmallCheckResult -> Either InterpreterError SmallCheckResult
         -> Either InterpreterError FunctionCrashDesc
     evaluateSmallCheckResult resultF resultS =
-      let results = [resultS, resultF] in
-        case resultF of
-          Left (UnknownError "timeout") -> Right $ AlwaysFail $ caseToInput results
-          Right (_, Nothing) -> Right $ AlwaysFail $ caseToInput results
-          _ -> case resultS of
-            Left (UnknownError "timeout") -> Right $ AlwaysSucceed $ caseToInput results
-            Right (_, Nothing) -> Right $ AlwaysSucceed $ caseToInput results
+      case resultF of
+        Left (UnknownError "timeout") -> Right $ AlwaysFail $ caseToInput resultS
+        Right (_, Nothing) -> Right $ AlwaysFail $ caseToInput resultS
+        _ -> case resultS of
+          Left (UnknownError "timeout") -> Right $ AlwaysSucceed $ caseToInput resultF
+          Right (_, Nothing) -> Right $ AlwaysSucceed $ caseToInput resultF
 
-            Right (_, Just (CounterExample _ _)) -> Right $ PartialFunction (caseToInput [resultF]) (caseToInput [resultS])
-            _ -> error (show resultF ++ "???" ++ show resultS)
+          Right (_, Just (CounterExample _ _)) -> Right $ PartialFunction [caseToInput resultF, caseToInput resultS]
+          _ -> error (show resultF ++ "???" ++ show resultS)
 
-    caseToInput :: [Either InterpreterError SmallCheckResult] -> SampleInput
-    caseToInput xs = concat $ catMaybes $ map tryGetValue xs
-    tryGetValue (Right (output, Just (CounterExample args _))) = Just (output : args)
-    tryGetValue _ = Nothing
+    caseToInput :: Either InterpreterError SmallCheckResult -> IOExample
+    caseToInput x = output'
+      where
+        (Right (output, Just (CounterExample args _))) = x
+        output' = preprocessOutput (unwords args) output
 
-    
+    preprocessOutput :: String -> String -> String
+    preprocessOutput input output = head $ filter (isInfixOf input) ios
+      where ios = nub $ filter ([] /=) $ lines output
 
 compareSolution :: [String] -> String -> [String] -> FunctionSignature -> Int -> IO (Either InterpreterError SmallCheckResult)
 compareSolution modules solution otherSolutions funcSig time =
@@ -207,31 +209,20 @@ runChecks env goalType prog =
 
 checkSolutionNotCrash :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
 checkSolutionNotCrash modules sigStr body = do
-  fs@(FilterState _ _ samples) <- get
+  fs@(FilterState _ _ examples) <- get
   result <- liftIO executeCheck
 
-  let (pass, desc) = case result of
-                          Left err -> (True, [])
-                          Right (AlwaysFail example) -> (False, [])
-                          Right (AlwaysSucceed example) -> (True, example)
-                          Right (PartialFunction example _) -> (True, example)
+  let pass = case result of
+              Right (AlwaysFail example) -> False
+              _ -> True
 
-  liftIO $ print desc
-
-  -- todo: fix here
-  -- if not $ null desc
-  --   then do {
-  --     result <- liftIO $ getOutput modules desc body funcSig;
-  --     case result of
-  --       Right io -> do
-  --         modify $ const fs {solutionExamples = (body, io):samples};
-  --         return pass
-  --       _ -> return pass
-  --   }
-  --   else
-  --     return pass
-  return pass
-                          
+  case result of
+    Right desc -> do
+      modify $ const fs {
+        solutionExamples = (body, desc) : examples
+      }
+      return pass
+    _ -> return pass
 
   where
     handleNotSupported = (`catch` ((\ex -> return (Left (UnknownError $ show ex))) :: NotSupportedException -> IO (Either InterpreterError FunctionCrashDesc)))

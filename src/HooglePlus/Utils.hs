@@ -110,7 +110,12 @@ printSolution solution = do
     putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
     putStrLn "************************************************"
 
-printFilter (FilterState _ solns samples) = "todo: print Filter"
+printFilter (FilterState _ solns samples) = unlines $ map printSol solns
+    where
+        printSol :: String -> String
+        printSol sol =
+            let [(_, desc)] = filter ((== sol) . fst) samples in
+                unlines [sol, show desc]
 
 extractSolution :: Environment -> RType -> UProgram -> ([String], String, String, [(Id, RSchema)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)
