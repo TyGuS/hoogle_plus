@@ -119,9 +119,15 @@ printFilter (FilterState _ solns samples) = unlines $ map printSol solns
                 unlines [sol, show desc]
 -}
 
-printFilter (FilterState _ solns samples) = "filter complete"
-printSolutionState solution (FilterState _ _ samples) =
-    let [(_, desc)] = filter ((== solution) . fst) samples in show desc
+printSolutionState solution (FilterState _ sols samples diffExamples) = unlines [ios, diffs]
+    where
+        ios = let [(_, desc)] = filter ((== solution) . fst) samples in show desc
+        diffs = unlines $ map showDifferentiations diffExamples
+        
+        showDifferentiations :: DiffInstance -> String
+        showDifferentiations (args, outs) = unlines (args : zipWith combineSolutionOutput sols outs)
+
+        combineSolutionOutput sol out = printf "%s ==> %s" sol out :: String
 
 extractSolution :: Environment -> RType -> UProgram -> ([String], String, String, [(Id, RSchema)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)

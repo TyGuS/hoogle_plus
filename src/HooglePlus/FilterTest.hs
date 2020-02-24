@@ -124,9 +124,9 @@ buildDupCheckProp (sol, otherSols) funcSig timeInMicro depth =
       [ printf "let dupProp = existsUnique $ \\%s -> monadic $ do {" argDecl
       , printf "evaluated <- mapM (\\f -> f %s) (%s);" argLine (formatResultList otherSols')
       , printf "resultL <- lhs %s;" argLine
-      , printf "return $ not (resultL `Prelude.elem` evaluated)"
+      , printf "if (not (resultL `Prelude.elem` evaluated)) then ((printDupResult %s (resultL:evaluated)) >> return True) else (return False)" argShow
       , "} in"
-      , printf "smallCheckM %d dupProp" depth] :: String
+      , printf "capture (smallCheckM %d dupProp)" depth] :: String
 
     wrapFunc name sol = buildFunctionWrapper name sol solutionType params timeInMicro False
     formatResultList results =
@@ -190,13 +190,15 @@ validateSolution modules solution funcSig time = do
     preprocessOutput input output = head $ filter (isInfixOf input) ios
       where ios = nub $ filter ([] /=) $ lines output
 
-compareSolution :: [String] -> String -> [String] -> FunctionSignature -> Int -> IO (Either InterpreterError SmallCheckResult)
+compareSolution :: [String] -> String -> [String] -> FunctionSignature -> Int -> IO (Either InterpreterError (SmallCheckResult, [DiffInstance]))
 compareSolution modules solution otherSolutions funcSig time =
   runInterpreter' defaultInterpreterTimeoutMicro $ do
     setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
 
     let prop = buildDupCheckProp (solution, otherSolutions) funcSig time defaultDepth
-    interpret prop (as :: IO SmallCheckResult) >>= liftIO
+    result@(output, _) <- interpret prop (as :: IO SmallCheckResult) >>= liftIO
+    examples <- mapM (`interpret` (as :: DiffInstance)) (filter (not . null) $ lines output)
+    return (result, examples)
 
 runChecks :: MonadIO m => Environment -> RType -> UProgram -> FilterTest m Bool
 runChecks env goalType prog = do
@@ -212,12 +214,14 @@ runChecks env goalType prog = do
              , checkDuplicates]
 
     runChecks = and <$> mapM (\f -> f modules funcSig body) checks
-    runPrints state = putStrLn body >> putStrLn (printSolutionState body state)
-    
+    runPrints state = do
+      putStrLn "\n*******************FILTER*********************"
+      putStrLn body
+      putStrLn (printSolutionState body state)
 
 checkSolutionNotCrash :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
 checkSolutionNotCrash modules sigStr body = do
-  fs@(FilterState _ _ examples) <- get
+  fs@(FilterState _ _ examples _) <- get
   result <- liftIO executeCheck
 
   let pass = case result of
@@ -240,38 +244,36 @@ checkSolutionNotCrash modules sigStr body = do
 
 checkDuplicates :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
 checkDuplicates modules sigStr solution = do
-  fs@(FilterState is solns samples) <- get
-
-  result <- liftIO $ compareSolution modules solution solns funcSig defaultTimeoutMicro
-  case result of
-    Left (UnknownError "timeout") -> return False
-    Left err -> do
-      modify $ const fs {solutions = solution:solns}
+  fs@(FilterState is solns samples _) <- get
+  case solns of
+    [] -> do
+      modify $ const fs {solutions = solution:solns} 
       return True
+    _ -> do
+      result <- liftIO $ compareSolution modules solution solns funcSig defaultTimeoutMicro
+      case result of
+        Left (UnknownError "timeout") -> return False
+        Left err -> do
+          liftIO $ print ("error: " ++ show err)
+          modify $ const fs {solutions = solution:solns}
+          return True
 
-    Right (_, r@(Just AtLeastTwo {})) -> do
-      let [i1, i2] = caseToInput r
-      modify $ const fs {
-        inputs = if null solns then is else (i1, i2):is,
-        solutions = solution : solns
-      }
-      return True
+        Right ((_, r@(Just AtLeastTwo {})), examples) -> do
+          let [i1, i2] = caseToInput r
+          modify $ const fs {
+            inputs = if null solns then is else (i1, i2):is,
+            solutions = solution : solns,
+            differentiateExamples = examples
+          }
+          return True
 
-    Right (_, Just NotExist) -> return False
-    Right (_, Nothing) -> return False
-    _ -> return False
+        Right ((_, Just NotExist), _) -> return False
+        Right ((_, Nothing), _) -> return False
+        _ -> return False
 
   where
     funcSig = (instantiateSignature . parseTypeString) sigStr
-
     caseToInput (Just (AtLeastTwo i_1 _ i_2 _)) = [i_1, i_2]
-
-    -- todo: fix logic
-    -- getSucceedRes params s = do
-    --     es <- mapM (\p -> getOutput modules p s funcSig) params
-    --     return $ zip (repeat s) (filter (not . null) (rights es))
-
-    -- overallSolutions params = mapM (getSucceedRes params)
 
 -- Function Signature -> (Parameter Declaration, Arguments, [show Arguments])
 -- they may differ for higher-order functions

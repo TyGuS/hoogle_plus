@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, LambdaCase #-}
 module InternalTypeGen where
 
 import Data.List (isInfixOf)
@@ -26,9 +26,15 @@ instance (SF.ShowFunction a) => Show (Inner a) where
   show (Inner fcn) = SF.showFunctionLine 4 fcn
 
 formOutput :: [String] -> CB.Result String -> String
-formOutput args ret = unwords args ++ " ==> " ++ ret'
-  where ret' = case ret of
-                CB.Value a | "_|_" `isInfixOf` a -> "bottom"
-                CB.Value a -> a
-                CB.NonTermination -> "diverge"
-                CB.Exception ex -> show ex
+formOutput args ret = unwords args ++ " ==> " ++ (showCBResult ret)
+
+printDupResult :: [String] -> [CB.Result String] -> IO ()
+printDupResult args rets = (putStrLn . show) result
+  where result = (unwords args, map showCBResult rets) :: (String, [String])
+
+showCBResult :: CB.Result String -> String
+showCBResult = \case
+                  CB.Value a | "_|_" `isInfixOf` a -> "bottom"
+                  CB.Value a -> a
+                  CB.NonTermination -> "diverge"
+                  CB.Exception ex -> show ex
