@@ -199,13 +199,21 @@ compareSolution modules solution otherSolutions funcSig time =
     interpret prop (as :: IO SmallCheckResult) >>= liftIO
 
 runChecks :: MonadIO m => Environment -> RType -> UProgram -> FilterTest m Bool
-runChecks env goalType prog =
-  and <$> mapM (\f -> f modules funcSig body) checks
+runChecks env goalType prog = do
+  result <- runChecks
+
+  state <- get
+  when result $ liftIO $ runPrints state
+
+  return result
   where
     (modules, funcSig, body, _) = extractSolution env goalType prog
-
     checks = [ checkSolutionNotCrash
              , checkDuplicates]
+
+    runChecks = and <$> mapM (\f -> f modules funcSig body) checks
+    runPrints state = putStrLn body >> putStrLn (printSolutionState body state)
+    
 
 checkSolutionNotCrash :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
 checkSolutionNotCrash modules sigStr body = do
