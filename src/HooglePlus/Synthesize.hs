@@ -109,7 +109,8 @@ synthesize searchParams goal examples messageChan = do
     catch
         (do
             -- before synthesis, first check that user has provided valid examples
-            checkExamples env' goalType examples messageChan
+            let exWithOutputs = filter ((/=) "??" . output) examples
+            checkExamples env' goalType exWithOutputs messageChan
             evalStateT (runPNSolver env goalType examples) is)
         (\e ->
              writeChan messageChan (MesgLog 0 "error" (show e)) >>

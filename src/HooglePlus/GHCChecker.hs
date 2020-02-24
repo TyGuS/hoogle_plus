@@ -146,7 +146,6 @@ check_ :: MonadIO m
        -> FilterTest m (Maybe [Example]) -- return Nothing is check fails, otherwise return a list of updated examples
 check_ env searchParams examples program goalType solverChan = do
     -- type check the examples, raise exceptions if there are
-    liftIO $ checkExamples env goalType examples solverChan
     programPassedChecks <- executeCheck program
     if programPassedChecks then checkOutputs program
                            else return Nothing

@@ -23,7 +23,7 @@ decodeInput bs = case mbInput of
 -- includes: solutions, each solution is an ast
 -- accompanied with several examples
 encodeOutput :: Output -> ByteString
-encodeOutput out = AP.encodePretty out
+encodeOutput out = A.encode out
 
 instance Show Output where
     show = show . encodeOutput 

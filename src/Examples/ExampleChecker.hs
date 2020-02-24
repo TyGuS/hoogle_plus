@@ -1,6 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
+{-# LANGUAGE ScopedTypeVariables #-} 
 module Examples.ExampleChecker where
 
 import Types.Program
