@@ -24,7 +24,6 @@ export const addFact = makeActionCreator(ADD_FACT, "payload");
 export const setFacts = makeActionCreator(SET_FACTS, "payload");
 export const setEditingCells = makeActionCreator(SET_EDITING_CELLS, "payload");
 
-
 // This is where a request needs to be sent to the server
 export const sendSearch = (payload) => (dispatch) => {
     dispatch({

@@ -16,6 +16,7 @@ const CandidateListBase = ({candidates, numArgs}) => (
             <div key={idx}>
                 <div>{idx + 1}: Candidate: <code>{code}</code></div>
                 <UsageTable
+                    code={code}
                     rows={examples}
                     numColumns={numArgs + 1}
                 />
