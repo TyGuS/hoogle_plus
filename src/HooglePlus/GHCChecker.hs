@@ -8,12 +8,15 @@ import Types.Program
 import Types.Type
 import Types.Experiments
 import Types.Filtering
+import Types.IOFormat
 import Synquid.Type
 import Synquid.Util hiding (fromRight)
 import Synquid.Pretty as Pretty
 import Database.Util
 import HooglePlus.Utils
 import HooglePlus.FilterTest (runChecks)
+import HooglePlus.IOFormat
+import Examples.ExampleChecker
 
 import Control.Exception
 import Control.Monad.Trans
@@ -47,6 +50,7 @@ import Data.UUID.V4
 import Control.Concurrent.Chan
 import Control.Monad.Trans.State
 import Control.Concurrent
+import Debug.Trace
 
 showGhc :: (Outputable a) => a -> String
 showGhc = showPpr unsafeGlobalDynFlags
@@ -55,12 +59,12 @@ ourFunctionName = "ghcCheckedFunction"
 
 checkStrictness' :: Int -> String -> String -> [String] -> IO Bool
 checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just libdir) $ do
-    tmpDir <- liftIO $ getTmpDir
+    tmpDir <- liftIO getTmpDir
     -- TODO: can we use GHC to dynamically compile strings? I think not
-    let toModuleImportStr = (printf "import %s\n") :: String -> String
+    let toModuleImportStr = printf "import %s\n" :: String -> String
     let moduleImports = concatMap toModuleImportStr modules
     let sourceCode = printf "module Temp where\n%s\n%s :: %s\n%s = %s\n" moduleImports ourFunctionName typeExpr ourFunctionName lambdaExpr
-    baseName <- liftIO $ nextRandom
+    baseName <- liftIO nextRandom
     let baseNameStr = show baseName ++ ".hs"
     let fileName = tmpDir ++ "/" ++ baseNameStr
     liftIO $ writeFile fileName sourceCode
@@ -69,7 +73,7 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just lib
     env <- getSession
     dflags <- getSessionDynFlags
     let dflags' = (updOptLevel 2 dflags)
-    setSessionDynFlags $ dflags'
+    setSessionDynFlags dflags'
 
     -- Compile to core
     target <- guessTarget fileName Nothing
@@ -85,7 +89,7 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just lib
     -- Run the demand analyzer
     -- prog is [<fooBinding>, <moduleBinding>]
     core' <- liftIO $ core2core env core
-    prog <- liftIO $ (dmdAnalProgram dflags emptyFamInstEnvs $ mg_binds core')
+    prog <- liftIO $ dmdAnalProgram dflags emptyFamInstEnvs $ mg_binds core'
     let decl = findOurBinding (prog :: [CoreBind]) -- only one method
     liftIO $ removeFile fileName
     -- liftIO $ printf "whole program: %s\n" $ showSDocUnsafe $ ppr $ prog
@@ -97,8 +101,8 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just lib
         _ -> error "checkStrictness: recursive expression found"
 
     where
-        findOurBinding bs = head $ filter (\x-> ourFunctionName `isInfixOf` (showSDocUnsafe $ ppr x)) bs
-        getStrictnessSig x = parseStrictnessSig $ showSDocUnsafe $ ppr $ x
+        findOurBinding bs = head $ filter (\x-> ourFunctionName `isInfixOf` showSDocUnsafe (ppr x)) bs
+        getStrictnessSig x = parseStrictnessSig $ showSDocUnsafe $ ppr x
         isStrict n x = let
             strictnessSig = getStrictnessSig x
             argStrictness = splitByArg strictnessSig
@@ -122,31 +126,45 @@ checkStrictness tyclassCount body sig modules =
         (\(SomeException _) -> return False)
         (checkStrictness' tyclassCount body sig modules)
 
-check :: Goal -> SearchParams -> Chan Message -> Chan Message -> IO ()
-check goal searchParams solverChan checkerChan = catch
-    (evalStateT (check_ goal searchParams solverChan checkerChan) emptyFilterState)
+check :: Goal -> SearchParams -> [Example] -> Chan Message -> Chan Message -> IO ()
+check goal searchParams examples solverChan checkerChan = catch
+    (evalStateT (check_ goal searchParams examples solverChan checkerChan) emptyFilterState)
     (\err ->
         writeChan checkerChan (MesgLog 0 "filterCheck" ("error: " ++ show err)) >>
         writeChan checkerChan (MesgClose (CSError err)))
 
-check_ :: MonadIO m => Goal -> SearchParams -> Chan Message -> Chan Message -> FilterTest m ()
-check_ goal searchParams solverChan checkerChan = do
+check_ :: MonadIO m => Goal -> SearchParams -> [Example] -> Chan Message -> Chan Message -> FilterTest m ()
+check_ goal searchParams examples solverChan checkerChan = do
+    -- type check the examples, raise exceptions if there are
+    exres <- liftIO $ checkExamples env (toMonotype $ gSpec goal) examples solverChan
     msg <- liftIO $ readChan solverChan
     handleMessages solverChan checkerChan msg
     return ()
     where
+        mdls = Set.toList (_included_modules env)
+
+        checkOutputs prog stats state = do
+            result <- liftIO $ checkExampleOutput mdls env prog examples
+            case result of
+                Nothing -> next
+                Just exs -> bypass (MesgP (Output prog exs, stats, state)) >> next
+
         handleMessages solverChan checkChan msg =
             case msg of
-                (MesgP (program, stats, _)) -> do
+                MesgP (Output program _, stats, _) -> do
                     programPassedChecks <- executeCheck program
                     state <- get
-                    if programPassedChecks then (bypass (MesgP (program, stats, state))) >> next else next
-                (MesgClose _) -> bypass msg
-                _ -> (bypass msg) >> next
+                    if programPassedChecks then checkOutputs program stats state
+                                           else next
+                MesgClose e -> bypass msg
+                                 CSNormal -> liftIO (print "normal") >> bypass msg
+                                 CSTimeout -> liftIO (print "timeout") >> bypass msg
+                                 CSNoSolution -> liftIO (print "no solution") >> bypass msg
+                                 CSError e -> liftIO (print e) >> bypass msg
+                _ -> bypass msg >> next
 
-            where
-                next = (liftIO . readChan) solverChan >>= handleMessages solverChan checkerChan
-                bypass message = liftIO $ writeChan checkerChan message
+        next = (liftIO . readChan) solverChan >>= handleMessages solverChan checkerChan
+        bypass message = liftIO $ writeChan checkerChan message
 
         (env, destType) = preprocessEnvFromGoal goal
         executeCheck = runGhcChecks searchParams env destType

@@ -67,6 +67,7 @@ dependencies:
 - uuid
 - vector
 - z3
+- aeson-pretty
 
 library:
   source-dirs:

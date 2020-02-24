@@ -57,7 +57,7 @@ import Types.Experiments
 import Types.Program
 import Types.Solver
 import Types.Type
-
+import Types.IOFormat
 
 encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
 encodeFunction id t | pairProj `isPrefixOf` id =
@@ -723,7 +723,7 @@ writeSolution code = do
     loc <- gets $ view currentLoc
     msgChan <- gets $ view messageChan
     let stats' = stats {pathLength = loc}
-    liftIO $ writeChan msgChan (MesgP (code, stats', undefined))
+    liftIO $ writeChan msgChan (MesgP (Output code undefined, stats', undefined))
     -- liftIO $ printSolution code
     -- liftIO $ hFlush stdout
     writeLog 1 "writeSolution" $ text (show stats')

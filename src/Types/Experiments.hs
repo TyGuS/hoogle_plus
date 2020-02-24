@@ -4,6 +4,7 @@ module Types.Experiments where
 import Types.Type
 import Types.Encoder
 import Types.Program
+import Types.IOFormat
 import Synquid.Program
 import Synquid.Error
 import Types.Common
@@ -87,7 +88,7 @@ defaultSearchParams = SearchParams {
   _solutionCnt = 1,
   _useHO = True,
   _refineStrategy = TyGarQ,
-  _stopRefine = False,
+  _stopRefine = True,
   _threshold = 10,
   _incrementalSolving = False,
   _disableDemand = False,
@@ -117,7 +118,7 @@ data ExperimentCourse
 
 data Message
   = MesgClose CloseStatus
-  | MesgP (RProgram, TimeStatistics, FilterState) -- Program with the stats associated with generating it
+  | MesgP (Output, TimeStatistics, FilterState) -- Program with the stats associated with generating it
   | MesgS TimeStatistics
   | MesgLog Int String String -- Log level, tag, message
 
