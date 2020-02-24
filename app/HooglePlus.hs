@@ -234,7 +234,6 @@ precomputeGraph opts = generateEnv opts >>= writeEnv (Types.Generate.envPath opt
 -- | Parse and resolve file, then synthesize the specified goals
 executeSearch :: SynquidParams -> SearchParams -> String -> IO ()
 executeSearch synquidParams searchParams inStr = do
-  print (LB.pack inStr)
   let input = decodeInput (LB.pack inStr)
   let tquery = query input
   let exquery = inExamples input
@@ -242,9 +241,8 @@ executeSearch synquidParams searchParams inStr = do
   goal <- envToGoal env tquery
   solverChan <- newChan
   checkerChan <- newChan
-  forkIO $ synthesize searchParams goal solverChan
-  forkIO $ check goal searchParams exquery solverChan checkerChan
-  readChan checkerChan >>= (handleMessages checkerChan)
+  forkIO $ synthesize searchParams goal exquery solverChan
+  readChan solverChan >>= (handleMessages solverChan)
   where
     logLevel = searchParams ^. explorerLogLevel
     readEnv = do
@@ -261,7 +259,7 @@ executeSearch synquidParams searchParams inStr = do
     handleMessages ch (MesgP (out, stats, _)) = do
       when (logLevel > 0) $ printf "[writeStats]: %s\n" (show stats)
       -- printSolution program
-      print $ encodeOutput out
+      putStrLn $ show $ encodeOutput out
       hFlush stdout
       readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgS debug) = do

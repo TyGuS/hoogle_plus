@@ -126,53 +126,43 @@ checkStrictness tyclassCount body sig modules =
         (\(SomeException _) -> return False)
         (checkStrictness' tyclassCount body sig modules)
 
-check :: Goal -> SearchParams -> [Example] -> Chan Message -> Chan Message -> IO ()
-check goal searchParams examples solverChan checkerChan = catch
-    (evalStateT (check_ goal searchParams examples solverChan checkerChan) emptyFilterState)
-    (\err ->
-        writeChan checkerChan (MesgLog 0 "filterCheck" ("error: " ++ show err)) >>
-        writeChan checkerChan (MesgClose (CSError err)))
+check :: Environment 
+      -> SearchParams 
+      -> [Example] 
+      -> RProgram 
+      -> RType 
+      -> Chan Message 
+      -> IO (Maybe [Example])
+check env searchParams examples program goalType solverChan =
+    evalStateT (check_ env searchParams examples program goalType solverChan) emptyFilterState
 
-check_ :: MonadIO m => Goal -> SearchParams -> [Example] -> Chan Message -> Chan Message -> FilterTest m ()
-check_ goal searchParams examples solverChan checkerChan = do
+check_ :: MonadIO m 
+       => Environment -- symbol environment
+       -> SearchParams -- search parameters: to control what to be checked
+       -> [Example] -- examples for post-filtering
+       -> RProgram -- program to be checked
+       -> RType -- goal type to be checked against
+       -> Chan Message -- message channel for logging
+       -> FilterTest m (Maybe [Example]) -- return Nothing is check fails, otherwise return a list of updated examples
+check_ env searchParams examples program goalType solverChan = do
     -- type check the examples, raise exceptions if there are
-    exres <- liftIO $ checkExamples env (toMonotype $ gSpec goal) examples solverChan
-    msg <- liftIO $ readChan solverChan
-    handleMessages solverChan checkerChan msg
-    return ()
+    liftIO $ checkExamples env goalType examples solverChan
+    programPassedChecks <- executeCheck program
+    if programPassedChecks then checkOutputs program
+                           else return Nothing
     where
         mdls = Set.toList (_included_modules env)
-
-        checkOutputs prog stats state = do
-            result <- liftIO $ checkExampleOutput mdls env prog examples
-            case result of
-                Nothing -> next
-                Just exs -> bypass (MesgP (Output prog exs, stats, state)) >> next
-
-        handleMessages solverChan checkChan msg =
-            case msg of
-                MesgP (Output program _, stats, _) -> do
-                    programPassedChecks <- executeCheck program
-                    state <- get
-                    if programPassedChecks then checkOutputs program stats state
-                                           else next
-                MesgClose e -> bypass msg
-                                 CSNormal -> liftIO (print "normal") >> bypass msg
-                                 CSTimeout -> liftIO (print "timeout") >> bypass msg
-                                 CSNoSolution -> liftIO (print "no solution") >> bypass msg
-                                 CSError e -> liftIO (print e) >> bypass msg
-                _ -> bypass msg >> next
-
-        next = (liftIO . readChan) solverChan >>= handleMessages solverChan checkerChan
-        bypass message = liftIO $ writeChan checkerChan message
-
-        (env, destType) = preprocessEnvFromGoal goal
-        executeCheck = runGhcChecks searchParams env destType
-
+        checkOutputs prog = liftIO $ checkExampleOutput mdls env prog examples
+        executeCheck = runGhcChecks searchParams env (lastType goalType)
 
 -- validate type signiture, run demand analysis, and run filter test
 -- checks the end result type checks; all arguments are used; and that the program will not immediately fail
-runGhcChecks :: MonadIO m => SearchParams -> Environment -> RType -> UProgram -> FilterTest m Bool
+runGhcChecks :: MonadIO m 
+             => SearchParams 
+             -> Environment 
+             -> RType 
+             -> UProgram 
+             -> FilterTest m Bool
 runGhcChecks params env goalType prog = let
     -- constructs program and its type signature as strings
     (modules, funcSig, body, argList) = extractSolution env goalType prog

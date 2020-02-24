@@ -18,6 +18,7 @@ import Types.Experiments
 import Types.Program
 import Types.Solver
 import Types.Type
+import Types.IOFormat
 import HooglePlus.Utils
 import Examples.ExampleChecker
 
@@ -65,10 +66,11 @@ envToGoal env queryStr = do
 
       _ -> error "parse a signature for a none goal declaration"
 
-synthesize :: SearchParams -> Goal -> Chan Message -> IO ()
-synthesize searchParams goal messageChan = do
+synthesize :: SearchParams -> Goal -> [Example] -> Chan Message -> IO ()
+synthesize searchParams goal examples messageChan = do
     let env' = gEnvironment goal
-    let destinationType = lastType $ toMonotype $ gSpec goal
+    let goalType = toMonotype (gSpec goal)
+    let destinationType = lastType goalType
     let useHO = _useHO searchParams
     let rawSyms = env' ^. symbols
     let hoCands = env' ^. hoCandidates
@@ -105,7 +107,10 @@ synthesize searchParams goal messageChan = do
                 , _messageChan = messageChan
                 }
     catch
-        (evalStateT (runPNSolver env destinationType) is)
+        (do
+            -- before synthesis, first check that user has provided valid examples
+            checkExamples env' goalType examples messageChan
+            evalStateT (runPNSolver env goalType examples) is)
         (\e ->
              writeChan messageChan (MesgLog 0 "error" (show e)) >>
              writeChan messageChan (MesgClose (CSError e)) >>

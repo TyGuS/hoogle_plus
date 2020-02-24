@@ -68,6 +68,7 @@ dependencies:
 - vector
 - z3
 - aeson-pretty
+- ghci
 
 library:
   source-dirs:

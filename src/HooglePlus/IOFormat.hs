@@ -24,3 +24,6 @@ decodeInput bs = case mbInput of
 -- accompanied with several examples
 encodeOutput :: Output -> ByteString
 encodeOutput out = AP.encodePretty out
+
+instance Show Output where
+    show = show . encodeOutput 

@@ -43,7 +43,6 @@ import HooglePlus.FilterTest
 import PetriNet.PNEncoder
 import PetriNet.Util
 import Synquid.Error
-import Synquid.Logic hiding (varName)
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Pretty
 import Synquid.Program
@@ -54,6 +53,7 @@ import Types.Common
 import Types.Encoder hiding (incrementalSolving, mustFirers, varName)
 import Types.Environment
 import Types.Experiments
+import Types.IOFormat
 import Types.Program
 import Types.Solver
 import Types.Type
@@ -495,11 +495,13 @@ findProgram :: MonadIO m
             => Environment -- the search environment
             -> RType       -- the goal type
             -> EncodeState -- intermediate encoding state
+            -> [Example]   -- examples for post-filtering
             -> [[Id]]      -- remaining paths
-            -> PNSolver m (RProgram, EncodeState, [[Id]])
-findProgram env dst st ps
+            -> PNSolver m (Output, EncodeState, [[Id]])
+findProgram env goal st examples ps
     | not (null ps) = checkUntilFail st ps
     | null ps = do
+        let dst = lastType goal
         modify $ set splitTypes Set.empty
         modify $ set typeAssignment Map.empty
         writeLog 2 "findProgram" $ text "calling findProgram"
@@ -585,8 +587,11 @@ findProgram env dst st ps
     checkUntilFail :: MonadIO m
                     => EncodeState
                     -> [[Id]]
-                    -> PNSolver m (RProgram, EncodeState, [[Id]])
-    checkUntilFail st' [] = findProgram env dst (st' {prevChecked=True}) []
+                    -> PNSolver m (Output, EncodeState, [[Id]])
+    checkUntilFail st' [] = 
+        let dstType = lastType goal
+            newSt = st' { prevChecked = True }
+         in findProgram env goal newSt examples []
     checkUntilFail st' (path:ps) = do
         writeLog 1 "checkUntilFail" $ pretty path
         codeResult <- fillSketch path
@@ -647,6 +652,7 @@ findProgram env dst st ps
         writeLog 3 "parseAndCheck" $ text "bottom up checking get program" <+> pretty (recoverNames mapping btm)
         checkStatus <- gets (view isChecked)
         let tyBtm = typeOf btm
+        let dst = lastType goal
         when checkStatus (runInChecker $ solveTypeConstraint env (shape tyBtm) (shape dst))
         tass <- gets (view typeAssignment)
         ifM (gets $ view isChecked)
@@ -676,54 +682,61 @@ findProgram env dst st ps
                            (transitionNb st)
                            (numOfTransitions s)
                 })
+        let dst = lastType goal
         st' <- withTime EncodingTime (fixEncoder env dst st splitInfo)
-        findProgram env dst st' []
+        findProgram env goal st' examples []
 
     checkSolution st code = do
-        solutions <- gets $ view currentSolutions
-        mapping <- gets $ view nameMapping
+        solutions <- gets (view currentSolutions)
+        mapping <- gets (view nameMapping)
         let code' = recoverNames mapping code
-        params <- gets $ view searchParams
-        if (code' `elem` solutions) 
+        params <- gets (view searchParams)
+        msgChan <- gets (view messageChan)
+        checkResult <- withTime TypeCheckTime $ 
+            liftIO $ check env params examples code' goal msgChan
+        if (code' `elem` solutions) || isNothing checkResult
             then return Nothing
-            else return $ Just code'
+            else return $ Just (Output code' (fromJust checkResult))
 
 
 findFirstN :: MonadIO m
             => Environment
             -> RType
             -> EncodeState
+            -> [Example]
             -> [[Id]]
             -> Int
             -> PNSolver m ()
-findFirstN env dst st ps n
+findFirstN env goal st examples ps n
     | n == 0 = return ()
     | otherwise = do
         strategy <- getExperiment refineStrategy
-        (soln, st', ps') <- withTime TotalSearch $ findProgram env dst st ps
+        (soln, st', ps') <- withTime TotalSearch $ 
+                            findProgram env goal st examples ps
         writeSolution soln
-        modify $ over currentSolutions ((:) soln)
+        modify $ over currentSolutions ((:) (solution soln))
         currentSols <- gets $ view currentSolutions
         writeLog 2 "findFirstN" $ text "Current Solutions:" <+> pretty currentSols
-        findFirstN env dst st' ps' (n - 1)
+        findFirstN env goal st' examples ps' (n - 1)
 
-runPNSolver :: MonadIO m => Environment -> RType -> PNSolver m ()
-runPNSolver env t = do
+runPNSolver :: MonadIO m => Environment -> RType -> [Example] -> PNSolver m ()
+runPNSolver env goal examples = do
     writeLog 3 "runPNSolver" $ text $ show (allSymbols env)
     withTime TotalSearch $ initNet env
+    let t = lastType goal
     st <- withTime TotalSearch $ withTime EncodingTime (resetEncoder env t)
     cnt <- getExperiment solutionCnt
-    findFirstN env t st [] cnt
+    findFirstN env goal st examples [] cnt
     msgChan <- gets $ view messageChan
     liftIO $ writeChan msgChan (MesgClose CSNormal)
 
-writeSolution :: MonadIO m => UProgram -> PNSolver m ()
-writeSolution code = do
+writeSolution :: MonadIO m => Output -> PNSolver m ()
+writeSolution out = do
     stats <- gets $ view solverStats
     loc <- gets $ view currentLoc
     msgChan <- gets $ view messageChan
     let stats' = stats {pathLength = loc}
-    liftIO $ writeChan msgChan (MesgP (Output code undefined, stats', undefined))
+    liftIO $ writeChan msgChan (MesgP (out, stats', undefined))
     -- liftIO $ printSolution code
     -- liftIO $ hFlush stdout
     writeLog 1 "writeSolution" $ text (show stats')

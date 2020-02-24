@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Examples.ExampleChecker where
 
@@ -22,7 +23,11 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Maybe
 import GHC
+import GHCi hiding(Message)
+import GHCi.RemoteTypes
 import GHC.Paths
+import Debugger
+import Exception
 import HsUtils
 import HsTypes
 import Outputable
@@ -81,7 +86,6 @@ resolveType' t = error $ showSDocUnsafe (ppr t)
 checkExample :: Environment -> RType -> Example -> Chan Message -> IO ()
 checkExample env typ ex checkerChan = do
     exTyp <- parseExample (Set.toList $ env ^. included_modules) ex
-    print exTyp
     let sTyp = shape typ
     let initChecker = emptyChecker { _messageChan = checkerChan }
     state <- execStateT (do
@@ -106,20 +110,32 @@ execExample mdls env prog ex =
         result <- execStmt (unwords [progBody, progCall]) execOptions
         case result of
             ExecComplete r _ -> case r of
-                                  Left e -> return (Left (show e)) 
-                                  Right n -> return (Right (concatMap (showSDocUnsafe . ppr) n))
-            ExecBreak _ _ -> return (Left "error, break")
+                                  Left e -> liftIO (print e) >> return (Left (show e)) 
+                                  Right ns -> getExecValue ns
+            ExecBreak {} -> return (Left "error, break")
+    where
+        getExecValue (n:ns) = do
+            df <- getSessionDynFlags
+            mty <- lookupName n
+            case mty of
+                Just (AnId aid) -> do
+                    t <- gtry $ obtainTermFromId maxBound True aid
+                    case t of
+                        Right term -> showTerm term >>= return . Right . showSDocUnsafe
+                        Left (exn :: SomeException) -> return (Left $ show exn)
+                _ -> return (Left "Unknown error")
+        getExecValue [] = return (Left "Empty result list")
 
 checkExampleOutput :: [String] -> Environment -> RProgram -> [Example] -> IO (Maybe [Example])
 checkExampleOutput mdls env prog exs = do
     currOutputs <- mapM (execExample mdls env prog) exs
     let cmpResults = map (uncurry compareResults) (zip currOutputs exs)
     let justResults = catMaybes cmpResults
-    if null justResults then return $ Just justResults 
-                        else return Nothing
+    if length justResults == length exs then return $ Just justResults 
+                                        else return Nothing
     where
         compareResults currOutput ex
-          | output ex /= "??" = Just (ex { output = either id id currOutput })
+          | output ex == "??" = Just (ex { output = either id id currOutput })
           | otherwise = case currOutput of
                           Left e -> Nothing
                           Right o | o == output ex -> Just ex

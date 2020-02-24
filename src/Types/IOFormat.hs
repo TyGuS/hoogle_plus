@@ -31,7 +31,6 @@ data Output = Output {
     outExamples :: [Example]
 } deriving(Eq, Generic)
 
-
 instance ToJSON Example
 instance FromJSON Example
 instance ToJSON Input
