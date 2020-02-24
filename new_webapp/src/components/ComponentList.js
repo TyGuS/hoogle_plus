@@ -1,6 +1,6 @@
 import React from "react";
 import { connect } from "react-redux";
-import Candidate from "./Candidate";
+// import CandidateList from "./CandidateList";
 
 const mapStateToProps = state => {
     return {

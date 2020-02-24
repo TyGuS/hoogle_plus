@@ -5,3 +5,4 @@ export const SET_EDITING_CELLS = "SET_EDITING_CELLS";
 
 export const SEND_SEARCH = "SEND_SEARCH";
 export const SET_NEW_SEARCH = "SET_NEW_SEARCH";
+export const SET_COMPONENTS = "SET_COMPONENTS";
