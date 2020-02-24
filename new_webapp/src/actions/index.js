@@ -30,5 +30,14 @@ export const sendSearch = (payload) => (dispatch) => {
         type: SEND_SEARCH,
         payload,
     });
-    return Promise.resolve({f:"x"}).then(value => dispatch(addFact(value)))
+    const mockCandidate =     {
+        code: "\\arg0 arg1-> catMaybes (listToMaybe arg0) arg1",
+        examples: [
+            ["z", "2", "zz"],
+            ["asdf", "0", ""],
+            ["qwop", "-1", "error"],
+        ]
+    };
+    return (new Promise(resolve => setTimeout(resolve, 1000))
+        .then(value => dispatch(addCandidate(mockCandidate))));
 };

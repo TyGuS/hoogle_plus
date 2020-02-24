@@ -19,7 +19,7 @@ export const initialCandidateState = [
 export function candidateReducer(state = initialCandidateState, action){
     switch(action.type) {
         case Consts.ADD_CANDIDATE:
-            return state.candidates.concat(action.payload)
+            return state.concat(action.payload)
         default:
             return state;
     }
