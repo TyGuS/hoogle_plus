@@ -5,7 +5,6 @@ import { initialCandidateState, candidateReducer } from "./candidateReducer";
 
 const initialState = {
     numArgs: 2,
-    searchingStatus: Consts.DONE,
     facts: initialFactState,
     candidates: initialCandidateState,
 };
@@ -19,7 +18,7 @@ const restOfReducers = combineReducers({
 
 const rootReducer = (state = initialState, action) => {
     switch(action.type) {
-        //Catch any modifies of numArgs or searchStatus here.
+        //Catch any modifies of numArgs here.
         default:
             return {
                 ...state,

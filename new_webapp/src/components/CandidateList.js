@@ -1,17 +1,17 @@
 import React from "react";
 import { connect } from "react-redux";
-import Example from "./Example";
 import UsageTable from "./UsageTable";
 import { BounceLoader } from "react-spinners";
 
 const mapStateToProps = state => {
     return {
-        candidates: state.candidates,
+        candidates: state.candidates.results,
+        isFetching: state.candidates.isFetching,
         numArgs: state.numArgs,
     };
 }
 
-const CandidateListBase = ({candidates, numArgs}) => (
+const CandidateListBase = ({candidates, numArgs, isFetching}) => (
     <div>
         {candidates.map(({code, examples}, idx) => (
             <div key={idx}>
@@ -24,7 +24,7 @@ const CandidateListBase = ({candidates, numArgs}) => (
             </div>
         ))}
         {/* https://www.npmjs.com/package/react-spinners */}
-        <BounceLoader loading={true}/>
+        <BounceLoader loading={isFetching}/>
     </div>
 );
 
