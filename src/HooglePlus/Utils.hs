@@ -110,16 +110,24 @@ printSolution solution = do
     putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
     putStrLn "************************************************"
 
-printIO :: IOExample -> String
-printIO ([], _) = "error????"
-printIO (is, os) = printf "%s ==> %s" (unwords is) os
-
-printFilter (FilterState _ solns samples) = intercalate "\n" (map printOneSol sampleMap)
+{-
+printFilter (FilterState _ solns samples) = unlines $ map printSol solns
     where
-        sampleGroup = groupBy (\x y -> fst x == fst y) (sortOn fst samples)
-        sampleMap = map ((\(x, y) -> (head x, nub y)) . unzip) sampleGroup 
-        sampleMap' = filter (\(s, _) -> s `elem` solns) sampleMap
-        printOneSol (s, ios) = printf "%s\n%s" s (unlines $ map printIO ios)
+        printSol :: String -> String
+        printSol sol =
+            let [(_, desc)] = filter ((== sol) . fst) samples in
+                unlines [sol, show desc]
+-}
+
+printSolutionState solution (FilterState _ sols samples diffExamples) = unlines [ios, diffs]
+    where
+        ios = let [(_, desc)] = filter ((== solution) . fst) samples in show desc
+        diffs = unlines $ map showDifferentiations diffExamples
+        
+        showDifferentiations :: DiffInstance -> String
+        showDifferentiations (args, outs) = unlines (args : zipWith combineSolutionOutput sols outs)
+
+        combineSolutionOutput sol out = printf "%s ==> %s" sol out :: String
 
 extractSolution :: Environment -> RType -> UProgram -> ([String], String, String, [(Id, RSchema)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)

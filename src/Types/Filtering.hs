@@ -9,19 +9,21 @@ import Data.List (intercalate)
 import Test.SmallCheck.Drivers
 
 defaultTimeoutMicro = 5 * 10^4 :: Int
-defaultDepth = 3 :: Int
+defaultDepth = 5 :: Int
 defaultInterpreterTimeoutMicro = 2 * 10^6 :: Int
-defaultMaxOutputLength = 100 :: Int
+defaultMaxOutputLength = 10 :: Int
 
 frameworkModules =
   zip [ "Test.SmallCheck"
   , "Test.SmallCheck.Drivers"
   , "Test.LeanCheck.Function.ShowFunction"
+  , "System.IO.Silently"
   , "Control.Exception" ] (repeat Nothing)
 
   ++ [("Test.ChasingBottoms", Just "CB")]
 
-type SmallCheckResult = Maybe PropertyFailure
+type SmallCheckResult = (String, Maybe PropertyFailure)
+type DiffInstance = (String, [String])
 
 -- [arg0, arg1, arg2, ...] :: SampleInput
 type SampleInput = [String]
@@ -30,20 +32,20 @@ type SampleInput = [String]
 -- currently we can only generate two as a tuple
 type DistinguishedInput = (SampleInput, SampleInput)
 
--- input-output pair
-type IOExample = (SampleInput, String)
+-- arg0, arg1, ... ==> output 
+type IOExample = String
 
 data FunctionCrashDesc = 
-    AlwaysSucceed SampleInput
-  | AlwaysFail SampleInput
-  | PartialFunction SampleInput SampleInput
-  | UnableToCheck SampleInput
+    AlwaysSucceed IOExample
+  | AlwaysFail IOExample
+  | PartialFunction [IOExample]
+  | UnableToCheck String
   deriving (Eq)
 
 instance Show FunctionCrashDesc where
-  show (AlwaysSucceed i) = "Total: " ++ (unwords i)
-  show (AlwaysFail i) = "Fail: " ++ (unwords i)
-  show (PartialFunction s f) = "Partial: succeeds on " ++ (unwords s) ++ "; fails on " ++ (unwords f)
+  show (AlwaysSucceed i) = i
+  show (AlwaysFail i) = i
+  show (PartialFunction xs) = unlines xs
   show (UnableToCheck ex) = "Exception: " ++ show ex
 
 data ArgumentType =
@@ -90,13 +92,15 @@ instance Show FunctionSignature where
 data FilterState = FilterState {
   inputs :: [DistinguishedInput],
   solutions :: [String],
-  solutionExamples :: [(String, IOExample)]
+  solutionExamples :: [(String, FunctionCrashDesc)],
+  differentiateExamples :: [DiffInstance]
 } deriving (Eq, Show)
 
 emptyFilterState = FilterState {
   inputs = [],
   solutions = [],
-  solutionExamples = []
+  solutionExamples = [],
+  differentiateExamples = []
 }
 
 type FilterTest m = StateT FilterState m
