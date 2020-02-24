@@ -2,6 +2,7 @@ import React from "react";
 import { connect } from "react-redux";
 import Example from "./Example";
 import UsageTable from "./UsageTable";
+import { BounceLoader } from "react-spinners";
 
 const mapStateToProps = state => {
     return {
@@ -22,6 +23,8 @@ const CandidateListBase = ({candidates, numArgs}) => (
                 />
             </div>
         ))}
+        {/* https://www.npmjs.com/package/react-spinners */}
+        <BounceLoader loading={true}/>
     </div>
 );
 
