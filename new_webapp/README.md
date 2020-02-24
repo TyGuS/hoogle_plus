@@ -1,8 +1,28 @@
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+This project was bootstrapped with [Create React
+App](https://github.com/facebook/create-react-app).
+
+## Prerequisites
+- `Node`: v10.x <= `your-version` <= v12.y
+- `npm`: 6 <= `version`
+- `yarn`: `version` < 2
+
+## Understand
+This project uses React + Redux, which creates a functional reactive programming
+style.
+This thereby, in web-parlance, follows the Flux Standard Action model.
+
+In essence there are:
+- `components`: which get state objects and show them. The properties, or
+  `props` they receive, may be functions, which serve as ways to dispatch actions
+- `actions`: These convey that some state should change, that we need to go to a
+  server to get some data, these are pure functions or promises.
+- `reducers`: These are a big fold that take `(state, action) -> state`.
+
+
 
 ## Available Scripts
 
-In the project directory, you can run:
+In this project directory, you can run:
 
 ### `yarn start`
 
