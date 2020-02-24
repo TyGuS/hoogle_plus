@@ -31,15 +31,15 @@ const mapDispatchToProps = (dispatch) => {
   }
 };
 
-// facts :: [[i/o]] -> [{}]
+// facts :: [{i/o}] -> [{}]
 const generateRows = (facts) => {
-  const rows = facts.map((element, idx) => {
+  const rows = facts.map((element) => {
     let row = [];
-    for (let index = 0; index < element.length; index++) {
+    for (let index = 0; index < element.usage.length; index++) {
       let argName = "arg" + index;
-      row[argName] = element[index];
+      row[argName] = element.usage[index];
     }
-    row["id"] = idx;
+    row["id"] = element.id;
     return row;
   });
   return rows;
