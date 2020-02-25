@@ -97,7 +97,7 @@ defaultSearchParams = SearchParams {
   _disableRelevancy = False,
   _disableCopy = False,
   _disableBlack = False,
-  _disableFilter = False
+  _disableFilter = True
 }
 
 type ExperimentName = String

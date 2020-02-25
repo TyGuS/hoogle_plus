@@ -199,7 +199,7 @@ synt = Synthesis {
   disable_relevancy   = False           &= help ("Disable the relevancy requirement for argument types (default: False)"),
   disable_copy_trans  = False           &= help ("Disable the copy transitions and allow more than one token in initial state instead (default: False)"),
   disable_blacklist   = False           &= help ("Disable blacklisting functions in the solution (default: False)"),
-  disable_filter      = False           &= help ("Disable filter-based test")
+  disable_filter      = True            &= help ("Disable filter-based test")
   } &= auto &= help "Synthesize goals specified in the input file"
 
 generate = Generate {
