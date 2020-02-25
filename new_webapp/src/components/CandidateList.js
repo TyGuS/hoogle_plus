@@ -13,10 +13,11 @@ const mapStateToProps = state => {
 
 const CandidateListBase = ({candidates, numArgs, isFetching}) => (
     <div>
-        {candidates.map(({code, examples}, idx) => (
+        {candidates.map(({code, examples, candidateId}, idx) => (
             <div key={idx}>
                 <div>{idx + 1}: Candidate: <code>{code}</code></div>
                 <UsageTable
+                    candidateId={candidateId}
                     code={code}
                     rows={examples}
                     numColumns={numArgs + 1}
