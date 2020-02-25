@@ -17,6 +17,7 @@ import Types.Environment
 import Types.Experiments
 import Types.Program
 import Types.Solver
+import Types.TypeChecker
 import Types.Type
 import Types.IOFormat
 import HooglePlus.Utils
@@ -94,17 +95,18 @@ synthesize searchParams goal examples messageChan = do
     let args = Monotype destinationType : Map.elems (env ^. arguments)
   -- start with all the datatypes defined in the components, first level abstraction
     let rs = _refineStrategy searchParams
+    let initCover = case rs of
+                        SypetClone -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
+                        TyGar0 -> emptySolverState ^. (refineState . abstractionCover)
+                        TyGarQ -> Abstraction.specificAbstractionFromTypes env args
+                        NoGar -> Abstraction.specificAbstractionFromTypes env args
+                        NoGar0 -> emptySolverState ^. (refineState . abstractionCover)
     let is =
             emptySolverState
                 { _searchParams = searchParams
-                , _abstractionCover =
-                      case rs of
-                          SypetClone -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
-                          TyGar0 -> emptySolverState ^. abstractionCover
-                          TyGarQ -> Abstraction.specificAbstractionFromTypes env args
-                          NoGar -> Abstraction.specificAbstractionFromTypes env args
-                          NoGar0 -> emptySolverState ^. abstractionCover
+                , _refineState = emptyRefineState { _abstractionCover = initCover }
                 , _messageChan = messageChan
+                , _typeChecker = emptyChecker { _checkerChan = messageChan }
                 }
     catch
         (do

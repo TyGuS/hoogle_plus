@@ -107,6 +107,7 @@ findSymbol env sym = do
                 Just sch -> freshType sch
         Just sch -> freshType sch
 
+{-
 runInChecker :: MonadIO m => Checker m a -> PNSolver m a
 runInChecker checker = do
     st <- get
@@ -121,8 +122,9 @@ runInChecker checker = do
     modify $ set typeAssignment (s ^. Checker.typeAssignment)
     modify $ set nameMapping (s ^. Checker.nameMapping)
     return a
+-}
 
-freshAbstract :: MonadIO m => [Id] -> AbstractSkeleton -> PNSolver m AbstractSkeleton
+freshAbstract :: (CheckMonad (t m), MonadIO m) => [Id] -> AbstractSkeleton -> t m AbstractSkeleton
 freshAbstract bound t = do
     (_, t') <- freshAbstract' bound Map.empty t
     return t'
@@ -163,10 +165,7 @@ groupSignatures sigs = do
     let t2g = Map.fromList $ map (\(gid, (aty, _)) -> (aty, gid)) signatureGroups
     -- write out the info.
     mesgChan <- gets $ view messageChan
-    modify $ over solverStats (\s -> s {
-        duplicateSymbols = duplicateSymbols s ++ [(length sigLists, sum dupes, sum $ map length $ sigLists)]
-    })
-    stats <- gets $ view solverStats
+    modify $ over (statistics . solverStats . duplicateSymbols) (++ [(length sigLists, sum dupes, sum $ map length $ sigLists)])
     return (t2g, groupMap)
 
 removeLast :: Char -> String -> String

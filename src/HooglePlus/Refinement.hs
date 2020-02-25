@@ -15,6 +15,7 @@ import Types.Environment
 import Types.Program
 import Types.Solver
 import Types.Type
+import Types.CheckMonad
 
 import Control.Lens
 import Control.Monad.Logic
@@ -62,14 +63,14 @@ propagate :: MonadIO m => Environment -> RProgram -> AbstractSkeleton -> PNSolve
 -- | base case, when we reach the leaf of the AST
 propagate env p@(Program (PSymbol sym) t) upstream = do
     writeLog 3 "propagate" $ text "propagate" <+> pretty upstream <+> text "into" <+> pretty p
-    cover <- gets (view abstractionCover)
+    cover <- gets $ view (refineState . abstractionCover)
     let bound = env ^. boundTypeVars
     unless (existAbstract bound cover upstream)
            (do
                 let newCover = updateCover bound upstream cover
-                modify $ set abstractionCover newCover
+                modify $ set (refineState . abstractionCover) newCover
                 let newTyps = allTypesOf newCover \\ allTypesOf cover
-                modify $ over splitTypes (Set.union $ Set.fromList newTyps)
+                modify $ over (refineState . splitTypes) (Set.union $ Set.fromList newTyps)
            )
 -- | starter case, when we start from a bottom type
 -- find the most general abstraction that unifies with the concrete types
@@ -103,7 +104,10 @@ propagate env (Program (PFun x body) t) (AFunctionT atArg atRet) = do
 propagate _ prog t = return ()
 
 -- | generalize a closed concrete type into an abstract one
-generalize :: MonadIO m => [Id] -> AbstractSkeleton -> LogicT (PNSolver m) AbstractSkeleton
+generalize :: (CheckMonad (t m), MonadIO (t m), MonadIO m) 
+           => [Id] 
+           -> AbstractSkeleton 
+           -> LogicT (t m) AbstractSkeleton
 generalize bound t@(AScalar (ATypeVarT id))
   | id `notElem` bound = return t
   | otherwise = do

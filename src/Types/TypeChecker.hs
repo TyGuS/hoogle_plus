@@ -18,7 +18,7 @@ data CheckerState = CheckerState {
     _isChecked :: Bool,
     _typeAssignment :: Map Id SType,
     _nameMapping :: Map Id Id,
-    _messageChan :: Chan Message
+    _checkerChan :: Chan Message
 } deriving(Eq)
 
 emptyChecker :: CheckerState
@@ -27,7 +27,7 @@ emptyChecker = CheckerState {
     _isChecked = True,
     _typeAssignment = Map.empty,
     _nameMapping = Map.empty,
-    _messageChan = undefined
+    _checkerChan = undefined
 }
 
 makeLenses ''CheckerState
@@ -41,4 +41,4 @@ instance Monad m => CheckMonad (Checker m) where
     setNameMapping nm = modify (set nameMapping nm)
     getIsChecked = gets (view isChecked)
     setIsChecked c = modify (set isChecked c)
-    getMessageChan = gets (view messageChan)
+    getMessageChan = gets (view checkerChan)

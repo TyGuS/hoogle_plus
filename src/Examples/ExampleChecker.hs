@@ -86,7 +86,7 @@ checkExample :: Environment -> RType -> Example -> Chan Message -> IO ()
 checkExample env typ ex checkerChan = do
     exTyp <- parseExample (Set.toList $ env ^. included_modules) ex
     let sTyp = shape typ
-    let initChecker = emptyChecker { _messageChan = checkerChan }
+    let initChecker = emptyChecker { _checkerChan = checkerChan }
     state <- execStateT (do
         exTyp' <- freshType exTyp
         let sExTyp = shape exTyp'
