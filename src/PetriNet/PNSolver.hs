@@ -514,7 +514,9 @@ findProgram env goal examples = do
     writeLog 2 "findProgram" $ text "unfiltered path:" <+> pretty path
     let usefulTrans = filter skipClone path
     withTime FormerTime $
-        enumeratePath env goal examples usefulTrans >>= handleResult path
+        ifte (enumeratePath env goal examples usefulTrans)
+             (handleResult path)
+             (blockCurrent >> findProgram env goal examples)
     where
         handleResult path NotFound = mzero
         handleResult path (Found out@(Output soln exs)) = do
@@ -525,6 +527,8 @@ findProgram env goal examples = do
             ifte mzero (const mzero) (nextSolution env (lastType goal) examples err)
 
         skipClone = not . isInfixOf "|clone"
+
+        blockCurrent = modify $ set (encoder . increments . prevChecked) True
         
 enumeratePath :: MonadIO m 
               => Environment
@@ -831,7 +835,7 @@ getGroupRep name = do
     let argGps = maybeToList $ Map.lookup name ngm
     writeLog 3 "getGroupRep" $ text name <+> text "is contained in group" <+> pretty argGps
     let argRp = mapMaybe (`Map.lookup` gr) argGps
-    return argRp
+    if null argRp then error ("cannot find group rep for " ++ name) else return argRp
 
 assemblePair :: AbstractSkeleton
             -> AbstractSkeleton
