@@ -15,6 +15,7 @@ export const initialCandidateState = {
                     id: "2",
                     usage: ["x", "0", ""],
                     isLoading: false,
+                    error: "errorstring",
                 }
             ]
         },
@@ -50,18 +51,24 @@ export function candidateReducer(state = initialCandidateState, action){
                 if(result.candidateId === candidateId) {
                     const updatedExamples = result.examples.map(example => {
                         if (example.id === usageId) {
-                            if (action.payload.newArgs) {
-                                return {...example,
-                                    usage: action.payload.newArgs.concat(null),
+                            if (action.payload.args) {
+                                return {id: example.id,
+                                    usage: action.payload.args.concat(null),
                                     isLoading: true,
                                 };
                             }
                             if (action.payload.result) {
                                 let updatedUsage = Array.from(example.usage);
                                 updatedUsage[updatedUsage.length - 1] = action.payload.result;
-                                return {...example,
+                                return {id: example.id,
                                     usage: updatedUsage,
                                     isLoading: false,
+                                };
+                            }
+                            if (action.payload.error) {
+                                return {...example,
+                                    isLoading: false,
+                                    error: action.payload.error
                                 };
                             }
                         }

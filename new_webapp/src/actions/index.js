@@ -30,7 +30,7 @@ export const updateCandidateUsageTable = makeActionCreator(UPDATE_CANDIDATE_USAG
 
 
 export const updateCandidateUsage = ({candidateId, usageId, args, code}) => (dispatch) => {
-    dispatch(updateCandidateUsageTable({candidateId, usageId, newArgs: args}));
+    dispatch(updateCandidateUsageTable({candidateId, usageId, args}));
     return ghciUsage({args, code})
         .then(backendResult =>
             dispatch(updateCandidateUsageTable({candidateId, usageId, ...backendResult})));

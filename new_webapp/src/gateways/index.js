@@ -21,7 +21,14 @@ export const ghciUsage = ({code, args}) => {
     const mockUsage = {
         result: "someResult"
     };
-
+    const mockError = {
+        error: "unstructuredErrorMessage"
+    }
     return delay(1000)
-        .then(_ => mockUsage)
+        .then(_ => {
+            if(Math.random() > 0.5){
+                return mockUsage;
+            } else {
+                return mockError;
+            }});
 };

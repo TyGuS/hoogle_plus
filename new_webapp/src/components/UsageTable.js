@@ -10,22 +10,53 @@ import {
 } from '@devexpress/dx-react-grid-bootstrap4';
 import { connect } from "react-redux";
 import { addFact, updateCandidateUsage } from "../actions";
+import { BounceLoader } from "react-spinners";
 
-const getArgNames = () => {return ["arg0", "arg1"];}
+const getArgNames = (numArgs) => {
+  let argNames = [];
+  for (let index = 0; index < numArgs; index++) {
+    argNames = argNames.concat("arg" + index);
+  }
+  return argNames;
+}
+
+const SpinnableCell = ({row, ...restProps}) => {
+  if (restProps.column.name === "result"){
+    if (row.isLoading) {
+      return (
+        <Table.Cell row={row} {...restProps}>
+          <BounceLoader loading={row.isLoading} />
+        </Table.Cell>);
+    }
+    if (row.error) {
+      return (
+        <Table.Cell row={row} {...restProps}>
+          <div className="error_message">
+            {row.error}
+          </div>
+        </Table.Cell>
+      );
+    }
+  }
+  return (
+    <Table.Cell row={row} {...restProps} />
+  );
+  }
 
 const generateRows = (facts) => {
     if (!facts) {
       return [];
     }
+    const argNames = getArgNames(facts[0].usage.length - 1);
     const rows = facts.map((element) => {
-      let row = [];
-      for (let index = 0; index < element.usage.length - 1; index++) {
-        let argName = "arg" + index;
-        row[argName] = element.usage[index];
+      let newFields = {};
+      for (let index = 0; index < argNames.length; index++) {
+        let argName = argNames[index];
+        newFields[argName] = element.usage[index];
       }
-      row["result"] = element.usage[element.usage.length - 1];
-      row["id"] = element.id;
-      return row;
+      newFields["result"] = element.usage[element.usage.length - 1];
+      const {usage, ...rest} = {...element, ...newFields};
+      return rest;
     });
     return rows;
     // return [
@@ -49,7 +80,7 @@ const UsageTableBase = ({
   numColumns, rows:stateRows,
   keepUsage, updateUsage}) => {
     const internalRows = generateRows(stateRows);
-    const argNames = getArgNames();
+    const argNames = getArgNames(numColumns - 1);
     let cols = [];
     for (let index = 0; index < numColumns - 1; index++) {
       cols = cols.concat({name: "arg" + index, title: "arg" + index});
@@ -58,10 +89,7 @@ const UsageTableBase = ({
     const [columns] = useState(cols);
 
     const commitChanges = ({ added, changed, deleted }) => {
-      let changedRows;
       if (added) {
-        const addedSet = new Set(added);
-        const addedRows = internalRows.filter(row => addedSet.has(row.id));
         debugger;
       }
       if (changed) {
@@ -96,7 +124,7 @@ const UsageTableBase = ({
             addedRows={[]}
             columnExtensions={[{columnName: "result", editingEnabled:false}]}
           />
-          <Table/>
+          <Table cellComponent={SpinnableCell}/>
           <TableHeaderRow/>
           <TableEditRow/>
           <TableEditColumn
