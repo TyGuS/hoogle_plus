@@ -7,9 +7,18 @@ export const hooglePlusTypeSearch = ({query}) => {
     const mockCandidate = {
         code: "\\arg0 arg1-> catMaybes (listToMaybe arg0) arg1",
         examples: [
-            ["z", "2", "zz"],
-            ["asdf", "0", ""],
-            ["qwop", "-1", "error"],
+            {   id: "34",
+                usage: ["z", "2", "zz"],
+                isLoading: false,
+            },
+            {   id: "35",
+                usage: ["z", "5", "zzzzz"],
+                isLoading: false,
+            },
+            {   id: "36",
+                usage: ["abc", "-1", "error"],
+                isLoading: false,
+            },
         ]
     };
     return delay(1000)

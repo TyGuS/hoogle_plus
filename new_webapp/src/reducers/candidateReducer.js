@@ -40,7 +40,7 @@ export function candidateReducer(state = initialCandidateState, action){
                 ...state,
                 results: state.results.concat(action.payload)
             }
-        case Consts.SET_NEW_SEARCH:
+        case Consts.SET_SEARCH_TYPE:
             return {
                 results: [],
                 isFetching: true,

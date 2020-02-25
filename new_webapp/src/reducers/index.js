@@ -1,11 +1,10 @@
 import * as Consts from "../constants/action-types";
 import { combineReducers } from "redux";
-import { initialFactState, factReducer } from "./factReducer";
+import { initialSpecState, specReducer } from "./specReducer";
 import { initialCandidateState, candidateReducer } from "./candidateReducer";
 
 const initialState = {
-    numArgs: 2,
-    facts: initialFactState,
+    spec: initialSpecState,
     candidates: initialCandidateState,
 };
 
@@ -13,7 +12,7 @@ const initialState = {
 // out into different more self contained files.
 const restOfReducers = combineReducers({
     candidates: candidateReducer,
-    facts: factReducer
+    spec: specReducer
 })
 
 const rootReducer = (state = initialState, action) => {

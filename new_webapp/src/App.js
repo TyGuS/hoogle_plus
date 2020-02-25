@@ -8,12 +8,29 @@ import {TopBar} from './components/TopBar';
 
 function App() {
   return (
-    <div className="App">
+    <div className="App container">
       <TopBar/>
-      <SearchBar/>
-      <CandidateList/>
+      <div className="row">
+        <div className="col-10">
+          <SearchBar />
+          <br/>
+          <hr/>
+          <br/>
+          <CandidateList className="left" />
+        </div>
+        <div className="right col-2">sidebar placeholder</div>
+      </div>
+      <footer className="row footer footer-style text-center">
+        <div className="text-center col">
+          {footerText}
+        </div>
+      </footer>
     </div>
   );
 }
+
+const footerText = `
+Made by Zheng, David, Michael, Joe, Ziteng, Ranjit and Nadia.
+`;
 
 export default App;

@@ -11,14 +11,7 @@ import {
 import { connect } from "react-redux";
 import { addFact, updateCandidateUsage } from "../actions";
 import { BounceLoader } from "react-spinners";
-
-const getArgNames = (numArgs) => {
-  let argNames = [];
-  for (let index = 0; index < numArgs; index++) {
-    argNames = argNames.concat("arg" + index);
-  }
-  return argNames;
-}
+import { getArgNames } from "../utilities/args";
 
 const SpinnableCell = ({row, ...restProps}) => {
   if (restProps.column.name === "result"){
@@ -55,8 +48,7 @@ const generateRows = (facts) => {
         newFields[argName] = element.usage[index];
       }
       newFields["result"] = element.usage[element.usage.length - 1];
-      const {usage, ...rest} = {...element, ...newFields};
-      return rest;
+      return {...element, ...newFields};
     });
     return rows;
     // return [
@@ -65,12 +57,16 @@ const generateRows = (facts) => {
     //     arg0: "foo",
     //     arg1: "bar",
     //     result: "bax"
+    //     usage: [foo, var, bax]
     //   }]
   }
 
 const mapDispatchToProps = (dispatch) => {
   return {
-    keepUsage: (keptUsages) => {keptUsages.forEach(row => dispatch(addFact(row)))},
+    keepUsage: (keptUsages) => {keptUsages.forEach(row => {
+        const {id, usage} = row;
+        dispatch(addFact({id, usage}));
+    })},
     updateUsage: (updatedRow) => {updateCandidateUsage(updatedRow)(dispatch)}
   }
 };
