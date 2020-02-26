@@ -1,13 +1,19 @@
 import React, {Component } from "react";
 import {connect} from "react-redux";
-import {sendSearch} from "../actions/index";
-import FactTable from "./FactTable";
+import {setSearchType} from "../actions/index";
+import ExampleTable from "./ExampleTable";
 
 const mapDispatchToProps = (dispatch) => {
     return {
-        sendSearch: searchTerm => sendSearch(searchTerm)(dispatch)
+        setSearchType: searchTerm => setSearchType(searchTerm)(dispatch)
     }
 }
+
+const mapStateToProps = (state) => {
+    return {
+        searchType: state.spec.searchType,
+    }
+};
 
 class ConnectedSearchBar extends Component {
     constructor(props) {
@@ -23,23 +29,40 @@ class ConnectedSearchBar extends Component {
 
     handleSubmit(event) {
         event.preventDefault();
-        const {query} = this.state.value;
-        this.props.sendSearch({query});
+        this.props.setSearchType({query: this.state.value});
     }
 
     render() {
         return (
             <div>
-            <form onSubmit={this.handleSubmit}>
-                <input type="text" name="value" value={this.state.value} onChange={this.handleChange}/>
-                <input type="submit" value="Search" />
-            </form>
-            <FactTable/>
+            <div className="container">
+                <div className="row justify-content-center">
+                    <input
+                    type="text"
+                    name="value"
+                    placeholder="search by type here"
+                    value={this.state.value}
+                    onChange={this.handleChange}
+                    className="col-8"
+                    />
+                </div>
+                <div className="row justify-content-center">
+                    <div className="col">
+                        <div>
+                            Example Specifications:
+                        </div>
+                        <ExampleTable/>
+                    </div>
+                </div>
+                <button onClick={this.handleSubmit}>
+                    Search
+                </button>
+            </div>
             </div>
         );
     }
 }
 
-const SearchBar = connect(null, mapDispatchToProps)(ConnectedSearchBar);
+const SearchBar = connect(mapStateToProps, mapDispatchToProps)(ConnectedSearchBar);
 
 export default SearchBar;

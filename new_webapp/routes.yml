@@ -45,4 +45,14 @@ returns: {
     "examples": [[str]]
     }
 
-
+route: /example/code
+method: POST
+args: {
+    "typeSignature": str,
+    "candidate": str,
+    "args": [str]
+}
+returns: {
+    "result": str,
+    "error": str
+}
