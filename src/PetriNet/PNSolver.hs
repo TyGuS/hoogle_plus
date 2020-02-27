@@ -504,8 +504,9 @@ findProgram :: MonadIO m
             => Environment -- the search environment
             -> RType       -- the goal type
             -> [Example]   -- examples for post-filtering
-            -> BackTrack m Output
-findProgram env goal examples = do
+            -> Int         -- remaining number of solutions to be found
+            -> PNSolver m Output
+findProgram env goal examples cnt = do
     let dst = lastType goal
     modify $ set (refineState . splitTypes) Set.empty
     modify $ set (typeChecker . typeAssignment) Map.empty
@@ -513,18 +514,18 @@ findProgram env goal examples = do
     path <- findPath env dst
     writeLog 2 "findProgram" $ text "unfiltered path:" <+> pretty path
     let usefulTrans = filter skipClone path
-    withTime FormerTime $
-        ifte (enumeratePath env goal examples usefulTrans)
-             (handleResult path)
+    searchResults <- withTime FormerTime $ observeManyT cnt $
+        enumeratePath env goal examples usefulTrans
+    (solns, errs) <- foldM handleResult searchResults
+    if 
              (blockCurrent >> findProgram env goal examples)
     where
-        handleResult path NotFound = mzero
-        handleResult path (Found out@(Output soln exs)) = do
+        handleResult acc NotFound = return acc
+        handleResult (outs, errs) (Found out@(Output soln exs)) = do
             writeSolution out
             modify $ over (searchState . currentSolutions) ((:) soln)
-            return out
-        handleResult path (MoreRefine err) = 
-            ifte mzero (const mzero) (nextSolution env (lastType goal) examples err)
+            return (out:outs, errs)
+        handleResult (MoreRefine err) (outs, errs) = return (outs, err:errs)
 
         skipClone = not . isInfixOf "|clone"
 
@@ -576,8 +577,8 @@ checkPath env goal examples path = do
     case checkResult of
         Left code -> checkSolution env goal examples code
         Right err
-            | stopRefine -> writeStats >> mzero
-            | otherwise -> return (MoreRefine err)
+            | stopRefine -> mzero
+            | otherwise -> modify (set (refineState . lastError) err) >> mzero
     where
         writeStats = do
             cover <- gets $ view (refineState . abstractionCover)
