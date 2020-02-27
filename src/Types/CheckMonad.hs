@@ -15,3 +15,4 @@ class Monad m => CheckMonad m where
     getIsChecked :: m Bool
     setIsChecked :: Bool -> m ()
     getMessageChan :: m (Chan Message)
+    overStats :: (TimeStatistics -> TimeStatistics) -> m ()

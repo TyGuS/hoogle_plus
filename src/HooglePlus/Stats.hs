@@ -4,6 +4,7 @@ module HooglePlus.Stats where
 
 import Types.Experiments
 import Types.Solver
+import Types.CheckMonad
 
 import Synquid.Util
 import Control.Monad.State
@@ -20,7 +21,7 @@ withTime desc f = do
     res <- f
     end <- liftIO getCPUTime
     let diff = fromIntegral (end - start) / (10^12)
-    modify $ over (statistics . solverStats) (\s ->
+    overStats (\s ->
         case desc of
           ConstructionTime -> s { _constructionTime = _constructionTime s + (diff :: Double) }
           EncodingTime -> s { _encodingTime = _encodingTime s + (diff :: Double) }
