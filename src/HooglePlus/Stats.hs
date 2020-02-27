@@ -14,7 +14,7 @@ import qualified Data.Map as Map
 import Text.Pretty.Simple
 
 -- | wrap some action with time measuring and print out the execution time
-withTime :: MonadIO m => TimeStatUpdate -> BackTrack m a -> BackTrack m a
+withTime :: (CheckMonad (t m), MonadIO m) => TimeStatUpdate -> t m a -> t m a
 withTime desc f = do
     start <- liftIO getCPUTime
     res <- f

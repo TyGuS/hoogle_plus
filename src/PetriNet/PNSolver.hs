@@ -505,10 +505,11 @@ findProgram :: MonadIO m
             -> RType       -- the goal type
             -> [Example]   -- examples for post-filtering
             -> Int         -- remaining number of solutions to be found
-            -> PNSolver m Output
+            -> PNSolver m ()
 findProgram env goal examples cnt = do
     let dst = lastType goal
     modify $ set (refineState . splitTypes) Set.empty
+    modify $ set (refineState . allChecked) True
     modify $ set (typeChecker . typeAssignment) Map.empty
     writeLog 2 "findProgram" $ text "calling findProgram"
     path <- findPath env dst
@@ -517,19 +518,19 @@ findProgram env goal examples cnt = do
     searchResults <- withTime FormerTime $ observeManyT cnt $
         enumeratePath env goal examples usefulTrans
     (solns, errs) <- foldM handleResult searchResults
-    if 
-             (blockCurrent >> findProgram env goal examples)
+    if length solns == cnt -- get enough solutions, search search
+       then mapM_ handleResult solns
+       else nextSolution env goal examples (cnt - length solns)
     where
-        handleResult acc NotFound = return acc
-        handleResult (outs, errs) (Found out@(Output soln exs)) = do
+        handleResult NotFound = error "NotFound appeared in search results"
+        handleResult (Found out@(Output soln exs)) = do
             writeSolution out
             modify $ over (searchState . currentSolutions) ((:) soln)
             return (out:outs, errs)
-        handleResult (MoreRefine err) (outs, errs) = return (outs, err:errs)
+        handleResult (MoreRefine err)  = error "Should not encounter more refine"
 
         skipClone = not . isInfixOf "|clone"
 
-        blockCurrent = modify $ set (encoder . increments . prevChecked) True
         
 enumeratePath :: MonadIO m 
               => Environment
@@ -680,22 +681,31 @@ nextSolution :: MonadIO m
              => Environment 
              -> RType 
              -> [Example] 
-             -> CheckError 
-             -> BackTrack m Output
-nextSolution env goal examples (prog, at) = do
-    let dst = lastType goal
-    cover <- gets $ view (refineState . abstractionCover)
-    splitInfo <- withTime RefinementTime (lift $ refineSemantic env prog at)
-    writeLog 1 "nextSolution" $ text "get split info" <+> pretty splitInfo
-    -- add new places and transitions into the petri net
-    cover <- gets $ view (refineState . abstractionCover)
-    funcs <- gets $ view (searchState . functionMap)
-    currIter <- gets $ view (statistics . solverStats . iterations)
-    modify $ over (statistics . solverStats . iterations) (+ 1)
-    modify $ over (statistics . solverStats . numOfPlaces) (Map.insert currIter (coverSize cover))
-    modify $ over (statistics . solverStats . numOfTransitions) (Map.insert currIter (HashMap.size funcs))
-    withTime EncodingTime $ lift $ fixEncoder env dst splitInfo
-    findProgram env goal examples
+             -> Int
+             -> PNSolver m ()
+nextSolution env goal examples cnt = do
+    prevAllPass <- gets $ view (refineState . allChecked)
+    if prevAllPass -- block the previous path and then search
+       then blockCurrent >> findProgram env goal examples cnt
+       else do -- refine and then search
+            let dst = lastType goal
+            cover <- gets $ view (refineState . abstractionCover)
+            (prog, at) <- gets $ view (refineState . lastError)
+            splitInfo <- withTime RefinementTime (refineSemantic env prog at)
+            writeLog 1 "nextSolution" $ text "get split info" <+> pretty splitInfo
+            -- add new places and transitions into the petri net
+            cover <- gets $ view (refineState . abstractionCover)
+            funcs <- gets $ view (searchState . functionMap)
+            currIter <- gets $ view (statistics . solverStats . iterations)
+            modify $ over (statistics . solverStats . iterations) (+ 1)
+            modify $ over (statistics . solverStats . numOfPlaces)
+                          (Map.insert currIter (coverSize cover))
+            modify $ over (statistics . solverStats . numOfTransitions)
+                          (Map.insert currIter (HashMap.size funcs))
+            withTime EncodingTime $ fixEncoder env dst splitInfo
+            findProgram env goal examples cnt
+    where
+        blockCurrent = modify $ set (encoder . increments . prevChecked) True
 
 checkSolution :: MonadIO m 
               => Environment 
@@ -713,7 +723,9 @@ checkSolution env goal examples code = do
         liftIO $ check env params examples code' goal msgChan
     if (code' `elem` solutions) || isNothing checkResult
         then mzero
-        else return $ Found $ Output code' (fromJust checkResult)
+        else do
+            modify $ set (refineState . allChecked) True
+            return $ Found $ Output code' (fromJust checkResult)
 
 runPNSolver :: MonadIO m => Environment -> RType -> [Example] -> PNSolver m ()
 runPNSolver env goal examples = do

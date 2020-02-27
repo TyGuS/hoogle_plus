@@ -86,7 +86,8 @@ data RefineState = RefineState {
     _sourceTypes :: [AbstractSkeleton],
     _splitTypes :: Set AbstractSkeleton,
     _toRemove :: [Id],
-    _lastError :: CheckError
+    _allChecked :: Bool, -- ^ whether all the possible filling of a sketch all type checks
+    _lastError :: CheckError -- ^ the last type checking error, used for refinement
 } deriving(Eq)
 
 emptyRefineState = RefineState {
@@ -96,6 +97,7 @@ emptyRefineState = RefineState {
     _sourceTypes = [],
     _splitTypes = Set.empty,
     _toRemove = [],
+    _allChecked = True,
     _lastError = undefined
 }
 
@@ -129,7 +131,7 @@ makeLenses ''SolverState
 type PNSolver m = StateT SolverState m
 type BackTrack m = LogicT (PNSolver m)
 
-instance Monad m => CheckMonad (PNSolver m) where
+instance (MonadState SolverState (t m), Monad m) => CheckMonad (t m) where
     getNameCounter = gets (view (typeChecker . nameCounter))
     setNameCounter nc = modify (set (typeChecker . nameCounter) nc)
     getNameMapping = gets (view (typeChecker . nameMapping))
@@ -137,7 +139,9 @@ instance Monad m => CheckMonad (PNSolver m) where
     getIsChecked = gets (view (typeChecker . isChecked))
     setIsChecked c = modify (set (typeChecker . isChecked) c)
     getMessageChan = gets (view messageChan)
+    overStats f = modify (over (statistics . solverStats) f)
 
+{-
 instance Monad m => CheckMonad (BackTrack m) where
     getNameCounter = gets (view (typeChecker . nameCounter))
     setNameCounter nc = modify (set (typeChecker . nameCounter) nc)
@@ -146,7 +150,8 @@ instance Monad m => CheckMonad (BackTrack m) where
     getIsChecked = gets (view (typeChecker . isChecked))
     setIsChecked c = modify (set (typeChecker . isChecked) c)
     getMessageChan = gets (view messageChan)
-
+    overStats f = modify (over (statistics . solverStats) f)
+-}
 data SearchResult = NotFound 
                   | Found Output
                   | MoreRefine (RProgram, AbstractSkeleton)
