@@ -42,3 +42,4 @@ instance Monad m => CheckMonad (Checker m) where
     getIsChecked = gets (view isChecked)
     setIsChecked c = modify (set isChecked c)
     getMessageChan = gets (view checkerChan)
+    overStats = overStats
