@@ -4,8 +4,6 @@ import './App.css';
 import CandidateList from './components/CandidateList';
 import SearchBar from './components/SearchBar';
 import {TopBar} from './components/TopBar';
-import SampleQueries from './components/SampleQueries';
-import ComponentList from './components/ComponentList';
 
 
 function App() {
