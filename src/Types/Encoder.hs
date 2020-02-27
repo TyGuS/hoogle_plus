@@ -96,7 +96,7 @@ data EncodeVariables = EncodeVariables {
 } deriving(Eq)
 
 emptyVariables = EncodeVariables {
-    _transitionNb = 1,
+    _transitionNb = 0,
     _variableNb = 1,
     _place2variable = HashMap.empty,
     _time2variable = HashMap.empty,

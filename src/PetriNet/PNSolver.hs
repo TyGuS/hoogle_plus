@@ -406,7 +406,7 @@ refineSemantic env prog at = do
         in if Set.null ids' then Nothing else Just ids'
 
 
-initNet :: MonadIO m => Environment -> BackTrack m ()
+initNet :: MonadIO m => Environment -> PNSolver m ()
 initNet env = withTime ConstructionTime $ do
     -- reset the solver state
     modify $ set (searchState . functionMap) HashMap.empty
@@ -414,16 +414,16 @@ initNet env = withTime ConstructionTime $ do
     modify $ set (encoder . variables . type2transition) HashMap.empty
     modify $ set (refineState . instanceMapping) HashMap.empty
 
-    lift $ addSignatures env
+    addSignatures env
     -- add clone functions for each type
     noClone <- getExperiment disableCopy
     unless noClone $ do
         ty2tr <- gets $ view (encoder . variables . type2transition)
         let allTy = HashMap.keys ty2tr
-        lift $ mapM_ addCloneFunction allTy
+        mapM_ addCloneFunction allTy
     -- add higher order query arguments
     let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    lift $ mapM_ addMusters (Map.keys hoArgs)
+    mapM_ addMusters (Map.keys hoArgs)
   where
     abstractSymbol id sch = do
         t <- freshType sch
@@ -462,10 +462,10 @@ incEncoder env = do
 findPath :: MonadIO m
          => Environment
          -> RType
-         -> BackTrack m [Id]
+         -> PNSolver m [Id]
 findPath env dst = do
     st <- gets $ view encoder
-    (res, st') <- withTime SolverTime $ lift $ liftIO $ encoderSolve st
+    (res, st') <- withTime SolverTime $ liftIO $ encoderSolve st
     modify $ set encoder st'
     case res of
         [] -> do
@@ -476,7 +476,7 @@ findPath env dst = do
                 liftIO $ writeChan mesgChan (MesgClose CSNoSolution)
                 error "cannot find a path"
             modify $ set (searchState . currentLoc) (loc + 1)
-            withTime EncodingTime $ lift $ incEncoder env
+            withTime EncodingTime $ incEncoder env
             findPath env dst
         _  -> return res
 
@@ -509,7 +509,7 @@ findProgram :: MonadIO m
 findProgram env goal examples cnt = do
     let dst = lastType goal
     modify $ set (refineState . splitTypes) Set.empty
-    modify $ set (refineState . allChecked) True
+    modify $ set (refineState . passOneOrMore) False
     modify $ set (typeChecker . typeAssignment) Map.empty
     writeLog 2 "findProgram" $ text "calling findProgram"
     path <- findPath env dst
@@ -517,21 +517,19 @@ findProgram env goal examples cnt = do
     let usefulTrans = filter skipClone path
     searchResults <- withTime FormerTime $ observeManyT cnt $
         enumeratePath env goal examples usefulTrans
-    (solns, errs) <- foldM handleResult searchResults
-    if length solns == cnt -- get enough solutions, search search
-       then mapM_ handleResult solns
-       else nextSolution env goal examples (cnt - length solns)
+    mapM_ handleResult searchResults
+    let solnNum = length searchResults
+    when (solnNum < cnt) -- get enough solutions, search search
+         (nextSolution env goal examples (cnt - solnNum))
     where
         handleResult NotFound = error "NotFound appeared in search results"
         handleResult (Found out@(Output soln exs)) = do
             writeSolution out
             modify $ over (searchState . currentSolutions) ((:) soln)
-            return (out:outs, errs)
         handleResult (MoreRefine err)  = error "Should not encounter more refine"
 
         skipClone = not . isInfixOf "|clone"
 
-        
 enumeratePath :: MonadIO m 
               => Environment
               -> RType
@@ -574,12 +572,13 @@ checkPath env goal examples path = do
     stop <- getExperiment stopRefine
     placeNum <- getExperiment threshold
     cover <- gets $ view (refineState . abstractionCover)
-    let stopRefine = not (doRefine rs) || (stop && coverSize cover >= placeNum)
     case checkResult of
-        Left code -> checkSolution env goal examples code
-        Right err
-            | stopRefine -> mzero
-            | otherwise -> modify (set (refineState . lastError) err) >> mzero
+        Left code -> writeStats >> checkSolution env goal examples code
+        Right err -> do
+            modify $ set (refineState . lastError) err
+            let stopRefine = not (doRefine rs) || (stop && coverSize cover >= placeNum)
+            when stopRefine $ modify $ set (refineState . passOneOrMore) True
+            mzero
     where
         writeStats = do
             cover <- gets $ view (refineState . abstractionCover)
@@ -612,7 +611,9 @@ parseAndCheck env dst code = do
     let tass = checkerState' ^. typeAssignment
     modify $ set typeChecker checkerState'
     if checkerState' ^. isChecked
-        then return (Left btm)
+        then do
+            modify $ set (refineState . passOneOrMore) True
+            return (Left btm)
         else do
             writeLog 1 "parseAndCheck" $ text "Generalizing abstract type" <+> pretty tyBtm
             let tyBtm' = toAbstractType $ stypeSubstitute tass $ shape tyBtm
@@ -684,8 +685,8 @@ nextSolution :: MonadIO m
              -> Int
              -> PNSolver m ()
 nextSolution env goal examples cnt = do
-    prevAllPass <- gets $ view (refineState . allChecked)
-    if prevAllPass -- block the previous path and then search
+    hasPass <- gets $ view (refineState . passOneOrMore)
+    if hasPass -- block the previous path and then search
        then blockCurrent >> findProgram env goal examples cnt
        else do -- refine and then search
             let dst = lastType goal
@@ -723,25 +724,22 @@ checkSolution env goal examples code = do
         liftIO $ check env params examples code' goal msgChan
     if (code' `elem` solutions) || isNothing checkResult
         then mzero
-        else do
-            modify $ set (refineState . allChecked) True
-            return $ Found $ Output code' (fromJust checkResult)
+        else return $ Found $ Output code' (fromJust checkResult)
 
 runPNSolver :: MonadIO m => Environment -> RType -> [Example] -> PNSolver m ()
 runPNSolver env goal examples = do
     writeLog 3 "runPNSolver" $ text $ show (allSymbols env)
     cnt <- getExperiment solutionCnt
-    observeManyT cnt $ do
-        withTime TotalSearch $ initNet env
-        let t = lastType goal
-        withTime TotalSearch $ withTime EncodingTime $ lift $ resetEncoder env t
-        -- findFirstN env goal st examples [] cnt
-        findProgram env goal examples
+    withTime TotalSearch $ initNet env
+    let t = lastType goal
+    withTime TotalSearch $ withTime EncodingTime $ resetEncoder env t
+    -- findFirstN env goal st examples [] cnt
+    findProgram env goal examples cnt
     msgChan <- gets $ view messageChan
     liftIO $ writeChan msgChan (MesgClose CSNormal)
 
 {- helper functions -}
-writeSolution :: MonadIO m => Output -> BackTrack m ()
+writeSolution :: MonadIO m => Output -> PNSolver m ()
 writeSolution out = do
     stats <- gets $ view (statistics . solverStats)
     loc <- gets $ view (searchState . currentLoc)
