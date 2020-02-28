@@ -136,9 +136,9 @@ synthesize searchParams goal messageChan = do
     let stc = solveTypeConstraint env trial trial2
     -- putStrLn $ show  (pretty stc)
     st' <- execStateT stc initSolverState
-    putStrLn $ "st': " ++ show st'
+    -- putStrLn $ "st': " ++ show st'
 
-    {-
+    --{-
     let substitution =  _typeAssignment st' -- ^. typeAssignment
     let checkResult = _isChecked st' -- ^. isChecked
     putStrLn $ "sub: " ++ show substitution
