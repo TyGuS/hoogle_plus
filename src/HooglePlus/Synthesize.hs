@@ -103,7 +103,7 @@ synthesize searchParams goal messageChan = do
     putStrLn $ "Hello world"
     let args = Monotype destinationType : Map.elems (env ^. arguments)
     print $ args
-    print $ gSpec goal
+    print $ env'''
   -- start with all the datatypes defined in the components, first level abstraction
 
     --------------------------
@@ -114,10 +114,10 @@ synthesize searchParams goal messageChan = do
     let initSolverState = emptySolverState 
 
     -- used trial just to get one type for testing (not real code)
-    let trial = shape (gSpec goal)
+    {-let trial = shape (gSpec goal)
 
     st' <- evalStateT (solveTypeConstraint env trial trial) initSolverState
-    putStrLn $ "st': " ++ show st'
+    putStrLn $ "st': " ++ show st'-}
 
     --------------------------
     -- trying code Zheng gave us 
