@@ -130,6 +130,7 @@ synthesize searchParams goal messageChan = do
     -- looking for SType
     let trial = shape destinationType
     let trial2 = shape intType
+    print $ typeOf trial
     --let blah = solveTypeConstraint env trial trial
     putStrLn $ "trial: " ++ show trial
     putStrLn $ "trial2: " ++ show trial2
