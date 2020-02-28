@@ -133,7 +133,7 @@ synthesize searchParams goal messageChan = do
     case trial of
       AnyT -> putStrLn $ "AnyT"
       BotT -> putStrLn $ "botT"
-      ScalarT b _ -> putStrLn $ "scalarT" ++ show b
+      ScalarT b _ -> putStrLn $ "scalarT" ++ prettyShow b
       _    -> putStrLn $ "otherwise"
     --print $ typeOf trial
     --let blah = solveTypeConstraint env trial trial
