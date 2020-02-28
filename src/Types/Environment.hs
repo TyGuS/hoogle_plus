@@ -39,7 +39,7 @@ data Environment = Environment {
   _typClassInstances :: [(String, String)],
   _condTypClasses :: [([(String, [Set String])], (String, String))],
   _hoCandidates :: [Id],
-  _queryCandidates :: [QueryInput]
+  _queryCandidates :: Map RSchema [Example]
   } deriving(Generic)
 
 makeLenses ''Environment

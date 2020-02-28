@@ -44,6 +44,20 @@ parseExample mdls ex = do
     where
         mkFun = printf "\\f -> f %s == %s" (unwords $ inputs ex) (output ex)
 
+parseExamples :: [String] -> [Example] -> IO RSchema
+parseExamples mdls exs = do
+    typ <- runGhc (Just libdir) $ do
+        dflags <- getSessionDynFlags
+        setSessionDynFlags dflags
+        prepareModules mdls >>= setContext
+        let funArgs = map mkFun exs
+        let fun = printf "\\f -> (%s)" (intersperse "," funArgs)
+        exprType TM_Default fun
+    let hsType = typeToLHsType typ
+    return (resolveType hsType)
+    where
+        mkFun ex = printf "f %s == %s" (unwords $ inputs ex) (output ex)
+
 resolveType :: LHsType GhcPs -> RSchema
 resolveType (L _ (HsForAllTy bs t)) = foldr ForallT (resolveType t) vs
     where
@@ -86,14 +100,9 @@ checkExample :: Environment -> RType -> Example -> Chan Message -> IO (Maybe Exa
 checkExample env typ ex checkerChan = do
     exTyp <- parseExample (Set.toList $ env ^. included_modules) ex
     let sTyp = shape typ
-    let initChecker = emptyChecker { _checkerChan = checkerChan }
-    state <- execStateT (do
-        exTyp' <- freshType exTyp
-        let sExTyp = shape exTyp'
-        solveTypeConstraint env sTyp sExTyp) initChecker
     let err = printf "%s does not have type %s" (show ex) (show typ)
-    if state ^. isChecked then return $ Just ex 
-                          else return Nothing
+    if checkTypes env exTyp sTyp then return $ Just ex 
+                                 else print err >> return Nothing
 
 checkExamples :: Environment -> RType -> [Example] -> Chan Message -> IO (Maybe [Example])
 checkExamples env typ exs checkerChan = do
@@ -129,6 +138,15 @@ execExample mdls env prog ex =
                 _ -> return (Left "Unknown error")
         getExecValue [] = return (Left "Empty result list")
 
+-- to check two type are exactly the same
+-- what about swapping arg orders?
+augmentTestSet :: Environment -> RType -> [Example]
+augmentTestSet env goal =
+    let candidates = env ^. queryCandidates
+        matchCands = map (\s -> checkTypes env s (shape goal)) (Map.keys candidates)
+        usefulExs = concatMap (\s -> candidates Map.! s) matchCands
+     in nubBy (\x y -> inputs x == inputs y) usefulExs
+
 checkExampleOutput :: [String] -> Environment -> RProgram -> [Example] -> IO (Maybe [Example])
 checkExampleOutput mdls env prog exs = do
     currOutputs <- mapM (execExample mdls env $ show prog) exs
@@ -144,8 +162,15 @@ checkExampleOutput mdls env prog exs = do
                           Right o | o == output ex -> Just ex
                                   | otherwise -> Nothing
 
-
 prepareModules mdls = do
     let imports = map (printf "import %s") mdls
     decls <- mapM parseImportDecl imports
     return (map IIDecl decls)
+
+checkTypes :: Environment -> RSchema -> SType -> IO Bool
+checkTypes env s t = do
+    let initChecker = emptyChecker { _checkerChan = checkerChan }
+    state <- execStateT (do
+        t' <- freshType s
+        solveTypeConstraint env (shape t') t) initChecker
+    return $ state ^. isChecked

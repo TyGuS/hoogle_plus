@@ -524,7 +524,7 @@ findProgram env goal examples cnt = do
     where
         handleResult NotFound = error "NotFound appeared in search results"
         handleResult (Found (soln, exs)) = do
-            writeSolution (Output (show soln) exs)
+            writeSolution (QueryOutput (show soln) exs)
             modify $ over (searchState . currentSolutions) ((:) soln)
         handleResult (MoreRefine err)  = error "Should not encounter more refine"
 
@@ -739,7 +739,7 @@ runPNSolver env goal examples = do
     liftIO $ writeChan msgChan (MesgClose CSNormal)
 
 {- helper functions -}
-writeSolution :: MonadIO m => Output -> PNSolver m ()
+writeSolution :: MonadIO m => QueryOutput -> PNSolver m ()
 writeSolution out = do
     stats <- gets $ view (statistics . solverStats)
     loc <- gets $ view (searchState . currentLoc)

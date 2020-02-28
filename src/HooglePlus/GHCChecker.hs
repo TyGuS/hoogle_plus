@@ -147,11 +147,13 @@ check_ :: MonadIO m
 check_ env searchParams examples program goalType solverChan = do
     -- type check the examples, raise exceptions if there are
     programPassedChecks <- executeCheck program
-    if programPassedChecks then checkOutputs program
+    let eqTest x y = inputs x == inputs y
+    let examples' = nubBy eqTest $ examples ++ augmentTestSet env goalType
+    if programPassedChecks then checkOutputs program examples'
                            else return Nothing
     where
         mdls = Set.toList (_included_modules env)
-        checkOutputs prog = liftIO $ checkExampleOutput mdls env prog examples
+        checkOutputs prog exs = liftIO $ checkExampleOutput mdls env prog exs
         executeCheck = runGhcChecks searchParams env (lastType goalType)
 
 -- validate type signiture, run demand analysis, and run filter test

@@ -1,3 +1,4 @@
+[
 {
     "query": "d: a -> xs: [Maybe a] -> a",
     "inExamples": [
@@ -7,7 +8,29 @@
         },
         {
             "inputs": ["0", "[Just 1, Nothing]"],
-            "output": "1"
-        }
+            "output": "??"
+        },
+	{
+	    "inputs": ["0", "[Nothing, Just 1]"],
+	    "output": "??"
+	}
+    ]
+},
+{
+    "query": "d: a -> xs: [a] -> n: Int -> a",
+    "inExamples": [
+        {
+            "inputs": ["1", "[]", "1"],
+            "output": "??"
+        },
+        {
+            "inputs": ["0", "[1, 2, 3]", "2"],
+            "output": "??"
+        },
+	{
+	    "inputs": ["Nothing", "[Just 5, Nothing, Just 1]"],
+	    "output": "??"
+	}
     ]
 }
+]

@@ -44,7 +44,7 @@ data QueryOutput = QueryOutput {
     outExamples :: [Example]
 } deriving(Eq, Generic)
 
-instance ToJSON Output
+instance ToJSON QueryOutput
 
 data ExecInput = ExecInput {
     execQuery :: TypeQuery,

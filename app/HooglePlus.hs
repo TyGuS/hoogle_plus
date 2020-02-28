@@ -257,8 +257,19 @@ readBuiltinData synquidParams env = do
   json <- readFile jsonPathIn
   let mbBuildObjs = decode (LB.pack json) :: [QueryInput]
   case mbBuildObjs of
-    Just buildObjs -> return $ env {_queryCandidates = buildObjs}
+    Just buildObjs -> do
+        let candObjs = map transformObj buildObjs
+        let candMap = Map.fromList candObjs
+        return $ env {_queryCandidates = candMap}
     Nothing -> error "Invalid format of builtin queries, should be in json format"
+   where
+       transformObj (QueryInput q exs) = (parseQueryType q, exs)
+       parseQueryType str = let
+           parseResult = flip evalState (initialPos "type") $ 
+                         runIndentParserT parseType () "" str
+           in case parseResult of
+                Left parseErr -> error "something wrong in the builtin json"
+                Right t -> t
 
 searchTypes :: SynquidParams -> String -> IO ()
 searchTypes synquidParams inStr = do
@@ -275,7 +286,9 @@ searchTypes synquidParams inStr = do
   let eqLength x y = length x == length y
   let candPairs = filter (eqLength exquery . fst) validPairs
   let candTypes = map snd candPairs
-  print $ LB.append (LB.pack outputPrefix) (Aeson.encode (map show candTypes))
+  rawType <- parseExamples mdls exquery
+  let resultTypes = rawType:candTypes
+  print $ LB.append (LB.pack outputPrefix) (Aeson.encode (map show resultTypes))
 
 searchResults :: SynquidParams -> String -> IO ()
 searchResults synquidParams inStr = do
