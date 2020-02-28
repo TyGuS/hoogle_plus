@@ -3,7 +3,7 @@ import * as _ from "underscore";
 import { getArgNames } from "../utilities/args";
 
 export const initialSpecState = {
-    editingCells: [],
+    editingExampleRow: null,
     rows: [{
         id: "0",
         usage: ["x", "2", "xx"]
@@ -77,10 +77,10 @@ export function specReducer(state = initialSpecState, action) {
                 ...state,
                 rows: mkDoubleList(action.payload, state.numArgs),
             };
-        case Consts.SET_EDITING_CELLS:
+        case Consts.SET_EXAMPLE_EDITING_ROW:
             return {
                 ...state,
-                editingCells: action.payload,
+                editingExampleRow: action.payload,
             };
         case Consts.SET_SEARCH_TYPE:
             return {

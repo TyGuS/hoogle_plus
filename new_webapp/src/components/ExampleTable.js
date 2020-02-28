@@ -1,31 +1,32 @@
 import React, { useState } from 'react';
-import { EditingState, TableEditRow } from '@devexpress/dx-react-grid';
+import { EditingState } from '@devexpress/dx-react-grid';
 import {
   Grid,
   Table,
   TableHeaderRow,
   TableEditColumn,
-  TableInlineCellEditing,
+  TableEditRow,
 } from '@devexpress/dx-react-grid-bootstrap4';
 import { connect } from 'react-redux';
-import { setExamples, setEditingCells, increaseArgs, decreaseArgs } from '../actions';
+import { setExamples, setExampleEditingRow, increaseArgs, decreaseArgs } from '../actions';
 import { getArgNames } from '../utilities/args';
 import { Button, ButtonGroup } from 'react-bootstrap';
 import { SpinnableCell } from './SpinnableCell';
+import uuid from "uuid";
 
 
 const mapStateToProps = (state) => {
   return {
     numArgs: state.spec.numArgs,
     rows: generateRows(state.spec.rows),
-    editingCells: state.spec.editingCells,
+    editingRowId: state.spec.editingExampleRow,
   }
 };
 
 const mapDispatchToProps = (dispatch) => {
   return {
     setFacts: (allFacts) => dispatch(setExamples(allFacts)),
-    setEditingCells: (editingCells) => dispatch(setEditingCells(editingCells)),
+    setEditingRowId: (editingCells) => dispatch(setExampleEditingRow(editingCells)),
     increaseArgs: () => dispatch(increaseArgs()),
     decreaseArgs: () => dispatch(decreaseArgs()),
   }
@@ -54,15 +55,12 @@ const generateRows = (facts) => {
 }
 
 const ExampleTableBase = ({
-  numArgs, rows, editingCells,
-  setFacts, setEditingCells, increaseArgs, decreaseArgs}) => {
+  numArgs, rows, editingRowId,
+  setFacts, setEditingRowId, increaseArgs, decreaseArgs}) => {
 
     const argNames = getArgNames(numArgs);
     const colNames = [...argNames, "result"];
     const columns = colNames.map(name => {return {name: name, title: name}});
-    const [editingRowIds, setEditingRowIds] = useState([]);
-    const [addedRows, setAddedRows] = useState([]);
-    const [rowChanges, setRowChanges] = useState({});
 
     const commitChanges = ({ added, changed, deleted }) => {
       let changedRows;
@@ -77,7 +75,7 @@ const ExampleTableBase = ({
           })),
           ...rows,
         ];
-        setEditingCells([{ rowId: startingAddedId, columnName: columns[0].name }]);
+        setEditingRowId(startingAddedId);
       }
       if (changed) {
         changedRows = rows.map(row => (changed[row.id] ? { ...row, ...changed[row.id] } : row));
@@ -89,7 +87,7 @@ const ExampleTableBase = ({
       setFacts(changedRows);
     };
 
-    const addEmptyRow = () => commitChanges({ added: [{}] });
+    const addEmptyRow = () => commitChanges({ added: [{id: uuid.v4()}] });
 
     return (
       <div className="container">
@@ -101,21 +99,15 @@ const ExampleTableBase = ({
               getRowId={row => row.id}
             >
               <EditingState
-                // onCommitChanges={commitChanges}
-                // editingCells={editingCells}
-                // onEditingCellsChange={setEditingCells}
-                // addedRows={[]}
-                onAddedRowsChange={addEmptyRow}
-
-                editingRowIds={editingRowIds}
-                onEditingRowIdsChange={setEditingRowIds}
-                // rowChanges={rowChanges}
-                // onRowChangesChange={setRowChanges}
+                editingCells={editingRowId}
+                onEditingCellsChange={setEditingRowId}
                 addedRows={[]}
-                // onAddedRowsChange={changeAddedRows}
+                onAddedRowsChange={addEmptyRow}
                 onCommitChanges={commitChanges}
               />
-              <Table cellComponent={SpinnableCell} />
+              <Table
+                cellComponent={SpinnableCell}
+                />
               <TableHeaderRow />
               <TableEditRow/>
               <TableEditColumn
@@ -137,7 +129,6 @@ const ExampleTableBase = ({
                 +
               </Button>
             </ButtonGroup>
-
           </div>
         </div>
       </div>

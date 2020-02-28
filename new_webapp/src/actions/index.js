@@ -26,7 +26,7 @@ export const decreaseArgs = makeActionCreator(Consts.DECREASE_ARGS);
 export const increaseArgs = makeActionCreator(Consts.INCREASE_ARGS);
 export const setArgNum = makeActionCreator(Consts.SET_ARG_NUM, "payload");
 export const setSearchTypeInternal = makeActionCreator(Consts.SET_SEARCH_TYPE, "payload");
-export const setEditingCells = makeActionCreator(Consts.SET_EDITING_CELLS, "payload");
+export const setExampleEditingRow = makeActionCreator(Consts.SET_EXAMPLE_EDITING_ROW, "payload");
 export const setExamples = makeActionCreator(Consts.SET_EXAMPLES, "payload");
 export const updateCandidateUsageTable = makeActionCreator(Consts.UPDATE_CANDIDATE_USAGE, "payload");
 
