@@ -107,8 +107,9 @@ synthesize searchParams goal messageChan = do
     -- trying code Zheng gave us 
     --------------------------
     
-    let st’ <- evalStateT (solveTypeConstraint env t1 t2)  initSolverState
-    putStrLn $ "st': " ++ show st'
+    do = 
+      let st' <- evalStateT (solveTypeConstraint env t1 t2)  initSolverState
+      putStrLn $ "st': " ++ show st'
 
     --------------------------
     -- trying code Zheng gave us 
