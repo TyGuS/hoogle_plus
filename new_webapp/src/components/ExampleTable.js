@@ -8,7 +8,7 @@ import {
   TableInlineCellEditing,
 } from '@devexpress/dx-react-grid-bootstrap4';
 import { connect } from 'react-redux';
-import { setFacts, setEditingCells, increaseArgs, decreaseArgs } from '../actions';
+import { setExamples, setEditingCells, increaseArgs, decreaseArgs } from '../actions';
 import { getArgNames } from '../utilities/args';
 import { Button, ButtonGroup } from 'react-bootstrap';
 
@@ -28,7 +28,7 @@ const mapStateToProps = (state) => {
 
 const mapDispatchToProps = (dispatch) => {
   return {
-    setFacts: (allFacts) => dispatch(setFacts(allFacts)),
+    setFacts: (allFacts) => dispatch(setExamples(allFacts)),
     setEditingCells: (editingCells) => dispatch(setEditingCells(editingCells)),
     increaseArgs: () => dispatch(increaseArgs()),
     decreaseArgs: () => dispatch(decreaseArgs()),

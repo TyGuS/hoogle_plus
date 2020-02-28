@@ -3,7 +3,7 @@ import { connect } from "react-redux";
 import UsageTable from "./UsageTable";
 import { BounceLoader } from "react-spinners";
 import Collapsible from "react-collapsible";
-import { Accordion, Card, Button } from "react-bootstrap";
+import { Card } from "react-bootstrap";
 
 const mapStateToProps = state => {
     return {
@@ -15,31 +15,31 @@ const mapStateToProps = state => {
 
 const CandidateListBase = ({candidates, numArgs, isFetching}) => (
     <div>
-        <Accordion>
-        {candidates.map(({code, examples, candidateId}, idx) => (
-            <Card key={idx}>
+        {candidates.map(({code, examples, candidateId}, idx) => {
+            const header = (
                 <Card.Header>
-                    <Accordion.Toggle
-                        as={Button}
-                        varaint="link"
-                        eventKey={idx}>
-                            {idx + 1}:
-                    </Accordion.Toggle>
+                    {idx + 1}:
                     <span>Candidate: <code>{code}</code></span>
                 </Card.Header>
-                <Accordion.Collapse eventKey={idx}>
-                    <Card.Body>
-                        <UsageTable
-                            candidateId={candidateId}
-                            code={code}
-                            rows={examples}
-                            numColumns={numArgs + 1}
-                        />
-                    </Card.Body>
-                </Accordion.Collapse>
-            </Card>
-        ))}
-        </Accordion>
+            );
+            return (
+                <Card key={idx}>
+                    <Collapsible
+                        open="true"
+                        trigger={header}>
+                            <Card.Body>
+                                <UsageTable
+                                    candidateId={candidateId}
+                                    code={code}
+                                    rows={examples}
+                                    numColumns={numArgs + 1}
+                                />
+                            </Card.Body>
+                    </Collapsible>
+                </Card>
+            );
+            })
+        }
         {/* https://www.npmjs.com/package/react-spinners */}
         <div className="container">
             <div className="row justify-content-center">

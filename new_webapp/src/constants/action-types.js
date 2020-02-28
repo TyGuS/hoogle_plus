@@ -1,7 +1,7 @@
 export const ADD_CANDIDATE = "ADD_CANDIDATE";
 export const UPDATE_CANDIDATE_USAGE = "UPDATE_CANDIDATE_USAGE";
 export const ADD_FACT = "ADD_FACT";
-export const SET_FACTS = "SET_FACTS";
+export const SET_EXAMPLES = "SET_EXAMPLES";
 export const SET_EDITING_CELLS = "SET_EDITING_CELLS";
 
 export const SET_SEARCH_TYPE = "SET_SEARCH_TYPE";
