@@ -112,11 +112,12 @@ synthesize searchParams goal messageChan = do
     --------------------------
 
     -- make an empty solver state to use in evalState
+    let rs2 = _refineStrategy searchParams
     let initSolverState =
             emptySolverState
                 { _searchParams = searchParams
                 , _abstractionCover =
-                      case rs of
+                      case rs2 of
                           SypetClone -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
                           TyGar0 -> emptySolverState ^. abstractionCover
                           TyGarQ -> Abstraction.specificAbstractionFromTypes env args
