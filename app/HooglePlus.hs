@@ -9,13 +9,12 @@ import Synquid.Error
 import Synquid.Pretty
 import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Resolver (resolveDecls, ResolverState (..), initResolverState, resolveSchema)
-import Synquid.SolverMonad
 import Types.Generate hiding (files)
 import Types.Experiments
+import Types.IOFormat
 import Types.Environment
 import Types.Program
 import Types.Solver
-import Synquid.HtmlOutput
 import Database.Presets
 import Database.Environment
 import Database.Convert
@@ -28,6 +27,7 @@ import HooglePlus.Stats
 import Types.Encoder
 import HooglePlus.GHCChecker
 import HooglePlus.Utils
+import HooglePlus.IOFormat
 
 import Control.Monad
 import Control.Lens ((^.))
@@ -60,6 +60,7 @@ import Text.Parsec.Indent
 import System.Directory
 import System.IO
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy.Char8 as LB
 
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import Text.PrettyPrint.ANSI.Leijen (fill, column)
@@ -75,7 +76,7 @@ main = do
     res <- cmdArgsRun $ mode
     case res of
         Synthesis { file
-                  , libs
+                  , json
                   , env_file_path_in
                   , app_max
                   , log_
@@ -113,7 +114,10 @@ main = do
                         }
             let synquidParams =
                     defaultSynquidParams {Main.envPath = env_file_path_in}
-            executeSearch synquidParams searchParams file
+            case (file, json) of
+              ("", "") -> error "Must specify a file path or a json string"
+              ("", json) -> executeSearch synquidParams searchParams json
+              (f, _) -> readFile f >>= executeSearch synquidParams searchParams
         Generate {preset = (Just preset)} -> do
             precomputeGraph (getOptsFromPreset preset)
         Generate Nothing files pkgs mdls d ho pathToEnv hoPath -> do
@@ -143,7 +147,7 @@ data CommandLineArgs
     = Synthesis {
         -- | Input
         file :: String,
-        libs :: [String],
+        json :: String,
         env_file_path_in :: String,
         -- | Search params
         app_max :: Int,
@@ -178,24 +182,24 @@ data CommandLineArgs
   deriving (Data, Typeable, Show, Eq)
 
 synt = Synthesis {
-  file                = ""              &= typFile &= argPos 0,
-  libs                = []              &= args &= typ "FILES",
+  file                = ""              &= typFile &= help ("Input query from the specified file path, file should be in json format"),
+  json                = ""              &= help ("Input query from a json string"),
   env_file_path_in    = defaultEnvPath  &= help ("Environment file path (default:" ++ (show defaultEnvPath) ++ ")"),
   app_max             = 6               &= help ("Maximum depth of an application term (default: 6)") &= groupname "Explorer parameters",
   log_                = 0               &= help ("Logger verboseness level (default: 0)") &= name "l",
   sol_num             = 1               &= help ("Number of solutions need to find (default: 1)") &= name "cnt",
-  disable_higher_order        = False   &= help ("Disable higher order functions (default: False)"),
+  disable_higher_order= False           &= help ("Disable higher order functions (default: False)"),
   use_refine          = TyGarQ          &= help ("Use abstract refinement or not (default: TyGarQ)"),
-  stop_refine         = False           &= help ("Stop refine the abstraction cover after some threshold (default: False)"),
+  stop_refine         = True            &= help ("Stop refine the abstraction cover after some threshold (default: False)"),
   stop_threshold      = 10              &= help ("Refinement stops when the number of places reaches the threshold, only when stop_refine is True"),
   incremental         = False           &= help ("Enable the incremental solving in z3 (default: False)"),
-  disable_demand    = False &= name "d" &= help ("Disable the demand analyzer (default: False)"),
-  disable_coalescing = False &= name "xc" &= help ("Do not coalesce transitions in the net with the same abstract type"),
-  coalescing_strategy = First &= help ("Choose how type coalescing works. Default: Pick first element of each group set."),
+  disable_demand      = False           &= name "d" &= help ("Disable the demand analyzer (default: False)"),
+  disable_coalescing  = False           &= name "xc" &= help ("Do not coalesce transitions in the net with the same abstract type"),
+  coalescing_strategy = First           &= help ("Choose how type coalescing works. Default: Pick first element of each group set."),
   disable_relevancy   = False           &= help ("Disable the relevancy requirement for argument types (default: False)"),
   disable_copy_trans  = False           &= help ("Disable the copy transitions and allow more than one token in initial state instead (default: False)"),
-  disable_blacklist     = False         &= help ("Disable blacklisting functions in the solution (default: False)"),
-  disable_filter      = False           &= help ("Disable filter-based test")
+  disable_blacklist   = False           &= help ("Disable blacklisting functions in the solution (default: False)"),
+  disable_filter      = True            &= help ("Disable filter-based test")
   } &= auto &= help "Synthesize goals specified in the input file"
 
 generate = Generate {
@@ -214,18 +218,6 @@ mode = cmdArgsMode $ modes [synt, generate] &=
   program programName &=
   summary (programName ++ " v" ++ versionName ++ ", " ++ showGregorian releaseDate)
 
--- | Output format
-data OutputFormat = Plain -- ^ Plain text
-  | Ansi -- ^ Text with ANSI-terminal special characters
-  | Html -- ^ HTML
-  deriving (Typeable, Data, Eq, Show)
-
--- | 'printDoc' @format doc@ : print @doc@ to the console using @format@
-printDoc :: OutputFormat -> Doc -> IO()
-printDoc Plain doc = putDoc (plain doc) >> putStr "\n"
-printDoc Ansi doc = putDoc doc >> putStr "\n"
-printDoc Html doc = putStr (showDocHtml (renderPretty 0.4 100 doc))
-
 -- | Parameters of the synthesis
 data SynquidParams = SynquidParams {
     envPath :: String -- ^ Path to the environment file
@@ -240,15 +232,17 @@ precomputeGraph opts = generateEnv opts >>= writeEnv (Types.Generate.envPath opt
 
 
 -- | Parse and resolve file, then synthesize the specified goals
-executeSearch :: SynquidParams -> SearchParams  -> String -> IO ()
-executeSearch synquidParams searchParams query = do
+executeSearch :: SynquidParams -> SearchParams -> String -> IO ()
+executeSearch synquidParams searchParams inStr = do
+  let input = decodeInput (LB.pack inStr)
+  let tquery = query input
+  let exquery = inExamples input
   env <- readEnv
-  goal <- envToGoal env query
+  goal <- envToGoal env tquery
   solverChan <- newChan
   checkerChan <- newChan
-  workerS <- forkIO $ synthesize searchParams goal solverChan
-  workerC <- forkIO $ check goal searchParams solverChan checkerChan
-  readChan checkerChan >>= (handleMessages checkerChan)
+  forkIO $ synthesize searchParams goal exquery solverChan
+  readChan solverChan >>= (handleMessages solverChan)
   where
     logLevel = searchParams ^. explorerLogLevel
     readEnv = do
@@ -262,9 +256,10 @@ executeSearch synquidParams searchParams query = do
           return env
 
     handleMessages ch (MesgClose _) = when (logLevel > 0) (putStrLn "Search complete") >> return ()
-    handleMessages ch (MesgP (program, stats, _)) = do
+    handleMessages ch (MesgP (out, stats, _)) = do
       when (logLevel > 0) $ printf "[writeStats]: %s\n" (show stats)
-      printSolution program
+      -- printSolution program
+      putStrLn $ show $ encodeOutput out
       hFlush stdout
       readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgS debug) = do
@@ -275,5 +270,3 @@ executeSearch synquidParams searchParams query = do
         mapM (printf "[%s]: %s\n" tag) (lines msg)
         hFlush stdout)
       readChan ch >>= (handleMessages ch)
-
-pdoc = printDoc Plain

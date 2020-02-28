@@ -10,6 +10,7 @@ import Types.Environment
 import Control.Lens
 import Data.Serialize
 import GHC.Generics
+import Data.Aeson
 
 -- | One case inside a pattern match expression
 data Case t = Case {
@@ -17,6 +18,9 @@ data Case t = Case {
   argNames :: [Id],       -- ^ Bindings for constructor arguments
   expr :: Program t       -- ^ Result of the match in this case
 } deriving (Eq, Ord, Functor, Generic)
+
+instance ToJSON t => ToJSON (Case t)
+instance FromJSON t => FromJSON (Case t)
 
 -- | Program skeletons parametrized by information stored symbols, conditionals, and by node types
 data BareProgram t =
@@ -31,11 +35,17 @@ data BareProgram t =
   PErr                                        -- ^ Error
   deriving (Eq, Ord, Functor, Generic)
 
+instance ToJSON t => ToJSON (BareProgram t)
+instance FromJSON t => FromJSON (BareProgram t)
+
 -- | Programs annotated with types
 data Program t = Program {
   content :: BareProgram t,
   typeOf :: t
 } deriving (Functor, Generic)
+
+instance ToJSON t => ToJSON (Program t)
+instance FromJSON t => FromJSON (Program t)
 
 instance Eq (Program t) where
   (==) (Program l _) (Program r _) = l == r
@@ -73,7 +83,6 @@ data Metadata = Metadata {
 } deriving(Eq, Show, Generic)
 
 makeLenses ''Metadata
-
 
 instance Serialize Formula
 instance Serialize Sort

@@ -17,8 +17,11 @@ import Types.Environment
 import Types.Experiments
 import Types.Program
 import Types.Solver
+import Types.TypeChecker
 import Types.Type
+import Types.IOFormat
 import HooglePlus.Utils
+import Examples.ExampleChecker
 
 import Control.Applicative ((<$>))
 import Control.Concurrent.Chan
@@ -64,10 +67,11 @@ envToGoal env queryStr = do
 
       _ -> error "parse a signature for a none goal declaration"
 
-synthesize :: SearchParams -> Goal -> Chan Message -> IO ()
-synthesize searchParams goal messageChan = do
+synthesize :: SearchParams -> Goal -> [Example] -> Chan Message -> IO ()
+synthesize searchParams goal examples messageChan = do
     let env' = gEnvironment goal
-    let destinationType = lastType $ toMonotype $ gSpec goal
+    let goalType = toMonotype (gSpec goal)
+    let destinationType = lastType goalType
     let useHO = _useHO searchParams
     let rawSyms = env' ^. symbols
     let hoCands = env' ^. hoCandidates
@@ -91,20 +95,25 @@ synthesize searchParams goal messageChan = do
     let args = Monotype destinationType : Map.elems (env ^. arguments)
   -- start with all the datatypes defined in the components, first level abstraction
     let rs = _refineStrategy searchParams
+    let initCover = case rs of
+                        SypetClone -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
+                        TyGar0 -> emptySolverState ^. (refineState . abstractionCover)
+                        TyGarQ -> Abstraction.specificAbstractionFromTypes env args
+                        NoGar -> Abstraction.specificAbstractionFromTypes env args
+                        NoGar0 -> emptySolverState ^. (refineState . abstractionCover)
     let is =
             emptySolverState
                 { _searchParams = searchParams
-                , _abstractionCover =
-                      case rs of
-                          SypetClone -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
-                          TyGar0 -> emptySolverState ^. abstractionCover
-                          TyGarQ -> Abstraction.specificAbstractionFromTypes env args
-                          NoGar -> Abstraction.specificAbstractionFromTypes env args
-                          NoGar0 -> emptySolverState ^. abstractionCover
+                , _refineState = emptyRefineState { _abstractionCover = initCover }
                 , _messageChan = messageChan
+                , _typeChecker = emptyChecker { _checkerChan = messageChan }
                 }
     catch
-        (evalStateT (runPNSolver env destinationType) is)
+        (do
+            -- before synthesis, first check that user has provided valid examples
+            let exWithOutputs = filter ((/=) "??" . output) examples
+            checkExamples env' goalType exWithOutputs messageChan
+            evalStateT (runPNSolver env goalType examples) is)
         (\e ->
              writeChan messageChan (MesgLog 0 "error" (show e)) >>
              writeChan messageChan (MesgClose (CSError e)) >>

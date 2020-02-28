@@ -2,8 +2,8 @@
 module Types.Experiments where
 
 import Types.Type
-import Types.Encoder
 import Types.Program
+import Types.IOFormat
 import Synquid.Program
 import Synquid.Error
 import Types.Common
@@ -54,21 +54,23 @@ data SearchParams = SearchParams {
 makeLenses ''SearchParams
 
 data TimeStatistics = TimeStatistics {
-  encodingTime :: Double,
-  constructionTime :: Double,
-  solverTime :: Double,
-  codeFormerTime :: Double,
-  refineTime :: Double,
-  typeCheckerTime :: Double,
-  totalTime :: Double,
-  iterations :: Int,
-  pathLength :: Int,
-  numOfTransitions :: Map Int Int,
-  numOfPlaces :: Map Int Int,
-  duplicateSymbols :: [(Int, Int, Int)]
+  _encodingTime :: Double,
+  _constructionTime :: Double,
+  _solverTime :: Double,
+  _codeFormerTime :: Double,
+  _refineTime :: Double,
+  _typeCheckerTime :: Double,
+  _totalTime :: Double,
+  _iterations :: Int,
+  _pathLength :: Int,
+  _numOfTransitions :: Map Int Int,
+  _numOfPlaces :: Map Int Int,
+  _duplicateSymbols :: [(Int, Int, Int)]
 } deriving(Show, Eq)
 
 emptyTimeStats = TimeStatistics 0 0 0 0 0 0 0 0 0 Map.empty Map.empty []
+
+makeLenses ''TimeStatistics
 
 data TimeStatUpdate
   = ConstructionTime
@@ -87,7 +89,7 @@ defaultSearchParams = SearchParams {
   _solutionCnt = 1,
   _useHO = True,
   _refineStrategy = TyGarQ,
-  _stopRefine = False,
+  _stopRefine = True,
   _threshold = 10,
   _incrementalSolving = False,
   _disableDemand = False,
@@ -96,7 +98,7 @@ defaultSearchParams = SearchParams {
   _disableRelevancy = False,
   _disableCopy = False,
   _disableBlack = False,
-  _disableFilter = False
+  _disableFilter = True
 }
 
 type ExperimentName = String
@@ -117,7 +119,7 @@ data ExperimentCourse
 
 data Message
   = MesgClose CloseStatus
-  | MesgP (RProgram, TimeStatistics, FilterState) -- Program with the stats associated with generating it
+  | MesgP (Output, TimeStatistics, FilterState) -- Program with the stats associated with generating it
   | MesgS TimeStatistics
   | MesgLog Int String String -- Log level, tag, message
 
