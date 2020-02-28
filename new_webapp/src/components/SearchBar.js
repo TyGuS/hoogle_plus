@@ -2,6 +2,8 @@ import React, {Component } from "react";
 import {connect} from "react-redux";
 import {setSearchType} from "../actions/index";
 import ExampleTable from "./ExampleTable";
+import { TypeSelection } from "./TypeSelection";
+import { Button } from "react-bootstrap";
 
 const mapDispatchToProps = (dispatch) => {
     return {
@@ -35,6 +37,7 @@ class ConnectedSearchBar extends Component {
     render() {
         return (
             <div>
+            <TypeSelection/>
             <div className="container">
                 <div className="row justify-content-center">
                     <input
@@ -54,9 +57,9 @@ class ConnectedSearchBar extends Component {
                         <ExampleTable/>
                     </div>
                 </div>
-                <button onClick={this.handleSubmit}>
+                <Button onClick={this.handleSubmit}>
                     Search
-                </button>
+                </Button>
             </div>
             </div>
         );

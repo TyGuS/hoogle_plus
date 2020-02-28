@@ -10,6 +10,7 @@ import {
 import { connect } from 'react-redux';
 import { setFacts, setEditingCells, increaseArgs, decreaseArgs } from '../actions';
 import { getArgNames } from '../utilities/args';
+import { Button } from 'react-bootstrap';
 
 const getRowId = row => row.id;
 
@@ -117,10 +118,14 @@ const ExampleTableBase = ({
             </Grid>
           </div>
           <div className="col-2">
-            <button onClick={increaseArgs}>add argument</button>
-            <button
+            <Button onClick={increaseArgs}>
+              add argument
+            </Button>
+            <Button
               onClick={decreaseArgs}
-              disabled={numArgs < 2}>remove argument</button>
+              disabled={numArgs < 2}>
+                remove argument
+            </Button>
           </div>
         </div>
       </div>

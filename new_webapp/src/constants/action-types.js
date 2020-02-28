@@ -10,3 +10,7 @@ export const SET_NEW_SEARCH = "SET_NEW_SEARCH";
 export const INCREASE_ARGS = "INCREASE_ARGS";
 export const DECREASE_ARGS = "DECREASE_ARGS";
 export const SET_ARG_NUM = "SET_ARG_NUM";
+
+export const MODAL_OPEN = "MODAL_OPEN";
+export const MODAL_CLOSE = "MODAL_CLOSE";
+export const SELECT_TYPE = "SELECT_TYPE";

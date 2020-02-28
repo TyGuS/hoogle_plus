@@ -6,6 +6,9 @@ import { initialCandidateState, candidateReducer } from "./candidateReducer";
 const initialState = {
     spec: initialSpecState,
     candidates: initialCandidateState,
+    modal: {
+        isOpen: true,
+    }
 };
 
 // This allows us to silo state in these separate areas and break the code
@@ -18,11 +21,21 @@ const restOfReducers = combineReducers({
 const rootReducer = (state = initialState, action) => {
     switch(action.type) {
         //Catch any modifies of numArgs here.
+        case Consts.MODAL_CLOSE:
+            return {
+                ...state,
+                modal:{isOpen:false}
+            };
+        case Consts.MODAL_OPEN:
+            return {
+                ...state,
+                modal:{isOpen:true}
+            };
         default:
             return {
                 ...state,
                 ...restOfReducers(state, action)
-            }
+            };
     }
 }
 

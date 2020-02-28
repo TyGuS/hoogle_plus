@@ -1,4 +1,4 @@
-import {ADD_CANDIDATE, ADD_FACT, SET_SEARCH_TYPE, SET_FACTS, SET_EDITING_CELLS, SET_NEW_SEARCH, UPDATE_CANDIDATE_USAGE, INCREASE_ARGS, DECREASE_ARGS, SET_ARG_NUM} from "../constants/action-types";
+import * as Consts from "../constants/action-types";
 import { hooglePlusTypeSearch, ghciUsage } from "../gateways";
 
 function makeActionCreator(type, ...argNames) {
@@ -20,16 +20,26 @@ function makeActionCreator(type, ...argNames) {
 // };
 
 // Simple action creators for moving state around.
-export const addCandidate = makeActionCreator(ADD_CANDIDATE, "payload");
-export const addFact = makeActionCreator(ADD_FACT, "payload");
-export const decreaseArgs = makeActionCreator(DECREASE_ARGS);
-export const increaseArgs = makeActionCreator(INCREASE_ARGS);
-export const setArgNum = makeActionCreator(SET_ARG_NUM, "payload");
-export const setSearchTypeInternal = makeActionCreator(SET_SEARCH_TYPE, "payload");
-export const setEditingCells = makeActionCreator(SET_EDITING_CELLS, "payload");
-export const setFacts = makeActionCreator(SET_FACTS, "payload");
-export const updateCandidateUsageTable = makeActionCreator(UPDATE_CANDIDATE_USAGE, "payload");
+export const addCandidate = makeActionCreator(Consts.ADD_CANDIDATE, "payload");
+export const addFact = makeActionCreator(Consts.ADD_FACT, "payload");
+export const decreaseArgs = makeActionCreator(Consts.DECREASE_ARGS);
+export const increaseArgs = makeActionCreator(Consts.INCREASE_ARGS);
+export const setArgNum = makeActionCreator(Consts.SET_ARG_NUM, "payload");
+export const setSearchTypeInternal = makeActionCreator(Consts.SET_SEARCH_TYPE, "payload");
+export const setEditingCells = makeActionCreator(Consts.SET_EDITING_CELLS, "payload");
+export const setFacts = makeActionCreator(Consts.SET_FACTS, "payload");
+export const updateCandidateUsageTable = makeActionCreator(Consts.UPDATE_CANDIDATE_USAGE, "payload");
 
+export const setModalOpen = makeActionCreator(Consts.MODAL_OPEN);
+export const setModalClosed = makeActionCreator(Consts.MODAL_CLOSE);
+
+export const selectType = ({typeOption, examples}) => (dispatch) => {
+    dispatch(setSearchTypeInternal({typeOption}));
+    dispatch(setModalClosed());
+
+    const serverPromise = hooglePlusTypeSearch({query:typeOption, examples});
+    return handleCandidates(dispatch, serverPromise);
+};
 
 export const updateCandidateUsage = ({candidateId, usageId, args, code}) => (dispatch) => {
     dispatch(updateCandidateUsageTable({candidateId, usageId, args}));
@@ -42,11 +52,16 @@ export const updateCandidateUsage = ({candidateId, usageId, args, code}) => (dis
 export const setSearchType = (payload) => (dispatch) => {
     dispatch(setSearchTypeInternal({...payload}));
 
-    return hooglePlusTypeSearch({query: payload.query})
-        .then(value => {
+    const serverPromise = hooglePlusTypeSearch({query: payload.query});
+    return handleCandidates(dispatch, serverPromise);
+
+};
+
+const handleCandidates = (dispatch, serverPromise) => {
+    return serverPromise.then(value => {
             const args = value.examples[0].usage.length - 1;
-            dispatch(setArgNum, args);
+            dispatch(setArgNum(args));
             return value;
         })
         .then(value => dispatch(addCandidate(value)));
-};
+}
