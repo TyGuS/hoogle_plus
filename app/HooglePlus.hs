@@ -15,6 +15,7 @@ import Types.IOFormat
 import Types.Environment
 import Types.Program
 import Types.Solver
+import Types.Type
 import Database.Presets
 import Database.Environment
 import Database.Convert
@@ -46,6 +47,7 @@ import Control.Concurrent.Chan
 import qualified Data.Aeson as Aeson
 import Data.Char
 import Data.List
+import Data.Maybe
 import Data.Foldable
 import Data.Serialize
 import Data.Time.Calendar
@@ -264,7 +266,7 @@ readBuiltinData synquidParams env = do
         return $ env {_queryCandidates = candMap}
     Nothing -> error "Invalid format of builtin queries, should be in json format"
    where
-       transformObj (QueryInput q exs) = (parseQueryType q, exs)
+       transformObj (QueryInput q exs) = (Monotype $ parseQueryType q, exs)
        parseQueryType str = let
            parseResult = flip evalState (initialPos "type") $ 
                          runIndentParserT parseType () "" str
@@ -282,7 +284,7 @@ searchTypes synquidParams inStr = do
   env' <- readBuiltinData synquidParams env
   let builtinQueryTypes = Map.keys (env' ^. queryCandidates)
   messageChan <- newChan
-  outExamples <- mapM (checkExamples env' t exquery messageChan) builtinQueryTypes
+  outExamples <- mapM (\t -> checkExamples env' (toMonotype t) exquery messageChan) builtinQueryTypes
   let validPairs = filter (isJust . fst) (zip outExamples builtinQueryTypes)
   let eqLength x y = length x == length y
   let candPairs = filter (eqLength exquery . fst) validPairs
@@ -304,7 +306,7 @@ searchResults synquidParams inStr = do
   let tquery = execQuery input
   env <- readEnv $ Main.envPath synquidParams
   let mdls = Set.toList $ env ^. included_modules
-  execResult <- execExamples mdls env prog (Example args "??")
+  execResult <- execExample mdls env prog (Example args "??")
   let execJson = case execResult of
                    Left err -> ExecOutput err ""
                    Right r -> ExecOutput "" r

@@ -50,7 +50,7 @@ instance ToJSON QueryOutput
 
 data ExecInput = ExecInput {
     execQuery :: TypeQuery,
-    execArgs :: Example,
+    execArgs :: [String],
     execProg :: String
 } deriving(Eq, Generic)
 

@@ -142,7 +142,7 @@ execExample mdls env prog ex =
 
 -- to check two type are exactly the same
 -- what about swapping arg orders?
-augmentTestSet :: Environment -> RType -> [Example]
+augmentTestSet :: Environment -> RType -> IO [Example]
 augmentTestSet env goal = do
     let candidates = env ^. queryCandidates
     msgChan <- newChan
@@ -171,7 +171,7 @@ prepareModules mdls = do
     return (map IIDecl decls)
 
 checkTypes :: Environment -> Chan Message -> RSchema -> SType -> IO Bool
-checkTypes env s t checkerChan = do
+checkTypes env checkerChan s t = do
     let initChecker = emptyChecker { _checkerChan = checkerChan }
     state <- execStateT (do
         t' <- freshType s
