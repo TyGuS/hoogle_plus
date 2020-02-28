@@ -523,8 +523,8 @@ findProgram env goal examples cnt = do
          (nextSolution env goal examples (cnt - solnNum))
     where
         handleResult NotFound = error "NotFound appeared in search results"
-        handleResult (Found out@(Output soln exs)) = do
-            writeSolution out
+        handleResult (Found (soln, exs)) = do
+            writeSolution (Output (show soln) exs)
             modify $ over (searchState . currentSolutions) ((:) soln)
         handleResult (MoreRefine err)  = error "Should not encounter more refine"
 
@@ -724,7 +724,7 @@ checkSolution env goal examples code = do
         liftIO $ check env params examples code' goal msgChan
     if (code' `elem` solutions) || isNothing checkResult
         then mzero
-        else return $ Found $ Output code' (fromJust checkResult)
+        else return $ Found (code', fromJust checkResult)
 
 runPNSolver :: MonadIO m => Environment -> RType -> [Example] -> PNSolver m ()
 runPNSolver env goal examples = do

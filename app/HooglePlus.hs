@@ -42,6 +42,7 @@ import Control.Monad.State (runState, evalStateT, execStateT, evalState)
 import Control.Monad.Except (runExcept)
 import Control.Concurrent
 import Control.Concurrent.Chan
+import qualified Data.Aeson as Aeson
 import Data.Char
 import Data.List
 import Data.Foldable
@@ -77,6 +78,7 @@ main = do
     case res of
         Synthesis { file
                   , json
+                  , search_type
                   , env_file_path_in
                   , app_max
                   , log_
@@ -114,10 +116,14 @@ main = do
                         }
             let synquidParams =
                     defaultSynquidParams {Main.envPath = env_file_path_in}
-            case (file, json) of
+            let searchPrograms = case (file, json) of
               ("", "") -> error "Must specify a file path or a json string"
               ("", json) -> executeSearch synquidParams searchParams json
               (f, _) -> readFile f >>= executeSearch synquidParams searchParams
+            case search_type of
+              SearchPrograms -> searchPrograms
+              SearchTypes -> searchTypes synquidParams json
+              SearchResults -> searchResults synquidParams json
         Generate {preset = (Just preset)} -> do
             precomputeGraph (getOptsFromPreset preset)
         Generate Nothing files pkgs mdls d ho pathToEnv hoPath -> do
@@ -148,6 +154,7 @@ data CommandLineArgs
         -- | Input
         file :: String,
         json :: String,
+        search_type :: QueryType,
         env_file_path_in :: String,
         -- | Search params
         app_max :: Int,
@@ -184,6 +191,7 @@ data CommandLineArgs
 synt = Synthesis {
   file                = ""              &= typFile &= help ("Input query from the specified file path, file should be in json format"),
   json                = ""              &= help ("Input query from a json string"),
+  search_type         = SearchPrograms  &= help ("For web demo"),
   env_file_path_in    = defaultEnvPath  &= help ("Environment file path (default:" ++ (show defaultEnvPath) ++ ")"),
   app_max             = 6               &= help ("Maximum depth of an application term (default: 6)") &= groupname "Explorer parameters",
   log_                = 0               &= help ("Logger verboseness level (default: 0)") &= name "l",
@@ -220,16 +228,73 @@ mode = cmdArgsMode $ modes [synt, generate] &=
 
 -- | Parameters of the synthesis
 data SynquidParams = SynquidParams {
-    envPath :: String -- ^ Path to the environment file
+    envPath :: String, -- ^ Path to the environment file
+    jsonPath :: String
 }
 
 defaultSynquidParams = SynquidParams {
     Main.envPath = defaultEnvPath
+    jsonPath = defaultJsonPath
 }
 
 precomputeGraph :: GenerationOpts -> IO ()
 precomputeGraph opts = generateEnv opts >>= writeEnv (Types.Generate.envPath opts)
 
+readEnv :: FilePath -> IO Environment
+readEnv envPathIn = do
+  doesExist <- doesFileExist envPathIn
+  when (not doesExist) (error ("Please run `stack exec -- " ++ programName ++ " generate -p [PACKAGES]` to generate database first"))
+  envRes <- decode <$> B.readFile envPathIn
+  case envRes of
+    Left err -> error err
+    Right env -> return env
+
+readBuiltinData :: SynquidParams -> Environment -> IO Environment
+readBuiltinData synquidParams env = do
+  let jsonPathIn = jsonPath synquidParams
+  doesExist <- doesFileExist jsonpathIn
+  when (not doesExist) (error "cannot find builtin json file")
+  json <- readFile jsonPathIn
+  let mbBuildObjs = decode (LB.pack json) :: [QueryInput]
+  case mbBuildObjs of
+    Just buildObjs -> return $ env {_queryCandidates = buildObjs}
+    Nothing -> error "Invalid format of builtin queries, should be in json format"
+
+searchTypes :: SynquidParams -> String -> IO ()
+searchTypes synquidParams inStr = do
+  let input = decodeInput (LB.pack inStr)
+  let exquery = inExamples input
+  env <- readEnv $ Main.envPath synquidParams
+  let mdls = env ^. included_modules
+  exTypes <- mapM (parseExample mdls) exquery
+  env' <- readBuiltinData synquidParams env
+  let builtinQueryTypes = map query (env' ^. queryCandidates)
+  messageChan <- newChan
+  outExamples <- map (checkExamples env' t exquery messageChan) builtinQueryTypes
+  let validPairs = filter (isJust . fst) (zip outExamples builtinQueryTypes)
+  let eqLength x y = length x == length y
+  let candPairs = filter (eqLength exquery . fst) validPairs
+  let candTypes = map snd candPairs
+  print $ LB.append (LB.pack outputPrefix) (Aeson.encode (map show candTypes))
+
+searchResults :: SynquidParams -> String -> IO ()
+searchResults synquidParams inStr = do
+  let mbInput = Aeson.decode (LB.pack inStr) :: Maybe ExecInput
+  let input = case mbInput of
+                Just i -> i
+                Nothing -> error "cannot parse the input json string"
+  let args = arguments input
+  let prog = execProg input
+  -- TODO: maybe we need to do a type checking before execution
+  -- but it will also be shown in the results
+  let tquery = execQuery input
+  env <- readEnv $ Main.envPath synquidParams
+  let mdls = env ^. included_modules
+  execResult <- execExamples mdls env prog (Example args "??")
+  let execJson = case execResult of
+                   Left err -> ExecOutput err ""
+                   Right r -> ExecOutput "" r
+  print $ LB.append (LB.pack outputPrefix) (Aeson.encode execJson)
 
 -- | Parse and resolve file, then synthesize the specified goals
 executeSearch :: SynquidParams -> SearchParams -> String -> IO ()
@@ -237,7 +302,7 @@ executeSearch synquidParams searchParams inStr = do
   let input = decodeInput (LB.pack inStr)
   let tquery = query input
   let exquery = inExamples input
-  env <- readEnv
+  env <- readEnv Main.envPath synquidParams
   goal <- envToGoal env tquery
   solverChan <- newChan
   checkerChan <- newChan
@@ -245,21 +310,12 @@ executeSearch synquidParams searchParams inStr = do
   readChan solverChan >>= (handleMessages solverChan)
   where
     logLevel = searchParams ^. explorerLogLevel
-    readEnv = do
-      let envPathIn = Main.envPath synquidParams
-      doesExist <- doesFileExist envPathIn
-      when (not doesExist) (error ("Please run `stack exec -- " ++ programName ++ " generate -p [PACKAGES]` to generate database first"))
-      envRes <- decode <$> B.readFile envPathIn
-      case envRes of
-        Left err -> error err
-        Right env ->
-          return env
 
     handleMessages ch (MesgClose _) = when (logLevel > 0) (putStrLn "Search complete") >> return ()
     handleMessages ch (MesgP (out, stats, _)) = do
       when (logLevel > 0) $ printf "[writeStats]: %s\n" (show stats)
       -- printSolution program
-      putStrLn $ show $ encodeOutput out
+      print $ LB.append (LB.pack outputPrefix) (encodeOutput out)
       hFlush stdout
       readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgS debug) = do

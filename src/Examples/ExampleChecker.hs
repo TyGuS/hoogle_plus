@@ -82,7 +82,7 @@ resolveType' (L _ (HsTupleTy _ ts)) = foldr mkPair basePair otherTyps
 resolveType' (L _ (HsParTy t)) = resolveType' t
 resolveType' t = error $ showSDocUnsafe (ppr t)
 
-checkExample :: Environment -> RType -> Example -> Chan Message -> IO ()
+checkExample :: Environment -> RType -> Example -> Chan Message -> IO (Maybe Example)
 checkExample env typ ex checkerChan = do
     exTyp <- parseExample (Set.toList $ env ^. included_modules) ex
     let sTyp = shape typ
@@ -92,19 +92,23 @@ checkExample env typ ex checkerChan = do
         let sExTyp = shape exTyp'
         solveTypeConstraint env sTyp sExTyp) initChecker
     let err = printf "%s does not have type %s" (show ex) (show typ)
-    when (not $ state ^. isChecked) (error err)
+    if state ^. isChecked then return $ Just ex 
+                          else return Nothing
 
-checkExamples :: Environment -> RType -> [Example] -> Chan Message -> IO ()
-checkExamples env typ exs checkerChan = mapM_ (\ex -> checkExample env typ ex checkerChan) exs
+checkExamples :: Environment -> RType -> [Example] -> Chan Message -> IO (Maybe [Example])
+checkExamples env typ exs checkerChan = do
+    outExs <- mapM (\ex -> checkExample env typ ex checkerChan) exs
+    if null outExs then return Just $ catMaybes outExs
+                   else return Nothing
 
-execExample :: [String] -> Environment -> RProgram -> Example -> IO (Either ErrorMessage String)
+execExample :: [String] -> Environment -> String -> Example -> IO (Either ErrorMessage String)
 execExample mdls env prog ex =
     runGhc (Just libdir) $ do
         dflags <- getSessionDynFlags
         setSessionDynFlags dflags
         prepareModules mdls >>= setContext
         let prependArg = unwords (Map.keys $ env ^. arguments)
-        let progBody = printf "let f = \\%s -> %s in" prependArg (show prog)
+        let progBody = printf "let f = \\%s -> %s in" prependArg prog
         let progCall = printf "f %s" (unwords (inputs ex))
         result <- execStmt (unwords [progBody, progCall]) execOptions
         case result of
@@ -127,7 +131,7 @@ execExample mdls env prog ex =
 
 checkExampleOutput :: [String] -> Environment -> RProgram -> [Example] -> IO (Maybe [Example])
 checkExampleOutput mdls env prog exs = do
-    currOutputs <- mapM (execExample mdls env prog) exs
+    currOutputs <- mapM (execExample mdls env $ show prog) exs
     let cmpResults = map (uncurry compareResults) (zip currOutputs exs)
     let justResults = catMaybes cmpResults
     if length justResults == length exs then return $ Just justResults 

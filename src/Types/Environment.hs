@@ -4,6 +4,7 @@ module Types.Environment where
 import Types.Type
 import Types.Common
 import Types.Generate
+import Types.IOFormat
 
 import GHC.Generics hiding (to)
 import qualified Data.Set as Set
@@ -37,7 +38,8 @@ data Environment = Environment {
   _included_modules :: Set String,          -- ^ The set of modules any solution would need to import
   _typClassInstances :: [(String, String)],
   _condTypClasses :: [([(String, [Set String])], (String, String))],
-  _hoCandidates :: [Id]
+  _hoCandidates :: [Id],
+  _queryCandidates :: [QueryInput]
   } deriving(Generic)
 
 makeLenses ''Environment
@@ -63,5 +65,6 @@ emptyEnv = Environment {
   _included_modules = Set.empty,
   _typClassInstances = [],
   _condTypClasses = [],
-  _hoCandidates = []
+  _hoCandidates = [],
+  _queryCandidates = []
 }
