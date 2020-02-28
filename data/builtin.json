@@ -1,0 +1,13 @@
+{
+    "query": "d: a -> xs: [Maybe a] -> a",
+    "inExamples": [
+        {
+            "inputs": ["1", "[]"],
+            "output": "??"
+        },
+        {
+            "inputs": ["0", "[Just 1, Nothing]"],
+            "output": "1"
+        }
+    ]
+}
