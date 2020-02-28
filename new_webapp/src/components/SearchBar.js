@@ -3,7 +3,7 @@ import {connect} from "react-redux";
 import {setSearchType} from "../actions/index";
 import ExampleTable from "./ExampleTable";
 import { TypeSelection } from "./TypeSelection";
-import { Button } from "react-bootstrap";
+import { Button, InputGroup, FormControl } from "react-bootstrap";
 
 const mapDispatchToProps = (dispatch) => {
     return {
@@ -40,14 +40,24 @@ class ConnectedSearchBar extends Component {
             <TypeSelection/>
             <div className="container">
                 <div className="row justify-content-center">
-                    <input
+                <InputGroup className="mb-3 col-8">
+                    <FormControl
+                    aria-label="Default"
+                    aria-describedby="inputGroup-sizing-default"
+                    placeholder="Search by type here"
+                    value={this.state.value}
+                    onChange={this.handleChange}
+                    />
+                </InputGroup>
+                {/*
+                    <InputGroup.Text
                     type="text"
                     name="value"
                     placeholder="search by type here"
                     value={this.state.value}
                     onChange={this.handleChange}
                     className="col-8"
-                    />
+                    /> */}
                 </div>
                 <div className="row justify-content-center">
                     <div className="col">

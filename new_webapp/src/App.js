@@ -10,7 +10,7 @@ function App() {
   return (
     <div className="App container">
       <TopBar/>
-      <div className="row">
+      <div className="row justify-content-center">
         <div className="col-10">
           <SearchBar />
           <br/>
@@ -18,7 +18,6 @@ function App() {
           <br/>
           <CandidateList className="left" />
         </div>
-        <div className="right col-2">sidebar placeholder</div>
       </div>
       <footer className="row footer footer-style text-center">
         <div className="text-center col">

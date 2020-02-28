@@ -10,7 +10,10 @@ export const initialSpecState = {
     }],
     numArgs: 2,
     searchType: null,
-    searchTypeOptions: null,
+    searchTypeOptions: [
+        "foo",
+        "bar"
+    ],
 };
 
 const mkDoubleList = (listList, numArgs) => {
