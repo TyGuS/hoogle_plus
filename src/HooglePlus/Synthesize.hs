@@ -129,12 +129,14 @@ synthesize searchParams goal messageChan = do
     -- used trial just to get one type for testing (not real code)
     -- looking for SType
     let trial = shape destinationType
+    let trial2 = shape intType
     --let blah = solveTypeConstraint env trial trial
-    -- putStrLn $ "trial: " ++ show trial
-    st' <- evalStateT (solveTypeConstraint env trial (shape intType)) initSolverState
+    putStrLn $ "trial: " ++ show trial
+    putStrLn $ "trial2: " ++ show trial2
+    st' <- evalStateT (solveTypeConstraint env trial trial2) initSolverState
     putStrLn $ "st': " ++ show st'
 
-    --{-
+    {-
     let substitution =  _typeAssignment st' -- ^. typeAssignment
     let checkResult = _isChecked st' -- ^. isChecked
     putStrLn $ "sub: " ++ show substitution
