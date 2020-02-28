@@ -132,7 +132,7 @@ synthesize searchParams goal messageChan = do
     --let blah = solveTypeConstraint env trial trial
     putStrLn $ "trial: " ++ show trial
     st' <- evalStateT (solveTypeConstraint env trial trial) initSolverState
-    --putStrLn $ "st': " ++ show st'
+    putStrLn $ "st': " ++ show st'
 
     {-
     let substitution =  _typeAssignment st' -- ^. typeAssignment
