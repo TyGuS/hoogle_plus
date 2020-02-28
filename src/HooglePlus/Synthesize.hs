@@ -130,7 +130,7 @@ synthesize searchParams goal messageChan = do
     -- looking for SType
     let trial = shape destinationType
     let trial2 = shape intType
-    match trial of
+    case trial of
       AnyT -> putStrLn $ "omg"
       _    -> putStrLn $ "not anyT"
     --print $ typeOf trial
