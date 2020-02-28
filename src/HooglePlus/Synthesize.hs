@@ -134,7 +134,7 @@ synthesize searchParams goal messageChan = do
     st' <- evalStateT (solveTypeConstraint env trial (shape intType)) initSolverState
     putStrLn $ "st': " ++ show st'
 
-    {-
+    --{-
     let substitution =  _typeAssignment st' -- ^. typeAssignment
     let checkResult = _isChecked st' -- ^. isChecked
     putStrLn $ "sub: " ++ show substitution
