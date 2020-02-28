@@ -153,6 +153,6 @@ instance Monad m => CheckMonad (BackTrack m) where
     overStats f = modify (over (statistics . solverStats) f)
 
 data SearchResult = NotFound 
-                  | Found QueryOutput
+                  | Found (RProgram, [Example])
                   | MoreRefine (RProgram, AbstractSkeleton)
                   deriving(Eq)

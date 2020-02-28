@@ -1,19 +1,20 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric, DeriveDataTypeable #-}
 
 module Types.IOFormat where
 
 import Types.Type
-import Types.Program
 
 import GHC.Generics
 import Data.Aeson
+import Data.Serialize
+import Data.Data
 
 outputPrefix = "RESULTS:"
 
 data QueryType = SearchPrograms
                | SearchTypes
                | SearchResults
-  deriving(Eq, Show, Generic)
+  deriving(Eq, Data, Show, Generic)
 
 instance FromJSON QueryType
 instance ToJSON QueryType
@@ -28,6 +29,7 @@ instance Show Example where
 
 instance ToJSON Example
 instance FromJSON Example
+instance Serialize Example
 
 type ErrorMessage = String
 type TypeQuery = String
@@ -48,7 +50,7 @@ instance ToJSON QueryOutput
 
 data ExecInput = ExecInput {
     execQuery :: TypeQuery,
-    arguments :: Example,
+    execArgs :: Example,
     execProg :: String
 } deriving(Eq, Generic)
 

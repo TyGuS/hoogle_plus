@@ -119,7 +119,7 @@ data ExperimentCourse
 
 data Message
   = MesgClose CloseStatus
-  | MesgP (Output, TimeStatistics, FilterState) -- Program with the stats associated with generating it
+  | MesgP (QueryOutput, TimeStatistics, FilterState) -- Program with the stats associated with generating it
   | MesgS TimeStatistics
   | MesgLog Int String String -- Log level, tag, message
 

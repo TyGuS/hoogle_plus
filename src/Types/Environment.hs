@@ -66,5 +66,5 @@ emptyEnv = Environment {
   _typClassInstances = [],
   _condTypClasses = [],
   _hoCandidates = [],
-  _queryCandidates = []
+  _queryCandidates = Map.empty 
 }

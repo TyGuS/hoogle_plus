@@ -24,7 +24,7 @@ import CorePrep
 import CoreSyn
 import Data.Data
 import Data.Either
-import Data.List (isInfixOf, isPrefixOf, intercalate)
+import Data.List (nubBy, isInfixOf, isPrefixOf, intercalate)
 import Data.List.Split (splitOn)
 import Data.Maybe
 import Data.Typeable
@@ -147,8 +147,9 @@ check_ :: MonadIO m
 check_ env searchParams examples program goalType solverChan = do
     -- type check the examples, raise exceptions if there are
     programPassedChecks <- executeCheck program
-    let eqTest x y = inputs x == inputs y
-    let examples' = nubBy eqTest $ examples ++ augmentTestSet env goalType
+    let eqTest x y = Types.IOFormat.inputs x == Types.IOFormat.inputs y
+    augmentedExs <- liftIO $  augmentTestSet env goalType
+    let examples' = nubBy eqTest $ examples ++ augmentedExs
     if programPassedChecks then checkOutputs program examples'
                            else return Nothing
     where

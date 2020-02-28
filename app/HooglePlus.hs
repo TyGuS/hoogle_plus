@@ -7,7 +7,7 @@ import Synquid.Type
 import Synquid.Program
 import Synquid.Error
 import Synquid.Pretty
-import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
+import Synquid.Parser (parseFromFile, parseType, parseProgram, toErrorMessage)
 import Synquid.Resolver (resolveDecls, ResolverState (..), initResolverState, resolveSchema)
 import Types.Generate hiding (files)
 import Types.Experiments
@@ -28,6 +28,7 @@ import Types.Encoder
 import HooglePlus.GHCChecker
 import HooglePlus.Utils
 import HooglePlus.IOFormat
+import Examples.ExampleChecker
 
 import Control.Monad
 import Control.Lens ((^.))
@@ -117,9 +118,9 @@ main = do
             let synquidParams =
                     defaultSynquidParams {Main.envPath = env_file_path_in}
             let searchPrograms = case (file, json) of
-              ("", "") -> error "Must specify a file path or a json string"
-              ("", json) -> executeSearch synquidParams searchParams json
-              (f, _) -> readFile f >>= executeSearch synquidParams searchParams
+                                   ("", "") -> error "Must specify a file path or a json string"
+                                   ("", json) -> executeSearch synquidParams searchParams json
+                                   (f, _) -> readFile f >>= executeSearch synquidParams searchParams
             case search_type of
               SearchPrograms -> searchPrograms
               SearchTypes -> searchTypes synquidParams json
@@ -233,7 +234,7 @@ data SynquidParams = SynquidParams {
 }
 
 defaultSynquidParams = SynquidParams {
-    Main.envPath = defaultEnvPath
+    Main.envPath = defaultEnvPath,
     jsonPath = defaultJsonPath
 }
 
@@ -252,10 +253,10 @@ readEnv envPathIn = do
 readBuiltinData :: SynquidParams -> Environment -> IO Environment
 readBuiltinData synquidParams env = do
   let jsonPathIn = jsonPath synquidParams
-  doesExist <- doesFileExist jsonpathIn
+  doesExist <- doesFileExist jsonPathIn
   when (not doesExist) (error "cannot find builtin json file")
   json <- readFile jsonPathIn
-  let mbBuildObjs = decode (LB.pack json) :: [QueryInput]
+  let mbBuildObjs = Aeson.decode (LB.pack json) :: Maybe [QueryInput]
   case mbBuildObjs of
     Just buildObjs -> do
         let candObjs = map transformObj buildObjs
@@ -276,12 +277,12 @@ searchTypes synquidParams inStr = do
   let input = decodeInput (LB.pack inStr)
   let exquery = inExamples input
   env <- readEnv $ Main.envPath synquidParams
-  let mdls = env ^. included_modules
+  let mdls = Set.toList $ env ^. included_modules
   exTypes <- mapM (parseExample mdls) exquery
   env' <- readBuiltinData synquidParams env
-  let builtinQueryTypes = map query (env' ^. queryCandidates)
+  let builtinQueryTypes = Map.keys (env' ^. queryCandidates)
   messageChan <- newChan
-  outExamples <- map (checkExamples env' t exquery messageChan) builtinQueryTypes
+  outExamples <- mapM (checkExamples env' t exquery messageChan) builtinQueryTypes
   let validPairs = filter (isJust . fst) (zip outExamples builtinQueryTypes)
   let eqLength x y = length x == length y
   let candPairs = filter (eqLength exquery . fst) validPairs
@@ -296,13 +297,13 @@ searchResults synquidParams inStr = do
   let input = case mbInput of
                 Just i -> i
                 Nothing -> error "cannot parse the input json string"
-  let args = arguments input
+  let args = execArgs input
   let prog = execProg input
   -- TODO: maybe we need to do a type checking before execution
   -- but it will also be shown in the results
   let tquery = execQuery input
   env <- readEnv $ Main.envPath synquidParams
-  let mdls = env ^. included_modules
+  let mdls = Set.toList $ env ^. included_modules
   execResult <- execExamples mdls env prog (Example args "??")
   let execJson = case execResult of
                    Left err -> ExecOutput err ""
@@ -315,7 +316,7 @@ executeSearch synquidParams searchParams inStr = do
   let input = decodeInput (LB.pack inStr)
   let tquery = query input
   let exquery = inExamples input
-  env <- readEnv Main.envPath synquidParams
+  env <- readEnv $ Main.envPath synquidParams
   goal <- envToGoal env tquery
   solverChan <- newChan
   checkerChan <- newChan
