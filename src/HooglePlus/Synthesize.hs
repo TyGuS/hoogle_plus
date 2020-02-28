@@ -4,6 +4,7 @@ import Database.Environment
 import Database.Util
 import qualified HooglePlus.Abstraction as Abstraction
 import PetriNet.PNSolver
+import HooglePlus.Refinement
 import Synquid.Error
 import Synquid.Logic
 import Synquid.Parser
@@ -116,7 +117,7 @@ synthesize searchParams goal messageChan = do
     -- used trial just to get one type for testing (not real code)
     -- looking for SType
     let trial = shape destinationType
-    let blah = solveTypeConstraint env 
+    let blah = solveTypeConstraint env trial trial
     --st' <- evalStateT (solveTypeConstraint env trial trial) initSolverState
     --putStrLn $ "st': " ++ show st'
 
