@@ -25,7 +25,7 @@ const mapStateToProps = (state) => {
 
 const mapDispatchToProps = (dispatch) => {
   return {
-    setFacts: (allFacts) => dispatch(setExamples(allFacts)),
+    setFacts: (changedFacts) => dispatch(setExamples(changedFacts)),
     setEditingRowId: (editingCells) => dispatch(setExampleEditingRow(editingCells)),
     increaseArgs: () => dispatch(increaseArgs()),
     decreaseArgs: () => dispatch(decreaseArgs()),
@@ -99,7 +99,7 @@ const ExampleTableBase = ({
               getRowId={row => row.id}
             >
               <EditingState
-                editingCells={editingRowId}
+                editingRowId={editingRowId}
                 onEditingCellsChange={setEditingRowId}
                 addedRows={[]}
                 onAddedRowsChange={addEmptyRow}

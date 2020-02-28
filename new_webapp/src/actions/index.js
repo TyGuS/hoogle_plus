@@ -1,5 +1,7 @@
 import * as Consts from "../constants/action-types";
+import _ from "underscore";
 import { hooglePlusTypeSearch, ghciUsage, hooglePlusExampleSearch } from "../gateways";
+import { namedArgsToUsage } from "../utilities/args";
 
 function makeActionCreator(type, ...argNames) {
     return function (...args) {
@@ -27,12 +29,34 @@ export const increaseArgs = makeActionCreator(Consts.INCREASE_ARGS);
 export const setArgNum = makeActionCreator(Consts.SET_ARG_NUM, "payload");
 export const setSearchTypeInternal = makeActionCreator(Consts.SET_SEARCH_TYPE, "payload");
 export const setExampleEditingRow = makeActionCreator(Consts.SET_EXAMPLE_EDITING_ROW, "payload");
-export const setExamples = makeActionCreator(Consts.SET_EXAMPLES, "payload");
+export const setExamplesInternal = makeActionCreator(Consts.SET_EXAMPLES, "payload");
 export const updateCandidateUsageTable = makeActionCreator(Consts.UPDATE_CANDIDATE_USAGE, "payload");
 
 export const setModalOpen = makeActionCreator(Consts.MODAL_OPEN);
 export const setModalClosed = makeActionCreator(Consts.MODAL_CLOSE);
 export const setTypeOptions = makeActionCreator(Consts.SET_TYPE_OPTIONS, "payload");
+
+export const setExamples = (changedFacts) => (dispatch, getState) => {
+    dispatch(setExamplesInternal(changedFacts));
+    return changedFacts.map(updatedFact => {
+        const {candidates, spec} = getState();
+        const numArgs = spec.numArgs;
+        if(! _.isEmpty(candidates.results)) {
+            candidates.results.map(candidate => {
+                const usageObjSingleton = namedArgsToUsage([updatedFact], numArgs);
+                const {usage} = usageObjSingleton[0];
+                return dispatch(updateCandidateUsage({
+                    candidateId: candidate.candidateId,
+                    usageId: updatedFact.id,
+                    code: candidate.code,
+                    args: usage.slice(0, usage.length-1)
+                }));
+            })
+        } else {
+            debugger;
+        }
+    });
+}
 
 export const selectType = ({typeOption, examples}) => (dispatch) => {
     dispatch(setSearchTypeInternal({searchType: typeOption}));
