@@ -8,7 +8,7 @@ export const initialCandidateState = {
             code: "\\arg0 arg1-> replicate arg0 arg1",
             examples: [
                 {
-                    id: "1",
+                    id: "0",
                     usage: ["x", "2", "xx"],
                     isLoading: false,
                 }, {
@@ -24,8 +24,8 @@ export const initialCandidateState = {
             code: "\\arg0 arg1-> replicate2 arg0 arg1",
             examples: [
                 {
-                    id: "1",
-                    usage: ["y", "3", "yyy"],
+                    id: "0",
+                    usage: ["x", "2", "x2x2"],
                     isLoading: false,
                 }
             ]
