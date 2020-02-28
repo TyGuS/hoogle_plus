@@ -118,7 +118,7 @@ synthesize searchParams goal messageChan = do
     -- looking for SType
     let trial = shape destinationType
     --let blah = solveTypeConstraint env trial trial
-    putStrLn $ "trial: " ++ show (typeOf trial)
+    putStrLn $ "trial: " ++ show trial
     st' <- evalStateT (solveTypeConstraint env trial trial) initSolverState
     --putStrLn $ "st': " ++ show st'
 
