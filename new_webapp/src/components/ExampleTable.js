@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { EditingState } from '@devexpress/dx-react-grid';
+import { EditingState, TableEditRow } from '@devexpress/dx-react-grid';
 import {
   Grid,
   Table,
@@ -11,12 +11,8 @@ import { connect } from 'react-redux';
 import { setExamples, setEditingCells, increaseArgs, decreaseArgs } from '../actions';
 import { getArgNames } from '../utilities/args';
 import { Button, ButtonGroup } from 'react-bootstrap';
+import { SpinnableCell } from './SpinnableCell';
 
-const getRowId = row => row.id;
-
-const FocusableCell = ({ onClick, ...restProps }) => (
-  <Table.Cell {...restProps} tabIndex={0} onFocus={onClick} />
-);
 
 const mapStateToProps = (state) => {
   return {
@@ -64,6 +60,9 @@ const ExampleTableBase = ({
     const argNames = getArgNames(numArgs);
     const colNames = [...argNames, "result"];
     const columns = colNames.map(name => {return {name: name, title: name}});
+    const [editingRowIds, setEditingRowIds] = useState([]);
+    const [addedRows, setAddedRows] = useState([]);
+    const [rowChanges, setRowChanges] = useState({});
 
     const commitChanges = ({ added, changed, deleted }) => {
       let changedRows;
@@ -99,20 +98,29 @@ const ExampleTableBase = ({
             <Grid
               rows={rows}
               columns={columns}
-              getRowId={getRowId}
+              getRowId={row => row.id}
             >
               <EditingState
-                onCommitChanges={commitChanges}
-                editingCells={editingCells}
-                onEditingCellsChange={setEditingCells}
-                addedRows={[]}
+                // onCommitChanges={commitChanges}
+                // editingCells={editingCells}
+                // onEditingCellsChange={setEditingCells}
+                // addedRows={[]}
                 onAddedRowsChange={addEmptyRow}
+
+                editingRowIds={editingRowIds}
+                onEditingRowIdsChange={setEditingRowIds}
+                // rowChanges={rowChanges}
+                // onRowChangesChange={setRowChanges}
+                addedRows={[]}
+                // onAddedRowsChange={changeAddedRows}
+                onCommitChanges={commitChanges}
               />
-              <Table cellComponent={FocusableCell} />
+              <Table cellComponent={SpinnableCell} />
               <TableHeaderRow />
-              <TableInlineCellEditing selectTextOnEditStart />
+              <TableEditRow/>
               <TableEditColumn
                 showAddCommand
+                showEditCommand
                 showDeleteCommand
               />
             </Grid>

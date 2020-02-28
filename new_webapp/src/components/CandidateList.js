@@ -25,7 +25,7 @@ const CandidateListBase = ({candidates, numArgs, isFetching}) => (
             return (
                 <Card key={idx}>
                     <Collapsible
-                        open="true"
+                        open={true}
                         trigger={header}>
                             <Card.Body>
                                 <UsageTable
