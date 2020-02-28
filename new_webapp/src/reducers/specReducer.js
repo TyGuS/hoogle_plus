@@ -9,8 +9,10 @@ export const initialSpecState = {
         usage: ["x", "2", "xx"]
     }],
     numArgs: 2,
-    searchType: null,
-    searchTypeOptions: null,
+    searchTypeOptions: [
+        "foo",
+        "bar"
+    ],
 };
 
 const mkDoubleList = (listList, numArgs) => {
@@ -24,17 +26,29 @@ const mkDoubleList = (listList, numArgs) => {
     });
 }
 
+// Overwrite existing rows with their new_row, and add the rest of the new_rows.
+// Don't change the order of rows on update!
 const dedupeSpecs = (rows, new_rows) => {
-    let ids = new Set();
-    rows.forEach((row) => ids.add(row.id))
+    let seen_new_rows = new Set();
     let r = rows;
-    new_rows.forEach(nr => {
-        if (! ids.has(nr.id)) {
-            r = r.concat(nr);
+    r = r.map((row) => {
+        for(var i = 0; i < new_rows.length; i++) {
+            let new_row = new_rows[i];
+            if (row.id === new_row.id) {
+                seen_new_rows.add(new_row.id);
+                return new_row;
+            }
         }
-    });
+        return row;
+        });
+    new_rows.forEach(row => {
+        if(!seen_new_rows.has(row.id)) {
+            r = r.concat(row);
+        }
+    })
     return r;
-}
+};
+
 
 export function specReducer(state = initialSpecState, action) {
     switch(action.type) {
@@ -58,7 +72,7 @@ export function specReducer(state = initialSpecState, action) {
                 ...state,
                 rows: dedupeSpecs(state.rows, [action.payload]),
             };
-        case Consts.SET_FACTS:
+        case Consts.SET_EXAMPLES:
             return {
                 ...state,
                 rows: mkDoubleList(action.payload, state.numArgs),
@@ -72,6 +86,11 @@ export function specReducer(state = initialSpecState, action) {
             return {
                 ...state,
                 searchType: action.payload.query,
+            }
+        case Consts.SET_TYPE_OPTIONS:
+            return {
+                ...state,
+                searchTypeOptions: action.payload,
             }
         default:
             return state

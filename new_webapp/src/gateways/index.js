@@ -3,7 +3,7 @@ function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export const hooglePlusTypeSearch = ({query}) => {
+export const hooglePlusTypeSearch = ({query, examples}) => {
     const mockCandidate = {
         code: "\\arg0 arg1-> catMaybes (listToMaybe arg0) arg1",
         examples: [
@@ -23,6 +23,27 @@ export const hooglePlusTypeSearch = ({query}) => {
     };
     return delay(1000)
         .then(_ => mockCandidate);
+}
+
+// {id: uuid; examples:[[str]]} -> Promise
+export const hooglePlusExampleSearch = ({id, examples}) => {
+    const mockUsage = {
+        typeCandidates: [
+            "a -> b -> a",
+            "[a] -> Int -> [a]",
+            "String -> Int -> String",
+        ]
+    };
+    const mockError = {
+        error: "unstructuredErrorMessage"
+    }
+    return delay(1000)
+        .then(_ => {
+        if(Math.random() > 0){
+            return mockUsage;
+        } else {
+            return mockError;
+        }});
 }
 
 // {code: str, args: [str]} -> Promise
