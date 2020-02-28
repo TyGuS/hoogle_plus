@@ -69,7 +69,7 @@ class ConnectedSearchBar extends Component {
                     <InputGroup.Text
                     type="text"
                     name="value"
-                    placeholder="search by type here"
+                    placeholder="Search by type here!"
                     value={this.state.value}
                     onChange={this.handleChange}
                     className="col-8"
