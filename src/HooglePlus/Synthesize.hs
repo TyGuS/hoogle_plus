@@ -131,8 +131,10 @@ synthesize searchParams goal messageChan = do
     let trial = shape destinationType
     let trial2 = shape intType
     case trial of
-      AnyT -> putStrLn $ "omg"
-      _    -> putStrLn $ "not anyT"
+      AnyT -> putStrLn $ "AnyT"
+      BotT -> putStrLn $ "botT"
+      ScalarT _ _ -> putStrLn $ "scalarT"
+      _    -> putStrLn $ "otherwise"
     --print $ typeOf trial
     --let blah = solveTypeConstraint env trial trial
     putStrLn $ "trial: " ++ show trial
