@@ -114,7 +114,8 @@ synthesize searchParams goal messageChan = do
     let initSolverState = emptySolverState 
 
     -- used trial just to get one type for testing (not real code)
-    let trial = Monotype destinationType
+    -- looking for SType
+    let trial = destinationType
 
     st' <- evalStateT (solveTypeConstraint env trial trial) initSolverState
     putStrLn $ "st': " ++ show st'
