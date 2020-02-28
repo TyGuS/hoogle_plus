@@ -112,7 +112,18 @@ synthesize searchParams goal messageChan = do
     --------------------------
 
     -- make an empty solver state to use in evalState
-    let initSolverState = emptySolverState 
+    let initSolverState =
+            emptySolverState
+                { _searchParams = searchParams
+                , _abstractionCover =
+                      case rs of
+                          SypetClone -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
+                          TyGar0 -> emptySolverState ^. abstractionCover
+                          TyGarQ -> Abstraction.specificAbstractionFromTypes env args
+                          NoGar -> Abstraction.specificAbstractionFromTypes env args
+                          NoGar0 -> emptySolverState ^. abstractionCover
+                , _messageChan = messageChan
+                }
 
     -- used trial just to get one type for testing (not real code)
     -- looking for SType
