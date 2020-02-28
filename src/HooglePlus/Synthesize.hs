@@ -128,7 +128,7 @@ synthesize searchParams goal messageChan = do
 
     -- used trial just to get one type for testing (not real code)
     -- looking for SType
-    let trial = shape destinationType
+    let trial = shape $ toMonotype destinationType
     let trial2 = shape intType
     print $ typeOf trial
     --let blah = solveTypeConstraint env trial trial
