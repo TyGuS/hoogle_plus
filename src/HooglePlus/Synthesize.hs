@@ -98,17 +98,21 @@ synthesize searchParams goal messageChan = do
                 return $
                     env'
                         {_symbols = Map.withoutKeys syms $ Set.fromList hoCands, _hoCandidates = []}
+
     putStrLn $ "Component number: " ++ show (Map.size $ allSymbols env)
     putStrLn $ "Hello world"
     let args = Monotype destinationType : Map.elems (env ^. arguments)
+    print $ args
   -- start with all the datatypes defined in the components, first level abstraction
 
     --------------------------
     -- trying code Zheng gave us 
     --------------------------
-    
-    st' <- evalStateT (solveTypeConstraint env t1 t2)  initSolverState
-    putStrLn $ "st': " ++ show st'
+
+    -- make an empty solver state to use in evalState
+    {-let initSolverState = emptySolverState 
+    st' <- evalStateT (solveTypeConstraint env t1 t2) initSolverState
+    putStrLn $ "st': " ++ show st'-}
 
     --------------------------
     -- trying code Zheng gave us 
