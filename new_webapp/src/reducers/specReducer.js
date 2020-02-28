@@ -9,7 +9,6 @@ export const initialSpecState = {
         usage: ["x", "2", "xx"]
     }],
     numArgs: 2,
-    searchType: null,
     searchTypeOptions: [
         "foo",
         "bar"
@@ -75,6 +74,11 @@ export function specReducer(state = initialSpecState, action) {
             return {
                 ...state,
                 searchType: action.payload.query,
+            }
+        case Consts.SET_TYPE_OPTIONS:
+            return {
+                ...state,
+                searchTypeOptions: action.payload,
             }
         default:
             return state

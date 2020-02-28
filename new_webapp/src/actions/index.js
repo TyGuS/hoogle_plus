@@ -1,5 +1,5 @@
 import * as Consts from "../constants/action-types";
-import { hooglePlusTypeSearch, ghciUsage } from "../gateways";
+import { hooglePlusTypeSearch, ghciUsage, hooglePlusExampleSearch } from "../gateways";
 
 function makeActionCreator(type, ...argNames) {
     return function (...args) {
@@ -32,9 +32,10 @@ export const updateCandidateUsageTable = makeActionCreator(Consts.UPDATE_CANDIDA
 
 export const setModalOpen = makeActionCreator(Consts.MODAL_OPEN);
 export const setModalClosed = makeActionCreator(Consts.MODAL_CLOSE);
+export const setTypeOptions = makeActionCreator(Consts.SET_TYPE_OPTIONS, "payload");
 
 export const selectType = ({typeOption, examples}) => (dispatch) => {
-    dispatch(setSearchTypeInternal({typeOption}));
+    dispatch(setSearchTypeInternal({searchType: typeOption}));
     dispatch(setModalClosed());
 
     const serverPromise = hooglePlusTypeSearch({query:typeOption, examples});
@@ -56,6 +57,19 @@ export const setSearchType = (payload) => (dispatch) => {
     return handleCandidates(dispatch, serverPromise);
 
 };
+
+export const getTypesFromExamples = (payload) => (dispatch) => {
+    const {id, examples} = payload;
+    return hooglePlusExampleSearch({id, examples})
+        .then(value => {
+            if (value["typeCandidates"]) {
+                dispatch(setModalOpen());
+                dispatch(setTypeOptions(value.typeCandidates));
+            } else {
+                debugger;
+            }
+        });
+}
 
 const handleCandidates = (dispatch, serverPromise) => {
     return serverPromise.then(value => {

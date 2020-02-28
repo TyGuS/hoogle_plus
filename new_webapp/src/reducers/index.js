@@ -7,7 +7,7 @@ const initialState = {
     spec: initialSpecState,
     candidates: initialCandidateState,
     modal: {
-        isOpen: true,
+        isOpen: false,
     }
 };
 

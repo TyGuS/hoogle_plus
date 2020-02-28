@@ -39,7 +39,7 @@ export const hooglePlusExampleSearch = ({id, examples}) => {
     }
     return delay(1000)
         .then(_ => {
-        if(Math.random() > 0.5){
+        if(Math.random() > 0){
             return mockUsage;
         } else {
             return mockError;

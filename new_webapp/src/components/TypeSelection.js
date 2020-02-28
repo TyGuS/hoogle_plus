@@ -46,7 +46,7 @@ const TypeSelectionBase = (props) => {
             <div className="container">
             <ButtonGroup vertical className="justify-content-center">
                 {typeOptions.map((typeStr, idx) => {
-                    return (<div className="row">
+                    return (<div className="row" key={idx}>
                         <Button
                             className="col-5"
                             onClick={() => mkSelection(typeStr)}>
