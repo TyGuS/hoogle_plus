@@ -120,8 +120,8 @@ synthesize searchParams goal messageChan = do
     --let blah = solveTypeConstraint env trial trial
     st' <- evalStateT (solveTypeConstraint env trial trial) initSolverState
     --putStrLn $ "st': " ++ show st'
-    let substitution =  st’ ^. typeAssignment
-    let checkResult = st’ ^. isChecked
+    let substitution =  st' ^. typeAssignment
+    let checkResult = st' ^. isChecked
     putStrLn $ "sub: " ++ show substitution
     putStrLn $ "checked: " ++ show checkResult
     --let cons’ = stypeSubstitution substitution (shape $ toMonotype cons)
