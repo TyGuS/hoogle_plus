@@ -103,7 +103,7 @@ synthesize searchParams goal messageChan = do
     putStrLn $ "Hello world"
     let args = Monotype destinationType : Map.elems (env ^. arguments)
     print $ args
-    print $ env''' ^. symbols
+    print $ toMonotype destinationType
   -- start with all the datatypes defined in the components, first level abstraction
 
     --------------------------
