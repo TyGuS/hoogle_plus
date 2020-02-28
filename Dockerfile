@@ -34,7 +34,8 @@ RUN pip3 install --user PyYAML numpy tabulate matplotlib argparse
 # Get HooglePlus
 RUN cd /home; git clone https://github.com/davidmrdavid/hoogle_plus.git
 RUN cd /home/hoogle_plus && git fetch -a
-RUN cd /home/hoogle_plus && git checkout origin/topDown_MarDarDan
+# RUN cd /home/hoogle_plus && git checkout remotes/origin/topDown_MarDarDan
+RUN cd /home/hoogle_plys && git checkout --track origin/topDown_MarDarDan
 RUN cd /home/hoogle_plus && stack build
 
 # Start with bash
