@@ -114,7 +114,7 @@ synthesize searchParams goal messageChan = do
     let initSolverState = emptySolverState 
 
     -- used trial just to get one type for testing (not real code)
-    let trial = gSpec goal
+    let trial = shape (gSpec goal)
 
     st' <- evalStateT (solveTypeConstraint env trial trial) initSolverState
     putStrLn $ "st': " ++ show st'
