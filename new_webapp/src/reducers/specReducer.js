@@ -1,9 +1,9 @@
 import * as Consts from "../constants/action-types";
 import * as _ from "underscore";
-import { getArgNames } from "../utilities/args";
+import { getArgNames, namedArgsToUsage } from "../utilities/args";
 
 export const initialSpecState = {
-    editingCells: [],
+    editingExampleRow: null,
     rows: [{
         id: "0",
         usage: ["x", "2", "xx"]
@@ -14,17 +14,6 @@ export const initialSpecState = {
         "bar"
     ],
 };
-
-const mkDoubleList = (listList, numArgs) => {
-    return listList.map(element => {
-        const argNames = getArgNames(numArgs);
-        const usage = argNames.map(argName => element[argName]).concat(element.result);
-        return {
-            usage: usage,
-            id: element.id,
-        }
-    });
-}
 
 // Overwrite existing rows with their new_row, and add the rest of the new_rows.
 // Don't change the order of rows on update!
@@ -75,12 +64,12 @@ export function specReducer(state = initialSpecState, action) {
         case Consts.SET_EXAMPLES:
             return {
                 ...state,
-                rows: mkDoubleList(action.payload, state.numArgs),
+                rows: namedArgsToUsage(action.payload, state.numArgs),
             };
-        case Consts.SET_EDITING_CELLS:
+        case Consts.SET_EXAMPLE_EDITING_ROW:
             return {
                 ...state,
-                editingCells: action.payload,
+                editingExampleRow: action.payload,
             };
         case Consts.SET_SEARCH_TYPE:
             return {
