@@ -205,7 +205,7 @@ iterateOverEnv :: [(Id, RSchema)] -> [String]
 iterateOverEnv [] = []
 iterateOverEnv ( (id, schema) : xs) = id : iterateOverEnv xs
 
-getUnifiedFunctions :: Environment -> [(Id, RSchema)] -> RSchema -> [(Id, RSchema)]
+getUnifiedFunctions :: Environment -> [(Id, RSchema)] -> RType -> [(Id, RSchema)]
 getUnifiedFunctions _ [] _ = []
 getUnifiedFunctions env ( v@(id, schema) : xs) goalType = do
     st' <- execStateT (solveTypeConstraint env (shape schema) (shape goalType)) initSolverState
