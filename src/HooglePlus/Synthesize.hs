@@ -140,8 +140,8 @@ synthesize searchParams goal messageChan = do
     -- putStrLn $ "st': " ++ show st'
 
     --{-
-    let substitution =  _typeAssignment initSolverState -- ^. typeAssignment
-    let checkResult = _isChecked initSolverState -- ^. isChecked
+    let substitution =  _typeAssignment st' -- ^. typeAssignment
+    let checkResult = _isChecked st' -- ^. isChecked
     putStrLn $ "sub: " ++ show substitution
     putStrLn $ "checked: " ++ show checkResult
     -- -}
