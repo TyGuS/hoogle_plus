@@ -133,7 +133,7 @@ synthesize searchParams goal messageChan = do
     case trial of
       AnyT -> putStrLn $ "AnyT"
       BotT -> putStrLn $ "botT"
-      ScalarT b@(TypeVarT _ id) _ -> putStrLn $ "isBound: " ++ isBound env id
+      ScalarT b@(TypeVarT _ id) _ -> putStrLn $ "isBound: " ++ show (isBound env id)
       _    -> putStrLn $ "otherwise"
     --print $ typeOf trial
     --let blah = solveTypeConstraint env trial trial
