@@ -12,7 +12,7 @@ import { setExamples, setExampleEditingRow, increaseArgs, decreaseArgs } from '.
 import { getArgNames } from '../utilities/args';
 import { Button, ButtonGroup } from 'react-bootstrap';
 import { SpinnableCell } from './SpinnableCell';
-import uuid from "uuid";
+import { v4 as uuidv4 } from "uuid";
 
 
 const mapStateToProps = (state) => {
@@ -87,7 +87,7 @@ const ExampleTableBase = ({
       setFacts(changedRows);
     };
 
-    const addEmptyRow = () => commitChanges({ added: [{id: uuid.v4()}] });
+    const addEmptyRow = () => commitChanges({ added: [{id: uuidv4()}] });
 
     return (
       <div className="container">

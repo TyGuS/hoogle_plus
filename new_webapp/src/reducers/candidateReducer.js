@@ -25,7 +25,7 @@ export const initialCandidateState = {
             examples: [
                 {
                     id: "0",
-                    usage: ["x", "2", "x2x2"],
+                    usage: ["x", "2", "xx"],
                     isLoading: false,
                 }
             ]
