@@ -100,11 +100,11 @@ synthesize searchParams goal messageChan = do
                     env'
                         {_symbols = Map.withoutKeys syms $ Set.fromList hoCands, _hoCandidates = []}
 
-    putStrLn $ "Component number: " ++ show (Map.size $ allSymbols env)
-    putStrLn $ "Hello world"
+    --putStrLn $ "Component number: " ++ show (Map.size $ allSymbols env)
+    --putStrLn $ "Hello world"
     let args = Monotype destinationType : Map.elems (env ^. arguments)
-    print $ args
-    print $ Monotype destinationType
+    --print $ args
+    --print $ Monotype destinationType
   -- start with all the datatypes defined in the components, first level abstraction
 
     --------------------------
@@ -112,24 +112,14 @@ synthesize searchParams goal messageChan = do
     --------------------------
 
     -- make an empty solver state to use in evalState
-    let rs2 = _refineStrategy searchParams
-    let initSolverState =
-            emptySolverState
-                {- { _searchParams = searchParams
-                , _abstractionCover =
-                      case rs2 of
-                          SypetClone -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
-                          TyGar0 -> emptySolverState ^. abstractionCover
-                          TyGarQ -> Abstraction.specificAbstractionFromTypes env args
-                          NoGar -> Abstraction.specificAbstractionFromTypes env args
-                          NoGar0 -> emptySolverState ^. abstractionCover
-                , _messageChan = messageChan
-                } -}
+    let initSolverState = emptySolverState
 
     -- used trial just to get one type for testing (not real code)
     -- looking for SType
-    let trial = shape destinationType
-    let trial2 = shape (ScalarT IntT ftrue)
+    let t1 = shape destinationType
+    let t2 = shape (ScalarT IntT ftrue)
+
+    {-
     case trial of
       AnyT -> putStrLn $ "AnyT"
       BotT -> putStrLn $ "botT"
@@ -138,18 +128,20 @@ synthesize searchParams goal messageChan = do
 
     putStrLn $ "trial: " ++ show trial
     putStrLn $ "trial2: " ++ show trial2
+    -}
+
+    st' <- execStateT (solveTypeConstraint env t1 t2) initSolverState
 
     --print $ iterateOverEnv (Map.toList (env ^. symbols)) 
 
-    let stc = solveTypeConstraint env trial trial2
+    --let stc = solveTypeConstraint env trial trial2
     -- putStrLn $ show  (pretty stc)
     
-    st' <- execStateT stc initSolverState
     -- putStrLn $ "st': " ++ show st'
 
     --{-
-    let substitution =  _typeAssignment st' -- ^. typeAssignment
-    let checkResult = _isChecked st' -- ^. isChecked
+    let substitution =  _typeAssignment initSolverState -- ^. typeAssignment
+    let checkResult = _isChecked initSolverState -- ^. isChecked
     putStrLn $ "sub: " ++ show substitution
     putStrLn $ "checked: " ++ show checkResult
     -- -}
