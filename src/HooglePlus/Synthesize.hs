@@ -222,7 +222,7 @@ synthesize searchParams goal messageChan = do
             -- getUnifiedFunctions env xs goalType
             let substitution =  st' ^. typeAssignment
             let checkResult = st' ^. isChecked
-            --putStrLn $ show t1
+            putStrLn $ show t1
             print $ acc
 
             if (checkResult) then getUnifiedFunctions envv xs goalType (v : acc)
