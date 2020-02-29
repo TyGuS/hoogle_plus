@@ -62,3 +62,12 @@ export const ghciUsage = ({code, args}) => {
                 return mockError;
             }});
 };
+
+export const hooglePlusMoreExamples = ({code, usages, queryType}) => {
+    const mockExamples = [
+        ["z", "3", "zzz"],
+        ["z", "0", ""]
+    ];
+    return delay(1000)
+        .then(_ => {return {examples: mockExamples}});
+}

@@ -1,7 +1,8 @@
 import * as Consts from "../constants/action-types";
 import _ from "underscore";
-import { hooglePlusTypeSearch, ghciUsage, hooglePlusExampleSearch } from "../gateways";
+import { hooglePlusTypeSearch, ghciUsage, hooglePlusExampleSearch, hooglePlusMoreExamples } from "../gateways";
 import { namedArgsToUsage } from "../utilities/args";
+import { LOADING, DONE } from "../constants/fetch-states";
 
 function makeActionCreator(type, ...argNames) {
     return function (...args) {
@@ -31,6 +32,7 @@ export const setSearchTypeInternal = makeActionCreator(Consts.SET_SEARCH_TYPE, "
 export const setExampleEditingRow = makeActionCreator(Consts.SET_EXAMPLE_EDITING_ROW, "payload");
 export const setExamples = makeActionCreator(Consts.SET_EXAMPLES, "payload");
 export const updateCandidateUsageTable = makeActionCreator(Consts.UPDATE_CANDIDATE_USAGE, "payload");
+export const fetchMoreCandidateUsages = makeActionCreator(Consts.FETCH_MORE_CANDIDATE_USAGES, "payload");
 
 export const setModalOpen = makeActionCreator(Consts.MODAL_OPEN);
 export const setModalClosed = makeActionCreator(Consts.MODAL_CLOSE);
@@ -97,4 +99,17 @@ const handleCandidates = (dispatch, serverPromise) => {
             return value;
         })
         .then(value => dispatch(addCandidate(value)));
+}
+
+export const getMoreExamples = ({candidateId, code, usages}) => (dispatch, getState) => {
+    const {spec} = getState();
+    dispatch(fetchMoreCandidateUsages({candidateId, status: LOADING}));
+    return hooglePlusMoreExamples({code, usages, queryType: spec.searchType})
+        .then(({examples}) => {
+            return dispatch(fetchMoreCandidateUsages({
+                candidateId,
+                status: DONE,
+                result: examples
+            }));
+        });
 }

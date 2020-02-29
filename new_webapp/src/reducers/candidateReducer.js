@@ -1,4 +1,6 @@
 import * as Consts from "../constants/action-types";
+import { LOADING, DONE } from "../constants/fetch-states";
+import {v4 as uuidv4} from "uuid";
 
 export const initialCandidateState = {
     isFetching: false,
@@ -6,6 +8,7 @@ export const initialCandidateState = {
         {
             candidateId: "cand1",
             code: "\\arg0 arg1-> replicate arg0 arg1",
+            examplesLoading: false,
             examples: [
                 {
                     id: "0",
@@ -22,6 +25,7 @@ export const initialCandidateState = {
         {
             candidateId: "cand2",
             code: "\\arg0 arg1-> replicate2 arg0 arg1",
+            examplesLoading: false,
             examples: [
                 {
                     id: "0",
@@ -32,6 +36,14 @@ export const initialCandidateState = {
         }
     ]
 };
+
+const usageToExample = (usage) => {
+    return {
+        id: uuidv4(),
+        usage: usage,
+        isLoading: false,
+    };
+}
 
 export function candidateReducer(state = initialCandidateState, action){
     switch(action.type) {
@@ -45,14 +57,47 @@ export function candidateReducer(state = initialCandidateState, action){
                 results: [],
                 isFetching: true,
             }
+        case Consts.FETCH_MORE_CANDIDATE_USAGES:
+            const {candidateId:fCandidateId, status} = action.payload;
+            switch (status) {
+                case LOADING:
+                    const newLoadingResults = state.results.map((result) => {
+                        if (result.candidateId === fCandidateId) {
+                            return {
+                                ...result,
+                                examplesLoading: true,
+                            };
+                        }
+                        return result;
+                    });
+                    return {...state, results: newLoadingResults};
+                case DONE:
+                    const newExampleResults = state.results.map((result) => {
+                        if (result.candidateId === fCandidateId) {
+                            const newUsages = action.payload.result;
+                            const newExamples = newUsages.map(usageToExample);
+                            return {
+                                ...result,
+                                examplesLoading: false,
+                                examples: result.examples.concat(newExamples)
+                            };
+                        }
+                        return result;
+                    });
+                    return {...state, results: newExampleResults};
+            }
+            return {
+                ...state,
+            };
         case Consts.UPDATE_CANDIDATE_USAGE:
-            const {candidateId, usageId} = action.payload;
+            const {candidateId:uCandidateId, usageId} = action.payload;
             const updatedResults = state.results.map(result => {
-                if(result.candidateId === candidateId) {
+                if(result.candidateId === uCandidateId) {
                     const updatedExamples = result.examples.map(example => {
                         if (example.id === usageId) {
                             if (action.payload.args) {
-                                return {id: example.id,
+                                return {
+                                    id: example.id,
                                     usage: action.payload.args.concat(null),
                                     isLoading: true,
                                 };
@@ -60,7 +105,8 @@ export function candidateReducer(state = initialCandidateState, action){
                             if (action.payload.result) {
                                 let updatedUsage = Array.from(example.usage);
                                 updatedUsage[updatedUsage.length - 1] = action.payload.result;
-                                return {id: example.id,
+                                return {
+                                    id: example.id,
                                     usage: updatedUsage,
                                     isLoading: false,
                                 };

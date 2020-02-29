@@ -9,6 +9,7 @@ export const initialSpecState = {
         usage: ["x", "2", "xx"]
     }],
     numArgs: 2,
+    searchType: null,
     searchTypeOptions: [
         "foo",
         "bar"
