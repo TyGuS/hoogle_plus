@@ -111,9 +111,6 @@ synthesize searchParams goal messageChan = do
     -- trying code Zheng gave us 
     --------------------------
 
-    -- make an empty solver state to use in evalState
-    let initSolverState = emptySolverState
-
     -- let rs2 = _refineStrategy searchParams
     -- let initSolverState =
     --         emptySolverState
@@ -128,13 +125,6 @@ synthesize searchParams goal messageChan = do
     --             , _messageChan = messageChan
     --             }
 
-    -- used trial just to get one type for testing (not real code)
-    -- looking for SType
-    let t1 = shape destinationType
-    let t2 = shape (ScalarT IntT ftrue)
-    putStrLn $ "t1: " ++ show t1
-    putStrLn $ "t2: " ++ show t2
-
     {-
     case trial of
       AnyT -> putStrLn $ "AnyT"
@@ -146,7 +136,20 @@ synthesize searchParams goal messageChan = do
     putStrLn $ "trial2: " ++ show trial2
     -}
 
+    -- make an empty solver state to use in evalState
+    let initSolverState = emptySolverState
+
+    -- used trial just to get one type for testing (not real code)
+    let t1 = shape destinationType
+    let t2 = shape (ScalarT IntT ftrue)
+
+    putStrLn $ "t1: " ++ show t1
+    putStrLn $ "t2: " ++ show t2
+
     st' <- execStateT (solveTypeConstraint env t1 t2) initSolverState
+
+    let args2 = allArgTypes destinationType
+    putStrLn $ "args2: " ++ show args2
 
     --print $ iterateOverEnv (Map.toList (env ^. symbols)) 
 
