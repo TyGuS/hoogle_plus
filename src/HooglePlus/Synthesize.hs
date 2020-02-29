@@ -72,8 +72,8 @@ envToGoal env queryStr = do
 synthesize :: SearchParams -> Goal -> Chan Message -> IO ()
 synthesize searchParams goal messageChan = do
     let env''' = gEnvironment goal
-    let (env'', monospec) = updateEnvWithBoundTyVars (gSpec goal) env'''
-    let (env', destinationType) = updateEnvWithSpecArgs monospec env''
+    --let (env'', monospec) = updateEnvWithBoundTyVars (gSpec goal) env'''
+    let (env', destinationType) = updateEnvWithSpecArgs monospec env'''
     let useHO = _useHO searchParams
     let rawSyms = env' ^. symbols
     let hoCands = env' ^. hoCandidates
