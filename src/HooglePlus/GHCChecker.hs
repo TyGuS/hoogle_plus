@@ -130,7 +130,7 @@ check :: Environment
       -> SearchParams 
       -> [Example] 
       -> RProgram 
-      -> RType 
+      -> RSchema
       -> Chan Message 
       -> IO (Maybe [Example])
 check env searchParams examples program goalType solverChan =
@@ -141,21 +141,21 @@ check_ :: MonadIO m
        -> SearchParams -- search parameters: to control what to be checked
        -> [Example] -- examples for post-filtering
        -> RProgram -- program to be checked
-       -> RType -- goal type to be checked against
+       -> RSchema -- goal type to be checked against
        -> Chan Message -- message channel for logging
        -> FilterTest m (Maybe [Example]) -- return Nothing is check fails, otherwise return a list of updated examples
 check_ env searchParams examples program goalType solverChan = do
     -- type check the examples, raise exceptions if there are
     programPassedChecks <- executeCheck program
     let eqTest x y = Types.IOFormat.inputs x == Types.IOFormat.inputs y
-    augmentedExs <- liftIO $  augmentTestSet env goalType
-    let examples' = nubBy eqTest $ examples ++ augmentedExs
+    augmentedExs <- liftIO $ augmentTestSet env goalType
+    let examples' = if null examples then augmentedExs else examples
     if programPassedChecks then checkOutputs program examples'
                            else return Nothing
     where
         mdls = Set.toList (_included_modules env)
-        checkOutputs prog exs = liftIO $ checkExampleOutput mdls env prog exs
-        executeCheck = runGhcChecks searchParams env (lastType goalType)
+        checkOutputs prog exs = liftIO $ checkExampleOutput mdls env (show prog) exs
+        executeCheck = runGhcChecks searchParams env (lastType $ toMonotype goalType)
 
 -- validate type signiture, run demand analysis, and run filter test
 -- checks the end result type checks; all arguments are used; and that the program will not immediately fail

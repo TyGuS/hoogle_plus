@@ -38,7 +38,7 @@ def create_app(test_config=None):
                 }
         def generate:
             run_hplus([f'--json=\"{query}\"',
-                       f'--search_type={QueryType.search_programs}]',
+                       f'--search-type={QueryType.search_programs}]',
                        obj['id'],
                        use_stream = True)
         return Response(generate(), mimetype='application/json')
@@ -52,7 +52,7 @@ def create_app(test_config=None):
                  'inExamples': obj['facts']
                 }
         types = run_hplus([f'--json=\"{query}\"',
-                           f'--search_type={QueryType.search_types}'],
+                           f'--search-type={QueryType.search_types}'],
                           obj['id'])
         return types
 
@@ -60,20 +60,34 @@ def create_app(test_config=None):
     def stop():
         oid = request.get_json()['id']
         pid = session[oid]
-        os.killpg(os.getpgid(pid), signal.SIGTERM)
+        os.killpg(os.getpgid(pid), signal.SIGTERM))
         return ('', 204)
+
+    @app.route('/examples', methods=['GET', 'POST'])
+    def get_examples():
+        obj = request.get_json()
+        # print(obj)
+        query = {
+                 'exampleQuery': obj['typeSignature'],
+                 'exampleProgram': obj['candidate'],
+                 'exampleExisting': obj['examples']
+                }
+        out = run_hplus([f'--json=\"{query}\"',
+                         f'--search-type={QueryType.search_examples}'],
+                        obj['id'])
+        return out
 
     @app.route('/example/code', methods=['GET', 'POST'])
     def result_for():
         obj = request.get_json()
         # print(obj)
         query = {
-                 'query': obj['typeSignature'],
-                 'program': obj['candidate'],
-                 'arguments': obj['args']
+                 'execQuery': obj['typeSignature'],
+                 'execProg': obj['candidate'],
+                 'execArgs': obj['args']
                 }
         out = run_hplus([f'--json=\"{query}\"',
-                         f'--search_type={QueryType.search_results}'],
+                         f'--search-type={QueryType.search_results}'],
                         obj['id'])
         return out
 

@@ -14,6 +14,7 @@ outputPrefix = "RESULTS:"
 data QueryType = SearchPrograms
                | SearchTypes
                | SearchResults
+               | SearchExamples
   deriving(Eq, Data, Show, Generic)
 
 instance FromJSON QueryType
@@ -62,3 +63,18 @@ data ExecOutput = ExecOutput {
 } deriving(Eq, Generic)
 
 instance ToJSON ExecOutput
+
+data ExamplesInput = ExamplesInput {
+    exampleQuery :: TypeQuery,
+    exampleProgram :: String,
+    exampleExisting :: [Example]
+} deriving(Eq, Generic)
+
+instance FromJSON ExamplesInput
+
+data ListOutput a = ListOutput {
+    examplesOrTypes :: [a],
+    tqError :: String
+} deriving(Eq, Generic)
+
+instance ToJSON a => ToJSON (ListOutput a)

@@ -7,8 +7,6 @@ import Synquid.Type
 import Synquid.Program
 import Synquid.Error
 import Synquid.Pretty
-import Synquid.Parser (parseFromFile, parseType, parseProgram, toErrorMessage)
-import Synquid.Resolver (resolveDecls, ResolverState (..), initResolverState, resolveSchema)
 import Types.Generate hiding (files)
 import Types.Experiments
 import Types.IOFormat
@@ -41,7 +39,6 @@ import Text.Parsec.Pos
 import Text.Printf
 import Text.Pretty.Simple
 import Control.Monad.State (runState, evalStateT, execStateT, evalState)
-import Control.Monad.Except (runExcept)
 import Control.Concurrent
 import Control.Concurrent.Chan
 import qualified Data.Aeson as Aeson
@@ -49,7 +46,6 @@ import Data.Char
 import Data.List
 import Data.Maybe
 import Data.Foldable
-import Data.Serialize
 import Data.Time.Calendar
 import qualified Data.HashMap.Strict as HashMap
 import Data.HashMap.Strict (HashMap)
@@ -118,7 +114,7 @@ main = do
                         , _disableFilter = disable_filter
                         }
             let synquidParams =
-                    defaultSynquidParams {Main.envPath = env_file_path_in}
+                    defaultSynquidParams {Types.Experiments.envPath = env_file_path_in}
             let searchPrograms = case (file, json) of
                                    ("", "") -> error "Must specify a file path or a json string"
                                    ("", json) -> executeSearch synquidParams searchParams json
@@ -127,6 +123,7 @@ main = do
               SearchPrograms -> searchPrograms
               SearchTypes -> searchTypes synquidParams json
               SearchResults -> searchResults synquidParams json
+              SearchExamples -> searchExamples synquidParams json
         Generate {preset = (Just preset)} -> do
             precomputeGraph (getOptsFromPreset preset)
         Generate Nothing files pkgs mdls d ho pathToEnv hoPath -> do
@@ -229,88 +226,15 @@ mode = cmdArgsMode $ modes [synt, generate] &=
   program programName &=
   summary (programName ++ " v" ++ versionName ++ ", " ++ showGregorian releaseDate)
 
--- | Parameters of the synthesis
-data SynquidParams = SynquidParams {
-    envPath :: String, -- ^ Path to the environment file
-    jsonPath :: String
-}
 
 defaultSynquidParams = SynquidParams {
-    Main.envPath = defaultEnvPath,
+    Types.Experiments.envPath = defaultEnvPath,
     jsonPath = defaultJsonPath
 }
 
 precomputeGraph :: GenerationOpts -> IO ()
 precomputeGraph opts = generateEnv opts >>= writeEnv (Types.Generate.envPath opts)
 
-readEnv :: FilePath -> IO Environment
-readEnv envPathIn = do
-  doesExist <- doesFileExist envPathIn
-  when (not doesExist) (error ("Please run `stack exec -- " ++ programName ++ " generate -p [PACKAGES]` to generate database first"))
-  envRes <- decode <$> B.readFile envPathIn
-  case envRes of
-    Left err -> error err
-    Right env -> return env
-
-readBuiltinData :: SynquidParams -> Environment -> IO Environment
-readBuiltinData synquidParams env = do
-  let jsonPathIn = jsonPath synquidParams
-  doesExist <- doesFileExist jsonPathIn
-  when (not doesExist) (error "cannot find builtin json file")
-  json <- readFile jsonPathIn
-  let mbBuildObjs = Aeson.decode (LB.pack json) :: Maybe [QueryInput]
-  case mbBuildObjs of
-    Just buildObjs -> do
-        let candObjs = map transformObj buildObjs
-        let candMap = Map.fromList candObjs
-        return $ env {_queryCandidates = candMap}
-    Nothing -> error "Invalid format of builtin queries, should be in json format"
-   where
-       transformObj (QueryInput q exs) = (Monotype $ parseQueryType q, exs)
-       parseQueryType str = let
-           parseResult = flip evalState (initialPos "type") $ 
-                         runIndentParserT parseType () "" str
-           in case parseResult of
-                Left parseErr -> error "something wrong in the builtin json"
-                Right t -> t
-
-searchTypes :: SynquidParams -> String -> IO ()
-searchTypes synquidParams inStr = do
-  let input = decodeInput (LB.pack inStr)
-  let exquery = inExamples input
-  env <- readEnv $ Main.envPath synquidParams
-  let mdls = Set.toList $ env ^. included_modules
-  exTypes <- mapM (parseExample mdls) exquery
-  env' <- readBuiltinData synquidParams env
-  let builtinQueryTypes = Map.keys (env' ^. queryCandidates)
-  messageChan <- newChan
-  outExamples <- mapM (\t -> checkExamples env' (toMonotype t) exquery messageChan) builtinQueryTypes
-  let validPairs = filter (isJust . fst) (zip outExamples builtinQueryTypes)
-  let eqLength x y = length x == length y
-  let candPairs = filter (eqLength exquery . fst) validPairs
-  let candTypes = map snd candPairs
-  rawType <- parseExamples mdls exquery
-  let resultTypes = rawType:candTypes
-  print $ LB.append (LB.pack outputPrefix) (Aeson.encode (map show resultTypes))
-
-searchResults :: SynquidParams -> String -> IO ()
-searchResults synquidParams inStr = do
-  let mbInput = Aeson.decode (LB.pack inStr) :: Maybe ExecInput
-  let input = case mbInput of
-                Just i -> i
-                Nothing -> error "cannot parse the input json string"
-  let args = execArgs input
-  let prog = execProg input
-  -- TODO: maybe we need to do a type checking before execution
-  -- but it will also be shown in the results
-  let tquery = execQuery input
-  env <- readEnv $ Main.envPath synquidParams
-  let mdls = Set.toList $ env ^. included_modules
-  execResult <- execExample mdls env prog (Example args "??")
-  let execJson = case execResult of
-                   Left err -> ExecOutput err ""
-                   Right r -> ExecOutput "" r
-  print $ LB.append (LB.pack outputPrefix) (Aeson.encode execJson)
 
 -- | Parse and resolve file, then synthesize the specified goals
 executeSearch :: SynquidParams -> SearchParams -> String -> IO ()
@@ -318,7 +242,7 @@ executeSearch synquidParams searchParams inStr = do
   let input = decodeInput (LB.pack inStr)
   let tquery = query input
   let exquery = inExamples input
-  env <- readEnv $ Main.envPath synquidParams
+  env <- readEnv $ Types.Experiments.envPath synquidParams
   goal <- envToGoal env tquery
   solverChan <- newChan
   checkerChan <- newChan

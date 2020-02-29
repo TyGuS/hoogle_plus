@@ -128,3 +128,9 @@ data CloseStatus
   | CSNoSolution
   | CSTimeout
   | CSError SomeException
+
+-- | Parameters of the synthesis
+data SynquidParams = SynquidParams {
+    envPath :: String, -- ^ Path to the environment file
+    jsonPath :: String
+}

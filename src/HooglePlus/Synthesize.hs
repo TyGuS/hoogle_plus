@@ -70,8 +70,8 @@ envToGoal env queryStr = do
 synthesize :: SearchParams -> Goal -> [Example] -> Chan Message -> IO ()
 synthesize searchParams goal examples messageChan = do
     let env' = gEnvironment goal
-    let goalType = toMonotype (gSpec goal)
-    let destinationType = lastType goalType
+    let goalType = gSpec goal
+    let destinationType = lastType (toMonotype goalType)
     let useHO = _useHO searchParams
     let rawSyms = env' ^. symbols
     let hoCands = env' ^. hoCandidates

@@ -97,20 +97,20 @@ resolveType' (L _ (HsTupleTy _ ts)) = foldr mkPair basePair otherTyps
 resolveType' (L _ (HsParTy t)) = resolveType' t
 resolveType' t = error $ showSDocUnsafe (ppr t)
 
-checkExample :: Environment -> RType -> Example -> Chan Message -> IO (Maybe Example)
+checkExample :: Environment -> RSchema -> Example -> Chan Message -> IO (Maybe Example)
 checkExample env typ ex checkerChan = do
     exTyp <- parseExample (Set.toList $ env ^. included_modules) ex
-    let sTyp = shape typ
     let err = printf "%s does not have type %s" (show ex) (show typ) :: String
-    res <- checkTypes env checkerChan exTyp sTyp 
+    res <- checkTypes env checkerChan exTyp typ 
     if res then return $ Just ex 
            else print err >> return Nothing
 
-checkExamples :: Environment -> RType -> [Example] -> Chan Message -> IO (Maybe [Example])
+checkExamples :: Environment -> RSchema -> [Example] -> Chan Message -> IO (Maybe [Example])
 checkExamples env typ exs checkerChan = do
     outExs <- mapM (\ex -> checkExample env typ ex checkerChan) exs
-    if null outExs then return $ Just $ catMaybes outExs
-                   else return Nothing
+    let validResults = catMaybes outExs
+    if null validResults then return Nothing
+                         else return (Just validResults)
 
 execExample :: [String] -> Environment -> String -> Example -> IO (Either ErrorMessage String)
 execExample mdls env prog ex =
@@ -119,7 +119,9 @@ execExample mdls env prog ex =
         setSessionDynFlags dflags
         prepareModules mdls >>= setContext
         let prependArg = unwords (Map.keys $ env ^. arguments)
-        let progBody = printf "let f = \\%s -> %s in" prependArg prog
+        let progBody = if Map.null (env ^. arguments) -- if this is a request from front end
+            then printf "let f = %s in" prog
+            else printf "let f = \\%s -> %s in" prependArg prog
         let progCall = printf "f %s" (unwords (inputs ex))
         result <- execStmt (unwords [progBody, progCall]) execOptions
         case result of
@@ -142,17 +144,17 @@ execExample mdls env prog ex =
 
 -- to check two type are exactly the same
 -- what about swapping arg orders?
-augmentTestSet :: Environment -> RType -> IO [Example]
+augmentTestSet :: Environment -> RSchema -> IO [Example]
 augmentTestSet env goal = do
     let candidates = env ^. queryCandidates
     msgChan <- newChan
-    matchCands <- filterM (\s -> checkTypes env msgChan s (shape goal)) (Map.keys candidates)
+    matchCands <- filterM (\s -> checkTypes env msgChan s goal) (Map.keys candidates)
     let usefulExs = concatMap (\s -> candidates Map.! s) matchCands
     return $ nubBy (\x y -> inputs x == inputs y) usefulExs
 
-checkExampleOutput :: [String] -> Environment -> RProgram -> [Example] -> IO (Maybe [Example])
+checkExampleOutput :: [String] -> Environment -> String -> [Example] -> IO (Maybe [Example])
 checkExampleOutput mdls env prog exs = do
-    currOutputs <- mapM (execExample mdls env $ show prog) exs
+    currOutputs <- mapM (execExample mdls env prog) exs
     let cmpResults = map (uncurry compareResults) (zip currOutputs exs)
     let justResults = catMaybes cmpResults
     if length justResults == length exs then return $ Just justResults 
@@ -170,10 +172,11 @@ prepareModules mdls = do
     decls <- mapM parseImportDecl imports
     return (map IIDecl decls)
 
-checkTypes :: Environment -> Chan Message -> RSchema -> SType -> IO Bool
-checkTypes env checkerChan s t = do
+checkTypes :: Environment -> Chan Message -> RSchema -> RSchema -> IO Bool
+checkTypes env checkerChan s1 s2 = do
     let initChecker = emptyChecker { _checkerChan = checkerChan }
     state <- execStateT (do
-        t' <- freshType s
-        solveTypeConstraint env (shape t') t) initChecker
+        s1' <- freshType s1
+        s2' <- freshType s2
+        solveTypeConstraint env (shape s1') (shape s2')) initChecker
     return $ state ^. isChecked

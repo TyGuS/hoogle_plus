@@ -502,12 +502,12 @@ fixEncoder env dst info = do
 
 findProgram :: MonadIO m
             => Environment -- the search environment
-            -> RType       -- the goal type
+            -> RSchema     -- the goal type
             -> [Example]   -- examples for post-filtering
             -> Int         -- remaining number of solutions to be found
             -> PNSolver m ()
 findProgram env goal examples cnt = do
-    let dst = lastType goal
+    let dst = lastType (toMonotype goal)
     modify $ set (refineState . splitTypes) Set.empty
     modify $ set (refineState . passOneOrMore) False
     modify $ set (typeChecker . typeAssignment) Map.empty
@@ -524,15 +524,18 @@ findProgram env goal examples cnt = do
     where
         handleResult NotFound = error "NotFound appeared in search results"
         handleResult (Found (soln, exs)) = do
-            writeSolution (QueryOutput (show soln) exs)
+            writeSolution (QueryOutput (lambda $ show soln) exs)
             modify $ over (searchState . currentSolutions) ((:) soln)
         handleResult (MoreRefine err)  = error "Should not encounter more refine"
 
         skipClone = not . isInfixOf "|clone"
 
+        lambda prog = let args = unwords $ Map.keys (env ^. arguments)
+                       in printf "\\%s -> %s" args prog
+
 enumeratePath :: MonadIO m 
               => Environment
-              -> RType
+              -> RSchema
               -> [Example] 
               -> [Id] 
               -> BackTrack m SearchResult
@@ -557,7 +560,7 @@ enumeratePath env goal examples path = do
 
 checkPath :: MonadIO m 
           => Environment 
-          -> RType
+          -> RSchema
           -> [Example] 
           -> [Id] 
           -> BackTrack m SearchResult
@@ -565,7 +568,7 @@ checkPath env goal examples path = do
     -- fill the sketch with the functions in the path
     codeResult <- fillSketch env path
     writeLog 1 "checkPath" $ pretty codeResult
-    let dst = lastType goal
+    let dst = lastType (toMonotype goal)
     checkResult <- withTime TypeCheckTime $ parseAndCheck env dst codeResult
     writeLog 1 "checkPath" $ text "get result" <+> text (show checkResult)
     rs <- getExperiment refineStrategy
@@ -680,7 +683,7 @@ generateCode initialFormer env src args sigs = do
 
 nextSolution :: MonadIO m 
              => Environment 
-             -> RType 
+             -> RSchema
              -> [Example] 
              -> Int
              -> PNSolver m ()
@@ -689,7 +692,7 @@ nextSolution env goal examples cnt = do
     if hasPass -- block the previous path and then search
        then blockCurrent >> findProgram env goal examples cnt
        else do -- refine and then search
-            let dst = lastType goal
+            let dst = lastType (toMonotype goal)
             cover <- gets $ view (refineState . abstractionCover)
             (prog, at) <- gets $ view (refineState . lastError)
             splitInfo <- withTime RefinementTime (refineSemantic env prog at)
@@ -710,7 +713,7 @@ nextSolution env goal examples cnt = do
 
 checkSolution :: MonadIO m 
               => Environment 
-              -> RType 
+              -> RSchema
               -> [Example] 
               -> RProgram 
               -> BackTrack m SearchResult
@@ -726,12 +729,12 @@ checkSolution env goal examples code = do
         then mzero
         else return $ Found (code', fromJust checkResult)
 
-runPNSolver :: MonadIO m => Environment -> RType -> [Example] -> PNSolver m ()
+runPNSolver :: MonadIO m => Environment -> RSchema -> [Example] -> PNSolver m ()
 runPNSolver env goal examples = do
     writeLog 3 "runPNSolver" $ text $ show (allSymbols env)
     cnt <- getExperiment solutionCnt
     withTime TotalSearch $ initNet env
-    let t = lastType goal
+    let t = lastType (toMonotype goal)
     withTime TotalSearch $ withTime EncodingTime $ resetEncoder env t
     -- findFirstN env goal st examples [] cnt
     findProgram env goal examples cnt

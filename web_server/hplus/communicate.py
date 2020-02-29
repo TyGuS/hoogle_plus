@@ -13,6 +13,7 @@ class QueryType(enum.Enum):
     search_programs = 'SearchPrograms'
     search_types = 'SearchTypes'
     search_results = 'SearchResults'
+    search_examples = 'SearchExamples'
 
 def run_hplus(options, qid, use_stream = False):
     command = ''.join([HPLUS_CMD] + options)
