@@ -140,7 +140,7 @@ synthesize searchParams goal messageChan = do
     --putStrLn $ "is bound: " ++ isBound env trial
     putStrLn $ "trial: " ++ show trial
     putStrLn $ "trial2: " ++ show trial2
-    print $ iterateOverEnv (toList (env ^. symbols)) 
+    print $ iterateOverEnv (Map.toList (env ^. symbols)) 
     let stc = solveTypeConstraint env trial2 trial2
     -- putStrLn $ show  (pretty stc)
     
