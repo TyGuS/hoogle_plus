@@ -211,6 +211,8 @@ getUnifiedFunctions env ( v@(id, schema) : xs) goalType = -- do
     -- let initSolverState = emptySolverState
     let t1 = shape (toMonotype schema) in
         let t2 = shape goalType in
+            putStrLn $ "t1: " ++ show t1
+            putStrLn $ "t2: " ++ show t2
             getUnifiedFunctions env xs goalType
     -- st' <- execStateT (solveTypeConstraint env (shape (ScalarT IntT ftrue)) (shape goalType) ) initSolverState
     -- getUnifiedFunctions env xs goalType
