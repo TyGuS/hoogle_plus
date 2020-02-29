@@ -129,7 +129,7 @@ synthesize searchParams goal messageChan = do
     -- used trial just to get one type for testing (not real code)
     -- looking for SType
     let trial = shape destinationType
-    let trial2 = shape (ScalarT IntT ())
+    let trial2 = shape (ScalarT IntT ftrue)
     case trial of
       AnyT -> putStrLn $ "AnyT"
       BotT -> putStrLn $ "botT"
