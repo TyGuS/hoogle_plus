@@ -160,6 +160,9 @@ synthesize searchParams goal messageChan = do
     let ( (id, schema) : xs) = (Map.toList (env ^. symbols))
     let blah = lastType (toMonotype schema)
     putStrLn $ "blah: " ++ show (shape blah)
+    
+    st' <- execStateT (solveTypeConstraint env t1 (shape blah)) initSolverState
+
 
     --let things = getUnifiedFunctions env (Map.toList (env ^. symbols)) destinationType
 
