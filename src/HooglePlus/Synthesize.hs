@@ -149,7 +149,7 @@ synthesize searchParams goal messageChan = do
     st' <- execStateT (solveTypeConstraint env t1 t2) initSolverState
 
     let args2 = allArgTypes destinationType
-    putStrLn $ "args: " ++ show (env ^. arguments)
+    putStrLn $ "args: " ++ show (getArgTypes (env ^. arguments))
 
     --print $ iterateOverEnv (Map.toList (env ^. symbols)) 
 
@@ -198,3 +198,7 @@ synthesize searchParams goal messageChan = do
 iterateOverEnv :: [(Id, RSchema)] -> [String]
 iterateOverEnv [] = []
 iterateOverEnv ( (id, schema) : xs) = id : iterateOverEnv xs
+
+getArgTypes :: [(Id, RSchema)] -> [String]
+getArgTypes [] = []
+getArgTypes ( (_, schema) : xs) = scheme : getArgTypes xs
