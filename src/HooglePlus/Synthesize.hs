@@ -227,8 +227,11 @@ synthesize searchParams goal messageChan = do
             -- getUnifiedFunctions env xs goalType
             let substitution =  st' ^. typeAssignment
             let checkResult = st' ^. isChecked
-            putStrLn $ show t1
-            print $ acc
+
+            let schema' = stypeSubstitution substitution (shape $ toMonotype schema)
+
+            -- putStrLn $ show t1
+            print $ schema'
 
             if (checkResult) then getUnifiedFunctions envv xs goalType ( (id, toMonotype schema) : acc)
                             else getUnifiedFunctions envv xs goalType acc
