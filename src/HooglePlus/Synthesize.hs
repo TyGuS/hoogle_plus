@@ -149,7 +149,7 @@ synthesize searchParams goal messageChan = do
     st' <- execStateT (solveTypeConstraint env t1 t2) initSolverState
 
     let args2 = allArgTypes destinationType
-    putStrLn $ "args2: " ++ show args2
+    putStrLn $ "args: " ++ show (env ^. arguments)
 
     --print $ iterateOverEnv (Map.toList (env ^. symbols)) 
 
@@ -172,6 +172,7 @@ synthesize searchParams goal messageChan = do
     --------------------------
 
     -- this is code we don't want I think below
+    {-
     let rs = _refineStrategy searchParams
     let is =
             emptySolverState
@@ -185,12 +186,12 @@ synthesize searchParams goal messageChan = do
                           NoGar0 -> emptySolverState ^. abstractionCover
                 , _messageChan = messageChan
                 }
-    {-catch
+    catch
         (evalStateT (runPNSolver env destinationType) is)
         (\e ->
              writeChan messageChan (MesgLog 0 "error" (show e)) >>
              writeChan messageChan (MesgClose (CSError e)))
-             -}
+    -}
     -- this is code we don't want I think above
     return () 
 
