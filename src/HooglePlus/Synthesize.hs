@@ -231,7 +231,7 @@ synthesize searchParams goal messageChan = do
             -- let schema' = schemaSubstitute sub schema
 
             -- putStrLn $ show t1
-            print $ schema'
+            -- print $ schema'
 
             if (checkResult) then getUnifiedFunctions envv xs goalType ( (id, toMonotype schema) : acc)
                             else getUnifiedFunctions envv xs goalType acc
