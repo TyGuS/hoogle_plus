@@ -1,7 +1,6 @@
 route: /search/type
 method: POST
 args: {
-    "id": str,
     "typeSignature": str,
     "facts": [
         [str] # (num of args + 1)
@@ -31,15 +30,15 @@ returns:
 
 route: /stop
 method: POST
-args: {"id": str}
+args: {"id": uuid}
 returns: None
 
 route: /examples
 method: POST
 args: {
-    "id": str,
     "typeSignature": str,
-    "candidate": str
+    "candidate": str,
+    "examples": [[str]]
     }
 returns: {
     "examples": [[str]]
