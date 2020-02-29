@@ -212,8 +212,8 @@ getUnifiedFunctions env ( v@(id, schema) : xs) goalType = do
     let substitution =  st' ^. typeAssignment
     let checkResult = st' ^. isChecked
 
-    if (checkResult) then v : getUnifiedFunctions xs goalType
-                    else getUnifiedFunctions xs goalType
+    if (checkResult) then v : getUnifiedFunctions env xs goalType
+                    else getUnifiedFunctions env xs goalType
 
 getArgTypes :: [(Id, RSchema)] -> [RSchema]
 getArgTypes [] = []
