@@ -209,12 +209,14 @@ getUnifiedFunctions :: Environment -> [(Id, RSchema)] -> RType -> [(Id, RSchema)
 getUnifiedFunctions _ [] _ = []
 getUnifiedFunctions env ( v@(id, schema) : xs) goalType = do
     let initSolverState = emptySolverState
-    st' <- execStateT (solveTypeConstraint env (shape (toMonotype schema)) (shape goalType)) initSolverState
-    let substitution =  st' ^. typeAssignment
-    let checkResult = st' ^. isChecked
+    let t1 = (shape (toMonotype schema))
+    let t2 = (shape goalType)
+    -- st' <- execStateT (solveTypeConstraint env t1 t2 ) initSolverState
+    -- let substitution =  st' ^. typeAssignment
+    -- let checkResult = st' ^. isChecked
 
-    if (checkResult) then v : getUnifiedFunctions env xs goalType
-                    else getUnifiedFunctions env xs goalType
+    if (True) then [] -- v : getUnifiedFunctions env xs goalType
+                    else [] -- getUnifiedFunctions env xs goalType
 
 getArgTypes :: [(Id, RSchema)] -> [RSchema]
 getArgTypes [] = []
