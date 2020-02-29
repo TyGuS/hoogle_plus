@@ -151,19 +151,14 @@ synthesize searchParams goal messageChan = do
     let args2 = allArgTypes destinationType
     putStrLn $ "args: " ++ show (getArgTypes (Map.toList (env ^. arguments)))
 
-    --print $ iterateOverEnv (Map.toList (env ^. symbols)) 
-
-    --let stc = solveTypeConstraint env trial trial2
-    -- putStrLn $ show  (pretty stc)
-    
-    -- putStrLn $ "st': " ++ show st'
-
-    --{-
-    let substitution =  _typeAssignment st' -- ^. typeAssignment
-    let checkResult = _isChecked st' -- ^. isChecked
+    let substitution =  st' ^. typeAssignment
+    let checkResult = st' ^. isChecked
 
     putStrLn $ "sub: " ++ show substitution
     putStrLn $ "checked: " ++ show checkResult
+
+    let things = getUnifiedFunctions env (Map.toList (env ^. symbols)) destinationType
+
     -- -}
     --let cons’ = stypeSubstitution substitution (shape $ toMonotype cons)
 
@@ -192,12 +187,35 @@ synthesize searchParams goal messageChan = do
              writeChan messageChan (MesgLog 0 "error" (show e)) >>
              writeChan messageChan (MesgClose (CSError e)))
     -}
+
+
+    --print $ iterateOverEnv (Map.toList (env ^. symbols)) 
+
+    --let stc = solveTypeConstraint env trial trial2
+    -- putStrLn $ show  (pretty stc)
+    
+    -- putStrLn $ "st': " ++ show st'
+
+    --{-
+
     -- this is code we don't want I think above
     return () 
 
 iterateOverEnv :: [(Id, RSchema)] -> [String]
 iterateOverEnv [] = []
 iterateOverEnv ( (id, schema) : xs) = id : iterateOverEnv xs
+
+getUnifiedFunctions :: Environment -> [(Id, RSchema)] -> RSchema -> [(Id, RSchema)]
+getUnifiedFunctions _ [] _ = []
+getUnifiedFunctions env ( v@(id, schema) : xs) goalType = 
+
+    st' <- execStateT (solveTypeConstraint env (shape schema) (shape goalType) initSolverState
+
+    let substitution =  st' ^. typeAssignment
+    let checkResult = st' ^. isChecked
+
+    if (checkResult) then v : getUnifiedFunctions xs goalType
+                     else getUnifiedFunctions xs goalType
 
 getArgTypes :: [(Id, RSchema)] -> [RSchema]
 getArgTypes [] = []
