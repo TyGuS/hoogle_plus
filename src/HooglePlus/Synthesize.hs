@@ -213,6 +213,7 @@ getUnifiedFunctions env ( v@(id, schema) : xs) goalType = do
     let t2 = (shape goalType)
     getUnifiedFunctions env xs goalType
     st' <- execStateT (solveTypeConstraint env (shape (ScalarT IntT ftrue)) (shape goalType) ) initSolverState
+    getUnifiedFunctions env xs goalType
     -- let substitution =  st' ^. typeAssignment
     -- let checkResult = st' ^. isChecked
 
