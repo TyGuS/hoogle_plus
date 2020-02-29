@@ -228,7 +228,7 @@ synthesize searchParams goal messageChan = do
             let sub =  st' ^. typeAssignment
             let checkResult = st' ^. isChecked
 
-            let schema' = substitute sub (shape $ toMonotype schema)
+            let schema' = schemaSubstitute sub schema
 
             -- putStrLn $ show t1
             print $ schema'
