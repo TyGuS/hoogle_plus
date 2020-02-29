@@ -129,7 +129,7 @@ synthesize searchParams goal messageChan = do
     -- used trial just to get one type for testing (not real code)
     -- looking for SType
     let trial = shape destinationType
-    let trial2 = shape intType
+    let trial2 = shape (ScalarT IntT ())
     case trial of
       AnyT -> putStrLn $ "AnyT"
       BotT -> putStrLn $ "botT"
@@ -144,8 +144,8 @@ synthesize searchParams goal messageChan = do
     let stc = solveTypeConstraint env trial trial2
     -- putStrLn $ show  (pretty stc)
     
-    (a, st') <- runStateT stc initSolverState
-    putStrLn $ "a: " ++ show a
+    st' <- execStateT stc initSolverState
+    -- putStrLn $ "st': " ++ show st'
 
     --{-
     let substitution =  _typeAssignment st' -- ^. typeAssignment
