@@ -158,7 +158,7 @@ synthesize searchParams goal messageChan = do
     putStrLn $ "checked: " ++ show checkResult
 
     let ( (id, schema) : xs) = (Map.toList (env ^. symbols))
-    let blah = toMonotype schema
+    let blah = lastType (toMonotype schema)
     putStrLn $ "blah: " ++ show (shape blah)
 
     --let things = getUnifiedFunctions env (Map.toList (env ^. symbols)) destinationType
