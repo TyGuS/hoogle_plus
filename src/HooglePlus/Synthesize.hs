@@ -137,6 +137,7 @@ synthesize searchParams goal messageChan = do
       _    -> putStrLn $ "otherwise"
     --print $ typeOf trial
     --let blah = solveTypeConstraint env trial trial
+    putStrLn $ "is bound: " ++ isBound env trial
     putStrLn $ "trial: " ++ show trial
     putStrLn $ "trial2: " ++ show trial2
 
