@@ -118,6 +118,8 @@ synthesize searchParams goal messageChan = do
     -- looking for SType
     let t1 = shape destinationType
     let t2 = shape (ScalarT IntT ftrue)
+    putStrLn $ "t1: " ++ show t1
+    putStrLn $ "t2: " ++ show t2
 
     {-
     case trial of
@@ -142,6 +144,7 @@ synthesize searchParams goal messageChan = do
     --{-
     let substitution =  _typeAssignment st' -- ^. typeAssignment
     let checkResult = _isChecked st' -- ^. isChecked
+
     putStrLn $ "sub: " ++ show substitution
     putStrLn $ "checked: " ++ show checkResult
     -- -}
