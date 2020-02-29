@@ -146,7 +146,11 @@ synthesize searchParams goal messageChan = do
     putStrLn $ "t1: " ++ show t1
     putStrLn $ "t2: " ++ show t2
 
+    putStrLn $ "here1" 
+
     st' <- execStateT (solveTypeConstraint env t1 t2) initSolverState
+    putStrLn $ "here2" 
+
 
     let args2 = allArgTypes destinationType
     putStrLn $ "args: " ++ show (getArgTypes (Map.toList (env ^. arguments)))
