@@ -207,27 +207,45 @@ synthesize searchParams goal messageChan = do
 
     -- this is code we don't want I think above
     return () 
+    where
+        getUnifiedFunctions :: Environment -> [(Id, RSchema)] -> RType -> [(Id, RSchema)]
+        getUnifiedFunctions _ [] _ = []
+        getUnifiedFunctions envv ( v@(id, schema) : xs) goalType = do
+            let initSolverState = emptySolverState
+            let t1 = shape (lastType (toMonotype schema))
+            let t2 = shape goalType
+                    -- putStrLn $ "t1: " ++ show t1
+                    -- putStrLn $ "t2: " ++ show t2
+                    -- getUnifiedFunctions env xs goalType
+            st' <- execStateT (solveTypeConstraint envv t1 t2) initSolverState
+            -- getUnifiedFunctions env xs goalType
+            let substitution =  st' ^. typeAssignment
+            let checkResult = st' ^. isChecked
+
+            if (checkResult) then v : getUnifiedFunctions envv xs goalType
+                            else getUnifiedFunctions envv xs goalType
+
 
 iterateOverEnv :: [(Id, RSchema)] -> [String]
 iterateOverEnv [] = []
 iterateOverEnv ( (id, schema) : xs) = id : iterateOverEnv xs
 
-getUnifiedFunctions :: Environment -> [(Id, RSchema)] -> RType -> [(Id, RSchema)]
-getUnifiedFunctions _ [] _ = []
-getUnifiedFunctions envv ( v@(id, schema) : xs) goalType = do
-    let initSolverState = emptySolverState
-    let t1 = shape (lastType (toMonotype schema))
-    let t2 = shape goalType
-            -- putStrLn $ "t1: " ++ show t1
-            -- putStrLn $ "t2: " ++ show t2
-            -- getUnifiedFunctions env xs goalType
-    st' <- execStateT (solveTypeConstraint envv t1 t2) initSolverState
-    -- getUnifiedFunctions env xs goalType
-    let substitution =  st' ^. typeAssignment
-    let checkResult = st' ^. isChecked
+-- getUnifiedFunctions :: Environment -> [(Id, RSchema)] -> RType -> [(Id, RSchema)]
+-- getUnifiedFunctions _ [] _ = []
+-- getUnifiedFunctions envv ( v@(id, schema) : xs) goalType = do
+--     let initSolverState = emptySolverState
+--     let t1 = shape (lastType (toMonotype schema))
+--     let t2 = shape goalType
+--             -- putStrLn $ "t1: " ++ show t1
+--             -- putStrLn $ "t2: " ++ show t2
+--             -- getUnifiedFunctions env xs goalType
+--     st' <- execStateT (solveTypeConstraint envv t1 t2) initSolverState
+--     -- getUnifiedFunctions env xs goalType
+--     let substitution =  st' ^. typeAssignment
+--     let checkResult = st' ^. isChecked
 
-    if (checkResult) then v : getUnifiedFunctions envv xs goalType
-                    else getUnifiedFunctions envv xs goalType
+--     if (checkResult) then v : getUnifiedFunctions envv xs goalType
+--                     else getUnifiedFunctions envv xs goalType
 
 getArgTypes :: [(Id, RSchema)] -> [RSchema]
 getArgTypes [] = []
