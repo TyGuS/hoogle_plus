@@ -185,11 +185,12 @@ synthesize searchParams goal messageChan = do
                           NoGar0 -> emptySolverState ^. abstractionCover
                 , _messageChan = messageChan
                 }
-    catch
+    {-catch
         (evalStateT (runPNSolver env destinationType) is)
         (\e ->
              writeChan messageChan (MesgLog 0 "error" (show e)) >>
              writeChan messageChan (MesgClose (CSError e)))
+             -}
     -- this is code we don't want I think above
     return () 
 
