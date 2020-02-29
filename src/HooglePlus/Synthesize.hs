@@ -164,7 +164,7 @@ synthesize searchParams goal messageChan = do
     st' <- execStateT (solveTypeConstraint env t1 (shape blah)) initSolverState
 
 
-    --let things = getUnifiedFunctions env (Map.toList (env ^. symbols)) destinationType
+    getUnifiedFunctions env (Map.toList (env ^. symbols)) destinationType
 
     -- -}
     --let cons’ = stypeSubstitution substitution (shape $ toMonotype cons)
