@@ -211,6 +211,9 @@ getUnifiedFunctions env ( v@(id, schema) : xs) goalType = do
     let initSolverState = emptySolverState
     let t1 = (shape (toMonotype schema))
     let t2 = (shape goalType)
+    
+    putStrLn $ "t1: " ++ show t1
+
     getUnifiedFunctions env xs goalType
     -- st' <- execStateT (solveTypeConstraint env t1 t2 ) initSolverState
     -- let substitution =  st' ^. typeAssignment
