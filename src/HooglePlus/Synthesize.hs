@@ -157,7 +157,11 @@ synthesize searchParams goal messageChan = do
     putStrLn $ "sub: " ++ show substitution
     putStrLn $ "checked: " ++ show checkResult
 
-    let things = getUnifiedFunctions env (Map.toList (env ^. symbols)) destinationType
+    let ( (id, schema) : xs) = (Map.toList (env ^. symbols))
+    let blah = toMonotype schema
+    putStrLn $ "blah: " ++ show (shape blah)
+
+    --let things = getUnifiedFunctions env (Map.toList (env ^. symbols)) destinationType
 
     -- -}
     --let cons’ = stypeSubstitution substitution (shape $ toMonotype cons)
@@ -205,15 +209,15 @@ iterateOverEnv :: [(Id, RSchema)] -> [String]
 iterateOverEnv [] = []
 iterateOverEnv ( (id, schema) : xs) = id : iterateOverEnv xs
 
-getUnifiedFunctions :: Environment -> [(Id, RSchema)] -> RType -> [(Id, RSchema)]
-getUnifiedFunctions _ [] _ = []
-getUnifiedFunctions env ( v@(id, schema) : xs) goalType = -- do
-    -- let initSolverState = emptySolverState
-    let t1 = shape (toMonotype schema) in
-        let t2 = shape goalType in
-            putStrLn $ "t1: " ++ show t1
-            putStrLn $ "t2: " ++ show t2
-            getUnifiedFunctions env xs goalType
+-- getUnifiedFunctions :: Environment -> [(Id, RSchema)] -> RType -> [(Id, RSchema)]
+-- getUnifiedFunctions _ [] _ = []
+-- getUnifiedFunctions env ( v@(id, schema) : xs) goalType = -- do
+--     -- let initSolverState = emptySolverState
+--     let t1 = shape (toMonotype schema) in
+--         let t2 = shape goalType in
+--             putStrLn $ "t1: " ++ show t1
+--             putStrLn $ "t2: " ++ show t2
+--             getUnifiedFunctions env xs goalType
     -- st' <- execStateT (solveTypeConstraint env (shape (ScalarT IntT ftrue)) (shape goalType) ) initSolverState
     -- getUnifiedFunctions env xs goalType
     -- let substitution =  st' ^. typeAssignment
