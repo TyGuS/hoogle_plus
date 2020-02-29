@@ -213,7 +213,7 @@ synthesize searchParams goal messageChan = do
     -- this is code we don't want I think above
     return () 
     where
-        getUnifiedFunctions :: Environment -> [(Id, RSchema)] -> RType -> [(Id, RSchema)] -> IO ()
+        getUnifiedFunctions :: Environment -> [(Id, RSchema)] -> RType -> [(Id, RType)] -> IO ()
         getUnifiedFunctions _ [] _ _= return ()
         getUnifiedFunctions envv ( v@(id, schema) : xs) goalType acc = do
             let initSolverState = emptySolverState
@@ -230,7 +230,7 @@ synthesize searchParams goal messageChan = do
             putStrLn $ show t1
             print $ acc
 
-            if (checkResult) then getUnifiedFunctions envv xs goalType (v : acc)
+            if (checkResult) then getUnifiedFunctions envv xs goalType ( (id, toMonotype schema) : acc)
                             else getUnifiedFunctions envv xs goalType acc
 
 
