@@ -217,7 +217,8 @@ synthesize searchParams goal messageChan = do
                     -- putStrLn $ "t1: " ++ show t1
                     -- putStrLn $ "t2: " ++ show t2
                     -- getUnifiedFunctions env xs goalType
-            st' <- execStateT (solveTypeConstraint envv t1 t2) initSolverState
+            let stc = solveTypeConstraint envv t1 t2
+            st' <- execStateT stc initSolverState
             -- getUnifiedFunctions env xs goalType
             let substitution =  st' ^. typeAssignment
             let checkResult = st' ^. isChecked
