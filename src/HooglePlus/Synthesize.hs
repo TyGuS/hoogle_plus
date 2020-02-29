@@ -137,7 +137,8 @@ synthesize searchParams goal messageChan = do
     -}
 
     -- make an empty solver state to use in evalState
-    let initSolverState = emptySolverState
+    let initSolverState = emptySolverState { _messageChan = messageChan }
+
 
     -- used trial just to get one type for testing (not real code)
     let t1 = shape destinationType
