@@ -225,10 +225,10 @@ synthesize searchParams goal messageChan = do
             -- let stc = solveTypeConstraint envv t1 t2
             st' <- execStateT (solveTypeConstraint envv t1 t2) initSolverState
             -- getUnifiedFunctions env xs goalType
-            let substitution =  st' ^. typeAssignment
+            let sub =  st' ^. typeAssignment
             let checkResult = st' ^. isChecked
 
-            let schema' = stypeSubstitution substitution (shape $ toMonotype schema)
+            let schema' = substitution sub (shape $ toMonotype schema)
 
             -- putStrLn $ show t1
             print $ schema'
