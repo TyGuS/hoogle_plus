@@ -201,4 +201,4 @@ iterateOverEnv ( (id, schema) : xs) = id : iterateOverEnv xs
 
 getArgTypes :: [(Id, RSchema)] -> [String]
 getArgTypes [] = []
-getArgTypes ( (_, schema) : xs) = scheme : getArgTypes xs
+getArgTypes ( (_, schema) : xs) = schema : getArgTypes xs
