@@ -145,7 +145,7 @@ synthesize searchParams goal messageChan = do
     -- putStrLn $ show  (pretty stc)
     
     (a, st') <- runStateT stc initSolverState
-    -- putStrLn $ "st': " ++ show st'
+    putStrLn $ "a: " ++ show a
 
     --{-
     let substitution =  _typeAssignment st' -- ^. typeAssignment
