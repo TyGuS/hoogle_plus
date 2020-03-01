@@ -286,8 +286,12 @@ dfs env messageChan depth (id, schema) = do
   -- let list2 = fmap (map (dfs env messageChan (depth - 1))) argUnifiedFuncs
   -- let list2 = map (fmap (dfs env messageChan (depth - 1))) argUnifiedFuncs
   -- let list2 = map (mapM (dfs env messageChan (depth - 1))) argUnifiedFuncs
-  let list2 = map (fmap (map (dfs env messageChan (depth - 1)))) argUnifiedFuncs
   -- list2 <- fmap (dfs env messageChan (depth - 1))) argUnifiedFuncs
+
+
+  -- list2 ::
+  let list2 = map (fmap (map (dfs env messageChan (depth - 1)))) argUnifiedFuncs
+  print $ typeOf list2
 
   -- print $ typeOf list2
   -- turn results of dfs into list of programs
