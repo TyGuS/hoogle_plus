@@ -211,7 +211,9 @@ synthesize searchParams goal messageChan = do
     --{-
 
     -- this is code we don't want I think above
-    let initCompState = emptyComps
+    -- let initCompState = emptyComps
+
+    dfs env messageChan 3 ("start", shape destinationType)
 
     -- cst' <- execStateT (getUnifiedFunctions env (Map.toList (env ^. symbols)) destinationType messageChan) initCompState
 
@@ -294,7 +296,7 @@ dfs env messageChan depth (id, schema) = do
 
   -- list2 :: [ [ IO [String] ] ]
   let list2  = map (map (dfs env messageChan (depth - 1))) argUnifiedFuncs'
-  print $ list2
+  map print list2
   -- print $ typeOf  list2
 
   -- print $ typeOf list2
