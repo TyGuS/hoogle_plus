@@ -224,7 +224,7 @@ getUnifiedFunctions :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -
 getUnifiedFunctions envv messageChan xs@((id, schema) : xxs) goalType = do 
   --fmap _components $ execStateT (helper envv messageChan xs goalType) emptyComps
   finalSt <- execStateT (helper envv messageChan xs goalType) emptyComps
-  IO (finalSt ^. components) -- QUESTION: how to get 
+  return (finalSt ^. components) -- QUESTION: how to get 
   where 
     helper :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> StateT Comps IO ()
     helper _ _ [] _ = return ()
