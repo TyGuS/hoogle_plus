@@ -300,15 +300,15 @@ dfs env messageChan depth (id, schema) = do
   list3 <- sequence list2
 
   -- list5 :: (IO [String])
-  let list5 = map (fmap (\x -> x)) list3
+  let list4 = map (fmap (\x -> x)) list3
 
-  -- 
-  let list4 = fmap (\x -> x) $ map (fmap (\x -> x)) list3
+  -- list 4 :: (IO [String])
+--   let list4 = fmap (\x -> x) $ map (fmap (\x -> x)) list3
 
 --   print $ list5 
-  print $ list4
+--   print $ list4
 
---   let list4 = map (\a -> id ++ " (" ++ a ++ ")") $ map concat list3
+  let list4 = map (\a -> id ++ " (" ++ a ++ ")") $ map concat list4
   return []
 --   return list4
 
