@@ -302,7 +302,7 @@ dfs env messageChan depth (id, schema) = do
   -- list4  :: (IO [String])
   let list4 = map (fmap (\x -> x)) list3
 
-  let list5 = mapM concat list4
+  let list5 = fmap concat list4
   print $ typeOf list5
 --   let list4 = map (\a -> id ++ " (" ++ a ++ ")") $ map concat list4
   return []
