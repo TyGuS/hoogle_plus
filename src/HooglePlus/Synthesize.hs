@@ -292,17 +292,17 @@ dfs env messageChan depth (id, schema) = do
   -- list2 <- fmap (dfs env messageChan (depth - 1))) argUnifiedFuncs
 
 
-  -- list2 :: [[IO [String]]]
-  let list2  = map (map (dfs env messageChan (depth - 1))) argUnifiedFuncs'
---   print $ typeOf  list2
+  -- list2 ::       -- [[IO [String]]]
+  let list2  = mapM (map (dfs env messageChan (depth - 1))) argUnifiedFuncs'
+  print $ typeOf  list2
 
   -- print $ typeOf list2
 
   -- turn results of dfs into list of programs
 
   -- list3 ::      -- [[IO [String]]]
-  list3 <- sequence list2
-  print $ typeOf list3
+  -- list3 <- sequence list2
+  -- print $ typeOf list3
 
   -- list4  :: (IO [String])
 --   list4 <- map (fmap (\x -> x)) list3
