@@ -296,9 +296,10 @@ dfs env messageChan depth (id, schema) = do
 
   -- turn results of dfs into list of programs
   list3 <- sequence list2
-  let list4 = map (\a -> id ++ " (" ++ a ++ ")") $ map concat list3
---   return []
-  return list4
+  print $ typeOf list3 
+--   let list4 = map (\a -> id ++ " (" ++ a ++ ")") $ map concat list3
+  return []
+--   return list4
 
   --- 
 
