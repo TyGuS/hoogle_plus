@@ -265,8 +265,9 @@ dfs env messageChan depth (id, schema) = do
 
   -- argUnifiedFuncs :: [IO [(Id, SType)]]
   let argUnifiedFuncs = map (getUnifiedFunctions env messageChan components) args
-  print $ typeOf argUnifiedFuncs
 
+  argUnifiedFuncs' <- sequence argUnifiedFuncs
+  print $ typeOf argUnifiedFuncs'
 
   -- print $ typeOf list
   -- each iteration of GUF returns IO [(Id, SType)]
@@ -291,7 +292,7 @@ dfs env messageChan depth (id, schema) = do
 
 
   -- list2 :: [IO [IO [String]]]
-  list2 <- map (map (dfs env messageChan (depth - 1))) argUnifiedFuncs
+--   list2 <- map (map (dfs env messageChan (depth - 1))) argUnifiedFuncs
 
   -- print $ typeOf list2
 
