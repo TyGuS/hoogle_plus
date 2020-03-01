@@ -270,6 +270,7 @@ dfs env messageChan depth (id, schema) = do
 
   -- argUnifiedFuncs':: [[(Id, SType)]]
   argUnifiedFuncs' <- sequence argUnifiedFuncs
+  putStrLn $ "argUnifiedFuncs': " ++  show argUnifiedFuncs'
 --   print $ typeOf argUnifiedFuncs'
 
   -- print $ typeOf list
@@ -301,8 +302,9 @@ dfs env messageChan depth (id, schema) = do
   -- let (blah : blahs) = list2
 
   -- print $ typeOf blah
+  --  list3 :: [[String]]
   list3 <- mapM sequence list2
-  print list3
+  putStrLn $ "list3: " ++ show list3
   -- fmap putStrLn list2
   -- print $ typeOf  list2
 
