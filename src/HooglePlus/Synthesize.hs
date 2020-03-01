@@ -298,10 +298,11 @@ dfs env messageChan depth (id, schema) = do
   let list2  = map (map (dfs env messageChan (depth - 1))) argUnifiedFuncs'
 
   -- blah :: [IO [String]]
-  let (blah : blahs) = list2
+  -- let (blah : blahs) = list2
 
   -- print $ typeOf blah
   list3 <- mapM sequence list2
+  print list3
   -- fmap putStrLn list2
   -- print $ typeOf  list2
 
