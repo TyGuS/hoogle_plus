@@ -228,6 +228,7 @@ getUnifiedFunctions envv messageChan xs goalType =
     helper :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> StateT Comps IO ()
     helper _ _ [] _ = return ()
     helper envv messageChan ( v@(id, schema) : ys) goalType = do
+      putStrLn $ "in getUnifiedFunctions: " ++ id
       let initSolverState = emptySolverState { _messageChan = messageChan }
       let t1 = shape (lastType (toMonotype schema))
       let t2 = goalType
