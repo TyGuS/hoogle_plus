@@ -301,7 +301,7 @@ dfs env messageChan depth (id, schema) = do
   -- turn results of dfs into list of programs
 
   -- list3 ::      -- [[IO [String]]]
-  list3 <- sequence list2
+  list3 <- map sequence list2
   print $ typeOf list3
 
   -- list4  :: (IO [String])
