@@ -264,7 +264,8 @@ dfs env messageChan depth (id, schema) = do
   let initCompState = emptyComps
 
   -- argUnifiedFuncs :: [IO [(Id, SType)]]
-  argUnifiedFuncs <- map (getUnifiedFunctions env messageChan components) args
+  let argUnifiedFuncs = map (getUnifiedFunctions env messageChan components) args
+  print $ typeOf argUnifiedFuncs
 
 
   -- print $ typeOf list
