@@ -221,9 +221,10 @@ synthesize searchParams goal messageChan = do
     return () 
 
 getUnifiedFunctions :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> IO [(Id, SType)]
-getUnifiedFunctions envv messageChan xs@((id, schema) : xxs) goalType = do
+getUnifiedFunctions envv messageChan xs@((id, schema) : xxs) goalType = do 
+  --fmap _components $ execStateT (helper envv messageChan xs goalType) emptyComps
   finalSt <- execStateT (helper envv messageChan xs goalType) emptyComps
-  finalSt ^. components
+  IO (finalSt ^. components) -- QUESTION: how to get 
   where 
     helper :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> StateT Comps IO ()
     helper _ _ [] _ = return ()
