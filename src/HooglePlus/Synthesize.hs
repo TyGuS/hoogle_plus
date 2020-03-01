@@ -136,7 +136,7 @@ synthesize searchParams goal messageChan = do
     putStrLn $ "trial: " ++ show trial
     putStrLn $ "trial2: " ++ show trial2
     -}
-
+    {-
     -- make an empty solver state to use in evalState
     let initSolverState = emptySolverState { _messageChan = messageChan }
 
@@ -168,11 +168,8 @@ synthesize searchParams goal messageChan = do
     putStrLn $ "blah: " ++ show (shape blah)
     
     st' <- execStateT (solveTypeConstraint env t1 (shape blah)) initSolverState
-    let initCompState = emptyComps
-
-    cst' <- execStateT (getUnifiedFunctions env (Map.toList (env ^. symbols)) destinationType) initCompState
-
-    print $ cst' ^. components
+    -}
+    
 
     -- -}
     --let cons’ = stypeSubstitution substitution (shape $ toMonotype cons)
@@ -214,46 +211,103 @@ synthesize searchParams goal messageChan = do
     --{-
 
     -- this is code we don't want I think above
+    let initCompState = emptyComps
+
+    -- cst' <- execStateT (getUnifiedFunctions env (Map.toList (env ^. symbols)) destinationType messageChan) initCompState
+
+    --print $ cst' ^. components
     return () 
 
-getUnifiedFunctions :: Environment -> [(Id, RSchema)] -> RType -> StateT Comps IO ()
-getUnifiedFunctions _ [] _ = return ()
-getUnifiedFunctions envv ( v@(id, schema) : xs) goalType = do
-    let initSolverState = emptySolverState
-    let t1 = shape (lastType (toMonotype schema))
-    let t2 = shape goalType
-            -- putStrLn $ "t1: " ++ show t1
-            -- putStrLn $ "t2: " ++ show t2
-            -- getUnifiedFunctions env xs goalType
-    -- let stc = solveTypeConstraint envv t1 t2
-    st' <- execStateT (solveTypeConstraint envv t1 t2) initSolverState
-    -- getUnifiedFunctions env xs goalType
-    let sub =  st' ^. typeAssignment
-    let checkResult = st' ^. isChecked
+getUnifiedFunctions :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> IO [(Id, SType)]
+-- getUnifiedFunctions _ _ [] _ = return []
+getUnifiedFunctions envv messageChan xs goalType =
+  fmap _components $ execStateT (helper envv messageChan xs goalType) emptyComps
+  where 
+    helper :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> StateT Comps IO ()
+    helper _ _ [] _ = return ()
+    helper envv messageChan ( v@(id, schema) : ys) goalType = do
+      let initSolverState = emptySolverState { _messageChan = messageChan }
+      let t1 = shape (lastType (toMonotype schema))
+      let t2 = goalType
 
-    let schema' = stypeSubstitute sub (shape $ toMonotype schema)
-    --acc <- get
-    --print acc
-    -- putStrLn $ show t1
-    -- print $ schema'
+      st' <- execStateT (solveTypeConstraint envv t1 t2) initSolverState
 
-    st <- get
-    if (checkResult) then modify $ set components ((id, schema') : st ^. components) else return ()
-    
-    --if (checkResult) then modify $ \(Comps s) -> s {_components = (id, schema') : (_components s)} else return ()
+      let sub =  st' ^. typeAssignment
+      let checkResult = st' ^. isChecked
 
-    getUnifiedFunctions envv xs goalType
-{-
-DFS :: [(Id, SType)] -> Int -> [(Id, SType)]-> IO ()
-DFS [] _ acc = acc
-DFS _ 0 acc = acc
-DFS ((id, schema) : candidates) depth acc = do
-  -- left
+      let schema' = stypeSubstitute sub (shape $ toMonotype schema)
 
-  -- myself
+      st <- get
+      if (checkResult) then modify $ set components ((id, schema') : st ^. components) else return ()
+      
+      helper envv messageChan ys goalType
 
-  -- right 
-  -}
+
+
+isGround :: SType -> Bool
+isGround (FunctionT id arg0 arg1) = False
+isGround _ = True
+
+-- type MyProgram = String
+-- env, max depth, components, goal
+-- returns list of possible programs
+dfs :: Environment -> Chan Message -> Int -> (Id, SType) -> IO [String]
+dfs _ _ 0 (id, schema)= do
+  if (isGround schema) then return [id] else return []
+dfs env messageChan depth (id, schema) = do
+  -- check if schema is ground
+  if (isGround schema) then return [id] else return []
+  let args = allArgTypes schema
+
+  -- call dfs using each argument as a goal
+  let components = Map.toList (env ^. symbols)
+  let initCompState = emptyComps
+
+  -- argUnifiedFuncs :: [IO [(Id, SType)]]
+  let argUnifiedFuncs = map (getUnifiedFunctions env messageChan components) args
+
+
+  -- print $ typeOf list
+  -- each iteration of GUF returns IO [(Id, SType)]
+
+  -- let (arg : argss) = args
+  -- let blah = getUnifiedFunctions env messageChan components arg
+  -- print $ typeOf blah
+
+  -- dfs env messageChan (depth - 1) 
+  -- list2 
+
+  -- list2 :: [(Id, SType) -> IO [String]]
+  -- let list2 = mapM (fmap (dfs env messageChan (depth - 1))) argUnifiedFuncs
+  -- let list2 = mapM (mapM (dfs env messageChan (depth - 1))) argUnifiedFuncs
+  -- let list2 = mapM (map (dfs env messageChan (depth - 1))) argUnifiedFuncs
+  -- let list2 = fmap (fmap (dfs env messageChan (depth - 1))) argUnifiedFuncs
+  -- let list2 = fmap (mapM (dfs env messageChan (depth - 1))) argUnifiedFuncs
+  -- let list2 = fmap (map (dfs env messageChan (depth - 1))) argUnifiedFuncs
+  -- let list2 = map (fmap (dfs env messageChan (depth - 1))) argUnifiedFuncs
+  -- let list2 = map (mapM (dfs env messageChan (depth - 1))) argUnifiedFuncs
+  let list2 = map (map (dfs env messageChan (depth - 1))) argUnifiedFuncs
+  -- list2 <- fmap (dfs env messageChan (depth - 1))) argUnifiedFuncs
+
+  -- print $ typeOf list2
+  -- turn results of dfs into list of programs
+  -- list3 <- sequence list2
+  -- let list4 = map (\a -> id ++ " (" ++ a ++ ")") $ map concat list3
+  return []
+  -- return list4
+
+  --- 
+
+  
+  -- check other candidates
+  -- let otherCandidates = checkOtherCandidates (id, schema)
+  -- dfs otherCandidates (depth - 1) acc
+
+-- checkOtherCandidates :: (Id, SType) -> IO ()
+-- checkOtherCandidates (id, schema) = do
+--   get args
+--   getUnifiedFunctions env [(id, schema)]
+
 
 iterateOverEnv :: [(Id, RSchema)] -> [String]
 iterateOverEnv [] = []
