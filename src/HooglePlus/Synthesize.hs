@@ -264,7 +264,7 @@ dfs env messageChan depth (id, schema) = do
   let initCompState = emptyComps
 
   -- argUnifiedFuncs :: [IO [(Id, SType)]]
-  let argUnifiedFuncs = map (getUnifiedFunctions env messageChan components) args
+  argUnifiedFuncs <- map (getUnifiedFunctions env messageChan components) args
 
 
   -- print $ typeOf list
@@ -297,13 +297,13 @@ dfs env messageChan depth (id, schema) = do
   -- turn results of dfs into list of programs
 
   -- list3 :: [[IO [String]]]
-  list3 <- sequence list2
+--   list3 <- sequence list2
 
   -- list4  :: (IO [String])
-  list4 <- map (fmap (\x -> x)) list3
+--   list4 <- map (fmap (\x -> x)) list3
 
-  let list5 = fmap concat list4
-  print $ typeOf list5
+--   let list5 = fmap concat list4
+--   print $ typeOf list5
 --   let list4 = map (\a -> id ++ " (" ++ a ++ ")") $ map concat list4
   return []
 --   return list4
