@@ -281,33 +281,33 @@ dfs _ _ 0 (id, schema)= do
 dfs env messageChan depth (id, schema) = do
   -- check if schema is ground
   if (isGround schema) 
-    then return [id] 
-    else -- return []
-      -- collect all the argument types (the holes ?? we need to fill)
-      let args = allArgTypes schema
-      -- collect all the component types (which we might use to fill the holes)
-      let components = Map.toList (env ^. symbols)
+  then return [id] 
+  else -- return []
+    -- collect all the argument types (the holes ?? we need to fill)
+    let args = allArgTypes schema
+    -- collect all the component types (which we might use to fill the holes)
+    let components = Map.toList (env ^. symbols)
 
-      -- putStrLn $ "args:" ++ show args
-      -- putStrLn $ "depth:" ++ show depth
+    -- putStrLn $ "args:" ++ show args
+    -- putStrLn $ "depth:" ++ show depth
 
 
 
-      -- map each hole ?? to a list of component types that unify with the hole
-      argUnifiedFuncs <- mapM (getUnifiedFunctions env messageChan components) args :: IO [[(Id, SType)]]
-      -- putStrLn $ "argUnifiedFuncs:" ++ show argUnifiedFuncs
-      -- recurse, solving each unified component as a goal, solution is a list of programs
-      -- the first element of list2 is the list of first argument solutions
-      list2 <- mapM (fmap concat . mapM (dfs env messageChan (depth - 1))) argUnifiedFuncs :: IO [[String]]
-      -- putStrLn $ "list2: " ++ show list2
-      -- each arg hole is a list of programs
-      -- take cartesian product of args and prepend our func name
-      -- to get the list of resulting programs solving our original goal
-      -- the first element of list3 is a list of programs that fit as first argument
-      let list3 = sequence list2 :: [[String]]
-      let formatFn args = "(" ++ intercalate " " (id:args) ++ ")" -- takes ["(a)","(b)"] to "(f (a) (b))"
-      let list4 = map formatFn list3
-      return list4
+    -- map each hole ?? to a list of component types that unify with the hole
+    argUnifiedFuncs <- mapM (getUnifiedFunctions env messageChan components) args :: IO [[(Id, SType)]]
+    -- putStrLn $ "argUnifiedFuncs:" ++ show argUnifiedFuncs
+    -- recurse, solving each unified component as a goal, solution is a list of programs
+    -- the first element of list2 is the list of first argument solutions
+    list2 <- mapM (fmap concat . mapM (dfs env messageChan (depth - 1))) argUnifiedFuncs :: IO [[String]]
+    -- putStrLn $ "list2: " ++ show list2
+    -- each arg hole is a list of programs
+    -- take cartesian product of args and prepend our func name
+    -- to get the list of resulting programs solving our original goal
+    -- the first element of list3 is a list of programs that fit as first argument
+    let list3 = sequence list2 :: [[String]]
+    let formatFn args = "(" ++ intercalate " " (id:args) ++ ")" -- takes ["(a)","(b)"] to "(f (a) (b))"
+    let list4 = map formatFn list3
+    return list4
 
   -- print $ typeOf list
   -- each iteration of GUF returns IO [(Id, SType)]
