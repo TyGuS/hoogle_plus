@@ -9,7 +9,7 @@ import {
   TableInlineCellEditing,
 } from '@devexpress/dx-react-grid-bootstrap4';
 import { connect } from "react-redux";
-import { addFact, updateCandidateUsage } from "../actions";
+import { addFact, updateCandidateUsage, updateCandidateUsages } from "../actions";
 import { getArgNames } from "../utilities/args";
 import { SpinnableCell } from "./SpinnableCell";
 
@@ -44,7 +44,7 @@ const mapDispatchToProps = (dispatch) => {
         const {id, usage} = row;
         dispatch(addFact({id, usage}));
     })},
-    updateUsage: (updatedRow) => {updateCandidateUsage(updatedRow)(dispatch)}
+    updateUsage: (updatedRow) => {dispatch(updateCandidateUsages(updatedRow))}
   }
 };
 

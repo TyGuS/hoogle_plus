@@ -1,14 +1,15 @@
 import * as Consts from "../constants/action-types";
 import * as _ from "underscore";
-import { getArgNames, namedArgsToUsage } from "../utilities/args";
+import { getArgNames, namedArgsToUsage, usageToId } from "../utilities/args";
 
 export const initialSpecState = {
     editingExampleRow: null,
     rows: [{
-        id: "0",
+        id: usageToId(["x", "2", "xx"]),
         usage: ["x", "2", "xx"]
     }],
     numArgs: 2,
+    searchType: null,
     searchTypeOptions: [
         "foo",
         "bar"
@@ -29,12 +30,12 @@ const dedupeSpecs = (rows, new_rows) => {
             }
         }
         return row;
-        });
+    });
     new_rows.forEach(row => {
         if(!seen_new_rows.has(row.id)) {
             r = r.concat(row);
         }
-    })
+    });
     return r;
 };
 
