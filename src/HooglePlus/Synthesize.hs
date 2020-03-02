@@ -305,7 +305,7 @@ dfs env messageChan depth (id, schema) = do
     -- to get the list of resulting programs solving our original goal
     -- the first element of list3 is a list of programs that fit as first argument
     let list3 = sequence list2 :: [[String]]
-    let formatFn args = "(" ++ intercalate " " (id:args) ++ ")" -- takes ["(a)","(b)"] to "(f (a) (b))"
+    let formatFn args = "(depth='" ++ show depth ++ "'" ++ intercalate " " (id:args) ++ ")" -- takes ["(a)","(b)"] to "(f (a) (b))"
     let list4 = map formatFn list3
     return list4
 
