@@ -18,6 +18,7 @@ function App() {
           <br/>
           <CandidateList className="left" />
         </div>
+        {/* <div className="right col-2">sidebar placeholder</div> */}
       </div>
       <footer className="row footer footer-style text-center">
         <div className="text-center col">
