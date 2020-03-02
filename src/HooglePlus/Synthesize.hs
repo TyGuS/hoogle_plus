@@ -282,7 +282,7 @@ dfs env messageChan depth (id, schema) = do
   -- check if schema is ground
   if (isGround schema) 
   then return [id] 
-  else -- return []
+  else do-- return []
     -- collect all the argument types (the holes ?? we need to fill)
     let args = allArgTypes schema
     -- collect all the component types (which we might use to fill the holes)
