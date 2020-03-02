@@ -1,6 +1,7 @@
 import * as Consts from "../constants/action-types";
 import { LOADING, DONE } from "../constants/fetch-states";
 import {v4 as uuidv4} from "uuid";
+import { usageToId } from "../utilities/args";
 
 export const initialCandidateState = {
     isFetching: false,
@@ -11,7 +12,7 @@ export const initialCandidateState = {
             examplesLoading: false,
             examples: [
                 {
-                    id: "0",
+                    id: usageToId(["x", "2", "xx"]),
                     usage: ["x", "2", "xx"],
                     isLoading: false,
                 }, {
@@ -28,7 +29,7 @@ export const initialCandidateState = {
             examplesLoading: false,
             examples: [
                 {
-                    id: "0",
+                    id: usageToId(["x", "2", "xx"]),
                     usage: ["x", "2", "xx"],
                     isLoading: false,
                 }
@@ -39,7 +40,7 @@ export const initialCandidateState = {
 
 const usageToExample = (usage) => {
     return {
-        id: uuidv4(),
+        id: usageToId(usage),
         usage: usage,
         isLoading: false,
     };
@@ -96,9 +97,10 @@ export function candidateReducer(state = initialCandidateState, action){
                     const updatedExamples = result.examples.map(example => {
                         if (example.id === usageId) {
                             if (action.payload.args) {
+                                let inProgressUsage = action.payload.args.concat(null);
                                 return {
-                                    id: example.id,
-                                    usage: action.payload.args.concat(null),
+                                    id: usageId,
+                                    usage: inProgressUsage,
                                     isLoading: true,
                                 };
                             }
@@ -106,7 +108,7 @@ export function candidateReducer(state = initialCandidateState, action){
                                 let updatedUsage = Array.from(example.usage);
                                 updatedUsage[updatedUsage.length - 1] = action.payload.result;
                                 return {
-                                    id: example.id,
+                                    id: usageToId(updatedUsage),
                                     usage: updatedUsage,
                                     isLoading: false,
                                 };

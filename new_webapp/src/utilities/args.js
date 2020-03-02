@@ -13,7 +13,12 @@ export const namedArgsToUsage = (listList, numArgs) => {
       const usage = argNames.map(argName => element[argName]).concat(element.result);
       return {
           usage: usage,
-          id: element.id,
+          id: usageToId(usage),
       }
   });
+}
+
+export const usageToId = (usage) => {
+  const args = usage.slice(0, usage.length - 1);
+  return args.reduce((prev, curr) => prev + "-" + curr);
 }

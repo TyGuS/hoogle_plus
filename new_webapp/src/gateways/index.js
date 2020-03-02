@@ -63,6 +63,11 @@ export const ghciUsage = ({code, args}) => {
             }});
 };
 
+export const ghciTypeCheck = ({queryType, usage}) => {
+    return delay(1000)
+        .then(_ => {return {}});
+}
+
 export const hooglePlusMoreExamples = ({code, usages, queryType}) => {
     const mockExamples = [
         ["z", "3", "zzz"],
