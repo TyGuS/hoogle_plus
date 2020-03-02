@@ -276,8 +276,8 @@ isGround _ = True
 -- env, max depth, components, goal
 -- returns list of possible programs
 dfs :: Environment -> Chan Message -> Int -> (Id, SType) -> IO [String]
-dfs _ _ 0 (id, schema)= do
-  if (isGround schema) then return ["isground* at depth='0'" ++ id] else return []
+dfs _ _ 0 (id, schema) = do
+  if (isGround schema) then return [id] else return []
 dfs env messageChan depth (id, schema) = do
   -- check if schema is ground
   if (isGround schema) 
