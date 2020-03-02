@@ -283,13 +283,14 @@ dfs env messageChan depth (id, schema) = do
   if (isGround schema) 
     then return [id] 
     else -- return []
-  -- collect all the argument types (the holes ?? we need to fill)
+      -- collect all the argument types (the holes ?? we need to fill)
       let args = allArgTypes schema
+      -- collect all the component types (which we might use to fill the holes)
+      let components = Map.toList (env ^. symbols)
+
       -- putStrLn $ "args:" ++ show args
       -- putStrLn $ "depth:" ++ show depth
 
-      -- collect all the component types (which we might use to fill the holes)
-      let components = Map.toList (env ^. symbols)
 
 
       -- map each hole ?? to a list of component types that unify with the hole
