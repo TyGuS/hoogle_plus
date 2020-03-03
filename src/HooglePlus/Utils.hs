@@ -5,6 +5,8 @@ import Types.Environment
 import Types.Program
 import Types.Type
 import Types.Experiments
+import Types.Solver
+import qualified Types.TypeChecker as Checker
 import Synquid.Type
 import Synquid.Util hiding (fromRight)
 import Synquid.Pretty as Pretty
@@ -13,6 +15,7 @@ import Database.Util
 
 import Control.Exception
 import Control.Monad.Trans
+import Control.Monad.State
 import CorePrep
 import CoreSyn
 import Data.Data

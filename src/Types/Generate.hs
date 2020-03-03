@@ -62,3 +62,4 @@ defaultGenerationOpts = GenerationOpts {
     }
 
 defaultEnvPath = "data/env.db"
+defaultJsonPath = "data/builtin.json"
