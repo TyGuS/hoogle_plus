@@ -1,8 +1,10 @@
 import os
+import signal
 import uuid
 from flask import Flask, Response, stream_with_context, request, json, session
 import subprocess
 import enum
+import re
 
 HPLUS_CMD = 'stack exec -- hplus'.split()
 OPTIONS = []
@@ -41,23 +43,29 @@ def build_object(query_type, result, qid = None):
     else:
         raise Exception
 
-def run_hplus(options, query_type, qid = None):
+def run_hplus(options):
     # TODO: we may put these paths into configuration file
     os.chdir('../')
     command = [TIMEOUT_CMD, TIMEOUT] + HPLUS_CMD + options
     print(command)
     process = subprocess.Popen(command, stdout=subprocess.PIPE)
     os.chdir('web_server')
-    # store the pid to the current session
-    if qid is not None:
-        session[qid] = process.pid
-        print(process.pid)
+    return process
+
+def get_results(process, query_type, qid):
     for line in iter(process.stdout.readline, b''):
         if line[:8] == b'RESULTS:':
             print('yielding results')
             result = json.loads(line[8:])
             obj = build_object(query_type, result, qid)
             yield json.dumps(obj) + '\n'
+
+def communicate_result(process):
+    result, err = process.communicate()
+    result = result.decode('utf-8')
+    m = re.findall('RESULTS:(.*)', result)
+    print(m)
+    return json.loads(m[0])
 
 def create_app(test_config=None):
     # create and configure the app
@@ -92,12 +100,13 @@ def create_app(test_config=None):
                  'inExamples': obj['facts']
                 }
         qid = uuid.uuid1()
+        proc = run_hplus([f'--json={json.dumps(query)}',
+                          f'--search-type={QueryType.search_programs.value}',
+                          '--cnt=10'])
+        session[str(qid)] = proc.pid
+        print(session)
         def generate():
-            return run_hplus([f'--json={json.dumps(query)}',
-                              f'--search-type={QueryType.search_programs.value}',
-                              '--cnt=10'],
-                             QueryType.search_programs,
-                             qid)
+            return get_results(proc, QueryType.search_programs, qid)
         return Response(stream_with_context(generate()), mimetype='application/json')
 
     @app.route('/search/example', methods=['GET', 'POST'])
@@ -108,15 +117,15 @@ def create_app(test_config=None):
                  'query': '??',
                  'inExamples': obj['facts']
                 }
-        def generate():
-            return run_hplus([f'--json={json.dumps(query)}',
-                              f'--search-type={QueryType.search_types.value}'],
-                             QueryType.search_types)
-        return Response(stream_with_context(generate()), mimetype='application/json')
+        proc = run_hplus([f'--json={json.dumps(query)}',
+                          f'--search-type={QueryType.search_types.value}'])
+        return json.jsonify(build_object(QueryType.search_types,
+                                         communicate_result(proc)))
 
     @app.route('/stop', methods=['GET', 'POST'])
     def stop():
         oid = request.get_json()['id']
+        print(session)
         pid = session[oid]
         os.killpg(os.getpgid(pid), signal.SIGTERM)
         return ('', 204)
@@ -130,11 +139,10 @@ def create_app(test_config=None):
                  'exampleProgram': obj['candidate'],
                  'exampleExisting': obj['examples']
                 }
-        def generate():
-            return run_hplus([f'--json={json.dumps(query)}',
-                              f'--search-type={QueryType.search_examples.value}'],
-                             QueryType.search_examples)
-        return Response(stream_with_context(generate()), mimetype='application/json')
+        proc = run_hplus([f'--json={json.dumps(query)}',
+                          f'--search-type={QueryType.search_examples.value}'])
+        return json.jsonify(build_object(QueryType.search_examples,
+                                         communicate_result(proc)))
 
     @app.route('/example/code', methods=['GET', 'POST'])
     def result_for():
@@ -145,10 +153,9 @@ def create_app(test_config=None):
                  'execProg': obj['candidate'],
                  'execArgs': obj['args']
                 }
-        def generate():
-            return run_hplus([f'--json={json.dumps(query)}',
-                              f'--search-type={QueryType.search_results.value}'],
-                             QueryType.search_results)
-        return Response(stream_with_context(generate()), mimetype='application/json')
+        proc = run_hplus([f'--json={json.dumps(query)}',
+                          f'--search-type={QueryType.search_results.value}'])
+        return json.jsonify(build_object(QueryType.search_results,
+                                         communicate_result(proc)))
 
     return app
