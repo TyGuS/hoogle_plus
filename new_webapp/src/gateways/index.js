@@ -1,9 +1,20 @@
 
+import _ from "underscore";
+
 function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 export const hooglePlusTypeSearch = ({query, examples}) => {
+    const ROUTE = "/search/type";
+
+    let data = {
+        typeSignature: query,
+    };
+    if (!_.isUndefined(examples)) {
+        data["facts"] = examples;
+    }
+
     const mockCandidate = {
         code: "\\arg0 arg1-> catMaybes (listToMaybe arg0) arg1",
         examples: [
@@ -21,8 +32,17 @@ export const hooglePlusTypeSearch = ({query, examples}) => {
             },
         ]
     };
-    return delay(1000)
-        .then(_ => mockCandidate);
+    // return delay(1000)
+    //     .then(_ => mockCandidate);
+
+    return fetch(ROUTE, {
+        method: 'POST', // or 'PUT'
+        headers: {
+        'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+    }).then(response => {return response.json()})
+    .catch(error => {console.log(error); return mockCandidate;});
 }
 
 // {id: uuid; examples:[[str]]} -> Promise
