@@ -5,8 +5,10 @@ function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+const baseRoute = process.env.REACT_APP_DEVELOPMENT ? "http://localhost:4000/" : "/"
+
 export const hooglePlusTypeSearch = ({query, examples}) => {
-    const ROUTE = "/search/type";
+    const ROUTE = baseRoute + "search/type";
 
     let data = {
         typeSignature: query,
