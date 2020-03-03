@@ -5,17 +5,15 @@ function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-const baseRoute = process.env.REACT_APP_DEVELOPMENT ? "http://localhost:4000/" : "/"
+const baseRoute = process.env.REACT_APP_DEVELOPMENT ? "http://localhost:5000/" : "/"
 
 export const hooglePlusTypeSearch = ({query, examples}) => {
     const ROUTE = baseRoute + "search/type";
 
     let data = {
         typeSignature: query,
+        facts: examples || []
     };
-    if (!_.isUndefined(examples)) {
-        data["facts"] = examples;
-    }
 
     const mockCandidate = {
         code: "\\arg0 arg1-> catMaybes (listToMaybe arg0) arg1",
@@ -39,8 +37,10 @@ export const hooglePlusTypeSearch = ({query, examples}) => {
 
     return fetch(ROUTE, {
         method: 'POST', // or 'PUT'
+        mode: 'no-cors',
         headers: {
         'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
         },
         body: JSON.stringify(data),
     }).then(response => {return response.json()})
