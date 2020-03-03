@@ -14,18 +14,22 @@ import Synquid.Logic
 import HooglePlus.TypeChecker
 import PetriNet.Util
 
+import Bag
 import Control.Exception
 import Control.Monad.State
 import Control.Lens
 import Control.Concurrent.Chan
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Data.Char
+import Data.Either
 import Data.Maybe
 import Data.List
 import GHC
 import GHCi hiding(Message)
 import GHCi.RemoteTypes
 import GHC.Paths
+import TcRnDriver
 import Debugger
 import Exception
 import HsUtils
@@ -33,31 +37,18 @@ import HsTypes
 import Outputable
 import Text.Printf
 
-parseExample :: [String] -> Example -> IO RSchema
-parseExample mdls ex = do
+parseExample :: [String] -> Example -> IO (Either RSchema ErrorMessage)
+parseExample mdls ex = catch (do
     typ <- runGhc (Just libdir) $ do
         dflags <- getSessionDynFlags
         setSessionDynFlags dflags
         prepareModules mdls >>= setContext
         exprType TM_Default mkFun
     let hsType = typeToLHsType typ
-    return (resolveType hsType)
+    return (Left $ resolveType hsType))
+    (\(e :: SomeException) -> return (Right $ show e))
     where
         mkFun = printf "\\f -> f %s == %s" (unwords $ inputs ex) (output ex)
-
-parseExamples :: [String] -> [Example] -> IO RSchema
-parseExamples mdls exs = do
-    typ <- runGhc (Just libdir) $ do
-        dflags <- getSessionDynFlags
-        setSessionDynFlags dflags
-        prepareModules mdls >>= setContext
-        let funArgs = map mkFun exs
-        let fun = printf "\\f -> (%s)" (intercalate "," funArgs)
-        exprType TM_Default fun
-    let hsType = typeToLHsType typ
-    return (resolveType hsType)
-    where
-        mkFun ex = printf "f %s == %s" (unwords $ inputs ex) (output ex) :: String
 
 resolveType :: LHsType GhcPs -> RSchema
 resolveType (L _ (HsForAllTy bs t)) = foldr ForallT (resolveType t) vs
@@ -71,7 +62,12 @@ resolveType t = error (showSDocUnsafe $ ppr t)
 resolveType' :: LHsType GhcPs -> RType
 resolveType' (L _ (HsFunTy f r)) = FunctionT "" (resolveType' f) (resolveType' r)
 resolveType' (L _ (HsQualTy _ t)) = resolveType' t
-resolveType' (L _ (HsTyVar _ (L _ v))) = ScalarT (TypeVarT Map.empty (showSDocUnsafe $ ppr v)) ftrue
+resolveType' (L _ (HsTyVar _ (L _ v))) = 
+    if isLower (head name)
+       then ScalarT (TypeVarT Map.empty name) ftrue
+       else ScalarT (DatatypeT name [] []) ftrue
+    where
+        name = showSDocUnsafe $ ppr v
 resolveType' t@(L _ HsAppTy{}) = ScalarT (DatatypeT dtName dtArgs []) ftrue
     where
         dtName = case datatypeOf t of
@@ -97,20 +93,23 @@ resolveType' (L _ (HsTupleTy _ ts)) = foldr mkPair basePair otherTyps
 resolveType' (L _ (HsParTy t)) = resolveType' t
 resolveType' t = error $ showSDocUnsafe (ppr t)
 
-checkExample :: Environment -> RSchema -> Example -> Chan Message -> IO (Maybe Example)
+checkExample :: Environment -> RSchema -> Example -> Chan Message -> IO (Either Example ErrorMessage)
 checkExample env typ ex checkerChan = do
-    exTyp <- parseExample (Set.toList $ env ^. included_modules) ex
-    let err = printf "%s does not have type %s" (show ex) (show typ) :: String
-    res <- checkTypes env checkerChan exTyp typ 
-    if res then return $ Just ex 
-           else print err >> return Nothing
+    eitherTyp <- parseExample (Set.toList $ env ^. included_modules) ex
+    case eitherTyp of
+      Left exTyp -> do
+        let err = printf "%s does not have type %s" (show ex) (show typ) :: String
+        res <- checkTypes env checkerChan exTyp typ 
+        if res then return $ Left ex 
+               else return $ Right err
+      Right e -> return $ Right e
 
-checkExamples :: Environment -> RSchema -> [Example] -> Chan Message -> IO (Maybe [Example])
+checkExamples :: Environment -> RSchema -> [Example] -> Chan Message -> IO (Either [Example] [ErrorMessage])
 checkExamples env typ exs checkerChan = do
     outExs <- mapM (\ex -> checkExample env typ ex checkerChan) exs
-    let validResults = catMaybes outExs
-    if null validResults then return Nothing
-                         else return (Just validResults)
+    let (validResults, errs) = partitionEithers outExs
+    if null errs then return $ Left validResults
+                 else return $ Right errs
 
 execExample :: [String] -> Environment -> String -> Example -> IO (Either ErrorMessage String)
 execExample mdls env prog ex =
@@ -122,7 +121,8 @@ execExample mdls env prog ex =
         let progBody = if Map.null (env ^. arguments) -- if this is a request from front end
             then printf "let f = %s in" prog
             else printf "let f = \\%s -> %s in" prependArg prog
-        let progCall = printf "f %s" (unwords (inputs ex))
+        let wrapParens x = printf "(%s)" x
+        let progCall = printf "f %s" (unwords (map wrapParens $ inputs ex))
         result <- execStmt (unwords [progBody, progCall]) execOptions
         case result of
             ExecComplete r _ -> case r of

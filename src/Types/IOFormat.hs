@@ -44,7 +44,8 @@ instance FromJSON QueryInput
 
 data QueryOutput = QueryOutput {
     solution :: String,
-    outExamples :: [Example]
+    outExamples :: [Example],
+    outError :: String
 } deriving(Eq, Generic)
 
 instance ToJSON QueryOutput

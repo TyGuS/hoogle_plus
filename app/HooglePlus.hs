@@ -242,7 +242,8 @@ executeSearch synquidParams searchParams inStr = do
   let input = decodeInput (LB.pack inStr)
   let tquery = query input
   let exquery = inExamples input
-  env <- readEnv $ Types.Experiments.envPath synquidParams
+  env' <- readEnv $ Types.Experiments.envPath synquidParams
+  env <- readBuiltinData synquidParams env'
   goal <- envToGoal env tquery
   solverChan <- newChan
   checkerChan <- newChan
@@ -255,7 +256,7 @@ executeSearch synquidParams searchParams inStr = do
     handleMessages ch (MesgP (out, stats, _)) = do
       when (logLevel > 0) $ printf "[writeStats]: %s\n" (show stats)
       -- printSolution program
-      print $ LB.append (LB.pack outputPrefix) (encodeOutput out)
+      printResult $ encodeWithPrefix out
       hFlush stdout
       readChan ch >>= (handleMessages ch)
     handleMessages ch (MesgS debug) = do

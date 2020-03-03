@@ -21,6 +21,7 @@ import Types.TypeChecker
 import Types.Type
 import Types.IOFormat
 import HooglePlus.Utils
+import HooglePlus.IOFormat
 import Examples.ExampleChecker
 
 import Control.Applicative ((<$>))
@@ -112,8 +113,12 @@ synthesize searchParams goal examples messageChan = do
         (do
             -- before synthesis, first check that user has provided valid examples
             let exWithOutputs = filter ((/=) "??" . output) examples
-            checkExamples env' goalType exWithOutputs messageChan
-            evalStateT (runPNSolver env goalType examples) is)
+            checkResult <- checkExamples env' goalType exWithOutputs messageChan
+            case checkResult of
+              Right errs -> do
+                  printResult $ encodeWithPrefix $ QueryOutput "" [] (unlines errs)
+                  error "examples does not type check"
+              Left _ -> evalStateT (runPNSolver env' goalType examples) is)
         (\e ->
              writeChan messageChan (MesgLog 0 "error" (show e)) >>
              writeChan messageChan (MesgClose (CSError e)) >>

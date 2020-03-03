@@ -524,7 +524,7 @@ findProgram env goal examples cnt = do
     where
         handleResult NotFound = error "NotFound appeared in search results"
         handleResult (Found (soln, exs)) = do
-            writeSolution (QueryOutput (lambda $ show soln) exs)
+            writeSolution (QueryOutput (lambda $ show soln) exs "")
             modify $ over (searchState . currentSolutions) ((:) soln)
         handleResult (MoreRefine err)  = error "Should not encounter more refine"
 

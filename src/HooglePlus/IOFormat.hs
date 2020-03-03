@@ -3,10 +3,13 @@
 module HooglePlus.IOFormat(
     decodeInput,
     encodeOutput,
+    encodeWithPrefix,
     searchTypes,
     searchResults,
     searchExamples,
-    readEnv
+    readEnv,
+    readBuiltinData,
+    printResult
     ) where
 
 import Types.IOFormat
@@ -27,6 +30,7 @@ import System.Directory
 import System.FilePath
 import Data.List
 import Data.Maybe
+import Data.Either
 import qualified Data.Serialize as S
 import qualified Data.Aeson as A
 import Data.ByteString.Lazy (ByteString)
@@ -99,24 +103,24 @@ searchTypes synquidParams inStr = do
     let exquery = inExamples input
     env <- readEnv $ envPath synquidParams
     let mdls = Set.toList $ env ^. included_modules
+    -- eitherType <- parseExamples mdls exquery
+    -- resultObj <- case eitherType of
+    -- Left rawType -> do
     exTypes <- mapM (parseExample mdls) exquery
-    env' <- readBuiltinData synquidParams env
-    let builtinQueryTypes = Map.keys (env' ^. queryCandidates)
-    messageChan <- newChan
-    outExamples <- mapM (\t -> checkExamples env' t exquery messageChan) builtinQueryTypes
-    let validPairs = filter (isJust . fst) (zip outExamples builtinQueryTypes)
-    let eqLength x y = length x == length y
-    let candPairs = filter (eqLength exquery . fst) validPairs
-    let candTypes = map snd candPairs
-    resultObj <- catch (do
-        rawType <- parseExamples mdls exquery
-        let resultTypes = rawType:candTypes
-        return $ ListOutput (map show resultTypes) "")
-        (\(e :: SomeException) -> do
-            let err = "Given examples do not have consistent types:"
-            let errMsg = unlines [err, show e]
-            return $ ListOutput [] errMsg)
-    print $ encodeWithPrefix resultObj
+    let (validTypes, invalidTypes) = partitionEithers exTypes
+    resultObj <- if null invalidTypes then possibleQueries env exquery validTypes
+                                      else return $ ListOutput [] (unlines invalidTypes)
+    printResult $ encodeWithPrefix resultObj
+    where
+        possibleQueries env exquery exTypes = do
+            env' <- readBuiltinData synquidParams env
+            let builtinQueryTypes = Map.keys (env' ^. queryCandidates)
+            messageChan <- newChan
+            outExamples <- mapM (\t -> checkExamples env' t exquery messageChan) builtinQueryTypes
+            let validPairs = filter (isLeft . fst) (zip outExamples builtinQueryTypes)
+            let resultTypes = map snd validPairs ++ exTypes
+            if null validPairs then return $ ListOutput [] "Cannot find type for your query"
+                               else return $ ListOutput (map show resultTypes) ""
 
 prepareEnvFromInput :: SynquidParams -> String -> IO (TypeQuery, [String], String, Environment)
 prepareEnvFromInput synquidParams inStr = do
@@ -158,7 +162,7 @@ searchExamples synquidParams inStr = do
     mbOutputs <- checkExampleOutput mdls env' prog uniqueExs
     let resultObj = if null uniqueExs then ListOutput [] "No more examples"
                                       else ListOutput (fromJust mbOutputs) ""
-    print $ encodeWithPrefix resultObj
+    printResult $ encodeWithPrefix resultObj
 
 searchResults :: SynquidParams -> String -> IO ()
 searchResults synquidParams inStr = do
@@ -169,7 +173,10 @@ searchResults synquidParams inStr = do
     let execJson = case execResult of
                         Left err -> ExecOutput err ""
                         Right r -> ExecOutput "" r
-    print $ encodeWithPrefix execJson
+    printResult $ encodeWithPrefix execJson
 
 encodeWithPrefix :: A.ToJSON a => a -> LB.ByteString
 encodeWithPrefix obj = LB.append (LB.pack outputPrefix) (A.encode obj)
+
+printResult :: LB.ByteString -> IO ()
+printResult bs = putStrLn (LB.unpack bs)
