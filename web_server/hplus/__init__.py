@@ -94,7 +94,7 @@ def create_app(test_config=None):
 
     @app.route('/search/type', methods=['GET', 'POST'])
     def search_type():
-        obj = request.get_json()
+        obj = json.loads(request.data)
         query = {
                  'query': obj['typeSignature'],
                  'inExamples': obj['facts']
@@ -111,7 +111,7 @@ def create_app(test_config=None):
 
     @app.route('/search/example', methods=['GET', 'POST'])
     def search_example():
-        obj = request.get_json()
+        obj = json.loads(request.data)
         # print(obj)
         query = {
                  'query': '??',
@@ -132,7 +132,7 @@ def create_app(test_config=None):
 
     @app.route('/examples', methods=['GET', 'POST'])
     def get_examples():
-        obj = request.get_json()
+        obj = json.loads(request.data)
         # print(obj)
         query = {
                  'exampleQuery': obj['typeSignature'],
@@ -146,7 +146,7 @@ def create_app(test_config=None):
 
     @app.route('/example/code', methods=['GET', 'POST'])
     def result_for():
-        obj = request.get_json()
+        obj = json.loads(request.data)
         # print(obj)
         query = {
                  'execQuery': obj['typeSignature'],
