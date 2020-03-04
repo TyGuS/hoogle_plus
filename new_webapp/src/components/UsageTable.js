@@ -9,7 +9,7 @@ import {
   TableInlineCellEditing,
 } from '@devexpress/dx-react-grid-bootstrap4';
 import { connect } from "react-redux";
-import { addFact, updateCandidateUsage, updateCandidateUsages } from "../actions";
+import { addFact, updateCandidateUsages } from "../actions";
 import { getArgNames } from "../utilities/args";
 import { SpinnableCell } from "./SpinnableCell";
 
