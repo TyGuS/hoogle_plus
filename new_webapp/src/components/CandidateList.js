@@ -25,7 +25,8 @@ const ConnectedCandidateList = (props) => {
     return (
         <div>
             {candidates.map((result, idx) => {
-                const {code, examples, examplesLoading, candidateId} = result;
+                const {code, examplesLoading, candidateId} = result;
+                const examples = result.examples || [];
                 const header = (
                     <Card.Header>
                         {idx + 1}:

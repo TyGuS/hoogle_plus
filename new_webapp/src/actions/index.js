@@ -1,7 +1,7 @@
 import * as Consts from "../constants/action-types";
 import _ from "underscore";
-import { hooglePlusTypeSearch, ghciUsage, hooglePlusExampleSearch, hooglePlusMoreExamples } from "../gateways";
-import { namedArgsToUsage } from "../utilities/args";
+import { Query, ghciUsage, hooglePlusExampleSearch, hooglePlusMoreExamples } from "../gateways";
+import { namedArgsToUsage, getArgCount } from "../utilities/args";
 import { LOADING, DONE } from "../constants/fetch-states";
 
 function makeActionCreator(type, ...argNames) {
@@ -34,6 +34,8 @@ export const setExamples = makeActionCreator(Consts.SET_EXAMPLES, "payload");
 export const updateCandidateUsageTable = makeActionCreator(Consts.UPDATE_CANDIDATE_USAGE, "payload");
 export const fetchMoreCandidateUsages = makeActionCreator(Consts.FETCH_MORE_CANDIDATE_USAGES, "payload");
 
+export const setSearchStatus = makeActionCreator(Consts.SET_SEARCH_STATUS, "payload");
+
 export const setModalOpen = makeActionCreator(Consts.MODAL_OPEN);
 export const setModalClosed = makeActionCreator(Consts.MODAL_CLOSE);
 export const setTypeOptions = makeActionCreator(Consts.SET_TYPE_OPTIONS, "payload");
@@ -42,8 +44,10 @@ export const selectType = ({typeOption, examples}) => (dispatch) => {
     dispatch(setSearchTypeInternal({searchType: typeOption}));
     dispatch(setModalClosed());
 
-    const serverPromise = hooglePlusTypeSearch({query:typeOption, examples});
-    return handleCandidates(dispatch, serverPromise);
+    Query.typeSearch({query: typeOption, examples}, (candidate => {
+        dispatch(addCandidate(candidate));
+    })).then(_ => dispatch(setSearchStatus(DONE)));
+    return;
 };
 
 export const updateCandidateUsages = ({usageId, args}) => (dispatch, getState) => {
@@ -72,11 +76,14 @@ export const updateCandidateUsage = ({candidateId, usageId, args, code}) => (dis
 
 // This is where a request needs to be sent to the server
 export const setSearchType = (payload) => (dispatch) => {
+    const argCount = getArgCount(payload.query);
+    dispatch(setArgNum(argCount));
     dispatch(setSearchTypeInternal({...payload}));
 
-    const serverPromise = hooglePlusTypeSearch({query: payload.query});
-    return handleCandidates(dispatch, serverPromise);
-
+    Query.typeSearch({query: payload.query}, (candidate => {
+        dispatch(addCandidate(candidate));
+    })).then(_ => dispatch(setSearchStatus(DONE)));
+    return;
 };
 
 export const getTypesFromExamples = (payload) => (dispatch) => {
@@ -90,15 +97,6 @@ export const getTypesFromExamples = (payload) => (dispatch) => {
                 debugger;
             }
         });
-}
-
-const handleCandidates = (dispatch, serverPromise) => {
-    return serverPromise.then(value => {
-            const args = value.examples[0].usage.length - 1;
-            dispatch(setArgNum(args));
-            return value;
-        })
-        .then(value => dispatch(addCandidate(value)));
 }
 
 export const getMoreExamples = ({candidateId, code, usages}) => (dispatch, getState) => {
