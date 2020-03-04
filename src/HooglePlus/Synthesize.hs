@@ -228,7 +228,7 @@ synthesize searchParams goal messageChan = do
     -- result <- dfs env messageChan 3 ("start", shape monospec)
 
     -- print the result
-    -- putStrLn $ "result:" ++ unlines result
+    putStrLn $ "result:" ++ unlines result
 
     --print $ cst' ^. components
     return () 
@@ -255,7 +255,7 @@ dfsTop env messageChan depth hole = flip evalStateT emptyComps $ do
 
 getUnifiedFunctions :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> StateT Comps IO [(Id, SType)]
 getUnifiedFunctions envv messageChan xs goalType = do
-  lift $ putStrLn $ "goalType: " ++ show goalType
+  -- lift $ putStrLn $ "goalType: " ++ show goalType
   
   if (not $ isGround goalType) -- sometimes it returns (a -> b) - need to make sure we do just one of those
     then do
@@ -268,10 +268,10 @@ getUnifiedFunctions envv messageChan xs goalType = do
       let memoized = st ^. memoize :: Map SType [(Id, SType)]
       case Map.lookup goalType memoized of
         Just cs -> do
-          lift $ putStrLn $ "already in there: " ++ show goalType
+          -- lift $ putStrLn $ "already in there: " ++ show goalType
           return cs
         Nothing -> do
-          lift $ putStrLn $ "not in there yet: " ++ show goalType
+          -- lift $ putStrLn $ "not in there yet: " ++ show goalType
           helper envv messageChan xs goalType
           st <- get
           let cs = st ^. components
