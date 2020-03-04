@@ -262,7 +262,7 @@ getUnifiedFunctions envv messageChan xs goalType = do
     then do
       let args = allArgTypes goalType
       unifiedFuncs <- mapM (getUnifiedFunctions envv messageChan xs) args
-      return unifiedFuncs
+      return $ fmap concat unifiedFuncs
     else do
       modify $ set components []
       st <- get
@@ -277,7 +277,7 @@ getUnifiedFunctions envv messageChan xs goalType = do
           st <- get
           let cs = st ^. components
           modify $ set memoize (Map.insert goalType cs (st ^. memoize))
-          return st ^. components
+          return $ st ^. components
   where 
     helper :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> StateT Comps IO ()
     helper _ _ [] _ = return ()
