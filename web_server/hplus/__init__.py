@@ -5,11 +5,16 @@ from flask import Flask, Response, stream_with_context, request, json, session
 import subprocess
 import enum
 import re
+import time
+import logging
+from flask_cors import CORS, cross_origin
 
 HPLUS_CMD = 'stack exec -- hplus'.split()
 OPTIONS = []
 TIMEOUT_CMD = 'timeout'
 TIMEOUT = '60'
+
+
 
 class QueryType(enum.Enum):
     search_programs = 'SearchPrograms'
@@ -55,10 +60,11 @@ def run_hplus(options):
 def get_results(process, query_type, qid):
     for line in iter(process.stdout.readline, b''):
         if line[:8] == b'RESULTS:':
-            print('yielding results')
             result = json.loads(line[8:])
             obj = build_object(query_type, result, qid)
-            yield json.dumps(obj) + '\n'
+            str_to_send = json.dumps(obj)
+            print(f'yielding results: {str_to_send}')
+            yield (str_to_send + '\n')
 
 def communicate_result(process):
     result, err = process.communicate()
@@ -73,6 +79,8 @@ def create_app(test_config=None):
     app.config.from_mapping(
         SECRET_KEY='dev',
     )
+    CORS(app)
+
 
     if test_config is None:
         # load the instance config, if it exists, when not testing
@@ -107,7 +115,7 @@ def create_app(test_config=None):
         print(session)
         def generate():
             return get_results(proc, QueryType.search_programs, qid)
-        return Response(stream_with_context(generate()), mimetype='application/json')
+        return Response(generate(), mimetype='application/json')
 
     @app.route('/search/example', methods=['GET', 'POST'])
     def search_example():
