@@ -257,15 +257,12 @@ getUnifiedFunctions envv messageChan xs@((id, schema) : xxs) goalType = do
   modify $ set components []
   st <- get
   let memoized = st ^. memoize :: Map SType [(Id, SType)]
-  -- lift $ putStrLn "not in there yet: " ++ show goalType
-  lift $ putStrLn "wowza"
-
   case Map.lookup goalType memoized of
     Just cs -> do
-      -- lift $ putStrLn "already in there: " ++ show goalType
+      lift $ putStrLn $ "already in there: " ++ show goalType
       return cs
     Nothing -> do
-      -- lift $ putStrLn "not in there yet: " ++ show goalType
+      lift $ putStrLn $ "not in there yet: " ++ show goalType
       helper envv messageChan xs goalType
       st <- get
       let cs = st ^. components
