@@ -2,7 +2,7 @@ import * as Consts from "../constants/action-types";
 import _ from "underscore";
 import { Search, ghciUsage, hooglePlusExampleSearch, hooglePlusMoreExamples } from "../gateways";
 import { namedArgsToUsage, getArgCount } from "../utilities/args";
-import { LOADING, DONE } from "../constants/fetch-states";
+import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 
 function makeActionCreator(type, ...argNames) {
     return function (...args) {
@@ -90,7 +90,9 @@ export const setSearchType = (payload) => (dispatch) => {
 
     Search.getCodeCandidates({query: payload.query}, (candidate => {
         dispatch(addCandidate(candidate));
-    })).then(_ => dispatch(setSearchStatus(DONE)));
+    }))
+    .then(_ => dispatch(setSearchStatus(DONE)))
+    .catch(_ => dispatch(setSearchStatus(ERROR)));
     return;
 };
 

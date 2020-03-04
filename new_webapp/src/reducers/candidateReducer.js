@@ -52,7 +52,7 @@ export function candidateReducer(state = initialCandidateState, action){
         case Consts.SET_SEARCH_STATUS:
             return {
                 ...state,
-                isFetching: action.payload === DONE
+                isFetching: action.payload === LOADING
             };
         case Consts.ADD_CANDIDATE:
             return {

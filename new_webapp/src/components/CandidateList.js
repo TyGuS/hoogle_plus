@@ -35,10 +35,11 @@ const ConnectedCandidateList = (props) => {
                 );
                 const usages = examples.map(ex => ex.usage);
                 const handleClick = () => getMoreExamples({candidateId, code, usages});
+                const isOpen = examples.length > 0;
                 return (
                     <Card key={idx}>
                         <Collapsible
-                            open={true}
+                            open={isOpen}
                             trigger={header}>
                                 <Card.Body>
                                     <UsageTable
