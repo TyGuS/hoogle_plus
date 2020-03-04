@@ -257,12 +257,15 @@ getUnifiedFunctions envv messageChan xs@((id, schema) : xxs) goalType = do
   modify $ set components []
   st <- get
   let memoized = st ^. memoize :: Map SType [(Id, SType)]
+  -- lift $ putStrLn "not in there yet: " ++ show goalType
+  lift $ putStrLn "wowza"
+
   case Map.lookup goalType memoized of
     Just cs -> do
-      lift $ putStrLn "already in there: " ++ show goalType
+      -- lift $ putStrLn "already in there: " ++ show goalType
       return cs
     Nothing -> do
-      lift $ putStrLn "not in there yet: " ++ show goalType
+      -- lift $ putStrLn "not in there yet: " ++ show goalType
       helper envv messageChan xs goalType
       st <- get
       let cs = st ^. components
@@ -273,6 +276,8 @@ getUnifiedFunctions envv messageChan xs@((id, schema) : xxs) goalType = do
     helper _ _ [] _ = return ()
     helper envv messageChan ( v@(id, schema) : ys) goalType = do
       
+      lift $ putStrLn "not in there yet: " ++ show goalType
+
       let initSolverState = emptySolverState { _messageChan = messageChan }
       let t1 = shape (lastType (toMonotype schema))
       let t2 = goalType
