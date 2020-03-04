@@ -256,7 +256,6 @@ dfsTop env messageChan depth hole = flip evalStateT emptyComps $ do
 getUnifiedFunctions :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> StateT Comps IO [(Id, SType)]
 getUnifiedFunctions envv messageChan xs goalType = do
   lift $ putStrLn $ "goalType: " ++ show goalType
-  -- lift $ putStrLn $ "args: " ++ show ()
   
   if (not $ isGround goalType) -- sometimes it returns (a -> b) - need to make sure we do just one of those
     then do
@@ -278,6 +277,22 @@ getUnifiedFunctions envv messageChan xs goalType = do
           let cs = st ^. components
           modify $ set memoize (Map.insert goalType cs (st ^. memoize))
           return $ st ^. components
+
+  -- modify $ set components []
+  -- st <- get
+  -- let memoized = st ^. memoize :: Map SType [(Id, SType)]
+  -- case Map.lookup goalType memoized of
+  --   Just cs -> do
+  --     lift $ putStrLn $ "already in there: " ++ show goalType
+  --     return cs
+  --   Nothing -> do
+  --     lift $ putStrLn $ "not in there yet: " ++ show goalType
+  --     helper envv messageChan xs goalType
+  --     st <- get
+  --     let cs = st ^. components
+  --     modify $ set memoize (Map.insert goalType cs (st ^. memoize))
+  --     return $ st ^. components
+
   where 
     helper :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> StateT Comps IO ()
     helper _ _ [] _ = return ()
@@ -336,6 +351,8 @@ dfs env messageChan depth (id, schema) = do
   else do -- return []
     -- collect all the argument types (the holes ?? we need to fill)
     let args = allArgTypes schema
+
+
     -- lift $ putStrLn $ "schema: " ++ show schema
     -- lift $ putStrLn $ "args: " ++ show args
     -- -- collect all the component types (which we might use to fill the holes)
