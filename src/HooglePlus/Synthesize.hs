@@ -261,8 +261,8 @@ getUnifiedFunctions envv messageChan xs goalType = do
   if (not $ isGround goalType) -- sometimes it returns (a -> b) - need to make sure we do just one of those
     then do
       let args = allArgTypes goalType
-      unifiedFuncs <- mapM (getUnifiedFunctions envv messageChan xs) args
-      return $ fmap concat unifiedFuncs
+      -- unifiedFuncs <- mapM (getUnifiedFunctions envv messageChan xs) args
+      return $ fmap concat $ mapM (getUnifiedFunctions envv messageChan xs) args
     else do
       modify $ set components []
       st <- get
