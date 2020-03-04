@@ -259,7 +259,7 @@ getUnifiedFunctions envv messageChan xs goalType = do
   
   if (not $ isGround goalType) -- sometimes it returns (a -> b) - need to make sure we do just one of those
     then do
-      let allTypes = allArgTypes goalType ++ lastType goalType
+      let allTypes = allArgTypes goalType ++ [lastType goalType]
       -- unifiedFuncs <- mapM (getUnifiedFunctions envv messageChan xs) args
       fmap concat $ mapM (getUnifiedFunctions envv messageChan xs) allTypes
     else do
