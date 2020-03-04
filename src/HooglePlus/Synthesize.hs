@@ -228,7 +228,7 @@ synthesize searchParams goal messageChan = do
     -- result <- dfs env messageChan 3 ("start", shape monospec)
 
     -- print the result
-    putStrLn $ "result:" ++ unlines result
+    -- putStrLn $ "result:" ++ unlines result
 
     --print $ cst' ^. components
     return () 
@@ -258,8 +258,11 @@ getUnifiedFunctions envv messageChan xs@((id, schema) : xxs) goalType = do
   st <- get
   let memoized = st ^. memoize :: Map SType [(Id, SType)]
   case Map.lookup goalType memoized of
-    Just cs -> return cs
+    Just cs -> do
+      lift $ putStrLn "already in there: " ++ show goalType
+      return cs
     Nothing -> do
+      lift $ putStrLn "not in there yet: " ++ show goalType
       helper envv messageChan xs goalType
       st <- get
       let cs = st ^. components
