@@ -242,11 +242,12 @@ dfsTop env messageChan depth hole = flip evalStateT emptyComps $ do
 
   -- map each hole ?? to a list of component types that unify with the hole
   unifiedFuncs <- getUnifiedFunctions env messageChan components hole :: StateT Comps IO [(Id, SType)]
-  -- putStrLn $ "argUnifiedFuncs:" ++ show argUnifiedFuncs
+
+  -- lift $ putStrLn $ "argUnifiedFuncs:" ++ show argUnifiedFuncs
   -- recurse, solving each unified component as a goal, solution is a list of programs
   -- the first element of list2 is the list of first argument solutions
   fmap concat $ mapM (dfs env messageChan (depth - 1)) unifiedFuncs :: StateT Comps IO [String]
-  
+  -- return  []
   
   
   -- (flip evalStateT) Map.empty (dfs env messageChan depth goal)
@@ -309,9 +310,10 @@ dfs env messageChan depth (id, schema) = do
   -- check if schema is ground
   if (isGround schema) 
   then return ["isground at depth='" ++ show depth ++ "'" ++ id]
-  else do-- return []
+  else do -- return []
     -- collect all the argument types (the holes ?? we need to fill)
     let args = allArgTypes schema
+    lift $ putStrLn $ "args: " ++ show args
     -- collect all the component types (which we might use to fill the holes)
     let components = Map.toList (env ^. symbols)
 
@@ -396,9 +398,9 @@ dfs env messageChan depth (id, schema) = do
 --   getUnifiedFunctions env [(id, schema)]
 
 
-iterateOverEnv :: [(Id, RSchema)] -> [String]
-iterateOverEnv [] = []
-iterateOverEnv ( (id, schema) : xs) = id : iterateOverEnv xs
+-- iterateOverEnv :: [(Id, RSchema)] -> [String]
+-- iterateOverEnv [] = []
+-- iterateOverEnv ( (id, schema) : xs) = id : iterateOverEnv xs
 
 -- getUnifiedFunctions :: Environment -> [(Id, RSchema)] -> RType -> [(Id, RSchema)]
 -- getUnifiedFunctions _ [] _ = []
@@ -417,9 +419,9 @@ iterateOverEnv ( (id, schema) : xs) = id : iterateOverEnv xs
 --     if (checkResult) then v : getUnifiedFunctions envv xs goalType
 --                     else getUnifiedFunctions envv xs goalType
 
-getArgTypes :: [(Id, RSchema)] -> [RSchema]
-getArgTypes [] = []
-getArgTypes ( (_, schema) : xs) = schema : getArgTypes xs
+-- getArgTypes :: [(Id, RSchema)] -> [RSchema]
+-- getArgTypes [] = []
+-- getArgTypes ( (_, schema) : xs) = schema : getArgTypes xs
 
 -- toBlah :: RSchema -> RType
 -- toBlah (Monotype v) = shape v 
