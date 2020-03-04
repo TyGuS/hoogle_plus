@@ -24,12 +24,14 @@ pairProj = "pair_match"
 type AbstractCover = HashMap AbstractSkeleton (Set AbstractSkeleton)
 
 data Comps = Comps {
-    _components :: [(Id, SType)]
+    _components :: [(Id, SType)],
+    _memoize :: Map SType [(Id, SType)]
 }
 
 emptyComps :: Comps
 emptyComps = Comps {
-    _components = []
+    _components = [],
+    _memoize = Map.empty
 }
 
 makeLenses ''Comps

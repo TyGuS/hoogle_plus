@@ -213,7 +213,7 @@ synthesize searchParams goal messageChan = do
     -- this is code we don't want I think above
     -- let initCompState = emptyComps
 
-    dfs env messageChan 3 ("start", shape destinationType)
+    -- dfsTop env messageChan 3 ("start", shape destinationType)
 
     -- cst' <- execStateT (getUnifiedFunctions env (Map.toList (env ^. symbols)) destinationType messageChan) initCompState
 
@@ -223,37 +223,58 @@ synthesize searchParams goal messageChan = do
     -- get return type
     -- get unified functions of the return type
     -- call DFS on all of those
-
-    -- collect all the component types (which we might use to fill the holes)
-    let components = Map.toList (env ^. symbols)
-    let hole = shape destinationType
-
-    -- map each hole ?? to a list of component types that unify with the hole
-    unifiedFuncs <- getUnifiedFunctions env messageChan components hole :: IO [(Id, SType)]
-    -- putStrLn $ "argUnifiedFuncs:" ++ show argUnifiedFuncs
-    -- recurse, solving each unified component as a goal, solution is a list of programs
-    -- the first element of list2 is the list of first argument solutions
-    result <- fmap concat $ mapM (dfs env messageChan 2) unifiedFuncs :: IO [String]
+    result <- dfsTop env messageChan 3 (shape destinationType)
 
     -- result <- dfs env messageChan 3 ("start", shape monospec)
+
+    -- print the result
     putStrLn $ "result:" ++ unlines result
 
     --print $ cst' ^. components
     return () 
 
-getUnifiedFunctions :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> IO [(Id, SType)]
-getUnifiedFunctions envv messageChan xs@((id, schema) : xxs) goalType = do 
-  --fmap _components $ execStateT (helper envv messageChan xs goalType) emptyComps
-  finalSt <- execStateT (helper envv messageChan xs goalType) emptyComps
-  return (finalSt ^. components) -- QUESTION: how to get 
+
+-- start off calling dfs with an empty memoize map
+dfsTop :: Environment -> Chan Message -> Int -> SType -> IO [String]
+dfsTop env messageChan depth hole = flip evalStateT emptyComps $ do
+  -- collect all the component types (which we might use to fill the holes)
+  let components = Map.toList (env ^. symbols)
+
+  -- map each hole ?? to a list of component types that unify with the hole
+  unifiedFuncs <- getUnifiedFunctions env messageChan components hole :: StateT Comps IO [(Id, SType)]
+  -- putStrLn $ "argUnifiedFuncs:" ++ show argUnifiedFuncs
+  -- recurse, solving each unified component as a goal, solution is a list of programs
+  -- the first element of list2 is the list of first argument solutions
+  fmap concat $ mapM (dfs env messageChan (depth - 1)) unifiedFuncs :: StateT Comps IO [String]
+  
+  
+  
+  -- (flip evalStateT) Map.empty (dfs env messageChan depth goal)
+
+
+getUnifiedFunctions :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> StateT Comps IO [(Id, SType)]
+getUnifiedFunctions envv messageChan xs@((id, schema) : xxs) goalType = do
+  modify $ set components []
+  st <- get
+  let memoized = st ^. memoize :: Map SType [(Id, SType)]
+  case Map.lookup goalType memoized of
+    Just cs -> return cs
+    Nothing -> do
+      helper envv messageChan xs goalType
+      st <- get
+      let cs = st ^. components
+      modify $ set memoize (Map.insert goalType cs (st ^. memoize))
+      return cs
   where 
     helper :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> StateT Comps IO ()
     helper _ _ [] _ = return ()
     helper envv messageChan ( v@(id, schema) : ys) goalType = do
+      
       let initSolverState = emptySolverState { _messageChan = messageChan }
       let t1 = shape (lastType (toMonotype schema))
       let t2 = goalType
 
+      -- lift $ putStrLn "thing printed"
       st' <- execStateT (solveTypeConstraint envv t1 t2) initSolverState
 
       let sub =  st' ^. typeAssignment
@@ -275,13 +296,14 @@ isGround _ = True
 -- type MyProgram = String
 -- env, max depth, components, goal
 -- returns list of possible programs
-dfs :: Environment -> Chan Message -> Int -> (Id, SType) -> IO [String]
-dfs _ _ 0 (id, schema) = do
+-- memoized
+dfs :: Environment -> Chan Message -> Int -> (Id, SType) -> StateT Comps IO [String]
+dfs _ _ 0 (id, schema) = do -- stop if depth is 0
   if (isGround schema) then return [id] else return []
 dfs env messageChan depth (id, schema) = do
   -- check if schema is ground
   if (isGround schema) 
-  then return ["isground at depth='" ++ show depth ++ "'" ++ id] 
+  then return ["isground at depth='" ++ show depth ++ "'" ++ id]
   else do-- return []
     -- collect all the argument types (the holes ?? we need to fill)
     let args = allArgTypes schema
@@ -292,13 +314,14 @@ dfs env messageChan depth (id, schema) = do
     -- putStrLn $ "depth:" ++ show depth
 
 
+    -- clear the list of components
 
     -- map each hole ?? to a list of component types that unify with the hole
-    argUnifiedFuncs <- mapM (getUnifiedFunctions env messageChan components) args :: IO [[(Id, SType)]]
+    argUnifiedFuncs <- mapM (getUnifiedFunctions env messageChan components) args :: StateT Comps IO [[(Id, SType)]]
     -- putStrLn $ "argUnifiedFuncs:" ++ show argUnifiedFuncs
     -- recurse, solving each unified component as a goal, solution is a list of programs
     -- the first element of list2 is the list of first argument solutions
-    list2 <- mapM (fmap concat . mapM (dfs env messageChan (depth - 1))) argUnifiedFuncs :: IO [[String]]
+    list2 <- mapM (fmap concat . mapM (dfs env messageChan (depth - 1))) argUnifiedFuncs :: StateT Comps IO [[String]]
     -- putStrLn $ "list2: " ++ show list2
     -- each arg hole is a list of programs
     -- take cartesian product of args and prepend our func name
