@@ -262,7 +262,7 @@ getUnifiedFunctions envv messageChan xs goalType = do
     then do
       let args = allArgTypes goalType
       -- unifiedFuncs <- mapM (getUnifiedFunctions envv messageChan xs) args
-      return $ fmap concat $ mapM (getUnifiedFunctions envv messageChan xs) args
+      fmap concat $ mapM (getUnifiedFunctions envv messageChan xs) args
     else do
       modify $ set components []
       st <- get
