@@ -299,6 +299,20 @@ isGround :: SType -> Bool
 isGround (FunctionT id arg0 arg1) = False
 isGround _ = True
 
+------------------------
+{- 
+    * i've realized we can't do mapping stuff because substituation might be different
+    * and also it's printing out weird things for destination type:
+          schema: (a -> ((a -> ByteString) -> ByteString))
+          args: [a,(a -> ByteString)]
+      this means that the return type is still a function, so im not sure how getUnified is 
+      working with that
+-}
+------------------------
+
+
+
+
 -- type MyProgram = String
 -- env, max depth, components, goal
 -- returns list of possible programs
