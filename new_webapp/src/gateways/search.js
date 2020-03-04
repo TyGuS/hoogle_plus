@@ -15,7 +15,8 @@ const getTypeCandidates = ({id, examples}, cb) => {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(data),
     };
-    return fetch(ROUTE, fetchOpts);
+    return fetch(ROUTE, fetchOpts)
+        .then(response => response.json());
 }
 
 const getCodeCandidates = ({query, examples}, cb) => {
