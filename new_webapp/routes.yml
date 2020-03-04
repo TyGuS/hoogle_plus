@@ -54,3 +54,15 @@ returns: {
     "result": str,
     "error": str
 }
+
+
+route: /typecheck
+method: POST
+args: {
+    "typeName": str,
+    "term": str
+}
+returns: {
+    "result": "ok",
+    "error": str
+}
