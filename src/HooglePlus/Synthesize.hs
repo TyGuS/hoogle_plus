@@ -273,7 +273,7 @@ getUnifiedFunctions envv messageChan xs@((id, schema) : xxs) goalType = do
     helper _ _ [] _ = return ()
     helper envv messageChan ( v@(id, schema) : ys) goalType = do
       
-      lift $ putStrLn "not in there yet: " ++ show goalType
+      -- lift $ putStrLn "not in there yet: " ++ show goalType
 
       let initSolverState = emptySolverState { _messageChan = messageChan }
       let t1 = shape (lastType (toMonotype schema))
