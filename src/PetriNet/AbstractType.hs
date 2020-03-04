@@ -234,7 +234,7 @@ applySemantic tvs fun args = do
         Nothing -> return ABottom
         Just m -> do
             -- writeLog 3 "applySemantic" $ text "get unifier" <+> pretty (Map.toList m)
-            cover <- gets (view abstractionCover)
+            cover <- gets $ view (refineState . abstractionCover)
             let substRes = abstractSubstitute m ret
             -- writeLog 3 "applySemantic" $ text "current cover" <+> text (show cover)
             currentAbst tvs cover substRes

@@ -5,10 +5,11 @@ import { usageToId } from "../utilities/args";
 
 export const initialCandidateState = {
     isFetching: false,
+    queryId: null,
     results: [
         {
             candidateId: "cand1",
-            code: "\\arg0 arg1-> replicate arg0 arg1",
+            code: "\\arg0 arg1 -> replicate arg0 arg1",
             examplesLoading: false,
             examples: [
                 {
@@ -48,10 +49,16 @@ const usageToExample = (usage) => {
 
 export function candidateReducer(state = initialCandidateState, action){
     switch(action.type) {
+        case Consts.SET_SEARCH_STATUS:
+            return {
+                ...state,
+                isFetching: action.payload === DONE
+            };
         case Consts.ADD_CANDIDATE:
             return {
                 ...state,
-                results: state.results.concat(action.payload)
+                results: state.results.concat(action.payload.result),
+                queryId: action.payload.queryId,
             }
         case Consts.SET_SEARCH_TYPE:
             return {

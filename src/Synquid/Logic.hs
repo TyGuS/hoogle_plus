@@ -13,7 +13,7 @@ import Data.Set (Set)
 import qualified Data.Map as Map
 import Data.Map (Map)
 import GHC.Generics
-
+import Data.Aeson
 import Control.Lens hiding (both)
 import Control.Monad
 
@@ -22,6 +22,9 @@ import Control.Monad
 -- | Sorts
 data Sort = BoolS | IntS | VarS Id | DataS Id [Sort] | SetS Sort | AnyS
   deriving (Eq, Ord, Generic)
+
+instance ToJSON Sort
+instance FromJSON Sort
 
 isSetS (SetS _) = True
 isSetS _ = False
@@ -95,11 +98,17 @@ data PredSig = PredSig {
   predSigResSort :: Sort
 } deriving (Eq, Ord, Generic)
 
+instance ToJSON PredSig
+instance FromJSON PredSig
+
 {- Formulas of the refinement logic -}
 
 -- | Unary operators
 data UnOp = Neg | Not
   deriving (Eq, Ord, Generic)
+
+instance ToJSON UnOp
+instance FromJSON UnOp
 
 -- | Binary operators
 data BinOp =
@@ -110,6 +119,9 @@ data BinOp =
     Union | Intersect | Diff |      -- ^ Set -> Set -> Set
     Member | Subset                 -- ^ Int/Set -> Set -> Bool
   deriving (Eq, Ord, Generic)
+
+instance ToJSON BinOp
+instance FromJSON BinOp
 
 -- | Variable substitution
 type Substitution = Map Id Formula
@@ -129,6 +141,9 @@ data Formula =
   Cons Sort Id [Formula] |            -- ^ Constructor application
   All Formula Formula                 -- ^ Universal quantification
   deriving (Eq, Ord, Generic)
+
+instance ToJSON Formula
+instance FromJSON Formula
 
 dontCare = "_"
 valueVarName = "_v"

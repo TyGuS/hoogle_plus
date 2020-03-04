@@ -7,7 +7,7 @@ import Synquid.Logic
 
 import GHC.Generics
 import Data.Map (Map)
-
+import Data.Aeson
 
 data SchemaSkeleton r =
   Monotype (TypeSkeleton r) |
@@ -15,10 +15,16 @@ data SchemaSkeleton r =
   ForallP PredSig (SchemaSkeleton r)    -- Predicate-polymorphic
   deriving (Eq, Ord, Generic)
 
+instance ToJSON r => ToJSON (SchemaSkeleton r)
+instance FromJSON r => FromJSON (SchemaSkeleton r)
+
 {- Type skeletons -}
 
 data BaseType r = BoolT | IntT | DatatypeT Id [TypeSkeleton r] [r] | TypeVarT Substitution Id
   deriving (Eq, Ord, Generic)
+
+instance ToJSON r => ToJSON (BaseType r)
+instance FromJSON r => FromJSON (BaseType r)
 
 -- | Type skeletons (parametrized by refinements)
 data TypeSkeleton r =
@@ -27,6 +33,9 @@ data TypeSkeleton r =
   AnyT |
   BotT 
   deriving (Eq, Ord, Generic)
+
+instance ToJSON r => ToJSON (TypeSkeleton r)
+instance FromJSON r => FromJSON (TypeSkeleton r)
 
 -- | Unrefined typed
 type SType = TypeSkeleton ()

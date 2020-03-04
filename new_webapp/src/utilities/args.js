@@ -22,3 +22,7 @@ export const usageToId = (usage) => {
   const args = usage.slice(0, usage.length - 1);
   return args.reduce((prev, curr) => prev + "-" + curr);
 }
+
+export const getArgCount = (queryStr) => {
+  return (queryStr.match(/->/g) || []).length;
+}

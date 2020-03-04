@@ -20,7 +20,6 @@ returns:
 route: /search/example
 method: POST
 args: {
-    "id": str,
     "facts": [
         [str] # (num of args + 1)
         ]

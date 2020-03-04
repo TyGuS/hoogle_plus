@@ -14,7 +14,7 @@ import { getArgNames } from "../utilities/args";
 import { SpinnableCell } from "./SpinnableCell";
 
 const generateRows = (facts) => {
-    if (!facts) {
+    if (!facts || facts.length < 1) {
       return [];
     }
     const argNames = getArgNames(facts[0].usage.length - 1);
