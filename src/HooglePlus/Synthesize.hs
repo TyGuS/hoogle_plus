@@ -349,7 +349,8 @@ dfs _ _ 0 (id, schema) = do -- stop if depth is 0
 dfs env messageChan depth (id, schema) = do
   -- check if schema is ground
   if (isGround schema) 
-  then return ["isground at depth='" ++ show depth ++ "'" ++ id]
+  -- then return ["isground at depth='" ++ show depth ++ "'" ++ id]
+  then return [id]
   else do -- return []
     -- collect all the argument types (the holes ?? we need to fill)
     let args = allArgTypes schema
@@ -378,7 +379,8 @@ dfs env messageChan depth (id, schema) = do
     -- to get the list of resulting programs solving our original goal
     -- the first element of list3 is a list of programs that fit as first argument
     let list3 = sequence list2 :: [[String]]
-    let formatFn args = "(depth='" ++ show depth ++ "'" ++ intercalate " " (id:args) ++ ")" -- takes ["(a)","(b)"] to "(f (a) (b))"
+    -- let formatFn args = "(depth='" ++ show depth ++ "'" ++ intercalate " " (id:args) ++ ")" -- takes ["(a)","(b)"] to "(f (a) (b))"
+    let formatFn args = "(" ++ intercalate " " (id:args) ++ ")" -- takes ["(a)","(b)"] to "(f (a) (b))"
     let list4 = map formatFn list3
     return list4
 
