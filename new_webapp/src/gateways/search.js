@@ -3,26 +3,28 @@ import {v4} from "uuid";
 import { usageToId } from "../utilities/args";
 import {baseRoute} from "../constants/strings";
 
-export const typeSearch = ({query, examples}, cb) => {
+const getTypeCandidates = ({id, examples}, cb) => {
+    const ROUTE = baseRoute + "search/example";
+
+    let data = {
+        facts: examples || []
+    };
+
+    const fetchOpts = {
+        method: 'POST', // or 'PUT'
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data),
+    };
+    return fetch(ROUTE, fetchOpts);
+}
+
+const getCodeCandidates = ({query, examples}, cb) => {
     const ROUTE = baseRoute + "search/type";
 
     let data = {
         typeSignature: query,
         facts: examples || []
     };
-
-    const mockCandidate = {
-        candidate: "\\arg0 arg1-> catMaybes (listToMaybe arg0) arg1",
-        examples: [
-            ["z", "2", "zz"],
-            ["z", "5", "zzzzz"],
-            ["abc", "-1", "error"],
-        ]
-    };
-    const mockResponse = {
-        id: v4(),
-        results: [mockCandidate],
-    }
 
     const convertToState = ({id, candidate, examples}) => {
         const newResults = {
@@ -92,9 +94,10 @@ const streamResponse = (route, fetchOpts, onIncrementalResponse) => {
                 }
             });
         })
-        .then(stream => new Response(stream))
+        .then(stream => new Response(stream));
 }
 
 export default {
-    typeSearch,
+    getCodeCandidates,
+    getTypeCandidates
 };

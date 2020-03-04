@@ -1,6 +1,6 @@
 import * as Consts from "../constants/action-types";
 import _ from "underscore";
-import { Query, ghciUsage, hooglePlusExampleSearch, hooglePlusMoreExamples } from "../gateways";
+import { Search, ghciUsage, hooglePlusExampleSearch, hooglePlusMoreExamples } from "../gateways";
 import { namedArgsToUsage, getArgCount } from "../utilities/args";
 import { LOADING, DONE } from "../constants/fetch-states";
 
@@ -44,7 +44,7 @@ export const selectType = ({typeOption, examples}) => (dispatch) => {
     dispatch(setSearchTypeInternal({searchType: typeOption}));
     dispatch(setModalClosed());
 
-    Query.typeSearch({query: typeOption, examples}, (candidate => {
+    Search.getCodeCandidates({query: typeOption, examples}, (candidate => {
         dispatch(addCandidate(candidate));
     })).then(_ => dispatch(setSearchStatus(DONE)));
     return;
@@ -80,15 +80,15 @@ export const setSearchType = (payload) => (dispatch) => {
     dispatch(setArgNum(argCount));
     dispatch(setSearchTypeInternal({...payload}));
 
-    Query.typeSearch({query: payload.query}, (candidate => {
+    Search.getCodeCandidates({query: payload.query}, (candidate => {
         dispatch(addCandidate(candidate));
     })).then(_ => dispatch(setSearchStatus(DONE)));
     return;
 };
 
 export const getTypesFromExamples = (payload) => (dispatch) => {
-    const {id, examples} = payload;
-    return hooglePlusExampleSearch({id, examples})
+    const {examples} = payload;
+    return Search.getTypeCandidates({examples})
         .then(value => {
             if (value["typeCandidates"]) {
                 dispatch(setModalOpen());
