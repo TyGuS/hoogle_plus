@@ -259,10 +259,10 @@ getUnifiedFunctions envv messageChan xs goalType = do
   -- lift $ putStrLn $ "args: " ++ show ()
   
   if (not ground goalType) -- sometimes it returns (a -> b) - need to make sure we do just one of those
-    then
+    then do
       let args = allArgTypes goalType
-      map (getUnifiedFunctions envv messageChan xs) args
-    else 
+      mapM (getUnifiedFunctions envv messageChan xs) args
+    else do
       modify $ set components []
       st <- get
       let memoized = st ^. memoize :: Map SType [(Id, SType)]
