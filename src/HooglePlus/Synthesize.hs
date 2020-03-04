@@ -261,7 +261,8 @@ getUnifiedFunctions envv messageChan xs goalType = do
   if (not $ isGround goalType) -- sometimes it returns (a -> b) - need to make sure we do just one of those
     then do
       let args = allArgTypes goalType
-      map (getUnifiedFunctions envv messageChan xs) args
+      unifiedFuncs <- mapM (getUnifiedFunctions envv messageChan xs) args
+      return unifiedFuncs
     else do
       modify $ set components []
       st <- get
@@ -276,7 +277,7 @@ getUnifiedFunctions envv messageChan xs goalType = do
           st <- get
           let cs = st ^. components
           modify $ set memoize (Map.insert goalType cs (st ^. memoize))
-          return cs
+          return st ^. components
   where 
     helper :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> StateT Comps IO ()
     helper _ _ [] _ = return ()
