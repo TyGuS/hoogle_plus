@@ -5,6 +5,7 @@ import { connect } from "react-redux";
 import { BounceLoader } from "react-spinners";
 import UsageTable from "./UsageTable";
 import { getMoreExamples } from "../actions";
+import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 
 const mapStateToProps = state => {
     return {
@@ -25,7 +26,7 @@ const ConnectedCandidateList = (props) => {
     return (
         <div>
             {candidates.map((result, idx) => {
-                const {code, examplesLoading, candidateId} = result;
+                const {code, examplesStatus, candidateId} = result;
                 const examples = result.examples || [];
                 const header = (
                     <Card.Header>
@@ -36,6 +37,8 @@ const ConnectedCandidateList = (props) => {
                 const usages = examples.map(ex => ex.usage);
                 const handleClick = () => getMoreExamples({candidateId, code, usages});
                 const isOpen = examples.length > 0;
+                const isLoading = examplesStatus === LOADING;
+                const buttonVariant = examplesStatus === ERROR ? "outline-danger" : "outline-primary"
                 return (
                     <Card key={idx}>
                         <Collapsible
@@ -49,11 +52,14 @@ const ConnectedCandidateList = (props) => {
                                         numColumns={numArgs + 1}
                                     />
                                     <Button
-                                        variant="outline-primary"
+                                        variant={buttonVariant}
                                         size="sm"
-                                        disabled={examplesLoading}
-                                        onClick={examplesLoading ? null : handleClick}>
-                                        {examplesLoading ? "Loading..." : "More examples"}
+                                        disabled={isLoading}
+                                        onClick={isLoading ? null : handleClick}>
+                                        {examplesStatus === LOADING ? "Loading..." :
+                                         examplesStatus === DONE ? "More Examples" :
+                                         "Error"
+                                        }
                                     </Button>
                                 </Card.Body>
                         </Collapsible>

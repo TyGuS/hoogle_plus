@@ -1,6 +1,6 @@
 import _ from "underscore";
 import {v4} from "uuid";
-import { usageToId } from "../utilities/args";
+import { inputsToId } from "../utilities/args";
 import {baseRoute} from "../constants/strings";
 
 const getTypeCandidates = ({id, examples}, cb) => {
@@ -31,12 +31,14 @@ const getCodeCandidates = ({query, examples}, cb) => {
                 candidateId: v4(),
                 code: candidate,
                 examplesLoading: false,
-                examples: examples.map(usage => {
+                examples: examples.map(({inputs, output}) => {
                     return {
-                        id: usageToId(usage),
-                        usage: usage,
+                        id: inputsToId(inputs),
+                        inputs,
+                        output,
+                        usage: inputs.concat(output),
                         isLoading: false,
-                    };}),
+                    }}),
             };
         return {
             queryId: id,

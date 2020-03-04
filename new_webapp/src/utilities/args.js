@@ -23,6 +23,11 @@ export const usageToId = (usage) => {
   return args.reduce((prev, curr) => prev + "-" + curr);
 }
 
+export const inputsToId = (inputs) => {
+  return inputs.reduce((prev, curr) => prev + "-" + curr);
+}
+
+
 export const getArgCount = (queryStr) => {
   return (queryStr.match(/->/g) || []).length;
 }

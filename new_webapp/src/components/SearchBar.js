@@ -4,11 +4,11 @@ import {connect} from "react-redux";
 import {setSearchType, getTypesFromExamples} from "../actions/index";
 import ExampleTable from "./ExampleTable";
 import { TypeSelection } from "./TypeSelection";
-import { Button, InputGroup, FormControl } from "react-bootstrap";
+import { Button, InputGroup, FormControl, Form } from "react-bootstrap";
 
 const mapDispatchToProps = (dispatch) => {
     return {
-        setSearchType: searchTerm => setSearchType(searchTerm)(dispatch),
+        setSearchType: ({query, examples}) => setSearchType({query, examples})(dispatch),
         getTypesFromExamples: usages => getTypesFromExamples(usages)(dispatch),
     }
 }
@@ -34,12 +34,12 @@ class ConnectedSearchBar extends Component {
 
     handleSubmit(event) {
         event.preventDefault();
+        const usages = this.props.exampleRows.map(({usage}) => usage);
         if (this.isMissingType()){
-            const usages = this.props.exampleRows.map(({usage}) => usage);
             this.props.getTypesFromExamples(usages);
             return;
         }
-        this.props.setSearchType({query: this.state.value});
+        this.props.setSearchType({query: this.state.value, examples: usages});
     }
 
     canSubmit() {
@@ -55,6 +55,7 @@ class ConnectedSearchBar extends Component {
             <div>
             <TypeSelection/>
             <div className="container">
+                <Form onSubmit={this.onSubmit}>
                 <div className="row justify-content-center">
                 <InputGroup className="mb-3 col-8">
                     <FormControl
@@ -85,10 +86,13 @@ class ConnectedSearchBar extends Component {
                 </div>
                 <Button
                     disabled={!this.canSubmit()}
-                    onClick={this.handleSubmit}>
+                    onClick={this.handleSubmit}
+                    type="submit">
                     Search
                 </Button>
+                </Form>
             </div>
+
             </div>
         );
     }

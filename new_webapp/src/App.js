@@ -19,17 +19,7 @@ function App() {
           <CandidateList className="left" />
         </div>
       </div>
-      <footer className="row footer footer-style text-center">
-        <div className="text-center col">
-          {footerText}
-        </div>
-      </footer>
     </div>
   );
 }
-
-const footerText = `
-Made by Zheng, David, Michael, Joe, Ziteng, Ranjit and Nadia.
-`;
-
 export default App;

@@ -83,12 +83,12 @@ export const updateCandidateUsage = ({typeSignature, candidateId, usageId, args,
 };
 
 // This is where a request needs to be sent to the server
-export const setSearchType = (payload) => (dispatch) => {
-    const argCount = getArgCount(payload.query);
+export const setSearchType = ({query, examples}) => (dispatch) => {
+    const argCount = getArgCount(query);
     dispatch(setArgNum(argCount));
-    dispatch(setSearchTypeInternal({...payload}));
+    dispatch(setSearchTypeInternal({query}));
 
-    Search.getCodeCandidates({query: payload.query}, (candidate => {
+    Search.getCodeCandidates({query, examples}, (candidate => {
         dispatch(addCandidate(candidate));
     }))
     .then(_ => dispatch(setSearchStatus(DONE)))
@@ -121,5 +121,9 @@ export const getMoreExamples = ({candidateId, code, usages}) => (dispatch, getSt
                 status: DONE,
                 result: examples
             }));
-        });
+        })
+        .catch(error => {
+            console.error("getMoreExamples failed", error);
+            return dispatch(fetchMoreCandidateUsages({candidateId, status: ERROR}));
+        })
 }

@@ -12,7 +12,7 @@ returns:
         "results": [
             {
                 "candidate": ast,
-                "examples": [[str]]
+                "examples": [{inputs: [str], output: str}]
             }
         ]
     }
@@ -40,7 +40,7 @@ args: {
     "examples": [[str]]
     }
 returns: {
-    "examples": [[str]]
+    "examples": [{inputs: [str], output: str}]
     }
 
 route: /example/code
