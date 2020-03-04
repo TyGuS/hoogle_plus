@@ -313,6 +313,7 @@ dfs env messageChan depth (id, schema) = do
   else do -- return []
     -- collect all the argument types (the holes ?? we need to fill)
     let args = allArgTypes schema
+    lift $ putStrLn $ "schema: " ++ show schema
     lift $ putStrLn $ "args: " ++ show args
     -- collect all the component types (which we might use to fill the holes)
     let components = Map.toList (env ^. symbols)
