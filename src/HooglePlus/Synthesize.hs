@@ -258,10 +258,10 @@ getUnifiedFunctions envv messageChan xs goalType = do
   lift $ putStrLn $ "goalType: " ++ show goalType
   -- lift $ putStrLn $ "args: " ++ show ()
   
-  if (not $ ground goalType) -- sometimes it returns (a -> b) - need to make sure we do just one of those
+  if (not $ isGround goalType) -- sometimes it returns (a -> b) - need to make sure we do just one of those
     then do
       let args = allArgTypes goalType
-      return $ mapM (getUnifiedFunctions envv messageChan xs) args
+      map (getUnifiedFunctions envv messageChan xs) args
     else do
       modify $ set components []
       st <- get
