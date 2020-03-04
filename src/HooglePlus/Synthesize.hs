@@ -255,14 +255,15 @@ dfsTop env messageChan depth hole = flip evalStateT emptyComps $ do
 
 getUnifiedFunctions :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> StateT Comps IO [(Id, SType)]
 getUnifiedFunctions envv messageChan xs goalType = do
-  lift $ putStrLn $ "goalType: " ++ show goalType
+  -- lift $ putStrLn $ "goalType: " ++ show goalType
   
   if (not $ isGround goalType) -- sometimes it returns (a -> b) - need to make sure we do just one of those
     then do
-      let allTypes = allArgTypes goalType ++ [lastType goalType]
-      lift $ putStrLn $ "allTypes: " ++ show allTypes
-      -- unifiedFuncs <- mapM (getUnifiedFunctions envv messageChan xs) args
-      fmap concat $ mapM (getUnifiedFunctions envv messageChan xs) allTypes
+      return []
+      -- let allTypes = allArgTypes goalType ++ [lastType goalType]
+      -- lift $ putStrLn $ "allTypes: " ++ show allTypes
+      -- -- unifiedFuncs <- mapM (getUnifiedFunctions envv messageChan xs) args
+      -- fmap concat $ mapM (getUnifiedFunctions envv messageChan xs) allTypes
     else do
       modify $ set components []
       st <- get
