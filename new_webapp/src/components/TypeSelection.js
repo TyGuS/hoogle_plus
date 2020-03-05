@@ -20,6 +20,7 @@ const mapDispatchToProps = (dispatch) => {
 
 const TypeSelectionBase = (props) => {
     const {onClose, selectType} = props;
+    const isDisabled = props.hidden || false;
     const {isOpen, typeOptions, exampleRows} = props;
 
     const mkSelection = (typeStr) => {
@@ -32,7 +33,7 @@ const TypeSelectionBase = (props) => {
 
     return (
         <>
-        <Modal show={isOpen} onHide={onClose}>
+        <Modal show={isOpen && !isDisabled} onHide={onClose}>
         <Modal.Header closeButton>
           <Modal.Title>Which type looks right to you?</Modal.Title>
         </Modal.Header>

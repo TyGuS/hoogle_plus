@@ -2,10 +2,12 @@ import * as Consts from "../constants/action-types";
 import { combineReducers } from "redux";
 import { initialSpecState, specReducer } from "./specReducer";
 import { initialCandidateState, candidateReducer } from "./candidateReducer";
+import { getDefaultFeatures } from "../utilities/featureManager";
 
 const initialState = {
     spec: initialSpecState,
     candidates: initialCandidateState,
+    features: getDefaultFeatures(),
     modal: {
         isOpen: false,
     }

@@ -1,5 +1,5 @@
 import * as Consts from "../constants/action-types";
-import { LOADING, DONE } from "../constants/fetch-states";
+import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 import {v4 as uuidv4} from "uuid";
 import { usageToId } from "../utilities/args";
 
@@ -10,7 +10,7 @@ export const initialCandidateState = {
         {
             candidateId: "cand1",
             code: "\\arg0 arg1 -> replicate arg0 arg1",
-            examplesLoading: false,
+            examplesStatus: DONE,
             examples: [
                 {
                     id: usageToId(["x", "2", "xx"]),
@@ -27,7 +27,7 @@ export const initialCandidateState = {
         {
             candidateId: "cand2",
             code: "\\arg0 arg1-> replicate2 arg0 arg1",
-            examplesLoading: false,
+            examplesStatus: ERROR,
             examples: [
                 {
                     id: usageToId(["x", "2", "xx"]),
@@ -73,7 +73,7 @@ export function candidateReducer(state = initialCandidateState, action){
                         if (result.candidateId === fCandidateId) {
                             return {
                                 ...result,
-                                examplesLoading: true,
+                                examplesStatus: LOADING,
                             };
                         }
                         return result;
@@ -86,13 +86,24 @@ export function candidateReducer(state = initialCandidateState, action){
                             const newExamples = newUsages.map(usageToExample);
                             return {
                                 ...result,
-                                examplesLoading: false,
+                                examplesStatus: DONE,
                                 examples: result.examples.concat(newExamples)
                             };
                         }
                         return result;
                     });
                     return {...state, results: newExampleResults};
+                case ERROR:
+                    const newFailedResults = state.results.map((result) => {
+                        if (result.candidateId === fCandidateId) {
+                            return {
+                                ...result,
+                                examplesStatus: ERROR,
+                            }
+                        }
+                        return result;
+                    });
+                    return {...state, results: newFailedResults};
             }
             return {
                 ...state,

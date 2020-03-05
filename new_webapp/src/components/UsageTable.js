@@ -12,6 +12,9 @@ import { connect } from "react-redux";
 import { addFact, updateCandidateUsages } from "../actions";
 import { getArgNames } from "../utilities/args";
 import { SpinnableCell } from "./SpinnableCell";
+import { getDefaultFeatures } from "../utilities/featureManager";
+
+const {results: resultsFeatures} = getDefaultFeatures();
 
 const generateRows = (facts) => {
     if (!facts || facts.length < 1) {
@@ -101,8 +104,8 @@ const UsageTableBase = ({
           <TableHeaderRow/>
           <TableEditRow/>
           <TableEditColumn
-            showDeleteCommand
-            showEditCommand
+            showDeleteCommand={resultsFeatures.permitKeepUsage}
+            showEditCommand={resultsFeatures.permitEditExamples}
             messages={{
               deleteCommand: "Keep usage"
             }}

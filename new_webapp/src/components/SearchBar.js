@@ -4,11 +4,12 @@ import {connect} from "react-redux";
 import {setSearchType, getTypesFromExamples} from "../actions/index";
 import ExampleTable from "./ExampleTable";
 import { TypeSelection } from "./TypeSelection";
-import { Button, InputGroup, FormControl } from "react-bootstrap";
+import { Button, InputGroup, FormControl, Form } from "react-bootstrap";
+import { getDefaultFeatures } from "../utilities/featureManager";
 
 const mapDispatchToProps = (dispatch) => {
     return {
-        setSearchType: searchTerm => setSearchType(searchTerm)(dispatch),
+        setSearchType: ({query, examples}) => setSearchType({query, examples})(dispatch),
         getTypesFromExamples: usages => getTypesFromExamples(usages)(dispatch),
     }
 }
@@ -34,12 +35,12 @@ class ConnectedSearchBar extends Component {
 
     handleSubmit(event) {
         event.preventDefault();
+        const usages = this.props.exampleRows.map(({usage}) => usage);
         if (this.isMissingType()){
-            const usages = this.props.exampleRows.map(({usage}) => usage);
             this.props.getTypesFromExamples(usages);
             return;
         }
-        this.props.setSearchType({query: this.state.value});
+        this.props.setSearchType({query: this.state.value, examples: usages});
     }
 
     canSubmit() {
@@ -51,10 +52,12 @@ class ConnectedSearchBar extends Component {
     }
 
     render() {
+        const {search} = getDefaultFeatures();
         return (
             <div>
-            <TypeSelection/>
+            <TypeSelection hidden={!search.permitTypeCandidates} />
             <div className="container">
+                <Form onSubmit={this.onSubmit}>
                 <div className="row justify-content-center">
                 <InputGroup className="mb-3 col-8">
                     <FormControl
@@ -75,7 +78,9 @@ class ConnectedSearchBar extends Component {
                     className="col-8"
                     /> */}
                 </div>
-                <div className="row justify-content-center">
+                <div
+                    className="row justify-content-center"
+                    hidden={!search.permitExamples}>
                     <div className="col">
                         <div>
                             Example Specifications:
@@ -85,10 +90,13 @@ class ConnectedSearchBar extends Component {
                 </div>
                 <Button
                     disabled={!this.canSubmit()}
-                    onClick={this.handleSubmit}>
+                    onClick={this.handleSubmit}
+                    type="submit">
                     Search
                 </Button>
+                </Form>
             </div>
+
             </div>
         );
     }
