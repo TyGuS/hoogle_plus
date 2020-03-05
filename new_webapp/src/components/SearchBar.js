@@ -5,6 +5,7 @@ import {setSearchType, getTypesFromExamples} from "../actions/index";
 import ExampleTable from "./ExampleTable";
 import { TypeSelection } from "./TypeSelection";
 import { Button, InputGroup, FormControl, Form } from "react-bootstrap";
+import { getDefaultFeatures } from "../utilities/featureManager";
 
 const mapDispatchToProps = (dispatch) => {
     return {
@@ -51,9 +52,10 @@ class ConnectedSearchBar extends Component {
     }
 
     render() {
+        const {search} = getDefaultFeatures();
         return (
             <div>
-            <TypeSelection/>
+            <TypeSelection hidden={!search.permitTypeCandidates} />
             <div className="container">
                 <Form onSubmit={this.onSubmit}>
                 <div className="row justify-content-center">
@@ -76,7 +78,9 @@ class ConnectedSearchBar extends Component {
                     className="col-8"
                     /> */}
                 </div>
-                <div className="row justify-content-center">
+                <div
+                    className="row justify-content-center"
+                    hidden={!search.permitExamples}>
                     <div className="col">
                         <div>
                             Example Specifications:

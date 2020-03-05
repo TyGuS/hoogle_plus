@@ -6,6 +6,7 @@ import { BounceLoader } from "react-spinners";
 import UsageTable from "./UsageTable";
 import { getMoreExamples } from "../actions";
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
+import { getDefaultFeatures } from "../utilities/featureManager";
 
 const mapStateToProps = state => {
     return {
@@ -23,6 +24,7 @@ const mapDispatchToProps = dispatch => {
 
 const ConnectedCandidateList = (props) => {
     const {candidates, numArgs, isFetching, getMoreExamples} = props;
+    const {results: resultsFeatures} = getDefaultFeatures();
     return (
         <div>
             {candidates.map((result, idx) => {
@@ -51,6 +53,7 @@ const ConnectedCandidateList = (props) => {
                                         rows={examples}
                                         numColumns={numArgs + 1}
                                     />
+                                    {resultsFeatures.enableGetMoreExamples ? (
                                     <Button
                                         variant={buttonVariant}
                                         size="sm"
@@ -60,7 +63,7 @@ const ConnectedCandidateList = (props) => {
                                          examplesStatus === DONE ? "More Examples" :
                                          "Error"
                                         }
-                                    </Button>
+                                    </Button>) : (<></>)}
                                 </Card.Body>
                         </Collapsible>
                     </Card>
