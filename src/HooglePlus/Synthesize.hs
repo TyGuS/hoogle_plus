@@ -79,28 +79,33 @@ synthesize searchParams goal messageChan = do
     let useHO = _useHO searchParams
     let rawSyms = env' ^. symbols
     let hoCands = env' ^. hoCandidates
-    env <-
-        if useHO -- add higher order query arguments
-            then do
+    env <- do
+      let syms = Map.filter (not . isHigherOrder . toMonotype) rawSyms
+      return $
+          env'
+              {_symbols = Map.withoutKeys syms $ Set.fromList hoCands, _hoCandidates = []}
+
+        -- if useHO -- add higher order query arguments
+        --     then do
     --------------------------
     -- IGNORE PARTS BELOW THIS
     --------------------------
-                let args = env' ^. arguments
-                let hoArgs = Map.filter (isFunctionType . toMonotype) args
-                let hoFuns = map (\(k, v) -> (k ++ hoPostfix, toFunType v)) (Map.toList hoArgs)
-                return $
-                    env'
-                        { _symbols = rawSyms `Map.union` Map.fromList hoFuns
-                        , _hoCandidates = hoCands ++ map fst hoFuns
-                        }
+                -- let args = env' ^. arguments
+                -- let hoArgs = Map.filter (isFunctionType . toMonotype) args
+                -- let hoFuns = map (\(k, v) -> (k ++ hoPostfix, toFunType v)) (Map.toList hoArgs)
+                -- return $
+                --     env'
+                --         { _symbols = rawSyms `Map.union` Map.fromList hoFuns
+                --         , _hoCandidates = hoCands ++ map fst hoFuns
+                --         }
     --------------------------
     -- IGNORE PARTS ABOVE THIS
     --------------------------
-            else do
-                let syms = Map.filter (not . isHigherOrder . toMonotype) rawSyms
-                return $
-                    env'
-                        {_symbols = Map.withoutKeys syms $ Set.fromList hoCands, _hoCandidates = []}
+            -- else do
+            --     let syms = Map.filter (not . isHigherOrder . toMonotype) rawSyms
+            --     return $
+            --         env'
+            --             {_symbols = Map.withoutKeys syms $ Set.fromList hoCands, _hoCandidates = []}
 
     --putStrLn $ "Component number: " ++ show (Map.size $ allSymbols env)
     --putStrLn $ "Hello world"
