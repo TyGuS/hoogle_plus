@@ -291,7 +291,7 @@ getUnifiedFunctions envv messageChan xs goalType = do
   case Map.lookup goalType memoized of
     Just cs -> do
       lift $ putStrLn $ "already in there: " ++ show goalType
-      list $ putStrLn $ "unified components: " ++ show cs
+      lift $ putStrLn $ "unified components: " ++ show cs
       return cs
     Nothing -> do
       lift $ putStrLn $ "not in there yet: " ++ show goalType
