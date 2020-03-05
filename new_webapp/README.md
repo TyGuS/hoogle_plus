@@ -18,6 +18,10 @@ In essence there are:
   server to get some data, these are pure functions or promises.
 - `reducers`: These are a big fold that take `(state, action) -> state`.
 
+### Environment Variables
+- `REACT_APP_LIMIT_FEATURES` setting this to true will disable most new features, returning things to something closer to the 1.0 experience.
+- `REACT_APP_DEVELOPMENT` Use this in development (already set in the `.env.development` file) to point the routes to `localhost:5000` instead of just `/`. Useful for testing with a separated server.
+
 
 
 ## Available Scripts
