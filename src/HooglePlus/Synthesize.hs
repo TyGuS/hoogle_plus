@@ -345,12 +345,12 @@ isGround _ = True
 -- memoized
 dfs :: Environment -> Chan Message -> Int -> (Id, SType) -> StateT Comps IO [String]
 dfs _ _ 0 (id, schema) = do -- stop if depth is 0
-  if (isGround schema) then return [id] else return []
+  if (isGround schema) then return ["(" ++ id ++ ")"] else return []
 dfs env messageChan depth (id, schema) = do
   -- check if schema is ground
   if (isGround schema) 
   -- then return ["isground at depth='" ++ show depth ++ "'" ++ id]
-  then return [id]
+  then return ["(" ++ id ++ ")"]
   else do -- return []
     -- collect all the argument types (the holes ?? we need to fill)
     let args = allArgTypes schema
