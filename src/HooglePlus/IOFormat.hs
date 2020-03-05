@@ -18,6 +18,7 @@ import Types.Environment
 import Types.Type
 import Synquid.Parser (parseType, parseProgram)
 import Synquid.Resolver (ResolverState(..), initResolverState, resolveSchema)
+import Synquid.Type
 import Examples.ExampleChecker
 
 import Control.Concurrent.Chan
@@ -119,8 +120,9 @@ searchTypes synquidParams inStr = do
             outExamples <- mapM (\t -> checkExamples env' t exquery messageChan) builtinQueryTypes
             let validPairs = filter (isLeft . fst) (zip outExamples builtinQueryTypes)
             let resultTypes = map snd validPairs ++ exTypes
+            let resultTypes' = map toMonotype resultTypes
             if null validPairs then return $ ListOutput [] "Cannot find type for your query"
-                               else return $ ListOutput (map show resultTypes) ""
+                               else return $ ListOutput (map show resultTypes') ""
 
 prepareEnvFromInput :: SynquidParams -> String -> IO (TypeQuery, [String], String, Environment)
 prepareEnvFromInput synquidParams inStr = do
