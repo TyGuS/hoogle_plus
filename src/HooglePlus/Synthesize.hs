@@ -74,7 +74,8 @@ synthesize :: SearchParams -> Goal -> Chan Message -> IO ()
 synthesize searchParams goal messageChan = do
     let env''' = gEnvironment goal
     let (env'', monospec) = updateEnvWithBoundTyVars (gSpec goal) env'''
-    let (env', destinationType) = updateEnvWithSpecArgs monospec env'''
+    -- let (env', destinationType) = updateEnvWithSpecArgs monospec env'''
+    let (env', destinationType) = updateEnvWithSpecArgs monospec env''
     let useHO = _useHO searchParams
     let rawSyms = env' ^. symbols
     let hoCands = env' ^. hoCandidates
@@ -255,45 +256,50 @@ dfsTop env messageChan depth hole = flip evalStateT emptyComps $ do
 
 getUnifiedFunctions :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> StateT Comps IO [(Id, SType)]
 getUnifiedFunctions envv messageChan xs goalType = do
-  -- lift $ putStrLn $ "goalType: " ++ show goalType
+  lift $ putStrLn $ "goalType: " ++ show goalType
   
-  if (not $ isGround goalType) -- sometimes it returns (a -> b) - need to make sure we do just one of those
-    then do
-      return []
-      -- let allTypes = allArgTypes goalType ++ [lastType goalType]
-      -- lift $ putStrLn $ "allTypes: " ++ show allTypes
-      -- -- unifiedFuncs <- mapM (getUnifiedFunctions envv messageChan xs) args
-      -- fmap concat $ mapM (getUnifiedFunctions envv messageChan xs) allTypes
-    else do
-      modify $ set components []
-      st <- get
-      let memoized = st ^. memoize :: Map SType [(Id, SType)]
-      case Map.lookup goalType memoized of
-        Just cs -> do
-          -- lift $ putStrLn $ "already in there: " ++ show goalType
-          return cs
-        Nothing -> do
-          -- lift $ putStrLn $ "not in there yet: " ++ show goalType
-          helper envv messageChan xs goalType
-          st <- get
-          let cs = st ^. components
-          modify $ set memoize (Map.insert goalType cs (st ^. memoize))
-          return $ st ^. components
-
-  -- modify $ set components []
-  -- st <- get
-  -- let memoized = st ^. memoize :: Map SType [(Id, SType)]
-  -- case Map.lookup goalType memoized of
-  --   Just cs -> do
-  --     lift $ putStrLn $ "already in there: " ++ show goalType
-  --     return cs
-  --   Nothing -> do
-  --     lift $ putStrLn $ "not in there yet: " ++ show goalType
-  --     helper envv messageChan xs goalType
+  -- if (not $ isGround goalType) -- sometimes it returns (a -> b) - need to make sure we do just one of those
+  --   then do
+  --     -- return []
+  --     let allTypes = allArgTypes goalType ++ [lastType goalType]
+  --     lift $ putStrLn $ "allTypes: " ++ show allTypes
+  --     -- unifiedFuncs <- mapM (getUnifiedFunctions envv messageChan xs) args
+  --     fmap concat $ mapM (getUnifiedFunctions envv messageChan xs) allTypes
+  --   else do
+  --     modify $ set components []
   --     st <- get
-  --     let cs = st ^. components
-  --     modify $ set memoize (Map.insert goalType cs (st ^. memoize))
-  --     return $ st ^. components
+  --     let memoized = st ^. memoize :: Map SType [(Id, SType)]
+  --     case Map.lookup goalType memoized of
+  --       Just cs -> do
+  --         -- lift $ putStrLn $ "already in there: " ++ show goalType
+  --         return cs
+  --       Nothing -> do
+  --         -- lift $ putStrLn $ "not in there yet: " ++ show goalType
+  --         helper envv messageChan xs goalType
+  --         st <- get
+  --         let cs = st ^. components
+  --         modify $ set memoize (Map.insert goalType cs (st ^. memoize))
+  --         return $ st ^. components
+
+  modify $ set components []
+  
+  -- lift $ putStrLn $ "allTypes: " ++ show allTypes
+
+  st <- get
+  let memoized = st ^. memoize :: Map SType [(Id, SType)]
+
+  case Map.lookup goalType memoized of
+    Just cs -> do
+      lift $ putStrLn $ "already in there: " ++ show goalType
+      list $ putStrLn $ "unified components: " ++ show cs
+      return cs
+    Nothing -> do
+      lift $ putStrLn $ "not in there yet: " ++ show goalType
+      helper envv messageChan xs goalType
+      st <- get
+      let cs = st ^. components
+      modify $ set memoize (Map.insert goalType cs (st ^. memoize))
+      return $ st ^. components
 
   where 
     helper :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> StateT Comps IO ()
