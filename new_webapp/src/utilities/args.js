@@ -18,6 +18,21 @@ export const namedArgsToUsage = (listList, numArgs) => {
   });
 }
 
+// [{usage: [], id}] -> [{id, arg0, ... result}]
+export const usageToNamedArgs = (facts) => {
+  const rows = facts.map((element) => {
+    let row = [];
+    for (let index = 0; index < element.usage.length - 1; index++) {
+      let argName = "arg" + index;
+      row[argName] = element.usage[index];
+    }
+    row["result"] = element.usage[element.usage.length - 1];
+    row["id"] = element.id;
+    return row;
+  });
+  return rows;
+};
+
 export const usageToId = (usage) => {
   const args = usage.slice(0, usage.length - 1);
   return args.reduce((prev, curr) => prev + "-" + curr);
@@ -26,7 +41,6 @@ export const usageToId = (usage) => {
 export const inputsToId = (inputs) => {
   return inputs.reduce((prev, curr) => prev + "-" + curr);
 }
-
 
 export const getArgCount = (queryStr) => {
   return (queryStr.match(/->/g) || []).length;

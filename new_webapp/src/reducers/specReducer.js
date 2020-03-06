@@ -4,16 +4,10 @@ import { getArgNames, namedArgsToUsage, usageToId } from "../utilities/args";
 
 export const initialSpecState = {
     editingExampleRow: null,
-    rows: [{
-        id: usageToId(["x", "2", "xx"]),
-        usage: ["x", "2", "xx"]
-    }],
+    rows: [],
     numArgs: 2,
     searchType: null,
-    searchTypeOptions: [
-        "foo",
-        "bar"
-    ],
+    searchTypeOptions: [],
 };
 
 // Overwrite existing rows with their new_row, and add the rest of the new_rows.
