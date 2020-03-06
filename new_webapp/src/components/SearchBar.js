@@ -40,7 +40,8 @@ class ConnectedSearchBar extends Component {
             this.props.getTypesFromExamples(usages);
             return;
         }
-        this.props.setSearchType({query: this.state.value, examples: usages});
+        const filteredUsages = _.filter(usages, usageList => !_.any(usageList, _.isUndefined));
+        this.props.setSearchType({query: this.state.value, examples: filteredUsages});
     }
 
     canSubmit() {
