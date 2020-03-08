@@ -1,5 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-} 
+{-# LANGUAGE TemplateHaskell #-} 
+
 module Examples.ExampleChecker where
 
 import Types.Program
@@ -37,13 +39,22 @@ import HsTypes
 import Outputable
 import Text.Printf
 
+askGhc :: [String] -> Ghc a -> IO a
+askGhc mdls f = runGhc (Just libdir) $ do
+    dflags <- getSessionDynFlags
+    setSessionDynFlags dflags
+    prepareModules mdls >>= setContext
+    result <- f
+    return result
+    where
+        prepareModules mdls = do
+            let imports = map (printf "import %s") mdls
+            decls <- mapM parseImportDecl imports
+            return (map IIDecl decls)
+
 parseExample :: [String] -> Example -> IO (Either RSchema ErrorMessage)
 parseExample mdls ex = catch (do
-    typ <- runGhc (Just libdir) $ do
-        dflags <- getSessionDynFlags
-        setSessionDynFlags dflags
-        prepareModules mdls >>= setContext
-        exprType TM_Default mkFun
+    typ <- askGhc mdls $ exprType TM_Default mkFun
     let hsType = typeToLHsType typ
     return (Left $ resolveType hsType))
     (\(e :: SomeException) -> return (Right $ show e))
@@ -93,41 +104,50 @@ resolveType' (L _ (HsTupleTy _ ts)) = foldr mkPair basePair otherTyps
 resolveType' (L _ (HsParTy t)) = resolveType' t
 resolveType' t = error $ showSDocUnsafe (ppr t)
 
-checkExample :: Environment -> RSchema -> Example -> Chan Message -> IO (Either Example ErrorMessage)
+checkExample :: Environment -> RSchema -> Example -> Chan Message -> IO (Either RSchema ErrorMessage)
 checkExample env typ ex checkerChan = do
     eitherTyp <- parseExample (Set.toList $ env ^. included_modules) ex
     case eitherTyp of
       Left exTyp -> do
         let err = printf "%s does not have type %s" (show ex) (show typ) :: String
         res <- checkTypes env checkerChan exTyp typ 
-        if res then return $ Left ex 
+        if res then return $ Left exTyp
                else return $ Right err
       Right e -> return $ Right e
 
-checkExamples :: Environment -> RSchema -> [Example] -> Chan Message -> IO (Either [Example] [ErrorMessage])
+checkExamples :: Environment -> RSchema -> [Example] -> Chan Message -> IO (Either [RSchema] [ErrorMessage])
 checkExamples env typ exs checkerChan = do
     outExs <- mapM (\ex -> checkExample env typ ex checkerChan) exs
     let (validResults, errs) = partitionEithers outExs
     if null errs then return $ Left validResults
                  else return $ Right errs
 
+getExampleTypes :: Environment -> [Example] -> IO (Either [SType] [ErrorMessage])
+getExampleTypes env exs = do
+    eitherTyps <- mapM (parseExample (Set.toList $ env ^. included_modules)) exs
+    let (validTypes, errs) = partitionEithers eitherTyps
+    case errs of
+      [] -> do
+          t <- if length validTypes > 0 then foldM antiUnification (head validTypes) (tail validTypes)
+                                        else error "get example types error"
+          generals <- getGeneralizations t
+          return $ Left $ generals ++ concatMap reduceVars generals
+      errs -> return $ Right errs
+
 execExample :: [String] -> Environment -> String -> Example -> IO (Either ErrorMessage String)
 execExample mdls env prog ex =
-    runGhc (Just libdir) $ do
-        dflags <- getSessionDynFlags
-        setSessionDynFlags dflags
-        prepareModules mdls >>= setContext
-        let prependArg = unwords (Map.keys $ env ^. arguments)
-        let progBody = if Map.null (env ^. arguments) -- if this is a request from front end
-            then printf "let f = %s in" prog
-            else printf "let f = \\%s -> %s in" prependArg prog
-        let wrapParens x = printf "(%s)" x
-        let progCall = printf "f %s" (unwords (map wrapParens $ inputs ex))
-        result <- execStmt (unwords [progBody, progCall]) execOptions
+    let prependArg = unwords (Map.keys $ env ^. arguments)
+    let progBody = if Map.null (env ^. arguments) -- if this is a request from front end
+        then printf "let f = %s in" prog
+        else printf "let f = \\%s -> %s in" prependArg prog
+    let wrapParens x = printf "(%s)" x
+    let progCall = printf "f %s" (unwords (map wrapParens $ inputs ex))
+    askGhc $ do
+        execStmt (unwords [progBody, progCall]) execOptions
         case result of
             ExecComplete r _ -> case r of
-                                  Left e -> liftIO (print e) >> return (Left (show e)) 
-                                  Right ns -> getExecValue ns
+                                Left e -> liftIO (print e) >> return (Left (show e)) 
+                                Right ns -> getExecValue ns
             ExecBreak {} -> return (Left "error, break")
     where
         getExecValue (n:ns) = do
@@ -167,10 +187,6 @@ checkExampleOutput mdls env prog exs = do
                           Right o | o == output ex -> Just ex
                                   | otherwise -> Nothing
 
-prepareModules mdls = do
-    let imports = map (printf "import %s") mdls
-    decls <- mapM parseImportDecl imports
-    return (map IIDecl decls)
 
 checkTypes :: Environment -> Chan Message -> RSchema -> RSchema -> IO Bool
 checkTypes env checkerChan s1 s2 = do
@@ -180,3 +196,64 @@ checkTypes env checkerChan s1 s2 = do
         s2' <- freshType s2
         solveTypeConstraint env (shape s1') (shape s2')) initChecker
     return $ state ^. isChecked
+
+getGeneralizations :: SType -> [SType]
+getGeneralizations t =
+    let subtypesEach = map subtypesOf (breakdown t)
+        commonSubtypes =  map intersections $ subsequences subtypesEach
+        validCommons = filter (not . Set.null) commonSubtypes
+        namedCommons = map (flip zip ['a'..'z'] . Set.toList) validCommons
+     in map (foldr (uncurry antiSubstitute) t) namedCommons
+    where
+        intersections [] = Set.empty
+        intersections (x:xs) = foldr Set.intersection x xs
+
+reduceVars :: SType -> [SType]
+reduceVars t =
+    let freeVars = vars t
+        varSubsts = varMaps freeVars
+     in map (foldr (uncurry antiSubstitute) t) varSubsts
+    where
+        varMaps [] = [[]]
+        varMaps (v:vs) = [[l1] | l1 <- map (vart _v,) vs] ++ 
+            [l1 : l2 | l1 <- map (vart_ v,) vs, l2 <- varMap vs]
+
+antiSubstitute :: SType -> Id -> SType -> SType
+antiSubstitute pat name t | t == pat = vart_ name
+antiSubstitute pat name (ScalarT (DatatypeT dt args _) _) = 
+    ScalarT (DatatypeT dt (map (antiSubstitute pat name) args) []) ()
+antiSubstitute pat name (FunctionT x tArg tRes) = FunctionT x tArg' tRes'
+    where
+        tArg' = antiSubstitute pat name tArg
+        tRes' = antiSubstitute pat name tRes'
+antiSubstitute _ _ t = t
+
+antiUnification :: SType -> SType -> IO SType
+antiUnification t1 t2 = evalStateT (antiUnification' t1 t2) emptyAntiUnifState
+
+antiUnification' :: SType -> SType -> AntiUnifier SType
+antiUnification' AnyT t = return t
+antiUnification' t AnyT = return t
+antiUnification' t@(ScalarT (TypeVarT {}) _) (ScalarT (TypeVarT {}) _) = return t
+antiUnification' (ScalarT (TypeVarT {}) _) t = return t
+antiUnification' t (ScalarT (TypeVarT {}) _) = return t
+antiUnification' t1@(ScalarT (DatatypeT dt1 args1 _) _) t2@(ScalarT (DatatypeT dt2 args2 _) _)
+  | dt1 == dt2 = do
+      args' <- mapM (uncurry antiUnification') (zip args1 args2)
+      let dt = if dt1 == "Integer" then "Int" else dt1
+      return $ ScalarT (DatatypeT dt args' []) ()
+  | dt1 /= dt2 = do
+      tass1 <- gets $ view typeAssignment1
+      tass2 <- gets $ view typeAssignment2
+      v <- if dt1 `Map.member` tass1 && dt2 `Map.member` tass2
+              then return $ tass1 Map.! dt1
+              else do 
+                  v <- freshId "a"
+                  modify $ over typeAssignment1 (Map.insert t1 v)
+                  modify $ over typeAssignment2 (Map.insert t2 v)
+                  return v
+      return $ vart_ v
+antiUnification' (FunctionT x1 tArg1 tRes1) (FunctionT x2 tArg2 tRes2) = do
+    tArg <- antiUnification' tArg1 tArg2
+    tRes <- antiUnification' tRes1 tRes2
+    return $ FunctionT x1 tArg tRes
