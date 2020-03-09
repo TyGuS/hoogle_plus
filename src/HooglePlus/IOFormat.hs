@@ -104,12 +104,9 @@ searchTypes synquidParams inStr = do
     let exquery = inExamples input
     env <- readEnv $ envPath synquidParams
     let mdls = Set.toList $ env ^. included_modules
-    -- eitherType <- parseExamples mdls exquery
-    -- resultObj <- case eitherType of
-    -- Left rawType -> do
     exTypes <- mapM (parseExample mdls) exquery
-    let (validTypes, invalidTypes) = partitionEithers exTypes
-    resultObj <- if null invalidTypes then possibleQueries env exquery validTypes
+    let (validSchemas, invalidTypes) = partitionEithers exTypes
+    resultObj <- if null invalidTypes then possibleQueries env exquery validSchemas
                                       else return $ ListOutput [] (unlines invalidTypes)
     printResult $ encodeWithPrefix resultObj
     where
@@ -119,8 +116,10 @@ searchTypes synquidParams inStr = do
             messageChan <- newChan
             outExamples <- mapM (\t -> checkExamples env' t exquery messageChan) builtinQueryTypes
             let validPairs = filter (isLeft . fst) (zip outExamples builtinQueryTypes)
-            let resultTypes = map snd validPairs ++ exTypes
-            let resultTypes' = map toMonotype resultTypes
+            let resultTypes = map snd validPairs
+            let matchTypes = map (shape . toMonotype) resultTypes
+            generalTypes <- getExampleTypes env exTypes
+            let resultTypes' = generalTypes ++ matchTypes
             if null validPairs then return $ ListOutput [] "Cannot find type for your query"
                                else return $ ListOutput (map show resultTypes') ""
 

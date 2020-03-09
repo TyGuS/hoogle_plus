@@ -57,11 +57,11 @@ type AntiUnifier m = StateT AntiUnifState m
 
 instance Monad m => CheckMonad (AntiUnifier m) where
     getNameCounter = gets (view generalNames)
-    setNameCounter nc = modify (set generalName nc)
+    setNameCounter nc = modify (set generalNames nc)
     getNameMapping = getNameMapping
     setNameMapping = setNameMapping
     getIsChecked = getIsChecked
-    setIsChecked c = setIsChecked
+    setIsChecked = setIsChecked
     getMessageChan = gets (view unifChan)
     overStats = overStats
 

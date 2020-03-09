@@ -274,7 +274,7 @@ longScalarName (ScalarT BoolT _) = "Bool"
 longScalarName (ScalarT (TypeVarT _ name) _) = name
 longScalarName t = error $ "longScalarName error: cannot be applied to nonscalar type "
 
-subtypesOf :: TypeSkeleton r -> Set (TypeSkeleton r)
+subtypesOf :: Ord r => TypeSkeleton r -> Set (TypeSkeleton r)
 subtypesOf t@(ScalarT (TypeVarT {}) _) = Set.singleton t
 subtypesOf t@(ScalarT (DatatypeT _ tys _) _) = t `Set.insert` Set.unions (map subtypesOf tys)
 subtypesOf (FunctionT _ tArg tRes) = subtypesOf tArg `Set.union` subtypesOf tRes

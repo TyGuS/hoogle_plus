@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-} 
 {-# LANGUAGE TemplateHaskell #-} 
+{-# LANGUAGE TupleSections #-}
 
 module Examples.ExampleChecker where
 
@@ -10,6 +11,7 @@ import Types.Environment
 import Types.Experiments
 import Types.IOFormat
 import Types.TypeChecker
+import Types.Common
 import Synquid.Type
 import Synquid.Pretty
 import Synquid.Logic
@@ -27,7 +29,7 @@ import Data.Char
 import Data.Either
 import Data.Maybe
 import Data.List
-import GHC
+import GHC hiding(Id)
 import GHCi hiding(Message)
 import GHCi.RemoteTypes
 import GHC.Paths
@@ -38,6 +40,7 @@ import HsUtils
 import HsTypes
 import Outputable
 import Text.Printf
+import Debug.Trace
 
 askGhc :: [String] -> Ghc a -> IO a
 askGhc mdls f = runGhc (Just libdir) $ do
@@ -122,28 +125,24 @@ checkExamples env typ exs checkerChan = do
     if null errs then return $ Left validResults
                  else return $ Right errs
 
-getExampleTypes :: Environment -> [Example] -> IO (Either [SType] [ErrorMessage])
-getExampleTypes env exs = do
-    eitherTyps <- mapM (parseExample (Set.toList $ env ^. included_modules)) exs
-    let (validTypes, errs) = partitionEithers eitherTyps
-    case errs of
-      [] -> do
-          t <- if length validTypes > 0 then foldM antiUnification (head validTypes) (tail validTypes)
-                                        else error "get example types error"
-          generals <- getGeneralizations t
-          return $ Left $ generals ++ concatMap reduceVars generals
-      errs -> return $ Right errs
+getExampleTypes :: Environment -> [RSchema] -> IO [SType]
+getExampleTypes env validSchemas = do
+    let validTypes = map (shape . toMonotype) validSchemas
+    t <- if not (null validTypes) then foldM antiUnification (head validTypes) (tail validTypes)
+                                  else error "get example types error"
+    let generals = getGeneralizations t
+    return $ generals ++ concatMap reduceVars generals
 
 execExample :: [String] -> Environment -> String -> Example -> IO (Either ErrorMessage String)
-execExample mdls env prog ex =
+execExample mdls env prog ex = do
     let prependArg = unwords (Map.keys $ env ^. arguments)
     let progBody = if Map.null (env ^. arguments) -- if this is a request from front end
         then printf "let f = %s in" prog
         else printf "let f = \\%s -> %s in" prependArg prog
     let wrapParens x = printf "(%s)" x
     let progCall = printf "f %s" (unwords (map wrapParens $ inputs ex))
-    askGhc $ do
-        execStmt (unwords [progBody, progCall]) execOptions
+    askGhc mdls $ do
+        result <- execStmt (unwords [progBody, progCall]) execOptions
         case result of
             ExecComplete r _ -> case r of
                                 Left e -> liftIO (print e) >> return (Left (show e)) 
@@ -200,9 +199,12 @@ checkTypes env checkerChan s1 s2 = do
 getGeneralizations :: SType -> [SType]
 getGeneralizations t =
     let subtypesEach = map subtypesOf (breakdown t)
-        commonSubtypes =  map intersections $ subsequences subtypesEach
+        atLeast2 = filter ((>= 2) . length) $ subsequences subtypesEach
+        commonSubtypes =  map intersections atLeast2
         validCommons = filter (not . Set.null) commonSubtypes
-        namedCommons = map (flip zip ['a'..'z'] . Set.toList) validCommons
+        freeVars = Set.toList $ vars t
+        validNames = foldr delete seqChars freeVars
+        namedCommons = map (flip zip validNames . Set.toList) validCommons
      in map (foldr (uncurry antiSubstitute) t) namedCommons
     where
         intersections [] = Set.empty
@@ -210,13 +212,13 @@ getGeneralizations t =
 
 reduceVars :: SType -> [SType]
 reduceVars t =
-    let freeVars = vars t
+    let freeVars = Set.toList $ vars t
         varSubsts = varMaps freeVars
      in map (foldr (uncurry antiSubstitute) t) varSubsts
     where
         varMaps [] = [[]]
-        varMaps (v:vs) = [[l1] | l1 <- map (vart _v,) vs] ++ 
-            [l1 : l2 | l1 <- map (vart_ v,) vs, l2 <- varMap vs]
+        varMaps (v:vs) = [[l1] | l1 <- map (vart_ v,) vs] ++ 
+            [l1 : l2 | l1 <- map (vart_ v,) vs, l2 <- varMaps vs]
 
 antiSubstitute :: SType -> Id -> SType -> SType
 antiSubstitute pat name t | t == pat = vart_ name
@@ -225,13 +227,13 @@ antiSubstitute pat name (ScalarT (DatatypeT dt args _) _) =
 antiSubstitute pat name (FunctionT x tArg tRes) = FunctionT x tArg' tRes'
     where
         tArg' = antiSubstitute pat name tArg
-        tRes' = antiSubstitute pat name tRes'
+        tRes' = antiSubstitute pat name tRes
 antiSubstitute _ _ t = t
 
 antiUnification :: SType -> SType -> IO SType
 antiUnification t1 t2 = evalStateT (antiUnification' t1 t2) emptyAntiUnifState
 
-antiUnification' :: SType -> SType -> AntiUnifier SType
+antiUnification' :: SType -> SType -> AntiUnifier IO SType
 antiUnification' AnyT t = return t
 antiUnification' t AnyT = return t
 antiUnification' t@(ScalarT (TypeVarT {}) _) (ScalarT (TypeVarT {}) _) = return t
@@ -245,8 +247,8 @@ antiUnification' t1@(ScalarT (DatatypeT dt1 args1 _) _) t2@(ScalarT (DatatypeT d
   | dt1 /= dt2 = do
       tass1 <- gets $ view typeAssignment1
       tass2 <- gets $ view typeAssignment2
-      v <- if dt1 `Map.member` tass1 && dt2 `Map.member` tass2
-              then return $ tass1 Map.! dt1
+      v <- if t1 `Map.member` tass1 && t2 `Map.member` tass2
+              then return $ tass1 Map.! t1
               else do 
                   v <- freshId "a"
                   modify $ over typeAssignment1 (Map.insert t1 v)
@@ -257,3 +259,5 @@ antiUnification' (FunctionT x1 tArg1 tRes1) (FunctionT x2 tArg2 tRes2) = do
     tArg <- antiUnification' tArg1 tArg2
     tRes <- antiUnification' tRes1 tRes2
     return $ FunctionT x1 tArg tRes
+
+seqChars = map (:[]) ['a'..'z']
