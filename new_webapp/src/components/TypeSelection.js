@@ -2,6 +2,7 @@ import React from "react";
 import { connect } from "react-redux";
 import {Modal, Button, ButtonGroup} from "react-bootstrap";
 import { setModalClosed, selectType } from "../actions";
+import { usageToExample } from "../utilities/args";
 
 const mapStateToProps = (state) => {
     return {
@@ -24,7 +25,7 @@ const TypeSelectionBase = (props) => {
     const {isOpen, typeOptions, exampleRows} = props;
 
     const mkSelection = (typeStr) => {
-        const examples = exampleRows.map(row => row.usage);
+        const examples = exampleRows.map(row => usageToExample(row.usage));
         return selectType({
             typeOption: typeStr,
             examples,

@@ -83,6 +83,7 @@ export const updateCandidateUsage = ({typeSignature, candidateId, usageId, args,
 };
 
 // This is where a request needs to be sent to the server
+// query: str; examples: [{inputs:[str], output:str}]
 export const setSearchType = ({query, examples}) => (dispatch) => {
     const argCount = getArgCount(query);
     dispatch(setArgNum(argCount));
