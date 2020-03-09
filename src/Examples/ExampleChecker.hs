@@ -46,7 +46,7 @@ askGhc :: [String] -> Ghc a -> IO a
 askGhc mdls f = runGhc (Just libdir) $ do
     dflags <- getSessionDynFlags
     setSessionDynFlags dflags
-    prepareModules mdls >>= setContext
+    prepareModules ("Prelude":mdls) >>= setContext
     result <- f
     return result
     where
@@ -62,7 +62,8 @@ parseExample mdls ex = catch (do
     return (Left $ resolveType hsType))
     (\(e :: SomeException) -> return (Right $ show e))
     where
-        mkFun = printf "\\f -> f %s == %s" (unwords $ inputs ex) (output ex)
+        mkFun = printf "\\f -> f %s == %s" (unwords $ map wrapParens $ inputs ex) (output ex)
+        wrapParens = printf "(%s)"
 
 resolveType :: LHsType GhcPs -> RSchema
 resolveType (L _ (HsForAllTy bs t)) = foldr ForallT (resolveType t) vs
@@ -130,8 +131,18 @@ getExampleTypes env validSchemas = do
     let validTypes = map (shape . toMonotype) validSchemas
     t <- if not (null validTypes) then foldM antiUnification (head validTypes) (tail validTypes)
                                   else error "get example types error"
-    let generals = getGeneralizations t
-    return $ generals ++ concatMap reduceVars generals
+    let t' = integerToInt t
+    let generals = getGeneralizations t'
+    -- print generals
+    -- print $ concatMap reduceVars generals
+    return $ t' : generals ++ concatMap reduceVars generals
+    where
+        integerToInt (ScalarT (DatatypeT dt args _) _) 
+          | dt == "Integer" = ScalarT (DatatypeT "Int" (map integerToInt args) []) ()
+          | otherwise = ScalarT (DatatypeT dt (map integerToInt args) []) ()
+        integerToInt (FunctionT x tArg tRes) =
+            FunctionT x (integerToInt tArg) (integerToInt tRes)
+        integerToInt t = t
 
 execExample :: [String] -> Environment -> String -> Example -> IO (Either ErrorMessage String)
 execExample mdls env prog ex = do
@@ -139,7 +150,7 @@ execExample mdls env prog ex = do
     let progBody = if Map.null (env ^. arguments) -- if this is a request from front end
         then printf "let f = %s in" prog
         else printf "let f = \\%s -> %s in" prependArg prog
-    let wrapParens x = printf "(%s)" x
+    let wrapParens = printf "(%s)"
     let progCall = printf "f %s" (unwords (map wrapParens $ inputs ex))
     askGhc mdls $ do
         result <- execStmt (unwords [progBody, progCall]) execOptions
@@ -204,7 +215,8 @@ getGeneralizations t =
         validCommons = filter (not . Set.null) commonSubtypes
         freeVars = Set.toList $ vars t
         validNames = foldr delete seqChars freeVars
-        namedCommons = map (flip zip validNames . Set.toList) validCommons
+        combineCommons = map Set.unions $ tail $ subsequences validCommons
+        namedCommons = map (flip zip validNames . Set.toList) combineCommons
      in map (foldr (uncurry antiSubstitute) t) namedCommons
     where
         intersections [] = Set.empty
@@ -242,19 +254,19 @@ antiUnification' t (ScalarT (TypeVarT {}) _) = return t
 antiUnification' t1@(ScalarT (DatatypeT dt1 args1 _) _) t2@(ScalarT (DatatypeT dt2 args2 _) _)
   | dt1 == dt2 = do
       args' <- mapM (uncurry antiUnification') (zip args1 args2)
-      let dt = if dt1 == "Integer" then "Int" else dt1
-      return $ ScalarT (DatatypeT dt args' []) ()
+      return $ ScalarT (DatatypeT dt1 args' []) ()
   | dt1 /= dt2 = do
       tass1 <- gets $ view typeAssignment1
       tass2 <- gets $ view typeAssignment2
-      v <- if t1 `Map.member` tass1 && t2 `Map.member` tass2
-              then return $ tass1 Map.! t1
-              else do 
-                  v <- freshId "a"
-                  modify $ over typeAssignment1 (Map.insert t1 v)
-                  modify $ over typeAssignment2 (Map.insert t2 v)
-                  return v
-      return $ vart_ v
+      let overlap = (tass1 Map.! t1) `intersect` (tass2 Map.! t2)
+      if t1 `Map.member` tass1 && t2 `Map.member` tass2 && not (null overlap)
+         then if length overlap > 1 then error "antiUnficiation fails"
+                                    else return $ vart_ (head overlap)
+         else do 
+             v <- freshId "a"
+             modify $ over typeAssignment1 (Map.insertWith (++) t1 [v])
+             modify $ over typeAssignment2 (Map.insertWith (++) t2 [v])
+             return $ vart_ v
 antiUnification' (FunctionT x1 tArg1 tRes1) (FunctionT x2 tArg2 tRes2) = do
     tArg <- antiUnification' tArg1 tArg2
     tRes <- antiUnification' tRes1 tRes2

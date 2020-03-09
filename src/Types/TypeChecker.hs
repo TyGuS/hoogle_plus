@@ -46,8 +46,8 @@ instance Monad m => CheckMonad (Checker m) where
 
 data AntiUnifState = AntiUnifState {
     _generalNames :: Map Id Int,
-    _typeAssignment1 :: Map SType Id,
-    _typeAssignment2 :: Map SType Id,
+    _typeAssignment1 :: Map SType [Id],
+    _typeAssignment2 :: Map SType [Id],
     _unifChan :: Chan Message
 } deriving(Eq)
 

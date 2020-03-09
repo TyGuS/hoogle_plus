@@ -289,3 +289,35 @@ vars :: TypeSkeleton r -> Set Id
 vars (ScalarT (TypeVarT _ v) _) = Set.singleton v
 vars (ScalarT (DatatypeT _ args _) _) = Set.unions $ map vars args
 vars (FunctionT _ tArg tRes) = vars tArg `Set.union` vars tRes
+
+argsWithName :: TypeSkeleton r -> [(Id, TypeSkeleton r)]
+argsWithName (FunctionT x tArg tRes) = (x, tArg) : argsWithName tRes
+argsWithName _ = []
+
+eqType :: TypeSkeleton r -> TypeSkeleton r -> Bool
+eqType t1 t2 = let (r, _, _) = eqType' [] [] t1 t2 in r
+
+type Matches = [(Id, Id)]
+
+eqType' :: Matches -> Matches -> TypeSkeleton r -> TypeSkeleton r -> (Bool, Matches, Matches)
+eqType' m1 m2 (ScalarT (TypeVarT _ v1) _) (ScalarT (TypeVarT _ v2) _) =
+    case lookup v1 m1 of
+      Nothing -> case lookup v2 m2 of
+                   Nothing -> (True, (v1, v2):m1, (v2, v1):m2)
+                   Just v1' | v1 == v1' -> (True, m1, m2)
+                            | otherwise -> (False, m1, m2)
+      Just v | v == v2 -> (True, m1, m2)
+             | otherwise -> (False, m1, m2)
+eqType' m1 m2 (ScalarT (DatatypeT dt1 args1 _) _) (ScalarT (DatatypeT dt2 args2 _) _)
+  | dt1 /= dt2 = (False, m1, m2)
+  | dt1 == dt2 = cmpArgs m1 m2 args1 args2
+    where
+        cmpArgs m1 m2 [] [] = (True, m1, m2)
+        cmpArgs m1 m2 (x:xs) (y:ys) = let (b, m1', m2') = eqType' m1 m2 x y
+                                       in if b then cmpArgs m1' m2' xs ys
+                                           else (False, m1', m2')
+eqType' m1 m2 (FunctionT _ tArg1 tRes1) (FunctionT _ tArg2 tRes2) =
+    let (b, m1', m2') = eqType' m1 m2 tArg1 tArg2
+     in if b then eqType' m1' m2' tRes1 tRes2
+             else (False, m1', m2')
+eqType' m1 m2 _ _ = (False, m1, m2)
