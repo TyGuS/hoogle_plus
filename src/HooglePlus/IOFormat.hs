@@ -116,7 +116,7 @@ searchTypes synquidParams inStr = do
                                     in map (Monotype . foldr (uncurry FunctionT) ret) (permutations args)
 
         renameVars t = 
-            let freeVars = Set.toList $ vars t
+            let freeVars = Set.toList $ typeVarsOf t
                 validVars = foldr delete seqChars freeVars
                 substVars = foldr delete freeVars seqChars
                 substMap = Map.fromList $ zip substVars $ map vart_ validVars

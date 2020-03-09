@@ -285,11 +285,6 @@ breakdown t@(ScalarT {}) = [t]
 breakdown (FunctionT _ tArg tRes) = tArg : breakdown tRes
 breakdown t = error "breakdown error: should not reach this case" 
 
-vars :: TypeSkeleton r -> Set Id
-vars (ScalarT (TypeVarT _ v) _) = Set.singleton v
-vars (ScalarT (DatatypeT _ args _) _) = Set.unions $ map vars args
-vars (FunctionT _ tArg tRes) = vars tArg `Set.union` vars tRes
-
 argsWithName :: TypeSkeleton r -> [(Id, TypeSkeleton r)]
 argsWithName (FunctionT x tArg tRes) = (x, tArg) : argsWithName tRes
 argsWithName _ = []

@@ -177,4 +177,3 @@ removeLast c1 = snd . remLast
       case remLast cs of
         (True, cs') -> (True, c2:cs')
         (False, cs') -> if c1 == c2 then (True, []) else (False, c2:cs')
-

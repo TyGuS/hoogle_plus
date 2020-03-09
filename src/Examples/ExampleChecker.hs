@@ -213,7 +213,7 @@ getGeneralizations t =
         atLeast2 = filter ((>= 2) . length) $ subsequences subtypesEach
         commonSubtypes =  map intersections atLeast2
         validCommons = filter (not . Set.null) commonSubtypes
-        freeVars = Set.toList $ vars t
+        freeVars = Set.toList $ typeVarsOf t
         validNames = foldr delete seqChars freeVars
         combineCommons = map Set.unions $ tail $ subsequences validCommons
         namedCommons = map (flip zip validNames . Set.toList) combineCommons
@@ -224,7 +224,7 @@ getGeneralizations t =
 
 reduceVars :: SType -> [SType]
 reduceVars t =
-    let freeVars = Set.toList $ vars t
+    let freeVars = Set.toList $ typeVarsOf t
         varSubsts = varMaps freeVars
      in map (foldr (uncurry antiSubstitute) t) varSubsts
     where

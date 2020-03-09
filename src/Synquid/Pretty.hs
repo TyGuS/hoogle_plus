@@ -343,7 +343,14 @@ prettyProgram (Program p typ) = case p of
                   "Cons" -> "(:)"
                   "Pair" -> "(,)"
                   _      -> f
-      prefix = hang tab $ text funName <+> hsep (map optParens x)
+      mbPair f = case f of
+                   "(,)" -> hlParens
+                   _ -> id
+      prefix = if '(' == head funName -- infix operators
+                  then let funName' = drop 1 funName
+                           lastPart = reverse $ takeWhile ((/=) '.') $ tail $ reverse funName'
+                        in hang tab $ mbPair funName $ optParens (head x) <+> text lastPart <+> optParens (x !! 1)
+                  else hang tab $ text funName <+> hsep (map optParens x)
       in if f `elem` Map.elems unOpTokens
             then hang tab $ operator f <+> hsep (map optParens x)
             else prefix
