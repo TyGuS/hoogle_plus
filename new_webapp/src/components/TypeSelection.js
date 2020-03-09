@@ -38,26 +38,27 @@ const TypeSelectionBase = (props) => {
           <Modal.Title>Which type looks right to you?</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-            <div>
-                To help us give you the best results,
-                help us narrow down the type signature.
-                Please select one of the following:
+        <div className="container">
+            <div className="row">
+            To help us give you the best results,
+            help us narrow down the type signature.
+            Please select one of the following:
             </div>
             <br/>
-            <div className="container">
-            <ButtonGroup vertical className="justify-content-center">
+            <div className="row justify-content-center">
+            <div className="col-8">
                 {typeOptions.map((typeStr, idx) => {
-                    return (<div className="row" key={idx}>
+                    return (<div className="row pb-2" key={idx}>
                         <Button
-                            className="col-5"
                             onClick={() => mkSelection(typeStr)}>
                                 {idx + 1}
                         </Button>
-                        <span className="col-7">{typeStr}</span>
+                        <div className="col-8"><code>{typeStr}</code></div>
                     </div>);
                 })}
-            </ButtonGroup>
             </div>
+            </div>
+        </div>
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={onClose}>

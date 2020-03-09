@@ -33,6 +33,13 @@ export const usageToNamedArgs = (facts) => {
   return rows;
 };
 
+export const usageToExample = (usage) => {
+  const lastIndex = usage.length - 1;
+  const inputs = usage.slice(0, lastIndex);
+  const output = usage[lastIndex];
+  return {inputs,output};
+};
+
 export const usageToId = (usage) => {
   const args = usage.slice(0, usage.length - 1);
   return args.reduce((prev, curr) => prev + "-" + curr);
