@@ -2,6 +2,7 @@ import _ from "underscore";
 import {v4} from "uuid";
 import { inputsToId } from "../utilities/args";
 import {baseRoute} from "../constants/strings";
+import { DONE } from "../constants/fetch-states";
 
 const getTypeCandidates = ({id, examples}, cb) => {
     const ROUTE = baseRoute + "search/example";
@@ -31,7 +32,7 @@ const getCodeCandidates = ({query, examples}, cb) => {
         const newResults = {
                 candidateId: v4(),
                 code: candidate,
-                examplesLoading: false,
+                examplesStatus: DONE,
                 examples: examples.map(({inputs, output}) => {
                     return {
                         id: inputsToId(inputs),

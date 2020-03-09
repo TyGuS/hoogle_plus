@@ -83,6 +83,7 @@ export const updateCandidateUsage = ({typeSignature, candidateId, usageId, args,
 };
 
 // This is where a request needs to be sent to the server
+// query: str; examples: [{inputs:[str], output:str}]
 export const setSearchType = ({query, examples}) => (dispatch) => {
     const argCount = getArgCount(query);
     dispatch(setArgNum(argCount));
@@ -98,7 +99,8 @@ export const setSearchType = ({query, examples}) => (dispatch) => {
 
 // A user gave us some examples. We need to get some possible query options
 // and present them.
-export const getTypesFromExamples = ({examples}) => (dispatch) => {
+// [{inputs:[str], output:str}]
+export const getTypesFromExamples = (examples) => (dispatch) => {
     return Search.getTypeCandidates({examples})
         .then(value => {
             if (value["typeCandidates"]) {

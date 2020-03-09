@@ -6,6 +6,7 @@ import ExampleTable from "./ExampleTable";
 import { TypeSelection } from "./TypeSelection";
 import { Button, InputGroup, FormControl, Form } from "react-bootstrap";
 import { getDefaultFeatures } from "../utilities/featureManager";
+import { usageToExample } from "../utilities/args";
 
 const mapDispatchToProps = (dispatch) => {
     return {
@@ -35,7 +36,7 @@ class ConnectedSearchBar extends Component {
 
     handleSubmit(event) {
         event.preventDefault();
-        const usages = this.props.exampleRows.map(({usage}) => usage);
+        const usages = this.props.exampleRows.map(({usage}) => usageToExample(usage));
         if (this.isMissingType()){
             this.props.getTypesFromExamples(usages);
             return;
