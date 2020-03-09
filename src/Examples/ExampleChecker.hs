@@ -17,6 +17,7 @@ import Synquid.Pretty
 import Synquid.Logic
 import HooglePlus.TypeChecker
 import PetriNet.Util
+import Synquid.Util (permuteBy)
 
 import Bag
 import Control.Exception
@@ -177,10 +178,21 @@ execExample mdls env prog ex = do
 augmentTestSet :: Environment -> RSchema -> IO [Example]
 augmentTestSet env goal = do
     let candidates = env ^. queryCandidates
+    let permutedCands = concatMap permuteMap (Map.toList candidates)
+    let permutedMap = Map.fromList permutedCands
     msgChan <- newChan
-    matchCands <- filterM (\s -> checkTypes env msgChan s goal) (Map.keys candidates)
-    let usefulExs = concatMap (\s -> candidates Map.! s) matchCands
+    matchCands <- filterM (\s -> checkTypes env msgChan s goal) (Map.keys permutedMap)
+    let usefulExs = concatMap (\s -> permutedMap Map.! s) matchCands
     return $ nubBy (\x y -> inputs x == inputs y) usefulExs
+    where
+        permuteExamples ords (Example ins out) = Example (permuteBy ords ins) out
+        permuteMap (q, exs) = let argLen = length (argsWithName $ toMonotype q)
+                                  orderPermutes = permutations [1..argLen]
+                                  -- TODO: maybe we need to monomorphize the
+                                  -- types here
+                                  typesList = map (flip permuteArgs q) orderPermutes
+                                  examplesList = map (\o -> map (permuteExamples o) exs) orderPermutes
+                               in zip typesList examplesList
 
 checkExampleOutput :: [String] -> Environment -> String -> [Example] -> IO (Maybe [Example])
 checkExampleOutput mdls env prog exs = do

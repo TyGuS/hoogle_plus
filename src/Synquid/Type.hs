@@ -316,3 +316,9 @@ eqType' m1 m2 (FunctionT _ tArg1 tRes1) (FunctionT _ tArg2 tRes2) =
      in if b then eqType' m1' m2' tRes1 tRes2
              else (False, m1', m2')
 eqType' m1 m2 _ _ = (False, m1, m2)
+
+permuteArgs :: [Int] -> RSchema -> RSchema
+permuteArgs ords (ForallT x t) = ForallT x (permuteArgs ords t)
+permuteArgs ords (Monotype t) = let args = argsWithName t
+                                    ret = lastType t
+                                 in Monotype $ foldr (uncurry FunctionT) ret (permuteBy ords args)

@@ -110,11 +110,6 @@ searchTypes synquidParams inStr = do
                                       else return $ ListOutput [] (unlines invalidTypes)
     printResult $ encodeWithPrefix resultObj
     where
-        permuteArgs (ForallT x t) = map (ForallT x) (permuteArgs t)
-        permuteArgs (Monotype t) = let args = argsWithName t
-                                       ret = lastType t
-                                    in map (Monotype . foldr (uncurry FunctionT) ret) (permutations args)
-
         renameVars t = 
             let freeVars = Set.toList $ typeVarsOf t
                 validVars = foldr delete seqChars freeVars
@@ -125,7 +120,9 @@ searchTypes synquidParams inStr = do
         possibleQueries env exquery exTypes = do
             env' <- readBuiltinData synquidParams env
             let builtinQueryTypes = Map.keys (env' ^. queryCandidates)
-            let permutedQueryTypes = concatMap permuteArgs builtinQueryTypes
+            let argLen t = length (argsWithName $ toMonotype t)
+            let permute t = map (\o -> permuteArgs o t) (permutations [1..argLen t])
+            let permutedQueryTypes = concatMap permute builtinQueryTypes
             messageChan <- newChan
             outExamples <- mapM (\t -> checkExamples env' t exquery messageChan) permutedQueryTypes
             let validPairs = filter (isLeft . fst) (zip outExamples permutedQueryTypes)
