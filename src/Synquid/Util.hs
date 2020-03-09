@@ -234,3 +234,6 @@ unPartitionMap :: (Ord k, Ord v) => Map k [v] -> Map v k
 unPartitionMap mp = foldr update Map.empty (Map.toList mp)
   where
     update (k, vs) m = foldr (`Map.insert` k) m vs
+
+permuteBy :: [Int] -> [a] -> [a]
+permuteBy ord xs = map snd $ sortOn fst $ zip ord xs

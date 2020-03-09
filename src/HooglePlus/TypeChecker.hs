@@ -152,5 +152,8 @@ unify env v t =
         writeLog 3 "unify" $ text (show tass')
         modify $ over typeAssignment (Map.map (stypeSubstitute (Map.singleton v t)))
         tass <- gets (view typeAssignment)
-        modify $ over typeAssignment (Map.insert v (stypeSubstitute tass t))
+        if isValidSubst tass then modify $ over typeAssignment (Map.insert v (stypeSubstitute tass t))
+                             else modify $ set isChecked False
 
+isValidSubst :: Map Id SType -> Bool
+isValidSubst m = not $ any (\(v, t) -> v `Set.member` typeVarsOf t) (Map.toList m)

@@ -18,6 +18,7 @@ import Types.Environment
 import Types.Type
 import Synquid.Parser (parseType, parseProgram)
 import Synquid.Resolver (ResolverState(..), initResolverState, resolveSchema)
+import Synquid.Type
 import Examples.ExampleChecker
 
 import Control.Concurrent.Chan
@@ -103,24 +104,35 @@ searchTypes synquidParams inStr = do
     let exquery = inExamples input
     env <- readEnv $ envPath synquidParams
     let mdls = Set.toList $ env ^. included_modules
-    -- eitherType <- parseExamples mdls exquery
-    -- resultObj <- case eitherType of
-    -- Left rawType -> do
     exTypes <- mapM (parseExample mdls) exquery
-    let (validTypes, invalidTypes) = partitionEithers exTypes
-    resultObj <- if null invalidTypes then possibleQueries env exquery validTypes
+    let (validSchemas, invalidTypes) = partitionEithers exTypes
+    resultObj <- if null invalidTypes then possibleQueries env exquery validSchemas
                                       else return $ ListOutput [] (unlines invalidTypes)
     printResult $ encodeWithPrefix resultObj
     where
+        renameVars t = 
+            let freeVars = Set.toList $ typeVarsOf t
+                validVars = foldr delete seqChars freeVars
+                substVars = foldr delete freeVars seqChars
+                substMap = Map.fromList $ zip substVars $ map vart_ validVars
+             in stypeSubstitute substMap t
+
         possibleQueries env exquery exTypes = do
             env' <- readBuiltinData synquidParams env
             let builtinQueryTypes = Map.keys (env' ^. queryCandidates)
+            let argLen t = length (argsWithName $ toMonotype t)
+            let permute t = map (\o -> permuteArgs o t) (permutations [1..argLen t])
+            let permutedQueryTypes = concatMap permute builtinQueryTypes
             messageChan <- newChan
-            outExamples <- mapM (\t -> checkExamples env' t exquery messageChan) builtinQueryTypes
-            let validPairs = filter (isLeft . fst) (zip outExamples builtinQueryTypes)
-            let resultTypes = map snd validPairs ++ exTypes
-            if null validPairs then return $ ListOutput [] "Cannot find type for your query"
-                               else return $ ListOutput (map show resultTypes) ""
+            outExamples <- mapM (\t -> checkExamples env' t exquery messageChan) permutedQueryTypes
+            let validPairs = filter (isLeft . fst) (zip outExamples permutedQueryTypes)
+            let resultTypes = map snd validPairs
+            let matchTypes = map (shape . toMonotype) resultTypes
+            generalTypes <- getExampleTypes env exTypes
+            let resultTypes' = nubBy eqType $ generalTypes ++ matchTypes
+            let renamedResults = map renameVars resultTypes'
+            if null resultTypes' then return $ ListOutput [] "Cannot find type for your query"
+                                 else return $ ListOutput (map show renamedResults) ""
 
 prepareEnvFromInput :: SynquidParams -> String -> IO (TypeQuery, [String], String, Environment)
 prepareEnvFromInput synquidParams inStr = do
