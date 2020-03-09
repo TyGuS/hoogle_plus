@@ -18,6 +18,7 @@ import Synquid.Logic
 import HooglePlus.TypeChecker
 import PetriNet.Util
 import Synquid.Util (permuteBy)
+import Database.Convert (addTrue)
 
 import Bag
 import Control.Exception
@@ -25,6 +26,7 @@ import Control.Monad.State
 import Control.Lens
 import Control.Concurrent.Chan
 import qualified Data.Map as Map
+import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Char
 import Data.Either
@@ -133,11 +135,18 @@ getExampleTypes env validSchemas = do
     t <- if not (null validTypes) then foldM antiUnification (head validTypes) (tail validTypes)
                                   else error "get example types error"
     let t' = integerToInt t
+    -- print t'
+    let tvars = typeVarsOf t'
     let generals = getGeneralizations t'
     -- print generals
     -- print $ concatMap reduceVars generals
-    return $ t' : generals ++ concatMap reduceVars generals
+    let reducedTypes = concatMap (reduceVars tvars) generals
+    msgChan <- newChan
+    checkedReduce <- filterM (\s -> checkTypes env msgChan (forall s) (forall t)) reducedTypes
+    return $ t' : generals ++ checkedReduce
     where
+        forall t = let vars = typeVarsOf t
+                    in foldr ForallT (Monotype $ addTrue t) vars
         integerToInt (ScalarT (DatatypeT dt args _) _) 
           | dt == "Integer" = ScalarT (DatatypeT "Int" (map integerToInt args) []) ()
           | otherwise = ScalarT (DatatypeT dt (map integerToInt args) []) ()
@@ -227,19 +236,21 @@ getGeneralizations t =
         validCommons = filter (not . Set.null) commonSubtypes
         freeVars = Set.toList $ typeVarsOf t
         validNames = foldr delete seqChars freeVars
-        combineCommons = map Set.unions $ tail $ subsequences validCommons
-        namedCommons = map (flip zip validNames . Set.toList) combineCommons
+        combineCommons = nub $ map Set.unions $ tail $ subsequences validCommons
+        permutedCommons = concatMap (tail . subsequences . Set.toList) combineCommons
+        namedCommons = map (flip zip validNames) (nub permutedCommons)
      in map (foldr (uncurry antiSubstitute) t) namedCommons
     where
         intersections [] = Set.empty
         intersections (x:xs) = foldr Set.intersection x xs
 
-reduceVars :: SType -> [SType]
-reduceVars t =
-    let freeVars = Set.toList $ typeVarsOf t
+reduceVars :: Set Id -> SType -> [SType]
+reduceVars vs t =
+    let freeVars = Set.toList (typeVarsOf t)
         varSubsts = varMaps freeVars
      in map (foldr (uncurry antiSubstitute) t) varSubsts
     where
+        listv = Set.toList vs
         varMaps [] = [[]]
         varMaps (v:vs) = [[l1] | l1 <- map (vart_ v,) vs] ++ 
             [l1 : l2 | l1 <- map (vart_ v,) vs, l2 <- varMaps vs]
