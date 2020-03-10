@@ -3,6 +3,7 @@ import _ from "underscore";
 import { Search, ghciUsage, hooglePlusExampleSearch, hooglePlusMoreExamples } from "../gateways";
 import { namedArgsToUsage, getArgCount } from "../utilities/args";
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
+import { log } from "../utilities/logger";
 
 function makeActionCreator(type, ...argNames) {
     return function (...args) {
@@ -10,6 +11,7 @@ function makeActionCreator(type, ...argNames) {
         argNames.forEach((arg, index) => {
             action[argNames[index]] = args[index]
         })
+		log.info(type,action)
         return action
     }
 }

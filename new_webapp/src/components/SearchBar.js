@@ -7,7 +7,6 @@ import { TypeSelection } from "./TypeSelection";
 import { Button, InputGroup, FormControl, Form } from "react-bootstrap";
 import { getDefaultFeatures } from "../utilities/featureManager";
 import { usageToExample } from "../utilities/args";
-import { log } from "../utilities/logger";
 
 const mapDispatchToProps = (dispatch) => {
     return {
@@ -38,7 +37,6 @@ class ConnectedSearchBar extends Component {
     handleSubmit(event) {
         event.preventDefault();
         const usages = this.props.exampleRows.map(({usage}) => usageToExample(usage));
-		log.info("Search",this.state.value,usages);
         if (this.isMissingType()){
             this.props.getTypesFromExamples(usages);
             return;
