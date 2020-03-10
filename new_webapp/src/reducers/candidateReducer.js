@@ -11,6 +11,7 @@ export const initialCandidateState = {
         //     candidateId: "cand1",
         //     code: "\\arg0 arg1 -> replicate arg0 arg1",
         //     examplesStatus: DONE,
+        //     errorMessage: null || str
         //     examples: [
         //         {
         //             id: usageToId(["x", "2", "xx"]),
@@ -99,6 +100,7 @@ export function candidateReducer(state = initialCandidateState, action){
                             return {
                                 ...result,
                                 examplesStatus: ERROR,
+                                errorMessage: action.payload.message,
                             }
                         }
                         return result;

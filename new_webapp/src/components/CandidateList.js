@@ -7,6 +7,7 @@ import UsageTable from "./UsageTable";
 import { getMoreExamples } from "../actions";
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 import { getDefaultFeatures } from "../utilities/featureManager";
+import { usageToExample } from "../utilities/args";
 
 const mapStateToProps = state => {
     return {
@@ -28,7 +29,7 @@ const ConnectedCandidateList = (props) => {
     return (
         <div>
             {candidates.map((result, idx) => {
-                const {code, examplesStatus, candidateId} = result;
+                const {code, examplesStatus, candidateId, errorMessage} = result;
                 const examples = result.examples || [];
                 const header = (
                     <Card.Header>
@@ -36,11 +37,14 @@ const ConnectedCandidateList = (props) => {
                         <span>Candidate: <code>{code}</code></span>
                     </Card.Header>
                 );
-                const usages = examples.map(ex => ex.usage);
+                const usages = examples.map(ex => usageToExample(ex.usage));
                 const handleClick = () => getMoreExamples({candidateId, code, usages});
                 const isOpen = examples.length > 0;
                 const isLoading = examplesStatus === LOADING;
                 const buttonVariant = examplesStatus === ERROR ? "outline-danger" : "outline-primary"
+                const message = examplesStatus === LOADING ? "Loading..." :
+                    examplesStatus === DONE ? "More Examples" :
+                    errorMessage;
                 return (
                     <Card key={idx}>
                         <Collapsible
@@ -59,10 +63,7 @@ const ConnectedCandidateList = (props) => {
                                         size="sm"
                                         disabled={isLoading}
                                         onClick={isLoading ? null : handleClick}>
-                                        {examplesStatus === LOADING ? "Loading..." :
-                                         examplesStatus === DONE ? "More Examples" :
-                                         "Error"
-                                        }
+                                        {message}
                                     </Button>) : (<></>)}
                                 </Card.Body>
                         </Collapsible>
