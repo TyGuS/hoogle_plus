@@ -7,6 +7,7 @@ import enum
 import re
 import time
 import logging
+import json
 from flask_cors import CORS, cross_origin
 
 HPLUS_CMD = 'stack exec -- hplus'.split()
@@ -14,7 +15,15 @@ OPTIONS = []
 TIMEOUT_CMD = 'timeout'
 TIMEOUT = '60'
 
+script_dir = os.path.dirname(os.path.realpath(__file__))
 
+TASK_MAP = {
+    "Bool -> a -> Maybe a": script_dir + "/../examples/json/training.json",
+    "[[[a]]] -> [a]": script_dir + "/../examples/json/task1.json",
+    "[Maybe a] -> a -> a": script_dir + "/../examples/json/task2.json",
+    "(a -> Maybe b) -> [a] -> Maybe b": script_dir + "/../examples/json/task3.json",
+    "[Maybe Bool] -> Bool": script_dir + "/../examples/json/task4.json"
+}
 
 class QueryType(enum.Enum):
     search_programs = 'SearchPrograms'
@@ -103,19 +112,29 @@ def create_app(test_config=None):
     @app.route('/search/type', methods=['GET', 'POST'])
     def search_type():
         obj = json.loads(request.data)
-        query = {
-                 'query': obj['typeSignature'],
-                 'inExamples': obj['facts']
-                }
-        qid = uuid.uuid1()
-        proc = run_hplus([f'--json={json.dumps(query)}',
-                          f'--search-type={QueryType.search_programs.value}',
-                          '--cnt=10'])
-        session[str(qid)] = proc.pid
-        print(session)
-        def generate():
-            return get_results(proc, QueryType.search_programs, qid)
-        return Response(generate(), mimetype='application/json')
+        print(obj)
+        sig = obj['typeSignature']
+        if sig in TASK_MAP:
+            task_file_name = TASK_MAP[sig]
+            print(task_file_name)
+            with open(task_file_name) as task_file:
+                json_response = json.load(task_file)
+                def generate():
+                    for single_resp in json_response:
+                        yield json.dumps(single_resp) + "\n"
+                return Response(generate(), mimetype="application/json")
+
+
+        return 401
+        # qid = uuid.uuid1()
+        # proc = run_hplus([f'--json={json.dumps(query)}',
+        #                   f'--search-type={QueryType.search_programs.value}',
+        #                   '--cnt=10'])
+        # session[str(qid)] = proc.pid
+        # print(session)
+        # def generate():
+        #     return get_results(proc, QueryType.search_programs, qid)
+        # return Response(generate(), mimetype='application/json')
 
     @app.route('/search/example', methods=['GET', 'POST'])
     def search_example():
