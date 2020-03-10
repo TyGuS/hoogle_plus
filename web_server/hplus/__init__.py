@@ -123,18 +123,7 @@ def create_app(test_config=None):
                     for single_resp in json_response:
                         yield json.dumps(single_resp) + "\n"
                 return Response(generate(), mimetype="application/json")
-
-
         return 401
-        # qid = uuid.uuid1()
-        # proc = run_hplus([f'--json={json.dumps(query)}',
-        #                   f'--search-type={QueryType.search_programs.value}',
-        #                   '--cnt=10'])
-        # session[str(qid)] = proc.pid
-        # print(session)
-        # def generate():
-        #     return get_results(proc, QueryType.search_programs, qid)
-        # return Response(generate(), mimetype='application/json')
 
     @app.route('/search/example', methods=['GET', 'POST'])
     def search_example():

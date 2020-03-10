@@ -44,7 +44,7 @@ const ConnectedCandidateList = (props) => {
                 );
                 const usages = examples.map(ex => usageToExample(ex.usage));
                 const handleClick = () => getMoreExamples({candidateId, code, usages});
-                const isOpen = examples.length > 0;
+                const isOpen = examples.length > 0 && resultsFeatures.permitExamples;
                 const isLoading = examplesStatus === LOADING;
                 const buttonVariant = examplesStatus === ERROR ? "outline-danger" : "outline-primary"
                 const message = examplesStatus === LOADING ? "Loading..." :
@@ -54,14 +54,16 @@ const ConnectedCandidateList = (props) => {
                     <Card key={idx}>
                         <Collapsible
                             open={isOpen}
+                            triggerDisabled={!resultsFeatures.permitExamples}
                             trigger={header}>
                                 <Card.Body>
-                                    <UsageTable
+                                    {resultsFeatures.permitExamples ?
+                                    (<UsageTable
                                         candidateId={candidateId}
                                         code={code}
                                         rows={examples}
                                         numColumns={numArgs + 1}
-                                    />
+                                    />) : (<></>)}
                                     {resultsFeatures.enableGetMoreExamples ? (
                                     <Button
                                         variant={buttonVariant}
