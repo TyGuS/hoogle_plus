@@ -1,6 +1,7 @@
 import React from "react";
 import { Table } from '@devexpress/dx-react-grid-bootstrap4';
 import { BounceLoader } from "react-spinners";
+import Highlight from "react-highlight.js";
 
 
 export const SpinnableCell = ({ row, ...restProps }) => {
@@ -20,6 +21,6 @@ export const SpinnableCell = ({ row, ...restProps }) => {
     }
   }
   return (<Table.Cell row={row} align="left" {...notValueRest}>
-    <code>{value}</code>
+    <Highlight language="haskell">{value}</Highlight>
     </Table.Cell>);
 };
