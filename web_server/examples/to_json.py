@@ -14,6 +14,8 @@ for csv_fname in listdir(csv_dir):
         inputs = [[i] for i in reader.__next__()[1:]]
         if name == "task3":
             inputs = [['\_ -> Nothing', '[]'], ['Just', '[]'], ['Just', '[1,2]']]
+        elif name == "training":
+            inputs = [['False', '0'], ['True', '1'], ['True', '7']]
         out = [
             {
                 "candidate": row[0],

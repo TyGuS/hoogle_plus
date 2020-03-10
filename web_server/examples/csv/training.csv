@@ -1,0 +1,5 @@
+Training	(False, 0)	(True, 1)	(True, 7)
+\arg0 arg1 -> Data.Bool.bool (Data.Maybe.Just arg1) Data.Maybe.Nothing arg0	Just 0	Nothing	Nothing
+\arg0 arg1 -> Data.Bool.bool Data.Maybe.Nothing (Data.Maybe.Just arg1) arg0	Nothing	Just 1	Just 7
+\arg0 arg1 -> Data.Bool.bool (Data.Maybe.Just arg1) (Data.Maybe.Just arg1) arg0	Just 0	Just 1	Just 7
+\arg0 arg1 -> Data.Maybe.Just (Data.Bool.bool arg1 arg1 arg0)	Just 0	Just 1	Just 7
