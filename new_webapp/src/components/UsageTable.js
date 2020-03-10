@@ -98,7 +98,7 @@ const UsageTableBase = ({
           <EditingState
             onCommitChanges={commitChanges}
             addedRows={[]}
-            columnExtensions={[{columnName: "result", editingEnabled:false}]}
+            columnExtensions={[{columnName: "ressult", editingEnabled:false}]}
           />
           <Table cellComponent={SpinnableCell}/>
           <TableHeaderRow
