@@ -1,8 +1,9 @@
 import React from "react";
-import { Button, Card } from "react-bootstrap";
+import { Button, Card, Badge } from "react-bootstrap";
 import Collapsible from "react-collapsible";
 import { connect } from "react-redux";
 import { BounceLoader } from "react-spinners";
+import Highlight from "react-highlight.js";
 import UsageTable from "./UsageTable";
 import { getMoreExamples } from "../actions";
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
@@ -33,8 +34,12 @@ const ConnectedCandidateList = (props) => {
                 const examples = result.examples || [];
                 const header = (
                     <Card.Header>
-                        {idx + 1}:
-                        <span>Candidate: <code>{code}</code></span>
+                        <h4><Badge variant="secondary"
+                            className="badge">
+                                {idx + 1}
+                        </Badge>
+                        </h4>
+                        <Highlight language="haskell">{code}</Highlight>
                     </Card.Header>
                 );
                 const usages = examples.map(ex => usageToExample(ex.usage));
