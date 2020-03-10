@@ -1,6 +1,5 @@
 import _ from "underscore";
-import {handleFetch} from "../utilities/fetches";
-import {baseRoute} from "../constants/strings";
+import {handleFetch, baseRoute} from "../utilities/fetches";
 
 // {typeSignature: str, code: str, args: [str]} -> Promise
 export const ghciUsage = ({typeSignature, code, args}) => {
