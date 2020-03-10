@@ -1,0 +1,11 @@
+Task 3: firstJustHO :: f:(a -> Maybe a) -> xs:[a] -> Maybe a	\_ -> Nothing, []	Just, []	Just, [1,2]
+\f xs -> f (GHC.List.head xs)	Nothing	Prelude.head: empty list	Just 1
+\f xs -> f (GHC.List.last xs)	Nothing	Prelude.last: empty list	Just 2
+\f xs -> f (GHC.List.head (GHC.List.init xs))	Nothing	Prelude.init: empty list	Just 1
+\f xs -> f (GHC.List.last (GHC.List.init xs))	Nothing	Prelude.init: empty list	Just 1
+\f xs -> f (GHC.List.head (GHC.List.tail xs))	Nothing	Prelude.tail: empty list	Just 2
+\f xs -> f (GHC.List.last (GHC.List.tail xs))	Nothing	Prelude.tail: empty list	Just 2
+\f xs -> f (Data.Maybe.fromJust (Data.Maybe.listToMaybe xs))	Nothing	Maybe.fromJust: Nothing	Just 1
+\f xs -> Data.Maybe.fromMaybe (f (GHC.List.head xs)) Data.Maybe.Nothing	Nothing	Prelude.head: empty list	Just 1
+\f xs -> Data.Maybe.fromMaybe (f (GHC.List.last xs)) Data.Maybe.Nothing	Nothing	Prelude.last: empty list	Just 2
+\f xs -> f (Data.Maybe.fromJust (Data.Maybe.Just (GHC.List.head xs)))	Nothing	Prelude.head: empty list	Just 1

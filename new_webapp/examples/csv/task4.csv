@@ -1,0 +1,11 @@
+Task 4: andMaybes :: [Maybe Bool] -> Bool	[]	[Nothing]	[Just False]
+\arg0 -> GHC.List.null arg0	TRUE	FALSE	FALSE
+\arg0 -> GHC.List.and (Data.Maybe.catMaybes arg0)	TRUE	TRUE	FALSE
+\arg0 -> GHC.List.or (Data.Maybe.catMaybes arg0)	FALSE	FALSE	FALSE
+\arg0 -> GHC.List.null (Data.Maybe.catMaybes arg0)	TRUE	TRUE	FALSE
+\arg0 -> GHC.List.head (Data.Maybe.catMaybes arg0)	Prelude.head: empty list	Prelude.head: empty list	FALSE
+\arg0 -> GHC.List.last (Data.Maybe.catMaybes arg0)	Prelude.last: empty list	Prelude.last: empty list	FALSE
+\arg0 -> Data.Maybe.isJust (Data.Maybe.listToMaybe arg0)	FALSE	TRUE	TRUE
+\arg0 -> Data.Maybe.isNothing (Data.Maybe.listToMaybe arg0)	TRUE	FALSE	FALSE
+\arg0 -> GHC.List.null (GHC.List.repeat arg0)	FALSE	FALSE	FALSE
+\arg0 -> Data.Maybe.fromJust (GHC.List.head arg0)	Prelude.head: empty list	Maybe.fromJust: Nothing	FALSE
