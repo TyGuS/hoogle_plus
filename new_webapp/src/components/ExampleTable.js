@@ -92,8 +92,12 @@ const ExampleTableBase = ({
               />
               <Table
                 cellComponent={SpinnableCell}
-                />
-              <TableHeaderRow />
+              />
+              <TableHeaderRow
+                contentComponent={(rest) =>
+                  <TableHeaderRow.Content {...rest} align="center"/>
+                  }
+              />
               <TableEditRow/>
               <TableEditColumn
                 showAddCommand

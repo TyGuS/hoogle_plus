@@ -101,7 +101,11 @@ const UsageTableBase = ({
             columnExtensions={[{columnName: "result", editingEnabled:false}]}
           />
           <Table cellComponent={SpinnableCell}/>
-          <TableHeaderRow/>
+          <TableHeaderRow
+            contentComponent={(rest) =>
+              <TableHeaderRow.Content {...rest} align="center"/>
+              }
+          />
           <TableEditRow/>
           <TableEditColumn
             showDeleteCommand={resultsFeatures.permitKeepUsage}
