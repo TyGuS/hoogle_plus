@@ -11,7 +11,7 @@ function App() {
     <div className="App container">
       <TopBar/>
       <div className="row justify-content-center">
-        <div className="col-10">
+        <div className="col-12">
           <SearchBar />
           <br/>
           <hr/>

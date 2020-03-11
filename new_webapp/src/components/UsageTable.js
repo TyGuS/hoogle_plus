@@ -58,10 +58,20 @@ const UsageTableBase = ({
     const internalRows = generateRows(stateRows);
     const argNames = getArgNames(numColumns - 1);
     let cols = [];
+    let colExtensions = [];
+    const width = Math.floor(1 / (numColumns + 1) * 100) + "%";
     for (let index = 0; index < numColumns - 1; index++) {
       cols = cols.concat({name: "arg" + index, title: "arg" + index});
-    }
-    cols = cols.concat({name: "result", title: "result"})
+      colExtensions = colExtensions.concat({
+        columnName: "arg" + index,
+        width: width,
+      })
+    };
+    cols = cols.concat({name: "result", title: "result"});
+    colExtensions = colExtensions.concat({
+      columnName: "result",
+      width: width,
+    });
     const [columns] = useState(cols);
 
     const commitChanges = ({ added, changed, deleted }) => {
@@ -100,10 +110,12 @@ const UsageTableBase = ({
             addedRows={[]}
             columnExtensions={[{columnName: "result", editingEnabled:false}]}
           />
-          <Table cellComponent={SpinnableCell}/>
+          <Table cellComponent={SpinnableCell}
+              columnExtensions={colExtensions}
+          />
           <TableHeaderRow
             contentComponent={(rest) =>
-              <TableHeaderRow.Content {...rest} align="center"/>
+              <TableHeaderRow.Content {...rest} align="left"/>
               }
           />
           <TableEditRow/>
