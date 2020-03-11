@@ -35,3 +35,7 @@ input {
 div {
     text-align: center;
 }
+
+.badge {
+    float: left
+}

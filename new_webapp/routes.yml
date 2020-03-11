@@ -12,7 +12,7 @@ returns:
         "id": uuid-str
         "results": [
             {
-                "candidate": ast,
+                "candidate": str,
                 "examples": [Example]
             }
         ]
