@@ -64,8 +64,8 @@ export function candidateReducer(state = initialCandidateState, action){
         case Consts.SET_SEARCH_TYPE:
             return {
                 results: [],
-                isFetching: true,
-            }
+                isFetching: false,
+                }
         case Consts.FETCH_MORE_CANDIDATE_USAGES:
             const {candidateId:fCandidateId, status} = action.payload;
             switch (status) {

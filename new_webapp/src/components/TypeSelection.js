@@ -2,35 +2,29 @@ import React from "react";
 import { connect } from "react-redux";
 import Highlight from "react-highlight.js";
 import { Modal, Button, ButtonGroup} from "react-bootstrap";
-import { setModalClosed, selectType } from "../actions";
-import { usageToExample } from "../utilities/args";
+import { setModalClosed, selectTypeFromOptions } from "../actions";
 
 const mapStateToProps = (state) => {
     return {
         isOpen: state.modal.isOpen,
         typeOptions: state.spec.searchTypeOptions,
-        exampleRows: state.spec.rows,
     };
 }
 
 const mapDispatchToProps = (dispatch) => {
     return {
         onClose: () => dispatch(setModalClosed()),
-        selectType: ({typeOption, examples}) => dispatch(selectType({typeOption, examples})),
+        selectType: ({typeOption}) => dispatch(selectTypeFromOptions({typeOption})),
     };
 }
 
 const TypeSelectionBase = (props) => {
     const {onClose, selectType} = props;
     const isDisabled = props.hidden || false;
-    const {isOpen, typeOptions, exampleRows} = props;
+    const {isOpen, typeOptions} = props;
 
     const mkSelection = (typeStr) => {
-        const examples = exampleRows.map(row => usageToExample(row.usage));
-        return selectType({
-            typeOption: typeStr,
-            examples,
-        });
+        return selectType({ typeOption: typeStr });
     }
 
     return (
