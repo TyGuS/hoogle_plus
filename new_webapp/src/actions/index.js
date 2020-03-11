@@ -75,15 +75,18 @@ export const selectTypeFromOptions = ({typeOption}) => (dispatch, getState) => {
     const {spec} = getState();
     const examples = spec.rows.map(row => usageToExample(row.usage));
     dispatch(setSearchType({query: typeOption}));
+    dispatch(setModalClosed());
     return dispatch(doSearch({query: typeOption, examples}));
 }
 
 // Update the search type and associated state.
-export const setSearchType = ({query}) => (dispatch) => {
+export const setSearchType = ({query}) => (dispatch, getState) => {
+    const {spec} = getState();
     const argCount = getArgCount(query);
-    dispatch(setArgNum(argCount));
+    if (spec.numArgs !== argCount) {
+        dispatch(setArgNum(argCount));
+    }
     dispatch(setSearchTypeInternal({query}));
-    dispatch(setModalClosed());
 };
 
 // This is where a request needs to be sent to the server
