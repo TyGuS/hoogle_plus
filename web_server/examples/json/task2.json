@@ -252,7 +252,7 @@
         "id": "ea772262-631f-11ea-9982-bc5ff4547a24"
     },
     {
-        "candidate": "\\arg0 arg1 -> Data.Maybe.fromMaybe arg0 (GHC.List.last (GHC.List.init arg1))",
+        "candidate": "\\arg0 arg1 -> Data.Maybe.fromMaybe arg0 (Data.Maybe.listToMaybe (Data.Maybe.catMaybes arg1))",
         "error": "",
         "examples": [
             {
@@ -260,7 +260,7 @@
                     "1",
                     "[]"
                 ],
-                "output": "Prelude.init: empty list"
+                "output": "1"
             },
             {
                 "inputs": [
@@ -274,7 +274,7 @@
                     "0",
                     "[Nothing, Just 1]"
                 ],
-                "output": "0"
+                "output": "1"
             }
         ],
         "id": "ea772262-631f-11ea-9982-bc5ff4547a24"

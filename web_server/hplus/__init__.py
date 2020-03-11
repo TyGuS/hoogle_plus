@@ -20,7 +20,7 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 TASK_MAP = {
     "Bool -> a -> Maybe a": script_dir + "/../examples/json/training.json",
     "[[[a]]] -> [a]": script_dir + "/../examples/json/task1.json",
-    "[Maybe a] -> a -> a": script_dir + "/../examples/json/task2.json",
+    "a -> [Maybe a] -> a": script_dir + "/../examples/json/task2.json",
     "(a -> Maybe b) -> [a] -> Maybe b": script_dir + "/../examples/json/task3.json",
     "[Maybe Bool] -> Bool": script_dir + "/../examples/json/task4.json"
 }
