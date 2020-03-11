@@ -7,7 +7,6 @@ export const ADD_FACT = "ADD_FACT";
 export const SET_EXAMPLES = "SET_EXAMPLES";
 export const SET_EXAMPLE_EDITING_ROW = "SET_EDITING_CELLS";
 export const SET_SEARCH_TYPE = "SET_SEARCH_TYPE";
-export const DO_SEARCH = "DO_SEARCH";
 
 export const INCREASE_ARGS = "INCREASE_ARGS";
 export const DECREASE_ARGS = "DECREASE_ARGS";
