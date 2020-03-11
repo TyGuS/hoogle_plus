@@ -111,11 +111,7 @@ const UsageTableBase = ({
             columnExtensions={[{columnName: "result", editingEnabled:false}]}
           />
           <Table cellComponent={SpinnableCell}
-              columnExtensions={[
-                {columnName:"arg0", width: "30%"},
-                {columnName:"arg1", width: "30%"},
-                {columnName:"result", width: "30%"},
-              ]}
+              columnExtensions={colExtensions}
           />
           <TableHeaderRow
             contentComponent={(rest) =>
