@@ -40,6 +40,11 @@ const ExampleTableBase = ({
     const argNames = getArgNames(numArgs);
     const colNames = [...argNames, "result"];
     const columns = colNames.map(name => {return {name: name, title: name}});
+	const [addedRows, setAddedRows] = useState([]);
+	
+	const changeAddedRows = (value) => {
+		setAddedRows(value);
+	}
 
     const commitChanges = ({ added, changed, deleted }) => {
       let changedRows;
@@ -86,8 +91,8 @@ const ExampleTableBase = ({
               <EditingState
                 editingRowId={editingRowId}
                 onEditingCellsChange={setEditingRowId}
-                addedRows={[]}
-                onAddedRowsChange={addEmptyRow}
+                addedRows={addedRows}
+				onAddedRowsChange={changeAddedRows}
                 onCommitChanges={commitChanges}
               />
               <Table
