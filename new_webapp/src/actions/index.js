@@ -115,19 +115,25 @@ export const getTypesFromExamples = (examples) => (dispatch) => {
 }
 
 // Get more example usages for this particular candidate.
+// usages: [{inputs:[str], output:str}]
 export const getMoreExamples = ({candidateId, code, usages}) => (dispatch, getState) => {
     const {spec} = getState();
     dispatch(fetchMoreCandidateUsages({candidateId, status: LOADING}));
     return hooglePlusMoreExamples({code, usages, queryType: spec.searchType})
-        .then(({examples}) => {
+        .then(results => {
+            const {examples} = results;
             return dispatch(fetchMoreCandidateUsages({
                 candidateId,
                 status: DONE,
                 result: examples
             }));
         })
-        .catch(error => {
-            console.error("getMoreExamples failed", error);
-            return dispatch(fetchMoreCandidateUsages({candidateId, status: ERROR}));
+        .catch(errorResult => {
+            console.error("getMoreExamples failed", errorResult);
+            return dispatch(fetchMoreCandidateUsages({
+                candidateId,
+                status: ERROR,
+                message: errorResult.error || "Unknown Error",
+            }));
         })
 }

@@ -1,6 +1,7 @@
 import React from "react";
 import { connect } from "react-redux";
-import {Modal, Button, ButtonGroup} from "react-bootstrap";
+import Highlight from "react-highlight.js";
+import { Modal, Button, ButtonGroup} from "react-bootstrap";
 import { setModalClosed, selectType } from "../actions";
 import { usageToExample } from "../utilities/args";
 
@@ -47,14 +48,14 @@ const TypeSelectionBase = (props) => {
             </div>
             <br/>
             <div className="row justify-content-center">
-            <div className="col-8">
+            <div className="col-12">
                 {typeOptions.map((typeStr, idx) => {
                     return (<div className="row pb-2" key={idx}>
                         <Button
                             onClick={() => mkSelection(typeStr)}>
                                 {idx + 1}
                         </Button>
-                        <div className="col-8"><code>{typeStr}</code></div>
+                        <div className="col-11"><Highlight language="haskell">{typeStr}</Highlight></div>
                     </div>);
                 })}
             </div>

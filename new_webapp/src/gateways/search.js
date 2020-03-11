@@ -1,7 +1,7 @@
 import _ from "underscore";
 import {v4} from "uuid";
 import { inputsToId } from "../utilities/args";
-import {baseRoute} from "../constants/strings";
+import {baseRoute} from "../utilities/fetches";
 import { DONE } from "../constants/fetch-states";
 
 const getTypeCandidates = ({id, examples}, cb) => {
