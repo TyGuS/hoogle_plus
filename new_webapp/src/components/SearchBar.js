@@ -24,7 +24,7 @@ const mapStateToProps = (state) => {
 };
 
 const mySearchBar = (props) => {
-    const {searchType, exampleRows} = props;
+    const {searchType, exampleRows, numArgs} = props;
     const {setSearchType, doSearch, getTypesFromExamples} = props;
     const {search} = getDefaultFeatures();
 
@@ -48,7 +48,8 @@ const mySearchBar = (props) => {
     };
 
     const canSubmit = () => {
-        return (!_.isEmpty(exampleRows)) || (!isMissingType(searchType));
+        return ((!_.isEmpty(exampleRows)) ||
+            (!isMissingType(searchType)));
     };
 
     return (
