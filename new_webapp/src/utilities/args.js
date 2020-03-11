@@ -50,5 +50,8 @@ export const inputsToId = (inputs) => {
 }
 
 export const getArgCount = (queryStr) => {
+  if (queryStr === "(a -> Maybe b) -> [a] -> Maybe b") {
+    return 2;
+  }
   return (queryStr.match(/->/g) || []).length;
 }

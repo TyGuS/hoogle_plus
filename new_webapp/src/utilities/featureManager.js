@@ -9,7 +9,7 @@ const features = {
         permitTypeCandidates: defaultValue,
     },
     results: {
-        permitExamples: false,
+        permitExamples: true,
         permitEditExamples: defaultValue,
         permitKeepUsage: defaultValue,
         enableGetMoreExamples: defaultValue,
