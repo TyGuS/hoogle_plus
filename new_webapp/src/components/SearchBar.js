@@ -1,7 +1,7 @@
 import _ from "underscore";
 import React, {Component } from "react";
 import {connect} from "react-redux";
-import {setSearchType, getTypesFromExamples} from "../actions/index";
+import {setSearchType, getTypesFromExamples, doSearch} from "../actions/index";
 import ExampleTable from "./ExampleTable";
 import { TypeSelection } from "./TypeSelection";
 import { Button, InputGroup, FormControl, Form } from "react-bootstrap";
@@ -11,6 +11,7 @@ import { usageToExample } from "../utilities/args";
 const mapDispatchToProps = (dispatch) => {
     return {
         setSearchType: ({query, examples}) => setSearchType({query, examples})(dispatch),
+        doSearch: ({query, examples}) => dispatch(doSearch({query, examples})),
         getTypesFromExamples: usages => getTypesFromExamples(usages)(dispatch),
     }
 }
@@ -43,6 +44,7 @@ class ConnectedSearchBar extends Component {
         }
         const filteredUsages = _.filter(usages, usageList => !_.any(usageList, _.isUndefined));
         this.props.setSearchType({query: this.state.value, examples: filteredUsages});
+        this.props.doSearch({query: this.state.value, examples: filteredUsages});
     }
 
     canSubmit() {

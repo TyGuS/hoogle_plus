@@ -1,7 +1,7 @@
 import * as Consts from "../constants/action-types";
 import _ from "underscore";
 import { Search, ghciUsage, hooglePlusExampleSearch, hooglePlusMoreExamples } from "../gateways";
-import { namedArgsToUsage, getArgCount } from "../utilities/args";
+import { namedArgsToUsage, getArgCount, usageToExample } from "../utilities/args";
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 
 function makeActionCreator(type, ...argNames) {
@@ -42,17 +42,6 @@ export const decreaseArgs = makeActionCreator(Consts.DECREASE_ARGS);
 export const increaseArgs = makeActionCreator(Consts.INCREASE_ARGS);
 export const setArgNum = makeActionCreator(Consts.SET_ARG_NUM, "payload");
 
-// A user selected a type option. Close the modal and start the search!
-export const selectType = ({typeOption, examples}) => (dispatch) => {
-    dispatch(setSearchTypeInternal({searchType: typeOption}));
-    dispatch(setModalClosed());
-
-    Search.getCodeCandidates({query: typeOption, examples}, (candidate => {
-        dispatch(addCandidate(candidate));
-    })).then(_ => dispatch(setSearchStatus(DONE)));
-    return;
-};
-
 // When a new candidate's usage changes, go and get new outputs for each
 // usage across all current candidates.
 export const updateCandidateUsages = ({usageId, args}) => (dispatch, getState) => {
@@ -82,13 +71,24 @@ export const updateCandidateUsage = ({typeSignature, candidateId, usageId, args,
             dispatch(updateCandidateUsageTable({candidateId, usageId, ...backendResult})));
 };
 
-// This is where a request needs to be sent to the server
-// query: str; examples: [{inputs:[str], output:str}]
-export const setSearchType = ({query, examples}) => (dispatch) => {
+export const selectTypeFromOptions = ({typeOption}) => (dispatch, getState) => {
+    const {spec} = getState();
+    const examples = spec.rows.map(row => usageToExample(row.usage));
+    dispatch(setSearchType({query: typeOption}));
+    return dispatch(doSearch({query: typeOption, examples}));
+}
+
+// Update the search type and associated state.
+export const setSearchType = ({query}) => (dispatch) => {
     const argCount = getArgCount(query);
     dispatch(setArgNum(argCount));
     dispatch(setSearchTypeInternal({query}));
+    dispatch(setModalClosed());
+};
 
+// This is where a request needs to be sent to the server
+// query: str; examples: [{inputs:[str], output:str}]
+export const doSearch = ({query, examples}) => (dispatch) => {
     Search.getCodeCandidates({query, examples}, (candidate => {
         dispatch(addCandidate(candidate));
     }))
