@@ -33,7 +33,7 @@ def build_object(query_type, result, qid = None):
             'candidate': result['solution'],
             'examples': result['outExamples'],
             'error': result['outError'],
-            'docs': list(map(to_fe_doc, result['functionDocs']))
+            'docs': list(map(to_fe_doc, result['outDocs']))
         }
     elif query_type is QueryType.search_types:
         return {

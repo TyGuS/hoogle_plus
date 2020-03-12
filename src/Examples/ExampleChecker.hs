@@ -62,9 +62,12 @@ parseExample :: [String] -> Example -> IO (Either RSchema ErrorMessage)
 parseExample mdls ex = catch (do
     typ <- askGhc mdls $ exprType TM_Default mkFun
     let hsType = typeToLHsType typ
-    return (Left $ resolveType hsType))
+    return (Left $ toInt $ resolveType hsType))
     (\(e :: SomeException) -> return (Right $ show e))
     where
+        toInt (ForallT x t) = ForallT x (toInt t)
+        toInt (Monotype t) = Monotype (integerToInt t)
+
         mkFun = printf "\\f -> f %s == %s" (unwords $ map wrapParens $ inputs ex) (output ex)
         wrapParens = printf "(%s)"
 
@@ -134,25 +137,17 @@ getExampleTypes env validSchemas = do
     let validTypes = map (shape . toMonotype) validSchemas
     t <- if not (null validTypes) then foldM antiUnification (head validTypes) (tail validTypes)
                                   else error "get example types error"
-    let t' = integerToInt t
-    -- print t'
-    let tvars = typeVarsOf t'
-    let generals = getGeneralizations t'
+    let tvars = typeVarsOf t
+    let generals = getGeneralizations t
     -- print generals
     -- print $ concatMap reduceVars generals
     let reducedTypes = concatMap (reduceVars tvars) generals
     msgChan <- newChan
     checkedReduce <- filterM (\s -> checkTypes env msgChan (forall s) (forall t)) reducedTypes
-    return $ t' : generals ++ checkedReduce
+    return $ t : generals ++ checkedReduce
     where
         forall t = let vars = typeVarsOf t
                     in foldr ForallT (Monotype $ addTrue t) vars
-        integerToInt (ScalarT (DatatypeT dt args _) _) 
-          | dt == "Integer" = ScalarT (DatatypeT "Int" (map integerToInt args) []) ()
-          | otherwise = ScalarT (DatatypeT dt (map integerToInt args) []) ()
-        integerToInt (FunctionT x tArg tRes) =
-            FunctionT x (integerToInt tArg) (integerToInt tRes)
-        integerToInt t = t
 
 execExample :: [String] -> Environment -> String -> Example -> IO (Either ErrorMessage String)
 execExample mdls env prog ex = do
@@ -296,3 +291,11 @@ antiUnification' (FunctionT x1 tArg1 tRes1) (FunctionT x2 tArg2 tRes2) = do
     return $ FunctionT x1 tArg tRes
 
 seqChars = map (:[]) ['a'..'z']
+
+integerToInt :: TypeSkeleton r -> TypeSkeleton r
+integerToInt (ScalarT (DatatypeT dt args _) r) 
+  | dt == "Integer" = ScalarT (DatatypeT "Int" (map integerToInt args) []) r
+  | otherwise = ScalarT (DatatypeT dt (map integerToInt args) []) r 
+integerToInt (FunctionT x tArg tRes) =
+    FunctionT x (integerToInt tArg) (integerToInt tRes)
+integerToInt t = t
