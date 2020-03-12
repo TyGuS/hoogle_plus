@@ -9,6 +9,7 @@ import Types.Experiments
 import Types.Environment
 import Types.Program
 import Types.Encoder
+import Types.IOFormat
 import Types.CheckMonad
 import Types.TypeChecker (Checker)
 import qualified Types.TypeChecker as Checker
@@ -18,6 +19,15 @@ import Synquid.Type
 import Synquid.Pretty
 import Synquid.Util
 
+import Control.Concurrent.Chan
+import Control.Lens
+import Control.Monad.State
+import Control.Monad.Extra
+import Control.Monad.ST (runST, ST)
+import Debug.Trace
+import Data.Array.ST (STArray, readArray, writeArray, newListArray, getElems)
+import Data.Hashable
+import Data.List.Extra
 import Data.Maybe
 import qualified Data.Text as Text
 import Data.Map (Map)
@@ -26,17 +36,9 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import Control.Lens
-import Control.Monad.State
-import Control.Monad.Extra
-import Data.List.Extra
 import Text.Pretty.Simple
 import Text.Printf
-import Control.Concurrent.Chan
-import Data.Hashable
-import Control.Monad.ST (runST, ST)
-import Data.Array.ST (STArray, readArray, writeArray, newListArray, getElems)
-import Debug.Trace
+import qualified Hoogle as Hoogle
 
 getExperiment exp = gets $ view (searchParams . exp)
 
@@ -177,3 +179,37 @@ removeLast c1 = snd . remLast
       case remLast cs of
         (True, cs') -> (True, c2:cs')
         (False, cs') -> if c1 == c2 then (True, []) else (False, c2:cs')
+
+innerTextHTML :: String -> String
+innerTextHTML ('<':xs) = innerTextHTML $ drop 1 $ dropWhile (/= '>') xs
+innerTextHTML (x:xs) = x : innerTextHTML xs
+innerTextHTML [] = []
+
+unHTML :: String -> String
+unHTML = unescapeHTML . innerTextHTML
+
+toOutput :: Environment -> RProgram -> [Example] -> IO QueryOutput
+toOutput env soln exs = do
+    let symbols = Set.toList $ symbolsOf soln
+    let argNames = Map.keys $ env ^. arguments
+    let args = Map.toList $ env ^. arguments
+    let argDocs = map (\(n, ty) -> FunctionDoc n (show ty) "") args
+    let symbolsWoArgs = symbols \\ argNames
+    docs <- liftIO $ hoogleIt symbolsWoArgs
+    return $ QueryOutput (lambda $ show soln) exs "" (docs ++ argDocs)
+    where
+        hoogleIt syms = do
+            dbPath <- Hoogle.defaultDatabaseLocation
+            print dbPath
+            Hoogle.withDatabase dbPath (\db -> do
+                let targets = map (head . Hoogle.searchDatabase db) syms
+                let docs = map targetToDoc targets
+                return docs)
+
+        targetToDoc tg = let wholeSig = unHTML $ Hoogle.targetItem tg
+                             [name, sig] = splitOn " :: " wholeSig
+                             doc = unHTML $ Hoogle.targetDocs tg
+                          in FunctionDoc name sig doc
+
+        lambda prog = let args = unwords $ Map.keys (env ^. arguments)
+                       in printf "\\%s -> %s" args prog

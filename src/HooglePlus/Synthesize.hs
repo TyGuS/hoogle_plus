@@ -116,7 +116,7 @@ synthesize searchParams goal examples messageChan = do
             checkResult <- checkExamples env' goalType exWithOutputs messageChan
             case checkResult of
               Right errs -> do
-                  printResult $ encodeWithPrefix $ QueryOutput "" [] (unlines errs)
+                  printResult $ encodeWithPrefix $ QueryOutput "" [] (unlines errs) []
                   error "examples does not type check"
               Left _ -> evalStateT (runPNSolver env' goalType examples) is)
         (\e ->
