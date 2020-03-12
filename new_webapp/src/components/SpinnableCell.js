@@ -20,7 +20,7 @@ export const SpinnableCell = ({ row, ...restProps }) => {
       </Table.Cell>);
     }
   }
-  return (<Table.Cell row={row} align="left" {...notValueRest}>
+  return (<Table.Cell row={row} align="center" {...notValueRest}>
     <Highlight language="haskell">{value}</Highlight>
     </Table.Cell>);
 };
