@@ -25,6 +25,7 @@ def to_fe_doc(doc):
     obj['name'] = doc['functionName']
     obj['signature'] = doc['functionSig']
     obj['doc'] = doc['functionDesc']
+    return obj
 
 def build_object(query_type, result, qid = None):
     if query_type is QueryType.search_programs:
