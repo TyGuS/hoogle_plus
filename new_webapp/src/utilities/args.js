@@ -50,5 +50,15 @@ export const inputsToId = (inputs) => {
 }
 
 export const getArgCount = (queryStr) => {
+    // Hardcoding the number of arguments for the study
+  // if (queryStr === "a -> [Maybe a] -> a") 
+  //   return 2;
+  // else if (queryStr === "Int -> [a] -> [a]")
+  //   return 2; 
+  // else if (queryStr === "Int -> (a -> a) -> (a -> a)")
+  //   return 3;
+  // else 
+  //   return "Invalid number of arguments";
+
   return (queryStr.match(/->/g) || []).length;
 }
