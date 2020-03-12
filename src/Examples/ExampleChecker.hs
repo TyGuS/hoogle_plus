@@ -20,7 +20,7 @@ import PetriNet.Util
 import Synquid.Util (permuteBy)
 import Database.Convert (addTrue)
 
-import Bag
+import qualified EnumSet as ES
 import Control.Exception
 import Control.Monad.State
 import Control.Lens
@@ -44,14 +44,24 @@ import HsTypes
 import Outputable
 import Text.Printf
 import Debug.Trace
+import System.Timeout
+
+timeoutLimit = 10^5 :: Int -- in microsecond
+outputDepth = 4 :: Int
 
 askGhc :: [String] -> Ghc a -> IO a
-askGhc mdls f = runGhc (Just libdir) $ do
-    dflags <- getSessionDynFlags
-    setSessionDynFlags dflags
-    prepareModules ("Prelude":mdls) >>= setContext
-    result <- f
-    return result
+askGhc mdls f = do
+    mbResult <- timeout timeoutLimit $ runGhc (Just libdir) $ do
+        dflags <- getSessionDynFlags
+        let dflags' = dflags { 
+            generalFlags = ES.delete Opt_OmitYields (generalFlags dflags)
+            }
+        setSessionDynFlags dflags'
+        prepareModules ("System.Timeout":"Prelude":mdls) >>= setContext
+        f
+    case mbResult of
+        Just r -> return r
+        Nothing -> error "timeout"
     where
         prepareModules mdls = do
             let imports = map (printf "import %s") mdls
@@ -156,7 +166,8 @@ execExample mdls env prog ex = do
         then printf "let f = %s in" prog
         else printf "let f = \\%s -> %s in" prependArg prog
     let wrapParens = printf "(%s)"
-    let progCall = printf "f %s" (unwords (map wrapParens $ inputs ex))
+    let parensedInputs = map wrapParens $ inputs ex
+    let progCall = printf "f %s" (unwords parensedInputs)
     askGhc mdls $ do
         result <- execStmt (unwords [progBody, progCall]) execOptions
         case result of
@@ -166,7 +177,6 @@ execExample mdls env prog ex = do
             ExecBreak {} -> return (Left "error, break")
     where
         getExecValue (n:ns) = do
-            df <- getSessionDynFlags
             mty <- lookupName n
             case mty of
                 Just (AnId aid) -> do
