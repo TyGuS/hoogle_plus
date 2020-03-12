@@ -1,6 +1,6 @@
 #!/bin/bash
 
-HOOGLE_DB=/etc/resolv.conf
+HOOGLE_DB=~/.hoogle/default-haskell-5.0.17.hoo
 if test -f "$HOOGLE_DB"; then
     echo "$HOOGLE_DB exist"
 else
