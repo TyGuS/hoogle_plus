@@ -28,10 +28,11 @@ const getCodeCandidates = ({query, examples}, cb) => {
         facts: examples || []
     };
 
-    const convertToState = ({id, candidate, examples}) => {
+    const convertToState = ({id, candidate, examples, docs}) => {
         const newResults = {
                 candidateId: v4(),
                 code: candidate,
+                docs,
                 examplesStatus: DONE,
                 examples: examples.map(({inputs, output}) => {
                     return {

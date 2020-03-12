@@ -19,7 +19,8 @@ data GenerationOpts = GenerationOpts {
     pkgFetchOpts :: PackageFetchOpts,
     modules :: [String],
     envPath :: FilePath,
-    hoPath :: FilePath
+    hoPath :: FilePath,
+    hooglePath :: FilePath
     }
     deriving (Show, Typeable, Eq)
 
@@ -46,7 +47,9 @@ type HDeclaration = HSE.Decl ()
 
 data Preset = TotalFunctions | PartialFunctions deriving (Eq, Show, Data, Typeable)
 
-defaultHackageOpts = Hackage {packages = []}
+defaultHackageOpts = Hackage {
+    packages = ["base"]
+    }
 
 defaultLocalOpts = Local {
     files = ["working/newbase.txt"]
@@ -58,8 +61,11 @@ defaultGenerationOpts = GenerationOpts {
     pkgFetchOpts = defaultLocalOpts,
     modules = [],
     envPath = defaultEnvPath,
-    hoPath = "ho.txt"
+    hoPath = defaultHoPath,
+    hooglePath = defaultHooglePath
     }
 
 defaultEnvPath = "data/env.db"
+defaultHoPath = "data/ho.txt"
+defaultHooglePath = "data/hoogle.db"
 defaultJsonPath = "data/builtin.json"
