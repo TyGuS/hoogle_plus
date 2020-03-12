@@ -9,6 +9,7 @@ import { getMoreExamples } from "../actions";
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 import { getDefaultFeatures } from "../utilities/featureManager";
 import { usageToExample } from "../utilities/args";
+import DocsList from "./DocsList";
 
 const mapStateToProps = state => {
     return {
@@ -30,7 +31,7 @@ const ConnectedCandidateList = (props) => {
     return (
         <div>
             {candidates.map((result, idx) => {
-                const {code, examplesStatus, candidateId, errorMessage} = result;
+                const {code, examplesStatus, candidateId, errorMessage, docs} = result;
                 const examples = result.examples || [];
                 const header = (
                     <Card.Header>
@@ -57,6 +58,8 @@ const ConnectedCandidateList = (props) => {
                             triggerDisabled={!resultsFeatures.permitExamples}
                             trigger={header}>
                                 <Card.Body>
+                                    <div className="row">
+                                    <div className="col-10">
                                     {resultsFeatures.permitExamples ?
                                     (<UsageTable
                                         candidateId={candidateId}
@@ -64,6 +67,11 @@ const ConnectedCandidateList = (props) => {
                                         rows={examples}
                                         numColumns={numArgs + 1}
                                     />) : (<></>)}
+                                    </div>
+                                    <div className="col-2">
+                                        <DocsList docs={docs}/>
+                                    </div>
+                                    </div>
                                     {resultsFeatures.enableGetMoreExamples ? (
                                     <Button
                                         variant={buttonVariant}
