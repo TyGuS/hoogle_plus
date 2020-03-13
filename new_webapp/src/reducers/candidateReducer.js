@@ -57,10 +57,12 @@ const usageToExample = (usage) => {
 
 export function candidateReducer(state = initialCandidateState, action){
     switch(action.type) {
+        case Consts.CLEAR_RESULTS:
+            return {...state, results:[]};
         case Consts.SET_SEARCH_STATUS:
             return {
                 ...state,
-                isFetching: action.payload === LOADING
+                isFetching: action.payload.status === LOADING,
             };
         case Consts.ADD_CANDIDATE:
             return {

@@ -96,9 +96,19 @@ export const doSearch = ({query, examples}) => (dispatch) => {
     dispatch(setSearchStatus({status:LOADING}))
     dispatch(clearResults());
     Search.getCodeCandidates({query, examples}, (candidate => {
-        dispatch(addCandidate(candidate));
+        if (!candidate.error) {
+            dispatch(addCandidate(candidate));
+        }
     }))
     .then(result => {
+        try {
+            const firstResult = JSON.parse(result.trim().split("\n")[0]);
+            if (firstResult.error) {
+                return Promise.reject({message: firstResult.error});
+            }
+        } catch (error) {
+            console.error("doSearch result error", error);
+        }
         return dispatch(setSearchStatus({status:DONE}));
     })
     .catch(error => {

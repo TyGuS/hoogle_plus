@@ -28,7 +28,7 @@ const getCodeCandidates = ({query, examples}, cb) => {
         facts: examples || []
     };
 
-    const convertToState = ({id, candidate, examples, docs}) => {
+    const convertToState = ({id, candidate, examples, docs, error}) => {
         const newResults = {
                 candidateId: v4(),
                 code: candidate,
@@ -44,6 +44,7 @@ const getCodeCandidates = ({query, examples}, cb) => {
                     }}),
             };
         return {
+            error,
             queryId: id,
             result: newResults
         };
@@ -89,14 +90,13 @@ const streamResponse = (route, fetchOpts, onIncrementalResponse) => {
                             onIncrementalResponse(jsonBlob);
                             console.log("convertedValue sent:", jsonBlob);
                         } catch (error) {
-                            console.error("convertedValue", error);
+                            console.error("convertedValue error", error);
                         }
                     })
                     controller.enqueue(value);
                     return pump();
                     });
-                }
-                }
+                }}
             });
         })
         .then(stream => new Response(stream))
