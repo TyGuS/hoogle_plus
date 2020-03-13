@@ -135,11 +135,9 @@ fixArgName _ typ = let (_, res) = fixArgName' ((fixIndex typ) + 1) typ in res
   where
     fixArgName' idx (FunctionT x tArg tRes)
       | x == "" = let
-          -- (idx', tArg') = fixArgName' (idx + 1) tArg
           (idx'', tRes') = fixArgName' (idx + 1) tRes
           in (idx'', FunctionT ("arg"++show idx) tArg tRes')
       | otherwise = let
-          -- (idx', tArg') = fixArgName' idx tArg
           (idx'', tRes') = fixArgName' idx tRes
           in (idx'', FunctionT x tArg tRes')
     fixArgName' idx t = (idx, t)
@@ -263,7 +261,6 @@ parseFunctionTypeWithArg = do
 
 -- | Parse top-level type that does not start with an argument name
 -- and thus could be a scalar or a function type depending on whether followed by ->
-----------------------------------------------------------------------------------------------------------------------------------------------------
 parseFunctionTypeMb = do
   argType <- parseUnrefTypeWithArgs <|> parseTypeAtom
   parseFunctionRest argType <|> return argType
