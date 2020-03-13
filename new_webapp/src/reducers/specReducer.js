@@ -36,6 +36,13 @@ const dedupeSpecs = (rows, new_rows) => {
     return r;
 };
 
+const clearErrors = (state) => {
+    return {
+        ...state,
+        errorMessage: null,
+        searchStatus: DONE,
+    }
+}
 
 export function specReducer(state = initialSpecState, action) {
     switch(action.type) {
@@ -56,17 +63,17 @@ export function specReducer(state = initialSpecState, action) {
             }
         case Consts.INCREASE_ARGS:
             return {
-                ...state,
+                ...clearErrors(state),
                 numArgs: state.numArgs + 1
             };
         case Consts.DECREASE_ARGS:
             return {
-                ...state,
+                ...clearErrors(state),
                 numArgs: state.numArgs > 1 ? state.numArgs - 1 : 1
             };
         case Consts.SET_ARG_NUM:
             return {
-                ...state,
+                ...clearErrors(state),
                 numArgs: action.payload
             };
         case Consts.ADD_FACT:
@@ -86,12 +93,12 @@ export function specReducer(state = initialSpecState, action) {
             };
         case Consts.SET_SEARCH_TYPE:
             return {
-                ...state,
+                ...clearErrors(state),
                 searchType: action.payload.query,
             }
         case Consts.SET_TYPE_OPTIONS:
             return {
-                ...state,
+                ...clearErrors(state),
                 searchTypeOptions: action.payload,
             }
         default:

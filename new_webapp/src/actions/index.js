@@ -93,7 +93,7 @@ export const setSearchType = ({query}) => (dispatch, getState) => {
 // This is where a request needs to be sent to the server
 // query: str; examples: [{inputs:[str], output:str}]
 export const doSearch = ({query, examples}) => (dispatch) => {
-    dispatch(setSearchStatus({status:LOADING}))
+    dispatch(setSearchStatus({status:LOADING}));
     dispatch(clearResults());
     Search.getCodeCandidates({query, examples}, (candidate => {
         if (!candidate.error) {
@@ -124,15 +124,18 @@ export const doSearch = ({query, examples}) => (dispatch) => {
 // and present them.
 // [{inputs:[str], output:str}]
 export const getTypesFromExamples = (examples) => (dispatch) => {
+    dispatch(setSearchStatus({status:LOADING}));
+    dispatch(clearResults());
     return Search.getTypeCandidates({examples})
         .then(value => {
             if (value["typeCandidates"]) {
                 dispatch(setTypeOptions(value.typeCandidates));
                 dispatch(setModalOpen());
+                dispatch(setSearchStatus({status:DONE}));
             } else {
                 debugger;
             }
-        });
+        })
 }
 
 // Get more example usages for this particular candidate.
