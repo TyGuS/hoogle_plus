@@ -70,37 +70,36 @@ envToGoal env queryStr = do
 
 synthesize :: SearchParams -> Goal -> [Example] -> Chan Message -> IO ()
 synthesize searchParams goal examples messageChan = do
-    let env' = gEnvironment goal
+    let rawEnv = gEnvironment goal
     let goalType = gSpec goal
     let destinationType = lastType (toMonotype goalType)
     let useHO = _useHO searchParams
-    let rawSyms = env' ^. symbols
-    let hoCands = env' ^. hoCandidates
-    env <-
-        if useHO -- add higher order query arguments
-            then do
-                let args = env' ^. arguments
-                let hoArgs = Map.filter (isFunctionType . toMonotype) args
-                let hoFuns = map (\(k, v) -> (k ++ hoPostfix, toFunType v)) (Map.toList hoArgs)
-                return $
-                    env'
-                        { _symbols = rawSyms `Map.union` Map.fromList hoFuns
-                        , _hoCandidates = hoCands ++ map fst hoFuns
-                        }
-            else do
-                let syms = Map.filter (not . isHigherOrder . toMonotype) rawSyms
-                return $
-                    env'
-                        {_symbols = Map.withoutKeys syms $ Set.fromList hoCands, _hoCandidates = []}
+    let rawSyms = rawEnv ^. symbols
+    let hoCands = rawEnv ^. hoCandidates
+    envWithHo <- if useHO -- add higher order query arguments
+        then do
+            let args = rawEnv ^. arguments
+            let hoArgs = Map.filter (isFunctionType . toMonotype) args
+            let hoFuns = map (\(k, v) -> (k ++ hoPostfix, toFunType v)) (Map.toList hoArgs)
+            return $ rawEnv { 
+                _symbols = rawSyms `Map.union` Map.fromList hoFuns, 
+                _hoCandidates = hoCands ++ map fst hoFuns
+                }
+        else do
+            let syms = Map.filter (not . isHigherOrder . toMonotype) rawSyms
+            return $ rawEnv {
+                _symbols = Map.withoutKeys syms $ Set.fromList hoCands, 
+                _hoCandidates = []
+                }
     -- putStrLn $ "Component number: " ++ show (Map.size $ allSymbols env)
-    let args = Monotype destinationType : Map.elems (env ^. arguments)
+    let args = Monotype destinationType : Map.elems (envWithHo ^. arguments)
   -- start with all the datatypes defined in the components, first level abstraction
     let rs = _refineStrategy searchParams
     let initCover = case rs of
-                        SypetClone -> Abstraction.firstLvAbs env (Map.elems (allSymbols env))
+                        SypetClone -> Abstraction.firstLvAbs envWithHo (Map.elems (allSymbols envWithHo))
                         TyGar0 -> emptySolverState ^. (refineState . abstractionCover)
-                        TyGarQ -> Abstraction.specificAbstractionFromTypes env args
-                        NoGar -> Abstraction.specificAbstractionFromTypes env args
+                        TyGarQ -> Abstraction.specificAbstractionFromTypes envWithHo args
+                        NoGar -> Abstraction.specificAbstractionFromTypes envWithHo args
                         NoGar0 -> emptySolverState ^. (refineState . abstractionCover)
     let is =
             emptySolverState
@@ -113,12 +112,12 @@ synthesize searchParams goal examples messageChan = do
         (do
             -- before synthesis, first check that user has provided valid examples
             let exWithOutputs = filter ((/=) "??" . output) examples
-            checkResult <- checkExamples env' goalType exWithOutputs messageChan
+            checkResult <- checkExamples envWithHo goalType exWithOutputs messageChan
             case checkResult of
               Right errs -> do
-                  printResult $ encodeWithPrefix $ QueryOutput "" [] (unlines errs)
+                  printResult $ encodeWithPrefix $ QueryOutput "" [] (unlines errs) []
                   error "examples does not type check"
-              Left _ -> evalStateT (runPNSolver env' goalType examples) is)
+              Left _ -> evalStateT (runPNSolver envWithHo goalType examples) is)
         (\e ->
              writeChan messageChan (MesgLog 0 "error" (show e)) >>
              writeChan messageChan (MesgClose (CSError e)) >>

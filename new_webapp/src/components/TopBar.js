@@ -3,13 +3,13 @@ import { log } from "../utilities/logger";
 
 export const TopBar = () => (
     <div>
-	<div style={dlStyle}><small><a href="#" onClick={dlClick}>download log</a></small></div>
-    <h1 className="hplus_font">
-          <a href="." className="nav-link" id="home">Hoogle+</a>
-          <br></br>
-          </h1>
-    <h5> Welcome to the Hoogle+ Demo </h5>
-    <p> {flavorText} </p>
+        <div style={dlStyle}><small><a href="#" onClick={dlClick}>download log</a></small></div>
+        <h1 className="hplus_font">
+            <a href="." className="nav-link" id="home">Hoogle+</a>
+            <br></br>
+        </h1>
+        <h5 className="title"> Welcome to the Hoogle+ Demo </h5>
+        <p className="description"> {flavorText} </p>
     </div>
 );
 

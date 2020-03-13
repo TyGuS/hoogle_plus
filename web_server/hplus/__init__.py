@@ -14,13 +14,18 @@ OPTIONS = []
 TIMEOUT_CMD = 'timeout'
 TIMEOUT = '60'
 
-
-
 class QueryType(enum.Enum):
     search_programs = 'SearchPrograms'
     search_types = 'SearchTypes'
     search_results = 'SearchResults'
     search_examples = 'SearchExamples'
+
+def to_fe_doc(doc):
+    obj = {}
+    obj['name'] = doc['functionName']
+    obj['signature'] = doc['functionSig']
+    obj['doc'] = doc['functionDesc']
+    return obj
 
 def build_object(query_type, result, qid = None):
     if query_type is QueryType.search_programs:
@@ -28,7 +33,8 @@ def build_object(query_type, result, qid = None):
             'id': qid,
             'candidate': result['solution'],
             'examples': result['outExamples'],
-            'error': result['outError']
+            'error': result['outError'],
+            'docs': list(map(to_fe_doc, result['outDocs']))
         }
     elif query_type is QueryType.search_types:
         return {
