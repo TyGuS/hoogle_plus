@@ -23,9 +23,9 @@ const dlStyle = {position:"absolute",
 }
 
 function dlClick(e) {
-	var element = document.createElement('a');
-	var msgs = log.exportToArray();
-	var text = msgs.join('\n');
+	const element = document.createElement('a');
+	const msgs = log.exportToArray();
+	const text = msgs.join('\n');
     element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
     element.setAttribute('download', 'hoogle-plus.log');
 
