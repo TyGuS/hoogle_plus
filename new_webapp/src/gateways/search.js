@@ -99,7 +99,8 @@ const streamResponse = (route, fetchOpts, onIncrementalResponse) => {
                 }
             });
         })
-        .then(stream => new Response(stream));
+        .then(stream => new Response(stream))
+        .then(response => response.text());
 }
 
 export default {

@@ -7,6 +7,7 @@ import { TypeSelection } from "./TypeSelection";
 import { Button, InputGroup, FormControl, Form } from "react-bootstrap";
 import { getDefaultFeatures } from "../utilities/featureManager";
 import { usageToExample } from "../utilities/args";
+import { LOADING, ERROR } from "../constants/fetch-states";
 
 const mapDispatchToProps = (dispatch) => {
     return {
@@ -20,11 +21,13 @@ const mapStateToProps = (state) => {
     return {
         searchType: state.spec.searchType,
         exampleRows: state.spec.rows,
+        errorMessage: state.spec.errorMessage,
+        searchStatus: state.spec.searchStatus,
     }
 };
 
 const connectedSearchBar = (props) => {
-    const {searchType, exampleRows, numArgs} = props;
+    const {searchType, exampleRows, searchStatus, errorMessage} = props;
     const {setSearchType, doSearch, getTypesFromExamples} = props;
     const {search} = getDefaultFeatures();
 
@@ -48,8 +51,29 @@ const connectedSearchBar = (props) => {
     };
 
     const canSubmit = () => {
-        return ((!_.isEmpty(exampleRows)) ||
-            (!isMissingType(searchType)));
+        const hasAnExample = !_.isEmpty(exampleRows);
+        const hasAType = !isMissingType(searchType);
+        return hasAnExample || hasAType;
+    };
+
+    const buttonVariant = () => {
+        switch(searchStatus) {
+            case ERROR:
+                return "danger";
+            default:
+                return "primary";
+        }
+    };
+
+    const buttonContent = () => {
+        switch(searchStatus) {
+            case ERROR:
+                return errorMessage || "Error";
+            case LOADING:
+                return "Getting results...";
+            default:
+                return "Search";
+        }
     };
 
     return (
@@ -82,8 +106,9 @@ const connectedSearchBar = (props) => {
                 <Button
                     disabled={!canSubmit()}
                     onClick={handleSubmit}
+                    variant={buttonVariant()}
                     type="submit">
-                    Search
+                    {buttonContent()}
                 </Button>
                 </Form>
             </div>

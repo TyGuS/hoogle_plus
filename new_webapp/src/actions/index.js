@@ -13,7 +13,6 @@ function makeActionCreator(type, ...argNames) {
         return action
     }
 }
-
 // Creates an action creator like:
 // export const setFacts = (payload) => {
 //     return {
@@ -24,6 +23,8 @@ function makeActionCreator(type, ...argNames) {
 
 // Simple action creators for moving state around.
 export const addCandidate = makeActionCreator(Consts.ADD_CANDIDATE, "payload");
+export const clearResults = makeActionCreator(Consts.CLEAR_RESULTS);
+export const clearSpec = makeActionCreator(Consts.CLEAR_SPEC);
 export const addFact = makeActionCreator(Consts.ADD_FACT, "payload");
 
 export const setExampleEditingRow = makeActionCreator(Consts.SET_EXAMPLE_EDITING_ROW, "payload");
@@ -92,12 +93,20 @@ export const setSearchType = ({query}) => (dispatch, getState) => {
 // This is where a request needs to be sent to the server
 // query: str; examples: [{inputs:[str], output:str}]
 export const doSearch = ({query, examples}) => (dispatch) => {
-    dispatch(setSearchStatus(LOADING))
+    dispatch(setSearchStatus({status:LOADING}))
+    dispatch(clearResults());
     Search.getCodeCandidates({query, examples}, (candidate => {
         dispatch(addCandidate(candidate));
     }))
-    .then(_ => dispatch(setSearchStatus(DONE)))
-    .catch(_ => dispatch(setSearchStatus(ERROR)));
+    .then(result => {
+        return dispatch(setSearchStatus({status:DONE}));
+    })
+    .catch(error => {
+        return dispatch(setSearchStatus({
+            status: ERROR,
+            errorMessage: error.message
+        }));
+    });
     return;
 };
 
