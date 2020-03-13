@@ -1,7 +1,7 @@
 import _ from "underscore";
 import React, {Component } from "react";
 import {connect} from "react-redux";
-import {setSearchType, getTypesFromExamples, doSearch} from "../actions/index";
+import {setSearchType, getTypesFromExamples, doSearch, setExamples} from "../actions/index";
 import ExampleTable from "./ExampleTable";
 import { TypeSelection } from "./TypeSelection";
 import { Button, InputGroup, FormControl, Form } from "react-bootstrap";
@@ -14,6 +14,7 @@ const mapDispatchToProps = (dispatch) => {
         setSearchType: ({query}) => dispatch(setSearchType({query})),
         doSearch: ({query, examples}) => dispatch(doSearch({query, examples})),
         getTypesFromExamples: usages => dispatch(getTypesFromExamples(usages)),
+        clearExamples: _ => dispatch(setExamples([])),
     }
 }
 
@@ -28,7 +29,7 @@ const mapStateToProps = (state) => {
 
 const connectedSearchBar = (props) => {
     const {searchType, exampleRows, searchStatus, errorMessage} = props;
-    const {setSearchType, doSearch, getTypesFromExamples} = props;
+    const {setSearchType, doSearch, getTypesFromExamples, clearExamples} = props;
     const {search} = getDefaultFeatures();
 
     const usages = exampleRows.map(({usage}) => usageToExample(usage));
@@ -50,8 +51,9 @@ const connectedSearchBar = (props) => {
         doSearch({query: searchType, examples: filteredUsages});
     };
 
+    const hasAnExample = !_.isEmpty(exampleRows);
+
     const canSubmit = () => {
-        const hasAnExample = !_.isEmpty(exampleRows);
         const allExamplesComplete = _.all(exampleRows, ({usage}) => {
             return _.all(usage, x => (!_.isNull(x) && !_.isUndefined(x)));
         });
@@ -106,13 +108,26 @@ const connectedSearchBar = (props) => {
                         <ExampleTable/>
                     </div>
                 </div>
-                <Button
-                    disabled={!canSubmit()}
-                    onClick={handleSubmit}
-                    variant={buttonVariant()}
-                    type="submit">
-                    {buttonContent()}
-                </Button>
+
+                <div className="row justify-content-center">
+                    <div className="col-10">
+                        {hasAnExample ? (
+                            <Button
+                                className="float-left"
+                                variant="link"
+                                onClick={clearExamples}
+                            >
+                                Clear Examples
+                            </Button>):<></>}
+                        <Button
+                            disabled={!canSubmit()}
+                            onClick={handleSubmit}
+                            variant={buttonVariant()}
+                            type="submit">
+                            {buttonContent()}
+                        </Button>
+                    </div>
+                </div>
                 </Form>
             </div>
         </div>
