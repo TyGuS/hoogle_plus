@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric, DeriveDataTypeable, DeriveAnyClass #-}
 
 module Types.IOFormat where
 
@@ -8,6 +8,7 @@ import GHC.Generics
 import Data.Aeson
 import Data.Serialize
 import Data.Data
+import Control.DeepSeq
 
 outputPrefix = "RESULTS:"
 
@@ -42,10 +43,19 @@ data QueryInput = QueryInput {
 
 instance FromJSON QueryInput
 
+data FunctionDoc = FunctionDoc {
+    functionName :: String,
+    functionSig :: String,
+    functionDesc :: String
+} deriving(Eq, Show, Generic, NFData)
+
+instance ToJSON FunctionDoc
+
 data QueryOutput = QueryOutput {
     solution :: String,
     outExamples :: [Example],
-    outError :: String
+    outError :: String,
+    outDocs :: [FunctionDoc]
 } deriving(Eq, Generic)
 
 instance ToJSON QueryOutput

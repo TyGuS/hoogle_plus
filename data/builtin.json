@@ -17,7 +17,24 @@
     ]
 },
 {
-    "query": "d: a -> xs: [a] -> n: Int -> a",
+    "query": "xs: [a] -> n: Int -> [a]",
+    "inExamples": [
+        {
+            "inputs": ["[1,2,3]", "4"],
+            "output": "??"
+        },
+        {
+            "inputs": ["[1,1,1]", "2"],
+            "output": "??"
+        },
+	{
+	    "inputs": ["[Just 5, Nothing, Just 1]","2"],
+	    "output": "??"
+	}
+    ]
+},
+{
+    "query": "x: a -> xs: [a] -> n: Int -> a",
     "inExamples": [
         {
             "inputs": ["1", "[]", "1"],
@@ -28,9 +45,26 @@
             "output": "??"
         },
 	{
-	    "inputs": ["Nothing", "[Just 5, Nothing, Just 1]"],
+	    "inputs": ["Nothing", "[Just 5, Nothing, Just 1]", "3"],
 	    "output": "??"
 	}
+    ]
+},
+{
+    "query": "f: (a -> a) -> x: a -> n: Int -> a",
+    "inExamples": [
+	 {
+	     "inputs": ["\\x -> x + 1", "1", "3"],
+	     "output": "??"
+	 },
+	 {
+	     "inputs": ["\\x -> x * 2", "2", "3"],
+	     "output": "??"
+	 },
+	 {
+	     "inputs": ["\\x -> x", "100", "100"],
+	     "output": "??"
+	 }
     ]
 }
 ]
