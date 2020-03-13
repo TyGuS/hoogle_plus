@@ -52,8 +52,11 @@ const connectedSearchBar = (props) => {
 
     const canSubmit = () => {
         const hasAnExample = !_.isEmpty(exampleRows);
+        const allExamplesComplete = _.all(exampleRows, ({usage}) => {
+            return _.all(usage, x => (!_.isNull(x) && !_.isUndefined(x)));
+        });
         const hasAType = !isMissingType(searchType);
-        return hasAnExample || hasAType;
+        return (hasAnExample || hasAType) && allExamplesComplete;
     };
 
     const buttonVariant = () => {
