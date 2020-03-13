@@ -63,6 +63,7 @@ const connectedSearchBar = (props) => {
                     aria-label="Default"
                     aria-describedby="inputGroup-sizing-default"
                     placeholder="Search by type here"
+                    className="text-center"
                     value={searchType}
                     onChange={handleChange}
                     />
