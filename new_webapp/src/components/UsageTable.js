@@ -115,7 +115,7 @@ const UsageTableBase = ({
           />
           <TableHeaderRow
             contentComponent={(rest) =>
-              <TableHeaderRow.Content {...rest} align="left"/>
+              <TableHeaderRow.Content {...rest} align="center"/>
               }
           />
           <TableEditRow/>

@@ -42,11 +42,11 @@ export const usageToExample = (usage) => {
 
 export const usageToId = (usage) => {
   const args = usage.slice(0, usage.length - 1);
-  return args.reduce((prev, curr) => prev + "-" + curr);
+  return args.reduce((prev, curr) => prev + "-" + curr, "unknown");
 }
 
 export const inputsToId = (inputs) => {
-  return inputs.reduce((prev, curr) => prev + "-" + curr);
+  return inputs.reduce((prev, curr) => prev + "-" + curr, "unknown");
 }
 
 export const getArgCount = (queryStr) => {

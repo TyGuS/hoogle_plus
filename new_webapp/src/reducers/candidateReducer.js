@@ -7,36 +7,43 @@ export const initialCandidateState = {
     isFetching: false,
     queryId: null,
     results: [
-        // {
-        //     candidateId: "cand1",
-        //     code: "\\arg0 arg1 -> replicate arg0 arg1",
-        //     examplesStatus: DONE,
-        //     errorMessage: null || str
-        //     examples: [
-        //         {
-        //             id: usageToId(["x", "2", "xx"]),
-        //             usage: ["x", "2", "xx"],
-        //             isLoading: false,
-        //         }, {
-        //             id: "2",
-        //             usage: ["x", "0", ""],
-        //             isLoading: false,
-        //             error: "errorstring",
-        //         }
-        //     ]
-        // },
-        // {
-        //     candidateId: "cand2",
-        //     code: "\\arg0 arg1-> replicate2 arg0 arg1",
-        //     examplesStatus: ERROR,
-        //     examples: [
-        //         {
-        //             id: usageToId(["x", "2", "xx"]),
-        //             usage: ["x", "2", "xx"],
-        //             isLoading: false,
-        //         }
-        //     ]
-        // }
+        /** {
+         *     candidateId: "cand1",
+         *     code: "\\arg0 arg1 -> replicate arg0 arg1",
+         *     examplesStatus: DONE,
+         *     docs: [
+         *      { doc: str,
+         *        name: str,
+         *        signature: str
+         *      }
+         *     ]
+         *     errorMessage: null || str
+         *     examples: [
+         *         {
+         *             id: usageToId(["x", "2", "xx"]),
+         *             usage: ["x", "2", "xx"],
+         *             isLoading: false,
+         *         }, {
+         *             id: "2",
+         *             usage: ["x", "0", ""],
+         *             isLoading: false,
+         *             error: "errorstring",
+         *         }
+         *     ]
+         * },
+         * {
+         *     candidateId: "cand2",
+         *     code: "\\arg0 arg1-> replicate2 arg0 arg1",
+         *     examplesStatus: ERROR,
+         *     examples: [
+         *         {
+         *             id: usageToId(["x", "2", "xx"]),
+         *             usage: ["x", "2", "xx"],
+         *             isLoading: false,
+         *         }
+         *     ]
+         * }
+        **/
     ]
 };
 

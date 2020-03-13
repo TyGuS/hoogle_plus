@@ -37,7 +37,6 @@ import qualified Types.Program as TP
 import Synquid.Util
 import qualified Debug.Trace as D
 
-
 writeEnv :: FilePath -> Environment -> IO ()
 writeEnv path env = B.writeFile path (encode env)
 
