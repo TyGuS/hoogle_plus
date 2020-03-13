@@ -71,14 +71,6 @@ const ExampleTableBase = ({
       setFacts(changedRows);
     };
 
-    const addEmptyRow = () => {
-      const newId = v4();
-      return commitChanges({added: usageToNamedArgs([{
-        id: newId,
-        usage: _.times(numArgs, () => ""),
-      }]) })
-    };
-
     return (
       <div className="container">
         <div className="row">
