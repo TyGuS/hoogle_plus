@@ -2,12 +2,12 @@ import React from "react";
 
 export const TopBar = () => (
     <div>
-    <h1 className="hplus_font">
-          <a href="." className="nav-link" id="home">Hoogle+</a>
-          <br></br>
-          </h1>
-    <h5> Welcome to the Hoogle+ Demo </h5>
-    <p> {flavorText} </p>
+        <h1 className="hplus_font">
+            <a href="." className="nav-link" id="home">Hoogle+</a>
+            <br></br>
+        </h1>
+        <h5 className="title"> Welcome to the Hoogle+ Demo </h5>
+        <p className="description"> {flavorText} </p>
     </div>
 );
 
