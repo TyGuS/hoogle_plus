@@ -46,7 +46,7 @@ import Text.Printf
 import Debug.Trace
 import System.Timeout
 
-timeoutLimit = 10^5 :: Int -- in microsecond
+timeoutLimit = 10^6 :: Int -- in microsecond
 outputDepth = 4 :: Int
 
 askGhc :: [String] -> Ghc a -> IO a
