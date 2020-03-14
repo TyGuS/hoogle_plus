@@ -16,7 +16,8 @@ export const ghciUsage = ({typeSignature, code, args}) => {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(data),
     }
-    return fetch(route, fetchOpts).then(handleFetch);
+    return fetch(route, fetchOpts)
+        .then(handleFetch);
 };
 
 export const hooglePlusMoreExamples = ({code, usages, queryType}) => {

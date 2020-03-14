@@ -1,11 +1,14 @@
 import * as Consts from "../constants/action-types";
 import * as _ from "underscore";
 import { getArgNames, namedArgsToUsage, usageToId } from "../utilities/args";
+import { DONE, LOADING, ERROR } from "../constants/fetch-states";
 
 export const initialSpecState = {
     editingExampleRow: null,
     rows: [],
     numArgs: 2,
+    errorMessage: null,
+    searchStatus: DONE,
     searchType: null,
     searchTypeOptions: [],
 };
@@ -33,22 +36,44 @@ const dedupeSpecs = (rows, new_rows) => {
     return r;
 };
 
+const clearErrors = (state) => {
+    return {
+        ...state,
+        errorMessage: null,
+        searchStatus: DONE,
+    }
+}
 
 export function specReducer(state = initialSpecState, action) {
     switch(action.type) {
+        case Consts.SET_SEARCH_STATUS:
+            switch(action.payload.status) {
+                case LOADING:
+                case DONE:
+                    return {
+                        ...state,
+                        searchStatus: action.payload.status,
+                    };
+                case ERROR:
+                    return {
+                        ...state,
+                        searchStatus: ERROR,
+                        errorMessage: action.payload.errorMessage,
+                    };
+            }
         case Consts.INCREASE_ARGS:
             return {
-                ...state,
+                ...clearErrors(state),
                 numArgs: state.numArgs + 1
             };
         case Consts.DECREASE_ARGS:
             return {
-                ...state,
+                ...clearErrors(state),
                 numArgs: state.numArgs > 1 ? state.numArgs - 1 : 1
             };
         case Consts.SET_ARG_NUM:
             return {
-                ...state,
+                ...clearErrors(state),
                 numArgs: action.payload
             };
         case Consts.ADD_FACT:
@@ -68,12 +93,12 @@ export function specReducer(state = initialSpecState, action) {
             };
         case Consts.SET_SEARCH_TYPE:
             return {
-                ...state,
+                ...clearErrors(state),
                 searchType: action.payload.query,
             }
         case Consts.SET_TYPE_OPTIONS:
             return {
-                ...state,
+                ...clearErrors(state),
                 searchTypeOptions: action.payload,
             }
         default:

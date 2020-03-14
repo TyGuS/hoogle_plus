@@ -14,13 +14,13 @@ export const SpinnableCell = ({ row, ...restProps }) => {
     }
     if (row.error) {
       return (<Table.Cell row={row} {...restProps}>
-        <div className="error_message">
+        <code className="error_message">
           {row.error}
-        </div>
+        </code>
       </Table.Cell>);
     }
   }
-  return (<Table.Cell row={row} align="left" {...notValueRest}>
+  return (<Table.Cell row={row} align="center" {...notValueRest}>
     <Highlight language="haskell">{value}</Highlight>
     </Table.Cell>);
 };
