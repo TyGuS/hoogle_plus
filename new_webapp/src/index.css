@@ -27,3 +27,8 @@ code {
   text-align: left;
   margin-top: 15px;
 }
+
+.error_message {
+  color: #b91717;
+  font-weight: 600;
+}

@@ -69,8 +69,12 @@ export const updateCandidateUsage = ({typeSignature, candidateId, usageId, args,
     dispatch(updateCandidateUsageTable({candidateId, usageId, args}));
 
     return ghciUsage({typeSignature, args, code})
-        .then(backendResult =>
-            dispatch(updateCandidateUsageTable({candidateId, usageId, ...backendResult})));
+        .then(({result}) => {
+            return dispatch(updateCandidateUsageTable({candidateId, usageId, result}))
+        })
+        .catch(({error}) => {
+            return dispatch(updateCandidateUsageTable({candidateId, usageId, error}))
+        });
 };
 
 export const selectTypeFromOptions = ({typeOption}) => (dispatch, getState) => {
