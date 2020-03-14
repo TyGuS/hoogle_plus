@@ -1,18 +1,19 @@
+type Example: {inputs: [str], output: str}
+
+
 route: /search/type
 method: POST
 args: {
     "typeSignature": str,
-    "facts": [
-        [str] # (num of args + 1)
-        ]
+    "facts": [Example]
     }
 returns:
     {
         "id": uuid-str
         "results": [
             {
-                "candidate": ast,
-                "examples": [{inputs: [str], output: str}]
+                "candidate": str,
+                "examples": [Example]
             }
         ]
     }
@@ -20,9 +21,7 @@ returns:
 route: /search/example
 method: POST
 args: {
-    "facts": [
-        [str] # (num of args + 1)
-        ]
+    "facts": [Example]
     }
 returns:
     { "typeCandidates": [str] }
@@ -37,10 +36,10 @@ method: POST
 args: {
     "typeSignature": str,
     "candidate": str,
-    "examples": [[str]]
+    "examples": [Example]
     }
 returns: {
-    "examples": [{inputs: [str], output: str}]
+    "examples": [Example]
     }
 
 route: /example/code

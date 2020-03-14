@@ -1,34 +1,30 @@
 import React from "react";
 import { connect } from "react-redux";
-import {Modal, Button, ButtonGroup} from "react-bootstrap";
-import { setModalClosed, selectType } from "../actions";
+import Highlight from "react-highlight.js";
+import { Modal, Button, ButtonGroup} from "react-bootstrap";
+import { setModalClosed, selectTypeFromOptions } from "../actions";
 
 const mapStateToProps = (state) => {
     return {
         isOpen: state.modal.isOpen,
         typeOptions: state.spec.searchTypeOptions,
-        exampleRows: state.spec.rows,
     };
 }
 
 const mapDispatchToProps = (dispatch) => {
     return {
         onClose: () => dispatch(setModalClosed()),
-        selectType: ({typeOption, examples}) => dispatch(selectType({typeOption, examples})),
+        selectType: ({typeOption}) => dispatch(selectTypeFromOptions({typeOption})),
     };
 }
 
 const TypeSelectionBase = (props) => {
     const {onClose, selectType} = props;
     const isDisabled = props.hidden || false;
-    const {isOpen, typeOptions, exampleRows} = props;
+    const {isOpen, typeOptions} = props;
 
     const mkSelection = (typeStr) => {
-        const examples = exampleRows.map(row => row.usage);
-        return selectType({
-            typeOption: typeStr,
-            examples,
-        });
+        return selectType({ typeOption: typeStr });
     }
 
     return (
@@ -38,26 +34,27 @@ const TypeSelectionBase = (props) => {
           <Modal.Title>Which type looks right to you?</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-            <div>
-                To help us give you the best results,
-                help us narrow down the type signature.
-                Please select one of the following:
+        <div className="container">
+            <div className="row">
+            To help us give you the best results,
+            help us narrow down the type signature.
+            Please select one of the following:
             </div>
             <br/>
-            <div className="container">
-            <ButtonGroup vertical className="justify-content-center">
+            <div className="row justify-content-center">
+            <div className="col-12">
                 {typeOptions.map((typeStr, idx) => {
-                    return (<div className="row" key={idx}>
+                    return (<div className="row pb-2" key={idx}>
                         <Button
-                            className="col-5"
                             onClick={() => mkSelection(typeStr)}>
                                 {idx + 1}
                         </Button>
-                        <span className="col-7">{typeStr}</span>
+                        <div className="col-11"><Highlight language="haskell">{typeStr}</Highlight></div>
                     </div>);
                 })}
-            </ButtonGroup>
             </div>
+            </div>
+        </div>
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={onClose}>

@@ -1,8 +1,9 @@
 import * as Consts from "../constants/action-types";
 import _ from "underscore";
 import { Search, ghciUsage, hooglePlusExampleSearch, hooglePlusMoreExamples } from "../gateways";
-import { namedArgsToUsage, getArgCount } from "../utilities/args";
+import { namedArgsToUsage, getArgCount, usageToExample } from "../utilities/args";
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
+import { log } from "../utilities/logger";
 
 function makeActionCreator(type, ...argNames) {
     return function (...args) {
@@ -10,10 +11,10 @@ function makeActionCreator(type, ...argNames) {
         argNames.forEach((arg, index) => {
             action[argNames[index]] = args[index]
         })
+		log.info(type,action)
         return action
     }
 }
-
 // Creates an action creator like:
 // export const setFacts = (payload) => {
 //     return {
@@ -24,6 +25,7 @@ function makeActionCreator(type, ...argNames) {
 
 // Simple action creators for moving state around.
 export const addCandidate = makeActionCreator(Consts.ADD_CANDIDATE, "payload");
+export const clearResults = makeActionCreator(Consts.CLEAR_RESULTS);
 export const addFact = makeActionCreator(Consts.ADD_FACT, "payload");
 
 export const setExampleEditingRow = makeActionCreator(Consts.SET_EXAMPLE_EDITING_ROW, "payload");
@@ -41,17 +43,6 @@ export const setTypeOptions = makeActionCreator(Consts.SET_TYPE_OPTIONS, "payloa
 export const decreaseArgs = makeActionCreator(Consts.DECREASE_ARGS);
 export const increaseArgs = makeActionCreator(Consts.INCREASE_ARGS);
 export const setArgNum = makeActionCreator(Consts.SET_ARG_NUM, "payload");
-
-// A user selected a type option. Close the modal and start the search!
-export const selectType = ({typeOption, examples}) => (dispatch) => {
-    dispatch(setSearchTypeInternal({searchType: typeOption}));
-    dispatch(setModalClosed());
-
-    Search.getCodeCandidates({query: typeOption, examples}, (candidate => {
-        dispatch(addCandidate(candidate));
-    })).then(_ => dispatch(setSearchStatus(DONE)));
-    return;
-};
 
 // When a new candidate's usage changes, go and get new outputs for each
 // usage across all current candidates.
@@ -78,32 +69,74 @@ export const updateCandidateUsage = ({typeSignature, candidateId, usageId, args,
     dispatch(updateCandidateUsageTable({candidateId, usageId, args}));
 
     return ghciUsage({typeSignature, args, code})
-        .then(backendResult =>
-            dispatch(updateCandidateUsageTable({candidateId, usageId, ...backendResult})));
+        .then(({result}) => {
+            return dispatch(updateCandidateUsageTable({candidateId, usageId, result}))
+        })
+        .catch(({error}) => {
+            return dispatch(updateCandidateUsageTable({candidateId, usageId, error}))
+        });
+};
+
+export const selectTypeFromOptions = ({typeOption}) => (dispatch, getState) => {
+    const {spec} = getState();
+    const examples = spec.rows.map(row => usageToExample(row.usage));
+    dispatch(setSearchType({query: typeOption}));
+    dispatch(setModalClosed());
+    return dispatch(doSearch({query: typeOption, examples}));
+}
+
+// Update the search type and associated state.
+export const setSearchType = ({query}) => (dispatch, getState) => {
+    const {spec} = getState();
+    const argCount = getArgCount(query);
+    if (spec.numArgs !== argCount) {
+        dispatch(setArgNum(argCount));
+    }
+    dispatch(setSearchTypeInternal({query}));
 };
 
 // This is where a request needs to be sent to the server
-export const setSearchType = ({query, examples}) => (dispatch) => {
-    const argCount = getArgCount(query);
-    dispatch(setArgNum(argCount));
-    dispatch(setSearchTypeInternal({query}));
-
+// query: str; examples: [{inputs:[str], output:str}]
+export const doSearch = ({query, examples}) => (dispatch) => {
+    dispatch(setSearchStatus({status:LOADING}));
+    dispatch(clearResults());
     Search.getCodeCandidates({query, examples}, (candidate => {
-        dispatch(addCandidate(candidate));
+        if (!candidate.error) {
+            dispatch(addCandidate(candidate));
+        }
     }))
-    .then(_ => dispatch(setSearchStatus(DONE)))
-    .catch(_ => dispatch(setSearchStatus(ERROR)));
+    .then(result => {
+        try {
+            const firstResult = JSON.parse(result.trim().split("\n")[0]);
+            if (firstResult.error) {
+                return Promise.reject({message: firstResult.error});
+            }
+        } catch (error) {
+            console.error("doSearch result error", error);
+        }
+        return dispatch(setSearchStatus({status:DONE}));
+    })
+    .catch(error => {
+        return dispatch(setSearchStatus({
+            status: ERROR,
+            errorMessage: error.message
+        }));
+    });
     return;
 };
 
 // A user gave us some examples. We need to get some possible query options
 // and present them.
-export const getTypesFromExamples = ({examples}) => (dispatch) => {
+// [{inputs:[str], output:str}]
+export const getTypesFromExamples = (examples) => (dispatch) => {
+    dispatch(setSearchStatus({status:LOADING}));
+    dispatch(clearResults());
     return Search.getTypeCandidates({examples})
         .then(value => {
             if (value["typeCandidates"]) {
                 dispatch(setTypeOptions(value.typeCandidates));
                 dispatch(setModalOpen());
+                dispatch(setSearchStatus({status:DONE}));
             } else {
                 debugger;
             }
@@ -111,19 +144,25 @@ export const getTypesFromExamples = ({examples}) => (dispatch) => {
 }
 
 // Get more example usages for this particular candidate.
+// usages: [{inputs:[str], output:str}]
 export const getMoreExamples = ({candidateId, code, usages}) => (dispatch, getState) => {
     const {spec} = getState();
     dispatch(fetchMoreCandidateUsages({candidateId, status: LOADING}));
     return hooglePlusMoreExamples({code, usages, queryType: spec.searchType})
-        .then(({examples}) => {
+        .then(results => {
+            const {examples} = results;
             return dispatch(fetchMoreCandidateUsages({
                 candidateId,
                 status: DONE,
                 result: examples
             }));
         })
-        .catch(error => {
-            console.error("getMoreExamples failed", error);
-            return dispatch(fetchMoreCandidateUsages({candidateId, status: ERROR}));
+        .catch(errorResult => {
+            console.error("getMoreExamples failed", errorResult);
+            return dispatch(fetchMoreCandidateUsages({
+                candidateId,
+                status: ERROR,
+                message: errorResult.error || "Unknown Error",
+            }));
         })
 }

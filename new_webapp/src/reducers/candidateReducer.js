@@ -7,35 +7,43 @@ export const initialCandidateState = {
     isFetching: false,
     queryId: null,
     results: [
-        {
-            candidateId: "cand1",
-            code: "\\arg0 arg1 -> replicate arg0 arg1",
-            examplesStatus: DONE,
-            examples: [
-                {
-                    id: usageToId(["x", "2", "xx"]),
-                    usage: ["x", "2", "xx"],
-                    isLoading: false,
-                }, {
-                    id: "2",
-                    usage: ["x", "0", ""],
-                    isLoading: false,
-                    error: "errorstring",
-                }
-            ]
-        },
-        {
-            candidateId: "cand2",
-            code: "\\arg0 arg1-> replicate2 arg0 arg1",
-            examplesStatus: ERROR,
-            examples: [
-                {
-                    id: usageToId(["x", "2", "xx"]),
-                    usage: ["x", "2", "xx"],
-                    isLoading: false,
-                }
-            ]
-        }
+        /** {
+         *     candidateId: "cand1",
+         *     code: "\\arg0 arg1 -> replicate arg0 arg1",
+         *     examplesStatus: DONE,
+         *     docs: [
+         *      { doc: str,
+         *        name: str,
+         *        signature: str
+         *      }
+         *     ]
+         *     errorMessage: null || str
+         *     examples: [
+         *         {
+         *             id: usageToId(["x", "2", "xx"]),
+         *             usage: ["x", "2", "xx"],
+         *             isLoading: false,
+         *         }, {
+         *             id: "2",
+         *             usage: ["x", "0", ""],
+         *             isLoading: false,
+         *             error: "errorstring",
+         *         }
+         *     ]
+         * },
+         * {
+         *     candidateId: "cand2",
+         *     code: "\\arg0 arg1-> replicate2 arg0 arg1",
+         *     examplesStatus: ERROR,
+         *     examples: [
+         *         {
+         *             id: usageToId(["x", "2", "xx"]),
+         *             usage: ["x", "2", "xx"],
+         *             isLoading: false,
+         *         }
+         *     ]
+         * }
+        **/
     ]
 };
 
@@ -49,10 +57,12 @@ const usageToExample = (usage) => {
 
 export function candidateReducer(state = initialCandidateState, action){
     switch(action.type) {
+        case Consts.CLEAR_RESULTS:
+            return {...state, results:[]};
         case Consts.SET_SEARCH_STATUS:
             return {
                 ...state,
-                isFetching: action.payload === LOADING
+                isFetching: action.payload.status === LOADING,
             };
         case Consts.ADD_CANDIDATE:
             return {
@@ -63,8 +73,8 @@ export function candidateReducer(state = initialCandidateState, action){
         case Consts.SET_SEARCH_TYPE:
             return {
                 results: [],
-                isFetching: true,
-            }
+                isFetching: false,
+                }
         case Consts.FETCH_MORE_CANDIDATE_USAGES:
             const {candidateId:fCandidateId, status} = action.payload;
             switch (status) {
@@ -99,6 +109,7 @@ export function candidateReducer(state = initialCandidateState, action){
                             return {
                                 ...result,
                                 examplesStatus: ERROR,
+                                errorMessage: action.payload.message,
                             }
                         }
                         return result;

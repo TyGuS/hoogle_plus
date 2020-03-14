@@ -1,4 +1,4 @@
-import { baseRoute } from "../constants/strings";
+import { baseRoute } from "../utilities/fetches";
 
 function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));

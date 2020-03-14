@@ -1,5 +1,6 @@
 .App {
   text-align: center;
+  padding-bottom: 50px;
 }
 
 .App-logo {
@@ -35,4 +36,8 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+.tooltip-inner {
+  max-width: 500px;
 }

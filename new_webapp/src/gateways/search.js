@@ -1,7 +1,8 @@
 import _ from "underscore";
 import {v4} from "uuid";
 import { inputsToId } from "../utilities/args";
-import {baseRoute} from "../constants/strings";
+import {baseRoute} from "../utilities/fetches";
+import { DONE } from "../constants/fetch-states";
 
 const getTypeCandidates = ({id, examples}, cb) => {
     const ROUTE = baseRoute + "search/example";
@@ -27,11 +28,12 @@ const getCodeCandidates = ({query, examples}, cb) => {
         facts: examples || []
     };
 
-    const convertToState = ({id, candidate, examples}) => {
+    const convertToState = ({id, candidate, examples, docs, error}) => {
         const newResults = {
                 candidateId: v4(),
                 code: candidate,
-                examplesLoading: false,
+                docs,
+                examplesStatus: DONE,
                 examples: examples.map(({inputs, output}) => {
                     return {
                         id: inputsToId(inputs),
@@ -42,6 +44,7 @@ const getCodeCandidates = ({query, examples}, cb) => {
                     }}),
             };
         return {
+            error,
             queryId: id,
             result: newResults
         };
@@ -87,17 +90,17 @@ const streamResponse = (route, fetchOpts, onIncrementalResponse) => {
                             onIncrementalResponse(jsonBlob);
                             console.log("convertedValue sent:", jsonBlob);
                         } catch (error) {
-                            console.error("convertedValue", error);
+                            console.error("convertedValue error", error);
                         }
                     })
                     controller.enqueue(value);
                     return pump();
                     });
-                }
-                }
+                }}
             });
         })
-        .then(stream => new Response(stream));
+        .then(stream => new Response(stream))
+        .then(response => response.text());
 }
 
 export default {

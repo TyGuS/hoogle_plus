@@ -1,5 +1,5 @@
 import _ from "underscore";
-import {baseRoute} from "../constants/strings";
+import {handleFetch, baseRoute} from "../utilities/fetches";
 
 // {typeSignature: str, code: str, args: [str]} -> Promise
 export const ghciUsage = ({typeSignature, code, args}) => {
@@ -16,7 +16,8 @@ export const ghciUsage = ({typeSignature, code, args}) => {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(data),
     }
-    return fetch(route, fetchOpts);
+    return fetch(route, fetchOpts)
+        .then(handleFetch);
 };
 
 export const hooglePlusMoreExamples = ({code, usages, queryType}) => {
@@ -33,5 +34,5 @@ export const hooglePlusMoreExamples = ({code, usages, queryType}) => {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(data),
     }
-    return fetch(route, fetchOpts);
+    return fetch(route, fetchOpts).then(handleFetch);
 }
