@@ -5,10 +5,10 @@ export const baseRoute = process.env.REACT_APP_DEVELOPMENT ? "http://localhost:5
 export const handleFetch = (data) => {
     return data.json()
         .then((body) => {
-            if (!_.isUndefined(body.error)) {
+            if (body.error) {
                 return Promise.reject({error: body.error});
             }
             const {error, ...rest} = body;
-            return {rest};
+            return {...rest};
         });
 };
