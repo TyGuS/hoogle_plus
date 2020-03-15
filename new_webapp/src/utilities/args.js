@@ -50,5 +50,20 @@ export const inputsToId = (inputs) => {
 }
 
 export const getArgCount = (queryStr) => {
-  return (queryStr.match(/->/g) || []).length;
+  let arrows = 0;
+  let parens = 0;
+  for (let i = 0; i < queryStr.length; ++i){
+    if (queryStr[i] == '-') {
+      if (queryStr[i+1] == '>' && parens == 0){
+        arrows += 1;
+      }
+    }
+    else if (queryStr[i] == '(') {
+      parens += 1;
+    }
+    else if (queryStr[i] == ')') {
+      parens -= 1;
+    }
+  }
+  return arrows;
 }
