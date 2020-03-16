@@ -51,8 +51,27 @@ export const inputsToId = (inputs) => {
 
 export const getArgCount = (queryStr) => {
   let arrows = 0;
+  let countUntil = queryStr.length;
+  if (queryStr.trim().endsWith(')')){
+    let parens = 0;
+    let trimTo = 0;
+    for (let i = queryStr.length - 1; i >= 0; --i){
+      if(queryStr[i] == ')') {
+        if (parens == 0) { trimTo = i-1; }
+        parens += 1;
+      }
+      else if (queryStr[i] == '(') {
+        parens -= 1;
+        if (parens == 0) {
+          arrows += getArgCount(queryStr.substr(i+1,trimTo-i))
+          countUntil = i;
+          break;
+        }
+      }
+    }
+  }
   let parens = 0;
-  for (let i = 0; i < queryStr.length; ++i){
+  for (let i = 0; i < countUntil; ++i){
     if (queryStr[i] == '-') {
       if (queryStr[i+1] == '>' && parens == 0){
         arrows += 1;
