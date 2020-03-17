@@ -62,7 +62,7 @@ updateCover' bound cover intscts t paren =
 propagate :: MonadIO m => Environment -> RProgram -> AbstractSkeleton -> PNSolver m ()
 -- | base case, when we reach the leaf of the AST
 propagate env p@(Program (PSymbol sym) t) upstream = do
-    writeLog 3 "propagate" $ text "propagate" <+> pretty upstream <+> text "into" <+> pretty p
+    writeLog 2 "propagate" $ text "propagate" <+> pretty upstream <+> text "into" <+> pretty p
     cover <- gets $ view (refineState . abstractionCover)
     let bound = env ^. boundTypeVars
     unless (existAbstract bound cover upstream)
@@ -77,7 +77,7 @@ propagate env p@(Program (PSymbol sym) t) upstream = do
 -- of the arguments, but not unify with the function args of its signature
 propagate env p@(Program (PApp f args) _) upstream = do
     unless (isBot upstream) (propagate env (Program (PSymbol "x") AnyT) upstream)
-    writeLog 3 "propagate" $ text "propagate" <+> pretty upstream <+> text "into" <+> pretty p
+    writeLog 2 "propagate" $ text "propagate" <+> pretty upstream <+> text "into" <+> pretty p
     t <- findSymbol env (removeLast '_' f)
     let closedArgs = map (shape . typeOf) args
     let argConcs = map toAbstractType closedArgs

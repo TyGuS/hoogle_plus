@@ -277,7 +277,7 @@ addMusters arg = do
 refineSemantic :: MonadIO m => Environment -> RProgram -> AbstractSkeleton -> PNSolver m SplitInfo
 refineSemantic env prog at = do
     cover <- gets $ view (refineState . abstractionCover)
-    writeLog 2 "instantiate" $ text "Current abstract types:" <+> text (show cover)
+    writeLog 2 "refineSemantic" $ text "Current abstract types:" <+> text (show cover)
     -- back propagation of the error types to get all split information
     propagate env prog $ compactAbstractType at
     -- get the split pairs
@@ -341,7 +341,7 @@ refineSemantic env prog at = do
 
     changeGroups True = do
         removables' <- gets $ view (refineState . toRemove)
-        writeLog 4 "changeGroups" $ pretty removables'
+        writeLog 2 "changeGroups" $ pretty removables'
         splitGroups removables'
     changeGroups False = do
         removables <- gets $ view (refineState . toRemove)
@@ -354,10 +354,9 @@ refineSemantic env prog at = do
         -- Some groups representative may not longer be valid.
         -- TODO: This operation could be slow. find a way to go from id -> groupId (or id -> abstrTy)
         gm <- gets $ view (groupState . groupMap)
-        let gm' = Map.fromList  $ map (\(a,b) -> (a, fromJust b))
-                              $ filter (isJust . snd)
-                              $ map (\(k, vs) -> (k, shrinkSet (Set.fromList removables) vs))
-                              $ Map.toList gm
+        let gm' = Map.map fromJust
+                $ Map.filter isJust
+                $ Map.map (shrinkSet (Set.fromList removables)) gm
         modify $ set (groupState . groupMap) gm'
         grs <- gets $ view (groupState . groupRepresentative)
         -- Step 2: fixup the group representatives, while also deciding what we can safely remove,
@@ -382,10 +381,13 @@ refineSemantic env prog at = do
         let mbCurrentGroup = Map.lookup gid gm
         case mbCurrentGroup of
           -- The group was eliminated entirely by the removables
-          Nothing -> return (addables, rep:removables, newReps)
+          Nothing -> do
+              writeLog 2 "updateRepresentative" $ text "remove rep" <+> text rep
+              return (addables, rep:removables, newReps)
           Just currentGroup ->
             if rep `Set.notMember` currentGroup
                 then do
+                    writeLog 2 "updateRepresentative" $ text "delete rep" <+> text rep
                     let removables' = rep:removables
                     if not (null currentGroup)
                       then do
@@ -399,7 +401,9 @@ refineSemantic env prog at = do
                       -- There was only that one element in the group, so with the leader gone, the group goes away.
                       else return (addables, removables', newReps)
                 -- after all the removals, the current representative is still in its original group
-                else return (addables, removables, Map.insert gid rep newReps)
+                else do
+                    writeLog 2 "updateRepresentative" $ text "keep rep" <+> text rep
+                    return (addables, removables, Map.insert gid rep newReps)
 
     shrinkSet :: Set Id -> Set Id -> Maybe (Set Id)
     shrinkSet toRemove ids = let
@@ -543,18 +547,13 @@ enumeratePath env goal examples path = do
     gm <- gets $ view (groupState . groupMap)
     uc <- gets $ view (statistics . useCount)
     nameMap <- gets $ view (typeChecker . nameMapping)
-    disrel <- getExperiment disableRelevancy
-    let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
     let getGroup p = lookupWithError "nameToGroup" p ngm
     let getFuncs p = Map.findWithDefault Set.empty (getGroup p) gm
     let substName x = lookupWithError "nameMapping" x nameMap
     let nameCount x = Map.findWithDefault 0 (substName x) uc
     let sortFuncs p = sortOn nameCount $ Set.toList p
     let allPaths = map (sortFuncs . getFuncs) path
-    let getRealName x = replaceId hoPostfix "" $ lookupWithError "nameMapping" x nameMap
-    let filterPaths p = disrel || all (`elem` map getRealName p) hoArgs
-    -- ensure the usage of all the higher order arguments
-    guard (filterPaths path)
+    writeLog 2 "enumeratePath" $ pretty allPaths
     msum $ map (checkPath env goal examples) (sequence allPaths)
 
 checkPath :: MonadIO m 
@@ -564,6 +563,14 @@ checkPath :: MonadIO m
           -> [Id] 
           -> BackTrack m SearchResult
 checkPath env goal examples path = do
+    -- ensure the usage of all the higher order arguments
+    disrel <- getExperiment disableRelevancy
+    nameMap <- gets $ view (typeChecker . nameMapping)
+    let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+    let getRealName x = replaceId hoPostfix "" $ lookupWithError "nameMapping" x nameMap
+    let filterPaths p = disrel || all (`elem` map getRealName p) hoArgs
+    guard (filterPaths path)
+
     -- fill the sketch with the functions in the path
     codeResult <- fillSketch env path
     writeLog 1 "checkPath" $ pretty codeResult
@@ -846,8 +853,9 @@ getGroupRep name = do
     gr <- gets $ view (groupState . groupRepresentative)
     ngm <- gets $ view (groupState . nameToGroup)
     let argGps = maybeToList $ Map.lookup name ngm
-    writeLog 3 "getGroupRep" $ text name <+> text "is contained in group" <+> pretty argGps
+    writeLog 2 "getGroupRep" $ text name <+> text "is contained in group" <+> pretty argGps
     let argRp = mapMaybe (`Map.lookup` gr) argGps
+    writeLog 2 "getGroupRep" $ pretty argGps <+> text "has representative" <+> pretty argRp
     if null argRp then error ("cannot find group rep for " ++ name) else return argRp
 
 assemblePair :: AbstractSkeleton
