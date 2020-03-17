@@ -14,9 +14,9 @@ export const SpinnableCell = ({ row, ...restProps }) => {
     }
     if (row.error) {
       return (<Table.Cell row={row} {...restProps}>
-        <div className="error_message">
+        <code className="error_message">
           {row.error}
-        </div>
+        </code>
       </Table.Cell>);
     }
   }

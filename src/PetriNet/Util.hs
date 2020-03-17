@@ -207,7 +207,9 @@ toOutput env soln exs = do
                 return docs)
 
         targetToDoc tg = let wholeSig = unHTML $ Hoogle.targetItem tg
-                             [name, sig] = splitOn " :: " wholeSig
+                             segs = splitOn " :: " wholeSig
+                             name = head segs
+                             sig = unwords $ tail segs
                              doc = unHTML $ Hoogle.targetDocs tg
                           in FunctionDoc name sig doc
 

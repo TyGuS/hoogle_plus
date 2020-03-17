@@ -13,6 +13,7 @@ HPLUS_CMD = 'stack exec -- hplus'.split()
 OPTIONS = []
 TIMEOUT_CMD = 'timeout'
 TIMEOUT = '60'
+CURR_DIR = os.getcwd()
 
 class QueryType(enum.Enum):
     search_programs = 'SearchPrograms'
@@ -56,11 +57,10 @@ def build_object(query_type, result, qid = None):
 
 def run_hplus(options):
     # TODO: we may put these paths into configuration file
-    os.chdir('../')
+    os.chdir(os.path.join(CURR_DIR, '../'))
     command = [TIMEOUT_CMD, TIMEOUT] + HPLUS_CMD + options
     print(command)
     process = subprocess.Popen(command, stdout=subprocess.PIPE)
-    os.chdir('web_server')
     return process
 
 def get_results(process, query_type, qid):

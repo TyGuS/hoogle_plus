@@ -3,6 +3,7 @@ import _ from "underscore";
 import { Search, ghciUsage, hooglePlusExampleSearch, hooglePlusMoreExamples } from "../gateways";
 import { namedArgsToUsage, getArgCount, usageToExample } from "../utilities/args";
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
+import { log } from "../utilities/logger";
 
 function makeActionCreator(type, ...argNames) {
     return function (...args) {
@@ -10,10 +11,10 @@ function makeActionCreator(type, ...argNames) {
         argNames.forEach((arg, index) => {
             action[argNames[index]] = args[index]
         })
+		log.info(type,action)
         return action
     }
 }
-
 // Creates an action creator like:
 // export const setFacts = (payload) => {
 //     return {
@@ -24,6 +25,7 @@ function makeActionCreator(type, ...argNames) {
 
 // Simple action creators for moving state around.
 export const addCandidate = makeActionCreator(Consts.ADD_CANDIDATE, "payload");
+export const clearResults = makeActionCreator(Consts.CLEAR_RESULTS);
 export const addFact = makeActionCreator(Consts.ADD_FACT, "payload");
 
 export const setExampleEditingRow = makeActionCreator(Consts.SET_EXAMPLE_EDITING_ROW, "payload");
@@ -67,8 +69,12 @@ export const updateCandidateUsage = ({typeSignature, candidateId, usageId, args,
     dispatch(updateCandidateUsageTable({candidateId, usageId, args}));
 
     return ghciUsage({typeSignature, args, code})
-        .then(backendResult =>
-            dispatch(updateCandidateUsageTable({candidateId, usageId, ...backendResult})));
+        .then(({result}) => {
+            return dispatch(updateCandidateUsageTable({candidateId, usageId, result}))
+        })
+        .catch(({error}) => {
+            return dispatch(updateCandidateUsageTable({candidateId, usageId, error}))
+        });
 };
 
 export const selectTypeFromOptions = ({typeOption}) => (dispatch, getState) => {
@@ -92,12 +98,30 @@ export const setSearchType = ({query}) => (dispatch, getState) => {
 // This is where a request needs to be sent to the server
 // query: str; examples: [{inputs:[str], output:str}]
 export const doSearch = ({query, examples}) => (dispatch) => {
-    dispatch(setSearchStatus(LOADING))
+    dispatch(setSearchStatus({status:LOADING}));
+    dispatch(clearResults());
     Search.getCodeCandidates({query, examples}, (candidate => {
-        dispatch(addCandidate(candidate));
+        if (!candidate.error) {
+            dispatch(addCandidate(candidate));
+        }
     }))
-    .then(_ => dispatch(setSearchStatus(DONE)))
-    .catch(_ => dispatch(setSearchStatus(ERROR)));
+    .then(result => {
+        try {
+            const firstResult = JSON.parse(result.trim().split("\n")[0]);
+            if (firstResult.error) {
+                return Promise.reject({message: firstResult.error});
+            }
+        } catch (error) {
+            console.error("doSearch result error", error);
+        }
+        return dispatch(setSearchStatus({status:DONE}));
+    })
+    .catch(error => {
+        return dispatch(setSearchStatus({
+            status: ERROR,
+            errorMessage: error.message
+        }));
+    });
     return;
 };
 
@@ -105,11 +129,14 @@ export const doSearch = ({query, examples}) => (dispatch) => {
 // and present them.
 // [{inputs:[str], output:str}]
 export const getTypesFromExamples = (examples) => (dispatch) => {
+    dispatch(setSearchStatus({status:LOADING}));
+    dispatch(clearResults());
     return Search.getTypeCandidates({examples})
         .then(value => {
             if (value["typeCandidates"]) {
                 dispatch(setTypeOptions(value.typeCandidates));
                 dispatch(setModalOpen());
+                dispatch(setSearchStatus({status:DONE}));
             } else {
                 debugger;
             }
