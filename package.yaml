@@ -28,6 +28,7 @@ dependencies:
 - conduit
 - conduit-extra
 - containers
+- deepseq
 - directory
 - extra
 - filepath
@@ -37,6 +38,7 @@ dependencies:
 - haskell-src-exts
 - heap
 - hint
+- hoogle
 - html
 - http-conduit
 - http-types
@@ -67,6 +69,8 @@ dependencies:
 - uuid
 - vector
 - z3
+- aeson-pretty
+- ghci
 
 library:
   source-dirs:

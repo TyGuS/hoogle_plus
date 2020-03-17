@@ -1,0 +1,67 @@
+type Example: {inputs: [str], output: str}
+
+
+route: /search/type
+method: POST
+args: {
+    "typeSignature": str,
+    "facts": [Example]
+    }
+returns:
+    {
+        "id": uuid-str
+        "results": [
+            {
+                "candidate": str,
+                "examples": [Example]
+            }
+        ]
+    }
+
+route: /search/example
+method: POST
+args: {
+    "facts": [Example]
+    }
+returns:
+    { "typeCandidates": [str] }
+
+route: /stop
+method: POST
+args: {"id": uuid}
+returns: None
+
+route: /examples
+method: POST
+args: {
+    "typeSignature": str,
+    "candidate": str,
+    "examples": [Example]
+    }
+returns: {
+    "examples": [Example]
+    }
+
+route: /example/code
+method: POST
+args: {
+    "typeSignature": str,
+    "candidate": str,
+    "args": [str]
+}
+returns: {
+    "result": str,
+    "error": str
+}
+
+
+route: /typecheck
+method: POST
+args: {
+    "typeName": str,
+    "term": str
+}
+returns: {
+    "result": "ok",
+    "error": str
+}
