@@ -14,6 +14,7 @@ import Types.TypeChecker
 import Types.Common
 import Synquid.Type
 import Synquid.Pretty
+import Synquid.Program
 import Synquid.Logic
 import HooglePlus.TypeChecker
 import HooglePlus.Utils
@@ -225,8 +226,7 @@ augmentTestSet env goal = do
     let candidates = env ^. queryCandidates
     let permutedCands = concatMap permuteMap (Map.toList candidates)
     let permutedMap = Map.fromList permutedCands
-    msgChan <- newChan
-    matchCands <- filterM (\s -> checkTypes env msgChan s goal) (Map.keys permutedMap)
+    matchCands <- filterM (\s -> generalThan goal s) (Map.keys permutedMap)
     let usefulExs = concatMap (\s -> permutedMap Map.! s) matchCands
     return $ nubBy (\x y -> inputs x == inputs y) usefulExs
     where
@@ -238,6 +238,17 @@ augmentTestSet env goal = do
                                   typesList = map (flip permuteArgs q) orderPermutes
                                   examplesList = map (\o -> map (permuteExamples o) exs) orderPermutes
                                in zip typesList examplesList
+
+        generalThan s1 s2 = do
+            msgChan <- newChan
+            let initChecker = emptyChecker { _checkerChan = msgChan }
+            state <- execStateT (do
+                s1' <- freshType s1
+                s2' <- freshType s2
+                let vars = typeVarsOf s2'
+                let env' = foldr addTypeVar env vars
+                solveTypeConstraint env' (shape s1') (shape s2')) initChecker
+            return $ state ^. isChecked
 
 checkExampleOutput :: [String] -> Environment -> String -> [Example] -> IO (Maybe [Example])
 checkExampleOutput mdls env prog exs = do
