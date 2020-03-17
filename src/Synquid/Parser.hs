@@ -117,17 +117,13 @@ checkNum [] = True
 checkNum (n:ns) = if isDigit n then checkNum ns else False
 
 fixIndex :: RType -> Int
-fixIndex (FunctionT n a r) = 
-  if ("arg" `isPrefixOf` n) 
-    then 
-      (let num = drop 3 n in
-        (if checkNum num 
-          then
-            max (read num::Int) (max (fixIndex a) (fixIndex r))
-          else
-            0))
-    else 
-      max (fixIndex a) (fixIndex r)
+fixIndex (FunctionT n a r) =
+    let num = drop 3 n 
+        maxIndex = max (fixIndex a) (fixIndex r)
+        argNum = if "arg" `isPrefixOf` n && checkNum num 
+                    then read num :: Int
+                    else 0
+     in max argNum maxIndex
 fixIndex _ = 0
 
 fixArgName :: Int -> RType -> RType
