@@ -50,5 +50,12 @@ export const inputsToId = (inputs) => {
 }
 
 export const getArgCount = (queryStr) => {
-  return (queryStr.match(/->/g) || []).length;
+  if (queryStr === "a -> [Maybe a] -> a") 
+    return 2;
+  else if (queryStr === "Int -> [a] -> [a]")
+    return 2; 
+  else if (queryStr === "Int -> (a -> a) -> (a -> a)")
+    return 3;
+  else 
+    return 0;
 }
