@@ -172,7 +172,7 @@ export const getMoreExamples = ({candidateId, code, usages}) => (dispatch, getSt
 // id: uuid
 export const doStop = ({id}) => (dispatch) => {
     dispatch(setSearchStatus({status:DONE}));
-    Search.sendStopSignal({id})
+    return Search.sendStopSignal({id})
     .then(result => {
         return dispatch(stopSearch({id}));
 		})
@@ -182,5 +182,4 @@ export const doStop = ({id}) => (dispatch) => {
             errorMessage: error.message
         }));
     });
-    return;
 };
