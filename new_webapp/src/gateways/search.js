@@ -103,7 +103,20 @@ const streamResponse = (route, fetchOpts, onIncrementalResponse) => {
         .then(response => response.text());
 }
 
+const sendStopSignal = ({id}) => {
+    const ROUTE = baseRoute + "stop";
+    let data = {id};
+    const fetchOpts = {
+        method: 'POST', // or 'PUT'
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data),
+    };
+    return fetch(ROUTE, fetchOpts)
+        .then(response => response.text());
+}
+
 export default {
     getCodeCandidates,
-    getTypeCandidates
+    getTypeCandidates,
+	  sendStopSignal
 };
