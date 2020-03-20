@@ -25,7 +25,7 @@ const mapStateToProps = (state) => {
         exampleRows: state.spec.rows,
         errorMessage: state.spec.errorMessage,
         searchStatus: state.spec.searchStatus,
-			  queryId: state.candidates.queryId
+        queryId: state.candidates.queryId
     }
 };
 
@@ -53,9 +53,9 @@ const connectedSearchBar = (props) => {
         doSearch({query: searchType, examples: filteredUsages});
     };
 
-	  const handleStop = (event) => {
-			  doStop({id: queryId})
-		};
+    const handleStop = (event) => {
+        doStop({id: queryId})
+    };
 
     const hasAnExample = !_.isEmpty(exampleRows);
 
@@ -126,18 +126,19 @@ const connectedSearchBar = (props) => {
                                 Clear Examples
                             </Button>):<></>}
                         <Button
+                            className="mr-2"
                             disabled={!canSubmit()}
                             onClick={handleSubmit}
                             variant={buttonVariant()}
                             type="submit">
                             {buttonContent()}
                         </Button>
-											  <Button
-			                      disabled={queryId==null}
-														onClick={handleStop}
-			                      >
-			                      Stop
-												</Button>
+                        <Button
+                            disabled={queryId==null}
+                            onClick={handleStop}
+                            type="button">
+                            Stop
+                        </Button>
                     </div>
                 </div>
                 </Form>

@@ -171,9 +171,9 @@ export const getMoreExamples = ({candidateId, code, usages}) => (dispatch, getSt
 // This is where a request needs to be sent to the server
 // id: uuid
 export const doStop = ({id}) => (dispatch) => {
+    dispatch(setSearchStatus({status:DONE}));
     Search.sendStopSignal({id})
     .then(result => {
-			  dispatch(setSearchStatus({status:DONE}));
         return dispatch(stopSearch({id}));
 		})
     .catch(error => {
