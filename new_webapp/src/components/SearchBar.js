@@ -15,7 +15,7 @@ const mapDispatchToProps = (dispatch) => {
         doSearch: ({query, examples}) => dispatch(doSearch({query, examples})),
         getTypesFromExamples: usages => dispatch(getTypesFromExamples(usages)),
         clearExamples: _ => dispatch(setExamples([])),
-			  doStop: ({id}) => dispatch(doStop({id})),
+        doStop: ({id}) => dispatch(doStop({id})),
     }
 }
 

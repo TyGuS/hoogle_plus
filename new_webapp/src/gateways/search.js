@@ -118,5 +118,5 @@ const sendStopSignal = ({id}) => {
 export default {
     getCodeCandidates,
     getTypeCandidates,
-	  sendStopSignal
+    sendStopSignal
 };

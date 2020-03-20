@@ -157,11 +157,11 @@ export function candidateReducer(state = initialCandidateState, action){
             })
             return {...state, results:updatedResults};
 
-			  case Consts.STOP_SEARCH:
-						return {
-								...state,
-							  queryId: null
-						};
+        case Consts.STOP_SEARCH:
+            return {
+                ...state,
+                queryId: null
+            };
         default:
             return state;
     }
