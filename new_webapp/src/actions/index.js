@@ -26,7 +26,7 @@ function makeActionCreator(type, ...argNames) {
 // Simple action creators for moving state around.
 export const addCandidate = makeActionCreator(Consts.ADD_CANDIDATE, "payload");
 export const clearResults = makeActionCreator(Consts.CLEAR_RESULTS);
-export const addFact = makeActionCreator(Consts.ADD_FACT, "payload");
+export const addFact = makeActionCreator(Consts.ADD_EXAMPLE, "payload");
 
 export const setExampleEditingRow = makeActionCreator(Consts.SET_EXAMPLE_EDITING_ROW, "payload");
 export const setExamples = makeActionCreator(Consts.SET_EXAMPLES, "payload");

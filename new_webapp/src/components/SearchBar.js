@@ -32,8 +32,7 @@ const connectedSearchBar = (props) => {
     const {setSearchType, doSearch, getTypesFromExamples, clearExamples} = props;
     const {search} = getDefaultFeatures();
 
-    const usages = exampleRows.map(({usage}) => usageToExample(usage));
-    const filteredUsages = _.filter(usages, usageList => !_.any(usageList, _.isUndefined));
+    const filteredUsages = _.filter(exampleRows, row => !_.any(row.inputs, _.isUndefined) && !_.isUndefined(row.output));
 
     const isMissingType = (queryStr) => !queryStr || queryStr.trim() === "";
 

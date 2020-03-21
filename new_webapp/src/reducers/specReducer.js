@@ -1,15 +1,15 @@
 import * as Consts from "../constants/action-types";
-import * as _ from "underscore";
-import { getArgNames, namedArgsToUsage, usageToId } from "../utilities/args";
+import { namedArgsToExample } from "../utilities/args";
 import { DONE, LOADING, ERROR } from "../constants/fetch-states";
 
 export const initialSpecState = {
-    editingExampleRow: null,
-    rows: [],
+    editingExampleRow: null, // id-str
+    rows: [{inputs: ["a","b"], output: "c", id: "a-b-c"}],
+    // rows: [{inputs:[str], output:str, id}]
     numArgs: 2,
     errorMessage: null,
     searchStatus: DONE,
-    searchType: null,
+    searchType: "",
     searchTypeOptions: [],
 };
 
@@ -69,14 +69,14 @@ export function specReducer(state = initialSpecState, action) {
         case Consts.DECREASE_ARGS:
             return {
                 ...clearErrors(state),
-                numArgs: state.numArgs > 1 ? state.numArgs - 1 : 1
+                numArgs: Math.max(state.numArgs - 1, 1)
             };
         case Consts.SET_ARG_NUM:
             return {
                 ...clearErrors(state),
                 numArgs: action.payload
             };
-        case Consts.ADD_FACT:
+        case Consts.ADD_EXAMPLE:
             return {
                 ...state,
                 rows: dedupeSpecs(state.rows, [action.payload]),
@@ -84,7 +84,7 @@ export function specReducer(state = initialSpecState, action) {
         case Consts.SET_EXAMPLES:
             return {
                 ...state,
-                rows: namedArgsToUsage(action.payload, state.numArgs),
+                rows: namedArgsToExample(action.payload, state.numArgs),
             };
         case Consts.SET_EXAMPLE_EDITING_ROW:
             return {
