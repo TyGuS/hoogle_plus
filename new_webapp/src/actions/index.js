@@ -35,6 +35,7 @@ export const fetchMoreCandidateUsages = makeActionCreator(Consts.FETCH_MORE_CAND
 
 export const setSearchTypeInternal = makeActionCreator(Consts.SET_SEARCH_TYPE, "payload");
 export const setSearchStatus = makeActionCreator(Consts.SET_SEARCH_STATUS, "payload");
+export const stopSearch = makeActionCreator(Consts.STOP_SEARCH, "payload");
 
 export const setModalOpen = makeActionCreator(Consts.MODAL_OPEN);
 export const setModalClosed = makeActionCreator(Consts.MODAL_CLOSE);
@@ -166,3 +167,19 @@ export const getMoreExamples = ({candidateId, code, usages}) => (dispatch, getSt
             }));
         })
 }
+
+// This is where a request needs to be sent to the server
+// id: uuid
+export const doStop = ({id}) => (dispatch) => {
+    dispatch(setSearchStatus({status:DONE}));
+    return Search.sendStopSignal({id})
+    .then(result => {
+        return dispatch(stopSearch({id}));
+		})
+    .catch(error => {
+        return dispatch(setSearchStatus({
+            status: ERROR,
+            errorMessage: error.message
+        }));
+    });
+};
