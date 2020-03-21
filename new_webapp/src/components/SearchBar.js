@@ -134,7 +134,7 @@ const connectedSearchBar = (props) => {
                             {buttonContent()}
                         </Button>
                         <Button
-                            disabled={queryId==null}
+                            disabled={queryId == null || searchStatus != LOADING}
                             onClick={handleStop}
                             type="button">
                             Stop
