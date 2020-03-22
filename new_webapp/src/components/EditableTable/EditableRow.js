@@ -1,12 +1,18 @@
 import React from 'react';
 
 import { Button } from 'react-bootstrap';
+import Highlight from 'react-highlight.js';
 
 export const EditableRow = ({row, columns, editingRowId,
     onUpdateCell, onClickEdit, onClickSave, onClickRemove}) => {
     const rowWithOrder = columns.map(col => {return {value: row[col.name], colName:col.title}});
     const rowCells = rowWithOrder.map(({value:r}, k) => {
-      return (<td key={k}>{r}</td>)
+      return (
+        <td key={k}>
+          <Highlight language="haskell">
+            {r}
+          </Highlight>
+        </td>)
     });
 
     if (row.id === editingRowId) {
@@ -23,23 +29,36 @@ export const EditableRow = ({row, columns, editingRowId,
       });
       return (
         <tr>
-          <td>
-            <Button onClick={() => onClickSave(row)}>
+          {editableRowCells}
+          <td className="row_controls">
+            <Button
+              variant="link"
+              onClick={() => onClickSave(row)}
+            >
               Save
             </Button>
           </td>
-          {editableRowCells}
         </tr>
       );
     }
 
     return (
       <tr>
-        <td>
-          <Button onClick={() => onClickEdit(row.id)}>Edit</Button>
-          <Button onClick={() => onClickRemove(row.id)}>Remove</Button>
-        </td>
        {rowCells}
+        <td className="row_controls">
+          <Button
+            variant="link"
+            onClick={() => onClickEdit(row.id)}
+          >
+            Edit
+          </Button>
+          <Button
+            variant="link"
+            onClick={() => onClickRemove(row.id)}
+          >
+            Remove
+          </Button>
+        </td>
       </tr>
     );
   };

@@ -112,7 +112,7 @@ const connectedSearchBar = (props) => {
                     <div className="col-10">
                         {hasAnExample ? (
                             <Button
-                                className="float-left"
+                                className="float-right"
                                 variant="link"
                                 onClick={clearExamples}
                             >

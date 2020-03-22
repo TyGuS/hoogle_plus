@@ -1,17 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import _ from "underscore";
-import { EditingState } from '@devexpress/dx-react-grid';
-import {
-  Grid,
-  TableHeaderRow,
-  TableEditColumn,
-  TableEditRow,
-} from '@devexpress/dx-react-grid-bootstrap4';
 import { connect } from 'react-redux';
 import { setExamples, setExampleEditingRow, increaseArgs, decreaseArgs } from '../actions';
 import { getArgNames, exampleToNamedArgs } from '../utilities/args';
-import { Button, ButtonGroup, Table, InputGroup, Form } from 'react-bootstrap';
-import { SpinnableCell } from './SpinnableCell';
+import { Button, ButtonGroup, Table } from 'react-bootstrap';
 import { EditableRow } from './EditableTable/EditableRow';
 import { v4 } from 'uuid';
 
@@ -40,14 +32,6 @@ const ExampleTableBase = ({
     const argNames = getArgNames(numArgs);
     const colNames = [...argNames, "output"];
     const columns = colNames.map(name => {return {name: name, title: name}});
-    // const addedRows = [{id: "unsaved-row"}];
-    const addedRows = [];
-
-    const changeAddedRows = (value) => {
-        console.log("changeAddedRows", value);
-        commitChanges({added: [{id: "new-row", usage: []}]})
-        // setAddedRows(value);
-    }
 
     const commitChanges = ({ added, changed, deleted }) => {
       let changedRows;
@@ -101,8 +85,8 @@ const ExampleTableBase = ({
             <Table>
               <thead>
                 <tr>
-                  <th></th>
                   {columns.map((column, idx) => {return (<th key={idx}>{column.title}</th>)})}
+                  <th className="row_controls"></th>
                 </tr>
               </thead>
               <tbody>
@@ -133,7 +117,7 @@ const ExampleTableBase = ({
                 +
               </Button>
             </ButtonGroup>
-            <Button onClick={() => createNewExample()}>
+            <Button className="mt-1" onClick={() => createNewExample()}>
               Add Example
             </Button>
           </div>
