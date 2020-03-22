@@ -1,17 +1,15 @@
 import React from 'react';
 
-import { Button, ButtonGroup, Table, InputGroup, Form } from 'react-bootstrap';
+import { Button } from 'react-bootstrap';
 
 export const EditableRow = ({row, columns, editingRowId,
-    onUpdateCell, onClickEdit}) => {
+    onUpdateCell, onClickEdit, onClickSave, onClickRemove}) => {
     const rowWithOrder = columns.map(col => {return {value: row[col.name], colName:col.title}});
     const rowCells = rowWithOrder.map(({value:r}, k) => {
-      console.log("rowWithOrder", r);
       return (<td key={k}>{r}</td>)
     });
 
     if (row.id === editingRowId) {
-      console.log("drawing editing row", row);
       const editableRowCells = rowWithOrder.map((cell, k) => {
         console.log("key", k);
         return (<td key={cell.colName}>
@@ -25,7 +23,11 @@ export const EditableRow = ({row, columns, editingRowId,
       });
       return (
         <tr>
-          <td></td>
+          <td>
+            <Button onClick={() => onClickSave(row)}>
+              Save
+            </Button>
+          </td>
           {editableRowCells}
         </tr>
       );
@@ -34,8 +36,8 @@ export const EditableRow = ({row, columns, editingRowId,
     return (
       <tr>
         <td>
-          <Button onClick={onClickEdit(row.id)}>edit</Button>
-          <Button>remove</Button>
+          <Button onClick={() => onClickEdit(row.id)}>Edit</Button>
+          <Button onClick={() => onClickRemove(row.id)}>Remove</Button>
         </td>
        {rowCells}
       </tr>

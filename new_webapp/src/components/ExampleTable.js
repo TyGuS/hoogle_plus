@@ -13,6 +13,7 @@ import { getArgNames, exampleToNamedArgs } from '../utilities/args';
 import { Button, ButtonGroup, Table, InputGroup, Form } from 'react-bootstrap';
 import { SpinnableCell } from './SpinnableCell';
 import { EditableRow } from './EditableTable/EditableRow';
+import { v4 } from 'uuid';
 
 
 const mapStateToProps = (state) => {
@@ -79,6 +80,20 @@ const ExampleTableBase = ({
       commitChanges({changed: {[row.id]: newRow}});
     };
 
+    const createNewExample = () => {
+      const newRowId = v4();
+      const changedRows = [
+        {
+          id: newRowId,
+          inputs: _.times(numArgs, () => ""),
+          output: "",
+        },
+        ...rows,
+      ];
+      setEditingRowId(newRowId);
+      setFacts(changedRows);
+    };
+
     return (
       <div className="container">
         <div className="row">
@@ -97,39 +112,14 @@ const ExampleTableBase = ({
                     columns={columns}
                     editingRowId={editingRowId}
                     onClickEdit={() => setEditingRowId(row.id)}
+                    onClickSave={() => setEditingRowId(null)}
+                    onClickRemove={(rowId) => commitChanges({deleted: [rowId]})}
                     onUpdateCell={onUpdateCell}
                     key={row.id
                     }/>);
                 })}
               </tbody>
             </Table>
-            {/* <Grid
-              rows={rows}
-              columns={columns}
-              getRowId={row => row.id}
-            >
-              <EditingState
-                editingRowId={editingRowId}
-                onEditingCellsChange={setEditingRowId}
-                addedRows={addedRows}
-                onAddedRowsChange={changeAddedRows}
-                onCommitChanges={commitChanges}
-              />
-              <Table
-                cellComponent={SpinnableCell}
-              />
-              <TableHeaderRow
-                contentComponent={(rest) =>
-                  <TableHeaderRow.Content {...rest} align="center"/>
-                  }
-              />
-              <TableEditRow/>
-              <TableEditColumn
-                showAddCommand
-                showEditCommand
-                showDeleteCommand
-              />
-            </Grid> */}
           </div>
           <div className="col-2">
             # Arguments
@@ -143,6 +133,9 @@ const ExampleTableBase = ({
                 +
               </Button>
             </ButtonGroup>
+            <Button onClick={() => createNewExample()}>
+              Add Example
+            </Button>
           </div>
         </div>
       </div>
