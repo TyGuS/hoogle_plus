@@ -1,7 +1,7 @@
 import _ from "underscore";
 import React, {Component } from "react";
 import {connect} from "react-redux";
-import {setSearchType, getTypesFromExamples, doSearch, setExamples} from "../actions/index";
+import {setSearchType, getTypesFromExamples, doSearch, setExamples, doStop} from "../actions/index";
 import ExampleTable from "./ExampleTable";
 import { TypeSelection } from "./TypeSelection";
 import { Button, InputGroup, FormControl, Form, Tooltip, Overlay, OverlayTrigger } from "react-bootstrap";
@@ -15,6 +15,7 @@ const mapDispatchToProps = (dispatch) => {
         doSearch: ({query, examples}) => dispatch(doSearch({query, examples})),
         getTypesFromExamples: usages => dispatch(getTypesFromExamples(usages)),
         clearExamples: _ => dispatch(setExamples([])),
+        doStop: ({id}) => dispatch(doStop({id})),
     }
 }
 
@@ -25,12 +26,13 @@ const mapStateToProps = (state) => {
         errorMessage: state.spec.errorMessage,
         searchStatus: state.spec.searchStatus,
         isEditing: !!state.spec.editingExampleRow,
+        queryId: state.candidates.queryId,
     }
 };
 
 const connectedSearchBar = (props) => {
-    const {searchType, exampleRows, searchStatus, errorMessage, isEditing} = props;
-    const {setSearchType, doSearch, getTypesFromExamples, clearExamples} = props;
+    const {searchType, exampleRows, searchStatus, errorMessage, isEditing, queryId} = props;
+    const {setSearchType, doSearch, getTypesFromExamples, clearExamples, doStop} = props;
     const {search} = getDefaultFeatures();
 
     const filteredUsages = _.filter(exampleRows, row => !_.any(row.inputs, _.isUndefined) && !_.isUndefined(row.output));
@@ -49,6 +51,10 @@ const connectedSearchBar = (props) => {
             return;
         }
         doSearch({query: searchType, examples: filteredUsages});
+    };
+
+    const handleStop = (event) => {
+        doStop({id: queryId})
     };
 
     const hasAnExample = !_.isEmpty(exampleRows);
@@ -120,12 +126,19 @@ const connectedSearchBar = (props) => {
                                 Clear Examples
                             </Button>):<></>}
                         <Button
+                            className="mr-2"
                             disabled={!canSubmit()}
                             onClick={handleSubmit}
                             variant={buttonVariant()}
                             type="submit"
                         >
                             {buttonContent()}
+                        </Button>
+                        <Button
+                            disabled={queryId==null}
+                            onClick={handleStop}
+                            type="button">
+                            Stop
                         </Button>
                     </div>
                 </div>

@@ -8,6 +8,7 @@ export const FETCH_MORE_CANDIDATE_USAGES = "FETCH_MORE_CANDIDATE_USAGES";
 export const SET_ARG_NUM = "SET_ARG_NUM";
 export const SET_SEARCH_TYPE = "SET_SEARCH_TYPE";
 export const SET_SEARCH_STATUS = "SET_SEARCH_STATUS";
+export const STOP_SEARCH = "STOP_SEARCH";
 
 // Modal Operations
 export const MODAL_OPEN = "MODAL_OPEN";
