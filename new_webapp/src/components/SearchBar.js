@@ -4,7 +4,7 @@ import {connect} from "react-redux";
 import {setSearchType, getTypesFromExamples, doSearch, setExamples} from "../actions/index";
 import ExampleTable from "./ExampleTable";
 import { TypeSelection } from "./TypeSelection";
-import { Button, InputGroup, FormControl, Form } from "react-bootstrap";
+import { Button, InputGroup, FormControl, Form, Tooltip, Overlay, OverlayTrigger } from "react-bootstrap";
 import { getDefaultFeatures } from "../utilities/featureManager";
 import { usageToExample } from "../utilities/args";
 import { LOADING, ERROR } from "../constants/fetch-states";
@@ -24,11 +24,12 @@ const mapStateToProps = (state) => {
         exampleRows: state.spec.rows,
         errorMessage: state.spec.errorMessage,
         searchStatus: state.spec.searchStatus,
+        isEditing: !!state.spec.editingExampleRow,
     }
 };
 
 const connectedSearchBar = (props) => {
-    const {searchType, exampleRows, searchStatus, errorMessage} = props;
+    const {searchType, exampleRows, searchStatus, errorMessage, isEditing} = props;
     const {setSearchType, doSearch, getTypesFromExamples, clearExamples} = props;
     const {search} = getDefaultFeatures();
 
@@ -53,11 +54,11 @@ const connectedSearchBar = (props) => {
     const hasAnExample = !_.isEmpty(exampleRows);
 
     const canSubmit = () => {
-        const allExamplesComplete = _.all(exampleRows, ({usage}) => {
-            return _.all(usage, x => (!_.isNull(x) && !_.isUndefined(x)));
+        const anyIncompleteExamples = _.any(exampleRows, ({inputs, output}) => {
+            return _.any([output, ...inputs], x => (_.isNull(x) || _.isUndefined(x)));
         });
         const hasAType = !isMissingType(searchType);
-        return (hasAnExample || hasAType) && allExamplesComplete;
+        return (hasAnExample || hasAType) && !anyIncompleteExamples && !isEditing;
     };
 
     const buttonVariant = () => {
@@ -122,7 +123,8 @@ const connectedSearchBar = (props) => {
                             disabled={!canSubmit()}
                             onClick={handleSubmit}
                             variant={buttonVariant()}
-                            type="submit">
+                            type="submit"
+                        >
                             {buttonContent()}
                         </Button>
                     </div>

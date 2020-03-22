@@ -17,9 +17,9 @@ export const EditableRow = ({row, columns, editingRowId,
 
     if (row.id === editingRowId) {
       const editableRowCells = rowWithOrder.map((cell, k) => {
-        console.log("key", k);
         return (<td key={cell.colName}>
           <input
+            autoFocus={k === 0}
             key={cell.colName}
             type="text"
             className="form-control"

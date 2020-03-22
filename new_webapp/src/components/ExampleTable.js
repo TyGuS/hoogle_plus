@@ -69,8 +69,8 @@ const ExampleTableBase = ({
       const changedRows = [
         {
           id: newRowId,
-          inputs: _.times(numArgs, () => ""),
-          output: "",
+          inputs: _.times(numArgs, () => undefined),
+          output: undefined,
         },
         ...rows,
       ];

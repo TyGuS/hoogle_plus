@@ -1,6 +1,6 @@
 import _ from "underscore";
 
-export const baseRoute = process.env.REACT_APP_DEVELOPMENT ? "http://home.michaelbjames.com:5678 /" : "/"
+export const baseRoute = process.env.REACT_APP_DEVELOPMENT ? "http://home.michaelbjames.com:5678/" : "/"
 
 export const handleFetch = (data) => {
     return data.json()
