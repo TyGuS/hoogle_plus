@@ -1,15 +1,16 @@
 import * as Consts from "../constants/action-types";
-import * as _ from "underscore";
-import { getArgNames, namedArgsToUsage, usageToId } from "../utilities/args";
+import _ from "underscore";
+import { namedArgsToExample } from "../utilities/args";
 import { DONE, LOADING, ERROR } from "../constants/fetch-states";
 
 export const initialSpecState = {
-    editingExampleRow: null,
-    rows: [],
+    editingExampleRow: null, // id-str
+    rows: [{inputs: ["a","b"], output: "c", id: "a-b-c"}],
+    // rows: [{inputs:[str], output:str, id}]
     numArgs: 2,
     errorMessage: null,
     searchStatus: DONE,
-    searchType: null,
+    searchType: "",
     searchTypeOptions: [],
 };
 
@@ -42,7 +43,25 @@ const clearErrors = (state) => {
         errorMessage: null,
         searchStatus: DONE,
     }
-}
+};
+
+// When numArgs changes, we need to insert undefined or removed arguments.
+const updateRows = (oldRows, numArgs) => {
+    return oldRows.map(row => {
+        let newInputs = [];
+        for(let i = 0; i < numArgs; i++) {
+            if (i < row.inputs.length) {
+                newInputs = newInputs.concat(row.inputs[i]);
+            } else {
+                newInputs = newInputs.concat(undefined);
+            }
+        }
+        return {
+            ...row,
+            inputs: newInputs
+        };
+    });
+};
 
 export function specReducer(state = initialSpecState, action) {
     switch(action.type) {
@@ -62,21 +81,26 @@ export function specReducer(state = initialSpecState, action) {
                     };
             }
         case Consts.INCREASE_ARGS:
+            var newNumArgs = state.numArgs + 1;
             return {
                 ...clearErrors(state),
-                numArgs: state.numArgs + 1
+                numArgs: newNumArgs,
+                rows: updateRows(state.rows, newNumArgs),
             };
         case Consts.DECREASE_ARGS:
+            var newNumArgs = Math.max(state.numArgs - 1, 1);
             return {
                 ...clearErrors(state),
-                numArgs: state.numArgs > 1 ? state.numArgs - 1 : 1
+                numArgs: newNumArgs,
+                rows: updateRows(state.rows, newNumArgs),
             };
         case Consts.SET_ARG_NUM:
             return {
                 ...clearErrors(state),
-                numArgs: action.payload
+                numArgs: action.payload,
+                rows: updateRows(state.rows, action.payload),
             };
-        case Consts.ADD_FACT:
+        case Consts.ADD_EXAMPLE:
             return {
                 ...state,
                 rows: dedupeSpecs(state.rows, [action.payload]),
@@ -84,7 +108,7 @@ export function specReducer(state = initialSpecState, action) {
         case Consts.SET_EXAMPLES:
             return {
                 ...state,
-                rows: namedArgsToUsage(action.payload, state.numArgs),
+                rows: namedArgsToExample(action.payload, state.numArgs),
             };
         case Consts.SET_EXAMPLE_EDITING_ROW:
             return {

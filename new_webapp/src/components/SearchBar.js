@@ -4,7 +4,7 @@ import {connect} from "react-redux";
 import {setSearchType, getTypesFromExamples, doSearch, setExamples, doStop} from "../actions/index";
 import ExampleTable from "./ExampleTable";
 import { TypeSelection } from "./TypeSelection";
-import { Button, InputGroup, FormControl, Form } from "react-bootstrap";
+import { Button, InputGroup, FormControl, Form, Tooltip, Overlay, OverlayTrigger } from "react-bootstrap";
 import { getDefaultFeatures } from "../utilities/featureManager";
 import { usageToExample } from "../utilities/args";
 import { LOADING, ERROR } from "../constants/fetch-states";
@@ -25,17 +25,17 @@ const mapStateToProps = (state) => {
         exampleRows: state.spec.rows,
         errorMessage: state.spec.errorMessage,
         searchStatus: state.spec.searchStatus,
-        queryId: state.candidates.queryId
+        isEditing: !!state.spec.editingExampleRow,
+        queryId: state.candidates.queryId,
     }
 };
 
 const connectedSearchBar = (props) => {
-    const {searchType, exampleRows, searchStatus, errorMessage, queryId} = props;
+    const {searchType, exampleRows, searchStatus, errorMessage, isEditing, queryId} = props;
     const {setSearchType, doSearch, getTypesFromExamples, clearExamples, doStop} = props;
     const {search} = getDefaultFeatures();
 
-    const usages = exampleRows.map(({usage}) => usageToExample(usage));
-    const filteredUsages = _.filter(usages, usageList => !_.any(usageList, _.isUndefined));
+    const filteredUsages = _.filter(exampleRows, row => !_.any(row.inputs, _.isUndefined) && !_.isUndefined(row.output));
 
     const isMissingType = (queryStr) => !queryStr || queryStr.trim() === "";
 
@@ -60,11 +60,11 @@ const connectedSearchBar = (props) => {
     const hasAnExample = !_.isEmpty(exampleRows);
 
     const canSubmit = () => {
-        const allExamplesComplete = _.all(exampleRows, ({usage}) => {
-            return _.all(usage, x => (!_.isNull(x) && !_.isUndefined(x)));
+        const anyIncompleteExamples = _.any(exampleRows, ({inputs, output}) => {
+            return _.any([output, ...inputs], x => (_.isNull(x) || _.isUndefined(x)));
         });
         const hasAType = !isMissingType(searchType);
-        return (hasAnExample || hasAType) && allExamplesComplete;
+        return (hasAnExample || hasAType) && !anyIncompleteExamples && !isEditing;
     };
 
     const buttonVariant = () => {
@@ -119,7 +119,7 @@ const connectedSearchBar = (props) => {
                     <div className="col-10">
                         {hasAnExample ? (
                             <Button
-                                className="float-left"
+                                className="float-right"
                                 variant="link"
                                 onClick={clearExamples}
                             >
@@ -130,7 +130,8 @@ const connectedSearchBar = (props) => {
                             disabled={!canSubmit()}
                             onClick={handleSubmit}
                             variant={buttonVariant()}
-                            type="submit">
+                            type="submit"
+                        >
                             {buttonContent()}
                         </Button>
                         <Button
