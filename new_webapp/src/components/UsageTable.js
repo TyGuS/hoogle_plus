@@ -10,7 +10,7 @@ import {
 } from '@devexpress/dx-react-grid-bootstrap4';
 import { connect } from "react-redux";
 import { addFact, updateCandidateUsages } from "../actions";
-import { getArgNames } from "../utilities/args";
+import { getArgNames, exampleToNamedArgs } from "../utilities/args";
 import { SpinnableCell } from "./SpinnableCell";
 import { getDefaultFeatures } from "../utilities/featureManager";
 
@@ -20,24 +20,13 @@ const generateRows = (facts) => {
     if (!facts || facts.length < 1) {
       return [];
     }
-    const argNames = getArgNames(facts[0].usage.length - 1);
-    const rows = facts.map((element) => {
-      let newFields = {};
-      for (let index = 0; index < argNames.length; index++) {
-        let argName = argNames[index];
-        newFields[argName] = element.usage[index];
-      }
-      newFields["result"] = element.usage[element.usage.length - 1];
-      return {...element, ...newFields};
-    });
-    return rows;
+    return exampleToNamedArgs(facts);
     // return [
     //   {
     //     id: 0,
     //     arg0: "foo",
     //     arg1: "bar",
-    //     result: "bax"
-    //     usage: [foo, var, bax]
+    //     output: "bax"
     //   }]
   }
 
@@ -55,8 +44,10 @@ const UsageTableBase = ({
   candidateId, code,
   numColumns, rows:stateRows,
   keepUsage, updateUsage}) => {
+
     const internalRows = generateRows(stateRows);
     const argNames = getArgNames(numColumns - 1);
+
     let cols = [];
     let colExtensions = [];
     const width = Math.floor(1 / (numColumns + 1) * 100) + "%";
@@ -67,9 +58,9 @@ const UsageTableBase = ({
         width: width,
       })
     };
-    cols = cols.concat({name: "result", title: "result"});
+    cols = cols.concat({name: "output", title: "output"});
     colExtensions = colExtensions.concat({
-      columnName: "result",
+      columnName: "output",
       width: width,
     });
     const [columns] = useState(cols);
@@ -108,7 +99,7 @@ const UsageTableBase = ({
           <EditingState
             onCommitChanges={commitChanges}
             addedRows={[]}
-            columnExtensions={[{columnName: "result", editingEnabled:false}]}
+            columnExtensions={[{columnName: "output", editingEnabled:false}]}
           />
           <Table cellComponent={SpinnableCell}
               columnExtensions={colExtensions}

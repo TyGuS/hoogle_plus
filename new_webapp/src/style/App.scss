@@ -1,3 +1,5 @@
+@import "variables";
+
 .App {
   text-align: center;
   padding-bottom: 50px;
@@ -38,6 +40,44 @@
   }
 }
 
+.candidate-code {
+  margin: 0
+}
+
 .tooltip-inner {
   max-width: 500px;
+}
+
+//The link which when clicked opens the collapsable area
+.Collapsible__trigger {
+  display: block;
+  font-weight: 400;
+  position: relative;
+  padding: 10px;
+
+  &:after {
+    font-family: 'FontAwesome';
+    content: '\f107';
+    position: absolute;
+    right: 50px;
+    top: 30px;
+    display: block;
+    transition: transform 300ms;
+  }
+
+  &.is-open {
+    &:after {
+      transform: rotateZ(180deg);
+    }
+  }
+
+  &.is-disabled {
+    opacity: 0.5;
+    background-color: grey;
+  }
+}
+
+// HighlightJS in a table adds too much space
+td > pre {
+  margin: 0
 }

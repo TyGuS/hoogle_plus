@@ -20,13 +20,13 @@ export const ghciUsage = ({typeSignature, code, args}) => {
         .then(handleFetch);
 };
 
-export const hooglePlusMoreExamples = ({code, usages, queryType}) => {
+export const hooglePlusMoreExamples = ({code, examples, queryType}) => {
     const route = baseRoute + "examples";
 
     const data = {
         typeSignature: queryType,
         candidate: code,
-        examples: usages,
+        examples,
     }
 
     const fetchOpts = {

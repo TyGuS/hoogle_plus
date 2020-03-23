@@ -1,6 +1,6 @@
 import React from 'react';
 import logo from './logo.svg';
-import './App.css';
+import './style/App.scss';
 import CandidateList from './components/CandidateList';
 import SearchBar from './components/SearchBar';
 import {TopBar} from './components/TopBar';
