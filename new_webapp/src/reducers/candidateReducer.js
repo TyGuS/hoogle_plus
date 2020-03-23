@@ -1,6 +1,6 @@
 import * as Consts from "../constants/action-types";
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
-import {v4 as uuidv4} from "uuid";
+import {v4 as uuidv4, v4} from "uuid";
 import { usageToId } from "../utilities/args";
 
 export const initialCandidateState = {
@@ -21,11 +21,13 @@ export const initialCandidateState = {
          *     examples: [
          *         {
          *             id: usageToId(["x", "2", "xx"]),
-         *             usage: ["x", "2", "xx"],
+         *             inputs: ["x", "2"],
+         *             output: "xx",
          *             isLoading: false,
          *         }, {
          *             id: "2",
-         *             usage: ["x", "0", ""],
+         *             inputs: ["x", "0"],
+         *             output: "0",
          *             isLoading: false,
          *             error: "errorstring",
          *         }
@@ -38,7 +40,8 @@ export const initialCandidateState = {
          *     examples: [
          *         {
          *             id: usageToId(["x", "2", "xx"]),
-         *             usage: ["x", "2", "xx"],
+         *             inputs: ["x", "2"],
+         *             output: "xx",
          *             isLoading: false,
          *         }
          *     ]
@@ -92,8 +95,12 @@ export function candidateReducer(state = initialCandidateState, action){
                 case DONE:
                     const newExampleResults = state.results.map((result) => {
                         if (result.candidateId === fCandidateId) {
-                            const newUsages = action.payload.result;
-                            const newExamples = newUsages.map(usageToExample);
+                            const newExamples = action.payload.result.map(example => {
+                                return {
+                                    ...example,
+                                    id: v4(), // Attach an ID to the new example
+                                };
+                            });
                             return {
                                 ...result,
                                 examplesStatus: DONE,
@@ -120,6 +127,7 @@ export function candidateReducer(state = initialCandidateState, action){
                 ...state,
             };
         case Consts.UPDATE_CANDIDATE_USAGE:
+            debugger; // convert from usage to inputs/output
             const {candidateId:uCandidateId, usageId} = action.payload;
             const updatedResults = state.results.map(result => {
                 if(result.candidateId === uCandidateId) {

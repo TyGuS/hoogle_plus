@@ -21,7 +21,7 @@ const mapStateToProps = state => {
 
 const mapDispatchToProps = dispatch => {
     return {
-        getMoreExamples: ({candidateId, code, usages}) => dispatch(getMoreExamples({candidateId, code, usages})),
+        getMoreExamples: ({candidateId, code, examples}) => dispatch(getMoreExamples({candidateId, code, examples})),
     }
 };
 
@@ -45,8 +45,7 @@ const ConnectedCandidateList = (props) => {
                         <Highlight language="haskell" className="candidate-code">{code}</Highlight>
                     </Card.Header>
                 );
-                const usages = examples.map(ex => usageToExample(ex.usage));
-                const handleClick = () => getMoreExamples({candidateId, code, usages});
+                const handleClick = () => getMoreExamples({candidateId, code, examples});
                 const isOpen = examples.length > 0 && resultsFeatures.permitExamples;
                 const isLoading = examplesStatus === LOADING;
                 const buttonVariant = examplesStatus === ERROR ? "outline-danger" : "outline-primary"

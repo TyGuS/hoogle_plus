@@ -150,10 +150,10 @@ export const getTypesFromExamples = (examples) => (dispatch) => {
 
 // Get more example usages for this particular candidate.
 // usages: [{inputs:[str], output:str}]
-export const getMoreExamples = ({candidateId, code, usages}) => (dispatch, getState) => {
+export const getMoreExamples = ({candidateId, code, examples}) => (dispatch, getState) => {
     const {spec} = getState();
     dispatch(fetchMoreCandidateUsages({candidateId, status: LOADING}));
-    return hooglePlusMoreExamples({code, usages, queryType: spec.searchType})
+    return hooglePlusMoreExamples({code, examples, queryType: spec.searchType})
         .then(results => {
             const {examples} = results;
             return dispatch(fetchMoreCandidateUsages({

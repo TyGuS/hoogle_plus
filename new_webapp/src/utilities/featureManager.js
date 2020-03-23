@@ -12,7 +12,7 @@ const features = {
         permitExamples: defaultValue,
         permitEditExamples: defaultValue,
         permitKeepUsage: defaultValue,
-        enableGetMoreExamples: false,
+        enableGetMoreExamples: defaultValue,
     }
 };
 
