@@ -4,7 +4,7 @@ import {connect} from "react-redux";
 import {setSearchType, getTypesFromExamples, doSearch, setExamples, doStop} from "../actions/index";
 import ExampleTable from "./ExampleTable";
 import { TypeSelection } from "./TypeSelection";
-import { Button, InputGroup, FormControl, Form, Tooltip, Overlay, OverlayTrigger } from "react-bootstrap";
+import { Button, InputGroup, FormControl, Form, Tooltip, Overlay, OverlayTrigger, Alert } from "react-bootstrap";
 import { getDefaultFeatures } from "../utilities/featureManager";
 import { usageToExample } from "../utilities/args";
 import { LOADING, ERROR } from "../constants/fetch-states";
@@ -78,14 +78,23 @@ const connectedSearchBar = (props) => {
 
     const buttonContent = () => {
         switch(searchStatus) {
-            case ERROR:
-                return errorMessage || "Error";
             case LOADING:
                 return "Getting results...";
             default:
                 return "Search";
         }
     };
+
+    const alert = () => {
+        if (searchStatus === ERROR) {
+            return (
+                <Alert variant="danger" className="mt-3">
+                    {errorMessage || "Unknown Error"}
+                </Alert>
+            )
+        }
+        return (<></>);
+    }
 
     return (
         <div>
@@ -140,6 +149,7 @@ const connectedSearchBar = (props) => {
                             type="button">
                             Stop
                         </Button>
+                        {alert()}
                     </div>
                 </div>
                 </Form>

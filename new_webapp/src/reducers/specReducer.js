@@ -5,7 +5,7 @@ import { DONE, LOADING, ERROR } from "../constants/fetch-states";
 
 export const initialSpecState = {
     editingExampleRow: null, // id-str
-    rows: [{inputs: ["a","b"], output: "c", id: "a-b-c"}],
+    rows: [],
     // rows: [{inputs:[str], output:str, id}]
     numArgs: 2,
     errorMessage: null,
