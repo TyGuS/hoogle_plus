@@ -1,5 +1,6 @@
 import React from "react";
-import { Button, Card, Badge } from "react-bootstrap";
+import _ from "underscore";
+import { Button, Card, Badge, OverlayTrigger, Tooltip } from "react-bootstrap";
 import Collapsible from "react-collapsible";
 import { connect } from "react-redux";
 import { BounceLoader } from "react-spinners";
@@ -9,7 +10,6 @@ import { getMoreExamples } from "../actions";
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 import { getDefaultFeatures } from "../utilities/featureManager";
 import { usageToExample } from "../utilities/args";
-import DocsList from "./DocsList";
 
 const mapStateToProps = state => {
     return {
@@ -28,6 +28,40 @@ const mapDispatchToProps = dispatch => {
 const ConnectedCandidateList = (props) => {
     const {candidates, numArgs, isFetching, getMoreExamples} = props;
     const {results: resultsFeatures} = getDefaultFeatures();
+
+    // code: str; docs: [{doc, name, signature}]
+    const addDocs = (code, docs) => {
+        let docLookup = {};
+        _.each(docs, doc => {
+            docLookup[doc.name] = doc;
+        });
+        const wordLike = code.split(/\b/);
+        return wordLike.map((word, idx) => {
+            const wordSpan = (<span key={idx}>{word}</span>);
+            if (! (word in docLookup)) {
+                return wordSpan
+            }
+            const docLine = docLookup[word].doc.split("\n").map((line, idx) => (
+                <div key={idx} className="doc-line">{line}</div>));
+            const toolTip = (
+                <Tooltip>
+                    <h6>{word} :: {docLookup[word].signature}</h6>
+                    {docLine}
+                </Tooltip>
+            );
+            return (
+                <OverlayTrigger
+                    key={idx}
+                    placement="top"
+                    delay={{ show: 150, hide: 200 }}
+                    overlay={toolTip}
+                >
+                {wordSpan}
+                </OverlayTrigger>
+            );
+        });
+    }
+
     return (
         <div>
             {candidates.map((result, idx) => {
@@ -42,7 +76,7 @@ const ConnectedCandidateList = (props) => {
                                 {idx + 1}
                             </Badge>
                         </h4>
-                        <Highlight language="haskell" className="candidate-code">{code}</Highlight>
+                        {addDocs(code, docs)}
                     </Card.Header>
                 );
                 const handleClick = () => getMoreExamples({candidateId, code, examples});
@@ -60,7 +94,7 @@ const ConnectedCandidateList = (props) => {
                             trigger={header}>
                                 <Card.Body>
                                     <div className="row">
-                                    <div className="col-10">
+                                    <div className="col-12">
                                     {resultsFeatures.permitExamples ?
                                     (<UsageTable
                                         candidateId={candidateId}
@@ -68,9 +102,6 @@ const ConnectedCandidateList = (props) => {
                                         rows={examples}
                                         numColumns={numArgs + 1}
                                     />) : (<></>)}
-                                    </div>
-                                    <div className="col-2">
-                                        <DocsList docs={docs}/>
                                     </div>
                                     </div>
                                     {resultsFeatures.enableGetMoreExamples ? (
