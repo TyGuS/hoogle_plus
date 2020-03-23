@@ -1,7 +1,7 @@
 import _ from "underscore";
 import {v4} from "uuid";
 import { inputsToId } from "../utilities/args";
-import {baseRoute} from "../utilities/fetches";
+import {baseRoute, handleFetch} from "../utilities/fetches";
 import { DONE } from "../constants/fetch-states";
 
 const getTypeCandidates = ({id, examples}, cb) => {
@@ -17,7 +17,7 @@ const getTypeCandidates = ({id, examples}, cb) => {
         body: JSON.stringify(data),
     };
     return fetch(ROUTE, fetchOpts)
-        .then(response => response.json());
+        .then(handleFetch);
 }
 
 const getCodeCandidates = ({query, examples}, cb) => {

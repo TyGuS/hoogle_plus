@@ -141,7 +141,11 @@ export const getTypesFromExamples = (examples) => (dispatch) => {
             } else {
                 debugger;
             }
-        });
+        })
+        .catch(errorResult => {
+            console.error("getTypesFromExamples failed", errorResult);
+            dispatch(setSearchStatus({status:ERROR, errorMessage: errorResult.toString()}));
+        })
 }
 
 // Get more example usages for this particular candidate.
