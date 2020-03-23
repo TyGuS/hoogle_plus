@@ -34,13 +34,15 @@ const ConnectedCandidateList = (props) => {
                 const {code, examplesStatus, candidateId, errorMessage, docs} = result;
                 const examples = result.examples || [];
                 const header = (
-                    <Card.Header>
-                        <h4><Badge variant="secondary"
-                            className="badge">
+                    <Card.Header className="candidate-header">
+                        <h4>
+                            <Badge variant="secondary"
+                                className="badge"
+                            >
                                 {idx + 1}
-                        </Badge>
+                            </Badge>
                         </h4>
-                        <Highlight language="haskell">{code}</Highlight>
+                        <Highlight language="haskell" className="candidate-code">{code}</Highlight>
                     </Card.Header>
                 );
                 const usages = examples.map(ex => usageToExample(ex.usage));
