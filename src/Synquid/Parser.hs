@@ -122,9 +122,9 @@ fixIndex (FunctionT n a r) =
         maxIndex = max (fixIndex a) (fixIndex r)
         argNum = if "arg" `isPrefixOf` n && checkNum num 
                     then read num :: Int
-                    else 0
+                    else -1
      in max argNum maxIndex
-fixIndex _ = 0
+fixIndex _ = -1
 
 fixArgName :: Int -> RType -> RType
 fixArgName _ typ = let (_, res) = fixArgName' ((fixIndex typ) + 1) typ in res
