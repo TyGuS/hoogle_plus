@@ -1,25 +1,17 @@
-import React, { useState } from 'react';
+import React from 'react';
 import _ from "underscore";
-import { EditingState } from '@devexpress/dx-react-grid';
-import {
-  Grid,
-  Table,
-  TableHeaderRow,
-  TableEditColumn,
-  TableEditRow,
-} from '@devexpress/dx-react-grid-bootstrap4';
 import { connect } from 'react-redux';
 import { setExamples, setExampleEditingRow, increaseArgs, decreaseArgs } from '../actions';
-import { getArgNames, usageToNamedArgs } from '../utilities/args';
-import { Button, ButtonGroup } from 'react-bootstrap';
-import { SpinnableCell } from './SpinnableCell';
-import { v4 } from "uuid";
+import { getArgNames, exampleToNamedArgs } from '../utilities/args';
+import { Button, ButtonGroup, Table } from 'react-bootstrap';
+import { EditableRow } from './EditableTable/EditableRow';
+import { v4 } from 'uuid';
 
 
 const mapStateToProps = (state) => {
   return {
     numArgs: state.spec.numArgs,
-    rows: usageToNamedArgs(state.spec.rows),
+    rows: exampleToNamedArgs(state.spec.rows),
     editingRowId: state.spec.editingExampleRow,
   }
 };
@@ -27,7 +19,7 @@ const mapStateToProps = (state) => {
 const mapDispatchToProps = (dispatch) => {
   return {
     setFacts: (changedFacts) => dispatch(setExamples(changedFacts)),
-    setEditingRowId: (editingCells) => dispatch(setExampleEditingRow(editingCells)),
+    setEditingRowId: (editingCellId) => dispatch(setExampleEditingRow(editingCellId)),
     increaseArgs: () => dispatch(increaseArgs()),
     decreaseArgs: () => dispatch(decreaseArgs()),
   }
@@ -38,13 +30,8 @@ const ExampleTableBase = ({
   setFacts, setEditingRowId, increaseArgs, decreaseArgs}) => {
 
     const argNames = getArgNames(numArgs);
-    const colNames = [...argNames, "result"];
+    const colNames = [...argNames, "output"];
     const columns = colNames.map(name => {return {name: name, title: name}});
-    const [addedRows, setAddedRows] = useState([]);
-
-    const changeAddedRows = (value) => {
-        setAddedRows(value);
-    }
 
     const commitChanges = ({ added, changed, deleted }) => {
       let changedRows;
@@ -71,37 +58,52 @@ const ExampleTableBase = ({
       setFacts(changedRows);
     };
 
+    const onUpdateCell = ({colName}, row) => e => {
+      const newValue = e.target.value;
+      const newRow = {...row, [colName]:newValue};
+      commitChanges({changed: {[row.id]: newRow}});
+    };
+
+    const createNewExample = () => {
+      const newRowId = v4();
+      const changedRows = [
+        {
+          id: newRowId,
+          inputs: _.times(numArgs, () => undefined),
+          output: undefined,
+        },
+        ...rows,
+      ];
+      setEditingRowId(newRowId);
+      setFacts(changedRows);
+    };
+
     return (
       <div className="container">
         <div className="row">
           <div className="col-10">
-            <Grid
-              rows={rows}
-              columns={columns}
-              getRowId={row => row.id}
-            >
-              <EditingState
-                editingRowId={editingRowId}
-                onEditingCellsChange={setEditingRowId}
-                addedRows={addedRows}
-                onAddedRowsChange={changeAddedRows}
-                onCommitChanges={commitChanges}
-              />
-              <Table
-                cellComponent={SpinnableCell}
-              />
-              <TableHeaderRow
-                contentComponent={(rest) =>
-                  <TableHeaderRow.Content {...rest} align="center"/>
-                  }
-              />
-              <TableEditRow/>
-              <TableEditColumn
-                showAddCommand
-                showEditCommand
-                showDeleteCommand
-              />
-            </Grid>
+            <Table>
+              <thead>
+                <tr>
+                  {columns.map((column, idx) => {return (<th key={idx}>{column.title}</th>)})}
+                  <th className="row_controls"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => {
+                  return (<EditableRow
+                    row={row}
+                    columns={columns}
+                    editingRowId={editingRowId}
+                    onClickEdit={() => setEditingRowId(row.id)}
+                    onClickSave={() => setEditingRowId(null)}
+                    onClickRemove={(rowId) => commitChanges({deleted: [rowId]})}
+                    onUpdateCell={onUpdateCell}
+                    key={row.id
+                    }/>);
+                })}
+              </tbody>
+            </Table>
           </div>
           <div className="col-2">
             # Arguments
@@ -115,6 +117,9 @@ const ExampleTableBase = ({
                 +
               </Button>
             </ButtonGroup>
+            <Button className="mt-1" onClick={() => createNewExample()}>
+              Add Example
+            </Button>
           </div>
         </div>
       </div>

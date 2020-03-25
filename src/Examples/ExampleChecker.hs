@@ -14,17 +14,21 @@ import Types.TypeChecker
 import Types.Common
 import Synquid.Type
 import Synquid.Pretty
+import Synquid.Program
 import Synquid.Logic
 import HooglePlus.TypeChecker
+import HooglePlus.Utils
 import PetriNet.Util
 import Synquid.Util (permuteBy)
 import Database.Convert (addTrue)
+import Database.Util
 
 import qualified EnumSet as ES
 import Control.Exception
 import Control.Monad.State
 import Control.Lens
 import Control.Concurrent.Chan
+import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -45,6 +49,7 @@ import Outputable
 import Text.Printf
 import Debug.Trace
 import System.Timeout
+import GHC.LanguageExtensions.Type
 
 timeoutLimit = 10^6 :: Int -- in microsecond
 outputDepth = 4 :: Int
@@ -54,7 +59,8 @@ askGhc mdls f = do
     mbResult <- timeout timeoutLimit $ runGhc (Just libdir) $ do
         dflags <- getSessionDynFlags
         let dflags' = dflags { 
-            generalFlags = ES.delete Opt_OmitYields (generalFlags dflags)
+            generalFlags = ES.delete Opt_OmitYields (generalFlags dflags),
+            extensionFlags = ES.insert FlexibleContexts (extensionFlags dflags)
             }
         setSessionDynFlags dflags'
         prepareModules ("System.Timeout":"Prelude":mdls) >>= setContext
@@ -68,8 +74,8 @@ askGhc mdls f = do
             decls <- mapM parseImportDecl imports
             return (map IIDecl decls)
 
-parseExample :: [String] -> Example -> IO (Either RSchema ErrorMessage)
-parseExample mdls ex = catch (do
+parseExample :: [String] -> String -> IO (Either RSchema ErrorMessage)
+parseExample mdls mkFun = catch (do
     typ <- askGhc mdls $ exprType TM_Default mkFun
     let hsType = typeToLHsType typ
     return (Left $ toInt $ resolveType hsType))
@@ -78,16 +84,23 @@ parseExample mdls ex = catch (do
         toInt (ForallT x t) = ForallT x (toInt t)
         toInt (Monotype t) = Monotype (integerToInt t)
 
-        mkFun = printf "\\f -> f %s == %s" (unwords $ map wrapParens $ inputs ex) (output ex)
-        wrapParens = printf "(%s)"
-
 resolveType :: LHsType GhcPs -> RSchema
 resolveType (L _ (HsForAllTy bs t)) = foldr ForallT (resolveType t) vs
     where
         vs = map vname bs
         vname (L _ (UserTyVar (L _ id))) = showSDocUnsafe (ppr id)
         vname (L _ (KindedTyVar (L _ id) _)) = showSDocUnsafe (ppr id)
-resolveType (L _ (HsFunTy f _)) = Monotype (resolveType' f)
+resolveType (L _ (HsFunTy f r)) = Monotype $ FunctionT "" (resolveType' f) (resolveType' r)
+resolveType (L _ (HsQualTy ctx body)) = Monotype bodyWithTcArgs
+    where
+        unlocatedCtx = let L _ c = ctx in c
+        tyConstraints = map resolveType' unlocatedCtx
+
+        prefixTc (ScalarT (DatatypeT name args rs) r) = ScalarT (DatatypeT (tyclassPrefix ++ name) args rs) r
+        prefixTc t = error $ "Unhandled " ++ show t
+
+        tcArgs = map prefixTc tyConstraints
+        bodyWithTcArgs = foldr (FunctionT "") (resolveType' body) tcArgs
 resolveType t = error (showSDocUnsafe $ ppr t)
 
 resolveType' :: LHsType GhcPs -> RType
@@ -126,14 +139,32 @@ resolveType' t = error $ showSDocUnsafe (ppr t)
 
 checkExample :: Environment -> RSchema -> Example -> Chan Message -> IO (Either RSchema ErrorMessage)
 checkExample env typ ex checkerChan = do
-    eitherTyp <- parseExample (Set.toList $ env ^. included_modules) ex
+    let mdls = Set.toList $ env ^. included_modules
+    eitherTyp <- parseExample mdls mkFun
     case eitherTyp of
       Left exTyp -> do
         let err = printf "%s does not have type %s" (show ex) (show typ) :: String
-        res <- checkTypes env checkerChan exTyp typ 
-        if res then return $ Left exTyp
+        let tcErr = printf "%s does not satisfy type class constraint in %s" (show ex) (show typ) :: String
+        (res, substedTyp) <- checkTypes env checkerChan exTyp typ
+        let (tyclasses, strippedTyp) = unprefixTc substedTyp
+        let tyclassesPrenex = intercalate ", " $ map show tyclasses
+        let mkTyclass = printf "%s :: (%s) => %s" mkFun tyclassesPrenex (show strippedTyp)
+        eitherTyclass <- if null tyclasses then return (Left (Monotype AnyT)) else parseExample mdls mkTyclass
+        if res then if isLeft eitherTyclass then return $ Left exTyp
+                                            else return $ Right tcErr
                else return $ Right err
       Right e -> return $ Right e
+    where
+        mkFun = printf "let f %s = %s in f" (unwords $ map wrapParens $ inputs ex) (output ex)
+
+        unprefixTc (FunctionT x tArg tRes) =
+            case tArg of
+              ScalarT (DatatypeT name args rs) r | tyclassPrefix `isPrefixOf` name ->
+                  let (tcs, t) = unprefixTc tRes
+                      currTc = ScalarT (DatatypeT (drop (length tyclassPrefix) name) args rs) r
+                   in (currTc:tcs, t)
+              _ -> ([], FunctionT x tArg tRes)
+        unprefixTc t = ([], t)
 
 checkExamples :: Environment -> RSchema -> [Example] -> Chan Message -> IO (Either [RSchema] [ErrorMessage])
 checkExamples env typ exs checkerChan = do
@@ -149,11 +180,10 @@ getExampleTypes env validSchemas = do
                                   else error "get example types error"
     let tvars = typeVarsOf t
     let generals = getGeneralizations t
-    -- print generals
-    -- print $ concatMap reduceVars generals
     let reducedTypes = concatMap (reduceVars tvars) generals
     msgChan <- newChan
-    checkedReduce <- filterM (\s -> checkTypes env msgChan (forall s) (forall t)) reducedTypes
+    checkRes <- mapM (\s -> checkTypes env msgChan (forall s) (forall t)) reducedTypes
+    let checkedReduce = map snd $ filter (fst . fst) (zip checkRes reducedTypes)
     return $ t : generals ++ checkedReduce
     where
         forall t = let vars = typeVarsOf t
@@ -161,7 +191,9 @@ getExampleTypes env validSchemas = do
 
 execExample :: [String] -> Environment -> String -> Example -> IO (Either ErrorMessage String)
 execExample mdls env prog ex = do
-    let prependArg = unwords (Map.keys $ env ^. arguments)
+    let args = Map.keys $ env ^. arguments
+    let nontcArgs = filter (not . (tyclassArgBase `isPrefixOf`)) args
+    let prependArg = unwords nontcArgs
     let progBody = if Map.null (env ^. arguments) -- if this is a request from front end
         then printf "let f = %s in" prog
         else printf "let f = \\%s -> %s in" prependArg prog
@@ -194,8 +226,7 @@ augmentTestSet env goal = do
     let candidates = env ^. queryCandidates
     let permutedCands = concatMap permuteMap (Map.toList candidates)
     let permutedMap = Map.fromList permutedCands
-    msgChan <- newChan
-    matchCands <- filterM (\s -> checkTypes env msgChan s goal) (Map.keys permutedMap)
+    matchCands <- filterM (\s -> generalThan goal s) (Map.keys permutedMap)
     let usefulExs = concatMap (\s -> permutedMap Map.! s) matchCands
     return $ nubBy (\x y -> inputs x == inputs y) usefulExs
     where
@@ -208,9 +239,21 @@ augmentTestSet env goal = do
                                   examplesList = map (\o -> map (permuteExamples o) exs) orderPermutes
                                in zip typesList examplesList
 
+        generalThan s1 s2 = do
+            msgChan <- newChan
+            let initChecker = emptyChecker { _checkerChan = msgChan }
+            state <- execStateT (do
+                s1' <- freshType s1
+                s2' <- freshType s2
+                let vars = typeVarsOf s2'
+                let env' = foldr addTypeVar env vars
+                solveTypeConstraint env' (shape s1') (shape s2')) initChecker
+            return $ state ^. isChecked
+
 checkExampleOutput :: [String] -> Environment -> String -> [Example] -> IO (Maybe [Example])
 checkExampleOutput mdls env prog exs = do
-    currOutputs <- mapM (execExample mdls env prog) exs
+    let progWithoutTc = removeTypeclasses prog
+    currOutputs <- mapM (execExample mdls env progWithoutTc) exs
     let cmpResults = map (uncurry compareResults) (zip currOutputs exs)
     let justResults = catMaybes cmpResults
     if length justResults == length exs then return $ Just justResults 
@@ -223,15 +266,24 @@ checkExampleOutput mdls env prog exs = do
                           Right o | o == output ex -> Just ex
                                   | otherwise -> Nothing
 
-
-checkTypes :: Environment -> Chan Message -> RSchema -> RSchema -> IO Bool
+checkTypes :: Environment -> Chan Message -> RSchema -> RSchema -> IO (Bool, SType)
 checkTypes env checkerChan s1 s2 = do
     let initChecker = emptyChecker { _checkerChan = checkerChan }
-    state <- execStateT (do
-        s1' <- freshType s1
-        s2' <- freshType s2
-        solveTypeConstraint env (shape s1') (shape s2')) initChecker
-    return $ state ^. isChecked
+    (t, state) <- runStateT (do
+        r1 <- freshType s1
+        r2 <- freshType s2
+        let t1 = stripTyclass r1
+        let t2 = stripTyclass r2
+        solveTypeConstraint env (shape t1) (shape t2)
+        tass <- gets $ view typeAssignment
+        return $ stypeSubstitute tass $ shape r2) initChecker
+    return (state ^. isChecked, t)
+    where
+        stripTyclass (FunctionT x (ScalarT (DatatypeT name args _) _) tRes)
+          | tyclassPrefix `isPrefixOf` name = stripTyclass tRes
+        stripTyclass t = t
+        
+
 
 getGeneralizations :: SType -> [SType]
 getGeneralizations t =
@@ -309,3 +361,5 @@ integerToInt (ScalarT (DatatypeT dt args _) r)
 integerToInt (FunctionT x tArg tRes) =
     FunctionT x (integerToInt tArg) (integerToInt tRes)
 integerToInt t = t
+
+wrapParens = printf "(%s)"
