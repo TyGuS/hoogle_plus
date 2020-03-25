@@ -179,7 +179,7 @@ export const doStop = ({id}) => (dispatch) => {
     return Search.sendStopSignal({id})
     .then(result => {
         return dispatch(stopSearch({id}));
-		})
+	})
     .catch(error => {
         return dispatch(setSearchStatus({
             status: ERROR,

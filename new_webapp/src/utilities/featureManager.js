@@ -1,5 +1,3 @@
-import _ from "underscore";
-
 // Ensure that if it's not specified, nothing is limited.
 const defaultValue = !(process.env.REACT_APP_LIMIT_FEATURES || false);
 

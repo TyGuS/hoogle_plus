@@ -1,5 +1,3 @@
-import _ from "underscore";
-
 // Launch with:
 // REACT_APP_DEVELOPMENT_HOST="<hostname>:<port>" yarn start
 // to point the backend wherever you need it to

@@ -1,4 +1,3 @@
-import _ from "underscore";
 import {v4} from "uuid";
 import { inputsToId } from "../utilities/args";
 import {baseRoute, handleFetch} from "../utilities/fetches";
@@ -84,7 +83,7 @@ const streamResponse = (route, fetchOpts, onIncrementalResponse) => {
                     // Enqueue the next data chunk into our target stream
                     const convertedValue = decoder.decode(value);
                     console.log("convertedValue", convertedValue);
-                    convertedValue.trim().split("\n").map(jsonStr => {
+                    convertedValue.trim().split("\n").forEach(jsonStr => {
                         try {
                             const jsonBlob = JSON.parse(jsonStr);
                             onIncrementalResponse(jsonBlob);

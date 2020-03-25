@@ -1,4 +1,3 @@
-import _ from "underscore";
 import {handleFetch, baseRoute} from "../utilities/fetches";
 
 // {typeSignature: str, code: str, args: [str]} -> Promise

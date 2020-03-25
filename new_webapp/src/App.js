@@ -1,5 +1,4 @@
 import React from 'react';
-import logo from './logo.svg';
 import './style/App.scss';
 import CandidateList from './components/CandidateList';
 import SearchBar from './components/SearchBar';

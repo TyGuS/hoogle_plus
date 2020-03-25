@@ -1,7 +1,7 @@
 import * as Consts from "../constants/action-types";
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 import {v4 as uuidv4, v4} from "uuid";
-import { usageToId } from "../utilities/args";
+import { usageToId, inputsToId } from "../utilities/args";
 
 export const initialCandidateState = {
     isFetching: false,
@@ -126,27 +126,26 @@ export function candidateReducer(state = initialCandidateState, action){
             return {
                 ...state,
             };
+        // Update one particular usage.
         case Consts.UPDATE_CANDIDATE_USAGE:
-            debugger; // convert from usage to inputs/output
             const {candidateId:uCandidateId, usageId} = action.payload;
             const updatedResults = state.results.map(result => {
                 if(result.candidateId === uCandidateId) {
                     const updatedExamples = result.examples.map(example => {
                         if (example.id === usageId) {
-                            if (action.payload.args) {
-                                let inProgressUsage = action.payload.args.concat(null);
+                            if (action.payload.inputs) {
                                 return {
                                     id: usageId,
-                                    usage: inProgressUsage,
+                                    inputs: action.payload.inputs,
                                     isLoading: true,
                                 };
                             }
-                            if (action.payload.result) {
-                                let updatedUsage = Array.from(example.usage);
-                                updatedUsage[updatedUsage.length - 1] = action.payload.result;
+                            if (action.payload.output) {
+                                const updatedId = inputsToId(example.inputs)
                                 return {
-                                    id: usageToId(updatedUsage),
-                                    usage: updatedUsage,
+                                    id: updatedId,
+                                    inputs: example.inputs,
+                                    output: action.payload.output,
                                     isLoading: false,
                                 };
                             }

@@ -3,6 +3,17 @@ import React from 'react';
 import { Button } from 'react-bootstrap';
 import Highlight from 'react-highlight.js';
 
+
+/**
+ * Editable Row:
+ * Props:
+ *   - columns : [{name, title}]
+ *   - row : {id, ...colName}
+ *   - editingRowId : str
+ *   - onUpdateCell : ({value, colName}, row) -> event -> ()
+ *   - onClickEdit : (row) -> ()
+ *   - onClickRemove : (id) -> ()
+ */
 export const EditableRow = ({row, columns, editingRowId,
     onUpdateCell, onClickEdit, onClickSave, onClickRemove}) => {
     const rowWithOrder = columns.map(col => {return {value: row[col.name], colName:col.title}});
