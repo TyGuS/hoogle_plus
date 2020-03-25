@@ -18,7 +18,6 @@ import Data.List
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Char
-
 import Control.Monad.State
 import Control.Applicative hiding ((<|>), many)
 
@@ -110,7 +109,20 @@ parseTypeDecl = do
   reservedOp "="
   typeDef <- parseType
   return $ TypeDecl typeName typeVars typeDef
-  where
+
+checkNum :: [Char] -> Bool
+checkNum [] = True
+checkNum (n:ns) = if isDigit n then checkNum ns else False
+
+fixIndex :: RType -> Int
+fixIndex (FunctionT n a r) =
+    let num = drop 3 n 
+        maxIndex = max (fixIndex a) (fixIndex r)
+        argNum = if "arg" `isPrefixOf` n && checkNum num 
+                    then read num :: Int
+                    else -1
+     in max argNum maxIndex
+fixIndex _ = -1
 
 checkNum :: [Char] -> Bool
 checkNum [] = True
