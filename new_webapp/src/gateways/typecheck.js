@@ -1,9 +1,5 @@
 import { baseRoute } from "../utilities/fetches";
 
-function delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 export const typeCheck = ({queryType, usage}) => {
     const route = baseRoute + "typecheck";
 

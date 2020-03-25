@@ -1,13 +1,12 @@
-import _ from "underscore";
 import {handleFetch, baseRoute} from "../utilities/fetches";
 
-// {typeSignature: str, code: str, args: [str]} -> Promise
-export const ghciUsage = ({typeSignature, code, args}) => {
+// {typeSignature: str, code: str, inputs: [str]} -> Promise
+export const ghciUsage = ({typeSignature, code, inputs}) => {
     const route = baseRoute + "example/code";
 
     const data = {
         typeSignature,
-        args,
+        args: inputs,
         candidate: code,
     }
 
@@ -20,13 +19,13 @@ export const ghciUsage = ({typeSignature, code, args}) => {
         .then(handleFetch);
 };
 
-export const hooglePlusMoreExamples = ({code, usages, queryType}) => {
+export const hooglePlusMoreExamples = ({code, examples, queryType}) => {
     const route = baseRoute + "examples";
 
     const data = {
         typeSignature: queryType,
         candidate: code,
-        examples: usages,
+        examples,
     }
 
     const fetchOpts = {

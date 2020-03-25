@@ -124,18 +124,30 @@ fixIndex (FunctionT n a r) =
      in max argNum maxIndex
 fixIndex _ = -1
 
+checkNum :: [Char] -> Bool
+checkNum [] = True
+checkNum (n:ns) = if isDigit n then checkNum ns else False
+
+fixIndex :: RType -> Int
+fixIndex (FunctionT n a r) =
+    let num = drop 3 n 
+        maxIndex = max (fixIndex a) (fixIndex r)
+        argNum = if "arg" `isPrefixOf` n && checkNum num 
+                    then read num :: Int
+                    else 0
+     in max argNum maxIndex
+fixIndex _ = 0
+
 fixArgName :: Int -> RType -> RType
-fixArgName _ typ = let (_, res) = fixArgName' 0 typ in res
+fixArgName _ typ = let (_, res) = fixArgName' ((fixIndex typ) + 1) typ in res
   where
     fixArgName' idx (FunctionT x tArg tRes)
-      | "@@arg" `isPrefixOf` x = let
-          (idx', tArg') = fixArgName' (idx + 1) tArg
-          (idx'', tRes') = fixArgName' idx' tRes
-          in (idx'', FunctionT ("arg"++show idx) tArg' tRes')
+      | x == "" = let
+          (idx'', tRes') = fixArgName' (idx + 1) tRes
+          in (idx'', FunctionT ("arg"++show idx) tArg tRes')
       | otherwise = let
-          (idx', tArg') = fixArgName' idx tArg
-          (idx'', tRes') = fixArgName' idx' tRes
-          in (idx'', FunctionT x tArg' tRes')
+          (idx'', tRes') = fixArgName' idx tRes
+          in (idx'', FunctionT x tArg tRes')
     fixArgName' idx t = (idx, t)
 
 parseDataDecl :: Parser BareDeclaration
@@ -264,7 +276,7 @@ parseFunctionTypeMb = do
     parseFunctionRest argType = do
       reservedOp "->"
       returnType <- parseType
-      return $ FunctionT ("@@arg" ++ show (arity returnType)) argType returnType
+      return $ FunctionT "" argType returnType
 
 parseTypeAtom :: Parser RType
 parseTypeAtom = choice [

@@ -1,7 +1,6 @@
-import _ from "underscore";
 import {v4} from "uuid";
 import { inputsToId } from "../utilities/args";
-import {baseRoute} from "../utilities/fetches";
+import {baseRoute, handleFetch} from "../utilities/fetches";
 import { DONE } from "../constants/fetch-states";
 
 const getTypeCandidates = ({id, examples}, cb) => {
@@ -17,7 +16,7 @@ const getTypeCandidates = ({id, examples}, cb) => {
         body: JSON.stringify(data),
     };
     return fetch(ROUTE, fetchOpts)
-        .then(response => response.json());
+        .then(handleFetch);
 }
 
 const getCodeCandidates = ({query, examples}, cb) => {
@@ -84,7 +83,7 @@ const streamResponse = (route, fetchOpts, onIncrementalResponse) => {
                     // Enqueue the next data chunk into our target stream
                     const convertedValue = decoder.decode(value);
                     console.log("convertedValue", convertedValue);
-                    convertedValue.trim().split("\n").map(jsonStr => {
+                    convertedValue.trim().split("\n").forEach(jsonStr => {
                         try {
                             const jsonBlob = JSON.parse(jsonStr);
                             onIncrementalResponse(jsonBlob);
@@ -103,7 +102,20 @@ const streamResponse = (route, fetchOpts, onIncrementalResponse) => {
         .then(response => response.text());
 }
 
+const sendStopSignal = ({id}) => {
+    const ROUTE = baseRoute + "stop";
+    let data = {id};
+    const fetchOpts = {
+        method: 'POST', // or 'PUT'
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data),
+    };
+    return fetch(ROUTE, fetchOpts)
+        .then(response => response.text());
+}
+
 export default {
     getCodeCandidates,
-    getTypeCandidates
+    getTypeCandidates,
+    sendStopSignal
 };

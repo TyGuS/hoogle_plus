@@ -4,6 +4,7 @@ import { Search, ghciUsage, hooglePlusExampleSearch, hooglePlusMoreExamples } fr
 import { namedArgsToUsage, getArgCount, usageToExample } from "../utilities/args";
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 import { log } from "../utilities/logger";
+import { v4 } from "uuid";
 
 function makeActionCreator(type, ...argNames) {
     return function (...args) {
@@ -26,15 +27,17 @@ function makeActionCreator(type, ...argNames) {
 // Simple action creators for moving state around.
 export const addCandidate = makeActionCreator(Consts.ADD_CANDIDATE, "payload");
 export const clearResults = makeActionCreator(Consts.CLEAR_RESULTS);
-export const addFact = makeActionCreator(Consts.ADD_FACT, "payload");
+export const addFact = makeActionCreator(Consts.ADD_EXAMPLE, "payload");
 
 export const setExampleEditingRow = makeActionCreator(Consts.SET_EXAMPLE_EDITING_ROW, "payload");
 export const setExamples = makeActionCreator(Consts.SET_EXAMPLES, "payload");
 export const updateCandidateUsageTable = makeActionCreator(Consts.UPDATE_CANDIDATE_USAGE, "payload");
+const addCandidateUsageInternal = makeActionCreator(Consts.ADD_CANDIDATE_USAGE, "payload");
 export const fetchMoreCandidateUsages = makeActionCreator(Consts.FETCH_MORE_CANDIDATE_USAGES, "payload");
 
-export const setSearchTypeInternal = makeActionCreator(Consts.SET_SEARCH_TYPE, "payload");
+const setSearchTypeInternal = makeActionCreator(Consts.SET_SEARCH_TYPE, "payload");
 export const setSearchStatus = makeActionCreator(Consts.SET_SEARCH_STATUS, "payload");
+export const stopSearch = makeActionCreator(Consts.STOP_SEARCH, "payload");
 
 export const setModalOpen = makeActionCreator(Consts.MODAL_OPEN);
 export const setModalClosed = makeActionCreator(Consts.MODAL_CLOSE);
@@ -46,7 +49,7 @@ export const setArgNum = makeActionCreator(Consts.SET_ARG_NUM, "payload");
 
 // When a new candidate's usage changes, go and get new outputs for each
 // usage across all current candidates.
-export const updateCandidateUsages = ({usageId, args}) => (dispatch, getState) => {
+export const updateCandidateUsages = ({usageId, inputs}) => (dispatch, getState) => {
     const {candidates, spec} = getState();
     const typeSignature = spec.searchType;
     if(! _.isEmpty(candidates.results)) {
@@ -55,22 +58,37 @@ export const updateCandidateUsages = ({usageId, args}) => (dispatch, getState) =
                 candidateId: candidate.candidateId,
                 code: candidate.code,
                 usageId,
-                args,
+                inputs,
                 typeSignature,
             }));
         })
     } else {
-        debugger;
+        console.error("updating usage without results! How was this fired?");
     }
-}
+};
+
+export const addCandidateUsage = ({inputs}) => (dispatch, getState) => {
+    const {candidates} = getState();
+    const usageId = v4();
+    candidates.results.forEach(({candidateId}) => {
+        dispatch(addCandidateUsageInternal({
+            candidateId,
+            usageId,
+            inputs,
+        }));
+    });
+    // Must sequence the fetch for after
+    // we've added the new usage to each candidate.
+    dispatch(updateCandidateUsages({usageId, inputs}));
+};
 
 // Go and get a new output for a particular new input.
-export const updateCandidateUsage = ({typeSignature, candidateId, usageId, args, code}) => (dispatch, getState) => {
-    dispatch(updateCandidateUsageTable({candidateId, usageId, args}));
+export const updateCandidateUsage = ({typeSignature, candidateId, usageId, inputs, code}) => (dispatch, getState) => {
+    dispatch(updateCandidateUsageTable({candidateId, usageId, inputs}));
 
-    return ghciUsage({typeSignature, args, code})
+    return ghciUsage({typeSignature, inputs, code})
         .then(({result}) => {
-            return dispatch(updateCandidateUsageTable({candidateId, usageId, result}))
+            return dispatch(updateCandidateUsageTable({candidateId, usageId, output: result}))
         })
         .catch(({error}) => {
             return dispatch(updateCandidateUsageTable({candidateId, usageId, error}))
@@ -140,15 +158,19 @@ export const getTypesFromExamples = (examples) => (dispatch) => {
             } else {
                 debugger;
             }
-        });
+        })
+        .catch(errorResult => {
+            console.error("getTypesFromExamples failed", errorResult);
+            dispatch(setSearchStatus({status:ERROR, errorMessage: errorResult.toString()}));
+        })
 }
 
 // Get more example usages for this particular candidate.
 // usages: [{inputs:[str], output:str}]
-export const getMoreExamples = ({candidateId, code, usages}) => (dispatch, getState) => {
+export const getMoreExamples = ({candidateId, code, examples}) => (dispatch, getState) => {
     const {spec} = getState();
     dispatch(fetchMoreCandidateUsages({candidateId, status: LOADING}));
-    return hooglePlusMoreExamples({code, usages, queryType: spec.searchType})
+    return hooglePlusMoreExamples({code, examples, queryType: spec.searchType})
         .then(results => {
             const {examples} = results;
             return dispatch(fetchMoreCandidateUsages({
@@ -166,3 +188,19 @@ export const getMoreExamples = ({candidateId, code, usages}) => (dispatch, getSt
             }));
         })
 }
+
+// This is where a request needs to be sent to the server
+// id: uuid
+export const doStop = ({id}) => (dispatch) => {
+    dispatch(setSearchStatus({status:DONE}));
+    return Search.sendStopSignal({id})
+    .then(result => {
+        return dispatch(stopSearch({id}));
+	})
+    .catch(error => {
+        return dispatch(setSearchStatus({
+            status: ERROR,
+            errorMessage: error.message
+        }));
+    });
+};
