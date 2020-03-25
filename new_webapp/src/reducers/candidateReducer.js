@@ -164,6 +164,23 @@ export function candidateReducer(state = initialCandidateState, action){
             })
             return {...state, results:updatedResults};
 
+        // action.payload : {candidateId, usageId, inputs}
+        case Consts.ADD_CANDIDATE_USAGE:
+            const {candidateId:addToId, usageId:withUsageId, inputs:newInputs} = action.payload;
+            const resultsWithNewUsage = state.results.map(result => {
+                if (result.candidateId !== addToId) {
+                    return result;
+                }
+                const updatedExamples = result.examples.concat({
+                    id: withUsageId,
+                    isLoading: false,
+                    inputs: newInputs,
+                    output: "??",
+                })
+                return {...result, examples: updatedExamples};
+            });
+            return {...state, results:resultsWithNewUsage};
+
         case Consts.STOP_SEARCH:
             return {
                 ...state,

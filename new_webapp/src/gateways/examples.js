@@ -1,12 +1,12 @@
 import {handleFetch, baseRoute} from "../utilities/fetches";
 
-// {typeSignature: str, code: str, args: [str]} -> Promise
-export const ghciUsage = ({typeSignature, code, args}) => {
+// {typeSignature: str, code: str, inputs: [str]} -> Promise
+export const ghciUsage = ({typeSignature, code, inputs}) => {
     const route = baseRoute + "example/code";
 
     const data = {
         typeSignature,
-        args,
+        args: inputs,
         candidate: code,
     }
 

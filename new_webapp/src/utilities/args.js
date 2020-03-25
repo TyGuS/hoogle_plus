@@ -33,13 +33,16 @@ export const namedArgsToExample = (listList, numArgs) => {
 
 // [{inputs: [str], output: str, id}] -> [{id, arg0, ... output}]
 export const exampleToNamedArgs = (examples) => {
+  if (examples && (examples.length > 0) && (! examples[0].inputs)) {
+    debugger;
+  }
   return examples.map(example => {
     let namedArgs = example.inputs.reduce((obj, str, idx) => {
       const argName = "arg" + idx;
       obj[argName] = str;
       return obj;
     }, {});
-    namedArgs["output"] = example.output;
+    namedArgs["output"] = example.error ? example.error : example.output;
     namedArgs["id"] = example.id;
     return namedArgs;
   });
