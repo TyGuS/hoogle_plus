@@ -69,8 +69,8 @@ dependencies:
 - uuid
 - vector
 - z3
-- aeson-pretty
 - ghci
+- ghc-boot-th
 
 library:
   source-dirs:

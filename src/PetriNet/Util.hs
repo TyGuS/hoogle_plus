@@ -18,6 +18,7 @@ import Synquid.Logic hiding (varName)
 import Synquid.Type
 import Synquid.Pretty
 import Synquid.Util
+import HooglePlus.Utils
 
 import Control.Concurrent.Chan
 import Control.Lens
@@ -196,7 +197,7 @@ toOutput env soln exs = do
     let argDocs = map (\(n, ty) -> FunctionDoc n (show ty) "") args
     let symbolsWoArgs = symbols \\ argNames
     docs <- liftIO $ hoogleIt symbolsWoArgs
-    return $ QueryOutput (lambda $ show soln) exs "" (docs ++ argDocs)
+    return $ QueryOutput (lambda $ toHaskellSolution $ show soln) exs "" (docs ++ argDocs)
     where
         hoogleIt syms = do
             dbPath <- Hoogle.defaultDatabaseLocation
