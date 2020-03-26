@@ -37,11 +37,11 @@ import qualified Data.Aeson as A
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy.Char8 as LB
-import qualified Data.Aeson.Encode.Pretty as AP
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Text.Parsec.Indent
 import Text.Parsec.Pos
+import Text.Printf
 
 -- parse the input json string
 -- includes: type query, examples
@@ -104,7 +104,8 @@ searchTypes synquidParams inStr = do
     let exquery = inExamples input
     env <- readEnv $ envPath synquidParams
     let mdls = Set.toList $ env ^. included_modules
-    exTypes <- mapM (parseExample mdls) exquery
+    let mkFun ex = printf "let f %s = %s in f" (unwords $ map wrapParens $ inputs ex) (output ex)
+    exTypes <- mapM (parseExample mdls . mkFun) exquery
     let (validSchemas, invalidTypes) = partitionEithers exTypes
     resultObj <- if null invalidTypes then possibleQueries env exquery validSchemas
                                       else return $ ListOutput [] (unlines invalidTypes)
@@ -167,7 +168,8 @@ searchExamples synquidParams inStr = do
     let builtinQueryTypes = Map.keys candMap 
     let tQuery = parseQueryType env' strQuery
     messageChan <- newChan
-    outQueries <- filterM (checkTypes env' messageChan tQuery) builtinQueryTypes
+    outRes <- mapM (checkTypes env' messageChan tQuery) builtinQueryTypes
+    let outQueries = map snd $ filter (fst . fst) $ zip outRes builtinQueryTypes
     let examples = concatMap (candMap Map.!) outQueries
     let checkDups ex = (inputs ex) `notElem` exists
     let uniqueExs = filter checkDups examples

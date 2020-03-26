@@ -18,7 +18,6 @@ import Data.List
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Char
-
 import Control.Monad.State
 import Control.Applicative hiding ((<|>), many)
 
@@ -110,7 +109,6 @@ parseTypeDecl = do
   reservedOp "="
   typeDef <- parseType
   return $ TypeDecl typeName typeVars typeDef
-  where
 
 checkNum :: [Char] -> Bool
 checkNum [] = True
