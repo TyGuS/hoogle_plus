@@ -33,9 +33,8 @@ const generateRows = (facts) => {
 
 const mapDispatchToProps = (dispatch) => {
   return {
-    keepUsage: (keptUsages) => {keptUsages.forEach(row => {
-        const {id, usage} = row;
-        dispatch(addFact({id, usage}));
+    keepUsage: (example) => {example.forEach(ex => {
+        dispatch(addFact(ex));
     })},
     updateUsage: (updatedRow) => {dispatch(updateCandidateUsages(updatedRow))},
     addCandidateUsage: ({inputs}) => dispatch(addCandidateUsage({inputs}))
@@ -90,7 +89,8 @@ const UsageTableBase = ({
       if (deleted) {
         const deletedSet = new Set(deleted);
         const keptRows = internalRows.filter(row => deletedSet.has(row.id));
-        keepUsage(keptRows);
+        const keptExamples = namedArgsToExample(keptRows, numColumns - 1);
+        keepUsage(keptExamples);
       }
     };
 
@@ -129,7 +129,8 @@ const UsageTableBase = ({
             showDeleteCommand={resultsFeatures.permitKeepUsage}
             showEditCommand={resultsFeatures.permitEditExamples}
             messages={{
-              deleteCommand: "Keep usage"
+              deleteCommand: "Keep usage",
+              addCommand: "New usage",
             }}
           />
         </Grid>

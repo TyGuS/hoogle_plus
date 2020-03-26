@@ -42,8 +42,11 @@ export const exampleToNamedArgs = (examples) => {
       obj[argName] = str;
       return obj;
     }, {});
-    namedArgs["output"] = example.error ? example.error : example.output;
+    namedArgs["output"] = example.output;
     namedArgs["id"] = example.id;
+    if (example.error) {
+      namedArgs["error"] = example.error;
+    }
     return namedArgs;
   });
 };

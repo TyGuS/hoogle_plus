@@ -40,7 +40,6 @@ export const EditableRow = ({row, columns, editingRowId,
       });
       return (
         <tr>
-          {editableRowCells}
           <td className="row_controls">
             <Button
               variant="link"
@@ -49,13 +48,13 @@ export const EditableRow = ({row, columns, editingRowId,
               Save
             </Button>
           </td>
+          {editableRowCells}
         </tr>
       );
     }
 
     return (
       <tr>
-       {rowCells}
         <td className="row_controls">
           <Button
             variant="link"
@@ -70,6 +69,7 @@ export const EditableRow = ({row, columns, editingRowId,
             Remove
           </Button>
         </td>
+       {rowCells}
       </tr>
     );
   };

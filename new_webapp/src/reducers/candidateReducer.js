@@ -173,7 +173,7 @@ export function candidateReducer(state = initialCandidateState, action){
                 }
                 const updatedExamples = result.examples.concat({
                     id: withUsageId,
-                    isLoading: false,
+                    isLoading: true,
                     inputs: newInputs,
                     output: "??",
                 })

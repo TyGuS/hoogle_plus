@@ -85,8 +85,8 @@ const ExampleTableBase = ({
             <Table>
               <thead>
                 <tr>
-                  {columns.map((column, idx) => {return (<th key={idx}>{column.title}</th>)})}
                   <th className="row_controls"></th>
+                  {columns.map((column, idx) => {return (<th key={idx}>{column.title}</th>)})}
                 </tr>
               </thead>
               <tbody>

@@ -6,7 +6,7 @@ import Highlight from "react-highlight.js";
 
 export const SpinnableCell = ({ row, ...restProps }) => {
   const {value, ...notValueRest} = restProps;
-  if (restProps.column.name === "result") {
+  if (restProps.column.name === "output") {
     if (row.isLoading) {
       return (<Table.Cell row={row} {...restProps}>
         <BounceLoader loading={row.isLoading} />
