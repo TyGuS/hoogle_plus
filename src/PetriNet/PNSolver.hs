@@ -16,7 +16,7 @@ import Data.Function (on)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.List
-import Data.List.Extra
+import Data.List.Extra hiding (stripSuffix)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe
@@ -341,7 +341,7 @@ refineSemantic env prog at = do
 
     changeGroups True = do
         removables' <- gets $ view (refineState . toRemove)
-        writeLog 2 "changeGroups" $ pretty removables'
+        writeLog 3 "changeGroups" $ pretty removables'
         splitGroups removables'
     changeGroups False = do
         removables <- gets $ view (refineState . toRemove)
@@ -382,12 +382,12 @@ refineSemantic env prog at = do
         case mbCurrentGroup of
           -- The group was eliminated entirely by the removables
           Nothing -> do
-              writeLog 2 "updateRepresentative" $ text "remove rep" <+> text rep
+              writeLog 3 "updateRepresentative" $ text "remove rep" <+> text rep
               return (addables, rep:removables, newReps)
           Just currentGroup ->
             if rep `Set.notMember` currentGroup
                 then do
-                    writeLog 2 "updateRepresentative" $ text "delete rep" <+> text rep
+                    writeLog 3 "updateRepresentative" $ text "delete rep" <+> text rep
                     let removables' = rep:removables
                     if not (null currentGroup)
                       then do
@@ -402,7 +402,7 @@ refineSemantic env prog at = do
                       else return (addables, removables', newReps)
                 -- after all the removals, the current representative is still in its original group
                 else do
-                    writeLog 2 "updateRepresentative" $ text "keep rep" <+> text rep
+                    writeLog 3 "updateRepresentative" $ text "keep rep" <+> text rep
                     return (addables, removables, Map.insert gid rep newReps)
 
     shrinkSet :: Set Id -> Set Id -> Maybe (Set Id)
@@ -604,9 +604,10 @@ parseAndCheck env dst code = do
     prog <- case parseExp code of
                 ParseOk exp         -> return (toSynquidProgram exp)
                 ParseFailed loc err -> mzero
+    writeLog 1 "parseAndCheck" $ text "Find program first" <+> pretty prog
     mapping <- gets $ view (typeChecker . nameMapping)
     counter <- gets $ view (typeChecker . nameCounter)
-    writeLog 1 "parseAndCheck" $ text "Find program" <+> pretty (recoverNames mapping prog)
+    writeLog 1 "parseAndCheck" $ text "Find program second" <+> pretty (recoverNames mapping prog)
     checkerState <- gets $ view typeChecker
     let checkerState' = checkerState { _isChecked = True }
     (btm, checkerState) <- runStateT (bottomUpCheck env prog) checkerState'
@@ -762,13 +763,13 @@ writeSolution out = do
 recoverNames :: Map Id Id -> Program t -> Program t
 recoverNames mapping (Program (PSymbol sym) t) =
     case Map.lookup sym mapping of
-      Nothing -> Program (PSymbol (replaceId hoPostfix "" $ removeLast '_' sym)) t
-      Just name -> Program (PSymbol (replaceId hoPostfix "" $ removeLast '_' name)) t
+      Nothing -> Program (PSymbol (stripSuffix sym)) t
+      Just name -> Program (PSymbol (stripSuffix name)) t
 recoverNames mapping (Program (PApp fun pArg) t) = Program (PApp fun' pArg') t
   where
     fun' = case Map.lookup fun mapping of
-                Nothing -> replaceId hoPostfix "" $ removeLast '_' fun
-                Just name -> replaceId hoPostfix "" $ removeLast '_' name
+                Nothing -> stripSuffix fun
+                Just name -> stripSuffix name
     pArg' = map (recoverNames mapping) pArg
 recoverNames mapping (Program (PFun x body) t) = Program (PFun x body') t
   where
@@ -853,9 +854,9 @@ getGroupRep name = do
     gr <- gets $ view (groupState . groupRepresentative)
     ngm <- gets $ view (groupState . nameToGroup)
     let argGps = maybeToList $ Map.lookup name ngm
-    writeLog 2 "getGroupRep" $ text name <+> text "is contained in group" <+> pretty argGps
+    writeLog 3 "getGroupRep" $ text name <+> text "is contained in group" <+> pretty argGps
     let argRp = mapMaybe (`Map.lookup` gr) argGps
-    writeLog 2 "getGroupRep" $ pretty argGps <+> text "has representative" <+> pretty argRp
+    writeLog 3 "getGroupRep" $ pretty argGps <+> text "has representative" <+> pretty argRp
     if null argRp then error ("cannot find group rep for " ++ name) else return argRp
 
 assemblePair :: AbstractSkeleton

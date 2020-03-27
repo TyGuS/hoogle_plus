@@ -80,7 +80,7 @@ synthesize searchParams goal examples messageChan = do
         then do
             let args = rawEnv ^. arguments
             let hoArgs = Map.filter (isFunctionType . toMonotype) args
-            let hoFuns = map (\(k, v) -> (k ++ hoPostfix, toFunType v)) (Map.toList hoArgs)
+            let hoFuns = map (\(k, v) -> (k ++ hoPostfix, withSchema toFunType v)) (Map.toList hoArgs)
             return $ rawEnv { 
                 _symbols = rawSyms `Map.union` Map.fromList hoFuns, 
                 _hoCandidates = hoCands ++ map fst hoFuns

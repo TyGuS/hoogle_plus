@@ -25,6 +25,7 @@ import Distribution.PackageDescription.Parsec
 import Distribution.Package
 import System.Directory
 import System.IO
+import Debug.Trace
 
 import Database.Download
 import Database.Generate
@@ -479,7 +480,7 @@ entryDependencies allEntries ourEntries dpDecls = let
     sortedIds = topoSort $ dependencyGraph allDecls
     in
     matchDtWithCons $ map (\id -> fromMaybe (error $ "cannot find " ++ id) (Map.lookup id $ declMap allDecls))
-                    $ nub $ sortedIds >.> ["List", "Pair"]
+                    $ nub $ sortedIds >.> ["List", "Pair", "Char"]
   where
     myDts = dtNamesIn ourEntries
     myDefinedDts = definedDtsIn ourEntries
