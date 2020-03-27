@@ -19,6 +19,7 @@ import Synquid.Type
 import Synquid.Pretty
 import Synquid.Util
 import HooglePlus.Utils
+import Database.Util (tyclassArgBase, hoPostfix)
 
 import Control.Concurrent.Chan
 import Control.Lens
@@ -50,7 +51,7 @@ writeLog :: (CheckMonad (t m), MonadIO (t m), MonadIO m) => Int -> String -> Doc
 writeLog level tag msg = do
     mesgChan <- getMessageChan
     liftIO $ writeChan mesgChan (MesgLog level tag $ show $ plain msg)
-    -- if level <= 2 then trace (printf "[%s]: %s\n" tag (show $ plain msg)) $ return () else return ()
+    -- if level <= 3 then trace (printf "[%s]: %s\n" tag (show $ plain msg)) $ return () else return ()
 
 multiPermutation len elmts | len == 0 = [[]]
 multiPermutation len elmts | len == 1 = [[e] | e <- elmts]
@@ -218,3 +219,7 @@ toOutput env soln exs = do
                           nontcArgs = filter (not . (tyclassArgBase `isPrefixOf`)) args
                           argStr = unwords nontcArgs
                        in printf "\\%s -> %s" argStr prog
+
+stripSuffix :: String -> String
+stripSuffix = replaceId hoPostfix "" . removeLast '_'
+

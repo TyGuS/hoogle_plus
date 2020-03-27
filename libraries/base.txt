@@ -1068,9 +1068,9 @@ digitToInt :: Char -> Int
 intToDigit :: Int -> Char
 ord :: Char -> Int
 chr :: Int -> Char
-showLitChar :: Char -> ShowS
-lexLitChar :: ReadS String
-readLitChar :: ReadS Char
+-- showLitChar :: Char -> ShowS
+-- lexLitChar :: ReadS String
+-- readLitChar :: ReadS Char
 module GHC.OldList
 (++) :: [a] -> [a] -> [a]
 infixr 5 ++

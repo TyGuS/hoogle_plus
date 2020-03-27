@@ -27,11 +27,11 @@ import Data.Maybe
 bottomUpCheck :: MonadIO m => Environment -> RProgram -> Checker m RProgram
 bottomUpCheck env p@(Program (PSymbol sym) typ) = do
     -- lookup the symbol type in current scope
-    -- writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
+    writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
     nameMap <- gets (view nameMapping)
     let sym' = removeLast '_' sym
     -- find the real name of a function
-    let name = replaceId hoPostfix "" $ fromMaybe sym' (Map.lookup sym' nameMap)
+    let name = stripSuffix $ fromMaybe sym' (Map.lookup sym' nameMap)
     t <- findSymbol env name
     return (Program (PSymbol sym) t)
 bottomUpCheck env (Program (PApp f args) typ) = do
@@ -39,20 +39,29 @@ bottomUpCheck env (Program (PApp f args) typ) = do
   case argResult of
     Left err -> return err
     Right checkedArgs -> do
-      t <- findSymbol env (removeLast '_' f)
+      -- find the real name of a function
+      nameMap <- gets (view nameMapping)
+      let name = stripSuffix $ fromMaybe f (Map.lookup f nameMap)
+      t <- findSymbol env name 
+      writeLog 3 "bottomUpCheck" $ text "Bottom up checking function" <+> pretty f
+                                 <+> text "get type" <+> pretty t
       -- check function signature against each argument provided
       let argVars = map shape (allArgTypes t)
       let checkedArgTys = map (shape . typeOf) checkedArgs
+      writeLog 3 "bottomUpCheck" $ text "Bottom up checking get arg types" <+> pretty checkedArgTys
       mapM_ (uncurry $ solveTypeConstraint env) (zip checkedArgTys argVars)
       -- we eagerly substitute the assignments into the return type of t
       tass <- gets (view typeAssignment)
-      let ret = addTrue $ stypeSubstitute tass (shape $ lastType t)
+      let ret = addTrue $ stypeSubstitute tass (shape $ partialReturn checkedArgs t)
       -- if any of these checks returned false, this function application
       -- would produce a bottom type
       ifM (gets $ view isChecked)
           (return $ Program (PApp f checkedArgs) ret)
           (return $ Program (PApp f checkedArgs) BotT)
   where
+    partialReturn (_:args) (FunctionT _ _ tRes) = partialReturn args tRes
+    partialReturn [] t = t
+
     checkArgs [] = return $ Right []
     checkArgs (arg:args) = do
         checkedArg <- bottomUpCheck env arg

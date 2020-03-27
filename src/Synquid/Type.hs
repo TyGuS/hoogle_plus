@@ -322,3 +322,7 @@ permuteArgs ords (ForallT x t) = ForallT x (permuteArgs ords t)
 permuteArgs ords (Monotype t) = let args = argsWithName t
                                     ret = lastType t
                                  in Monotype $ foldr (uncurry FunctionT) ret (permuteBy ords args)
+
+withSchema :: (TypeSkeleton r -> TypeSkeleton r) -> SchemaSkeleton r -> SchemaSkeleton r
+withSchema f (ForallT x t) = ForallT x (withSchema f t)
+withSchema f (Monotype t) = Monotype (f t)
