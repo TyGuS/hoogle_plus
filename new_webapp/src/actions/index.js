@@ -97,7 +97,7 @@ export const updateCandidateUsage = ({typeSignature, candidateId, usageId, input
 
 export const selectTypeFromOptions = ({typeOption}) => (dispatch, getState) => {
     const {spec} = getState();
-    const examples = spec.rows.map(row => usageToExample(row.usage));
+    const examples = spec.rows;
     dispatch(setSearchType({query: typeOption}));
     dispatch(setModalClosed());
     return dispatch(doSearch({query: typeOption, examples}));
