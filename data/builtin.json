@@ -97,5 +97,14 @@
              "output": "??"
         }
     ]
+},
+{
+    "query": "f: (a -> a) -> x: a -> n: Int -> a",
+    "inExamples": [
+        {
+             "inputs": ["\\x -> x ++ x", "\"f-\"", "3"],
+             "output": "??"
+        }
+    ]
 }
 ]

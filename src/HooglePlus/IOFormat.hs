@@ -104,7 +104,7 @@ searchTypes synquidParams inStr = do
     let exquery = inExamples input
     env <- readEnv $ envPath synquidParams
     let mdls = Set.toList $ env ^. included_modules
-    let mkFun ex = printf "let f %s = %s in f" (unwords $ map wrapParens $ inputs ex) (output ex)
+    let mkFun ex = printf "\\f -> f %s == %s" (unwords $ map wrapParens $ inputs ex) (output ex)
     exTypes <- mapM (parseExample mdls . mkFun) exquery
     let (validSchemas, invalidTypes) = partitionEithers exTypes
     resultObj <- if null invalidTypes then possibleQueries env exquery validSchemas

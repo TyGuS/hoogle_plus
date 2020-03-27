@@ -90,7 +90,7 @@ resolveType (L _ (HsForAllTy bs t)) = foldr ForallT (resolveType t) vs
         vs = map vname bs
         vname (L _ (UserTyVar (L _ id))) = showSDocUnsafe (ppr id)
         vname (L _ (KindedTyVar (L _ id) _)) = showSDocUnsafe (ppr id)
-resolveType (L _ (HsFunTy f r)) = Monotype $ FunctionT "" (resolveType' f) (resolveType' r)
+resolveType (L _ (HsFunTy f _)) = Monotype (resolveType' f)
 resolveType (L _ (HsQualTy ctx body)) = Monotype bodyWithTcArgs
     where
         unlocatedCtx = let L _ c = ctx in c
@@ -148,14 +148,14 @@ checkExample env typ ex checkerChan = do
         (res, substedTyp) <- checkTypes env checkerChan exTyp typ
         let (tyclasses, strippedTyp) = unprefixTc substedTyp
         let tyclassesPrenex = intercalate ", " $ map show tyclasses
-        let mkTyclass = printf "%s :: (%s) => %s" mkFun tyclassesPrenex (show strippedTyp)
+        let mkTyclass = printf "(%s) :: (%s) => (%s) -> Bool" mkFun tyclassesPrenex (show strippedTyp)
         eitherTyclass <- if null tyclasses then return (Left (Monotype AnyT)) else parseExample mdls mkTyclass
         if res then if isLeft eitherTyclass then return $ Left exTyp
                                             else return $ Right tcErr
                else return $ Right err
       Right e -> return $ Right e
     where
-        mkFun = printf "let f %s = %s in f" (unwords $ map wrapParens $ inputs ex) (output ex)
+        mkFun = printf "\\f -> (f %s) == %s" (unwords $ map wrapParens $ inputs ex) (output ex)
 
         unprefixTc (FunctionT x tArg tRes) =
             case tArg of
