@@ -189,17 +189,18 @@ getExampleTypes env validSchemas = do
         forall t = let vars = typeVarsOf t
                     in foldr ForallT (Monotype $ addTrue t) vars
 
-execExample :: [String] -> Environment -> String -> Example -> IO (Either ErrorMessage String)
-execExample mdls env prog ex = do
+execExample :: [String] -> Environment -> TypeQuery -> String -> Example -> IO (Either ErrorMessage String)
+execExample mdls env typ prog ex = do
     let args = Map.keys $ env ^. arguments
     let nontcArgs = filter (not . (tyclassArgBase `isPrefixOf`)) args
     let prependArg = unwords nontcArgs
     let progBody = if Map.null (env ^. arguments) -- if this is a request from front end
-        then printf "let f = %s in" prog
-        else printf "let f = \\%s -> %s in" prependArg prog
+        then printf "let f = (%s) :: %s in" prog typ
+        else printf "let f = (\\%s -> %s) :: %s in" prependArg prog typ
     let wrapParens = printf "(%s)"
     let parensedInputs = map wrapParens $ inputs ex
     let progCall = printf "f %s" (unwords parensedInputs)
+    print progBody
     askGhc mdls $ do
         result <- execStmt (unwords [progBody, progCall]) execOptions
         case result of
@@ -250,10 +251,10 @@ augmentTestSet env goal = do
                 solveTypeConstraint env' (shape s1') (shape s2')) initChecker
             return $ state ^. isChecked
 
-checkExampleOutput :: [String] -> Environment -> String -> [Example] -> IO (Maybe [Example])
-checkExampleOutput mdls env prog exs = do
+checkExampleOutput :: [String] -> Environment -> TypeQuery -> String -> [Example] -> IO (Maybe [Example])
+checkExampleOutput mdls env typ prog exs = do
     let progWithoutTc = removeTypeclasses prog
-    currOutputs <- mapM (execExample mdls env progWithoutTc) exs
+    currOutputs <- mapM (execExample mdls env typ progWithoutTc) exs
     let cmpResults = map (uncurry compareResults) (zip currOutputs exs)
     let justResults = catMaybes cmpResults
     if length justResults == length exs then return $ Just justResults 

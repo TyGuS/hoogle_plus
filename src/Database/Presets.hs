@@ -34,6 +34,7 @@ myModules = [
   "GHC.List",
   "Data.Eq",
   "Data.Function",
+  "Text.Read",
   -- ByteString
   "Data.ByteString.Lazy",
   "Data.ByteString.Builder"

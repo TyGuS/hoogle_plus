@@ -173,7 +173,7 @@ searchExamples synquidParams inStr = do
     let examples = concatMap (candMap Map.!) outQueries
     let checkDups ex = (inputs ex) `notElem` exists
     let uniqueExs = filter checkDups examples
-    mbOutputs <- checkExampleOutput mdls env' prog uniqueExs
+    mbOutputs <- checkExampleOutput mdls env' strQuery prog uniqueExs
     let resultObj = if null uniqueExs then ListOutput [] "No more examples"
                                       else ListOutput (fromJust mbOutputs) ""
     printResult $ encodeWithPrefix resultObj
@@ -182,7 +182,7 @@ searchResults :: SynquidParams -> String -> IO ()
 searchResults synquidParams inStr = do
     (tquery, args, prog, env) <- prepareEnvFromInput synquidParams inStr
     let mdls = Set.toList $ env ^. included_modules
-    execResult <- catch (execExample mdls env prog (Example args "??"))
+    execResult <- catch (execExample mdls env tquery prog (Example args "??"))
                         (\(e :: SomeException) -> return $ Left (show e))
     let execJson = case execResult of
                         Left err -> ExecOutput err ""

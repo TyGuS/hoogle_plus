@@ -24,8 +24,10 @@ import Types.Filtering
 import Types.CheckMonad
 import Types.TypeChecker
 import Types.IOFormat
+import Database.Util
 
 rootNode = AScalar (ATypeVarT varName)
+rootTyclass = AScalar (ADatatypeT tyclassInstancePrefix [rootNode])
 pairProj = "pair_match"
 
 type AbstractCover = HashMap AbstractSkeleton (Set AbstractSkeleton)

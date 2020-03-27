@@ -80,26 +80,28 @@ defaultTypeclassInstances =
     [ mkInstance "Show" intType
     , mkInstance "Show" boolType
     , mkInstance "Show" charType
-    , mkInstance "Show" intType
     , mkInstance "Show" floatType
     , mkInstance "Show" doubleType
     , mkInstance "Show" unitType
     , mkInstance "Eq" intType
     , mkInstance "Eq" boolType
     , mkInstance "Eq" charType
-    , mkInstance "Eq" intType
     , mkInstance "Eq" floatType
     , mkInstance "Eq" doubleType
     , mkInstance "Eq" unitType
     , mkInstance "Ord" intType
     , mkInstance "Ord" boolType
     , mkInstance "Ord" charType
-    , mkInstance "Ord" intType
     , mkInstance "Ord" floatType
     , mkInstance "Ord" doubleType
     , mkInstance "Num" intType
     , mkInstance "Num" floatType
     , mkInstance "Num" doubleType
+    , mkInstance "Read" intType
+    , mkInstance "Read" boolType
+    , mkInstance "Read" charType
+    , mkInstance "Show" floatType
+    , mkInstance "Show" doubleType
     ]
 
 

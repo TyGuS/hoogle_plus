@@ -154,8 +154,10 @@ check_ env searchParams examples program goalType solverChan = do
                            else return Nothing
     where
         mdls = Set.toList (_included_modules env)
-        checkOutputs prog exs = liftIO $ checkExampleOutput mdls env (show prog) exs
+        checkOutputs prog exs = liftIO $ checkExampleOutput mdls env funcSig (show prog) exs
         executeCheck = runGhcChecks searchParams env (lastType $ toMonotype goalType)
+        argTyps = map snd $ argsWithName (toMonotype goalType)
+        funcSig = mkFunctionSigStr (argTyps ++ [lastType $ toMonotype goalType])
 
 -- validate type signiture, run demand analysis, and run filter test
 -- checks the end result type checks; all arguments are used; and that the program will not immediately fail
