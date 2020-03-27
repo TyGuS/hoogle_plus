@@ -214,5 +214,7 @@ toOutput env soln exs = do
                              doc = unHTML $ Hoogle.targetDocs tg
                           in FunctionDoc name sig doc
 
-        lambda prog = let args = unwords $ Map.keys (env ^. arguments)
-                       in printf "\\%s -> %s" args prog
+        lambda prog = let args = Map.keys (env ^. arguments)
+                          nontcArgs = filter (not . (tyclassArgBase `isPrefixOf`)) args
+                          argStr = unwords nontcArgs
+                       in printf "\\%s -> %s" argStr prog
