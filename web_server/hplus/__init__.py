@@ -1,19 +1,24 @@
 import os
 import signal
 import uuid
-from flask import Flask, Response, stream_with_context, request, json, session
+from flask import Flask, Response, stream_with_context, request, json
 import subprocess
 import enum
 import re
 import time
 import logging
 from flask_cors import CORS, cross_origin
+from expiringdict import ExpiringDict
+
 
 HPLUS_CMD = 'stack exec -- hplus'.split()
 OPTIONS = []
 TIMEOUT_CMD = 'timeout'
-TIMEOUT = '60'
-CURR_DIR = os.getcwd()
+TIMEOUT = 60
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+
+cache = ExpiringDict(max_len=100, max_age_seconds=(2 * TIMEOUT))
+
 
 class QueryType(enum.Enum):
     search_programs = 'SearchPrograms'
@@ -57,9 +62,9 @@ def build_object(query_type, result, qid = None):
 
 def run_hplus(options):
     # TODO: we may put these paths into configuration file
-    os.chdir(os.path.join(CURR_DIR, '../'))
-    command = [TIMEOUT_CMD, TIMEOUT] + HPLUS_CMD + options
-    print(command)
+    os.chdir(os.path.join(SCRIPT_DIR, '../../'))
+    command = [TIMEOUT_CMD, str(TIMEOUT)] + HPLUS_CMD + options
+    print(" ".join(command))
     process = subprocess.Popen(command, stdout=subprocess.PIPE)
     return process
 
@@ -69,14 +74,14 @@ def get_results(process, query_type, qid):
             result = json.loads(line[8:])
             obj = build_object(query_type, result, qid)
             str_to_send = json.dumps(obj)
-            print(f'yielding results: {str_to_send}')
+            # print(f'yielding results: {str_to_send}')
             yield (str_to_send + '\n')
 
 def communicate_result(process):
     result, err = process.communicate()
     result = result.decode('utf-8')
     m = re.findall('RESULTS:(.*)', result)
-    print(m)
+    # print(m)
     return json.loads(m[0])
 
 def create_app(test_config=None):
@@ -117,8 +122,9 @@ def create_app(test_config=None):
         proc = run_hplus([f'--json={json.dumps(query)}',
                           f'--search-type={QueryType.search_programs.value}',
                           '--cnt=10'])
-        session[str(qid)] = proc.pid
-        print(session)
+        cache[str(qid)] = proc.pid
+        print(f"id: {str(qid)} => proc: {proc.pid}")
+        print(cache)
         def generate():
             return get_results(proc, QueryType.search_programs, qid)
         return Response(generate(), mimetype='application/json')
@@ -138,10 +144,9 @@ def create_app(test_config=None):
 
     @app.route('/stop', methods=['GET', 'POST'])
     def stop():
-        oid = request.get_json()['id']
-        print(session)
-        pid = session[oid]
-        os.killpg(os.getpgid(pid), signal.SIGTERM)
+        qid = request.get_json()['id']
+        pid = cache.get(qid)
+        os.killpg(os.getpgid(pid), signal.SIGKILL)
         return ('', 204)
 
     @app.route('/examples', methods=['GET', 'POST'])
