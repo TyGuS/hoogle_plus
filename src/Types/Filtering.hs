@@ -23,7 +23,7 @@ frameworkModules =
   ++ [("Test.ChasingBottoms", Just "CB")]
 
 type SmallCheckResult = (String, Maybe PropertyFailure)
-type DiffInstance = (String, [String])
+type DiffInstance = ([String], [String])
 
 -- [arg0, arg1, arg2, ...] :: SampleInput
 type SampleInput = [String]

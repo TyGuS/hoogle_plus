@@ -130,7 +130,7 @@ check goal searchParams prog = -- catch
     --     writeChan checkerChan (MesgClose (CSError err)))
 
 check_ :: MonadIO m => Goal -> SearchParams -> UProgram -> FilterTest m Bool
-check_ goal searchParams program = executeCheck program
+check_ goal searchParams = executeCheck
     where
         (env, destType) = preprocessEnvFromGoal goal
         executeCheck = runGhcChecks searchParams env destType
@@ -149,7 +149,10 @@ runGhcChecks params env goalType prog = let
     in do
         typeCheckResult <- liftIO $ runInterpreter $ checkType expr modules
         strictCheckResult <- if disableDemand then return True else liftIO $ checkStrictness tyclassCount body funcSig modules
-        filterCheckResult <- if disableFilter then return True else runChecks env goalType prog
+        filterCheckResult <- if not strictCheckResult then return False
+                                else if disableFilter
+                                        then return True
+                                        else runChecks env goalType prog
         case typeCheckResult of
             Left err -> liftIO $ putStrLn (displayException err) >> return False
             Right False -> liftIO $ putStrLn "Program does not typecheck" >> return False

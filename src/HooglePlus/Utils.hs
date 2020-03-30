@@ -125,7 +125,7 @@ printSolutionState solution (FilterState _ sols samples diffExamples) = unlines 
         diffs = unlines $ map showDifferentiations diffExamples
         
         showDifferentiations :: DiffInstance -> String
-        showDifferentiations (args, outs) = unlines (args : zipWith combineSolutionOutput sols outs)
+        showDifferentiations (args, outs) = unlines ((unwords args) : zipWith combineSolutionOutput sols outs)
 
         combineSolutionOutput sol out = printf "%s ==> %s" sol out :: String
 
