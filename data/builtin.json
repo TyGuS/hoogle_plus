@@ -10,10 +10,10 @@
             "inputs": ["0", "[Just 1, Nothing]"],
             "output": "??"
         },
-	{
-	    "inputs": ["0", "[Nothing, Just 1]"],
-	    "output": "??"
-	}
+	    {
+	        "inputs": ["0", "[Nothing, Just 1]"],
+	        "output": "??"
+	    }
     ]
 },
 {
