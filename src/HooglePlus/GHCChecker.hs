@@ -175,7 +175,10 @@ runGhcChecks params env goalType prog = let
     in do
         typeCheckResult <- liftIO $ runInterpreter $ checkType expr modules
         strictCheckResult <- if disableDemand then return True else liftIO $ checkStrictness tyclassCount body funcSig modules
-        filterCheckResult <- if disableFilter then return True else runChecks env goalType prog
+        filterCheckResult <- if not strictCheckResult then return False
+                                else if disableFilter
+                                        then return True
+                                        else runChecks env goalType prog
         case typeCheckResult of
             Left err -> liftIO $ putStrLn (displayException err) >> return False
             Right False -> liftIO $ putStrLn "Program does not typecheck" >> return False

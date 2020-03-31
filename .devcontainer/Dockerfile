@@ -1,4 +1,4 @@
-FROM mistzzt/haskell-ide-engine:0.11-ghc8.4.4
+FROM mistzzt/haskell-ide-engine:1.0.0.0_ghc8.4.4 
 
 # Avoid warnings by switching to noninteractive
 ENV DEBIAN_FRONTEND=noninteractive

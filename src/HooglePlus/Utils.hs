@@ -7,6 +7,7 @@ import Types.Type
 import Types.Experiments
 import Types.Solver
 import qualified Types.TypeChecker as Checker
+import Types.Filtering
 import Synquid.Type
 import Synquid.Util hiding (fromRight)
 import Synquid.Pretty as Pretty
@@ -19,8 +20,9 @@ import Control.Monad.State
 import CorePrep
 import CoreSyn
 import Data.Data
+import Data.Ord
 import Data.Either
-import Data.List (isInfixOf, isPrefixOf, intercalate)
+import Data.List (nub, sortOn, groupBy, isInfixOf, isPrefixOf, intercalate)
 import Data.List.Split (splitOn)
 import Data.Maybe
 import Data.Typeable
@@ -43,6 +45,7 @@ import Text.Printf
 import Text.Regex
 import Var hiding (Id)
 import Data.UUID.V4
+import Debug.Trace
 
 -- Converts the list of param types into a haskell function signature.
 -- Moves typeclass-looking things to the front in a context.
@@ -109,6 +112,25 @@ printSolution solution = do
     putStrLn "*******************SOLUTION*********************"
     putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
     putStrLn "************************************************"
+
+{-
+printFilter (FilterState _ solns samples) = unlines $ map printSol solns
+    where
+        printSol :: String -> String
+        printSol sol =
+            let [(_, desc)] = filter ((== sol) . fst) samples in
+                unlines [sol, show desc]
+-}
+
+printSolutionState solution (FilterState _ sols samples diffExamples) = unlines [ios, diffs]
+    where
+        ios = let [(_, desc)] = filter ((== solution) . fst) samples in show desc
+        diffs = unlines $ map showDifferentiations diffExamples
+        
+        showDifferentiations :: DiffInstance -> String
+        showDifferentiations (args, outs) = unlines ((unwords args) : zipWith combineSolutionOutput sols outs)
+
+        combineSolutionOutput sol out = printf "%s ==> %s" sol out :: String
 
 extractSolution :: Environment -> RType -> UProgram -> ([String], String, String, [(Id, RSchema)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)

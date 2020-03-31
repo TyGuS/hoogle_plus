@@ -28,6 +28,7 @@ import HooglePlus.GHCChecker
 import HooglePlus.Utils
 import HooglePlus.IOFormat
 import Examples.ExampleChecker
+import Types.Filtering
 
 import Control.Monad
 import Control.Lens ((^.))

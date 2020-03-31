@@ -756,8 +756,6 @@ writeSolution out = do
     msgChan <- gets $ view messageChan
     let stats' = stats { _pathLength = loc }
     liftIO $ writeChan msgChan (MesgP (out, stats', undefined))
-    -- liftIO $ printSolution code
-    -- liftIO $ hFlush stdout
     writeLog 1 "writeSolution" $ text (show stats')
 
 recoverNames :: Map Id Id -> Program t -> Program t
