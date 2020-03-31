@@ -142,7 +142,7 @@ runInterpreter' timeInMicro exec =
   where
     execute = do
       srcPath <- getDataFileName "InternalTypeGen.hs"
-      unsafeRunInterpreterWithArgs ["-fno-omit-yields"] $ do
+      runInterpreter $ do
     
         loadModules [srcPath]
         setTopLevelModules ["InternalTypeGen"]
