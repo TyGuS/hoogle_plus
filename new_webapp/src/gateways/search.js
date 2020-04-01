@@ -27,29 +27,6 @@ const getCodeCandidates = ({query, examples}, cb) => {
         facts: examples || []
     };
 
-    const convertToState = ({id, candidate, examples, docs, error}) => {
-        const newResults = {
-                candidateId: v4(),
-                code: candidate,
-                docs,
-                examplesStatus: DONE,
-                examples: examples.map(({inputs, output}) => {
-                    return {
-                        id: inputsToId(inputs),
-                        inputs,
-                        output,
-                        usage: inputs.concat(output),
-                        isLoading: false,
-                    }}),
-            };
-        return {
-            error,
-            queryId: id,
-            docs,
-            result: newResults
-        };
-    };
-
     const fetchOpts = {
         method: 'POST', // or 'PUT'
         headers: {'Content-Type': 'application/json'},
@@ -57,8 +34,6 @@ const getCodeCandidates = ({query, examples}, cb) => {
     };
     return streamResponse(ROUTE, fetchOpts, (jsonBlob => {
         console.log("onIncrementalResponse", jsonBlob);
-        // const newState = convertToState(jsonBlob);
-        // cb(newState);
         cb(jsonBlob);
     }));
 }
