@@ -729,9 +729,11 @@ checkSolution env goal examples code = do
     mapping <- gets $ view (typeChecker . nameMapping)
     params <- gets $ view searchParams
     msgChan <- gets $ view messageChan
+    fState <- gets $ view filterState
     let code' = recoverNames mapping code
-    checkResult <- withTime TypeCheckTime $ 
-        liftIO $ check env params examples code' goal msgChan
+    (checkResult, fState') <- withTime TypeCheckTime $ 
+        liftIO $ runStateT (check env params examples code' goal msgChan) fState
+    modify $ set filterState fState'
     if (code' `elem` solutions) || isNothing checkResult
         then mzero
         else return $ Found (code', fromJust checkResult)

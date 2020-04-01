@@ -10,6 +10,7 @@ import Types.Environment
 import Types.Program
 import Types.Encoder
 import Types.IOFormat
+import Types.Filtering (AssociativeExamples)
 import Types.CheckMonad
 import Types.TypeChecker (Checker)
 import qualified Types.TypeChecker as Checker
@@ -190,7 +191,7 @@ innerTextHTML [] = []
 unHTML :: String -> String
 unHTML = unescapeHTML . innerTextHTML
 
-toOutput :: Environment -> RProgram -> [Example] -> IO QueryOutput
+toOutput :: Environment -> RProgram -> AssociativeExamples -> IO QueryOutput
 toOutput env soln exs = do
     let symbols = Set.toList $ symbolsOf soln
     let argNames = Map.keys $ env ^. arguments
@@ -198,7 +199,8 @@ toOutput env soln exs = do
     let argDocs = map (\(n, ty) -> FunctionDoc n (show ty) "") args
     let symbolsWoArgs = symbols \\ argNames
     docs <- liftIO $ hoogleIt symbolsWoArgs
-    return $ QueryOutput (lambda $ toHaskellSolution $ show soln) exs "" (docs ++ argDocs)
+    let entries = map (\(sol, ex) -> ResultEntry (toHaskellSolution sol) ex) exs
+    return $ QueryOutput entries "" (docs ++ argDocs)
     where
         hoogleIt syms = do
             dbPath <- Hoogle.defaultDatabaseLocation
@@ -214,11 +216,6 @@ toOutput env soln exs = do
                              sig = unwords $ tail segs
                              doc = unHTML $ Hoogle.targetDocs tg
                           in FunctionDoc name sig doc
-
-        lambda prog = let args = Map.keys (env ^. arguments)
-                          nontcArgs = filter (not . (tyclassArgBase `isPrefixOf`)) args
-                          argStr = unwords nontcArgs
-                       in printf "\\%s -> %s" argStr prog
 
 stripSuffix :: String -> String
 stripSuffix = replaceId hoPostfix "" . removeLast '_'

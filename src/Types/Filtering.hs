@@ -5,6 +5,7 @@ import Control.Monad.State
 import Data.Typeable
 import Text.Printf
 import Data.List (intercalate)
+import Types.IOFormat (Example)
 
 import Test.SmallCheck.Drivers
 
@@ -32,20 +33,19 @@ type SampleInput = [String]
 -- currently we can only generate two as a tuple
 type DistinguishedInput = (SampleInput, SampleInput)
 
--- arg0, arg1, ... ==> output 
-type IOExample = String
+type AssociativeExamples = [(String, [Example])]
 
 data FunctionCrashDesc = 
-    AlwaysSucceed IOExample
-  | AlwaysFail IOExample
-  | PartialFunction [IOExample]
+    AlwaysSucceed Example
+  | AlwaysFail Example
+  | PartialFunction [Example]
   | UnableToCheck String
   deriving (Eq)
 
 instance Show FunctionCrashDesc where
-  show (AlwaysSucceed i) = i
-  show (AlwaysFail i) = i
-  show (PartialFunction xs) = unlines xs
+  show (AlwaysSucceed i) = show i
+  show (AlwaysFail i) = show i
+  show (PartialFunction xs) = unlines (map show xs)
   show (UnableToCheck ex) = "Exception: " ++ show ex
 
 data ArgumentType =
