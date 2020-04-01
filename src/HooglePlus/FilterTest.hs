@@ -20,6 +20,7 @@ import Data.Typeable
 import Data.Map (Map)
 import Data.Either
 
+import Test.SmallCheck (Depth)
 import Test.SmallCheck.Drivers
 
 import HooglePlus.Utils
@@ -110,7 +111,7 @@ buildNotCrashProp solution funcSig =
       , printf "let %s %s = monadic (%s <$> %s %s) in" propName argDecl body "wrappedSolution" argLine
       , printf "capture (smallCheckM %d (%s))" defaultDepth propName] :: String
 
-buildDupCheckProp :: (String, [String]) -> FunctionSignature -> Int -> Int -> String
+buildDupCheckProp :: (String, [String]) -> FunctionSignature -> Int -> Depth -> String
 buildDupCheckProp (sol, otherSols) funcSig timeInMicro depth =
 
   unwords [wrapperLhs, unwords wrapperSols, formatProp]
@@ -303,3 +304,41 @@ toParamListDecl args =
     isFuncType (ArgTypeApp _ x) = isFuncType x
     isFuncType (ArgTypeTuple xs) = any isFuncType xs
     isFuncType _ = False
+
+-- ******** Example Generator ********
+
+generateIOPairs :: [String] -> String -> FunctionSignature -> Int -> Int -> Depth -> IO (Either InterpreterError GeneratorResult) 
+generateIOPairs modules solution funcSig numPairs timeInMicro depth = 
+  runInterpreter' defaultInterpreterTimeoutMicro $ do
+    setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
+    interpret property (as :: IO GeneratorResult) >>= liftIO
+
+  where
+    typeStr = show funcSig
+    params = toParamListDecl (_argsType funcSig)
+    property = buildProp solution funcSig
+
+    buildProp :: String -> FunctionSignature -> String
+    buildProp solution funcSig =
+
+      formatProp params wrapper
+      where
+        wrapper = buildWrapper solution typeStr params defaultTimeoutMicro
+
+        formatProp (argLine, argDecl, argShow) wrappedSolution = unwords
+          [ wrappedSolution
+          , printf "let prop %s = monadic ((wrappedSolution %s) >>= (waitState %d %s)) in" argDecl argLine numPairs argShow
+          , printf "execStateT (smallCheckM %d (exists prop)) []" depth] :: String
+
+    buildWrapper solution typeStr params timeInMicro =
+      unwords [ buildLetFunction solution typeStr 
+              , buildTimeoutWrapper params timeInMicro
+              ]
+      where
+        buildLetFunction :: String -> String -> String
+        buildLetFunction solution solutionType = 
+          printf "let sol_wrappedSolution = ((%s) :: %s) in" solution typeStr :: String
+
+        buildTimeoutWrapper :: (String, String, String) -> Int -> String
+        buildTimeoutWrapper (argLine, paramDecl, _) timeInMicro =
+          printf "let wrappedSolution %s = (liftIO $ CB.timeOutMicro' %d (CB.approxShow %d (sol_wrappedSolution %s))) in" argLine timeInMicro defaultMaxOutputLength argLine :: String

@@ -1,7 +1,11 @@
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, LambdaCase #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, LambdaCase, FlexibleContexts #-}
 module InternalTypeGen where
 
 import Data.List (isInfixOf, nub, reverse)
+import Control.Monad
+import Control.Monad.State
+
+import Text.Printf
 
 import qualified Test.LeanCheck.Function.ShowFunction as SF
 import qualified Test.ChasingBottoms as CB
@@ -15,6 +19,7 @@ instance Eq a => Eq (CB.Result a) where
   (CB.Exception _) == (CB.Exception _) = True
   _ == _ = False
 
+isFailedResult :: CB.Result String -> Bool
 isFailedResult result = case result of
   CB.NonTermination -> True
   CB.Exception _ -> True
@@ -40,3 +45,29 @@ showCBResult = \case
 
 anyDuplicate :: Eq a => [a] -> Bool
 anyDuplicate xs = length (nub xs) /= length xs
+
+type IOExample = String
+type ExampleGeneration m = StateT [IOExample] m
+
+-- execStateT test []
+
+modifyFoo :: MonadIO m => Int -> ExampleGeneration m Bool
+modifyFoo 6 = pure True
+modifyFoo num = do
+  modify $ ((++) [show num])
+  return False
+
+test' :: MonadIO m => ExampleGeneration m Bool
+test' = do
+  smallCheckM 10 (exists (\x -> (monadic (modifyFoo x))))
+  return False
+
+waitState :: Int -> [String] -> CB.Result String -> ExampleGeneration IO Bool
+waitState numIOs args ret = case (not $ isFailedResult ret) of
+  False -> pure False
+  _ -> do
+    ioStates <- get
+    modify ((++) [printf "%s ==> %s" (unwords args) (showCBResult ret)])
+
+    state <- get
+    return ((length state) == numIOs)

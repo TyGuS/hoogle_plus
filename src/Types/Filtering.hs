@@ -18,11 +18,14 @@ frameworkModules =
   , "Test.SmallCheck.Drivers"
   , "Test.LeanCheck.Function.ShowFunction"
   , "System.IO.Silently"
-  , "Control.Exception" ] (repeat Nothing)
+  , "Control.Exception"
+  , "Control.Monad"
+  , "Control.Monad.State" ] (repeat Nothing)
 
   ++ [("Test.ChasingBottoms", Just "CB")]
 
 type SmallCheckResult = (String, Maybe PropertyFailure)
+type GeneratorResult = [String]
 type DiffInstance = ([String], [String])
 
 -- [arg0, arg1, arg2, ...] :: SampleInput
