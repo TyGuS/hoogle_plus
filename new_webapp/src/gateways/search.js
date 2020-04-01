@@ -45,6 +45,7 @@ const getCodeCandidates = ({query, examples}, cb) => {
         return {
             error,
             queryId: id,
+            docs,
             result: newResults
         };
     };
@@ -56,8 +57,9 @@ const getCodeCandidates = ({query, examples}, cb) => {
     };
     return streamResponse(ROUTE, fetchOpts, (jsonBlob => {
         console.log("onIncrementalResponse", jsonBlob);
-        const newState = convertToState(jsonBlob);
-        cb(newState);
+        // const newState = convertToState(jsonBlob);
+        // cb(newState);
+        cb(jsonBlob);
     }));
 }
 

@@ -58,6 +58,16 @@ const usageToExample = (usage) => {
     };
 }
 
+const toExample = (inputs, output) => {
+    return {
+        id: inputsToId(inputs),
+        inputs,
+        output,
+        usage: inputs.concat(output),
+        isLoading: false,
+    };
+}
+
 export function candidateReducer(state = initialCandidateState, action){
     switch(action.type) {
         case Consts.CLEAR_RESULTS:
@@ -68,16 +78,40 @@ export function candidateReducer(state = initialCandidateState, action){
                 isFetching: action.payload.status === LOADING,
             };
         case Consts.ADD_CANDIDATE:
+            const newResults = action.payload.result.map((candidate) => {
+                const currentPrograms = state.results.map((existCandidate) => existCandidate.code);
+                const idx = state.results.indexOf((code) => code == candidate.code);
+                if (idx != -1)  { // this is an old candidate, but new examples come
+                    const newExamples = candidate.examples.map(toExample);
+                    state.results[idx].examples.concat(newExamples);
+                } else { // this is a new candidate
+                    const newResult = {
+                        candidateId: v4(),
+                        code: candidate.code,
+                        docs: action.payload.docs,
+                        examplesStatus: DONE,
+                        examples: candidate.examples.map(({inputs, output}) => {
+                            return {
+                                id: inputsToId(inputs),
+                                inputs,
+                                output,
+                                usage: inputs.concat(output),
+                                isLoading: false,
+                            }}),
+                    };
+                    state.results.concat(newResult);
+                }
+            });
             return {
                 ...state,
-                results: state.results.concat(action.payload.result),
+                results: newResults,
                 queryId: action.payload.queryId,
-            }
+            };
         case Consts.SET_SEARCH_TYPE:
             return {
                 results: [],
                 isFetching: false,
-                }
+            };
         case Consts.FETCH_MORE_CANDIDATE_USAGES:
             const {candidateId:fCandidateId, status} = action.payload;
             switch (status) {
