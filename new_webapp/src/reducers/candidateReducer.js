@@ -58,7 +58,7 @@ const usageToExample = (usage) => {
     };
 }
 
-const toExample = (inputs, output) => {
+const toExample = ({inputs, output}) => {
     return {
         id: inputsToId(inputs),
         inputs,
@@ -78,30 +78,26 @@ export function candidateReducer(state = initialCandidateState, action){
                 isFetching: action.payload.status === LOADING,
             };
         case Consts.ADD_CANDIDATE:
-            const newResults = action.payload.result.map((candidate) => {
-                const currentPrograms = state.results.map((existCandidate) => existCandidate.code);
-                const idx = state.results.indexOf((code) => code == candidate.code);
-                if (idx != -1)  { // this is an old candidate, but new examples come
+            const candidates = action.payload.candidates;
+            const newResults = candidates.reduce((accumResults, candidate) => {
+                const currentPrograms = accumResults.map((existCandidate) => existCandidate.code);
+                const idx = currentPrograms.indexOf(candidate.code);
+                if (idx !== -1)  { // this is an old candidate, but new examples come
                     const newExamples = candidate.examples.map(toExample);
-                    state.results[idx].examples.concat(newExamples);
+                    const targetExample = accumResults[idx].examples;
+                    accumResults[idx].examples = targetExample.concat(newExamples);
                 } else { // this is a new candidate
                     const newResult = {
                         candidateId: v4(),
                         code: candidate.code,
                         docs: action.payload.docs,
                         examplesStatus: DONE,
-                        examples: candidate.examples.map(({inputs, output}) => {
-                            return {
-                                id: inputsToId(inputs),
-                                inputs,
-                                output,
-                                usage: inputs.concat(output),
-                                isLoading: false,
-                            }}),
+                        examples: candidate.examples.map(toExample),
                     };
-                    state.results.concat(newResult);
+                    accumResults = accumResults.concat(newResult);
                 }
-            });
+                return accumResults;
+            }, state.results.slice());
             return {
                 ...state,
                 results: newResults,
