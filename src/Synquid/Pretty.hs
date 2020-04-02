@@ -352,7 +352,7 @@ prettyProgram (Program p typ) = case p of
       prefix = if '(' == head funName && length countArgs == 2 -- infix operators
                   then let funName' = drop 1 funName
                            lastPart = reverse $ takeWhile ((/=) '.') $ tail $ reverse funName'
-                        in hang tab $ mbPair funName $ optParens (head x) <+> text lastPart <+> optParens (x !! 1)
+                        in hang tab $ mbPair funName $ optParens (head countArgs) <+> text lastPart <+> optParens (countArgs !! 1)
                   else hang tab $ text funName <+> hsep (map optParens x)
       in if f `elem` Map.elems unOpTokens
             then hang tab $ operator f <+> hsep (map optParens x)
