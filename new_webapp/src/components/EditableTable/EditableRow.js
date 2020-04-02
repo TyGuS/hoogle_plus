@@ -2,6 +2,7 @@ import React from 'react';
 
 import { Button } from 'react-bootstrap';
 import Highlight from 'react-highlight.js';
+import OutsideClickHandler from 'react-outside-click-handler';
 
 
 /**
@@ -13,6 +14,7 @@ import Highlight from 'react-highlight.js';
  *   - onUpdateCell : ({value, colName}, row) -> event -> ()
  *   - onClickEdit : (row) -> ()
  *   - onClickRemove : (id) -> ()
+ *   - onClickSave : (row) -> ()
  */
 export const EditableRow = ({row, columns, editingRowId,
     onUpdateCell, onClickEdit, onClickSave, onClickRemove}) => {
@@ -26,6 +28,22 @@ export const EditableRow = ({row, columns, editingRowId,
         </td>)
     });
 
+    const onBlur = (e) => {
+      console.log("blur", e);
+      // onClickSave(row);
+    };
+
+    const onFocus = (e) => {
+      console.log("focus", e);
+      // onClickEdit(row);
+    };
+
+    const onKeyPress = (event) => {
+      if (event.key === "Enter") {
+        onClickSave(row);
+      }
+    };
+
     if (row.id === editingRowId) {
       const editableRowCells = rowWithOrder.map((cell, k) => {
         return (<td key={cell.colName}>
@@ -35,7 +53,11 @@ export const EditableRow = ({row, columns, editingRowId,
             type="text"
             className="form-control"
             onChange={onUpdateCell(cell, row)}
-            value={cell.value}/>
+            value={cell.value}
+            onBlur={onBlur}
+            onFocus={onFocus}
+            onKeyPress={onKeyPress}
+          />
         </td>);
       });
       return (
