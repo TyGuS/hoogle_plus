@@ -63,7 +63,6 @@ const toExample = ({inputs, output}) => {
         id: inputsToId(inputs),
         inputs,
         output,
-        usage: inputs.concat(output),
         isLoading: false,
     };
 }
@@ -86,6 +85,7 @@ export function candidateReducer(state = initialCandidateState, action){
                     const newExamples = candidate.examples.map(toExample);
                     const targetExample = accumResults[idx].examples;
                     accumResults[idx].examples = targetExample.concat(newExamples);
+                    return accumResults;
                 } else { // this is a new candidate
                     const newResult = {
                         candidateId: v4(),
@@ -94,14 +94,13 @@ export function candidateReducer(state = initialCandidateState, action){
                         examplesStatus: DONE,
                         examples: candidate.examples.map(toExample),
                     };
-                    accumResults = accumResults.concat(newResult);
+                    return accumResults.concat(newResult);
                 }
-                return accumResults;
             }, state.results.slice());
             return {
                 ...state,
                 results: newResults,
-                queryId: action.payload.queryId,
+                queryId: action.payload.id,
             };
         case Consts.SET_SEARCH_TYPE:
             return {

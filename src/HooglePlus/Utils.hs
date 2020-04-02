@@ -23,7 +23,7 @@ import CoreSyn
 import Data.Data
 import Data.Ord
 import Data.Either
-import Data.List (nub, sortOn, groupBy, isInfixOf, isPrefixOf, intercalate)
+import Data.List (sortOn, groupBy, isInfixOf, isPrefixOf, intercalate)
 import Data.List.Split (splitOn)
 import Data.Maybe
 import Data.Typeable
