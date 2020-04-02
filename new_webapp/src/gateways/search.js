@@ -41,8 +41,8 @@ const getCodeCandidates = ({query, examples}, cb) => {
 // Returns a promise of the whole accumulated response, as text
 // onIncrementalResponse is called on each chunk received.
 const streamResponse = (route, fetchOpts, onIncrementalResponse) => {
-    const decoder = new TextDecoder("utf-8")
-
+    const decoder = new TextDecoder("utf-8");
+    var msgQueue = "";
     return fetch(route, fetchOpts)
         .then(response => response.body)
         .then(body => {
@@ -58,15 +58,19 @@ const streamResponse = (route, fetchOpts, onIncrementalResponse) => {
                         return;
                     }
                     // Enqueue the next data chunk into our target stream
-                    const convertedValue = decoder.decode(value);
+                    const convertedValue = msgQueue.concat(decoder.decode(value));
                     console.log("convertedValue", convertedValue);
                     convertedValue.trim().split("\n").forEach(jsonStr => {
                         try {
                             const jsonBlob = JSON.parse(jsonStr);
                             onIncrementalResponse(jsonBlob);
                             console.log("convertedValue sent:", jsonBlob);
+                            msgQueue = "";
                         } catch (error) {
-                            console.error("convertedValue error", error);
+                            console.log("remaining json", jsonStr);
+                            msgQueue = msgQueue.concat(jsonStr);
+                            console.log("new message queue", msgQueue);
+                            // console.error("convertedValue error", error);
                         }
                     })
                     controller.enqueue(value);
