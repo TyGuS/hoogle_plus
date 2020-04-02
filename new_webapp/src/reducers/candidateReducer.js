@@ -65,7 +65,7 @@ export function candidateReducer(state = initialCandidateState, action){
         case Consts.FILTER_RESULTS:
             const examplesMustPass = action.payload.examples;
             debugger;
-            if (!examplesMustPass) {
+            if (!examplesMustPass || examplesMustPass.length === 0) {
                 return {...state, results:[], spec:{}};
             }
             return {
