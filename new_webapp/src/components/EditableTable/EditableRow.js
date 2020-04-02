@@ -69,6 +69,12 @@ export const EditableRow = ({row, columns, editingRowId,
             >
               Save
             </Button>
+            <Button
+              variant="link"
+              onClick={() => onClickRemove(row.id)}
+            >
+              Cancel
+            </Button>
           </td>
           {editableRowCells}
         </tr>
