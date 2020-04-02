@@ -101,7 +101,7 @@ buildNotCrashProp solution funcSig =
   where
     params@(argLine, argDecl, argShow) = toParamListDecl (_argsType funcSig)
 
-    wrapper = buildFunctionWrapper "wrappedSolution" solution (show funcSig) params defaultTimeoutMilli True
+    wrapper = buildFunctionWrapper "wrappedSolution" solution (show funcSig) params defaultTimeoutMicro True
 
     formatAlwaysFailProp = formatProp "propAlwaysFail" "isFailedResult"
     formatNeverFailProp = formatProp "propNeverFail" "not <$> isFailedResult"
@@ -237,7 +237,7 @@ checkSolutionNotCrash modules sigStr body = do
   where
     handleNotSupported = (`catch` ((\ex -> return (Left (UnknownError $ show ex))) :: NotSupportedException -> IO (Either InterpreterError FunctionCrashDesc)))
     funcSig = (instantiateSignature . parseTypeString) sigStr
-    executeCheck = handleNotSupported $ validateSolution modules body funcSig defaultTimeoutMilli
+    executeCheck = handleNotSupported $ validateSolution modules body funcSig defaultTimeoutMicro
       
 
 checkDuplicates :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
@@ -248,7 +248,7 @@ checkDuplicates modules sigStr solution = do
       modify $ const fs {solutions = solution:solns} 
       return True
     _ -> do
-      result <- liftIO $ compareSolution modules solution solns funcSig defaultTimeoutMilli
+      result <- liftIO $ compareSolution modules solution solns funcSig defaultTimeoutMicro
       case result of
         Left (UnknownError "timeout") -> return False
         Left err -> do
