@@ -2,6 +2,7 @@ import * as Consts from "../constants/action-types";
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 import {v4 as uuidv4, v4} from "uuid";
 import { usageToId, inputsToId } from "../utilities/args";
+import { _ } from "underscore";
 
 export const initialCandidateState = {
     isFetching: false,
@@ -20,7 +21,7 @@ export const initialCandidateState = {
          *     errorMessage: null || str
          *     examples: [
          *         {
-         *             id: usageToId(["x", "2", "xx"]),
+         *             id: inputsToId(["x", "2", "xx"]),
          *             inputs: ["x", "2"],
          *             output: "xx",
          *             isLoading: false,
@@ -50,14 +51,6 @@ export const initialCandidateState = {
     ]
 };
 
-const usageToExample = (usage) => {
-    return {
-        id: usageToId(usage),
-        usage: usage,
-        isLoading: false,
-    };
-}
-
 const toExample = ({inputs, output}) => {
     return {
         id: inputsToId(inputs),
@@ -69,8 +62,22 @@ const toExample = ({inputs, output}) => {
 
 export function candidateReducer(state = initialCandidateState, action){
     switch(action.type) {
-        case Consts.CLEAR_RESULTS:
-            return {...state, results:[]};
+        case Consts.FILTER_RESULTS:
+            const examplesMustPass = action.payload.examples;
+            debugger;
+            if (!examplesMustPass) {
+                return {...state, results:[], spec:{}};
+            }
+            return {
+                ...state,
+                results: state.results.filter((candidate) => {
+                    return _.any(candidate.examples, (ex) => {
+                        return _.all(examplesMustPass, (specEx) => {
+                            return (_.isEqual(specEx.inputs,ex.inputs) && (specEx.output === ex.output));
+                        });
+                    });
+                }),
+            };
         case Consts.SET_SEARCH_STATUS:
             return {
                 ...state,

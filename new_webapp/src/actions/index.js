@@ -26,7 +26,7 @@ function makeActionCreator(type, ...argNames) {
 
 // Simple action creators for moving state around.
 export const addCandidate = makeActionCreator(Consts.ADD_CANDIDATE, "payload");
-export const clearResults = makeActionCreator(Consts.CLEAR_RESULTS);
+export const filterResults = makeActionCreator(Consts.FILTER_RESULTS, "payload");
 export const addFact = makeActionCreator(Consts.ADD_EXAMPLE, "payload");
 
 export const setExampleEditingRow = makeActionCreator(Consts.SET_EXAMPLE_EDITING_ROW, "payload");
@@ -116,8 +116,8 @@ export const setSearchType = ({query}) => (dispatch, getState) => {
 // This is where a request needs to be sent to the server
 // query: str; examples: [{inputs:[str], output:str}]
 export const doSearch = ({query, examples}) => (dispatch) => {
-    dispatch(setSearchStatus({status:LOADING}));
-    dispatch(clearResults());
+    dispatch(setSearchStatus({status:LOADING, searchType: query, examples}));
+    dispatch(filterResults({examples}));
     Search.getCodeCandidates({query, examples}, (candidate => {
         if (!candidate.error) {
             dispatch(addCandidate(candidate));
@@ -148,7 +148,7 @@ export const doSearch = ({query, examples}) => (dispatch) => {
 // [{inputs:[str], output:str}]
 export const getTypesFromExamples = (examples) => (dispatch) => {
     dispatch(setSearchStatus({status:LOADING}));
-    dispatch(clearResults());
+    dispatch(filterResults({examples}));
     return Search.getTypeCandidates({examples})
         .then(value => {
             if (value["typeCandidates"]) {
