@@ -43,6 +43,7 @@ dependencies:
 - http-conduit
 - http-types
 - indents
+- leancheck
 - lens
 - logict
 - MissingH
@@ -53,11 +54,11 @@ dependencies:
 - pretty-simple
 - pretty-tree
 - process
-- QuickCheck
 - regex-compat
 - regex-posix
 - resourcet
 - safe
+- smallcheck
 - sort
 - split
 - stm
@@ -71,6 +72,7 @@ dependencies:
 - z3
 - ghci
 - ghc-boot-th
+- silently
 
 library:
   source-dirs:

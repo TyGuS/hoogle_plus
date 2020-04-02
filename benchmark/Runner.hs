@@ -54,11 +54,9 @@ runExperiment setup (exp@(env, envName, q, params, paramName), (n, total)) = do
   let timeoutUs = expTimeout setup * 10^6 -- Timeout in microseconds
   goal <- envToGoal env queryStr
   solverChan <- newChan
-  checkerChan <- newChan
   forkIO (threadDelay timeoutUs >> writeChan solverChan (MesgClose CSTimeout) >> return ())
   forkIO $ synthesize params goal solverChan
-  forkIO $ check goal params solverChan checkerChan
-  results <- (readChan checkerChan >>= collectResults checkerChan [])
+  results <- (readChan solverChan >>= collectResults solverChan [])
   writeResult setup exp results
   return results
 

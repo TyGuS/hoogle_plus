@@ -112,6 +112,7 @@ data SolverState = SolverState {
     _groupState :: GroupState,
     _encoder :: EncodeState,
     _typeChecker :: CheckerState,
+    _filterState :: FilterState,
     _messageChan :: Chan Message
 } deriving(Eq)
 
@@ -124,6 +125,7 @@ emptySolverState = SolverState {
     _groupState = emptyGroup,
     _encoder = emptyEncodeState,
     _typeChecker = emptyChecker,
+    _filterState = emptyFilterState,
     _messageChan = undefined
 }
 
@@ -153,6 +155,6 @@ instance Monad m => CheckMonad (BackTrack m) where
     overStats f = modify (over (statistics . solverStats) f)
 
 data SearchResult = NotFound 
-                  | Found (RProgram, [Example])
+                  | Found (RProgram, AssociativeExamples)
                   | MoreRefine (RProgram, AbstractSkeleton)
                   deriving(Eq)

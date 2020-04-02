@@ -58,6 +58,15 @@ const usageToExample = (usage) => {
     };
 }
 
+const toExample = ({inputs, output}) => {
+    return {
+        id: inputsToId(inputs),
+        inputs,
+        output,
+        isLoading: false,
+    };
+}
+
 export function candidateReducer(state = initialCandidateState, action){
     switch(action.type) {
         case Consts.CLEAR_RESULTS:
@@ -68,16 +77,36 @@ export function candidateReducer(state = initialCandidateState, action){
                 isFetching: action.payload.status === LOADING,
             };
         case Consts.ADD_CANDIDATE:
+            const candidates = action.payload.candidates;
+            const newResults = candidates.reduce((accumResults, candidate) => {
+                const currentPrograms = accumResults.map((existCandidate) => existCandidate.code);
+                const idx = currentPrograms.indexOf(candidate.code);
+                if (idx !== -1)  { // this is an old candidate, but new examples come
+                    const newExamples = candidate.examples.map(toExample);
+                    const targetExample = accumResults[idx].examples;
+                    accumResults[idx].examples = targetExample.concat(newExamples);
+                    return accumResults;
+                } else { // this is a new candidate
+                    const newResult = {
+                        candidateId: v4(),
+                        code: candidate.code,
+                        docs: action.payload.docs,
+                        examplesStatus: DONE,
+                        examples: candidate.examples.map(toExample),
+                    };
+                    return accumResults.concat(newResult);
+                }
+            }, state.results.slice());
             return {
                 ...state,
-                results: state.results.concat(action.payload.result),
-                queryId: action.payload.queryId,
-            }
+                results: newResults,
+                queryId: action.payload.id,
+            };
         case Consts.SET_SEARCH_TYPE:
             return {
                 results: [],
                 isFetching: false,
-                }
+            };
         case Consts.FETCH_MORE_CANDIDATE_USAGES:
             const {candidateId:fCandidateId, status} = action.payload;
             switch (status) {

@@ -1,18 +1,19 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, LambdaCase #-}
 module InternalTypeGen where
 
-import Test.QuickCheck.Arbitrary
-import Test.QuickCheck.Gen
-import qualified Test.ChasingBottoms as CB
-import Data.Map (Map)
-import Data.List (isInfixOf)
-import Control.Applicative
+import Data.List (isInfixOf, nub, reverse)
 
-isEqualResult lhs rhs = case (lhs, rhs) of
-  (CB.Value a, CB.Value b) -> a == b
-  (CB.NonTermination, CB.NonTermination) -> True
-  (CB.Exception _, CB.Exception _) -> True
-  _ -> False
+import qualified Test.LeanCheck.Function.ShowFunction as SF
+import qualified Test.ChasingBottoms as CB
+import qualified Test.SmallCheck.Series as SS
+
+defaultShowFunctionDepth = 4 :: Int
+
+instance Eq a => Eq (CB.Result a) where
+  (CB.Value a) == (CB.Value b) = a == b
+  CB.NonTermination == CB.NonTermination = True
+  (CB.Exception _) == (CB.Exception _) = True
+  _ == _ = False
 
 isFailedResult result = case result of
   CB.NonTermination -> True
@@ -21,19 +22,21 @@ isFailedResult result = case result of
   CB.Value a | "Exception" `isInfixOf` a -> True
   _ -> False
 
-newtype Internal a = Val a
+newtype Inner a = Inner a deriving (Eq)
+instance SS.Serial m a => SS.Serial m (Inner a) where series = SS.newtypeCons Inner
+instance (SF.ShowFunction a) => Show (Inner a) where
+  show (Inner fcn) = SF.showFunctionLine defaultShowFunctionDepth fcn
 
-instance Show a => Show (Internal a) where
-  show (Val value) = show value
+printIOResult :: [String] -> [CB.Result String] -> IO ()
+printIOResult args rets = (putStrLn . show) result
+  where result = (args, map showCBResult rets) :: ([String], [String])
 
-instance Arbitrary a => Arbitrary (Internal a) where
-  arbitrary = Val <$> arbitrary
+showCBResult :: CB.Result String -> String
+showCBResult = \case
+                  CB.Value a | "_|_" `isInfixOf` a -> "bottom"
+                  CB.Value a -> a
+                  CB.NonTermination -> "diverge"
+                  CB.Exception ex -> show ex
 
-instance {-# OVERLAPPING #-} Arbitrary (Internal Int) where
-  arbitrary = Val <$> choose (5, 10)
-
-instance {-# OVERLAPPING #-} Arbitrary (Internal Char) where
-  arbitrary = Val <$> choose ('A', 'D')
-
-instance {-# OVERLAPPING #-} Arbitrary (Internal String) where
-  arbitrary = Val <$> vectorOf 5 (choose ('A', 'D'))
+anyDuplicate :: Eq a => [a] -> Bool
+anyDuplicate xs = length (nub xs) /= length xs

@@ -27,28 +27,6 @@ const getCodeCandidates = ({query, examples}, cb) => {
         facts: examples || []
     };
 
-    const convertToState = ({id, candidate, examples, docs, error}) => {
-        const newResults = {
-                candidateId: v4(),
-                code: candidate,
-                docs,
-                examplesStatus: DONE,
-                examples: examples.map(({inputs, output}) => {
-                    return {
-                        id: inputsToId(inputs),
-                        inputs,
-                        output,
-                        usage: inputs.concat(output),
-                        isLoading: false,
-                    }}),
-            };
-        return {
-            error,
-            queryId: id,
-            result: newResults
-        };
-    };
-
     const fetchOpts = {
         method: 'POST', // or 'PUT'
         headers: {'Content-Type': 'application/json'},
@@ -56,16 +34,15 @@ const getCodeCandidates = ({query, examples}, cb) => {
     };
     return streamResponse(ROUTE, fetchOpts, (jsonBlob => {
         console.log("onIncrementalResponse", jsonBlob);
-        const newState = convertToState(jsonBlob);
-        cb(newState);
+        cb(jsonBlob);
     }));
 }
 
 // Returns a promise of the whole accumulated response, as text
 // onIncrementalResponse is called on each chunk received.
 const streamResponse = (route, fetchOpts, onIncrementalResponse) => {
-    const decoder = new TextDecoder("utf-8")
-
+    const decoder = new TextDecoder("utf-8");
+    var msgQueue = "";
     return fetch(route, fetchOpts)
         .then(response => response.body)
         .then(body => {
@@ -81,15 +58,19 @@ const streamResponse = (route, fetchOpts, onIncrementalResponse) => {
                         return;
                     }
                     // Enqueue the next data chunk into our target stream
-                    const convertedValue = decoder.decode(value);
+                    const convertedValue = msgQueue.concat(decoder.decode(value));
                     console.log("convertedValue", convertedValue);
                     convertedValue.trim().split("\n").forEach(jsonStr => {
                         try {
                             const jsonBlob = JSON.parse(jsonStr);
                             onIncrementalResponse(jsonBlob);
                             console.log("convertedValue sent:", jsonBlob);
+                            msgQueue = "";
                         } catch (error) {
-                            console.error("convertedValue error", error);
+                            console.log("remaining json", jsonStr);
+                            msgQueue = msgQueue.concat(jsonStr);
+                            console.log("new message queue", msgQueue);
+                            // console.error("convertedValue error", error);
                         }
                     })
                     controller.enqueue(value);
