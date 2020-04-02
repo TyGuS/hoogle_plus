@@ -84,7 +84,8 @@ export function candidateReducer(state = initialCandidateState, action){
                 if (idx !== -1)  { // this is an old candidate, but new examples come
                     const newExamples = candidate.examples.map(toExample);
                     const targetExample = accumResults[idx].examples;
-                    accumResults[idx].examples = targetExample.concat(newExamples);
+                    const uniqueExamples = newExamples.filter((ex) => targetExample.indexOf(ex));
+                    accumResults[idx].examples = targetExample.concat(uniqueExamples);
                     return accumResults;
                 } else { // this is a new candidate
                     const newResult = {
