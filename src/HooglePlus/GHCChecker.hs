@@ -136,19 +136,8 @@ check :: MonadIO m
        -> RSchema -- goal type to be checked against
        -> Chan Message -- message channel for logging
        -> FilterTest m (Maybe AssociativeExamples) -- return Nothing is check fails, otherwise return a list of updated examples
-check env searchParams examples program goalType solverChan = do
-    -- type check the examples, raise exceptions if there are
-    programPassedChecks <- executeCheck program
-    let eqTest x y = Types.IOFormat.inputs x == Types.IOFormat.inputs y
-    augmentedExs <- liftIO $ augmentTestSet env goalType
-    -- let examples' = if null examples then augmentedExs else examples
-    if isJust programPassedChecks && not (null examples)
-       then liftIO $ fmap ((:[]) . (show program,)) <$> checkOutputs program examples
-       else return programPassedChecks
-    where
-        mdls = Set.toList (_included_modules env)
-        checkOutputs prog exs = liftIO $ checkExampleOutput mdls env (show prog) exs
-        executeCheck = runGhcChecks searchParams env (lastType $ toMonotype goalType)
+check env searchParams examples program goalType solverChan =
+    runGhcChecks searchParams env (lastType $ toMonotype goalType) examples program
 
 -- validate type signiture, run demand analysis, and run filter test
 -- checks the end result type checks; all arguments are used; and that the program will not immediately fail
@@ -156,9 +145,10 @@ runGhcChecks :: MonadIO m
              => SearchParams 
              -> Environment 
              -> RType 
+             -> [Example]
              -> UProgram 
              -> FilterTest m (Maybe AssociativeExamples)
-runGhcChecks params env goalType prog = let
+runGhcChecks params env goalType examples prog = let
     -- constructs program and its type signature as strings
     (modules, funcSig, body, argList) = extractSolution env goalType prog
     tyclassCount = length $ Prelude.filter (\(id, _) -> tyclassArgBase `isPrefixOf` id) argList
@@ -168,14 +158,22 @@ runGhcChecks params env goalType prog = let
     in do
         typeCheckResult <- liftIO $ runInterpreter $ checkType expr modules
         strictCheckResult <- if disableDemand then return True else liftIO $ checkStrictness tyclassCount body funcSig modules
-        filterCheckResult <- if not strictCheckResult then return Nothing
-                                else if disableFilter
-                                        then return (Just [])
-                                        else runChecks env goalType prog
+        exampleCheckResult <- if not strictCheckResult then return Nothing else liftIO $ fmap ((:[]) . (show prog,)) <$> checkOutputs prog examples
+        filterCheckResult <- if disableFilter || isNothing exampleCheckResult
+                                then return exampleCheckResult
+                                else do
+                                    filterResult <- runChecks env goalType prog
+                                    liftIO $ print filterResult
+                                    if null examples || isNothing filterResult
+                                       then return filterResult
+                                       else return exampleCheckResult
         case typeCheckResult of
             Left err -> liftIO $ putStrLn (displayException err) >> return Nothing
             Right False -> liftIO $ putStrLn "Program does not typecheck" >> return Nothing
             Right True -> return filterCheckResult
+    where
+        mdls = Set.toList (_included_modules env)
+        checkOutputs prog exs = checkExampleOutput mdls env (show prog) exs
 
 -- ensures that the program type-checks
 checkType :: String -> [String] -> Interpreter Bool
