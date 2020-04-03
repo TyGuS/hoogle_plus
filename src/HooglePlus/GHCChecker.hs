@@ -150,7 +150,6 @@ runGhcChecks :: MonadIO m
              -> FilterTest m (Maybe AssociativeExamples)
 runGhcChecks params env goalType examples prog = let
     -- constructs program and its type signature as strings
-    (modules, funcSig, body, argList) = extractSolution env goalType prog
     tyclassCount = length $ Prelude.filter (\(id, _) -> tyclassArgBase `isPrefixOf` id) argList
     expr = printf "(%s) :: %s" body funcSig
     disableDemand = _disableDemand params
@@ -173,6 +172,7 @@ runGhcChecks params env goalType examples prog = let
             Right True -> return filterCheckResult
     where
         mdls = Set.toList (_included_modules env)
+        (modules, funcSig, body, argList) = extractSolution env goalType prog
         checkOutputs prog exs = checkExampleOutput mdls env (show prog) exs
 
 -- ensures that the program type-checks

@@ -50,6 +50,7 @@ import Text.Printf
 import Debug.Trace
 import System.Timeout
 import GHC.LanguageExtensions.Type
+import qualified Language.Haskell.Interpreter as LHI
 
 timeoutLimit = 10^6 :: Int -- in microsecond
 outputDepth = 4 :: Int
@@ -148,14 +149,14 @@ checkExample env typ ex checkerChan = do
         (res, substedTyp) <- checkTypes env checkerChan exTyp typ
         let (tyclasses, strippedTyp) = unprefixTc substedTyp
         let tyclassesPrenex = intercalate ", " $ map show tyclasses
-        let mkTyclass = printf "(%s) :: (%s) => (%s) -> Bool" mkFun tyclassesPrenex (show strippedTyp)
+        let mkTyclass = printf "(%s) :: (%s) => (%s) -> ()" mkFun tyclassesPrenex (show strippedTyp)
         eitherTyclass <- if null tyclasses then return (Left (Monotype AnyT)) else parseExample mdls mkTyclass
         if res then if isLeft eitherTyclass then return $ Left exTyp
                                             else return $ Right tcErr
                else return $ Right err
       Right e -> return $ Right e
     where
-        mkFun = printf "\\f -> (f %s) == %s" (unwords $ map wrapParens $ inputs ex) (output ex)
+        mkFun = printf "\\f -> case f %s of %s -> ()" (unwords $ map wrapParens $ inputs ex) (output ex)
 
         unprefixTc (FunctionT x tArg tRes) =
             case tArg of
@@ -196,11 +197,16 @@ execExample mdls env prog ex = do
     let prependArg = unwords nontcArgs
     let progBody = if Map.null (env ^. arguments) -- if this is a request from front end
         then printf "let f = %s in" prog
-        else printf "let f = \\%s -> %s in" prependArg prog
-    let wrapParens = printf "(%s)"
+        else printf "let f = (\\%s -> %s) in" prependArg prog
     let parensedInputs = map wrapParens $ inputs ex
     let progCall = printf "f %s" (unwords parensedInputs)
     askGhc mdls $ do
+        -- allow type defaulting during execution
+        dflags <- getSessionDynFlags
+        let dflags' = dflags { 
+            extensionFlags = ES.insert ExtendedDefaultRules (extensionFlags dflags)
+            }
+        setSessionDynFlags dflags'
         result <- execStmt (unwords [progBody, progCall]) execOptions
         case result of
             ExecComplete r _ -> case r of
