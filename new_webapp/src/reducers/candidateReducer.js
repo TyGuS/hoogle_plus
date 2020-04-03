@@ -20,7 +20,7 @@ export const initialCandidateState = {
          *     ]
          *     errorMessage: null || str
          *     examples: [
-         *         {
+         *         {u
          *             id: inputsToId(["x", "2", "xx"]),
          *             inputs: ["x", "2"],
          *             output: "xx",
@@ -64,7 +64,6 @@ export function candidateReducer(state = initialCandidateState, action){
     switch(action.type) {
         case Consts.FILTER_RESULTS:
             const examplesMustPass = action.payload.examples;
-            debugger;
             if (!examplesMustPass || examplesMustPass.length === 0) {
                 return {...state, results:[], spec:{}};
             }

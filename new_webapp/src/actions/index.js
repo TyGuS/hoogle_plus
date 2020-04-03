@@ -61,7 +61,7 @@ export const updateCandidateUsages = ({usageId, inputs}) => (dispatch, getState)
                 inputs,
                 typeSignature,
             }));
-        })
+        });
     } else {
         console.error("updating usage without results! How was this fired?");
     }
