@@ -50,7 +50,6 @@ import Text.Printf
 import Debug.Trace
 import System.Timeout
 import GHC.LanguageExtensions.Type
-import qualified Language.Haskell.Interpreter as LHI
 
 timeoutLimit = 10^6 :: Int -- in microsecond
 outputDepth = 4 :: Int
