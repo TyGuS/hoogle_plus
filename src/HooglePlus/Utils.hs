@@ -9,6 +9,7 @@ import Types.Solver
 import qualified Types.TypeChecker as Checker
 import Types.Filtering
 import Types.IOFormat (Example(Example))
+import qualified Types.IOFormat as IOFormat
 import Synquid.Type
 import Synquid.Util hiding (fromRight)
 import Synquid.Pretty as Pretty
@@ -24,6 +25,7 @@ import Data.Data
 import Data.Ord
 import Data.Either
 import Data.List (sortOn, groupBy, isInfixOf, isPrefixOf, intercalate)
+import Data.List.Extra (nubOrdOn)
 import Data.List.Split (splitOn)
 import Data.Maybe
 import Data.Typeable
@@ -121,11 +123,13 @@ printFilter (FilterState _ solns samples) = unlines $ map printSol solns
 
 collectExamples :: String -> FilterState -> AssociativeExamples
 collectExamples solution (FilterState _ sols samples diffExamples) =
-    map mkGroup $ groupBy (\x y -> fst x == fst y) $ sortOn fst $ examples ++ checkedExs
+    map mkGroup $ groupBy (\x y -> fst x == fst y) 
+                $ sortOn fst
+                $ examples ++ checkedExs
     where
         [(_, desc)] = filter ((== solution) . fst) samples
         checkedExs = zip (repeat solution) (descToExample desc)
-        mkGroup xs = (fst (head xs), snd (unzip xs))
+        mkGroup xs = (fst (head xs), nubOrdOn IOFormat.inputs $ snd (unzip xs))
         examples = concatMap mkExamples diffExamples
         combineSolutionOutput args sol out = (sol, Example args out)
         mkExamples (args, outs) = zipWith (combineSolutionOutput args) sols outs
