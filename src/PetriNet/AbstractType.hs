@@ -130,7 +130,11 @@ checkUnification bound tass (AScalar (ATypeVarT id)) t = let
     tass' = Map.map (abstractSubstitute (Map.singleton id t)) tass
     tass'' = Map.insert id t tass'
     in if isValidSubst tass'' then Just tass'' else Nothing
-checkUnification bound tass (AScalar (ADatatypeT id tArgs)) (AScalar (ADatatypeT id' tArgs')) | id /= id' = Nothing
+checkUnification bound tass (AScalar (ADatatypeT id tArgs)) (AScalar (ADatatypeT id' tArgs'))
+  | id /= id' && 
+      ((id == tyclassPrefix && tyclassPrefix `isPrefixOf` id') ||
+          (id' == tyclassPrefix && tyclassPrefix `isPrefixOf` id)) = Just tass
+  | id /= id' = Nothing
 checkUnification bound tass (AScalar (ADatatypeT id tArgs)) (AScalar (ADatatypeT id' tArgs')) | id == id' = checkArgs tass tArgs tArgs'
   where
     checkArgs m [] [] = Just m

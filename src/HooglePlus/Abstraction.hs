@@ -31,7 +31,7 @@ firstLvAbs env schs = Set.foldr (updateCover tvs) initCover dts
   where
     tvs = env ^. boundTypeVars
     typs = map (shape . toMonotype) schs
-    initCover = HashMap.singleton rootNode Set.empty
+    initCover = HashMap.singleton rootNode (Set.singleton tcRoot)
     dts = Set.unions (map (allAbstractDts (env ^. boundTypeVars)) typs)
 
 allAbstractDts :: [Id] -> SType -> Set AbstractSkeleton
@@ -48,7 +48,7 @@ allAbstractDts _ _ = Set.empty
 specificAbstractionFromTypes :: Environment -> [RSchema] -> AbstractCover
 specificAbstractionFromTypes env schemas = let
     abstrSkels = map (compactAbstractType . toAbstractType . shape . toMonotype) schemas
-    base = HashMap.singleton rootNode Set.empty
+    base = HashMap.singleton rootNode (Set.singleton tcRoot)
     in
         foldr (updateCover (env ^. boundTypeVars)) base abstrSkels
 

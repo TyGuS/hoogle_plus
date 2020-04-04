@@ -24,8 +24,10 @@ import Types.Filtering
 import Types.CheckMonad
 import Types.TypeChecker
 import Types.IOFormat
+import Database.Util
 
 rootNode = AScalar (ATypeVarT varName)
+tcRoot = AScalar (ADatatypeT tyclassPrefix [])
 pairProj = "pair_match"
 
 type AbstractCover = HashMap AbstractSkeleton (Set AbstractSkeleton)
@@ -92,7 +94,7 @@ data RefineState = RefineState {
 } deriving(Eq)
 
 emptyRefineState = RefineState {
-    _abstractionCover = HashMap.empty,
+    _abstractionCover = HashMap.fromList [(rootNode, Set.singleton tcRoot)],
     _instanceMapping = HashMap.empty,
     _targetType = AScalar (ATypeVarT varName),
     _sourceTypes = [],
