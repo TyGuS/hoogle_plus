@@ -3,6 +3,7 @@ import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 import {v4 as uuidv4, v4} from "uuid";
 import { usageToId, inputsToId } from "../utilities/args";
 import { _ } from "underscore";
+import { defaultExamplesShown, defaultExamplesShownIncrement } from "../utilities/featureManager";
 
 export const initialCandidateState = {
     isFetching: false,
@@ -18,9 +19,10 @@ export const initialCandidateState = {
          *        signature: str
          *      }
          *     ]
-         *     errorMessage: null || str
+         *     errorMessage: null || str,
+         *     examplesShown: 3,
          *     examples: [
-         *         {u
+         *         {
          *             id: inputsToId(["x", "2", "xx"]),
          *             inputs: ["x", "2"],
          *             output: "xx",
@@ -38,6 +40,7 @@ export const initialCandidateState = {
          *     candidateId: "cand2",
          *     code: "\\arg0 arg1-> replicate2 arg0 arg1",
          *     examplesStatus: ERROR,
+         *     examplesShown: 3,
          *     examples: [
          *         {
          *             id: usageToId(["x", "2", "xx"]),
@@ -98,6 +101,7 @@ export function candidateReducer(state = initialCandidateState, action){
                         code: candidate.code,
                         docs: action.payload.docs,
                         examplesStatus: DONE,
+                        examplesShown: defaultExamplesShown,
                         examples: candidate.examples.map(toExample),
                     };
                     return accumResults.concat(newResult);
@@ -212,9 +216,26 @@ export function candidateReducer(state = initialCandidateState, action){
                     inputs: newInputs,
                     output: "??",
                 })
-                return {...result, examples: updatedExamples};
+                return {
+                    ...result,
+                    examplesShown: (result.examplesShown || defaultExamplesShown) + 1,
+                    examples: updatedExamples
+                };
             });
             return {...state, results:resultsWithNewUsage};
+
+        case Consts.SHOW_MORE_USAGES:
+            const {candidateId:cid, newValue} = action.payload;
+            const resultsWithNewUsage_smu = state.results.map(result => {
+                if (result.candidateId !== cid) {
+                    return result;
+                }
+                return {
+                    ...result,
+                    examplesShown: newValue,
+                };
+            });
+            return {...state, results:resultsWithNewUsage_smu};
 
         case Consts.STOP_SEARCH:
             return {

@@ -5,6 +5,7 @@ import { namedArgsToUsage, getArgCount, usageToExample } from "../utilities/args
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 import { log } from "../utilities/logger";
 import { v4 } from "uuid";
+import { defaultExamplesShownIncrement } from "../utilities/featureManager";
 
 function makeActionCreator(type, ...argNames) {
     return function (...args) {
@@ -34,6 +35,7 @@ export const setExamples = makeActionCreator(Consts.SET_EXAMPLES, "payload");
 export const updateCandidateUsageTable = makeActionCreator(Consts.UPDATE_CANDIDATE_USAGE, "payload");
 const addCandidateUsageInternal = makeActionCreator(Consts.ADD_CANDIDATE_USAGE, "payload");
 export const fetchMoreCandidateUsages = makeActionCreator(Consts.FETCH_MORE_CANDIDATE_USAGES, "payload");
+export const showMoreCandidateUsages = makeActionCreator(Consts.SHOW_MORE_USAGES, "payload");
 
 const setSearchTypeInternal = makeActionCreator(Consts.SET_SEARCH_TYPE, "payload");
 export const setSearchStatus = makeActionCreator(Consts.SET_SEARCH_STATUS, "payload");
@@ -168,10 +170,22 @@ export const getTypesFromExamples = (examples) => (dispatch) => {
 // Get more example usages for this particular candidate.
 // usages: [{inputs:[str], output:str}]
 export const getMoreExamples = ({candidateId, code, examples}) => (dispatch, getState) => {
-    const {spec} = getState();
+    const {spec, candidates} = getState();
+    const candidate = _.findWhere(candidates.results, {candidateId});
+
+    const currentExamplesCount = candidate.examples.length;
+    const currentExamplesShown = candidate.examplesShown;
+    const wantToShow = currentExamplesShown + defaultExamplesShownIncrement;
+    // If there are more examples stored, then just show them.
+    if (wantToShow <= currentExamplesCount) {
+        return dispatch(showMoreCandidateUsages({candidateId, newValue: wantToShow}));
+    }
+
+    // Else fetch more
     dispatch(fetchMoreCandidateUsages({candidateId, status: LOADING}));
     return hooglePlusMoreExamples({code, examples, queryType: spec.searchType})
         .then(results => {
+            dispatch(showMoreCandidateUsages({candidateId, newValue: wantToShow}));
             const {examples} = results;
             return dispatch(fetchMoreCandidateUsages({
                 candidateId,
