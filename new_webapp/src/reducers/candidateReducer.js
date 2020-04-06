@@ -95,7 +95,6 @@ export function candidateReducer(state = initialCandidateState, action){
                     const targetExample = accumResults[idx].examples;
                     const targetIds = targetExample.map((ex) => ex.id);
                     const uniqueExamples = newExamples.filter((ex) => targetIds.indexOf(ex.id) < 0);
-                    console.log(uniqueExamples);
                     accumResults[idx].examples = targetExample.concat(uniqueExamples);
                     return accumResults;
                 } else { // this is a new candidate
