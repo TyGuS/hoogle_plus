@@ -49,7 +49,6 @@ const UsageTableBase = ({
 
     const internalRows = generateRows(_.take(stateRows, examplesShown));
     const argNames = getArgNames(numColumns - 1);
-    console.log("examplesShown:", candidateId, stateRows, internalRows);
 
     let cols = [];
     let colExtensions = [];

@@ -28,16 +28,6 @@ export const EditableRow = ({row, columns, editingRowId,
         </td>)
     });
 
-    const onBlur = (e) => {
-      console.log("blur", e);
-      // onClickSave(row);
-    };
-
-    const onFocus = (e) => {
-      console.log("focus", e);
-      // onClickEdit(row);
-    };
-
     const onKeyPress = (event) => {
       if (event.key === "Enter") {
         onClickSave(row);
@@ -54,8 +44,6 @@ export const EditableRow = ({row, columns, editingRowId,
             className="form-control"
             onChange={onUpdateCell(cell, row)}
             value={cell.value}
-            onBlur={onBlur}
-            onFocus={onFocus}
             onKeyPress={onKeyPress}
           />
         </td>);
