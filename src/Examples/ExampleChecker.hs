@@ -12,6 +12,7 @@ import Types.Experiments
 import Types.IOFormat
 import Types.TypeChecker
 import Types.Common
+import Types.Filtering (defaultTimeoutMicro)
 import Synquid.Type
 import Synquid.Pretty
 import Synquid.Program
@@ -51,12 +52,9 @@ import Debug.Trace
 import System.Timeout
 import GHC.LanguageExtensions.Type
 
-timeoutLimit = 10^6 :: Int -- in microsecond
-outputDepth = 4 :: Int
-
 askGhc :: [String] -> Ghc a -> IO a
 askGhc mdls f = do
-    mbResult <- timeout timeoutLimit $ runGhc (Just libdir) $ do
+    mbResult <- timeout (10*defaultTimeoutMicro) $ runGhc (Just libdir) $ do
         dflags <- getSessionDynFlags
         let dflags' = dflags { 
             generalFlags = ES.delete Opt_OmitYields (generalFlags dflags),
@@ -189,20 +187,21 @@ getExampleTypes env validSchemas = do
         forall t = let vars = typeVarsOf t
                     in foldr ForallT (Monotype $ addTrue t) vars
 
-execExample :: [String] -> Environment -> String -> Example -> IO (Either ErrorMessage String)
-execExample mdls env prog ex = do
+execExample :: [String] -> Environment -> TypeQuery -> String -> Example -> IO (Either ErrorMessage String)
+execExample mdls env typ prog ex = do
     let args = Map.keys $ env ^. arguments
     let nontcArgs = filter (not . (tyclassArgBase `isPrefixOf`)) args
     let prependArg = unwords nontcArgs
     let progBody = if Map.null (env ^. arguments) -- if this is a request from front end
-        then printf "let f = %s in" prog
-        else printf "let f = (\\%s -> %s) in" prependArg prog
+        then printf "let f = (%s) :: %s in" prog typ
+        else printf "let f = (\\%s -> %s) :: %s in" prependArg prog typ
     let parensedInputs = map wrapParens $ inputs ex
     let progCall = printf "f %s" (unwords parensedInputs)
     runStmt mdls (unwords [progBody, progCall])
 
 runStmt :: [String] -> String -> IO (Either ErrorMessage String)
-runStmt mdls prog = askGhc mdls $ do
+runStmt mdls prog = do
+  catch (askGhc mdls $ do
     -- allow type defaulting during execution
     dflags <- getSessionDynFlags
     let dflags' = dflags { 
@@ -212,9 +211,10 @@ runStmt mdls prog = askGhc mdls $ do
     result <- execStmt prog execOptions
     case result of
         ExecComplete r _ -> case r of
-                            Left e -> liftIO (print e) >> return (Left (show e)) 
+                            Left e -> return (Left (show e)) 
                             Right ns -> getExecValue ns
-        ExecBreak {} -> return (Left "error, break")
+        ExecBreak {} -> return (Left "error, break"))
+    (\(e :: SomeException) -> return (Left $ show e))
     where
         getExecValue (n:ns) = do
             mty <- lookupName n
@@ -258,10 +258,10 @@ augmentTestSet env goal = do
                 solveTypeConstraint env' (shape s1') (shape s2')) initChecker
             return $ state ^. isChecked
 
-checkExampleOutput :: [String] -> Environment -> String -> [Example] -> IO (Maybe [Example])
-checkExampleOutput mdls env prog exs = do
+checkExampleOutput :: [String] -> Environment -> TypeQuery -> String -> [Example] -> IO (Maybe [Example])
+checkExampleOutput mdls env typ prog exs = do
     let progWithoutTc = removeTypeclasses prog
-    currOutputs <- mapM (execExample mdls env progWithoutTc) exs
+    currOutputs <- mapM (execExample mdls env typ progWithoutTc) exs
     cmpResults <- mapM (uncurry compareResults) (zip currOutputs exs)
     let justResults = catMaybes cmpResults
     if length justResults == length exs then return $ Just justResults 

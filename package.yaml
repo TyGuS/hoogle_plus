@@ -96,22 +96,6 @@ executables:
     - -O2
     dependencies:
     - HooglePlus
-  webapp:
-    main: Main.hs
-    source-dirs:
-    - webapp/app
-    - webapp/src
-    ghc-options:
-    - -O2
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - HooglePlus
-    - yesod-core
-    - yesod-form
-    - yesod-static
-    - shakespeare
 
 tests:
   spec:

@@ -100,6 +100,7 @@ defaultTypeclassInstances =
     , mkInstance "Num" intType
     , mkInstance "Num" floatType
     , mkInstance "Num" doubleType
+    , mkInstance "Read" intType
     ]
 
 

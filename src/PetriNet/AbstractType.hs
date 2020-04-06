@@ -9,6 +9,7 @@ import Synquid.Type
 import Types.Solver
 import PetriNet.Util
 import Synquid.Pretty
+import Database.Util
 
 import Control.Lens
 import GHC.Generics
@@ -118,6 +119,8 @@ checkUnification bound tass (AScalar (ATypeVarT id)) t | id `Map.member` tass =
                   _ -> Nothing
     substedTass u = Map.map (abstractSubstitute (Map.singleton id (substed u))) u
     updatedTass u = Map.insert id (substed u) (substedTass u)
+checkUnification bound tass t (AScalar (ATypeVarT id)) | id `Map.member` tass =
+    checkUnification bound tass (AScalar (ATypeVarT id)) t
 checkUnification bound tass t@(AScalar (ATypeVarT id)) t'@(AScalar (ATypeVarT id')) 
   | id `elem` bound && id' `elem` bound = Nothing
   | id `elem` bound && id' `notElem` bound = checkUnification bound tass t' t
@@ -232,15 +235,15 @@ applySemantic tvs fun args = do
     let ret = last (decompose fun)
     let args' = map compactAbstractType args
     constraints <- zipWithM (typeConstraints tvs) cargs args'
-    -- writeLog 3 "applySemantic" $ text "solving constraints" <+> pretty constraints
+    writeLog 3 "applySemantic" $ text "solving constraints" <+> pretty constraints
     let unifier = getUnifier tvs (concat constraints)
     case unifier of
         Nothing -> return ABottom
         Just m -> do
-            -- writeLog 3 "applySemantic" $ text "get unifier" <+> pretty (Map.toList m)
+            writeLog 3 "applySemantic" $ text "get unifier" <+> pretty (Map.toList m)
             cover <- gets $ view (refineState . abstractionCover)
             let substRes = abstractSubstitute m ret
-            -- writeLog 3 "applySemantic" $ text "current cover" <+> text (show cover)
+            writeLog 3 "applySemantic" $ text "current cover" <+> text (show cover)
             currentAbst tvs cover substRes
 
 compareAbstract :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Ordering

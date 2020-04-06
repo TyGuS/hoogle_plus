@@ -628,7 +628,7 @@ parseAndCheck env dst code = do
             writeLog 1 "parseAndCheck" $ text "Generalizing abstract type" <+> pretty tyBtm
             let tyBtm' = toAbstractType $ stypeSubstitute tass $ shape tyBtm
             let absDst = toAbstractType $ shape dst
-            absBtm <- observeT $ pickGeneralization env tyBtm' absDst
+            absBtm <- once $ observeT $ pickGeneralization env tyBtm' absDst
             return (Right (btm, absBtm))
 
 pickGeneralization :: MonadIO m 
@@ -695,9 +695,15 @@ nextSolution :: MonadIO m
              -> Int
              -> PNSolver m ()
 nextSolution env goal examples cnt = do
+    -- note: when we come to the next solution, there are two cases:
+    -- case I: all of the programs from the previous path are spurious
+    -- case II: some of the programs from the previous path are correct
+    -- no matter in which case, we have checked every possible program
+    -- corresponds to that path, so we may safely block this path anyway
+    blockCurrent
     hasPass <- gets $ view (refineState . passOneOrMore)
     if hasPass -- block the previous path and then search
-       then blockCurrent >> findProgram env goal examples cnt
+       then findProgram env goal examples cnt
        else do -- refine and then search
             let dst = lastType (toMonotype goal)
             cover <- gets $ view (refineState . abstractionCover)

@@ -204,7 +204,6 @@ toOutput env soln exs = do
     where
         hoogleIt syms = do
             dbPath <- Hoogle.defaultDatabaseLocation
-            print dbPath
             Hoogle.withDatabase dbPath (\db -> do
                 let targets = map (head . Hoogle.searchDatabase db) syms
                 let docs = map targetToDoc targets

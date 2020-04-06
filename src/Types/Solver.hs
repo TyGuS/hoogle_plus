@@ -27,7 +27,7 @@ import Types.IOFormat
 import Database.Util
 
 rootNode = AScalar (ATypeVarT varName)
-tcRoot = AScalar (ADatatypeT tyclassPrefix [])
+tcRoot = AScalar (ADatatypeT (tyclassPrefix ++ "Read") [AScalar (ADatatypeT "Int" [])])
 pairProj = "pair_match"
 
 type AbstractCover = HashMap AbstractSkeleton (Set AbstractSkeleton)

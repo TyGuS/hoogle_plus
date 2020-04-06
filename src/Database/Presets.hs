@@ -30,11 +30,9 @@ myModules = [
   "Data.Either",
   "Data.Tuple",
   "Text.Show",
+  "Text.Read",
   "GHC.Char",
   "GHC.List",
   "Data.Eq",
-  "Data.Function",
-  -- ByteString
-  "Data.ByteString.Lazy",
-  "Data.ByteString.Builder"
+  "Data.Function"
   ]
