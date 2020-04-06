@@ -5,6 +5,7 @@ import { namedArgsToUsage, getArgCount, usageToExample } from "../utilities/args
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 import { log } from "../utilities/logger";
 import { v4 } from "uuid";
+import { defaultExamplesShownIncrement } from "../utilities/featureManager";
 
 function makeActionCreator(type, ...argNames) {
     return function (...args) {
@@ -26,7 +27,7 @@ function makeActionCreator(type, ...argNames) {
 
 // Simple action creators for moving state around.
 export const addCandidate = makeActionCreator(Consts.ADD_CANDIDATE, "payload");
-export const clearResults = makeActionCreator(Consts.CLEAR_RESULTS);
+export const filterResults = makeActionCreator(Consts.FILTER_RESULTS, "payload");
 export const addFact = makeActionCreator(Consts.ADD_EXAMPLE, "payload");
 
 export const setExampleEditingRow = makeActionCreator(Consts.SET_EXAMPLE_EDITING_ROW, "payload");
@@ -34,6 +35,7 @@ export const setExamples = makeActionCreator(Consts.SET_EXAMPLES, "payload");
 export const updateCandidateUsageTable = makeActionCreator(Consts.UPDATE_CANDIDATE_USAGE, "payload");
 const addCandidateUsageInternal = makeActionCreator(Consts.ADD_CANDIDATE_USAGE, "payload");
 export const fetchMoreCandidateUsages = makeActionCreator(Consts.FETCH_MORE_CANDIDATE_USAGES, "payload");
+export const showMoreCandidateUsages = makeActionCreator(Consts.SHOW_MORE_USAGES, "payload");
 
 const setSearchTypeInternal = makeActionCreator(Consts.SET_SEARCH_TYPE, "payload");
 export const setSearchStatus = makeActionCreator(Consts.SET_SEARCH_STATUS, "payload");
@@ -61,7 +63,7 @@ export const updateCandidateUsages = ({usageId, inputs}) => (dispatch, getState)
                 inputs,
                 typeSignature,
             }));
-        })
+        });
     } else {
         console.error("updating usage without results! How was this fired?");
     }
@@ -116,8 +118,8 @@ export const setSearchType = ({query}) => (dispatch, getState) => {
 // This is where a request needs to be sent to the server
 // query: str; examples: [{inputs:[str], output:str}]
 export const doSearch = ({query, examples}) => (dispatch) => {
-    dispatch(setSearchStatus({status:LOADING}));
-    dispatch(clearResults());
+    dispatch(setSearchStatus({status:LOADING, searchType: query, examples}));
+    dispatch(filterResults({examples}));
     Search.getCodeCandidates({query, examples}, (candidate => {
         if (!candidate.error) {
             dispatch(addCandidate(candidate));
@@ -148,7 +150,7 @@ export const doSearch = ({query, examples}) => (dispatch) => {
 // [{inputs:[str], output:str}]
 export const getTypesFromExamples = (examples) => (dispatch) => {
     dispatch(setSearchStatus({status:LOADING}));
-    dispatch(clearResults());
+    dispatch(filterResults({examples}));
     return Search.getTypeCandidates({examples})
         .then(value => {
             if (value["typeCandidates"]) {
@@ -168,10 +170,22 @@ export const getTypesFromExamples = (examples) => (dispatch) => {
 // Get more example usages for this particular candidate.
 // usages: [{inputs:[str], output:str}]
 export const getMoreExamples = ({candidateId, code, examples}) => (dispatch, getState) => {
-    const {spec} = getState();
+    const {spec, candidates} = getState();
+    const candidate = _.findWhere(candidates.results, {candidateId});
+
+    const currentExamplesCount = candidate.examples.length;
+    const currentExamplesShown = candidate.examplesShown;
+    const wantToShow = currentExamplesShown + defaultExamplesShownIncrement;
+    // If there are more examples stored, then just show them.
+    if (wantToShow <= currentExamplesCount) {
+        return dispatch(showMoreCandidateUsages({candidateId, newValue: wantToShow}));
+    }
+
+    // Else fetch more
     dispatch(fetchMoreCandidateUsages({candidateId, status: LOADING}));
     return hooglePlusMoreExamples({code, examples, queryType: spec.searchType})
         .then(results => {
+            dispatch(showMoreCandidateUsages({candidateId, newValue: wantToShow}));
             const {examples} = results;
             return dispatch(fetchMoreCandidateUsages({
                 candidateId,

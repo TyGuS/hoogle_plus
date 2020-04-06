@@ -97,10 +97,9 @@ const ConnectedCandidateList = (props) => {
                                     <div className="col-12">
                                     {resultsFeatures.permitExamples ?
                                     (<UsageTable
-                                        candidateId={candidateId}
-                                        code={code}
-                                        rows={examples}
                                         numColumns={numArgs + 1}
+                                        rows={examples}
+                                        {...result}
                                     />) : (<></>)}
                                     </div>
                                     </div>
