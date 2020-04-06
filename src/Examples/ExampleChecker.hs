@@ -148,14 +148,14 @@ checkExample env typ ex checkerChan = do
         (res, substedTyp) <- checkTypes env checkerChan exTyp typ
         let (tyclasses, strippedTyp) = unprefixTc substedTyp
         let tyclassesPrenex = intercalate ", " $ map show tyclasses
-        let mkTyclass = printf "(%s) :: (%s) => (%s) -> Bool" mkFun tyclassesPrenex (show strippedTyp)
+        let mkTyclass = printf "(%s) :: (%s) => (%s) -> ()" mkFun tyclassesPrenex (show strippedTyp)
         eitherTyclass <- if null tyclasses then return (Left (Monotype AnyT)) else parseExample mdls mkTyclass
         if res then if isLeft eitherTyclass then return $ Left exTyp
                                             else return $ Right tcErr
                else return $ Right err
       Right e -> return $ Right e
     where
-        mkFun = printf "\\f -> (f %s) == %s" (unwords $ map wrapParens $ inputs ex) (output ex)
+        mkFun = printf "\\f -> case f %s of %s -> ()" (unwords $ map wrapParens $ inputs ex) (output ex)
 
         unprefixTc (FunctionT x tArg tRes) =
             case tArg of
@@ -196,17 +196,25 @@ execExample mdls env prog ex = do
     let prependArg = unwords nontcArgs
     let progBody = if Map.null (env ^. arguments) -- if this is a request from front end
         then printf "let f = %s in" prog
-        else printf "let f = \\%s -> %s in" prependArg prog
-    let wrapParens = printf "(%s)"
+        else printf "let f = (\\%s -> %s) in" prependArg prog
     let parensedInputs = map wrapParens $ inputs ex
     let progCall = printf "f %s" (unwords parensedInputs)
-    askGhc mdls $ do
-        result <- execStmt (unwords [progBody, progCall]) execOptions
-        case result of
-            ExecComplete r _ -> case r of
-                                Left e -> liftIO (print e) >> return (Left (show e)) 
-                                Right ns -> getExecValue ns
-            ExecBreak {} -> return (Left "error, break")
+    runStmt mdls (unwords [progBody, progCall])
+
+runStmt :: [String] -> String -> IO (Either ErrorMessage String)
+runStmt mdls prog = askGhc mdls $ do
+    -- allow type defaulting during execution
+    dflags <- getSessionDynFlags
+    let dflags' = dflags { 
+        extensionFlags = ES.insert ExtendedDefaultRules (extensionFlags dflags)
+        }
+    setSessionDynFlags dflags'
+    result <- execStmt prog execOptions
+    case result of
+        ExecComplete r _ -> case r of
+                            Left e -> liftIO (print e) >> return (Left (show e)) 
+                            Right ns -> getExecValue ns
+        ExecBreak {} -> return (Left "error, break")
     where
         getExecValue (n:ns) = do
             mty <- lookupName n
@@ -254,17 +262,21 @@ checkExampleOutput :: [String] -> Environment -> String -> [Example] -> IO (Mayb
 checkExampleOutput mdls env prog exs = do
     let progWithoutTc = removeTypeclasses prog
     currOutputs <- mapM (execExample mdls env progWithoutTc) exs
-    let cmpResults = map (uncurry compareResults) (zip currOutputs exs)
+    cmpResults <- mapM (uncurry compareResults) (zip currOutputs exs)
     let justResults = catMaybes cmpResults
     if length justResults == length exs then return $ Just justResults 
                                         else return Nothing
     where
         compareResults currOutput ex
-          | output ex == "??" = Just (ex { output = either id id currOutput })
+          | output ex == "??" = return $ Just (ex { output = either id id currOutput })
           | otherwise = case currOutput of
-                          Left e -> Nothing
-                          Right o | o == output ex -> Just ex
-                                  | otherwise -> Nothing
+                          Left e -> return Nothing
+                          Right o -> do
+                              expectedOutput <- runStmt mdls (output ex)
+                              case expectedOutput of
+                                  Left err -> return Nothing
+                                  Right out | o == out -> return (Just ex)
+                                            | otherwise -> return Nothing
 
 checkTypes :: Environment -> Chan Message -> RSchema -> RSchema -> IO (Bool, SType)
 checkTypes env checkerChan s1 s2 = do
