@@ -30,6 +30,7 @@ defaultLibrary = concat [
   defaultTypeclassInstances
   ]
 
+{-
 defaultFuncs = [
     Pos (initialPos "fst") $ FuncDecl "fst" (Monotype $
       (FunctionT "p" (ScalarT (
@@ -44,6 +45,8 @@ defaultFuncs = [
           ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) $
         (ScalarT (TypeVarT Map.empty "b") ftrue)))
   ]
+-}
+defaultFuncs = []
 
 defaultDts = [
   defaultList, defaultPair, defaultUnit,
@@ -61,12 +64,14 @@ defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
   ]
 
 defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [] [
+    {-
     ConstructorSig "Pair" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) $
       (FunctionT "y" (ScalarT (TypeVarT Map.empty "b") ftrue) $
         (ScalarT (DatatypeT "Pair" [
           ScalarT (TypeVarT Map.empty "a") ftrue,
           ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue))
-  ]
+    -}
+    ]
 
 
 defaultFun = [Pos (initialPos "Fun") $ DataDecl "Fun" ["a", "b"] [] []]

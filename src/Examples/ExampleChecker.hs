@@ -23,6 +23,7 @@ import PetriNet.Util
 import Synquid.Util (permuteBy)
 import Database.Convert (addTrue)
 import Database.Util
+import HooglePlus.FilterTest (runInterpreter')
 
 import qualified EnumSet as ES
 import Control.Exception
@@ -51,10 +52,11 @@ import Text.Printf
 import Debug.Trace
 import System.Timeout
 import GHC.LanguageExtensions.Type
+import qualified Language.Haskell.Interpreter as LHI
 
 askGhc :: [String] -> Ghc a -> IO a
 askGhc mdls f = do
-    mbResult <- timeout (10*defaultTimeoutMicro) $ runGhc (Just libdir) $ do
+    mbResult <- timeout (5*defaultTimeoutMicro) $ runGhc (Just libdir) $ do
         dflags <- getSessionDynFlags
         let dflags' = dflags { 
             generalFlags = ES.delete Opt_OmitYields (generalFlags dflags),
@@ -196,8 +198,11 @@ execExample mdls env typ prog ex = do
         then printf "let f = (%s) :: %s in" prog typ
         else printf "let f = (\\%s -> %s) :: %s in" prependArg prog typ
     let parensedInputs = map wrapParens $ inputs ex
-    let progCall = printf "f %s" (unwords parensedInputs)
-    runStmt mdls (unwords [progBody, progCall])
+    let progCall = printf "CB.timeOutMicro %d (CB.approxShow %d (f %s))" (unwords parensedInputs)
+    let preamble = printf "showCBResult"
+    runInterpreter' defaultTimeoutMicro $ do
+        LHI.setImportsQ (zip mdls (repeat Nothing) ++ frameworkModules)
+        LHI.runStmt mdls (unwords [progBody, progCall])
 
 runStmt :: [String] -> String -> IO (Either ErrorMessage String)
 runStmt mdls prog = do

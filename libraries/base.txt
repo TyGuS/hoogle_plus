@@ -70,6 +70,7 @@ catMaybes :: [Maybe a] -> [a]
 mapMaybe :: (a -> Maybe b) -> [a] -> [b]
 module GHC.List
 map :: (a -> b) -> [a] -> [b]
+group :: [a] -> [[a]]
 (++) :: [a] -> [a] -> [a]
 infixr 5 ++
 filter :: (a -> Bool) -> [a] -> [a]

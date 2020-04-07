@@ -27,7 +27,6 @@ import Types.IOFormat
 import Database.Util
 
 rootNode = AScalar (ATypeVarT varName)
-tcRoot = AScalar (ADatatypeT (tyclassPrefix ++ "Read") [AScalar (ADatatypeT "Int" [])])
 pairProj = "pair_match"
 
 type AbstractCover = HashMap AbstractSkeleton (Set AbstractSkeleton)
@@ -94,7 +93,7 @@ data RefineState = RefineState {
 } deriving(Eq)
 
 emptyRefineState = RefineState {
-    _abstractionCover = HashMap.fromList [(rootNode, Set.singleton tcRoot)],
+    _abstractionCover = HashMap.empty,
     _instanceMapping = HashMap.empty,
     _targetType = AScalar (ATypeVarT varName),
     _sourceTypes = [],
