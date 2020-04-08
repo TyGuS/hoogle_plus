@@ -2,6 +2,7 @@
 module InternalTypeGen where
 
 import Data.List (isInfixOf, nub, reverse)
+import System.Timeout
 
 import qualified Test.LeanCheck.Function.ShowFunction as SF
 import qualified Test.ChasingBottoms as CB

@@ -20,6 +20,7 @@ import Synquid.Parser (parseType, parseProgram)
 import Synquid.Resolver (ResolverState(..), initResolverState, resolveSchema)
 import Synquid.Type
 import Examples.ExampleChecker
+import Examples.Utils
 
 import Control.Concurrent.Chan
 import Control.Monad
