@@ -1,7 +1,8 @@
 -- module HooglePlus.FilterTest (runChecks, checkSolutionNotCrash, checkDuplicates) where
 module HooglePlus.FilterTest where
 
-import Language.Haskell.Interpreter hiding (get)
+import Language.Haskell.Interpreter hiding (get, set)
+import qualified Language.Haskell.Interpreter as LHI
 import Language.Haskell.Interpreter.Unsafe
 import Language.Haskell.Exts.Parser
 import Text.Printf
@@ -143,8 +144,14 @@ runInterpreter' timeInMicro exec =
   where
     execute = do
       srcPath <- getDataFileName "InternalTypeGen.hs"
+      
       runInterpreter $ do
     
+        -- allow extensions for function execution
+        extensions <- LHI.get languageExtensions
+        LHI.set [languageExtensions := (FlexibleInstances : ExtendedDefaultRules : extensions)]
+
+
         loadModules [srcPath]
         setTopLevelModules ["InternalTypeGen"]
     

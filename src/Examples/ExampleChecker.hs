@@ -12,7 +12,7 @@ import Types.Experiments
 import Types.IOFormat
 import Types.TypeChecker
 import Types.Common
-import Types.Filtering (defaultTimeoutMicro)
+import Types.Filtering (defaultTimeoutMicro, defaultDepth, defaultInterpreterTimeoutMicro, frameworkModules)
 import Synquid.Type
 import Synquid.Pretty
 import Synquid.Program
@@ -53,6 +53,7 @@ import Debug.Trace
 import System.Timeout
 import GHC.LanguageExtensions.Type
 import qualified Language.Haskell.Interpreter as LHI
+import System.IO.Silently
 
 askGhc :: [String] -> Ghc a -> IO a
 askGhc mdls f = do
@@ -189,6 +190,20 @@ getExampleTypes env validSchemas = do
         forall t = let vars = typeVarsOf t
                     in foldr ForallT (Monotype $ addTrue t) vars
 
+askInterpreter :: [String] -> String -> String -> IO (Either ErrorMessage String)
+askInterpreter mdls preamble funcCall = do
+    let progCall = printf "%s showCBResult <$> (CB.timeOutMicro' %d (CB.approxShow %d (%s)))" preamble defaultTimeoutMicro defaultDepth funcCall 
+    catch (do
+        result <- runInterpreter' defaultInterpreterTimeoutMicro $ do
+            LHI.setImportsQ (zip mdls (repeat Nothing) ++ frameworkModules)
+            r <- LHI.interpret progCall (LHI.as :: IO String) >>= liftIO
+            return r
+        print result
+        case result of
+          Left e -> return (Left $ show e)
+          Right r -> return (Right r))
+        (\(e :: SomeException) -> return (Left $ show e))
+
 execExample :: [String] -> Environment -> TypeQuery -> String -> Example -> IO (Either ErrorMessage String)
 execExample mdls env typ prog ex = do
     let args = Map.keys $ env ^. arguments
@@ -198,11 +213,8 @@ execExample mdls env typ prog ex = do
         then printf "let f = (%s) :: %s in" prog typ
         else printf "let f = (\\%s -> %s) :: %s in" prependArg prog typ
     let parensedInputs = map wrapParens $ inputs ex
-    let progCall = printf "CB.timeOutMicro %d (CB.approxShow %d (f %s))" (unwords parensedInputs)
-    let preamble = printf "showCBResult"
-    runInterpreter' defaultTimeoutMicro $ do
-        LHI.setImportsQ (zip mdls (repeat Nothing) ++ frameworkModules)
-        LHI.runStmt mdls (unwords [progBody, progCall])
+    let progCall = printf "f %s" (unwords parensedInputs)
+    askInterpreter mdls progBody progCall
 
 runStmt :: [String] -> String -> IO (Either ErrorMessage String)
 runStmt mdls prog = do
@@ -277,7 +289,7 @@ checkExampleOutput mdls env typ prog exs = do
           | otherwise = case currOutput of
                           Left e -> return Nothing
                           Right o -> do
-                              expectedOutput <- runStmt mdls (output ex)
+                              expectedOutput <- askInterpreter mdls "" (output ex)
                               case expectedOutput of
                                   Left err -> return Nothing
                                   Right out | o == out -> return (Just ex)
