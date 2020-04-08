@@ -28,6 +28,7 @@ import Types.Environment
 import Types.Program
 import Types.Type hiding (typeOf)
 import Types.Filtering
+import Types.IOFormat (Example(Example))
 import Synquid.Type
 import Paths_HooglePlus
 
@@ -188,9 +189,10 @@ validateSolution modules solution funcSig time = do
           Right ((_, Just (CounterExample _ _)), _) -> Right $ PartialFunction [caseToInput resultF, caseToInput resultS]
           _ -> error (show resultF ++ "???" ++ show resultS)
 
-    caseToInput :: Either InterpreterError (SmallCheckResult, [DiffInstance]) -> IOExample
+    caseToInput :: Either InterpreterError (SmallCheckResult, [DiffInstance]) -> Example
     caseToInput (Right ((output, Just (CounterExample args _)), instances)) =
-      printf "%s ==> %s" (unwords args) ((unwords . snd . head . filter ((args ==) . fst)) instances) :: String
+      let out = (unwords . snd . head . filter ((args ==) . fst)) instances
+       in Example args out
 
     preprocessOutput :: String -> String -> String
     preprocessOutput input output = trace ("ok: " ++ input ++ ", " ++ output) (fromMaybe "N/A" (listToMaybe selectedLine))
@@ -202,14 +204,14 @@ compareSolution :: [String] -> String -> [String] -> FunctionSignature -> Int ->
 compareSolution modules solution otherSolutions funcSig time = evaluateProperty modules prop
   where prop = buildDupCheckProp (solution, otherSolutions) funcSig time defaultDepth
 
-runChecks :: MonadIO m => Environment -> RType -> UProgram -> FilterTest m Bool
+runChecks :: MonadIO m => Environment -> RType -> UProgram -> FilterTest m (Maybe AssociativeExamples)
 runChecks env goalType prog = do
   result <- runChecks
 
   state <- get
   when result $ liftIO $ runPrints state
 
-  return result
+  return $ if result then Just (collectExamples body state) else Nothing
   where
     (modules, funcSig, body, _) = extractSolution env goalType prog
     checks = [ checkSolutionNotCrash
@@ -227,16 +229,11 @@ checkSolutionNotCrash modules sigStr body = do
   result <- liftIO executeCheck
 
   let pass = case result of
-              Right (AlwaysFail example) -> False
-              _ -> True
-
-  case result of
-    Right desc -> do
-      modify $ const fs {
-        solutionExamples = (body, desc) : examples
-      }
-      return pass
-    _ -> return pass
+               Right (AlwaysFail example) -> False
+               _ -> True
+  let Right desc = result
+  when (isRight result) (put $ fs {solutionExamples = (body, desc) : examples})
+  return pass
 
   where
     handleNotSupported = (`catch` ((\ex -> return (Left (UnknownError $ show ex))) :: NotSupportedException -> IO (Either InterpreterError FunctionCrashDesc)))

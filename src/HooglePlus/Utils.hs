@@ -5,7 +5,11 @@ import Types.Environment
 import Types.Program
 import Types.Type
 import Types.Experiments
+import Types.Solver
+import qualified Types.TypeChecker as Checker
 import Types.Filtering
+import Types.IOFormat (Example(Example))
+import qualified Types.IOFormat as IOFormat
 import Synquid.Type
 import Synquid.Util hiding (fromRight)
 import Synquid.Pretty as Pretty
@@ -14,12 +18,14 @@ import Database.Util
 
 import Control.Exception
 import Control.Monad.Trans
+import Control.Monad.State
 import CorePrep
 import CoreSyn
 import Data.Data
 import Data.Ord
 import Data.Either
-import Data.List (nub, sortOn, groupBy, isInfixOf, isPrefixOf, intercalate)
+import Data.List (sortOn, groupBy, isInfixOf, isPrefixOf, intercalate)
+import Data.List.Extra (nubOrdOn)
 import Data.List.Split (splitOn)
 import Data.Maybe
 import Data.Typeable
@@ -68,17 +74,13 @@ mkFunctionSigStr args = addConstraints $ Prelude.foldr accumConstraints ([],[]) 
             in (constraints, otherStr:baseSigs)
 
 -- mkLambdaStr produces a oneline lambda expr str:
--- (\x -> \y -> body))
+-- (\x y -> body))
 mkLambdaStr :: [String] -> UProgram -> String
-mkLambdaStr args body = let
-    unTypeclassed = toHaskellSolution (show body)
-    in
-        unwords . words . show $ foldr addFuncArg (text unTypeclassed) args
-    where
-        addFuncArg arg rest
-            | arg `elem` args && not (tyclassArgBase `isPrefixOf` arg) =
-                Pretty.parens $ text ("\\" ++ arg ++ " -> ") <+> rest
-            | otherwise = rest
+mkLambdaStr args body =
+    let nontcArgs = filter (not . (tyclassArgBase `isPrefixOf`)) args
+        argStr = unwords nontcArgs
+        unTypeclassed = toHaskellSolution (show body)
+     in printf "\\%s -> %s" argStr unTypeclassed
 
 toHaskellSolution :: String -> String
 toHaskellSolution bodyStr = let
@@ -118,6 +120,25 @@ printFilter (FilterState _ solns samples) = unlines $ map printSol solns
             let [(_, desc)] = filter ((== sol) . fst) samples in
                 unlines [sol, show desc]
 -}
+
+collectExamples :: String -> FilterState -> AssociativeExamples
+collectExamples solution (FilterState _ sols samples diffExamples) =
+    map mkGroup $ groupBy (\x y -> fst x == fst y) 
+                $ sortOn fst
+                $ examples ++ checkedExs
+    where
+        [(_, desc)] = filter ((== solution) . fst) samples
+        checkedExs = zip (repeat solution) (descToExample desc)
+        mkGroup xs = (fst (head xs), nubOrdOn IOFormat.inputs $ snd (unzip xs))
+        examples = concatMap mkExamples diffExamples
+        combineSolutionOutput args sol out = (sol, Example args out)
+        mkExamples (args, outs) = zipWith (combineSolutionOutput args) sols outs
+
+descToExample :: FunctionCrashDesc -> [Example]
+descToExample (AlwaysSucceed ex) = [ex]
+descToExample (AlwaysFail ex) = [ex]
+descToExample (PartialFunction exs) = exs
+descToExample _ = []
 
 printSolutionState solution (FilterState _ sols samples diffExamples) = unlines [ios, diffs]
     where

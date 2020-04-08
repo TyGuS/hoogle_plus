@@ -61,7 +61,8 @@ testNotCrashCases =
   , ("Fail on invalid function 3", ["Data.List"], "a -> (a, a)", "\\x -> (head [x], last [])", False)
   , ("Fail on invalid function 4", ["Data.List"], "a -> (a, a)", "\\x -> (head [], last [x])", False)
   , ("Non-deterministic function 1", [], "Int", "last $ repeat 5", False)
-  , ("Non-deterministic function 2", [], "a -> Int", "\\x -> last $ repeat x", False)
+  , ("Non-deterministic function 2", [], "Int -> Int", "\\x -> last $ repeat x", False)
+  , ("Non-deterministic function 3", [], "Int -> String", "\\x -> show $ replicate 99 (length $ repeat x)", False)
   , ("Succeed on result with type class 1", [], "(Show a, Show b) => Either a b -> String", "\\x -> show x", True)]
 
 testNotCrashHOFs :: [(String, [String], String, String, Bool)]

@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, LambdaCase, FlexibleContexts #-}
 module InternalTypeGen where
 
 import Data.List (isInfixOf, nub, reverse)
@@ -6,12 +5,6 @@ import Control.Monad
 import Control.Monad.State
 
 import Text.Printf
-
-import qualified Test.LeanCheck.Function.ShowFunction as SF
-import qualified Test.ChasingBottoms as CB
-import qualified Test.SmallCheck.Series as SS
-
-defaultShowFunctionDepth = 4 :: Int
 
 instance Eq a => Eq (CB.Result a) where
   (CB.Value a) == (CB.Value b) = a == b
@@ -48,19 +41,6 @@ anyDuplicate xs = length (nub xs) /= length xs
 
 type IOExample = String
 type ExampleGeneration m = StateT [IOExample] m
-
--- execStateT test []
-
-modifyFoo :: MonadIO m => Int -> ExampleGeneration m Bool
-modifyFoo 6 = pure True
-modifyFoo num = do
-  modify $ ((++) [show num])
-  return False
-
-test' :: MonadIO m => ExampleGeneration m Bool
-test' = do
-  smallCheckM 10 (exists (\x -> (monadic (modifyFoo x))))
-  return False
 
 waitState :: Int -> [String] -> CB.Result String -> ExampleGeneration IO Bool
 waitState numIOs args ret = case (not $ isFailedResult ret) of

@@ -1,6 +1,6 @@
 # Pull base image.
 FROM ubuntu:18.04
-EXPOSE 3000/tcp
+EXPOSE 3000
 
 # install locales
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y locales
@@ -27,8 +27,7 @@ RUN apt-get install -y python3 python3-pip
 RUN pip3 install --user PyYAML numpy tabulate matplotlib argparse
 
 # Get HooglePlus
-RUN cd /home; git clone https://github.com/davidmrdavid/hoogle_plus.git
-RUN cd /home/hoogle_plus && git checkout origin/master
+COPY . /home/hoogle_plus/
 RUN cd /home/hoogle_plus && stack build
 
 # Start with bash

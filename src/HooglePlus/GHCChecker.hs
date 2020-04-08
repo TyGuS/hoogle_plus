@@ -1,3 +1,5 @@
+{-# LANGUAGE TupleSections #-}
+
 module HooglePlus.GHCChecker (
     runGhcChecks, parseStrictnessSig, checkStrictness', check) where
 
@@ -8,12 +10,15 @@ import Types.Program
 import Types.Type
 import Types.Experiments
 import Types.Filtering
+import Types.IOFormat
 import Synquid.Type
 import Synquid.Util hiding (fromRight)
 import Synquid.Pretty as Pretty
 import Database.Util
 import HooglePlus.Utils
 import HooglePlus.FilterTest (runChecks)
+import HooglePlus.IOFormat
+import Examples.ExampleChecker
 
 import Control.Exception
 import Control.Monad.Trans
@@ -21,7 +26,7 @@ import CorePrep
 import CoreSyn
 import Data.Data
 import Data.Either
-import Data.List (isInfixOf, isPrefixOf, intercalate)
+import Data.List (nubBy, isInfixOf, isPrefixOf, intercalate)
 import Data.List.Split (splitOn)
 import Data.Maybe
 import Data.Typeable
@@ -47,6 +52,7 @@ import Data.UUID.V4
 import Control.Concurrent.Chan
 import Control.Monad.Trans.State
 import Control.Concurrent
+import Debug.Trace
 
 showGhc :: (Outputable a) => a -> String
 showGhc = showPpr unsafeGlobalDynFlags
@@ -55,12 +61,12 @@ ourFunctionName = "ghcCheckedFunction"
 
 checkStrictness' :: Int -> String -> String -> [String] -> IO Bool
 checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just libdir) $ do
-    tmpDir <- liftIO $ getTmpDir
+    tmpDir <- liftIO getTmpDir
     -- TODO: can we use GHC to dynamically compile strings? I think not
-    let toModuleImportStr = (printf "import %s\n") :: String -> String
+    let toModuleImportStr = printf "import %s\n" :: String -> String
     let moduleImports = concatMap toModuleImportStr modules
     let sourceCode = printf "module Temp where\n%s\n%s :: %s\n%s = %s\n" moduleImports ourFunctionName typeExpr ourFunctionName lambdaExpr
-    baseName <- liftIO $ nextRandom
+    baseName <- liftIO nextRandom
     let baseNameStr = show baseName ++ ".hs"
     let fileName = tmpDir ++ "/" ++ baseNameStr
     liftIO $ writeFile fileName sourceCode
@@ -69,7 +75,7 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just lib
     env <- getSession
     dflags <- getSessionDynFlags
     let dflags' = (updOptLevel 2 dflags)
-    setSessionDynFlags $ dflags'
+    setSessionDynFlags dflags'
 
     -- Compile to core
     target <- guessTarget fileName Nothing
@@ -85,7 +91,7 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just lib
     -- Run the demand analyzer
     -- prog is [<fooBinding>, <moduleBinding>]
     core' <- liftIO $ core2core env core
-    prog <- liftIO $ (dmdAnalProgram dflags emptyFamInstEnvs $ mg_binds core')
+    prog <- liftIO $ dmdAnalProgram dflags emptyFamInstEnvs $ mg_binds core'
     let decl = findOurBinding (prog :: [CoreBind]) -- only one method
     liftIO $ removeFile fileName
     -- liftIO $ printf "whole program: %s\n" $ showSDocUnsafe $ ppr $ prog
@@ -97,8 +103,8 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just lib
         _ -> error "checkStrictness: recursive expression found"
 
     where
-        findOurBinding bs = head $ filter (\x-> ourFunctionName `isInfixOf` (showSDocUnsafe $ ppr x)) bs
-        getStrictnessSig x = parseStrictnessSig $ showSDocUnsafe $ ppr $ x
+        findOurBinding bs = head $ filter (\x-> ourFunctionName `isInfixOf` showSDocUnsafe (ppr x)) bs
+        getStrictnessSig x = parseStrictnessSig $ showSDocUnsafe $ ppr x
         isStrict n x = let
             strictnessSig = getStrictnessSig x
             argStrictness = splitByArg strictnessSig
@@ -122,41 +128,52 @@ checkStrictness tyclassCount body sig modules =
         (\(SomeException _) -> return False)
         (checkStrictness' tyclassCount body sig modules)
 
-check :: Goal -> SearchParams -> UProgram -> IO Bool
-check goal searchParams prog = -- catch
-    (evalStateT (check_ goal searchParams prog) emptyFilterState)
-    -- (\err ->
-    --     writeChan checkerChan (MesgLog 0 "filterCheck" ("error: " ++ show err)) >>
-    --     writeChan checkerChan (MesgClose (CSError err)))
-
-check_ :: MonadIO m => Goal -> SearchParams -> UProgram -> FilterTest m Bool
-check_ goal searchParams = executeCheck
-    where
-        (env, destType) = preprocessEnvFromGoal goal
-        executeCheck = runGhcChecks searchParams env destType
-
+check :: MonadIO m 
+       => Environment -- symbol environment
+       -> SearchParams -- search parameters: to control what to be checked
+       -> [Example] -- examples for post-filtering
+       -> RProgram -- program to be checked
+       -> RSchema -- goal type to be checked against
+       -> Chan Message -- message channel for logging
+       -> FilterTest m (Maybe AssociativeExamples) -- return Nothing is check fails, otherwise return a list of updated examples
+check env searchParams examples program goalType solverChan =
+    runGhcChecks searchParams env (lastType $ toMonotype goalType) examples program
 
 -- validate type signiture, run demand analysis, and run filter test
 -- checks the end result type checks; all arguments are used; and that the program will not immediately fail
-runGhcChecks :: MonadIO m => SearchParams -> Environment -> RType -> UProgram -> FilterTest m Bool
-runGhcChecks params env goalType prog = let
+runGhcChecks :: MonadIO m 
+             => SearchParams 
+             -> Environment 
+             -> RType 
+             -> [Example]
+             -> UProgram 
+             -> FilterTest m (Maybe AssociativeExamples)
+runGhcChecks params env goalType examples prog = let
     -- constructs program and its type signature as strings
-    (modules, funcSig, body, argList) = extractSolution env goalType prog
     tyclassCount = length $ Prelude.filter (\(id, _) -> tyclassArgBase `isPrefixOf` id) argList
-    expr = body ++ " :: " ++ funcSig
+    expr = printf "(%s) :: %s" body funcSig
     disableDemand = _disableDemand params
     disableFilter = _disableFilter params
     in do
         typeCheckResult <- liftIO $ runInterpreter $ checkType expr modules
         strictCheckResult <- if disableDemand then return True else liftIO $ checkStrictness tyclassCount body funcSig modules
-        filterCheckResult <- if not strictCheckResult then return False
-                                else if disableFilter
-                                        then return True
-                                        else runChecks env goalType prog
+        exampleCheckResult <- if not strictCheckResult then return Nothing else liftIO $ fmap ((:[]) . (body,)) <$> checkOutputs prog examples
+        filterCheckResult <- if disableFilter || isNothing exampleCheckResult
+                                then return exampleCheckResult
+                                else do
+                                    filterResult <- runChecks env goalType prog
+                                    liftIO $ print filterResult
+                                    if null examples || isNothing filterResult
+                                       then return filterResult
+                                       else return exampleCheckResult
         case typeCheckResult of
-            Left err -> liftIO $ putStrLn (displayException err) >> return False
-            Right False -> liftIO $ putStrLn "Program does not typecheck" >> return False
-            Right True -> return $ strictCheckResult && filterCheckResult
+            Left err -> liftIO $ putStrLn (displayException err) >> return Nothing
+            Right False -> liftIO $ putStrLn "Program does not typecheck" >> return Nothing
+            Right True -> return filterCheckResult
+    where
+        mdls = Set.toList (_included_modules env)
+        (modules, funcSig, body, argList) = extractSolution env goalType prog
+        checkOutputs prog exs = checkExampleOutput mdls env (show prog) exs
 
 -- ensures that the program type-checks
 checkType :: String -> [String] -> Interpreter Bool
