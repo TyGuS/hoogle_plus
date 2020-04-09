@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, LambdaCase, FlexibleContexts #-}
 module InternalTypeGen where
 
 import Data.List (isInfixOf, nub, reverse)
@@ -5,6 +6,12 @@ import Control.Monad
 import Control.Monad.State
 
 import Text.Printf
+
+import qualified Test.LeanCheck.Function.ShowFunction as SF
+import qualified Test.ChasingBottoms as CB
+import qualified Test.SmallCheck.Series as SS
+
+defaultShowFunctionDepth = 4 :: Int
 
 instance Eq a => Eq (CB.Result a) where
   (CB.Value a) == (CB.Value b) = a == b
