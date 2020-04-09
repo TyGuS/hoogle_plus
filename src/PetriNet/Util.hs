@@ -94,7 +94,7 @@ freshType :: (CheckMonad (t m), MonadIO m) => RSchema -> t m RType
 freshType = freshType' Map.empty []
   where
     freshType' subst constraints (ForallT a sch) = do
-        a' <- freshId "A"
+        a' <- freshId "t"
         freshType' (Map.insert a (vart a' ftrue) subst) (a':constraints) sch
     freshType' subst constraints (Monotype t) = return (typeSubstitute subst t)
 

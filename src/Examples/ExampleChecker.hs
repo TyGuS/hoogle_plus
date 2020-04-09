@@ -47,16 +47,6 @@ import Text.Printf
 import Debug.Trace
 import GHC (exprType, TcRnExprMode(..), typeToLHsType)
 
-parseExample :: [String] -> String -> IO (Either RSchema ErrorMessage)
-parseExample mdls mkFun = catch (do
-    typ <- askGhc mdls $ exprType TM_Default mkFun
-    let hsType = typeToLHsType typ
-    return (Left $ toInt $ resolveType hsType))
-    (\(e :: SomeException) -> return (Right $ show e))
-    where
-        toInt (ForallT x t) = ForallT x (toInt t)
-        toInt (Monotype t) = Monotype (integerToInt t)
-
 checkExample :: Environment -> RSchema -> Example -> Chan Message -> IO (Either RSchema ErrorMessage)
 checkExample env typ ex checkerChan = do
     let mdls = Set.toList $ env ^. included_modules
@@ -178,16 +168,12 @@ checkTypes env checkerChan s1 s2 = do
     (t, state) <- runStateT (do
         r1 <- freshType s1
         r2 <- freshType s2
-        let t1 = stripTyclass r1
-        let t2 = stripTyclass r2
+        let t1 = skipTyclass r1
+        let t2 = skipTyclass r2
         solveTypeConstraint env (shape t1) (shape t2)
         tass <- gets $ view typeAssignment
         return $ stypeSubstitute tass $ shape r2) initChecker
     return (state ^. isChecked, t)
-    where
-        stripTyclass (FunctionT x (ScalarT (DatatypeT name args _) _) tRes)
-          | tyclassPrefix `isPrefixOf` name = stripTyclass tRes
-        stripTyclass t = t
 
 getGeneralizations :: SType -> [SType]
 getGeneralizations t =
@@ -215,44 +201,4 @@ reduceVars vs t =
         varMaps [] = [[]]
         varMaps (v:vs) = [[l1] | l1 <- map (vart_ v,) vs] ++ 
             [l1 : l2 | l1 <- map (vart_ v,) vs, l2 <- varMaps vs]
-
-antiSubstitute :: SType -> Id -> SType -> SType
-antiSubstitute pat name t | t == pat = vart_ name
-antiSubstitute pat name (ScalarT (DatatypeT dt args _) _) = 
-    ScalarT (DatatypeT dt (map (antiSubstitute pat name) args) []) ()
-antiSubstitute pat name (FunctionT x tArg tRes) = FunctionT x tArg' tRes'
-    where
-        tArg' = antiSubstitute pat name tArg
-        tRes' = antiSubstitute pat name tRes
-antiSubstitute _ _ t = t
-
-antiUnification :: SType -> SType -> IO SType
-antiUnification t1 t2 = evalStateT (antiUnification' t1 t2) emptyAntiUnifState
-
-antiUnification' :: SType -> SType -> AntiUnifier IO SType
-antiUnification' AnyT t = return t
-antiUnification' t AnyT = return t
-antiUnification' t@(ScalarT (TypeVarT {}) _) (ScalarT (TypeVarT {}) _) = return t
-antiUnification' (ScalarT (TypeVarT {}) _) t = return t
-antiUnification' t (ScalarT (TypeVarT {}) _) = return t
-antiUnification' t1@(ScalarT (DatatypeT dt1 args1 _) _) t2@(ScalarT (DatatypeT dt2 args2 _) _)
-  | dt1 == dt2 = do
-      args' <- mapM (uncurry antiUnification') (zip args1 args2)
-      return $ ScalarT (DatatypeT dt1 args' []) ()
-  | dt1 /= dt2 = do
-      tass1 <- gets $ view typeAssignment1
-      tass2 <- gets $ view typeAssignment2
-      let overlap = (tass1 Map.! t1) `intersect` (tass2 Map.! t2)
-      if t1 `Map.member` tass1 && t2 `Map.member` tass2 && not (null overlap)
-         then if length overlap > 1 then error "antiUnficiation fails"
-                                    else return $ vart_ (head overlap)
-         else do 
-             v <- freshId "a"
-             modify $ over typeAssignment1 (Map.insertWith (++) t1 [v])
-             modify $ over typeAssignment2 (Map.insertWith (++) t2 [v])
-             return $ vart_ v
-antiUnification' (FunctionT x1 tArg1 tRes1) (FunctionT x2 tArg2 tRes2) = do
-    tArg <- antiUnification' tArg1 tArg2
-    tRes <- antiUnification' tRes1 tRes2
-    return $ FunctionT x1 tArg tRes
 

@@ -59,58 +59,50 @@ askGhc mdls f = do
             decls <- mapM parseImportDecl imports
             return (map IIDecl decls)
 
-resolveType :: LHsType GhcPs -> RSchema
-resolveType (L _ (HsForAllTy bs t)) = foldr ForallT (resolveType t) vs
+antiSubstitute :: SType -> Id -> SType -> SType
+antiSubstitute pat name t | t == pat = vart_ name
+antiSubstitute pat name (ScalarT (DatatypeT dt args _) _) = 
+    ScalarT (DatatypeT dt (map (antiSubstitute pat name) args) []) ()
+antiSubstitute pat name (FunctionT x tArg tRes) = FunctionT x tArg' tRes'
     where
-        vs = map vname bs
-        vname (L _ (UserTyVar (L _ id))) = showSDocUnsafe (ppr id)
-        vname (L _ (KindedTyVar (L _ id) _)) = showSDocUnsafe (ppr id)
-resolveType (L _ (HsFunTy f _)) = Monotype (resolveType' f)
-resolveType (L _ (HsQualTy ctx body)) = Monotype bodyWithTcArgs
-    where
-        unlocatedCtx = let L _ c = ctx in c
-        tyConstraints = map resolveType' unlocatedCtx
+        tArg' = antiSubstitute pat name tArg
+        tRes' = antiSubstitute pat name tRes
+antiSubstitute _ _ t = t
 
-        prefixTc (ScalarT (DatatypeT name args rs) r) = ScalarT (DatatypeT (tyclassPrefix ++ name) args rs) r
-        prefixTc t = error $ "Unhandled " ++ show t
+antiUnification :: SType -> SType -> IO SType
+antiUnification t1 t2 = evalStateT (antiUnification' t1 t2) emptyAntiUnifState
 
-        tcArgs = map prefixTc tyConstraints
-        bodyWithTcArgs = foldr (FunctionT "") (resolveType' body) tcArgs
-resolveType t = error (showSDocUnsafe $ ppr t)
+antiUnification' :: SType -> SType -> AntiUnifier IO SType
+antiUnification' AnyT t = return t
+antiUnification' t AnyT = return t
+antiUnification' t@(ScalarT (TypeVarT {}) _) (ScalarT (TypeVarT {}) _) = return t
+antiUnification' (ScalarT (TypeVarT {}) _) t = return t
+antiUnification' t (ScalarT (TypeVarT {}) _) = return t
+antiUnification' t1@(ScalarT (DatatypeT dt1 args1 _) _) t2@(ScalarT (DatatypeT dt2 args2 _) _)
+  | dt1 == dt2 = do
+      args' <- mapM (uncurry antiUnification') (zip args1 args2)
+      return $ ScalarT (DatatypeT dt1 args' []) ()
+  | dt1 /= dt2 = do
+      tass1 <- gets $ view typeAssignment1
+      tass2 <- gets $ view typeAssignment2
+      let overlap = (tass1 Map.! t1) `intersect` (tass2 Map.! t2)
+      if t1 `Map.member` tass1 && t2 `Map.member` tass2 && not (null overlap)
+         then if length overlap > 1 then error "antiUnficiation fails"
+                                    else return $ vart_ (head overlap)
+         else do 
+             v <- freshId "a"
+             modify $ over typeAssignment1 (Map.insertWith (++) t1 [v])
+             modify $ over typeAssignment2 (Map.insertWith (++) t2 [v])
+             return $ vart_ v
+antiUnification' (FunctionT x1 tArg1 tRes1) (FunctionT x2 tArg2 tRes2) = do
+    tArg <- antiUnification' tArg1 tArg2
+    tRes <- antiUnification' tRes1 tRes2
+    return $ FunctionT x1 tArg tRes
 
-resolveType' :: LHsType GhcPs -> RType
-resolveType' (L _ (HsFunTy f r)) = FunctionT "" (resolveType' f) (resolveType' r)
-resolveType' (L _ (HsQualTy _ t)) = resolveType' t
-resolveType' (L _ (HsTyVar _ (L _ v))) = 
-    if isLower (head name)
-       then ScalarT (TypeVarT Map.empty name) ftrue
-       else ScalarT (DatatypeT name [] []) ftrue
-    where
-        name = showSDocUnsafe $ ppr v
-resolveType' t@(L _ HsAppTy{}) = ScalarT (DatatypeT dtName dtArgs []) ftrue
-    where
-        dtName = case datatypeOf t of
-                   "[]" -> "List"
-                   "(,)" -> "Pair"
-                   n -> n
-        dtArgs = datatypeArgs t
-
-        datatypeOf (L _ (HsAppTy f _)) = datatypeOf f
-        datatypeOf (L _ (HsTyVar _ (L _ v))) = showSDocUnsafe (ppr v)
-
-        datatypeArgs (L _ (HsAppTy (L _ HsTyVar {}) a)) = [resolveType' a]
-        datatypeArgs (L _ (HsAppTy f a)) = datatypeArgs f ++ datatypeArgs a
-        datatypeArgs t = [resolveType' t]
-
-resolveType' (L _ (HsListTy t)) = ScalarT (DatatypeT "List" [resolveType' t] []) ftrue
-resolveType' (L _ (HsTupleTy _ ts)) = foldr mkPair basePair otherTyps
-    where
-        mkPair acc t = ScalarT (DatatypeT "Pair" [acc, t] []) ftrue
-        resolveTyps = map resolveType' ts
-        (baseTyps, otherTyps) = splitAt (length ts - 2) resolveTyps
-        basePair = ScalarT (DatatypeT "Pair" baseTyps []) ftrue
-resolveType' (L _ (HsParTy t)) = resolveType' t
-resolveType' t = error $ showSDocUnsafe (ppr t)
+skipTyclass :: TypeSkeleton r -> TypeSkeleton r
+skipTyclass (FunctionT x (ScalarT (DatatypeT name args _) _) tRes)
+    | tyclassPrefix `isPrefixOf` name = skipTyclass tRes
+skipTyclass t = t
 
 seqChars = map (:[]) ['a'..'z']
 
