@@ -14,8 +14,8 @@ import Control.Concurrent.Chan
 
 data AntiUnifState = AntiUnifState {
     _generalNames :: Map Id Int,
-    _typeAssignment1 :: Map SType [Id],
-    _typeAssignment2 :: Map SType [Id],
+    _typeAssignment1 :: Map ConstrainedType [Id],
+    _typeAssignment2 :: Map ConstrainedType [Id],
     _unifChan :: Chan Message
 } deriving(Eq)
 
@@ -39,3 +39,14 @@ emptyAntiUnifState = AntiUnifState {
     _typeAssignment2 = Map.empty,
     _unifChan = undefined
 }
+
+type TyclassConstraint = Id
+type TyclassConstraints = Set TyclassConstraint
+type ConstrainedType = TypeSkeleton TyclassConstraints
+type ConstrainedSchema = SchemaSkeleton TyclassConstraints
+
+data TyCheckResult =
+    AllSatisfy TyclassConstraints
+  | PartialSatisfy TyclassConstraints
+  | NoSatisfy
+  deriving(Eq, Show)

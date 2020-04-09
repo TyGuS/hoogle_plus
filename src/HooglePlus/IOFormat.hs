@@ -120,20 +120,10 @@ searchTypes synquidParams inStr = do
              in stypeSubstitute substMap t
 
         possibleQueries env exquery exTypes = do
-            env' <- readBuiltinData synquidParams env
-            let builtinQueryTypes = Map.keys (env' ^. queryCandidates)
-            let argLen t = length (argsWithName $ toMonotype t)
-            let permute t = map (\o -> permuteArgs o t) (permutations [1..argLen t])
-            let permutedQueryTypes = concatMap permute builtinQueryTypes
-            messageChan <- newChan
-            outExamples <- mapM (\t -> checkExamples env' t exquery messageChan) permutedQueryTypes
-            let validPairs = filter (isLeft . fst) (zip outExamples permutedQueryTypes)
-            let resultTypes = map snd validPairs
-            let matchTypes = map (shape . toMonotype) resultTypes
             generalTypes <- getExampleTypes env exTypes
-            let resultTypes' = nubBy eqType $ generalTypes ++ matchTypes
-            let renamedResults = map renameVars resultTypes'
-            if null resultTypes' then return $ ListOutput [] "Cannot find type for your query"
+            let resultTypes = nubBy eqType generalTypes
+            let renamedResults = map renameVars resultTypes
+            if null resultTypes then return $ ListOutput [] "Cannot find type for your query"
                                  else return $ ListOutput (map show renamedResults) ""
 
 prepareEnvFromInput :: SynquidParams -> String -> IO (TypeQuery, [String], String, Environment)

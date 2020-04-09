@@ -21,6 +21,7 @@ import Control.Monad.IO.Class
 import Types.Filtering (defaultTimeoutMicro, defaultDepth, defaultInterpreterTimeoutMicro, frameworkModules)
 import Types.IOFormat
 import Types.Type
+import Types.Common
 import Database.Util
 import Synquid.Logic
 import HooglePlus.FilterTest (runInterpreter')
@@ -59,46 +60,6 @@ askGhc mdls f = do
             decls <- mapM parseImportDecl imports
             return (map IIDecl decls)
 
-antiSubstitute :: SType -> Id -> SType -> SType
-antiSubstitute pat name t | t == pat = vart_ name
-antiSubstitute pat name (ScalarT (DatatypeT dt args _) _) = 
-    ScalarT (DatatypeT dt (map (antiSubstitute pat name) args) []) ()
-antiSubstitute pat name (FunctionT x tArg tRes) = FunctionT x tArg' tRes'
-    where
-        tArg' = antiSubstitute pat name tArg
-        tRes' = antiSubstitute pat name tRes
-antiSubstitute _ _ t = t
-
-antiUnification :: SType -> SType -> IO SType
-antiUnification t1 t2 = evalStateT (antiUnification' t1 t2) emptyAntiUnifState
-
-antiUnification' :: SType -> SType -> AntiUnifier IO SType
-antiUnification' AnyT t = return t
-antiUnification' t AnyT = return t
-antiUnification' t@(ScalarT (TypeVarT {}) _) (ScalarT (TypeVarT {}) _) = return t
-antiUnification' (ScalarT (TypeVarT {}) _) t = return t
-antiUnification' t (ScalarT (TypeVarT {}) _) = return t
-antiUnification' t1@(ScalarT (DatatypeT dt1 args1 _) _) t2@(ScalarT (DatatypeT dt2 args2 _) _)
-  | dt1 == dt2 = do
-      args' <- mapM (uncurry antiUnification') (zip args1 args2)
-      return $ ScalarT (DatatypeT dt1 args' []) ()
-  | dt1 /= dt2 = do
-      tass1 <- gets $ view typeAssignment1
-      tass2 <- gets $ view typeAssignment2
-      let overlap = (tass1 Map.! t1) `intersect` (tass2 Map.! t2)
-      if t1 `Map.member` tass1 && t2 `Map.member` tass2 && not (null overlap)
-         then if length overlap > 1 then error "antiUnficiation fails"
-                                    else return $ vart_ (head overlap)
-         else do 
-             v <- freshId "a"
-             modify $ over typeAssignment1 (Map.insertWith (++) t1 [v])
-             modify $ over typeAssignment2 (Map.insertWith (++) t2 [v])
-             return $ vart_ v
-antiUnification' (FunctionT x1 tArg1 tRes1) (FunctionT x2 tArg2 tRes2) = do
-    tArg <- antiUnification' tArg1 tArg2
-    tRes <- antiUnification' tRes1 tRes2
-    return $ FunctionT x1 tArg tRes
-
 skipTyclass :: TypeSkeleton r -> TypeSkeleton r
 skipTyclass (FunctionT x (ScalarT (DatatypeT name args _) _) tRes)
     | tyclassPrefix `isPrefixOf` name = skipTyclass tRes
@@ -116,3 +77,20 @@ integerToInt t = t
 
 wrapParens :: String -> String
 wrapParens = printf "(%s)"
+
+tcPredecessors :: Map Id (Set Id)
+tcPredecessors = Map.fromList [
+    ("Eq", Set.fromList []),
+    ("Show", Set.fromList []),
+    ("Read", Set.fromList []),
+    ("Bounded", Set.fromList []),
+    ("Ord", Set.fromList ["Eq"]),
+    ("Real", Set.fromList ["Ord", "Num"]),
+    ("Fractional", Set.fromList ["Num"]),
+    ("Integral", Set.fromList ["Enum", "Real"]),
+    ("Functor", Set.fromList []),
+    ("Applicative", Set.fromList ["Functor"]),
+    ("Monad", Set.fromList ["Applicative"]),
+    ("Traversable", Set.fromList ["Monad", "Foldable"]),
+    ("Foldable", Set.fromList [])
+    ]

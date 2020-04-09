@@ -83,21 +83,6 @@ checkExamples env typ exs checkerChan = do
     if null errs then return $ Left validResults
                  else return $ Right errs
 
-getExampleTypes :: Environment -> [RSchema] -> IO [SType]
-getExampleTypes env validSchemas = do
-    let validTypes = map (shape . toMonotype) validSchemas
-    t <- if not (null validTypes) then foldM antiUnification (head validTypes) (tail validTypes)
-                                  else error "get example types error"
-    let tvars = typeVarsOf t
-    let generals = getGeneralizations t
-    let reducedTypes = concatMap (reduceVars tvars) generals
-    msgChan <- newChan
-    checkRes <- mapM (\s -> checkTypes env msgChan (forall s) (forall t)) reducedTypes
-    let checkedReduce = map snd $ filter (fst . fst) (zip checkRes reducedTypes)
-    return $ t : generals ++ checkedReduce
-    where
-        forall t = let vars = typeVarsOf t
-                    in foldr ForallT (Monotype $ addTrue t) vars
 
 execExample :: [String] -> Environment -> TypeQuery -> String -> Example -> IO (Either ErrorMessage String)
 execExample mdls env typ prog ex = do
@@ -174,31 +159,4 @@ checkTypes env checkerChan s1 s2 = do
         tass <- gets $ view typeAssignment
         return $ stypeSubstitute tass $ shape r2) initChecker
     return (state ^. isChecked, t)
-
-getGeneralizations :: SType -> [SType]
-getGeneralizations t =
-    let subtypesEach = map subtypesOf (breakdown t)
-        atLeast2 = filter ((>= 2) . length) $ subsequences subtypesEach
-        commonSubtypes =  map intersections atLeast2
-        validCommons = filter (not . Set.null) commonSubtypes
-        freeVars = Set.toList $ typeVarsOf t
-        validNames = foldr delete seqChars freeVars
-        combineCommons = nub $ map Set.unions $ tail $ subsequences validCommons
-        permutedCommons = concatMap (tail . subsequences . Set.toList) combineCommons
-        namedCommons = map (flip zip validNames) (nub permutedCommons)
-     in map (foldr (uncurry antiSubstitute) t) namedCommons
-    where
-        intersections [] = Set.empty
-        intersections (x:xs) = foldr Set.intersection x xs
-
-reduceVars :: Set Id -> SType -> [SType]
-reduceVars vs t =
-    let freeVars = Set.toList (typeVarsOf t)
-        varSubsts = varMaps freeVars
-     in map (foldr (uncurry antiSubstitute) t) varSubsts
-    where
-        listv = Set.toList vs
-        varMaps [] = [[]]
-        varMaps (v:vs) = [[l1] | l1 <- map (vart_ v,) vs] ++ 
-            [l1 : l2 | l1 <- map (vart_ v,) vs, l2 <- varMaps vs]
 
