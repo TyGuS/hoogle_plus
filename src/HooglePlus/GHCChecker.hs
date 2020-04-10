@@ -162,7 +162,6 @@ runGhcChecks params env goalType examples prog = let
                                 then return exampleCheckResult
                                 else do
                                     filterResult <- runChecks env goalType prog
-                                    liftIO $ print filterResult
                                     if null examples || isNothing filterResult
                                        then return filterResult
                                        else return exampleCheckResult
@@ -173,7 +172,7 @@ runGhcChecks params env goalType examples prog = let
     where
         mdls = Set.toList (_included_modules env)
         (modules, funcSig, body, argList) = extractSolution env goalType prog
-        checkOutputs prog exs = checkExampleOutput mdls env (show prog) exs
+        checkOutputs prog exs = checkExampleOutput mdls env funcSig (show prog) exs
 
 -- ensures that the program type-checks
 checkType :: String -> [String] -> Interpreter Bool

@@ -91,6 +91,13 @@ bottomUpCheck env p@(Program (PFun x body) _) = do
 bottomUpCheck _ p = error $ "unhandled case for checking "
                           ++ show p ++ "::" ++ show (typeOf p)
 
+checkAssignment :: MonadIO m => Environment -> Id -> SType -> Checker m ()
+checkAssignment env id tv = do
+    tass <- gets (view typeAssignment)
+    let typ = fromJust $ Map.lookup id tass
+    writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty typ <+> text "==" <+> pretty tv
+    solveTypeConstraint env typ tv
+
 solveTypeConstraint :: MonadIO m => Environment -> SType -> SType -> Checker m ()
 solveTypeConstraint _ AnyT _ = return ()
 solveTypeConstraint _ _ AnyT = return ()
@@ -99,24 +106,14 @@ solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ 
   | isBound env id && isBound env id' = modify $ set isChecked False
   | isBound env id = do
     tass <- gets (view typeAssignment)
-    if id' `Map.member` tass
-        then do
-            let typ = fromJust $ Map.lookup id' tass
-            writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty typ <+> text "==" <+> pretty tv
-            solveTypeConstraint env tv typ
-        else unify env id' tv
+    if id' `Map.member` tass then checkAssignment env id' tv
+                             else unify env id' tv
   | otherwise = do
     tass <- gets (view typeAssignment)
-    if id `Map.member` tass
-        then do
-            let typ = fromJust $ Map.lookup id tass
-            writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty typ <+> text "==" <+> pretty tv'
-            solveTypeConstraint env typ tv'
-        else if id' `Map.member` tass
-            then do
-                let typ = fromJust $ Map.lookup id' tass
-                writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tv <+> text "==" <+> pretty typ
-                solveTypeConstraint env tv typ
+    if id `Map.member` tass 
+       then checkAssignment env id tv'
+       else if id' `Map.member` tass
+            then checkAssignment env id' tv
             else unify env id tv'
 solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t | isBound env id = modify $ set isChecked False
 solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t = do
@@ -159,10 +156,13 @@ unify env v t =
       else do
         tass' <- gets (view typeAssignment)
         writeLog 3 "unify" $ text (show tass')
-        modify $ over typeAssignment (Map.map (stypeSubstitute (Map.singleton v t)))
-        tass <- gets (view typeAssignment)
-        if isValidSubst tass then modify $ over typeAssignment (Map.insert v (stypeSubstitute tass t))
-                             else modify $ set isChecked False
+        if isValidSubst tass'
+           then do
+                modify $ over typeAssignment (Map.map (stypeSubstitute (Map.singleton v t)))
+                tass <- gets (view typeAssignment)
+                if isValidSubst tass then modify $ over typeAssignment (Map.insert v (stypeSubstitute tass t))
+                                     else modify $ set isChecked False
+           else modify $ set isChecked False
 
 isValidSubst :: Map Id SType -> Bool
 isValidSubst m = not $ any (\(v, t) -> v `Set.member` typeVarsOf t) (Map.toList m)

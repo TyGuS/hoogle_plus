@@ -24,6 +24,7 @@ import Types.Filtering
 import Types.CheckMonad
 import Types.TypeChecker
 import Types.IOFormat
+import Database.Util
 
 rootNode = AScalar (ATypeVarT varName)
 pairProj = "pair_match"
