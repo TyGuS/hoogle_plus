@@ -12,7 +12,7 @@ import Test.SmallCheck.Drivers
 defaultTimeoutMicro = 5 * 10^4 :: Int
 defaultDepth = 5 :: Int
 defaultInterpreterTimeoutMicro = 2 * 10^6 :: Int
-defaultMaxOutputLength = 10 :: Int
+defaultMaxOutputLength = 10 :: Int 
 
 frameworkModules =
   zip [ "Test.SmallCheck"
@@ -25,7 +25,7 @@ frameworkModules =
 
   ++ [("Test.ChasingBottoms", Just "CB")]
 
-type SmallCheckResult = (String, Maybe PropertyFailure)
+type SmallCheckResult = (Maybe PropertyFailure, [Example])
 type GeneratorResult = [String]
 type DiffInstance = ([String], [String])
 
@@ -96,7 +96,7 @@ data FilterState = FilterState {
   inputs :: [DistinguishedInput],
   solutions :: [String],
   solutionExamples :: [(String, FunctionCrashDesc)],
-  differentiateExamples :: [DiffInstance]
+  differentiateExamples :: [Example]
 } deriving (Eq, Show)
 
 emptyFilterState = FilterState {

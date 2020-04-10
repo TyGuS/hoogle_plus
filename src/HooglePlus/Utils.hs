@@ -130,9 +130,7 @@ collectExamples solution (FilterState _ sols samples diffExamples) =
         [(_, desc)] = filter ((== solution) . fst) samples
         checkedExs = zip (repeat solution) (descToExample desc)
         mkGroup xs = (fst (head xs), nubOrdOn IOFormat.inputs $ snd (unzip xs))
-        examples = concatMap mkExamples diffExamples
-        combineSolutionOutput args sol out = (sol, Example args out)
-        mkExamples (args, outs) = zipWith (combineSolutionOutput args) sols outs
+        examples = zip sols diffExamples
 
 descToExample :: FunctionCrashDesc -> [Example]
 descToExample (AlwaysSucceed ex) = [ex]
@@ -143,12 +141,10 @@ descToExample _ = []
 printSolutionState solution (FilterState _ sols samples diffExamples) = unlines [ios, diffs]
     where
         ios = let [(_, desc)] = filter ((== solution) . fst) samples in show desc
-        diffs = unlines $ map showDifferentiations diffExamples
+        diffs = unlines $ zipWith showDifferentiations sols diffExamples
         
-        showDifferentiations :: DiffInstance -> String
-        showDifferentiations (args, outs) = unlines ((unwords args) : zipWith combineSolutionOutput sols outs)
-
-        combineSolutionOutput sol out = printf "%s ==> %s" sol out :: String
+        showDifferentiations :: String -> Example -> String
+        showDifferentiations sol (Example args out) = printf "(%s) %s ==> %s" sol (unwords args) out :: String
 
 extractSolution :: Environment -> RType -> UProgram -> ([String], String, String, [(Id, RSchema)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)
