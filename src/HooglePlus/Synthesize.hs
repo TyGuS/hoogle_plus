@@ -53,7 +53,8 @@ envToGoal env queryStr = do
   let transformedSig = "goal :: " ++ queryStr ++ "\ngoal = ??"
   let parseResult = flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" transformedSig
   case parseResult of
-    Left parseErr -> putDoc (pretty $ toErrorMessage parseErr) >> putDoc empty >> error "uh oh"
+    Left parseErr -> let e = toErrorMessage parseErr
+                      in putDoc (pretty e) >> putDoc linebreak >> error (prettyShow e)
     Right (funcDecl:decl:_) -> case decl of
       Pos _ (SynthesisGoal id uprog) -> do
         let Pos _ (FuncDecl _ sch) = funcDecl
@@ -64,12 +65,11 @@ envToGoal env queryStr = do
             let (env', monospec) = updateEnvWithBoundTyVars sp env
             let (env'', destinationType) = updateEnvWithSpecArgs monospec env'
             return $ goal { gEnvironment = env'', gSpec = sp }
-          Left parseErr -> putDoc (pretty parseErr) >> putDoc empty >> exitFailure
-
+          Left parseErr -> putDoc (pretty parseErr) >> putDoc linebreak >> error (prettyShow parseErr)
       _ -> error "parse a signature for a none goal declaration"
 
 synthesize :: SearchParams -> Goal -> [Example] -> Chan Message -> IO ()
-synthesize searchParams goal examples messageChan = do
+synthesize searchParams goal examples messageChan = catch (do
     let rawEnv = gEnvironment goal
     let goalType = gSpec goal
     let destinationType = lastType (toMonotype goalType)
@@ -108,18 +108,16 @@ synthesize searchParams goal examples messageChan = do
                 , _messageChan = messageChan
                 , _typeChecker = emptyChecker { _checkerChan = messageChan }
                 }
-    catch
-        (do
-            -- before synthesis, first check that user has provided valid examples
-            let exWithOutputs = filter ((/=) "??" . output) examples
-            checkResult <- checkExamples envWithHo goalType exWithOutputs messageChan
-            case checkResult of
-              Right errs -> do
-                  printResult $ encodeWithPrefix $ QueryOutput [] (unlines errs) []
-                  error "examples does not type check"
-              Left _ -> evalStateT (runPNSolver envWithHo goalType examples) is)
-        (\e ->
-             writeChan messageChan (MesgLog 0 "error" (show e)) >>
-             writeChan messageChan (MesgClose (CSError e)) >>
-             error (show e))
+
+    -- before synthesis, first check that user has provided valid examples
+    let exWithOutputs = filter ((/=) "??" . output) examples
+    checkResult <- checkExamples envWithHo goalType exWithOutputs messageChan
+    case checkResult of
+      Right errs -> error (unlines ("examples does not type check" : errs))
+      Left _ -> evalStateT (runPNSolver envWithHo goalType examples) is)
+    (\e ->
+         writeChan messageChan (MesgLog 0 "error" (show e)) >>
+         writeChan messageChan (MesgClose (CSError e)) >>
+         printResult (encodeWithPrefix (QueryOutput [] (show e) [])) >>
+         error (show e))
     -- return ()
