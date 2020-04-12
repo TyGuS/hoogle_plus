@@ -66,7 +66,7 @@ const connectedSearchBar = (props) => {
             return _.any([output, ...inputs], x => (_.isNull(x) || _.isUndefined(x)));
         });
         const hasAType = !isMissingType(searchType);
-        return (hasAnExample || hasAType) && !anyIncompleteExamples && !isEditing;
+        return (hasAnExample || hasAType) && !anyIncompleteExamples;
     };
 
     const buttonVariant = () => {

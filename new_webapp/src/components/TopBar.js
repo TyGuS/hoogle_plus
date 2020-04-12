@@ -17,9 +17,10 @@ const flavorText = `
 Hoogle+ is a type-driven synthesis engine for Haskell - like Hoogle but able to find compositions of functions. Given a Haskell type, Hoogle+ generates terms that inhabit this type by composing library components. It supports polymorphism, type classes, and higher-order functions.
 `;
 
-const dlStyle = {position:"absolute",
-   top:0,
-   right:0
+const dlStyle = {
+    position:"absolute",
+    top:0,
+    right:0
 }
 
 function dlClick(e) {
