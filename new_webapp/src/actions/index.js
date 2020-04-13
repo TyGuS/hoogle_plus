@@ -149,7 +149,7 @@ export const doSearch = ({query, examples}) => (dispatch) => {
                 errorMessage: error.message
             }));
         })
-        // .finally(_ => dispatch(setSearchPromise(null)));
+        .finally(_ => dispatch(setSearchPromise(null)));
     const searchPromise = {
         abort,
         ready: readyPromise,
