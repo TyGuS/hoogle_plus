@@ -12,6 +12,7 @@ export const initialSpecState = {
     searchStatus: DONE,
     searchType: "",
     searchTypeOptions: [],
+    searchPromise: null, // {abort: () -> (), ready: Promise}
 };
 
 // Overwrite existing rows with their new_row, and add the rest of the new_rows.
@@ -124,6 +125,11 @@ export function specReducer(state = initialSpecState, action) {
             return {
                 ...clearErrors(state),
                 searchTypeOptions: action.payload,
+            }
+        case Consts.SET_SEARCH_PROMISE:
+            return {
+                ...state,
+                searchPromise: action.payload,
             }
         default:
             return state
