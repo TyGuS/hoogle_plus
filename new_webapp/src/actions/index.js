@@ -109,7 +109,8 @@ export const selectTypeFromOptions = ({typeOption}) => (dispatch, getState) => {
 
 // Update the search type and associated state.
 export const setSearchType = ({query}) => (dispatch, getState) => {
-    const {spec} = getState();
+    const {spec, candidates} = getState();
+    dispatch(doStop({id: candidates.id}));
     const argCount = getArgCount(query);
     if (spec.numArgs !== argCount) {
         dispatch(setArgNum(argCount));
@@ -127,30 +128,32 @@ export const doSearch = ({query, examples}) => (dispatch) => {
                 dispatch(addCandidate(candidate));
             }
         }));
+    const readyPromise = ready
+        .then(result => {
+            try {
+                const firstResult = JSON.parse(result.trim().split("\n")[0]);
+                if (firstResult.error) {
+                    return Promise.reject({message: firstResult.error});
+                }
+            } catch (error) {
+                console.error("doSearch result error", error);
+            }
+            return dispatch(setSearchStatus({status:DONE}));
+        })
+        .catch(error => {
+            if (error.name && error.name === "AbortError") {
+                return;
+            }
+            return dispatch(setSearchStatus({
+                status: ERROR,
+                errorMessage: error.message
+            }));
+        })
+        // .finally(_ => dispatch(setSearchPromise(null)));
     const searchPromise = {
         abort,
-        ready: ready
-            .then(result => {
-                try {
-                    const firstResult = JSON.parse(result.trim().split("\n")[0]);
-                    if (firstResult.error) {
-                        return Promise.reject({message: firstResult.error});
-                    }
-                } catch (error) {
-                    console.error("doSearch result error", error);
-                }
-                return dispatch(setSearchStatus({status:DONE}));
-            })
-            .catch(error => {
-                if (error.name && error.name === "AbortError") {
-                    return;
-                }
-                return dispatch(setSearchStatus({
-                    status: ERROR,
-                    errorMessage: error.message
-                }));
-            }),
-        };
+        ready: readyPromise,
+    };
     dispatch(setSearchPromise(searchPromise));
     return;
 };
@@ -169,7 +172,7 @@ export const getTypesFromExamples = (examples) => (dispatch) => {
                 dispatch(setModalOpen());
                 dispatch(setSearchStatus({status:DONE}));
             } else {
-                debugger;
+                console.error("getTypesFromExamples: no candidates, but successful response.");
             }
         })
         .catch(error => {
@@ -178,7 +181,8 @@ export const getTypesFromExamples = (examples) => (dispatch) => {
             }
             console.error("getTypesFromExamples failed", error);
             dispatch(setSearchStatus({status:ERROR, errorMessage: error.toString()}));
-        });
+        })
+        // .finally(_ => dispatch(setSearchPromise(null)));
     dispatch(setSearchPromise({abort, ready:readyPromise}));
 }
 
@@ -228,14 +232,11 @@ export const doStop = ({id}) => (dispatch, getState) => {
     dispatch(setSearchStatus({status:DONE}));
     if (id) {
         return Search.sendStopSignal({id})
+            .catch(error => {
+                console.error("doStop failed to sendStopSignal: ", error);
+            })
             .finally(_ => {
                 return dispatch(stopSearch({id}));
             })
-            .catch(error => {
-                return dispatch(setSearchStatus({
-                    status: ERROR,
-                    errorMessage: error.message
-                }));
-            });
     }
 };

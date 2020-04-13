@@ -1,6 +1,6 @@
 import {v4} from "uuid";
 import { inputsToId } from "../utilities/args";
-import {baseRoute, handleFetch} from "../utilities/fetches";
+import {baseRoute, handleFetch, abortableFetch} from "../utilities/fetches";
 import { DONE } from "../constants/fetch-states";
 
 const getTypeCandidates = ({id, examples}, cb) => {
@@ -47,17 +47,15 @@ const streamResponse = (route, fetchOpts, onIncrementalResponse) => {
     const decoder = new TextDecoder("utf-8");
     var msgQueue = "";
     const {abort, ready} = abortableFetch(route, fetchOpts);
-    return {
-        abort,
-        ready: ready
-            .then(response => response.body)
-            .then(body => {
-                const reader = body.getReader();
-                return new ReadableStream({
-                    start(controller) {
-                    return pump();
-                    function pump() {
-                        return reader.read().then(({ done, value }) => {
+    const readyPromise = ready
+        .then(response => response.body)
+        .then(body => {
+            const reader = body.getReader();
+            return new ReadableStream({
+                start(controller) {
+                return pump();
+                function pump() {
+                    return reader.read().then(({ done, value }) => {
                         // When no more data needs to be consumed, close the stream
                         if (done) {
                             controller.close();
@@ -81,13 +79,21 @@ const streamResponse = (route, fetchOpts, onIncrementalResponse) => {
                         })
                         controller.enqueue(value);
                         return pump();
-                        });
-                    }}
-                });
-            })
-            .then(stream => new Response(stream))
-            .then(response => response.text())
-        };
+                    }).catch(error => {
+                        if (error.name && error.name === "AbortError") {
+                            return
+                        }
+                        console.error("readableStream error", error)
+                    });
+                }}
+            });
+        })
+        .then(stream => new Response(stream))
+        .then(response => response.text());
+    return {
+        abort,
+        ready: readyPromise,
+    };
 }
 
 const sendStopSignal = ({id}) => {
@@ -101,16 +107,6 @@ const sendStopSignal = ({id}) => {
     return fetch(ROUTE, fetchOpts)
         .then(response => response.text());
 }
-
-function abortableFetch(request, opts) {
-    const controller = new AbortController();
-    const signal = controller.signal;
-
-    return {
-      abort: () => controller.abort(),
-      ready: fetch(request, { ...opts, signal })
-    };
-  }
 
 export default {
     getCodeCandidates,
