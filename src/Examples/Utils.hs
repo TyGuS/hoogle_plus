@@ -15,6 +15,7 @@ import Text.Printf
 import qualified Data.Map as Map
 import Control.Exception
 import Data.Char
+import Data.List
 import Outputable
 import Control.Monad.IO.Class
 
@@ -78,19 +79,5 @@ integerToInt t = t
 wrapParens :: String -> String
 wrapParens = printf "(%s)"
 
-tcPredecessors :: Map Id (Set Id)
-tcPredecessors = Map.fromList [
-    ("Eq", Set.fromList []),
-    ("Show", Set.fromList []),
-    ("Read", Set.fromList []),
-    ("Bounded", Set.fromList []),
-    ("Ord", Set.fromList ["Eq"]),
-    ("Real", Set.fromList ["Ord", "Num"]),
-    ("Fractional", Set.fromList ["Num"]),
-    ("Integral", Set.fromList ["Enum", "Real"]),
-    ("Functor", Set.fromList []),
-    ("Applicative", Set.fromList ["Functor"]),
-    ("Monad", Set.fromList ["Applicative"]),
-    ("Traversable", Set.fromList ["Monad", "Foldable"]),
-    ("Foldable", Set.fromList [])
-    ]
+supportedTyclasses :: [String]
+supportedTyclasses = ["Num", "Ord", "Eq"]

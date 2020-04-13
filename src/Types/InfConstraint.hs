@@ -1,4 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Types.InfConstraint where
 
@@ -9,19 +11,35 @@ import Types.Experiments
 
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Set (Set)
 import Control.Lens
 import Control.Concurrent.Chan
+import Control.Monad.State
+import Control.Monad.Logic
+
+type TyclassConstraints = Set Id
+type TyclassAssignment = Map Id TyclassConstraints
+
+data TypeClassState = TypeClassState {
+    _tyclassCache :: Map SType [Id],
+    _supportModules :: [String]
+} deriving(Eq)
+
+makeLenses ''TypeClassState
+
+emptyTyclassState = TypeClassState {
+    _tyclassCache = Map.empty,
+    _supportModules = []
+}
 
 data AntiUnifState = AntiUnifState {
     _generalNames :: Map Id Int,
-    _typeAssignment1 :: Map ConstrainedType [Id],
-    _typeAssignment2 :: Map ConstrainedType [Id],
-    _unifChan :: Chan Message
+    _typeAssignment1 :: Map SType [Id],
+    _typeAssignment2 :: Map SType [Id],
+    _tyclassAssignment :: TyclassAssignment
 } deriving(Eq)
 
 makeLenses ''AntiUnifState
-
-type AntiUnifier m = StateT AntiUnifState m
 
 instance Monad m => CheckMonad (AntiUnifier m) where
     getNameCounter = gets (view generalNames)
@@ -30,23 +48,18 @@ instance Monad m => CheckMonad (AntiUnifier m) where
     setNameMapping = setNameMapping
     getIsChecked = getIsChecked
     setIsChecked = setIsChecked
-    getMessageChan = gets (view unifChan)
+    getMessageChan = getMessageChan
     overStats = overStats
 
 emptyAntiUnifState = AntiUnifState {
     _generalNames = Map.empty,
     _typeAssignment1 = Map.empty,
     _typeAssignment2 = Map.empty,
-    _unifChan = undefined
+    _tyclassAssignment = Map.empty
 }
 
-type TyclassConstraint = Id
-type TyclassConstraints = Set TyclassConstraint
-type ConstrainedType = TypeSkeleton TyclassConstraints
-type ConstrainedSchema = SchemaSkeleton TyclassConstraints
+type TypeNaming = Map SType (Id, Int)
+type AntiUnifier m = StateT AntiUnifState (StateT TypeClassState m)
+type TypeGeneralizer m = StateT TypeNaming (LogicT (StateT TypeClassState m))
 
-data TyCheckResult =
-    AllSatisfy TyclassConstraints
-  | PartialSatisfy TyclassConstraints
-  | NoSatisfy
-  deriving(Eq, Show)
+univTypeVarPrefix = '?'

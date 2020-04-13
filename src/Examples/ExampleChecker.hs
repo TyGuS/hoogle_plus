@@ -7,9 +7,7 @@ module Examples.ExampleChecker(
     execExample,
     checkExamples,
     checkExampleOutput,
-    parseExample,
     checkTypes,
-    getExampleTypes
     )where
 
 import Types.Program
@@ -31,6 +29,7 @@ import Synquid.Util (permuteBy)
 import Database.Convert (addTrue)
 import Database.Util
 import Examples.Utils
+import Examples.InferenceDriver
 
 import Control.Exception
 import Control.Monad.State

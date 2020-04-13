@@ -20,6 +20,7 @@ import Synquid.Parser (parseType, parseProgram)
 import Synquid.Resolver (ResolverState(..), initResolverState, resolveSchema)
 import Synquid.Type
 import Examples.ExampleChecker
+import Examples.InferenceDriver
 import Examples.Utils
 
 import Control.Concurrent.Chan
@@ -105,7 +106,7 @@ searchTypes synquidParams inStr = do
     let exquery = inExamples input
     env <- readEnv $ envPath synquidParams
     let mdls = Set.toList $ env ^. included_modules
-    let mkFun ex = printf "\\f -> f %s == %s" (unwords $ map wrapParens $ inputs ex) (output ex)
+    let mkFun ex = printf "\\f -> case f %s of %s -> ()" (unwords $ map wrapParens $ inputs ex) (output ex)
     exTypes <- mapM (parseExample mdls . mkFun) exquery
     let (validSchemas, invalidTypes) = partitionEithers exTypes
     resultObj <- if null invalidTypes then possibleQueries env exquery validSchemas
@@ -121,10 +122,8 @@ searchTypes synquidParams inStr = do
 
         possibleQueries env exquery exTypes = do
             generalTypes <- getExampleTypes env exTypes
-            let resultTypes = nubBy eqType generalTypes
-            let renamedResults = map renameVars resultTypes
-            if null resultTypes then return $ ListOutput [] "Cannot find type for your query"
-                                 else return $ ListOutput (map show renamedResults) ""
+            if null generalTypes then return $ ListOutput [] "Cannot find type for your query"
+                                 else return $ ListOutput generalTypes ""
 
 prepareEnvFromInput :: SynquidParams -> String -> IO (TypeQuery, [String], String, Environment)
 prepareEnvFromInput synquidParams inStr = do
