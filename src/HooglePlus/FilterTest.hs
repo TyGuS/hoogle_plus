@@ -21,6 +21,7 @@ import Data.Typeable
 import Data.Map (Map)
 import Data.Either
 
+import Test.SmallCheck (Depth)
 import Test.SmallCheck.Drivers
 
 import HooglePlus.Utils
@@ -76,23 +77,18 @@ instantiateSignature (FunctionSignature _ argsType returnType) =
       instantiate (ArgTypeApp l r) = ArgTypeApp (instantiate l) (instantiate r)
       instantiate (ArgTypeFunc l r) = ArgTypeFunc (instantiate l) (instantiate r)
 
-buildFunctionWrapper :: String -> String -> String -> (String, String, String) -> Int -> Bool -> String
-buildFunctionWrapper wrapperName solution solutionType params@(argLine, paramDecl, argShow) timeInMicro verbose = 
-    unwords [ buildLetFunction wrapperName solution solutionType
-            , buildTimeoutWrapper wrapperName params timeInMicro verbose
-            ]
+buildFunctionWrapper :: [(String, String)] -> String -> (String, String, String) -> Int -> String
+buildFunctionWrapper functions solutionType params@(argLine, paramDecl, argShow) timeInMicro =
+    unwords 
+      (map (`buildLetFunction` solutionType) functions ++ [buildTimeoutWrapper (map fst functions) params timeInMicro])
   where
-    buildLetFunction :: String -> String -> String -> String
-    buildLetFunction wrapperName solution solutionType = 
-      printf "let sol_%s = ((%s) :: %s) in" wrapperName solution solutionType :: String
+    buildLetFunction :: (String, String) -> String -> String
+    buildLetFunction (wrapperName, solution) solutionType = 
+      printf "let %s = ((%s) :: %s) in" wrapperName solution solutionType :: String
 
-    buildTimeoutWrapper :: String -> (String, String, String) -> Int -> Bool -> String
-    buildTimeoutWrapper wrapperName (argLine, paramDecl, argShow) timeInMicro verbose =
-      if verbose
-        then
-          printf "let %s %s = do { val <- CB.timeOutMicro' %d (CB.approxShow %d (sol_%s %s)); printIOResult %s [val]; return val} in"
-            wrapperName argLine timeInMicro defaultMaxOutputLength wrapperName argLine argShow :: String
-        else printf "let %s %s = (CB.timeOutMicro' %d (CB.approxShow %d (sol_%s %s))) in" wrapperName argLine timeInMicro defaultMaxOutputLength wrapperName argLine :: String
+    buildTimeoutWrapper :: [String] -> (String, String, String) -> Int -> String 
+    buildTimeoutWrapper wrapperNames (argLine, paramDecl, argShow) timeInMicro =
+      printf "let timeoutWrapper %s = (evaluateIO %d %s (Prelude.map (\\f -> f %s) [%s])) in" argLine timeInMicro argShow argLine (intercalate ", " wrapperNames) :: String
 
 buildNotCrashProp :: String -> FunctionSignature -> (String, String)
 buildNotCrashProp solution funcSig =
@@ -102,41 +98,30 @@ buildNotCrashProp solution funcSig =
   where
     params@(argLine, argDecl, argShow) = toParamListDecl (_argsType funcSig)
 
-    wrapper = buildFunctionWrapper "wrappedSolution" solution (show funcSig) params defaultTimeoutMicro True
+    wrapper = buildFunctionWrapper [("wrappedSolution", solution)] (show funcSig) params defaultTimeoutMicro
 
     formatAlwaysFailProp = formatProp "propAlwaysFail" "isFailedResult"
     formatNeverFailProp = formatProp "propNeverFail" "not <$> isFailedResult"
 
     formatProp propName body (argLine, argDecl, argShow) wrappedSolution = unwords
       [ wrappedSolution
-      , printf "let %s %s = monadic (%s <$> %s %s) in" propName argDecl body "wrappedSolution" argLine
-      , printf "capture (smallCheckM %d (%s))" defaultDepth propName] :: String
+      , printf "let %s %s = monadic (%s <$> Prelude.head <$> timeoutWrapper %s) in" propName argDecl body argLine
+      , printf "runStateT (smallCheckM %d (%s)) undefined" defaultDepth propName] :: String
 
-buildDupCheckProp :: (String, [String]) -> FunctionSignature -> Int -> Int -> String
+buildDupCheckProp :: (String, [String]) -> FunctionSignature -> Int -> Depth -> String
 buildDupCheckProp (sol, otherSols) funcSig timeInMicro depth =
 
-  unwords [wrapperLhs, unwords wrapperSols, formatProp]
+  unwords [wrapper, formatProp]
   where
     params@(argLine, argDecl, argShow) = toParamListDecl (_argsType funcSig)
     solutionType = show funcSig
 
-    otherSols' = zip [0..] otherSols :: [(Int, String)]
-    wrapperLhs = wrapFunc "lhs" sol
-    wrapperSols = map (\(i, sol) -> wrapFunc (printf "result_%d" i) sol) otherSols'
+    wrapper = buildFunctionWrapper solutions (show funcSig) params defaultTimeoutMicro 
+    solutions = zip [printf "result_%d" x :: String | x <- [0..] :: [Int]] (sol:otherSols)
 
     formatProp = unwords
-      [ printf "let dupProp = existsUnique $ \\%s -> monadic $ do {" argDecl
-      , printf "evaluated <- mapM (\\f -> f %s) (%s);" argLine (formatResultList otherSols')
-      , printf "resultL <- lhs %s;" argLine
-      , printf "if (not $ anyDuplicate (resultL:evaluated)) then ((printIOResult %s (resultL:evaluated)) >> return True) else (return False)" argShow
-      , "} in"
-      , printf "capture (smallCheckM %d dupProp)" depth] :: String
-
-    wrapFunc name sol = buildFunctionWrapper name sol solutionType params timeInMicro False
-    formatResultList results =
-      let items = intercalate "," $ map format results in
-        printf "[%s]" items :: String
-      where format (i, _) = printf "result_%d" i :: String
+      [ printf "let dupProp = existsUnique $ \\%s -> monadic (not <$> anyDuplicate <$> timeoutWrapper %s) in" argDecl argLine
+      , printf "runStateT (smallCheckM %d dupProp) undefined" depth] :: String
 
 runInterpreter' :: Int -> InterpreterT IO a -> IO (Either InterpreterError a) 
 runInterpreter' timeInMicro exec =
@@ -160,14 +145,11 @@ runInterpreter' timeInMicro exec =
     toResult Nothing = Left $ UnknownError "timeout"
     toResult (Just v) = v
 
-evaluateProperty :: [String] -> String -> IO (Either InterpreterError (SmallCheckResult, [DiffInstance]))
+evaluateProperty :: [String] -> String -> IO (Either InterpreterError SmallCheckResult)
 evaluateProperty modules property =
   runInterpreter' defaultInterpreterTimeoutMicro $ do
     setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
-
-    result@(stdoutLine, _) <- interpret property (as :: IO SmallCheckResult) >>= liftIO
-    examples <- mapM (`interpret` (as :: DiffInstance)) (filter (not . null) $ lines stdoutLine)
-    return (result, examples)
+    interpret property (as :: IO SmallCheckResult) >>= liftIO
 
 validateSolution :: [String] -> String -> FunctionSignature -> Int -> IO (Either InterpreterError FunctionCrashDesc)
 validateSolution modules solution funcSig time = do
@@ -182,23 +164,22 @@ validateSolution modules solution funcSig time = do
     (alwaysFailProp, neverFailProp) = buildNotCrashProp solution funcSig
 
     evaluateSmallCheckResult ::
-      Either InterpreterError (SmallCheckResult, [DiffInstance]) -> Either InterpreterError (SmallCheckResult, [DiffInstance])
+      Either InterpreterError SmallCheckResult -> Either InterpreterError SmallCheckResult
         -> Either InterpreterError FunctionCrashDesc
     evaluateSmallCheckResult resultF resultS =
       case resultF of
         Left (UnknownError "timeout") -> Right $ AlwaysFail $ caseToInput resultS
-        Right ((_, Nothing), _) -> Right $ AlwaysFail $ caseToInput resultS
-        _ -> case resultS of
-          Left (UnknownError "timeout") -> Right $ AlwaysSucceed $ caseToInput resultF
-          Right ((_, Nothing), _) -> Right $ AlwaysSucceed $ caseToInput resultF
+        Right (Nothing, _) -> Right $ AlwaysFail $ caseToInput resultS
+        Right (_, exF:_) -> case resultS of
+          Left (UnknownError "timeout") -> Right $ AlwaysSucceed exF
+          Right (Nothing, _) -> Right $ AlwaysSucceed exF
 
-          Right ((_, Just (CounterExample _ _)), _) -> Right $ PartialFunction [caseToInput resultF, caseToInput resultS]
+          Right (Just (CounterExample _ _), exS:_) -> Right $ PartialFunction [exF, exS]
           _ -> error (show resultF ++ "???" ++ show resultS)
+        _ -> trace (show resultF) $ Right $ AlwaysFail $ caseToInput resultS
 
-    caseToInput :: Either InterpreterError (SmallCheckResult, [DiffInstance]) -> Example
-    caseToInput (Right ((output, Just (CounterExample args _)), instances)) =
-      let out = (unwords . snd . head . filter ((args ==) . fst)) instances
-       in Example args out
+    caseToInput :: Either InterpreterError SmallCheckResult -> Example
+    caseToInput (Right (_, example:_)) = example
 
     preprocessOutput :: String -> String -> String
     preprocessOutput input output = trace ("ok: " ++ input ++ ", " ++ output) (fromMaybe "N/A" (listToMaybe selectedLine))
@@ -206,7 +187,7 @@ validateSolution modules solution funcSig time = do
         ios = nub $ filter ([] /=) $ lines output
         selectedLine = filter (isInfixOf input) ios
 
-compareSolution :: [String] -> String -> [String] -> FunctionSignature -> Int -> IO (Either InterpreterError (SmallCheckResult, [DiffInstance]))
+compareSolution :: [String] -> String -> [String] -> FunctionSignature -> Int -> IO (Either InterpreterError SmallCheckResult)
 compareSolution modules solution otherSolutions funcSig time = evaluateProperty modules prop
   where prop = buildDupCheckProp (solution, otherSolutions) funcSig time defaultDepth
 
@@ -249,7 +230,7 @@ checkSolutionNotCrash modules sigStr body = do
 
 checkDuplicates :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
 checkDuplicates modules sigStr solution = do
-  fs@(FilterState is solns samples _) <- get
+  fs@(FilterState is solns _ examples) <- get
   case solns of
     [] -> do
       modify $ const fs {solutions = solution:solns} 
@@ -263,17 +244,17 @@ checkDuplicates modules sigStr solution = do
           modify $ const fs {solutions = solution:solns}
           return True
 
-        Right ((_, r@(Just AtLeastTwo {})), examples) -> do
+        Right (Just NotExist, _) -> return False
+        Right (Nothing, _) -> return False
+
+        Right (r@(Just AtLeastTwo {}), examples) -> do
           let [i1, i2] = caseToInput r
           modify $ const fs {
             inputs = if null solns then is else (i1, i2):is,
-            solutions = solution : solns,
+            solutions = solution:solns,
             differentiateExamples = examples
           }
           return True
-
-        Right ((_, Just NotExist), _) -> return False
-        Right ((_, Nothing), _) -> return False
         _ -> return False
 
   where
@@ -307,3 +288,41 @@ toParamListDecl args =
     isFuncType (ArgTypeApp _ x) = isFuncType x
     isFuncType (ArgTypeTuple xs) = any isFuncType xs
     isFuncType _ = False
+
+-- ******** Example Generator ********
+
+generateIOPairs :: [String] -> String -> FunctionSignature -> Int -> Int -> Depth -> IO (Either InterpreterError GeneratorResult) 
+generateIOPairs modules solution funcSig numPairs timeInMicro depth = 
+  runInterpreter' defaultInterpreterTimeoutMicro $ do
+    setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
+    interpret property (as :: IO GeneratorResult) >>= liftIO
+
+  where
+    typeStr = show funcSig
+    params = toParamListDecl (_argsType funcSig)
+    property = buildProp solution funcSig
+
+    buildProp :: String -> FunctionSignature -> String
+    buildProp solution funcSig =
+
+      formatProp params wrapper
+      where
+        wrapper = buildWrapper solution typeStr params defaultTimeoutMicro
+
+        formatProp (argLine, argDecl, argShow) wrappedSolution = unwords
+          [ wrappedSolution
+          , printf "let prop %s = monadic ((wrappedSolution %s) >>= (waitState %d %s)) in" argDecl argLine numPairs argShow
+          , printf "execStateT (smallCheckM %d (exists prop)) []" depth] :: String
+
+    buildWrapper solution typeStr params timeInMicro =
+      unwords [ buildLetFunction solution typeStr 
+              , buildTimeoutWrapper params timeInMicro
+              ]
+      where
+        buildLetFunction :: String -> String -> String
+        buildLetFunction solution solutionType = 
+          printf "let sol_wrappedSolution = ((%s) :: %s) in" solution typeStr :: String
+
+        buildTimeoutWrapper :: (String, String, String) -> Int -> String
+        buildTimeoutWrapper (argLine, paramDecl, _) timeInMicro =
+          printf "let wrappedSolution %s = (liftIO $ CB.timeOutMicro' %d (CB.approxShow %d (sol_wrappedSolution %s))) in" argLine timeInMicro defaultMaxOutputLength argLine :: String
