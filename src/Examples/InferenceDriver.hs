@@ -20,6 +20,7 @@ import PetriNet.Util
 import Synquid.Pretty
 import Synquid.Logic (ftrue)
 
+import Control.Concurrent.Chan
 import Control.Exception
 import Control.Monad.State
 import Control.Monad.Logic
@@ -54,7 +55,8 @@ getExampleTypes env validSchemas = do
     let validTypes = map (shape . toMonotype) validSchemas
     let mdls = env ^. included_modules
     let initTyclassState = emptyTyclassState { _supportModules = Set.toList mdls }
-    evalStateT (do
+    -- remove magic number later
+    take 10 <$> evalStateT (do
         (mbFreeVar, st) <- if not (null validTypes) 
                 then foldM stepAntiUnification (head validTypes, emptyAntiUnifState) (tail validTypes)
                 else error "get example types error"
@@ -168,11 +170,23 @@ antiUnification' t1@(ScalarT (DatatypeT dt1 args1 _) _) t2@(ScalarT (DatatypeT d
   | dt1 /= dt2 = do
       tass1 <- gets $ view typeAssignment1
       tass2 <- gets $ view typeAssignment2
-      let overlap = (tass1 Map.! t1) `intersect` (tass2 Map.! t2)
-      if t1 `Map.member` tass1 && t2 `Map.member` tass2 && not (null overlap)
+      vs1 <- liftIO $ unifiableVars tass1 t1
+      vs2 <- liftIO $ unifiableVars tass2 t2
+      let overlap = vs1 `intersect` vs2
+      if not (null overlap)
          then if length overlap > 1 then error "antiUnficiation fails"
                                     else return $ vart_ (head overlap)
          else checkTyclass t1 t2 
+    where
+        unifiableVars tass t = do
+            messageChan <- newChan
+            results <- filterM (\(k, vs) -> do
+                let vars = Set.toList $ typeVarsOf k `Set.union` typeVarsOf t
+                let boundVars = filter (not . (==) univTypeVarPrefix . head) vars
+                let env = emptyEnv { _boundTypeVars = boundVars }
+                (isChecked, _) <- checkTypes env messageChan (mkPolyType $ addTrue t) (mkPolyType $ addTrue k)
+                return isChecked) (Map.toList tass)
+            return $ concat $ snd $ unzip results
 antiUnification' (FunctionT x1 tArg1 tRes1) (FunctionT x2 tArg2 tRes2) = do
     tArg <- antiUnification' tArg1 tArg2
     tRes <- antiUnification' tRes1 tRes2
@@ -328,7 +342,6 @@ mkTyclassQuery tcass typ tyclass = do
     let varTcStrs = map (\(v, tc) -> unwords [tc, v]) varTcs
     let allTcs = intercalate ", " $ varTcStrs ++ [unwords [tyclass, (show typ)]]
     let query = printf "undefined :: (%s) => ()" allTcs
-    liftIO $ print query
     liftIO $
         catch (askGhc mdls (exprType TM_Default query) >> return (Just tyclass))
               (\(e :: SomeException) -> liftIO (print e) >> return Nothing)

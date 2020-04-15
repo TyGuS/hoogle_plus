@@ -13,19 +13,29 @@ import qualified Language.Haskell.Interpreter as LHI
 import System.Timeout
 import Text.Printf
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Control.Exception
 import Data.Char
 import Data.List
 import Outputable
-import Control.Monad.IO.Class
+import Control.Monad.State
+import Control.Lens
+import Control.Concurrent.Chan
 
 import Types.Filtering (defaultTimeoutMicro, defaultDepth, defaultInterpreterTimeoutMicro, frameworkModules)
 import Types.IOFormat
 import Types.Type
 import Types.Common
+import Types.Environment
+import Types.Experiments
+import Types.TypeChecker
+import Types.InfConstraint
 import Database.Util
 import Synquid.Logic
+import Synquid.Type
 import HooglePlus.FilterTest (runInterpreter')
+import HooglePlus.TypeChecker (solveTypeConstraint)
+import PetriNet.Util
 
 askInterpreter :: [String] -> String -> String -> IO (Either ErrorMessage String)
 askInterpreter mdls preamble funcCall = do
@@ -81,3 +91,21 @@ wrapParens = printf "(%s)"
 
 supportedTyclasses :: [String]
 supportedTyclasses = ["Num", "Ord", "Eq"]
+
+checkTypes :: Environment -> Chan Message -> RSchema -> RSchema -> IO (Bool, SType)
+checkTypes env checkerChan s1 s2 = do
+    let initChecker = emptyChecker { _checkerChan = checkerChan }
+    (t, state) <- runStateT (do
+        r1 <- freshType s1
+        r2 <- freshType s2
+        let t1 = skipTyclass r1
+        let t2 = skipTyclass r2
+        solveTypeConstraint env (shape t1) (shape t2)
+        tass <- gets $ view typeAssignment
+        return $ stypeSubstitute tass $ shape r2) initChecker
+    return (state ^. isChecked, t)
+
+mkPolyType :: TypeSkeleton r -> SchemaSkeleton r
+mkPolyType t = let tvars = Set.toList $ typeVarsOf t
+                   freeVars = filter ((==) univTypeVarPrefix . head) tvars
+                in foldr ForallT (Monotype t) freeVars

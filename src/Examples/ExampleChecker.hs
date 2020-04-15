@@ -6,8 +6,7 @@
 module Examples.ExampleChecker(
     execExample,
     checkExamples,
-    checkExampleOutput,
-    checkTypes,
+    checkExampleOutput
     )where
 
 import Types.Program
@@ -145,17 +144,4 @@ checkExampleOutput mdls env typ prog exs = do
                                   Left err -> return Nothing
                                   Right out | o == out -> return (Just ex)
                                             | otherwise -> return Nothing
-
-checkTypes :: Environment -> Chan Message -> RSchema -> RSchema -> IO (Bool, SType)
-checkTypes env checkerChan s1 s2 = do
-    let initChecker = emptyChecker { _checkerChan = checkerChan }
-    (t, state) <- runStateT (do
-        r1 <- freshType s1
-        r2 <- freshType s2
-        let t1 = skipTyclass r1
-        let t2 = skipTyclass r2
-        solveTypeConstraint env (shape t1) (shape t2)
-        tass <- gets $ view typeAssignment
-        return $ stypeSubstitute tass $ shape r2) initChecker
-    return (state ^. isChecked, t)
 
