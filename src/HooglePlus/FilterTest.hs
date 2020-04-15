@@ -106,7 +106,7 @@ buildNotCrashProp solution funcSig =
     formatProp propName body (argLine, argDecl, argShow) wrappedSolution = unwords
       [ wrappedSolution
       , printf "let %s %s = monadic (%s <$> Prelude.head <$> timeoutWrapper %s) in" propName argDecl body argLine
-      , printf "runStateT (smallCheckM %d (%s)) undefined" defaultDepth propName] :: String
+      , printf "runStateT (smallCheckM %d (%s)) []" defaultDepth propName] :: String
 
 buildDupCheckProp :: (String, [String]) -> FunctionSignature -> Int -> Depth -> String
 buildDupCheckProp (sol, otherSols) funcSig timeInMicro depth =
@@ -121,7 +121,7 @@ buildDupCheckProp (sol, otherSols) funcSig timeInMicro depth =
 
     formatProp = unwords
       [ printf "let dupProp = existsUnique $ \\%s -> monadic (not <$> anyDuplicate <$> timeoutWrapper %s) in" argDecl argLine
-      , printf "runStateT (smallCheckM %d dupProp) undefined" depth] :: String
+      , printf "runStateT (smallCheckM %d dupProp) []" depth] :: String
 
 runInterpreter' :: Int -> InterpreterT IO a -> IO (Either InterpreterError a) 
 runInterpreter' timeInMicro exec =
@@ -193,7 +193,7 @@ compareSolution modules solution otherSolutions funcSig time = evaluateProperty 
 
 runChecks :: MonadIO m => Environment -> RType -> UProgram -> FilterTest m (Maybe AssociativeExamples)
 runChecks env goalType prog = do
-  result <- runChecks
+  result <- runChecks_
 
   state <- get
   when result $ liftIO $ runPrints state
@@ -204,7 +204,7 @@ runChecks env goalType prog = do
     checks = [ checkSolutionNotCrash
              , checkDuplicates]
 
-    runChecks = and <$> mapM (\f -> f modules funcSig body) checks
+    runChecks_ = and <$> mapM (\f -> f modules funcSig body) checks
     runPrints state = do
       putStrLn "\n*******************FILTER*********************"
       putStrLn body
@@ -219,7 +219,7 @@ checkSolutionNotCrash modules sigStr body = do
                Right (AlwaysFail example) -> False
                _ -> True
   let Right desc = result
-  when (isRight result) (put $ fs {solutionExamples = (body, desc) : examples})
+  put $ fs {solutionExamples = (body, desc) : examples}
   return pass
 
   where
@@ -232,27 +232,34 @@ checkDuplicates :: MonadIO m => [String] -> String -> String -> FilterTest m Boo
 checkDuplicates modules sigStr solution = do
   fs@(FilterState is solns _ examples) <- get
   case solns of
+    
+    -- no solution yet; skip the check
     [] -> do
-      modify $ const fs {solutions = solution:solns} 
+      put fs {solutions = solution:solns} 
       return True
+
+    -- find an input i such that all synthesized results can be differentiated semantically
     _ -> do
       result <- liftIO $ compareSolution modules solution solns funcSig defaultTimeoutMicro
       case result of
-        Left (UnknownError "timeout") -> return False
+        -- bypass the check on any timeout or error
+        Left (UnknownError "timeout") -> return True
         Left err -> do
-          liftIO $ print ("error: " ++ show err)
-          modify $ const fs {solutions = solution:solns}
+          put $ fs {solutions = solution:solns}
           return True
 
+        -- SmallCheck fails to find any differentiating input
         Right (Just NotExist, _) -> return False
         Right (Nothing, _) -> return False
 
-        Right (r@(Just AtLeastTwo {}), examples) -> do
+        -- the trick to make SC to generate two inputs
+        Right (r@(Just AtLeastTwo {}), newExamples) -> do
           let [i1, i2] = caseToInput r
-          modify $ const fs {
-            inputs = if null solns then is else (i1, i2):is,
-            solutions = solution:solns,
-            differentiateExamples = examples
+          let updatedSolutions = solution : solns
+          put $ fs {
+            inputs = [i1, i2] ++ is,
+            solutions = updatedSolutions,
+            differentiateExamples = (zip updatedSolutions (filter (filterRelated i1 i2) newExamples)) ++ examples
           }
           return True
         _ -> return False
@@ -260,6 +267,9 @@ checkDuplicates modules sigStr solution = do
   where
     funcSig = (instantiateSignature . parseTypeString) sigStr
     caseToInput (Just (AtLeastTwo i_1 _ i_2 _)) = [i_1, i_2]
+
+    filterRelated i1 i2 (Example inputX _) = inputX == i1 || inputX == i2
+    
 
 -- Function Signature -> (Parameter Declaration, Arguments, [show Arguments])
 -- they may differ for higher-order functions

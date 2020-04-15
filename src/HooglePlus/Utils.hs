@@ -29,6 +29,7 @@ import Data.List.Extra (nubOrdOn)
 import Data.List.Split (splitOn)
 import Data.Maybe
 import Data.Typeable
+import Data.Function (on)
 import Demand
 import DmdAnal
 import DynFlags
@@ -122,15 +123,15 @@ printFilter (FilterState _ solns samples) = unlines $ map printSol solns
 -}
 
 collectExamples :: String -> FilterState -> AssociativeExamples
-collectExamples solution (FilterState _ sols samples diffExamples) =
-    map mkGroup $ groupBy (\x y -> fst x == fst y) 
+collectExamples solution (FilterState _ sols samples examples) =
+    map mkGroup $ groupBy (\x y -> fst x == fst y)
                 $ sortOn fst
                 $ examples ++ checkedExs
     where
         [(_, desc)] = filter ((== solution) . fst) samples
         checkedExs = zip (repeat solution) (descToExample desc)
-        mkGroup xs = (fst (head xs), nubOrdOn IOFormat.inputs $ snd (unzip xs))
-        examples = zip sols diffExamples
+        mkGroup xs = (fst (head xs), nubOrdOn IOFormat.inputs $ map snd xs)
+
 
 descToExample :: FunctionCrashDesc -> [Example]
 descToExample (AlwaysSucceed ex) = [ex]
@@ -138,13 +139,15 @@ descToExample (AlwaysFail ex) = [ex]
 descToExample (PartialFunction exs) = exs
 descToExample _ = []
 
-printSolutionState solution (FilterState _ sols samples diffExamples) = unlines [ios, diffs]
+
+-- printSolutionState solution fs = unlines ["****************", solution, show fs, "***********"]
+printSolutionState solution (FilterState _ sols workingExamples diffExamples) = unlines [ios, diffs]
     where
-        ios = let [(_, desc)] = filter ((== solution) . fst) samples in show desc
-        diffs = unlines $ zipWith showDifferentiations sols diffExamples
+        ios = let [(_, desc)] = filter ((== solution) . fst) workingExamples in show desc
+        diffs = let examples = groupBy ((==) `on` fst) (sortOn fst diffExamples) in unlines (map showGroup examples)
         
-        showDifferentiations :: String -> Example -> String
-        showDifferentiations sol (Example args out) = printf "(%s) %s ==> %s" sol (unwords args) out :: String
+        showGroup :: [(String, Example)] -> String
+        showGroup xs = unlines ((fst $ head xs) : (map (show . snd) xs))
 
 extractSolution :: Environment -> RType -> UProgram -> ([String], String, String, [(Id, RSchema)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)

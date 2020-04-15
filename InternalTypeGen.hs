@@ -54,30 +54,30 @@ data Example = Example {
     inputs :: [String],
     output :: String
 } deriving(Eq, Show)
-type IOPairState m = StateT [Example] m
+type ExampleGeneration m = StateT [Example] m
 
-type IOExample = String
-type ExampleGeneration m = StateT [IOExample] m
-
-evaluateIO :: Data a => Int -> [String] -> [a] -> IOPairState IO ([CB.Result String])
+evaluateIO :: Data a => Int -> [String] -> [a] -> ExampleGeneration IO ([CB.Result String])
 evaluateIO timeInMicro inputs vals = do
     results <- liftIO $ silence $ mapM (CB.timeOutMicro timeInMicro . eval) vals
     
     let resultsStr = map showCBResult results
-    put $ map (Example inputs) resultsStr 
+    modify ((++) (map (Example inputs) resultsStr))
     return results
   where
     evalStr val = CB.approxShow defaultMaxOutputLength val
     io str = ((putStrLn str) >> return str)
 
     eval val = io (evalStr val)
-
+ 
 waitState :: Int -> [String] -> CB.Result String -> ExampleGeneration IO Bool
 waitState numIOs args ret = case (not $ isFailedResult ret) of
   False -> pure False
   _ -> do
-    ioStates <- get
-    modify ((++) [printf "%s ==> %s" (unwords args) (showCBResult ret)])
+    ioState <- get
+
+    let retStr = showCBResult ret
+    when (isNotInState retStr ioState) (modify ((:) (Example args retStr)))
 
     state <- get
     return ((length state) == numIOs)
+  where isNotInState ret state = not $ ret `elem` (map output state)
