@@ -43,7 +43,6 @@ import Data.Maybe
 import Data.List
 import Text.Printf
 import Debug.Trace
-import GHC (exprType, TcRnExprMode(..), typeToLHsType)
 
 checkExample :: Environment -> RSchema -> Example -> Chan Message -> IO (Either RSchema ErrorMessage)
 checkExample env typ ex checkerChan = do
@@ -81,7 +80,6 @@ checkExamples env typ exs checkerChan = do
     let (validResults, errs) = partitionEithers outExs
     if null errs then return $ Left validResults
                  else return $ Right errs
-
 
 execExample :: [String] -> Environment -> TypeQuery -> String -> Example -> IO (Either ErrorMessage String)
 execExample mdls env typ prog ex = do

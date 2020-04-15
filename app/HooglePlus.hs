@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable, StandaloneDeriving, NamedFieldPuns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Main (main) where
 
@@ -30,6 +31,7 @@ import HooglePlus.IOFormat
 import Examples.ExampleChecker
 import Types.Filtering
 
+import Control.Exception
 import Control.Monad
 import Control.Lens ((^.))
 import System.Exit
@@ -239,7 +241,7 @@ precomputeGraph opts = generateEnv opts >>= writeEnv (Types.Generate.envPath opt
 
 -- | Parse and resolve file, then synthesize the specified goals
 executeSearch :: SynquidParams -> SearchParams -> String -> IO ()
-executeSearch synquidParams searchParams inStr = do
+executeSearch synquidParams searchParams inStr = catch (do
   let input = decodeInput (LB.pack inStr)
   let tquery = query input
   let exquery = inExamples input
@@ -249,7 +251,8 @@ executeSearch synquidParams searchParams inStr = do
   solverChan <- newChan
   checkerChan <- newChan
   forkIO $ synthesize searchParams goal exquery solverChan
-  readChan solverChan >>= (handleMessages solverChan)
+  readChan solverChan >>= (handleMessages solverChan))
+  (\(e :: SomeException) -> printResult $ encodeWithPrefix $ QueryOutput [] (show e) [])
   where
     logLevel = searchParams ^. explorerLogLevel
 
