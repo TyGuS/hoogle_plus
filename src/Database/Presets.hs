@@ -26,7 +26,6 @@ myModules = [
   -- base
   "Data.Bool",
   "Data.Maybe",
-  "Text.Show",
   "GHC.Char",
   "GHC.List",
   "Data.Eq",

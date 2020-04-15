@@ -82,14 +82,16 @@ defaultFun = [Pos (initialPos "Fun") $ DataDecl "Fun" ["a", "b"] [] []]
 -- Eq, Ord, Show, Read, Enum, Bounded, Num, Real, Floating,
 -- Integral, RealFloat, Fractional, RealFrac
 defaultTypeclassInstances =
-    [ mkInstance "Show" intType
+    [ {-
+      mkInstance "Show" intType
     , mkInstance "Show" boolType
     , mkInstance "Show" charType
     , mkInstance "Show" intType
     , mkInstance "Show" floatType
     , mkInstance "Show" doubleType
     , mkInstance "Show" unitType
-    , mkInstance "Eq" intType
+    , -}
+      mkInstance "Eq" intType
     , mkInstance "Eq" boolType
     , mkInstance "Eq" charType
     , mkInstance "Eq" intType
