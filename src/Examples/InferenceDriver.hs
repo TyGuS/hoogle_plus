@@ -40,11 +40,14 @@ import TcRnDriver
 import Outputable
 import Text.Printf
 
+-- pre: the mkFun is a tuple of arguments and return types
 parseExample :: [String] -> String -> IO (Either RSchema ErrorMessage)
 parseExample mdls mkFun = catch (do
     typ <- askGhc mdls $ exprType TM_Default mkFun
     let hsType = typeToLHsType typ
-    return (Left $ toInt $ resolveType hsType))
+    let hpType = toInt $ resolveType hsType
+    print hpType
+    return (Left hpType))
     (\(e :: SomeException) -> return (Right $ show e))
     where
         toInt (ForallT x t) = ForallT x (toInt t)
@@ -78,7 +81,13 @@ resolveType (L _ (HsForAllTy bs t)) = foldr ForallT (resolveType t) vs
         vs = map vname bs
         vname (L _ (UserTyVar (L _ id))) = showSDocUnsafe (ppr id)
         vname (L _ (KindedTyVar (L _ id) _)) = showSDocUnsafe (ppr id)
-resolveType (L _ (HsFunTy f _)) = Monotype (resolveType' f)
+resolveType t@(L _ (HsAppTy fun arg)) = 
+    let typs = tail $ map resolveType' $ breakApp t
+        (args, [res]) = splitAt (length typs - 1) typs
+     in Monotype $ foldr (FunctionT "") res args
+    where
+        breakApp (L _ (HsAppTy fun arg)) = breakApp fun ++ [arg]
+        breakApp t = [t]
 resolveType (L _ (HsQualTy ctx body)) = Monotype bodyWithTcArgs
     where
         unlocatedCtx = let L _ c = ctx in c
@@ -88,8 +97,8 @@ resolveType (L _ (HsQualTy ctx body)) = Monotype bodyWithTcArgs
             ScalarT (DatatypeT (tyclassPrefix ++ name) args rs) r
         prefixTyclass tc = error $ "Unsupported type class " ++ show tc
 
-        bodyWithTcArgs = foldr (FunctionT "") (resolveType' body) tyConstraints
-resolveType t = error (showSDocUnsafe $ ppr t)
+        bodyWithTcArgs = foldr (FunctionT "") (toMonotype $ resolveType body) tyConstraints
+resolveType t = Monotype $ resolveType' t
 
 resolveType' :: LHsType GhcPs -> RType
 resolveType' (L _ (HsFunTy f r)) = FunctionT "" (resolveType' f) (resolveType' r)
@@ -148,6 +157,28 @@ newAntiVariable t1 t2 mbCons = do
         )
     return $ vart_ v
 
+findWithDefaultAntiVariable :: SType -> SType -> AntiUnifier IO SType
+findWithDefaultAntiVariable t1 t2 = do
+    tass1 <- gets $ view typeAssignment1
+    tass2 <- gets $ view typeAssignment2
+    vs1 <- liftIO $ unifiableVars tass1 t1
+    vs2 <- liftIO $ unifiableVars tass2 t2
+    let overlap = vs1 `intersect` vs2
+    if not (null overlap)
+       then if length overlap > 1 then error "antiUnficiation fails"
+                                else return $ vart_ (head overlap)
+       else checkTyclass t1 t2 
+    where
+        unifiableVars tass t = do
+            messageChan <- newChan
+            results <- filterM (\(k, vs) -> do
+                let vars = Set.toList $ typeVarsOf k `Set.union` typeVarsOf t
+                let boundVars = filter (not . (==) univTypeVarPrefix . head) vars
+                let env = emptyEnv { _boundTypeVars = boundVars }
+                (isChecked, _) <- checkTypes env messageChan (mkPolyType $ addTrue t) (mkPolyType $ addTrue k)
+                return isChecked) (Map.toList tass)
+            return $ concat $ snd $ unzip results
+
 antiUnification' :: SType -> SType -> AntiUnifier IO SType
 antiUnification' AnyT t = return t
 antiUnification' t AnyT = return t
@@ -167,31 +198,11 @@ antiUnification' t1@(ScalarT (DatatypeT dt1 args1 _) _) t2@(ScalarT (DatatypeT d
   | dt1 == dt2 = do
       args' <- mapM (uncurry antiUnification') (zip args1 args2)
       return $ ScalarT (DatatypeT dt1 args' []) ()
-  | dt1 /= dt2 = do
-      tass1 <- gets $ view typeAssignment1
-      tass2 <- gets $ view typeAssignment2
-      vs1 <- liftIO $ unifiableVars tass1 t1
-      vs2 <- liftIO $ unifiableVars tass2 t2
-      let overlap = vs1 `intersect` vs2
-      if not (null overlap)
-         then if length overlap > 1 then error "antiUnficiation fails"
-                                    else return $ vart_ (head overlap)
-         else checkTyclass t1 t2 
-    where
-        unifiableVars tass t = do
-            messageChan <- newChan
-            results <- filterM (\(k, vs) -> do
-                let vars = Set.toList $ typeVarsOf k `Set.union` typeVarsOf t
-                let boundVars = filter (not . (==) univTypeVarPrefix . head) vars
-                let env = emptyEnv { _boundTypeVars = boundVars }
-                (isChecked, _) <- checkTypes env messageChan (mkPolyType $ addTrue t) (mkPolyType $ addTrue k)
-                return isChecked) (Map.toList tass)
-            return $ concat $ snd $ unzip results
 antiUnification' (FunctionT x1 tArg1 tRes1) (FunctionT x2 tArg2 tRes2) = do
     tArg <- antiUnification' tArg1 tArg2
     tRes <- antiUnification' tRes1 tRes2
     return $ FunctionT x1 tArg tRes
-antiUnification' t1 t2 = error $ "unhandled " ++ show (t1, t2)
+antiUnification' t1 t2 = findWithDefaultAntiVariable t1 t2
 
 generalizeType :: TyclassAssignment -> SType -> StateT TypeClassState IO [String]
 generalizeType tcass t = do
@@ -203,10 +214,12 @@ generalizeType tcass t = do
         let (freeVars, vars) = partition ((==) univTypeVarPrefix . head) $ Set.toList $ typeVarsOf gt
         -- simplify computation here
         let mkSubst t = Map.fromList $ map (,t) freeVars
-        if null vars then return (ass, gt) else msum $ map (\v -> do
-            let t = stypeSubstitute (mkSubst (vart_ v)) gt
-            guard (isInhabited ass t)
-            return $ (ass, t)) vars
+        if null vars && null freeVars
+           then return (ass, gt)
+           else msum $ map (\v -> do
+                let t = stypeSubstitute (mkSubst (vart_ v)) gt
+                guard (isInhabited ass t)
+                return $ (ass, t)) vars
         )
     return $ map addTyclasses $
              sortOn (uncurry $ scoreSignature t) $
@@ -256,6 +269,7 @@ generalizeSType _ t = error $ "unsupported type " ++ show t
 datatypeToVar :: TyclassAssignment -> SType -> TypeGeneralizer IO (TyclassAssignment, SType)
 datatypeToVar tcass t = do
     -- generalize the data type into a fresh type variable
+    -- or reuse previous variables if tyclass checks
     tccache <- lift $ lift $ gets $ view tyclassCache
     typeCounting <- gets $ view substCounter
     prevVars <- gets $ view prevTypeVars
@@ -269,8 +283,9 @@ datatypeToVar tcass t = do
                                         in if Map.null typeCounting then ("a", 0)
                                                                     else ([chr (currMaxOrd + 1)], 0)
     -- choose between incr the index or not
+    msum (map (return . (Map.empty,) . vart_) $ Set.toList prevVars) `mplus`
     -- if reusing some previous var, do not backtrack over type classes
-    msum (map (\idx -> return (Map.empty, vart_ (v ++ show idx))) [1..startIdx]) `mplus`
+      msum (map (\idx -> return (Map.empty, vart_ (v ++ show idx))) [1..startIdx]) `mplus`
         -- if start a new index
         (msum $ map (\tcs -> do
             -- "Ord" implies "Eq"
@@ -336,6 +351,7 @@ mkTyclassQuery :: TyclassAssignment -> SType -> String -> StateT TypeClassState 
 mkTyclassQuery tcass typ tyclass = do
     mdls <- gets $ view supportModules
     let vars = Set.toList $ typeVarsOf typ
+    -- this is unuseful now, consider removing it
     let varTcs = concatMap (\v -> case Map.lookup v tcass of
                                     Just tc -> map (v,) $ Set.toList tc
                                     Nothing -> []) vars

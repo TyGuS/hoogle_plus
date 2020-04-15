@@ -56,14 +56,15 @@ checkExample env typ ex checkerChan = do
         (res, substedTyp) <- checkTypes env checkerChan exTyp typ
         let (tyclasses, strippedTyp) = unprefixTc substedTyp
         let tyclassesPrenex = intercalate ", " $ map show tyclasses
-        let mkTyclass = printf "(%s) :: (%s) => (%s) -> ()" mkFun tyclassesPrenex (show strippedTyp)
+        let breakTypes = map show $ breakdown strippedTyp
+        let mkTyclass = printf "%s :: (%s) => (%s)" mkFun tyclassesPrenex (intercalate ", " breakTypes)
         eitherTyclass <- if null tyclasses then return (Left (Monotype AnyT)) else parseExample mdls mkTyclass
         if res then if isLeft eitherTyclass then return $ Left exTyp
                                             else return $ Right tcErr
                else return $ Right err
       Right e -> return $ Right e
     where
-        mkFun = printf "\\f -> case f %s of %s -> ()" (unwords $ map wrapParens $ inputs ex) (output ex)
+        mkFun = printf "(%s)" (intercalate ", " $ inputs ex ++ [output ex])
 
         unprefixTc (FunctionT x tArg tRes) =
             case tArg of
