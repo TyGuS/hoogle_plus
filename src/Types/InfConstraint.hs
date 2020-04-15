@@ -41,6 +41,23 @@ data AntiUnifState = AntiUnifState {
 
 makeLenses ''AntiUnifState
 
+emptyAntiUnifState = AntiUnifState {
+    _generalNames = Map.empty,
+    _typeAssignment1 = Map.empty,
+    _typeAssignment2 = Map.empty,
+    _tyclassAssignment = Map.empty
+}
+
+data TypeNaming = TypeNaming {
+    _substCounter :: Map SType (Id, Int),
+    _prevTypeVars :: Set Id
+} deriving(Eq)
+
+makeLenses ''TypeNaming
+
+type AntiUnifier m = StateT AntiUnifState (StateT TypeClassState m)
+type TypeGeneralizer m = StateT TypeNaming (LogicT (StateT TypeClassState m))
+
 instance Monad m => CheckMonad (AntiUnifier m) where
     getNameCounter = gets (view generalNames)
     setNameCounter nc = modify (set generalNames nc)
@@ -50,16 +67,5 @@ instance Monad m => CheckMonad (AntiUnifier m) where
     setIsChecked = setIsChecked
     getMessageChan = getMessageChan
     overStats = overStats
-
-emptyAntiUnifState = AntiUnifState {
-    _generalNames = Map.empty,
-    _typeAssignment1 = Map.empty,
-    _typeAssignment2 = Map.empty,
-    _tyclassAssignment = Map.empty
-}
-
-type TypeNaming = Map SType (Id, Int)
-type AntiUnifier m = StateT AntiUnifState (StateT TypeClassState m)
-type TypeGeneralizer m = StateT TypeNaming (LogicT (StateT TypeClassState m))
 
 univTypeVarPrefix = '?'

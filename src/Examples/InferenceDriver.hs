@@ -26,7 +26,7 @@ import Control.Monad.Logic
 import Control.Lens
 import Data.Char
 import Data.List
-import Data.List.Extra (groupOn)
+import Data.List.Extra (groupOn, nubOrdBy)
 import Data.Either
 import Data.Maybe
 import Data.Map (Map)
@@ -58,7 +58,8 @@ getExampleTypes env validSchemas = do
         (mbFreeVar, st) <- if not (null validTypes) 
                 then foldM stepAntiUnification (head validTypes, emptyAntiUnifState) (tail validTypes)
                 else error "get example types error"
-        let t = defaultTypeVar mbFreeVar
+        -- let t = defaultTypeVar mbFreeVar
+        let t = mbFreeVar
         let tvars = typeVarsOf t
         let tcass = st ^. tyclassAssignment
         generalizeType tcass t
@@ -137,7 +138,7 @@ antiUnification t1 t2 st = runStateT (antiUnification' t1 t2) st
 
 newAntiVariable :: SType -> SType -> Maybe TyclassConstraints -> AntiUnifier IO SType
 newAntiVariable t1 t2 mbCons = do
-    v <- freshId "a"
+    v <- freshId "t"
     modify $ over typeAssignment1 (Map.insertWith (++) t1 [v])
     modify $ over typeAssignment2 (Map.insertWith (++) t2 [v])
     when (isJust mbCons) (
@@ -184,11 +185,18 @@ generalizeType tcass t = do
     liftIO $ print t
     liftIO $ print tcass
     typs <- observeAllT (do
-        (ass, gt) <- evalStateT (generalizeSType tcass t) Map.empty
-        guard (notOnlyPositive gt)
-        return (ass, gt)
+        (ass, gt) <- evalStateT (generalizeSType tcass t) (TypeNaming Map.empty Set.empty)
+        let (freeVars, vars) = partition ((==) univTypeVarPrefix . head) $ Set.toList $ typeVarsOf gt
+        -- simplify computation here
+        let mkSubst t = Map.fromList $ map (,t) freeVars
+        if null vars then return (ass, gt) else msum $ map (\v -> do
+            let t = stypeSubstitute (mkSubst (vart_ v)) gt
+            guard (isInhabited ass t)
+            return $ (ass, t)) vars
         )
-    return $ map addTyclasses typs
+    return $ map addTyclasses $
+             sortOn (uncurry $ scoreSignature t) $
+             nubOrdBy dedupArgs typs
     where
         toConstraint (id, s) = intercalate ", " $ map (unwords . (:[id])) (Set.toList s)
         addTyclasses (constraints, t) = 
@@ -200,11 +208,23 @@ generalizeType tcass t = do
                                   else printf "(%s) => %s" tyclasses (show t)
 
 generalizeSType :: TyclassAssignment -> SType -> TypeGeneralizer IO (TyclassAssignment, SType)
-generalizeSType tcass t@(ScalarT (TypeVarT _ id) _) = do
-    -- either add type class or not
+generalizeSType tcass t@(ScalarT (TypeVarT _ id) _) = (do
+    -- either add type class or not 
     let tc = maybe [] Set.toList (Map.lookup id tcass)
     let mkResult tcs = guard (checkImplies tcs) >> return (Map.singleton id (Set.fromList tcs), t)
-    msum $ map mkResult (subsequences tc)
+    prevVars <- gets $ view prevTypeVars
+    if id `Set.member` prevVars
+       then return (Map.empty, t)
+       else do
+            modify $ over prevTypeVars (Set.insert id)
+            msum $ map mkResult (subsequences tc)
+    ) `mplus` (do
+        -- or replace the variable with previous names
+        -- type classes constraints lost
+        prevVars <- gets $ view prevTypeVars
+        let prevVars' = Set.delete id prevVars
+        msum $ map (return . (Map.empty,) . vart_) (Set.toList prevVars')
+        )
 generalizeSType tcass t@(FunctionT x tArg tRes) = do
     (argTyclass, tArg') <- generalizeSType tcass tArg
     (resTyclass, tRes') <- generalizeSType tcass tRes
@@ -215,20 +235,23 @@ generalizeSType tcass t@(ScalarT (DatatypeT name args _) _) = (do
     let (tyclassMaps, args') = unzip generalizedArgs
     let argTyclasses = foldr (Map.foldrWithKey (Map.insertWith Set.union)) Map.empty tyclassMaps
     return (argTyclasses, ScalarT (DatatypeT name args' []) ())
-    ) `mplus` if null args then datatypeToVar tcass t else mzero
+    ) `mplus`
+    if (null args) || (show t == "[Char]") then datatypeToVar tcass t else mzero
 generalizeSType _ t = error $ "unsupported type " ++ show t
 
 datatypeToVar :: TyclassAssignment -> SType -> TypeGeneralizer IO (TyclassAssignment, SType)
 datatypeToVar tcass t = do
     -- generalize the data type into a fresh type variable
     tccache <- lift $ lift $ gets $ view tyclassCache
-    typeCounting <- get
+    typeCounting <- gets $ view substCounter
+    prevVars <- gets $ view prevTypeVars
     dtclasses <- case Map.lookup t tccache of
                     Just tc -> return tc
                     Nothing -> lift . lift $ Set.toList <$> getDtTyclasses tcass t
     let (v, startIdx) = case Map.lookup t typeCounting of
                             Just (v, i) -> (v, i)
-                            Nothing -> let currMaxOrd = maximum (map (ord . head . fst) (Map.elems typeCounting))
+                            Nothing -> let vars = Set.toList prevVars ++ map fst (Map.elems typeCounting)
+                                           currMaxOrd = maximum (map (ord . head) vars)
                                         in if Map.null typeCounting then ("a", 0)
                                                                     else ([chr (currMaxOrd + 1)], 0)
     -- choose between incr the index or not
@@ -239,7 +262,7 @@ datatypeToVar tcass t = do
             -- "Ord" implies "Eq"
             guard (checkImplies tcs)
             -- this should be reverted if we backtrack
-            modify $ Map.insert t (v, startIdx + 1)
+            modify $ over substCounter $ Map.insert t (v, startIdx + 1)
             let varName = v ++ show (startIdx + 1)
             return (Map.singleton varName (Set.fromList tcs), vart_ varName)
             ) (subsequences dtclasses))
@@ -310,16 +333,16 @@ mkTyclassQuery tcass typ tyclass = do
         catch (askGhc mdls (exprType TM_Default query) >> return (Just tyclass))
               (\(e :: SomeException) -> liftIO (print e) >> return Nothing)
 
-defaultTypeVar :: SType -> SType
-defaultTypeVar (ScalarT (TypeVarT _ v) _) | univTypeVarPrefix == head v = ScalarT (DatatypeT "Int" [] []) ()
-defaultTypeVar (ScalarT (DatatypeT name args _) _) = 
-    let args' = map defaultTypeVar args
+defaultTypeVar :: SType -> SType -> SType
+defaultTypeVar to (ScalarT (TypeVarT _ v) _) | univTypeVarPrefix == head v = to
+defaultTypeVar to (ScalarT (DatatypeT name args _) _) = 
+    let args' = map (defaultTypeVar to) args
      in ScalarT (DatatypeT name args' []) ()
-defaultTypeVar (FunctionT x tArg tRes) =
-    let tArg' = defaultTypeVar tArg
-        tRes' = defaultTypeVar tRes
+defaultTypeVar to (FunctionT x tArg tRes) =
+    let tArg' = defaultTypeVar to tArg
+        tRes' = defaultTypeVar to tRes
      in FunctionT x tArg' tRes'
-defaultTypeVar t = t
+defaultTypeVar _ t = t
 
 -- partition all the type variables in the given type
 -- into negative set and positive set
@@ -342,5 +365,64 @@ notOnlyPositive :: SType -> Bool
 notOnlyPositive t = let (neg, pos) = typeVarPolarity False t
                      in Set.null (pos `Set.difference` neg)
 
+isInhabited :: TyclassAssignment -> SType -> Bool
+isInhabited tyclass t = 
+    let tcArgs = concatMap tyclassesToArgs $ Map.toList tyclass
+        args = snd $ unzip $ argsWithName t
+        res = lastType t
+     in isReachable args res && all (isRelevant (tcArgs ++ args) res) args
+    where
+        tyclassToArg v tc 
+            | tc == "Eq" || tc == "Ord" = FunctionT "" (vart_ v) (FunctionT "" (vart_ v) (ScalarT (DatatypeT "Bool" [] []) ()))
+            | tc == "Num" = FunctionT "" (vart_ v) (FunctionT "" (vart_ v) (vart_ v))
+        tyclassesToArgs (v, tcs) = map (uncurry tyclassToArg . (v,)) $ Set.toList tcs
+
+isReachable :: [SType] -> SType -> Bool
+isReachable args res = typeVarsOf res `Set.isSubsetOf` Set.unions (map typeVarsOf args)
+
+isRelevant :: [SType] -> SType -> SType -> Bool
+isRelevant args res (ScalarT (TypeVarT _ id) _) = (id `Set.member` (typeVarsOf res)) || usedInHigherOrder
+    where
+        hoArgs = filter isFunctionType args ++ concatMap hoArgsOf args
+        usedInHigherOrder = any relevantToHigherOrder hoArgs
+        relevantToHigherOrder hoArg = let argsOfHoArg = snd $ unzip $ argsWithName hoArg
+                                          tvInArgs = Set.unions $ map typeVarsOf argsOfHoArg
+                                       in (id `Set.member` tvInArgs) && isRelevant args res hoArg
+isRelevant args res t@(FunctionT {}) = 
+    let argsOfHoArg = snd $ unzip $ argsWithName t
+        resOfHoArg = lastType t
+        containedArgs = containsType t args
+        remainingArgs = args \\ containedArgs
+        argsReachable = all (isReachable remainingArgs) argsOfHoArg
+        resRelevant = isRelevant (resOfHoArg : remainingArgs) res resOfHoArg
+     in argsReachable && resRelevant
+isRelevant _ _ _ = True
+
 checkImplies :: [Id] -> Bool
 checkImplies tcs = if "Ord" `elem` tcs then "Eq" `notElem` tcs else True
+
+dedupArgs :: (TyclassAssignment, SType) -> (TyclassAssignment, SType) -> Ordering
+dedupArgs (tc1, t1) (tc2, t2) = let args1 = snd $ unzip $ argsWithName t1
+                                    args2 = snd $ unzip $ argsWithName t2
+                                    ret1 = lastType t1
+                                    ret2 = lastType t2
+                                 in compare (sort args1, ret1, tc1) (sort args2, ret2, tc2)
+
+reverseSubstitution :: SType -> SType -> Map SType (Set SType) -> Map SType (Set SType)
+reverseSubstitution t1@(ScalarT (TypeVarT {}) _) t2 tass = Map.insertWith Set.union t1 (Set.singleton t2) tass
+reverseSubstitution t1 t2@(ScalarT (TypeVarT {}) _) tass = Map.insertWith Set.union t1 (Set.singleton t2) tass
+reverseSubstitution t1@(ScalarT (DatatypeT name1 args1 _) _) t2@(ScalarT (DatatypeT name2 args2 _) _) tass
+  | null args1 && null args2 = Map.insertWith Set.union t1 (Set.singleton t2) tass
+  | name1 == name2 = foldr (uncurry reverseSubstitution) tass (zip args1 args2)
+  | name1 /= name2 = error "datatype was lost during generalization"
+reverseSubstitution (FunctionT _ tArg1 tRes1) (FunctionT _ tArg2 tRes2) tass =
+    let tass' = reverseSubstitution tArg1 tArg2 tass
+     in reverseSubstitution tRes1 tRes2 tass'
+
+scoreSignature :: SType -> TyclassAssignment -> SType -> Double
+scoreSignature auType tyclass t = 
+    let subst = reverseSubstitution t auType Map.empty
+        tcCount = 0.5 * fromIntegral (Map.foldr ((+) . Set.size) 0 tyclass)
+        varsCount = Set.size $ typeVarsOf t
+     in fromIntegral (Map.foldr ((+) . Set.size) 0 subst) +
+         tcCount - 0.1 * fromIntegral varsCount
