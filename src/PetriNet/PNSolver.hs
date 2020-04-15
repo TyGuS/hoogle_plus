@@ -609,7 +609,7 @@ parseAndCheck env dst code = do
     counter <- gets $ view (typeChecker . nameCounter)
     writeLog 1 "parseAndCheck" $ text "Find program second" <+> pretty (recoverNames mapping prog)
     checkerState <- gets $ view typeChecker
-    let checkerState' = checkerState { _isChecked = True }
+    let checkerState' = checkerState { _typeAssignment = Map.empty, _isChecked = True }
     (btm, checkerState) <- runStateT (bottomUpCheck env prog) checkerState'
     modify $ set typeChecker checkerState
     writeLog 2 "parseAndCheck" $ text "bottom up checking get program" <+> pretty (recoverNames mapping btm)

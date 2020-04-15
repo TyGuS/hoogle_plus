@@ -11,7 +11,7 @@ import { v4 } from 'uuid';
 const mapStateToProps = (state) => {
   return {
     numArgs: state.spec.numArgs,
-    rows: exampleToNamedArgs(state.spec.rows),
+    exampleRows: state.spec.rows,
     editingRowId: state.spec.editingExampleRow,
   }
 };
@@ -26,9 +26,10 @@ const mapDispatchToProps = (dispatch) => {
 };
 
 const ExampleTableBase = ({
-  numArgs, rows, editingRowId,
+  numArgs, exampleRows, editingRowId,
   setFacts, setEditingRowId, increaseArgs, decreaseArgs}) => {
 
+    const rows = exampleToNamedArgs(exampleRows);
     const argNames = getArgNames(numArgs);
     const colNames = [...argNames, "output"];
     const columns = colNames.map(name => {return {name: name, title: name}});
@@ -78,6 +79,10 @@ const ExampleTableBase = ({
       setFacts(changedRows);
     };
 
+    const hasNewExample =  _.any(exampleRows, ({inputs, output}) => {
+      return _.all([output, ...inputs], x => (_.isNull(x) || _.isUndefined(x)));
+    });
+
     return (
       <div className="container">
         <div className="row">
@@ -117,7 +122,11 @@ const ExampleTableBase = ({
                 +
               </Button>
             </ButtonGroup>
-            <Button className="mt-1" onClick={() => createNewExample()}>
+            <Button
+              className="mt-1"
+              onClick={() => createNewExample()}
+              disabled={hasNewExample}
+            >
               Add Example
             </Button>
           </div>

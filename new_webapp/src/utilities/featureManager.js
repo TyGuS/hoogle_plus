@@ -17,3 +17,6 @@ const features = {
 export const getDefaultFeatures = () => {
     return features;
 }
+
+export const defaultExamplesShown = 3;
+export const defaultExamplesShownIncrement = 2;

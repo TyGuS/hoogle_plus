@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import _ from "underscore";
 import { EditingState } from '@devexpress/dx-react-grid';
 import {
   Grid,
@@ -42,11 +43,11 @@ const mapDispatchToProps = (dispatch) => {
 };
 
 const UsageTableBase = ({
-  candidateId, code,
+  candidateId, code, examplesShown,
   numColumns, rows:stateRows,
   keepUsage, updateUsage, addCandidateUsage}) => {
 
-    const internalRows = generateRows(stateRows);
+    const internalRows = generateRows(_.take(stateRows, examplesShown));
     const argNames = getArgNames(numColumns - 1);
 
     let cols = [];

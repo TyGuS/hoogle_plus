@@ -1,7 +1,8 @@
 import _ from "underscore";
 import React, {Component } from "react";
 import {connect} from "react-redux";
-import {setSearchType, getTypesFromExamples, doSearch, setExamples, doStop} from "../actions/index";
+import OutsideClickHandler from "react-outside-click-handler";
+import {setSearchType, getTypesFromExamples, doSearch, setExamples, doStop, setExampleEditingRow} from "../actions/index";
 import ExampleTable from "./ExampleTable";
 import { TypeSelection } from "./TypeSelection";
 import { Button, InputGroup, FormControl, Form, Tooltip, Overlay, OverlayTrigger, Alert } from "react-bootstrap";
@@ -15,6 +16,7 @@ const mapDispatchToProps = (dispatch) => {
         doSearch: ({query, examples}) => dispatch(doSearch({query, examples})),
         getTypesFromExamples: usages => dispatch(getTypesFromExamples(usages)),
         clearExamples: _ => dispatch(setExamples([])),
+        unfocusEditingRow: _ => dispatch(setExampleEditingRow(undefined)),
         doStop: ({id}) => dispatch(doStop({id})),
     }
 }
@@ -31,8 +33,8 @@ const mapStateToProps = (state) => {
 };
 
 const connectedSearchBar = (props) => {
-    const {searchType, exampleRows, searchStatus, errorMessage, isEditing, queryId} = props;
-    const {setSearchType, doSearch, getTypesFromExamples, clearExamples, doStop} = props;
+    const { searchType, exampleRows, searchStatus, errorMessage, isEditing, queryId } = props;
+    const { setSearchType, doSearch, getTypesFromExamples, clearExamples, doStop, unfocusEditingRow } = props;
     const {search} = getDefaultFeatures();
 
     const filteredUsages = _.filter(exampleRows, row => !_.any(row.inputs, _.isUndefined) && !_.isUndefined(row.output));
@@ -120,7 +122,10 @@ const connectedSearchBar = (props) => {
                         <div>
                             Example Specifications:
                         </div>
-                        <ExampleTable/>
+                        <OutsideClickHandler
+                            onOutsideClick={() => isEditing ? unfocusEditingRow() : undefined}>
+                            <ExampleTable/>
+                        </OutsideClickHandler>
                     </div>
                 </div>
 
