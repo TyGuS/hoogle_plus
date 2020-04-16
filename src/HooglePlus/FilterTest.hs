@@ -301,9 +301,9 @@ toParamListDecl args =
 
 -- ******** Example Generator ********
 
-generateIOPairs :: [String] -> String -> FunctionSignature -> Int -> Int -> Depth -> IO (Either InterpreterError GeneratorResult) 
-generateIOPairs modules solution funcSig numPairs timeInMicro depth = 
-  runInterpreter' defaultInterpreterTimeoutMicro $ do
+generateIOPairs :: [String] -> String -> FunctionSignature -> Int -> Int -> Int -> Depth -> IO (Either InterpreterError GeneratorResult) 
+generateIOPairs modules solution funcSig numPairs timeInMicro interpreterTimeInMicro depth = 
+  runInterpreter' interpreterTimeInMicro $ do
     setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
     interpret property (as :: IO GeneratorResult) >>= liftIO
 
