@@ -326,3 +326,11 @@ permuteArgs ords (Monotype t) = let args = argsWithName t
 withSchema :: (TypeSkeleton r -> TypeSkeleton r) -> SchemaSkeleton r -> SchemaSkeleton r
 withSchema f (ForallT x t) = ForallT x (withSchema f t)
 withSchema f (Monotype t) = Monotype (f t)
+
+hoArgsOf :: TypeSkeleton r -> [TypeSkeleton r]
+hoArgsOf (ScalarT (DatatypeT _ args _) _) = filter isFunctionType args ++ concatMap hoArgsOf args
+hoArgsOf (FunctionT _ tArg tRes) = (if isFunctionType tArg then [tArg] else hoArgsOf tArg) ++ hoArgsOf tRes
+hoArgsOf _ = []
+
+containsType :: Eq r => TypeSkeleton r -> [TypeSkeleton r] -> [TypeSkeleton r]
+containsType t = filter (\tt -> tt == t || t `elem` hoArgsOf tt)

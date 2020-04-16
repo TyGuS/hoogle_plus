@@ -20,6 +20,8 @@ import Synquid.Parser (parseType, parseProgram)
 import Synquid.Resolver (ResolverState(..), initResolverState, resolveSchema)
 import Synquid.Type
 import Examples.ExampleChecker
+import Examples.InferenceDriver
+import Examples.Utils
 
 import Control.Concurrent.Chan
 import Control.Monad
@@ -104,7 +106,7 @@ searchTypes synquidParams inStr = do
     let exquery = inExamples input
     env <- readEnv $ envPath synquidParams
     let mdls = Set.toList $ env ^. included_modules
-    let mkFun ex = printf "\\f -> f %s == %s" (unwords $ map wrapParens $ inputs ex) (output ex)
+    let mkFun ex = printf "(%s)" (intercalate ", " $ inputs ex ++ [output ex])
     exTypes <- mapM (parseExample mdls . mkFun) exquery
     let (validSchemas, invalidTypes) = partitionEithers exTypes
     resultObj <- if null invalidTypes then possibleQueries env exquery validSchemas
@@ -119,21 +121,9 @@ searchTypes synquidParams inStr = do
              in stypeSubstitute substMap t
 
         possibleQueries env exquery exTypes = do
-            env' <- readBuiltinData synquidParams env
-            let builtinQueryTypes = Map.keys (env' ^. queryCandidates)
-            let argLen t = length (argsWithName $ toMonotype t)
-            let permute t = map (\o -> permuteArgs o t) (permutations [1..argLen t])
-            let permutedQueryTypes = concatMap permute builtinQueryTypes
-            messageChan <- newChan
-            outExamples <- mapM (\t -> checkExamples env' t exquery messageChan) permutedQueryTypes
-            let validPairs = filter (isLeft . fst) (zip outExamples permutedQueryTypes)
-            let resultTypes = map snd validPairs
-            let matchTypes = map (shape . toMonotype) resultTypes
             generalTypes <- getExampleTypes env exTypes
-            let resultTypes' = nubBy eqType $ generalTypes ++ matchTypes
-            let renamedResults = map renameVars resultTypes'
-            if null resultTypes' then return $ ListOutput [] "Cannot find type for your query"
-                                 else return $ ListOutput (map show renamedResults) ""
+            if null generalTypes then return $ ListOutput [] "Cannot find type for your query"
+                                 else return $ ListOutput generalTypes ""
 
 prepareEnvFromInput :: SynquidParams -> String -> IO (TypeQuery, [String], String, Environment)
 prepareEnvFromInput synquidParams inStr = do
