@@ -301,8 +301,8 @@ toParamListDecl args =
 
 -- ******** Example Generator ********
 
-generateIOPairs :: [String] -> String -> FunctionSignature -> Int -> Int -> Int -> Depth -> IO (Either InterpreterError GeneratorResult) 
-generateIOPairs modules solution funcSig numPairs timeInMicro interpreterTimeInMicro depth = 
+generateIOPairs :: [String] -> String -> FunctionSignature -> Int -> Int -> Int -> Depth -> [String] -> IO (Either InterpreterError GeneratorResult) 
+generateIOPairs modules solution funcSig numPairs timeInMicro interpreterTimeInMicro depth existingResults = 
   runInterpreter' interpreterTimeInMicro $ do
     setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
     interpret property (as :: IO GeneratorResult) >>= liftIO
@@ -321,7 +321,8 @@ generateIOPairs modules solution funcSig numPairs timeInMicro interpreterTimeInM
 
         formatProp (argLine, argDecl, argShow) wrappedSolution = unwords
           [ wrappedSolution
-          , printf "let prop %s = monadic ((wrappedSolution %s) >>= (waitState %d %s)) in" argDecl argLine numPairs argShow
+          , printf "let previousResults = [%s] in" (intercalate ", " $ map show existingResults)
+          , printf "let prop %s = monadic ((wrappedSolution %s) >>= (waitState %d %s previousResults)) in" argDecl argLine numPairs argShow
           , printf "execStateT (smallCheckM %d (exists prop)) []" depth] :: String
 
     buildWrapper solution typeStr params timeInMicro =

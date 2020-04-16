@@ -69,8 +69,8 @@ evaluateIO timeInMicro inputs vals = do
 
     eval val = io (evalStr val)
  
-waitState :: Int -> [String] -> CB.Result String -> ExampleGeneration IO Bool
-waitState numIOs args ret = case (not $ isFailedResult ret) of
+waitState :: Int -> [String] -> [String] -> CB.Result String -> ExampleGeneration IO Bool
+waitState numIOs args previous ret = case (not $ isFailedResult ret) of
   False -> pure False
   _ -> do
     ioState <- get
@@ -80,4 +80,4 @@ waitState numIOs args ret = case (not $ isFailedResult ret) of
 
     state <- get
     return ((length state) == numIOs)
-  where isNotInState ret state = not $ ret `elem` (map output state)
+  where isNotInState retStr state = not $ ((retStr `elem` (map output state)) || (retStr `elem` previous))
