@@ -11,6 +11,7 @@ export const SET_ARG_NUM = "SET_ARG_NUM";
 export const SET_SEARCH_TYPE = "SET_SEARCH_TYPE";
 export const SET_SEARCH_STATUS = "SET_SEARCH_STATUS";
 export const STOP_SEARCH = "STOP_SEARCH";
+export const SET_SEARCH_PROMISE = "SET_SEARCH_PROMISE";
 
 // Modal Operations
 export const MODAL_OPEN = "MODAL_OPEN";

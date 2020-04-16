@@ -29,6 +29,7 @@ const mapStateToProps = (state) => {
         searchStatus: state.spec.searchStatus,
         isEditing: !!state.spec.editingExampleRow,
         queryId: state.candidates.queryId,
+        canStop: !!state.spec.searchPromise,
     }
 };
 
@@ -66,7 +67,7 @@ const connectedSearchBar = (props) => {
             return _.any([output, ...inputs], x => (_.isNull(x) || _.isUndefined(x)));
         });
         const hasAType = !isMissingType(searchType);
-        return (hasAnExample || hasAType) && !anyIncompleteExamples && !isEditing;
+        return (hasAnExample || hasAType) && !anyIncompleteExamples;
     };
 
     const buttonVariant = () => {
@@ -149,7 +150,7 @@ const connectedSearchBar = (props) => {
                             {buttonContent()}
                         </Button>
                         <Button
-                            disabled={queryId==null || searchStatus !== LOADING}
+                            disabled={!props.canStop}
                             onClick={handleStop}
                             type="button">
                             Stop

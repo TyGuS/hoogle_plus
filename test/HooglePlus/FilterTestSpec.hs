@@ -60,8 +60,6 @@ testNotCrashCases =
   , ("Fail on invalid function 2", ["Data.List"], "a -> a", "\\x -> head []", False)
   , ("Fail on invalid function 3", ["Data.List"], "a -> (a, a)", "\\x -> (head [x], last [])", False)
   , ("Fail on invalid function 4", ["Data.List"], "a -> (a, a)", "\\x -> (head [], last [x])", False)
-  , ("Non-deterministic function 1", [], "Int", "last $ repeat 5", False)
-  , ("Non-deterministic function 2", [], "a -> Int", "\\x -> last $ repeat x", False)
   , ("Succeed on result with type class 1", [], "(Show a, Show b) => Either a b -> String", "\\x -> show x", True)]
 
 testNotCrashHOFs :: [(String, [String], String, String, Bool)]
@@ -70,6 +68,13 @@ testNotCrashHOFs =
   , ("Succeed on HOF with data type", ["Data.Maybe"], "(a -> Maybe b) -> [a] -> Maybe b", "\\f xs -> Data.Maybe.listToMaybe (Data.Maybe.mapMaybe f xs)", True)
   , ("Succeed on simple HOF", ["GHC.List"], "(a -> Bool) -> [a] -> Int", "\\p xs -> GHC.List.length (GHC.List.takeWhile p xs)", True)
   , ("Succeed on complex HOF", [], "(a -> b) -> (b -> c) -> (c -> d) -> a -> d", "\\h g f x -> (f . g . h) x", True)]
+
+testNotCrashNonTerms :: [(String, [String], String, String, Bool)]
+testNotCrashNonTerms =
+  [("Succeed on infinite structures", ["GHC.List"], "a -> [a]", "\\x -> repeat x", True)
+  , ("Fail on non-termination: basic", [], "Int -> Int", "\\x -> last $ repeat x", False)
+  , ("Fail on non-termination: lazy evaluation 1", [], "Int -> [Int]", "\\x -> replicate 99 (length $ repeat x)", False)
+  , ("Fail on non-termination: lazy evaluation 2", [], "Int -> [[Int]]", "\\x -> [[last $ repeat x]]", False)]
 
 testDups :: [(String, [String], String, [String], Bool)]
 testDups =
@@ -85,16 +90,6 @@ spec =
   describe "Filter" $ do
     mapM_ itNotCrashCase testNotCrashHOFs
     mapM_ itNotCrashCase testNotCrashCases
+    mapM_ itNotCrashCase testNotCrashNonTerms
+
     mapM_ itDupCase testDups
-
-    -- it "Duplicates - generate inputs and pass on base case" $ do
-    --   (ret, FilterState {sampleResults = sample}) <- runDuplicateTest emptyFilterState [] "a -> a" "\\x -> x"
-    --   ret `shouldBe` True
-    --   sample `shouldNotBe` Nothing
-
-    --   let Just (SampleResult inputs outputs ) = sample
-    --   length inputs `shouldBe` defaultNumChecks
-    --   length outputs `shouldBe` 1
-      
-    --   let evalResults = head outputs
-    --   length evalResults `shouldBe` defaultNumChecks
