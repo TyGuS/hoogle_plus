@@ -90,18 +90,15 @@ buildFunctionWrapper functions solutionType params@(argLine, paramDecl, argShow)
     buildTimeoutWrapper wrapperNames (argLine, paramDecl, argShow) timeInMicro =
       printf "let timeoutWrapper %s = (evaluateIO %d %s (Prelude.map (\\f -> f %s) [%s])) in" argLine timeInMicro argShow argLine (intercalate ", " wrapperNames) :: String
 
-buildNotCrashProp :: String -> FunctionSignature -> (String, String)
-buildNotCrashProp solution funcSig =
-
-  ( formatAlwaysFailProp params wrapper
-  , formatNeverFailProp params wrapper)
+buildNotCrashProp :: String -> FunctionSignature -> String 
+buildNotCrashProp solution funcSig = formatAlwaysFailProp params wrapper
   where
     params@(argLine, argDecl, argShow) = toParamListDecl (_argsType funcSig)
 
     wrapper = buildFunctionWrapper [("wrappedSolution", solution)] (show funcSig) params defaultTimeoutMicro
 
     formatAlwaysFailProp = formatProp "propAlwaysFail" "isFailedResult"
-    formatNeverFailProp = formatProp "propNeverFail" "not <$> isFailedResult"
+    -- formatNeverFailProp = formatProp "propNeverFail" "not <$> isFailedResult"
 
     formatProp propName body (argLine, argDecl, argShow) wrappedSolution = unwords
       [ wrappedSolution
@@ -152,16 +149,9 @@ evaluateProperty modules property =
     interpret property (as :: IO SmallCheckResult) >>= liftIO
 
 validateSolution :: [String] -> String -> FunctionSignature -> Int -> IO (Either InterpreterError FunctionCrashDesc)
-validateSolution modules solution funcSig time = do
-  -- * note: we run different instances of interpreter here as one may timeout
-  -- * we don't want the timeout one affects the other
-  resultF <- evaluateProperty modules alwaysFailProp
-  resultS <- evaluateProperty modules neverFailProp
-
-  return (evaluateSmallCheckResult resultF resultS)
-
+validateSolution modules solution funcSig time = evaluateResult' <$> evaluateProperty modules alwaysFailProp
   where
-    (alwaysFailProp, neverFailProp) = buildNotCrashProp solution funcSig
+    alwaysFailProp = buildNotCrashProp solution funcSig
 
     evaluateSmallCheckResult ::
       Either InterpreterError SmallCheckResult -> Either InterpreterError SmallCheckResult
@@ -177,6 +167,11 @@ validateSolution modules solution funcSig time = do
           Right (Just (CounterExample _ _), exS:_) -> Right $ PartialFunction [exF, exS]
           _ -> error (show resultF ++ "???" ++ show resultS)
         _ -> trace (show resultF) $ Right $ AlwaysFail $ caseToInput resultS
+    
+    evaluateResult' result = case result of
+      Left (UnknownError "timeout") -> Right $ AlwaysFail $ Example [] "timeout"
+      Right (Nothing, _) -> Right $ AlwaysFail $ caseToInput result
+      Right (_, examples) -> Right $ PartialFunction examples
 
     caseToInput :: Either InterpreterError SmallCheckResult -> Example
     caseToInput (Right (_, example:_)) = example
