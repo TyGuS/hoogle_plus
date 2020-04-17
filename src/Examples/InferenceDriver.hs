@@ -450,8 +450,10 @@ reverseSubstitution (FunctionT _ tArg1 tRes1) (FunctionT _ tArg2 tRes2) tass =
 
 scoreSignature :: SType -> TyclassAssignment -> SType -> Double
 scoreSignature auType tyclass t = 
-    let subst = reverseSubstitution t auType Map.empty
+    let subst = reverseSubstitution auType t Map.empty
         tcCount = 0.5 * fromIntegral (Map.foldr ((+) . Set.size) 0 tyclass)
         varsCount = Set.size $ typeVarsOf t
-     in fromIntegral (Map.foldr ((+) . Set.size) 0 subst) +
+        substCount k s = (if k `Set.member` s then 1 else 0) +
+            let sz = Set.size (k `Set.delete` s) in sz * sz
+     in fromIntegral (Map.foldrWithKey (\k v -> (+) $ substCount k v) 0 subst) + -- penalty for more than one non-identity subst
          tcCount - 0.1 * fromIntegral varsCount
