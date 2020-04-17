@@ -90,6 +90,8 @@ main = do
                   , disable_demand
                   , stop_refine
                   , stop_threshold
+                  , get_n_examples
+                  , get_n_types
                   , disable_coalescing
                   , coalescing_strategy
                   , incremental
@@ -124,9 +126,9 @@ main = do
                                    (f, _) -> readFile f >>= executeSearch synquidParams searchParams
             case search_type of
               SearchPrograms -> searchPrograms
-              SearchTypes -> searchTypes synquidParams json
+              SearchTypes -> searchTypes synquidParams json get_n_types
               SearchResults -> searchResults synquidParams json
-              SearchExamples -> searchExamples synquidParams json
+              SearchExamples -> searchExamples synquidParams json get_n_examples
         Generate {preset = (Just preset)} -> do
             precomputeGraph (getOptsFromPreset preset)
         Generate Nothing files pkgs mdls d ho pathToEnv hoPath -> do
@@ -169,6 +171,8 @@ data CommandLineArgs
         use_refine :: RefineStrategy,
         stop_refine :: Bool,
         stop_threshold :: Int,
+        get_n_examples :: Int,
+        get_n_types :: Int,
         disable_demand :: Bool,
         disable_coalescing :: Bool,
         incremental :: Bool,
@@ -203,6 +207,8 @@ synt = Synthesis {
   use_refine          = TyGarQ          &= help ("Use abstract refinement or not (default: TyGarQ)"),
   stop_refine         = True            &= help ("Stop refine the abstraction cover after some threshold (default: False)"),
   stop_threshold      = 10              &= help ("Refinement stops when the number of places reaches the threshold, only when stop_refine is True"),
+  get_n_examples      = 3               &= help ("Number of more examples (used only for web mode)"),
+  get_n_types         = 10              &= help ("Number of inferred types (used only for web mode)"),
   incremental         = False           &= help ("Enable the incremental solving in z3 (default: False)"),
   disable_demand      = False           &= name "d" &= help ("Disable the demand analyzer (default: False)"),
   disable_coalescing  = False           &= name "xc" &= help ("Do not coalesce transitions in the net with the same abstract type"),

@@ -53,13 +53,13 @@ parseExample mdls mkFun = catch (do
         toInt (ForallT x t) = ForallT x (toInt t)
         toInt (Monotype t) = Monotype (integerToInt t)
 
-getExampleTypes :: Environment -> [RSchema] -> IO [String]
-getExampleTypes env validSchemas = do
+getExampleTypes :: Environment -> [RSchema] -> Int -> IO [String]
+getExampleTypes env validSchemas num = do
     let validTypes = map (shape . toMonotype) validSchemas
     let mdls = env ^. included_modules
     let initTyclassState = emptyTyclassState { _supportModules = Set.toList mdls }
     -- remove magic number later
-    take 10 <$> evalStateT (do
+    take num <$> evalStateT (do
         (mbFreeVar, st) <- if not (null validTypes) 
                 then foldM stepAntiUnification (head validTypes, emptyAntiUnifState) (tail validTypes)
                 else error "get example types error"
