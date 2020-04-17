@@ -16,12 +16,14 @@ import Types.IOFormat
 import Types.Experiments
 import Types.Environment
 import Types.Type
+import Types.Filtering (defaultTimeoutMicro, defaultDepth, defaultInterpreterTimeoutMicro)
 import Synquid.Parser (parseType, parseProgram)
 import Synquid.Resolver (ResolverState(..), initResolverState, resolveSchema)
 import Synquid.Type
 import Examples.ExampleChecker
 import Examples.InferenceDriver
 import Examples.Utils
+import HooglePlus.FilterTest (generateIOPairs, parseTypeString)
 
 import Control.Concurrent.Chan
 import Control.Monad
@@ -155,17 +157,18 @@ searchExamples synquidParams inStr = do
     env' <- readBuiltinData synquidParams env
     let mdls = Set.toList $ env' ^. included_modules
     let candMap = env' ^. queryCandidates
-    let builtinQueryTypes = Map.keys candMap 
     let tQuery = parseQueryType env' strQuery
-    messageChan <- newChan
-    outRes <- mapM (checkTypes env' messageChan tQuery) builtinQueryTypes
-    let outQueries = map snd $ filter (fst . fst) $ zip outRes builtinQueryTypes
-    let examples = concatMap (candMap Map.!) outQueries
-    let checkDups ex = (inputs ex) `notElem` exists
-    let uniqueExs = filter checkDups examples
-    mbOutputs <- checkExampleOutput mdls env' strQuery prog uniqueExs
-    let resultObj = if null uniqueExs then ListOutput [] "No more examples"
-                                      else ListOutput (fromJust mbOutputs) ""
+    let funcSig = parseTypeString strQuery
+    -- remove magic numbers later
+    -- we not only need to know existing results, since this should come from
+    -- the diverse stream, we also need to pass all the current solutions into
+    -- this query
+    let prevResults = map output $ exampleExisting input
+    result <- generateIOPairs mdls prog funcSig 3 defaultTimeoutMicro defaultInterpreterTimeoutMicro defaultDepth prevResults
+    let resultObj = case result of
+          Left err -> ListOutput [] (show err)
+          Right genRes | null genRes -> ListOutput [] "No more examples"
+                       | otherwise -> ListOutput genRes ""
     printResult $ encodeWithPrefix resultObj
 
 searchResults :: SynquidParams -> String -> IO ()

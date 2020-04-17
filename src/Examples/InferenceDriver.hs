@@ -453,7 +453,6 @@ scoreSignature auType tyclass t =
     let subst = reverseSubstitution auType t Map.empty
         tcCount = 0.5 * fromIntegral (Map.foldr ((+) . Set.size) 0 tyclass)
         varsCount = Set.size $ typeVarsOf t
-        substCount k s = (if k `Set.member` s then 1 else 0) +
-            let sz = Set.size (k `Set.delete` s) in sz * sz
+        substCount k s = Set.size s
      in fromIntegral (Map.foldrWithKey (\k v -> (+) $ substCount k v) 0 subst) + -- penalty for more than one non-identity subst
          tcCount - 0.1 * fromIntegral varsCount
