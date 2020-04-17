@@ -90,8 +90,8 @@ execExample mdls env typ prog ex = do
         then printf "let f = (%s) :: %s in" prog typ
         else printf "let f = (\\%s -> %s) :: %s in" prependArg prog typ
     let parensedInputs = map wrapParens $ inputs ex
-    let progCall = printf "f %s" (unwords parensedInputs)
-    askInterpreter mdls progBody progCall
+    let progCall = printf "Test.ChasingBottoms.approxShow 100 (f %s)" (unwords parensedInputs)
+    runStmt mdls $ unwords [progBody, progCall]
 
 -- to check two type are exactly the same
 -- what about swapping arg orders?
@@ -138,7 +138,7 @@ checkExampleOutput mdls env typ prog exs = do
           | otherwise = case currOutput of
                           Left e -> return Nothing
                           Right o -> do
-                              expectedOutput <- askInterpreter mdls "" (output ex)
+                              expectedOutput <- runStmt mdls (printf "Test.ChasingBottoms.approxShow 100 (%s)" $ output ex)
                               case expectedOutput of
                                   Left err -> return Nothing
                                   Right out | o == out -> return (Just ex)

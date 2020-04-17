@@ -9,6 +9,8 @@ import GHC.LanguageExtensions.Type
 import HsUtils
 import HsTypes
 import TcRnDriver
+import Exception
+import Debugger
 import qualified Language.Haskell.Interpreter as LHI
 import System.Timeout
 import Text.Printf
@@ -37,20 +39,6 @@ import HooglePlus.FilterTest (runInterpreter')
 import HooglePlus.TypeChecker (solveTypeConstraint)
 import PetriNet.Util
 
-askInterpreter :: [String] -> String -> String -> IO (Either ErrorMessage String)
-askInterpreter mdls preamble funcCall = do
-    let progCall = printf "%s showCBResult <$> (CB.timeOutMicro' %d (CB.approxShow %d (%s)))" preamble defaultTimeoutMicro defaultDepth funcCall 
-    catch (do
-        result <- runInterpreter' defaultInterpreterTimeoutMicro $ do
-            LHI.setImportsQ (zip mdls (repeat Nothing) ++ frameworkModules)
-            r <- LHI.interpret progCall (LHI.as :: IO String) >>= liftIO
-            return r
-        print result
-        case result of
-          Left e -> return (Left $ show e)
-          Right r -> return (Right r))
-        (\(e :: SomeException) -> return (Left $ show e))
-
 askGhc :: [String] -> Ghc a -> IO a
 askGhc mdls f = do
     mbResult <- timeout (5*defaultTimeoutMicro) $ runGhc (Just libdir) $ do
@@ -60,7 +48,7 @@ askGhc mdls f = do
             extensionFlags = ES.insert FlexibleContexts (extensionFlags dflags)
             }
         setSessionDynFlags dflags'
-        prepareModules ("System.Timeout":"Prelude":mdls) >>= setContext
+        prepareModules ("Test.ChasingBottoms":"Prelude":mdls) >>= setContext
         f
     case mbResult of
         Just r -> return r
@@ -70,6 +58,34 @@ askGhc mdls f = do
             let imports = map (printf "import %s") mdls
             decls <- mapM parseImportDecl imports
             return (map IIDecl decls)
+
+runStmt :: [String] -> String -> IO (Either ErrorMessage String)
+runStmt mdls prog = do
+  catch (askGhc mdls $ do
+    -- allow type defaulting during execution
+    dflags <- getSessionDynFlags
+    let dflags' = dflags {
+        extensionFlags = ES.insert ExtendedDefaultRules (extensionFlags dflags)
+        }
+    setSessionDynFlags dflags'
+    result <- execStmt prog execOptions
+    case result of
+        ExecComplete r _ -> case r of
+                            Left e -> return (Left (show e))
+                            Right ns -> getExecValue ns
+        ExecBreak {} -> return (Left "error, break"))
+    (\(e :: SomeException) -> return (Left $ show e))
+    where
+        getExecValue (n:ns) = do
+            mty <- lookupName n
+            case mty of
+                Just (AnId aid) -> do
+                    t <- gtry $ obtainTermFromId maxBound True aid
+                    case t of
+                        Right term -> showTerm term >>= return . Right . showSDocUnsafe
+                        Left (exn :: SomeException) -> return (Left $ show exn)
+                _ -> return (Left "Unknown error")
+        getExecValue [] = return (Left "Empty result list")
 
 skipTyclass :: TypeSkeleton r -> TypeSkeleton r
 skipTyclass (FunctionT x (ScalarT (DatatypeT name args _) _) tRes)
