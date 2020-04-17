@@ -8,6 +8,7 @@ import Data.Data
 
 import Text.Printf
 import System.IO.Silently
+import Control.Lens
 
 import qualified Test.LeanCheck.Function.ShowFunction as SF
 import qualified Test.ChasingBottoms as CB
@@ -32,8 +33,13 @@ isFailedResult result = case result of
 
 newtype Inner a = Inner a deriving (Eq)
 instance SS.Serial m a => SS.Serial m (Inner a) where series = SS.newtypeCons Inner
-instance (SF.ShowFunction a) => Show (Inner a) where
+instance {-# OVERLAPPABLE #-} (SF.ShowFunction a) => Show (Inner a) where
   show (Inner fcn) = SF.showFunctionLine defaultShowFunctionDepth fcn
+instance {-# OVERLAPPING #-} (SF.ShowFunction a) => Show (Inner [a]) where
+  show (Inner xs) = show $ map Inner xs
+instance {-# OVERLAPPING #-} (SF.ShowFunction a) => Show (Inner (a, a)) where
+  show (Inner p) = (show . over each Inner) p
+  
 
 printIOResult :: [String] -> [CB.Result String] -> IO ()
 printIOResult args rets = (putStrLn . show) result

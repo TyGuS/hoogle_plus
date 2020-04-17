@@ -170,6 +170,7 @@ validateSolution modules solution funcSig time = evaluateResult' <$> evaluatePro
     
     evaluateResult' result = case result of
       Left (UnknownError "timeout") -> Right $ AlwaysFail $ Example [] "timeout"
+      Left error -> trace (show error) (Right $ AlwaysFail $ Example [] (show error))
       Right (Nothing, _) -> Right $ AlwaysFail $ caseToInput result
       Right (_, examples) -> Right $ PartialFunction examples
 
