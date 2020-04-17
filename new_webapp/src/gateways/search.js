@@ -1,6 +1,6 @@
 import {v4} from "uuid";
 import { inputsToId } from "../utilities/args";
-import {baseRoute, handleFetch} from "../utilities/fetches";
+import {baseRoute, handleFetch, abortableFetch} from "../utilities/fetches";
 import { DONE } from "../constants/fetch-states";
 
 const getTypeCandidates = ({id, examples}, cb) => {
@@ -15,8 +15,11 @@ const getTypeCandidates = ({id, examples}, cb) => {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(data),
     };
-    return fetch(ROUTE, fetchOpts)
-        .then(handleFetch);
+    const {abort, ready} = abortableFetch(ROUTE, fetchOpts);
+    return {
+        abort,
+        ready: ready.then(handleFetch),
+    };
 }
 
 const getCodeCandidates = ({query, examples}, cb) => {
@@ -38,12 +41,13 @@ const getCodeCandidates = ({query, examples}, cb) => {
     }));
 }
 
-// Returns a promise of the whole accumulated response, as text
+// Returns a {abort: () -> (), Promise} of the whole accumulated response, as text
 // onIncrementalResponse is called on each chunk received.
 const streamResponse = (route, fetchOpts, onIncrementalResponse) => {
     const decoder = new TextDecoder("utf-8");
     var msgQueue = "";
-    return fetch(route, fetchOpts)
+    const {abort, ready} = abortableFetch(route, fetchOpts);
+    const readyPromise = ready
         .then(response => response.body)
         .then(body => {
             const reader = body.getReader();
@@ -52,35 +56,44 @@ const streamResponse = (route, fetchOpts, onIncrementalResponse) => {
                 return pump();
                 function pump() {
                     return reader.read().then(({ done, value }) => {
-                    // When no more data needs to be consumed, close the stream
-                    if (done) {
-                        controller.close();
-                        return;
-                    }
-                    // Enqueue the next data chunk into our target stream
-                    const convertedValue = msgQueue.concat(decoder.decode(value));
-                    console.log("convertedValue", convertedValue);
-                    convertedValue.trim().split("\n").forEach(jsonStr => {
-                        try {
-                            const jsonBlob = JSON.parse(jsonStr);
-                            onIncrementalResponse(jsonBlob);
-                            console.log("convertedValue sent:", jsonBlob);
-                            msgQueue = "";
-                        } catch (error) {
-                            console.log("remaining json", jsonStr);
-                            msgQueue = msgQueue.concat(jsonStr);
-                            console.log("new message queue", msgQueue);
-                            // console.error("convertedValue error", error);
+                        // When no more data needs to be consumed, close the stream
+                        if (done) {
+                            controller.close();
+                            return;
                         }
-                    })
-                    controller.enqueue(value);
-                    return pump();
+                        // Enqueue the next data chunk into our target stream
+                        const convertedValue = msgQueue.concat(decoder.decode(value));
+                        console.log("convertedValue", convertedValue);
+                        convertedValue.trim().split("\n").forEach(jsonStr => {
+                            try {
+                                const jsonBlob = JSON.parse(jsonStr);
+                                onIncrementalResponse(jsonBlob);
+                                console.log("convertedValue sent:", jsonBlob);
+                                msgQueue = "";
+                            } catch (error) {
+                                console.log("remaining json", jsonStr);
+                                msgQueue = msgQueue.concat(jsonStr);
+                                console.log("new message queue", msgQueue);
+                                // console.error("convertedValue error", error);
+                            }
+                        })
+                        controller.enqueue(value);
+                        return pump();
+                    }).catch(error => {
+                        if (error.name && error.name === "AbortError") {
+                            return
+                        }
+                        console.error("readableStream error", error)
                     });
                 }}
             });
         })
         .then(stream => new Response(stream))
         .then(response => response.text());
+    return {
+        abort,
+        ready: readyPromise,
+    };
 }
 
 const sendStopSignal = ({id}) => {

@@ -6,6 +6,7 @@ extra-deps:
   - data-default-instances-base-0.1.0.1
   - pretty-tree-0.1.0.0
   - z3-408.0
+  - leancheck-0.9.3
 
 compiler: ghc-8.4.4
 setup-info:
