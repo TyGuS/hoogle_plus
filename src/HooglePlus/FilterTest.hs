@@ -303,9 +303,10 @@ generateIOPairs modules solution funcSig numPairs timeInMicro interpreterTimeInM
     interpret property (as :: IO GeneratorResult) >>= liftIO
 
   where
-    typeStr = show funcSig
-    params = toParamListDecl (_argsType funcSig)
-    property = buildProp solution funcSig
+    funcSig' = instantiateSignature funcSig
+    typeStr = show funcSig'
+    params = toParamListDecl (_argsType funcSig')
+    property = buildProp solution funcSig'
 
     buildProp :: String -> FunctionSignature -> String
     buildProp solution funcSig =
