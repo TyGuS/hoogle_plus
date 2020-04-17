@@ -11,7 +11,7 @@ import Test.SmallCheck.Drivers
 
 defaultTimeoutMicro = 5 * 10^4 :: Int
 defaultDepth = 5 :: Int
-defaultInterpreterTimeoutMicro = 2 * 10^6 :: Int
+defaultInterpreterTimeoutMicro = 4 * 10^6 :: Int
 defaultMaxOutputLength = 10 :: Int 
 
 frameworkModules =
@@ -26,15 +26,7 @@ frameworkModules =
   ++ [("Test.ChasingBottoms", Just "CB")]
 
 type SmallCheckResult = (Maybe PropertyFailure, [Example])
-type GeneratorResult = [String]
-type DiffInstance = ([String], [String])
-
--- [arg0, arg1, arg2, ...] :: SampleInput
-type SampleInput = [String]
-
--- sample input generated during duplicate-check phase
--- currently we can only generate two as a tuple
-type DistinguishedInput = (SampleInput, SampleInput)
+type GeneratorResult = [Example]
 
 type AssociativeExamples = [(String, [Example])]
 
@@ -93,10 +85,10 @@ instance Show FunctionSignature where
         argsExpr = (intercalate " -> " . map show) (argsType ++ [returnType])
 
 data FilterState = FilterState {
-  inputs :: [DistinguishedInput],
+  inputs :: [[String]],
   solutions :: [String],
   solutionExamples :: [(String, FunctionCrashDesc)],
-  differentiateExamples :: [Example]
+  differentiateExamples :: [(String, Example)]
 } deriving (Eq, Show)
 
 emptyFilterState = FilterState {
