@@ -16,12 +16,14 @@ import Types.IOFormat
 import Types.Experiments
 import Types.Environment
 import Types.Type
+import Types.Filtering (defaultTimeoutMicro, defaultDepth, defaultInterpreterTimeoutMicro)
 import Synquid.Parser (parseType, parseProgram)
 import Synquid.Resolver (ResolverState(..), initResolverState, resolveSchema)
 import Synquid.Type
 import Examples.ExampleChecker
 import Examples.InferenceDriver
 import Examples.Utils
+import HooglePlus.FilterTest (generateIOPairs, parseTypeString)
 
 import Control.Concurrent.Chan
 import Control.Monad
@@ -100,8 +102,8 @@ parseQueryType env str = let
                           Left err -> error "resolve fails for the buildin json"
                           Right s -> s
 
-searchTypes :: SynquidParams -> String -> IO ()
-searchTypes synquidParams inStr = do
+searchTypes :: SynquidParams -> String -> Int -> IO ()
+searchTypes synquidParams inStr num = do
     let input = decodeInput (LB.pack inStr)
     let exquery = inExamples input
     env <- readEnv $ envPath synquidParams
@@ -121,7 +123,7 @@ searchTypes synquidParams inStr = do
              in stypeSubstitute substMap t
 
         possibleQueries env exquery exTypes = do
-            generalTypes <- getExampleTypes env exTypes
+            generalTypes <- getExampleTypes env exTypes num
             if null generalTypes then return $ ListOutput [] "Cannot find type for your query"
                                  else return $ ListOutput generalTypes ""
 
@@ -140,8 +142,8 @@ prepareEnvFromInput synquidParams inStr = do
     env' <- readBuiltinData synquidParams env
     return (tquery, args, prog, env')
 
-searchExamples :: SynquidParams -> String -> IO ()
-searchExamples synquidParams inStr = do
+searchExamples :: SynquidParams -> String -> Int -> IO ()
+searchExamples synquidParams inStr num = do
     let mbInput = A.decode (LB.pack inStr) :: Maybe ExamplesInput
     let input = case mbInput of
                     Just i -> i
@@ -155,17 +157,18 @@ searchExamples synquidParams inStr = do
     env' <- readBuiltinData synquidParams env
     let mdls = Set.toList $ env' ^. included_modules
     let candMap = env' ^. queryCandidates
-    let builtinQueryTypes = Map.keys candMap 
     let tQuery = parseQueryType env' strQuery
-    messageChan <- newChan
-    outRes <- mapM (checkTypes env' messageChan tQuery) builtinQueryTypes
-    let outQueries = map snd $ filter (fst . fst) $ zip outRes builtinQueryTypes
-    let examples = concatMap (candMap Map.!) outQueries
-    let checkDups ex = (inputs ex) `notElem` exists
-    let uniqueExs = filter checkDups examples
-    mbOutputs <- checkExampleOutput mdls env' strQuery prog uniqueExs
-    let resultObj = if null uniqueExs then ListOutput [] "No more examples"
-                                      else ListOutput (fromJust mbOutputs) ""
+    let funcSig = parseTypeString strQuery
+    -- remove magic numbers later
+    -- we not only need to know existing results, since this should come from
+    -- the diverse stream, we also need to pass all the current solutions into
+    -- this query
+    let prevResults = map output $ exampleExisting input
+    result <- generateIOPairs mdls prog funcSig num defaultTimeoutMicro defaultInterpreterTimeoutMicro defaultDepth prevResults
+    let resultObj = case result of
+          Left err -> ListOutput [] (show err)
+          Right genRes | null genRes -> ListOutput [] "No more examples"
+                       | otherwise -> ListOutput genRes ""
     printResult $ encodeWithPrefix resultObj
 
 searchResults :: SynquidParams -> String -> IO ()

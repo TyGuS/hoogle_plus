@@ -19,6 +19,7 @@ import qualified Data.Set as Set
 import Control.Exception
 import Data.Char
 import Data.List
+import Data.List.Extra (dropEnd)
 import Outputable
 import Control.Monad.State
 import Control.Lens
@@ -41,7 +42,7 @@ import PetriNet.Util
 
 askGhc :: [String] -> Ghc a -> IO a
 askGhc mdls f = do
-    mbResult <- timeout (5*defaultTimeoutMicro) $ runGhc (Just libdir) $ do
+    mbResult <- timeout (10^6) $ runGhc (Just libdir) $ do
         dflags <- getSessionDynFlags
         let dflags' = dflags { 
             generalFlags = ES.delete Opt_OmitYields (generalFlags dflags),
@@ -82,7 +83,7 @@ runStmt mdls prog = do
                 Just (AnId aid) -> do
                     t <- gtry $ obtainTermFromId maxBound True aid
                     case t of
-                        Right term -> showTerm term >>= return . Right . showSDocUnsafe
+                        Right term -> showTerm term >>= return . Right . dropEnd 1 . drop 1 . showSDocUnsafe
                         Left (exn :: SomeException) -> return (Left $ show exn)
                 _ -> return (Left "Unknown error")
         getExecValue [] = return (Left "Empty result list")
