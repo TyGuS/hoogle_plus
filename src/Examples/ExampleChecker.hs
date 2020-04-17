@@ -116,9 +116,10 @@ augmentTestSet env goal = do
         generalThan s1 s2 = do
             msgChan <- newChan
             let initChecker = emptyChecker { _checkerChan = msgChan }
+            let bound = env ^. boundTypeVars
             state <- execStateT (do
-                s1' <- freshType s1
-                s2' <- freshType s2
+                s1' <- freshType bound s1
+                s2' <- freshType bound s2
                 let vars = typeVarsOf s2'
                 let env' = foldr addTypeVar env vars
                 solveTypeConstraint env' (shape s1') (shape s2')) initChecker

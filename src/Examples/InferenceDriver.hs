@@ -149,7 +149,7 @@ antiUnification t1 t2 st = runStateT (antiUnification' t1 t2) st
 
 newAntiVariable :: SType -> SType -> Maybe TyclassConstraints -> AntiUnifier IO SType
 newAntiVariable t1 t2 mbCons = do
-    v <- freshId "t"
+    v <- freshId [] "t"
     modify $ over typeAssignment1 (Map.insertWith (++) t1 [v])
     modify $ over typeAssignment2 (Map.insertWith (++) t2 [v])
     when (isJust mbCons) (

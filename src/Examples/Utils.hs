@@ -111,9 +111,10 @@ supportedTyclasses = ["Num", "Ord", "Eq"]
 checkTypes :: Environment -> Chan Message -> RSchema -> RSchema -> IO (Bool, SType)
 checkTypes env checkerChan s1 s2 = do
     let initChecker = emptyChecker { _checkerChan = checkerChan }
+    let bound = env ^. boundTypeVars
     (t, state) <- runStateT (do
-        r1 <- freshType s1
-        r2 <- freshType s2
+        r1 <- freshType bound s1
+        r2 <- freshType bound s2
         let t1 = skipTyclass r1
         let t2 = skipTyclass r2
         solveTypeConstraint env (shape t1) (shape t2)
