@@ -83,8 +83,9 @@ bottomUpCheck env p@(Program (PFun x body) (FunctionT _ tArg tRet)) = do
         (return body')
 bottomUpCheck env p@(Program (PFun x body) _) = do
     writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
-    id <- freshId "A"
-    id' <- freshId "A"
+    let bound = env ^. boundTypeVars
+    id <- freshId bound "A"
+    id' <- freshId bound "A"
     let tArg = addTrue (ScalarT (TypeVarT Map.empty id) ())
     let tRet = addTrue (ScalarT (TypeVarT Map.empty id') ())
     bottomUpCheck env (Program (PFun x body)(FunctionT x tArg tRet))

@@ -85,7 +85,8 @@ instantiate env sigs = do
         tree <- gets $ view (refineState . abstractionCover)
         let typs = allTypesOf tree
         writeLog 2 "instantiate" $ text "Current abstract types:" <+> text (show tree)
-        sigs' <- Map.toList <$> mapM freshType sigs
+        let bound = env ^. boundTypeVars
+        sigs' <- Map.toList <$> mapM (freshType bound) sigs
         foldM (\acc -> (<$>) (acc ++) . uncurry (instantiateWith env typs)) [] sigs'
 
 -- add Pair_match function as needed
@@ -97,7 +98,7 @@ instantiateWith env typs id t = do
     let bound = env ^. boundTypeVars
     if id == "fst"
        then do -- this is hack, hope to get rid of it sometime
-           first <- freshType (Monotype t)
+           first <- freshType bound (Monotype t)
            secod <- findSymbol env "snd"
            fstSigs <- enumSigs $ toAbstractType $ shape first
            sndSigs <- enumSigs $ toAbstractType $ shape secod
@@ -108,7 +109,7 @@ instantiateWith env typs id t = do
            let matches' = filter (\t -> noneInst instMap pairProj t || diffInst bound instMap pairProj t) matches
            mapM (mkNewSig pairProj) matches'
        else do
-           ft <- freshType (Monotype t)
+           ft <- freshType bound (Monotype t)
            let t' = toAbstractType (shape ft)
            rawSigs <- enumSigs t'
            let sigs = filter (\t -> noneInst instMap id t || diffInst bound instMap id t) rawSigs
@@ -125,8 +126,9 @@ instantiateWith env typs id t = do
 mkNewSig :: MonadIO m => Id -> AbstractSkeleton -> PNSolver m (Id, AbstractSkeleton)
 mkNewSig id ty = do
     instMap <- gets $ view (refineState . instanceMapping)
-    newId <- if pairProj `isPrefixOf` id then freshId (id ++ "_")
-                                         else freshId "f"
+    -- function name do not need check duplicates from user defined names
+    newId <- if pairProj `isPrefixOf` id then freshId [] (id ++ "_")
+                                         else freshId [] "f"
     -- when same arguments exist for a function, replace it
     unless (noneInst instMap id ty) (excludeUseless id ty)
     modify $ over (typeChecker . nameMapping) (Map.insert newId id)
@@ -431,7 +433,8 @@ initNet env = withTime ConstructionTime $ do
     mapM_ addMusters (Map.keys hoArgs)
   where
     abstractSymbol id sch = do
-        t <- freshType sch
+        let bound = env ^. boundTypeVars
+        t <- freshType bound sch
         let absTy = toAbstractType (shape t)
         return (id, absTy)
 

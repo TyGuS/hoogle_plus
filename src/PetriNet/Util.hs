@@ -82,19 +82,20 @@ var2any env t@(ScalarT (TypeVarT _ id) _) = AnyT
 var2any env (ScalarT (DatatypeT id args l) r) = ScalarT (DatatypeT id (map (var2any env) args) l) r
 var2any env (FunctionT x tArg tRet) = FunctionT x (var2any env tArg) (var2any env tRet)
 
-freshId :: (CheckMonad (t m), MonadIO m) => Id -> t m Id
-freshId prefix = do
+freshId :: (CheckMonad (t m), MonadIO m) => [Id] -> Id -> t m Id
+freshId bounds prefix = do
     indices <- getNameCounter
     let idx = Map.findWithDefault 0 prefix indices
     setNameCounter $ Map.insert prefix (idx+1) indices
-    return $ prefix ++ show idx
+    let v = prefix ++ show idx
+    if v `elem` bounds then freshId bounds prefix else return v
 
 -- | Replace all bound type variables with fresh free variables
-freshType :: (CheckMonad (t m), MonadIO m) => RSchema -> t m RType
-freshType = freshType' Map.empty []
+freshType :: (CheckMonad (t m), MonadIO m) => [Id] -> RSchema -> t m RType
+freshType bounds t = freshType' Map.empty [] t
   where
     freshType' subst constraints (ForallT a sch) = do
-        a' <- freshId "t"
+        a' <- freshId bounds "tau"
         freshType' (Map.insert a (vart a' ftrue) subst) (a':constraints) sch
     freshType' subst constraints (Monotype t) = return (typeSubstitute subst t)
 
@@ -102,6 +103,7 @@ findSymbol :: (CheckMonad (t m), MonadIO (t m), MonadIO m) => Environment -> Id 
 findSymbol env sym = do
     nameMap <- getNameMapping
     let name = fromMaybe sym (Map.lookup sym nameMap)
+    let bound = env ^. boundTypeVars
     case lookupSymbol name 0 env of
         Nothing ->
             case lookupSymbol ("(" ++ name ++ ")") 0 env of
@@ -109,25 +111,8 @@ findSymbol env sym = do
                     setIsChecked False
                     writeLog 2 "findSymbol" $ text "cannot find symbol" <+> text name <+> text "in the current environment"
                     return AnyT
-                Just sch -> freshType sch
-        Just sch -> freshType sch
-
-{-
-runInChecker :: MonadIO m => Checker m a -> PNSolver m a
-runInChecker checker = do
-    st <- get
-    let typingState = Checker.CheckerState (st ^. nameCounter) 
-                                           (st ^. isChecked) 
-                                           (st ^. typeAssignment) 
-                                           (st ^. nameMapping)
-                                           (st ^. messageChan)
-    (a, s) <- lift $ runStateT checker typingState
-    modify $ set nameCounter (s ^. Checker.nameCounter)
-    modify $ set isChecked (s ^. Checker.isChecked)
-    modify $ set typeAssignment (s ^. Checker.typeAssignment)
-    modify $ set nameMapping (s ^. Checker.nameMapping)
-    return a
--}
+                Just sch -> freshType bound sch
+        Just sch -> freshType bound sch
 
 freshAbstract :: (CheckMonad (t m), MonadIO m) => [Id] -> AbstractSkeleton -> t m AbstractSkeleton
 freshAbstract bound t = do
@@ -138,7 +123,7 @@ freshAbstract bound t = do
     freshAbstract' bound m (AScalar (ATypeVarT id)) | id `Map.member` m =
         return (m, fromJust (Map.lookup id m))
     freshAbstract' bound m (AScalar (ATypeVarT id)) = do
-        v <- freshId "A"
+        v <- freshId bound "A"
         let t = AScalar (ATypeVarT v)
         return (Map.insert id t m, AScalar (ATypeVarT v))
     freshAbstract' bound m (AScalar (ADatatypeT id args)) = do
@@ -161,7 +146,7 @@ groupSignatures sigs = do
     let sigsByType = Map.map Set.fromList $ groupByMap sigs
     writeLog 3 "groupSignatures" $ pretty sigsByType
     let sigLists = Map.toList sigsByType
-    signatureGroups <- flip zip sigLists <$> mapM (\_ -> freshId "gm") [() | _ <- sigLists]
+    signatureGroups <- flip zip sigLists <$> mapM (\_ -> freshId [] "gm") [() | _ <- sigLists]
     let dupes = [Set.size $ snd $ snd x | x <- signatureGroups, Set.size (snd $ snd x) > 1]
     let allIds = [Set.size $ snd $ snd x | x <- signatureGroups]
     writeLog 3 "groupSignatures" $ text $ printf "%d class; %d equiv; %d total"

@@ -90,8 +90,8 @@ execExample mdls env typ prog ex = do
         then printf "let f = (%s) :: %s in" prog typ
         else printf "let f = (\\%s -> %s) :: %s in" prependArg prog typ
     let parensedInputs = map wrapParens $ inputs ex
-    let progCall = printf "f %s" (unwords parensedInputs)
-    askInterpreter mdls progBody progCall
+    let progCall = printf "Test.ChasingBottoms.approxShow 100 (f %s)" (unwords parensedInputs)
+    runStmt mdls $ unwords [progBody, progCall]
 
 -- to check two type are exactly the same
 -- what about swapping arg orders?
@@ -116,9 +116,10 @@ augmentTestSet env goal = do
         generalThan s1 s2 = do
             msgChan <- newChan
             let initChecker = emptyChecker { _checkerChan = msgChan }
+            let bound = env ^. boundTypeVars
             state <- execStateT (do
-                s1' <- freshType s1
-                s2' <- freshType s2
+                s1' <- freshType bound s1
+                s2' <- freshType bound s2
                 let vars = typeVarsOf s2'
                 let env' = foldr addTypeVar env vars
                 solveTypeConstraint env' (shape s1') (shape s2')) initChecker
@@ -138,7 +139,7 @@ checkExampleOutput mdls env typ prog exs = do
           | otherwise = case currOutput of
                           Left e -> return Nothing
                           Right o -> do
-                              expectedOutput <- askInterpreter mdls "" (output ex)
+                              expectedOutput <- runStmt mdls (printf "Test.ChasingBottoms.approxShow 100 (%s)" $ output ex)
                               case expectedOutput of
                                   Left err -> return Nothing
                                   Right out | o == out -> return (Just ex)

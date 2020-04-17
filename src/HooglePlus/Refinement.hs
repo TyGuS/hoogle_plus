@@ -98,7 +98,7 @@ propagate env (Program (PFun x body) (FunctionT _ tArg tRet))
               (AFunctionT atArg atRet) =
     propagate (addVariable x (addTrue tArg) env) body atRet
 propagate env (Program (PFun x body) t) (AFunctionT atArg atRet) = do
-    id <- freshId "A"
+    id <- freshId (env ^. boundTypeVars) "A"
     let tArg = addTrue (ScalarT (TypeVarT Map.empty id) ())
     propagate (addVariable x (addTrue tArg) env) body atRet
 propagate _ prog t = return ()
@@ -111,14 +111,14 @@ generalize :: (CheckMonad (t m), MonadIO (t m), MonadIO m)
 generalize bound t@(AScalar (ATypeVarT id))
   | id `notElem` bound = return t
   | otherwise = do
-    v <- lift $ freshId "T"
+    v <- lift $ freshId bound "T"
     return (AScalar (ATypeVarT v)) `mplus` return t
 -- for datatype, we define the generalization order as follows:
 -- (1) v
 -- (2) datatype with all fresh type variables
 -- (3) datatype with incrementally generalized inner types
 generalize bound t@(AScalar (ADatatypeT id args)) = do
-    v <- lift $ freshId "T"
+    v <- lift $ freshId bound "T"
     return (AScalar (ATypeVarT v)) `mplus` freshVars `mplus` subsetTyps -- interleave
   where
     -- this search may explode when we have a large number of datatype parameters
