@@ -8,9 +8,10 @@ import Data.Data
 
 import Text.Printf
 import System.IO.Silently
-import Test.LeanCheck.Function.Show.FourCases
 
+import qualified Test.LeanCheck.Function.ShowFunction as SF
 import qualified Test.ChasingBottoms as CB
+import qualified Test.SmallCheck.Series as SS
 
 defaultShowFunctionDepth = 4 :: Int
 defaultMaxOutputLength = 10 :: CB.Nat
@@ -28,6 +29,11 @@ isFailedResult result = case result of
   CB.Value a | "_|_" `isInfixOf` a -> True
   CB.Value a | "Exception" `isInfixOf` a -> True
   _ -> False
+
+newtype Inner a = Inner a deriving (Eq)
+instance SS.Serial m a => SS.Serial m (Inner a) where series = SS.newtypeCons Inner
+instance (SF.ShowFunction a) => Show (Inner a) where
+  show (Inner fcn) = SF.showFunctionLine defaultShowFunctionDepth fcn
 
 printIOResult :: [String] -> [CB.Result String] -> IO ()
 printIOResult args rets = (putStrLn . show) result
