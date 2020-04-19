@@ -109,9 +109,10 @@ export const selectTypeFromOptions = ({typeOption}) => (dispatch, getState) => {
 // Update the search type and associated state.
 export const setSearchType = ({query}) => (dispatch, getState) => {
     const {spec, candidates} = getState();
+    const hasNoExamples = spec.rows.length === 0;
     dispatch(doStop({id: candidates.id}));
     const mbArgCount = getArgCount(query);
-    if (!!mbArgCount && (spec.numArgs !== mbArgCount)) {
+    if (!!mbArgCount && (spec.numArgs !== mbArgCount) && hasNoExamples) {
         dispatch(setArgNum(mbArgCount));
     }
     dispatch(setSearchTypeInternal({query}));
