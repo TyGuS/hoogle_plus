@@ -9,18 +9,6 @@ export const getArgNames = (numArgs) => {
     return argNames;
 }
 
-// [{arg0..argN, output}] -> [{usage: [0,..N,output], id}]
-export const namedArgsToUsage = (listList, numArgs) => {
-  return listList.map(element => {
-      const argNames = getArgNames(numArgs);
-      const usage = argNames.map(argName => element[argName]).concat(element.output);
-      return {
-          usage: usage,
-          id: usageToId(usage),
-      }
-  });
-}
-
 // [{arg0..argN, output}] -> [{inputs:[str], output:str}]
 export const namedArgsToExample = (listList, numArgs) => {
   return listList.map(element => {
@@ -54,34 +42,6 @@ export const exampleToNamedArgs = (examples) => {
   });
 };
 
-// [{usage: [str], id}] -> [{id, arg0, ... output}]
-export const usageToNamedArgs = (facts) => {
-  const rows = facts.map((element) => {
-    let row = [];
-    for (let index = 0; index < element.usage.length - 1; index++) {
-      let argName = "arg" + index;
-      row[argName] = element.usage[index];
-    }
-    row["output"] = element.usage[element.usage.length - 1];
-    row["id"] = element.id;
-    return row;
-  });
-  return rows;
-};
-
-// [str] -> {inputs: [str], output: str}
-export const usageToExample = (usage) => {
-  const lastIndex = usage.length - 1;
-  const inputs = usage.slice(0, lastIndex);
-  const output = usage[lastIndex];
-  return {inputs,output};
-};
-
-export const usageToId = (usage) => {
-  const args = usage.slice(0, usage.length - 1);
-  return args.reduce((prev, curr) => prev + "-" + curr, "unknown");
-}
-
 export const inputsToId = (inputs) => {
   return inputs.reduce((prev, curr) => prev + "-" + curr, "unknown");
 }
@@ -97,8 +57,8 @@ export const getArgCount = (queryStr) => {
 }
 
 const depth = (xs) => {
-  if(!xs || xs.length == 0) {
+  if(!xs || !xs.result || xs.result.length == 0) {
     return 0;
   }
-  return (_.max(xs.map(depth))) + 1;
+  return depth(xs.result[0]) + 1;
 }

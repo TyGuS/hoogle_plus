@@ -1,7 +1,7 @@
 import * as Consts from "../constants/action-types";
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 import {v4 as uuidv4, v4} from "uuid";
-import { usageToId, inputsToId } from "../utilities/args";
+import { inputsToId } from "../utilities/args";
 import { _ } from "underscore";
 import { defaultExamplesShown, defaultExamplesShownIncrement } from "../utilities/featureManager";
 
@@ -43,7 +43,7 @@ export const initialCandidateState = {
          *     examplesShown: 3,
          *     examples: [
          *         {
-         *             id: usageToId(["x", "2", "xx"]),
+         *             id: inputsToId(["x", "2", "xx"]),
          *             inputs: ["x", "2"],
          *             output: "xx",
          *             isLoading: false,

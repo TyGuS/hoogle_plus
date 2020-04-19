@@ -2,17 +2,28 @@ import Parsimmon from "parsimmon";
 
 const P = Parsimmon;
 
-export const typeParser =  Parsimmon.createLanguage({
+
+// Parser combinator for a Haskell-with-named-arguments type description language.
+export const typeParser = Parsimmon.createLanguage({
     Type: (r) => {
-        return r.BType
+        const argName = r.ArgName.trim(Parsimmon.optWhitespace)
+        const argTy = r.BType.trim(Parsimmon.optWhitespace)
+        const res = P.string("->")
             .trim(Parsimmon.optWhitespace)
-            .then(
-                P.string("->")
-                .trim(Parsimmon.optWhitespace)
-                .then(r.Type)
-                .trim(Parsimmon.optWhitespace)
-                .many()
-            )
+            .then(r.Type)
+            .trim(Parsimmon.optWhitespace)
+            .many();
+        return P.seqObj(
+            ["argName", argName],
+            ["argTy", argTy],
+            ["result", res]
+        );
+    },
+    ArgName: (r) => {
+        return P.regex(/[a-zA-Z0-9_]+/)
+            .trim(Parsimmon.optWhitespace)
+            .skip(P.string(":"))
+            .times(0, 1);
     },
     BType: (r) => {
         return P.alt(
@@ -23,12 +34,13 @@ export const typeParser =  Parsimmon.createLanguage({
             P.string("(")
                 .trim(Parsimmon.optWhitespace)
                 .then(r.Type)
+                .trim(Parsimmon.optWhitespace)
                 .skip(P.string(")"))
         )
     },
     TyCon: (r) => {
         return r.VarId
-            .then(P.whitespace)
+            .skip(P.whitespace)
             .then(r.Type);
     },
     Tuple: (r) => {

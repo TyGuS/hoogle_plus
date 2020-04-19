@@ -1,12 +1,11 @@
 import * as Consts from "../constants/action-types";
 import _ from "underscore";
 import { Search, ghciUsage, hooglePlusExampleSearch, hooglePlusMoreExamples } from "../gateways";
-import { namedArgsToUsage, getArgCount, usageToExample } from "../utilities/args";
+import { getArgCount } from "../utilities/args";
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 import { log } from "../utilities/logger";
 import { v4 } from "uuid";
 import { defaultExamplesShownIncrement } from "../utilities/featureManager";
-import search from "../gateways/search";
 
 function makeActionCreator(type, ...argNames) {
     return function (...args) {

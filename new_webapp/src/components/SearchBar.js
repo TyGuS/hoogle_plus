@@ -7,7 +7,6 @@ import ExampleTable from "./ExampleTable";
 import { TypeSelection } from "./TypeSelection";
 import { Button, InputGroup, FormControl, Form, Tooltip, Overlay, OverlayTrigger, Alert } from "react-bootstrap";
 import { getDefaultFeatures } from "../utilities/featureManager";
-import { usageToExample } from "../utilities/args";
 import { LOADING, ERROR } from "../constants/fetch-states";
 
 const mapDispatchToProps = (dispatch) => {
