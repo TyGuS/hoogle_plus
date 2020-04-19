@@ -111,9 +111,9 @@ export const selectTypeFromOptions = ({typeOption}) => (dispatch, getState) => {
 export const setSearchType = ({query}) => (dispatch, getState) => {
     const {spec, candidates} = getState();
     dispatch(doStop({id: candidates.id}));
-    const argCount = getArgCount(query);
-    if (spec.numArgs !== argCount) {
-        dispatch(setArgNum(argCount));
+    const mbArgCount = getArgCount(query);
+    if (!!mbArgCount && (spec.numArgs !== mbArgCount)) {
+        dispatch(setArgNum(mbArgCount));
     }
     dispatch(setSearchTypeInternal({query}));
 };

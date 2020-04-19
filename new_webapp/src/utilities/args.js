@@ -1,3 +1,6 @@
+import _ from "underscore";
+import { typeParser } from "../parser/Haskell";
+
 export const getArgNames = (numArgs) => {
     let argNames = [];
     for (let index = 0; index < numArgs; index++) {
@@ -84,39 +87,18 @@ export const inputsToId = (inputs) => {
 }
 
 export const getArgCount = (queryStr) => {
-  let arrows = 0;
-  let countUntil = queryStr.length;
-  if (queryStr.trim().endsWith(')')){
-    let parens = 0;
-    let trimTo = 0;
-    for (let i = queryStr.length - 1; i >= 0; --i){
-      if(queryStr[i] === ')') {
-        if (parens === 0) { trimTo = i-1; }
-        parens += 1;
-      }
-      else if (queryStr[i] === '(') {
-        parens -= 1;
-        if (parens === 0) {
-          arrows += getArgCount(queryStr.substr(i+1,trimTo-i))
-          countUntil = i;
-          break;
-        }
-      }
-    }
+  try {
+    const result = typeParser.Type.tryParse(queryStr);
+    return depth(result);
+  } catch (error) {
+    console.log("parse error", error);
+    return null;
   }
-  let parens = 0;
-  for (let i = 0; i < countUntil; ++i){
-    if (queryStr[i] === '-') {
-      if (queryStr[i+1] === '>' && parens === 0){
-        arrows += 1;
-      }
-    }
-    else if (queryStr[i] === '(') {
-      parens += 1;
-    }
-    else if (queryStr[i] === ')') {
-      parens -= 1;
-    }
+}
+
+const depth = (xs) => {
+  if(!xs || xs.length == 0) {
+    return 0;
   }
-  return arrows;
+  return (_.max(xs.map(depth))) + 1;
 }
