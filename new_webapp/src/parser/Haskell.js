@@ -41,7 +41,7 @@ export const typeParser = Parsimmon.createLanguage({
     TyCon: (r) => {
         return r.VarId
             .skip(P.whitespace)
-            .then(r.Type);
+            .then(r.BType);
     },
     Tuple: (r) => {
         return P.string("(")
