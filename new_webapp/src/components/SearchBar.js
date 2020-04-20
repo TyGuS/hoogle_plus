@@ -2,7 +2,7 @@ import _ from "underscore";
 import React, {Component } from "react";
 import {connect} from "react-redux";
 import OutsideClickHandler from "react-outside-click-handler";
-import {setSearchType, getTypesFromExamples, doSearch, setExamples, doStop, setExampleEditingRow, refineSearch} from "../actions/index";
+import {setSearchType, getTypesFromExamples, doSearch, setExamples, doStop, setExampleEditingRow, refineSearch, markClean} from "../actions/index";
 import ExampleTable from "./ExampleTable";
 import { TypeSelection } from "./TypeSelection";
 import { Button, InputGroup, FormControl, Form, Tooltip, Overlay, OverlayTrigger, Alert } from "react-bootstrap";
@@ -18,11 +18,13 @@ const mapDispatchToProps = (dispatch) => {
         unfocusEditingRow: _ => dispatch(setExampleEditingRow(undefined)),
         doStop: ({id}) => dispatch(doStop({id})),
         refineSearch: ({query, examples}) => dispatch(refineSearch({query, examples})),
+        markClean: _ => dispatch(markClean()),
     }
 }
 
 const mapStateToProps = (state) => {
     return {
+        isDirty: state.candidates.isDirty,
         searchType: state.spec.searchType,
         exampleRows: state.spec.rows,
         errorMessage: state.spec.errorMessage,
@@ -53,10 +55,15 @@ const connectedSearchBar = (props) => {
             getTypesFromExamples(filteredUsages);
             return;
         }
-        doSearch({query: searchType, examples: filteredUsages});
+        props.markClean();
+        if (props.isDirty) {
+            return props.refineSearch({query: searchType, examples: filteredUsages});
+        }
+        return doSearch({query: searchType, examples: filteredUsages});
     };
 
     const handleStop = (event) => {
+        props.markClean();
         doStop({id: queryId})
     };
 
@@ -80,6 +87,9 @@ const connectedSearchBar = (props) => {
     };
 
     const buttonContent = () => {
+        if (props.isDirty) {
+            return "Refine results";
+        }
         switch(searchStatus) {
             case LOADING:
                 return "Getting results...";
@@ -148,13 +158,6 @@ const connectedSearchBar = (props) => {
                             type="submit"
                         >
                             {buttonContent()}
-                        </Button>
-                        <Button
-                            className="mr-2"
-                            onClick={() => {props.refineSearch({query: searchType, examples: filteredUsages})}}
-                            type="button"
-                        >
-                            Refine Search
                         </Button>
                         <Button
                             disabled={!props.canStop}

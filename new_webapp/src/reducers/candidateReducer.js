@@ -3,11 +3,16 @@ import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 import {v4 as uuidv4, v4} from "uuid";
 import { inputsToId } from "../utilities/args";
 import { _ } from "underscore";
-import { defaultExamplesShown, defaultExamplesShownIncrement } from "../utilities/featureManager";
+import { defaultExamplesShown } from "../utilities/featureManager";
 
 export const initialCandidateState = {
     isFetching: false,
     queryId: null,
+    // isDirty reflects whether the spec matches the information in (or
+    // currently populating) the candidate state. This becomes dirty when:
+    // - Add a new example while there are candidate results
+    // - Change an example while there are candidate results
+    isDirty: false,
     results: [
         /** {
          *     candidateId: "cand1",
@@ -65,9 +70,22 @@ const toExample = ({inputs, output}) => {
 
 export function candidateReducer(state = initialCandidateState, action){
     switch(action.type) {
+        case Consts.MARK_CLEAN:
+            return {
+                ...state,
+                isDirty: false,
+            };
+        case Consts.MARK_DIRTY:
+        case Consts.SET_EXAMPLES:
+        case Consts.ADD_EXAMPLE:
+            return {
+                ...state,
+                isDirty: true,
+            };
         case Consts.CLEAR_RESULTS:
             return {
                 ...state,
+                isDirty: false,
                 results: []
             };
         case Consts.FILTER_RESULTS:
@@ -123,6 +141,7 @@ export function candidateReducer(state = initialCandidateState, action){
             return {
                 results: [],
                 isFetching: false,
+                isDirty: false,
             };
         case Consts.FETCH_MORE_CANDIDATE_USAGES:
             const {candidateId:fCandidateId, status} = action.payload;

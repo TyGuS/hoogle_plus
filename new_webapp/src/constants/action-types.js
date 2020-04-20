@@ -6,6 +6,8 @@ export const ADD_CANDIDATE_USAGE = "ADD_CANDIDATE_USAGE";
 export const FETCH_MORE_CANDIDATE_USAGES = "FETCH_MORE_CANDIDATE_USAGES";
 export const SHOW_MORE_USAGES = "SHOW_MORE_USAGES";
 export const CLEAR_RESULTS = "CLEAR_RESULTS";
+export const MARK_DIRTY = "MARK_DIRTY";
+export const MARK_CLEAN = "MARK_CLEAN";
 
 // Search Bar Operations
 export const SET_ARG_NUM = "SET_ARG_NUM";
