@@ -88,7 +88,7 @@ waitState numIOs args previousRets previousArgs ret = case (not $ isFailedResult
     return ((length state) == numIOs)
   where 
     retIsNotInState retStr state = not $ ((retStr `elem` (map output state)) || (retStr `elem` previousRets))
-    paramsIsNotInState params state = not $ ((anyCommonArgs params previousArgs)) || (params `elem` previousArgs))
+    paramsIsNotInState params state = not $ ((anyCommonArgs params previousArgs) || (params `elem` previousArgs))
 
 
 anyCommonArgs :: [String] -> [[String]] -> Bool
