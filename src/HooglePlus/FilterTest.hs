@@ -239,7 +239,7 @@ checkDuplicates modules sigStr solution = do
       result <- liftIO $ compareSolution modules solution solns funcSig defaultTimeoutMicro
       case result of
         -- bypass the check on any timeout or error
-        Left (UnknownError "timeout") -> return True
+        Left (UnknownError "timeout") -> return False -- no example -> reject
         Left err -> do
           put $ fs {solutions = solution:solns}
           return True
@@ -297,8 +297,8 @@ toParamListDecl args =
 
 -- ******** Example Generator ********
 
-generateIOPairs :: [String] -> String -> FunctionSignature -> Int -> Int -> Int -> Depth -> [String] -> IO (Either InterpreterError GeneratorResult) 
-generateIOPairs modules solution funcSig numPairs timeInMicro interpreterTimeInMicro depth existingResults = 
+generateIOPairs :: [String] -> String -> FunctionSignature -> Int -> Int -> Int -> Depth -> [String] -> [[String]] -> IO (Either InterpreterError GeneratorResult) 
+generateIOPairs modules solution funcSig numPairs timeInMicro interpreterTimeInMicro depth existingResults existingInputs = 
   runInterpreter' interpreterTimeInMicro $ do
     setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
     interpret property (as :: IO GeneratorResult) >>= liftIO

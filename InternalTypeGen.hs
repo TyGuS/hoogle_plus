@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, LambdaCase, FlexibleContexts #-}
 module InternalTypeGen where
 
-import Data.List (isInfixOf, nub, reverse)
+import Data.List (isInfixOf, nub, reverse, intersect)
 import Control.Monad
 import Control.Monad.State
 import Data.Data
@@ -75,15 +75,24 @@ evaluateIO timeInMicro inputs vals = do
 
     eval val = io (evalStr val)
  
-waitState :: Int -> [String] -> [String] -> CB.Result String -> ExampleGeneration IO Bool
-waitState numIOs args previous ret = case (not $ isFailedResult ret) of
+waitState :: Int -> [String] -> [String] -> [[String]] -> CB.Result String -> ExampleGeneration IO Bool
+waitState numIOs args previousRets previousArgs ret = case (not $ isFailedResult ret) of
   False -> pure False
   _ -> do
     ioState <- get
 
     let retStr = showCBResult ret
-    when (isNotInState retStr ioState) (modify ((:) (Example args retStr)))
+    when (retIsNotInState retStr ioState && paramsIsNotInState args ioState) (modify ((:) (Example args retStr)))
 
     state <- get
     return ((length state) == numIOs)
-  where isNotInState retStr state = not $ ((retStr `elem` (map output state)) || (retStr `elem` previous))
+  where 
+    retIsNotInState retStr state = not $ ((retStr `elem` (map output state)) || (retStr `elem` previousRets))
+    paramsIsNotInState params state = not $ ((anyCommonArgs params previousArgs)) || (params `elem` previousArgs))
+
+
+anyCommonArgs :: [String] -> [[String]] -> Bool
+anyCommonArgs args inputs = any id $ map (compare args) inputs
+  where
+    compare :: [String] -> [String] -> Bool
+    compare xs = not . null . intersect xs
