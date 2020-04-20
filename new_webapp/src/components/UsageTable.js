@@ -10,7 +10,7 @@ import {
   TableInlineCellEditing,
 } from '@devexpress/dx-react-grid-bootstrap4';
 import { connect } from "react-redux";
-import { addFact, updateCandidateUsages, addCandidateUsage } from "../actions";
+import { addExample, updateCandidateUsages, addCandidateUsage } from "../actions";
 import { getArgNames, exampleToNamedArgs, namedArgsToExample } from "../utilities/args";
 import { SpinnableCell } from "./SpinnableCell";
 import { getDefaultFeatures } from "../utilities/featureManager";
@@ -35,7 +35,7 @@ const generateRows = (facts) => {
 const mapDispatchToProps = (dispatch) => {
   return {
     keepUsage: (example) => {example.forEach(ex => {
-        dispatch(addFact(ex));
+        dispatch(addExample(ex));
     })},
     updateUsage: (updatedRow) => {dispatch(updateCandidateUsages(updatedRow))},
     addCandidateUsage: ({inputs}) => dispatch(addCandidateUsage({inputs}))

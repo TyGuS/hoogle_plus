@@ -1,13 +1,18 @@
 import * as Consts from "../constants/action-types";
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 import {v4 as uuidv4, v4} from "uuid";
-import { usageToId, inputsToId } from "../utilities/args";
+import { inputsToId } from "../utilities/args";
 import { _ } from "underscore";
-import { defaultExamplesShown, defaultExamplesShownIncrement } from "../utilities/featureManager";
+import { defaultExamplesShown } from "../utilities/featureManager";
 
 export const initialCandidateState = {
     isFetching: false,
     queryId: null,
+    // isDirty reflects whether the spec matches the information in (or
+    // currently populating) the candidate state. This becomes dirty when:
+    // - Add a new example while there are candidate results
+    // - Change an example while there are candidate results
+    isDirty: false,
     results: [
         /** {
          *     candidateId: "cand1",
@@ -43,7 +48,7 @@ export const initialCandidateState = {
          *     examplesShown: 3,
          *     examples: [
          *         {
-         *             id: usageToId(["x", "2", "xx"]),
+         *             id: inputsToId(["x", "2", "xx"]),
          *             inputs: ["x", "2"],
          *             output: "xx",
          *             isLoading: false,
@@ -65,6 +70,24 @@ const toExample = ({inputs, output}) => {
 
 export function candidateReducer(state = initialCandidateState, action){
     switch(action.type) {
+        case Consts.MARK_CLEAN:
+            return {
+                ...state,
+                isDirty: false,
+            };
+        case Consts.MARK_DIRTY:
+        case Consts.SET_EXAMPLES:
+        case Consts.ADD_EXAMPLE:
+            return {
+                ...state,
+                isDirty: true,
+            };
+        case Consts.CLEAR_RESULTS:
+            return {
+                ...state,
+                isDirty: false,
+                results: []
+            };
         case Consts.FILTER_RESULTS:
             const examplesMustPass = action.payload.examples;
             if (!examplesMustPass || examplesMustPass.length === 0) {
@@ -85,29 +108,29 @@ export function candidateReducer(state = initialCandidateState, action){
                 ...state,
                 isFetching: action.payload.status === LOADING,
             };
-        case Consts.ADD_CANDIDATE:
+        case Consts.ADD_CANDIDATES:
             const candidates = action.payload.candidates;
             const newResults = candidates.reduce((accumResults, candidate) => {
                 const currentPrograms = accumResults.map((existCandidate) => existCandidate.code);
                 const idx = currentPrograms.indexOf(candidate.code);
-                if (idx !== -1)  { // this is an old candidate, but new examples come
+                if (idx !== -1)  { // this is an old candidate, but new examples came
                     const newExamples = candidate.examples.map(toExample);
                     const targetExample = accumResults[idx].examples;
                     const targetIds = targetExample.map((ex) => ex.id);
                     const uniqueExamples = newExamples.filter((ex) => targetIds.indexOf(ex.id) < 0);
                     accumResults[idx].examples = targetExample.concat(uniqueExamples);
                     return accumResults;
-                } else { // this is a new candidate
-                    const newResult = {
-                        candidateId: v4(),
-                        code: candidate.code,
-                        docs: action.payload.docs,
-                        examplesStatus: DONE,
-                        examplesShown: defaultExamplesShown,
-                        examples: candidate.examples.map(toExample),
-                    };
-                    return accumResults.concat(newResult);
                 }
+                // this is a new candidate
+                const newResult = {
+                    candidateId: v4(),
+                    code: candidate.code,
+                    docs: action.payload.docs,
+                    examplesStatus: DONE,
+                    examplesShown: defaultExamplesShown,
+                    examples: candidate.examples.map(toExample),
+                };
+                return accumResults.concat(newResult);
             }, state.results.slice());
             return {
                 ...state,
@@ -118,6 +141,7 @@ export function candidateReducer(state = initialCandidateState, action){
             return {
                 results: [],
                 isFetching: false,
+                isDirty: false,
             };
         case Consts.FETCH_MORE_CANDIDATE_USAGES:
             const {candidateId:fCandidateId, status} = action.payload;

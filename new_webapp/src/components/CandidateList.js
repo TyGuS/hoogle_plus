@@ -9,7 +9,6 @@ import UsageTable from "./UsageTable";
 import { getMoreExamples } from "../actions";
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 import { getDefaultFeatures } from "../utilities/featureManager";
-import { usageToExample } from "../utilities/args";
 
 const mapStateToProps = state => {
     return {

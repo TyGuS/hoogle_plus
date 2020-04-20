@@ -80,6 +80,9 @@ export function specReducer(state = initialSpecState, action) {
                         searchStatus: ERROR,
                         errorMessage: action.payload.errorMessage,
                     };
+                default:
+                    console.error("invalid payload", action.payload);
+                    return state;
             }
         case Consts.INCREASE_ARGS:
             var newNumArgs = state.numArgs + 1;
