@@ -48,7 +48,8 @@ export const inputsToId = (inputs) => {
 
 export const getArgCount = (queryStr) => {
   try {
-    const result = typeParser.Type.tryParse(queryStr);
+    const result = typeParser.TypeDecl.tryParse(queryStr);
+    console.log("parse result", result);
     return depth(result);
   } catch (error) {
     console.log("parse error", error);

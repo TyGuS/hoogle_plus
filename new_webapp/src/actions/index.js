@@ -114,7 +114,7 @@ export const setSearchType = ({query}) => (dispatch, getState) => {
     const hasNoExamples = spec.rows.length === 0;
     dispatch(doStop({id: candidates.id}));
     const mbArgCount = getArgCount(query);
-    if (!!mbArgCount && (spec.numArgs !== mbArgCount) && hasNoExamples) {
+    if (!_.isNull(mbArgCount) && (spec.numArgs !== mbArgCount) && hasNoExamples) {
         dispatch(setArgNum(mbArgCount));
     }
     dispatch(setSearchTypeInternal({query}));
@@ -126,7 +126,7 @@ export const refineSearch = ({query, examples}) => (dispatch, getState) => {
     dispatch(doStop({id: candidates.queryId}));
 
     // Keep what we can
-    dispatch(clearResultsInternal());
+    dispatch(filterResults({examples}));
 
     // Start backfilling results
     dispatch(setSearchStatus({status: LOADING}));
@@ -164,7 +164,7 @@ export const refineSearch = ({query, examples}) => (dispatch, getState) => {
 // query: str; examples: [{inputs:[str], output:str}]
 export const doSearch = ({query, examples}) => (dispatch) => {
     dispatch(setSearchStatus({status:LOADING, searchType: query, examples}));
-    // dispatch(filterResults({examples}));
+
     const {abort, ready} = Search.getCodeCandidates({query, examples}, (candidates => {
             if (!candidates.error) {
                 dispatch(addCandidates(candidates));
