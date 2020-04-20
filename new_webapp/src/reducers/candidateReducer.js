@@ -65,6 +65,11 @@ const toExample = ({inputs, output}) => {
 
 export function candidateReducer(state = initialCandidateState, action){
     switch(action.type) {
+        case Consts.CLEAR_RESULTS:
+            return {
+                ...state,
+                results: []
+            };
         case Consts.FILTER_RESULTS:
             const examplesMustPass = action.payload.examples;
             if (!examplesMustPass || examplesMustPass.length === 0) {
@@ -85,29 +90,29 @@ export function candidateReducer(state = initialCandidateState, action){
                 ...state,
                 isFetching: action.payload.status === LOADING,
             };
-        case Consts.ADD_CANDIDATE:
+        case Consts.ADD_CANDIDATES:
             const candidates = action.payload.candidates;
             const newResults = candidates.reduce((accumResults, candidate) => {
                 const currentPrograms = accumResults.map((existCandidate) => existCandidate.code);
                 const idx = currentPrograms.indexOf(candidate.code);
-                if (idx !== -1)  { // this is an old candidate, but new examples come
+                if (idx !== -1)  { // this is an old candidate, but new examples came
                     const newExamples = candidate.examples.map(toExample);
                     const targetExample = accumResults[idx].examples;
                     const targetIds = targetExample.map((ex) => ex.id);
                     const uniqueExamples = newExamples.filter((ex) => targetIds.indexOf(ex.id) < 0);
                     accumResults[idx].examples = targetExample.concat(uniqueExamples);
                     return accumResults;
-                } else { // this is a new candidate
-                    const newResult = {
-                        candidateId: v4(),
-                        code: candidate.code,
-                        docs: action.payload.docs,
-                        examplesStatus: DONE,
-                        examplesShown: defaultExamplesShown,
-                        examples: candidate.examples.map(toExample),
-                    };
-                    return accumResults.concat(newResult);
                 }
+                // this is a new candidate
+                const newResult = {
+                    candidateId: v4(),
+                    code: candidate.code,
+                    docs: action.payload.docs,
+                    examplesStatus: DONE,
+                    examplesShown: defaultExamplesShown,
+                    examples: candidate.examples.map(toExample),
+                };
+                return accumResults.concat(newResult);
             }, state.results.slice());
             return {
                 ...state,

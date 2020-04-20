@@ -1,10 +1,11 @@
 // Candidate Operations
-export const ADD_CANDIDATE = "ADD_CANDIDATE";
+export const ADD_CANDIDATES = "ADD_CANDIDATES";
 export const FILTER_RESULTS = "FILTER_RESULTS";
 export const UPDATE_CANDIDATE_USAGE = "UPDATE_CANDIDATE_USAGE";
 export const ADD_CANDIDATE_USAGE = "ADD_CANDIDATE_USAGE";
 export const FETCH_MORE_CANDIDATE_USAGES = "FETCH_MORE_CANDIDATE_USAGES";
 export const SHOW_MORE_USAGES = "SHOW_MORE_USAGES";
+export const CLEAR_RESULTS = "CLEAR_RESULTS";
 
 // Search Bar Operations
 export const SET_ARG_NUM = "SET_ARG_NUM";

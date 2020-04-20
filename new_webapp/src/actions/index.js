@@ -26,9 +26,10 @@ function makeActionCreator(type, ...argNames) {
 // };
 
 // Simple action creators for moving state around.
-export const addCandidate = makeActionCreator(Consts.ADD_CANDIDATE, "payload");
+export const addCandidates = makeActionCreator(Consts.ADD_CANDIDATES, "payload");
 export const filterResults = makeActionCreator(Consts.FILTER_RESULTS, "payload");
 export const addFact = makeActionCreator(Consts.ADD_EXAMPLE, "payload");
+const clearResultsInternal = makeActionCreator(Consts.CLEAR_RESULTS);
 
 export const setExampleEditingRow = makeActionCreator(Consts.SET_EXAMPLE_EDITING_ROW, "payload");
 export const setExamples = makeActionCreator(Consts.SET_EXAMPLES, "payload");
@@ -118,14 +119,54 @@ export const setSearchType = ({query}) => (dispatch, getState) => {
     dispatch(setSearchTypeInternal({query}));
 };
 
+export const refineSearch = ({query, examples}) => (dispatch, getState) => {
+    const {candidates} = getState();
+    // Stop the current search
+    dispatch(doStop({id: candidates.queryId}));
+
+    // Keep what we can
+    dispatch(clearResultsInternal());
+
+    // Start backfilling results
+    dispatch(setSearchStatus({status: LOADING}));
+    candidates.results.map(candidate => {
+        const allExamplesForCandidate = examples.map(example => {
+            return ghciUsage({typeSignature: query, code: candidate.code, inputs: example.inputs})
+                .then(({result}) => {
+                    return (result === example.output)
+                })
+                .catch(error => {
+                    console.log("refine search ghci error", error);
+                    return Promise.resolve(null);
+                })
+        });
+        Promise.all(allExamplesForCandidate)
+            .then(areMbMatches => {
+                const areMatches = areMbMatches.filter(x => !_.isNull(x));
+                const totalMatches = areMatches.length;
+                const allMatch = areMatches.reduce((x,y) => x && y, true);
+                if (allMatch && totalMatches > 0) {
+                    dispatch(addCandidates({
+                        candidates:[candidate],
+                        docs: candidate.docs,
+                    }));
+                }
+            });
+    });
+
+    // Start a new search
+    console.log("dosearch from refine");
+    dispatch(doSearch({query, examples}));
+}
+
 // This is where a request needs to be sent to the server
 // query: str; examples: [{inputs:[str], output:str}]
 export const doSearch = ({query, examples}) => (dispatch) => {
     dispatch(setSearchStatus({status:LOADING, searchType: query, examples}));
-    dispatch(filterResults({examples}));
-    const {abort, ready} = Search.getCodeCandidates({query, examples}, (candidate => {
-            if (!candidate.error) {
-                dispatch(addCandidate(candidate));
+    // dispatch(filterResults({examples}));
+    const {abort, ready} = Search.getCodeCandidates({query, examples}, (candidates => {
+            if (!candidates.error) {
+                dispatch(addCandidates(candidates));
             }
         }));
     const readyPromise = ready

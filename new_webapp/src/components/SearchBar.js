@@ -2,7 +2,7 @@ import _ from "underscore";
 import React, {Component } from "react";
 import {connect} from "react-redux";
 import OutsideClickHandler from "react-outside-click-handler";
-import {setSearchType, getTypesFromExamples, doSearch, setExamples, doStop, setExampleEditingRow} from "../actions/index";
+import {setSearchType, getTypesFromExamples, doSearch, setExamples, doStop, setExampleEditingRow, refineSearch} from "../actions/index";
 import ExampleTable from "./ExampleTable";
 import { TypeSelection } from "./TypeSelection";
 import { Button, InputGroup, FormControl, Form, Tooltip, Overlay, OverlayTrigger, Alert } from "react-bootstrap";
@@ -17,6 +17,7 @@ const mapDispatchToProps = (dispatch) => {
         clearExamples: _ => dispatch(setExamples([])),
         unfocusEditingRow: _ => dispatch(setExampleEditingRow(undefined)),
         doStop: ({id}) => dispatch(doStop({id})),
+        refineSearch: ({query, examples}) => dispatch(refineSearch({query, examples})),
     }
 }
 
@@ -147,6 +148,13 @@ const connectedSearchBar = (props) => {
                             type="submit"
                         >
                             {buttonContent()}
+                        </Button>
+                        <Button
+                            className="mr-2"
+                            onClick={() => {props.refineSearch({query: searchType, examples: filteredUsages})}}
+                            type="button"
+                        >
+                            Refine Search
                         </Button>
                         <Button
                             disabled={!props.canStop}
