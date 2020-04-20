@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, LambdaCase, FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module InternalTypeGen where
 
 import Data.List (isInfixOf, nub, reverse, intersect)
@@ -39,7 +40,14 @@ instance {-# OVERLAPPING #-} (SF.ShowFunction a) => Show (Inner [a]) where
   show (Inner xs) = show $ map Inner xs
 instance {-# OVERLAPPING #-} (SF.ShowFunction a) => Show (Inner (a, a)) where
   show (Inner p) = (show . over each Inner) p
-  
+instance SF.ShowFunction a => SF.ShowFunction (Inner a) where
+  bindtiers (Inner x) = SF.bindtiers x
+
+class Unwrappable a b where
+  unwrap :: a -> b
+instance Unwrappable (Inner a) a where unwrap (Inner x) = x
+instance Unwrappable ([Inner a]) [a] where unwrap = map unwrap
+instance Unwrappable (Inner a, Inner b) (a, b) where unwrap (Inner x, Inner y) = (x, y)
 
 printIOResult :: [String] -> [CB.Result String] -> IO ()
 printIOResult args rets = (putStrLn . show) result
