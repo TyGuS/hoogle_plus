@@ -49,26 +49,33 @@ itDupCase (desc, modules, tipe, (main: rest), shouldPass) =
 
 testNotCrashCases :: [(String, [String], String, String, Bool)]
 testNotCrashCases =
-  [("Succeed on poly function w/o type constrains 1", [], "a -> a", "\\x -> x", True)
-  , ("Succeed on poly function w/o type constrains 2", [], "(a, b) -> b", "\\(x, y) -> y", True)
-  , ("Succeed on poly function w/o type constrains 3", [], "(a, Either Int Int) -> Int", "\\(_, t) -> either id id t", True)
-  , ("Succeed on infinite functions", ["GHC.List"], "a -> [a]", "\\x -> repeat x", True)
-  , ("Succeed on var w/ module names", ["GHC.List"],
+  [("Succeed on polymorphic function w/o type constrains 1", [], "a -> a", "\\x -> x", True)
+  , ("Succeed on polymorphic function w/o type constrains 2", [], "(a, b) -> b", "\\(x, y) -> y", True)
+  , ("Succeed on polymorphic function w/o type constrains 3", [], "(a, Either Int Int) -> Int", "\\(_, t) -> either id id t", True)
+  , ("Succeed on infinite structures", ["GHC.List"], "a -> [a]", "\\x -> repeat x", True)
+  , ("Succeed on result with explicit module names", ["GHC.List"],
      "[a] -> [b] -> [[(a,b)]]",
      "\\arg0 arg1 -> GHC.List.repeat (GHC.List.zip arg1 arg0)", True)
   , ("Fail on invalid function 1", ["Data.Maybe"], "a -> a", "\\x -> fromJust Nothing", False)
   , ("Fail on invalid function 2", ["Data.List"], "a -> a", "\\x -> head []", False)
   , ("Fail on invalid function 3", ["Data.List"], "a -> (a, a)", "\\x -> (head [x], last [])", False)
   , ("Fail on invalid function 4", ["Data.List"], "a -> (a, a)", "\\x -> (head [], last [x])", False)
-  , ("Non-deterministic function", [], "Int", "last $ repeat 5", False)
-  , ("Pass w/ type class 1", [], "(Show a, Show b) => Either a b -> String", "\\x -> show x", True)]
+  , ("Succeed on result with type class 1", [], "(Show a, Show b) => Either a b -> String", "\\x -> show x", True)]
 
 testNotCrashHOFs :: [(String, [String], String, String, Bool)]
 testNotCrashHOFs =
   [("Succeed on basic application", [], "(a -> b) -> a -> b", "\\f x -> f x", True)
-  , ("Succeed on HOF w/ data type", ["Data.Maybe"], "(a -> Maybe b) -> [a] -> Maybe b", "\\f xs -> Data.Maybe.listToMaybe (Data.Maybe.mapMaybe f xs)", True)
-  , ("Succeed on typical HOF w/ list", ["GHC.List"], "(a -> Bool) -> [a] -> Int", "\\p xs -> GHC.List.length (GHC.List.takeWhile p xs)", True)
-  , ("Succeed on multi-app", [], "(a -> b) -> (b -> c) -> (c -> d) -> a -> d", "\\h g f x -> (f . g . h) x", True)]
+  , ("Succeed on HOF with data type", ["Data.Maybe"], "(a -> Maybe b) -> [a] -> Maybe b", "\\f xs -> Data.Maybe.listToMaybe (Data.Maybe.mapMaybe f xs)", True)
+  , ("Succeed on simple HOF", ["GHC.List"], "(a -> Bool) -> [a] -> Int", "\\p xs -> GHC.List.length (GHC.List.takeWhile p xs)", True)
+  , ("Succeed on complex HOF", [], "(a -> b) -> (b -> c) -> (c -> d) -> a -> d", "\\h g f x -> (f . g . h) x", True)
+  , ("Succeed on the strange case #138", ["GHC.List"], "[a] -> ([a] -> [a]) -> Int -> [a]", "\\arg0 arg1 arg2 -> (GHC.List.iterate' arg1 arg0) !! arg2", True)]
+
+testNotCrashNonTerms :: [(String, [String], String, String, Bool)]
+testNotCrashNonTerms =
+  [("Succeed on infinite structures", ["GHC.List"], "a -> [a]", "\\x -> repeat x", True)
+  , ("Fail on non-termination: basic", [], "Int -> Int", "\\x -> last $ repeat x", False)
+  , ("Fail on non-termination: lazy evaluation 1", [], "Int -> [Int]", "\\x -> replicate 99 (length $ repeat x)", False)
+  , ("Fail on non-termination: lazy evaluation 2", [], "Int -> [[Int]]", "\\x -> [[last $ repeat x]]", False)]
 
 testDups :: [(String, [String], String, [String], Bool)]
 testDups =
@@ -84,16 +91,6 @@ spec =
   describe "Filter" $ do
     mapM_ itNotCrashCase testNotCrashHOFs
     mapM_ itNotCrashCase testNotCrashCases
+    mapM_ itNotCrashCase testNotCrashNonTerms
+
     mapM_ itDupCase testDups
-
-    -- it "Duplicates - generate inputs and pass on base case" $ do
-    --   (ret, FilterState {sampleResults = sample}) <- runDuplicateTest emptyFilterState [] "a -> a" "\\x -> x"
-    --   ret `shouldBe` True
-    --   sample `shouldNotBe` Nothing
-
-    --   let Just (SampleResult inputs outputs ) = sample
-    --   length inputs `shouldBe` defaultNumChecks
-    --   length outputs `shouldBe` 1
-      
-    --   let evalResults = head outputs
-    --   length evalResults `shouldBe` defaultNumChecks

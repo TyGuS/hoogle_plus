@@ -25,6 +25,7 @@ import Distribution.PackageDescription.Parsec
 import Distribution.Package
 import System.Directory
 import System.IO
+import Debug.Trace
 
 import Database.Download
 import Database.Generate
@@ -377,6 +378,7 @@ reorderDecls = Sort.sortOn toInt
     toInt (Pos _ TP.TypeDecl {}) = 3
     toInt (Pos _ (TP.DataDecl "List" _ _ _)) = 0
     toInt (Pos _ (TP.DataDecl "Char" _ _ _)) = 0
+    toInt (Pos _ (TP.DataDecl "Pair" _ _ _)) = 0
     toInt (Pos _ (TP.DataDecl _ [] _ _)) = 2
     toInt (Pos _ TP.DataDecl {}) = 3
     toInt (Pos _ TP.QualifierDecl {}) = 98
@@ -479,7 +481,7 @@ entryDependencies allEntries ourEntries dpDecls = let
     sortedIds = topoSort $ dependencyGraph allDecls
     in
     matchDtWithCons $ map (\id -> fromMaybe (error $ "cannot find " ++ id) (Map.lookup id $ declMap allDecls))
-                    $ nub $ sortedIds >.> ["List", "Pair"]
+                    $ nub $ sortedIds >.> ["List", "Pair", "Char"]
   where
     myDts = dtNamesIn ourEntries
     myDefinedDts = definedDtsIn ourEntries

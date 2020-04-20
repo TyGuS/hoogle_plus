@@ -5,35 +5,43 @@ import Control.Monad.State
 import Data.Typeable
 import Text.Printf
 import Data.List (intercalate)
+import Types.IOFormat (Example)
 
 import Test.SmallCheck.Drivers
 
 defaultTimeoutMicro = 5 * 10^4 :: Int
-defaultDepth = 3 :: Int
-defaultInterpreterTimeoutMicro = 2 * 10^6 :: Int
-defaultMaxOutputLength = 100 :: Int
+defaultDepth = 4 :: Int
+defaultInterpreterTimeoutMicro = 4 * 10^6 :: Int
+defaultMaxOutputLength = 10 :: Int 
 
 frameworkModules =
   zip [ "Test.SmallCheck"
-  , "Test.SmallCheck.Drivers" ] (repeat Nothing)
+  , "Test.SmallCheck.Drivers"
+  , "Test.LeanCheck.Function.ShowFunction"
+  , "System.IO.Silently"
+  , "Control.Exception"
+  , "Control.Monad"
+  , "Control.Monad.State" ] (repeat Nothing)
 
   ++ [("Test.ChasingBottoms", Just "CB")]
 
-type SmallCheckResult = Maybe PropertyFailure
-type DistinguishedInput = (String, String)
+type SmallCheckResult = (Maybe PropertyFailure, [Example])
+type GeneratorResult = [Example]
+
+type AssociativeExamples = [(String, [Example])]
 
 data FunctionCrashDesc = 
-    AlwaysSucceed String
-  | AlwaysFail String
-  | PartialFunction String String
+    AlwaysSucceed Example
+  | AlwaysFail Example
+  | PartialFunction [Example]
   | UnableToCheck String
   deriving (Eq)
 
 instance Show FunctionCrashDesc where
-  show (AlwaysSucceed i) = "Total: " ++ i
-  show (AlwaysFail i) = "Fail: " ++ i
-  show (PartialFunction s f) = "Partial: succeeds on " ++ s ++ "; fails on " ++ f
-  show (UnableToCheck ex) = "Exception: " ++ ex
+  show (AlwaysSucceed i) = show i
+  show (AlwaysFail i) = show i
+  show (PartialFunction xs) = unlines (map show xs)
+  show (UnableToCheck ex) = "Exception: " ++ show ex
 
 data ArgumentType =
     Concrete    String
@@ -77,15 +85,17 @@ instance Show FunctionSignature where
         argsExpr = (intercalate " -> " . map show) (argsType ++ [returnType])
 
 data FilterState = FilterState {
-  inputs :: [DistinguishedInput],
+  inputs :: [[String]],
   solutions :: [String],
-  solutionExamples :: [(String, FunctionCrashDesc)]
+  solutionExamples :: [(String, FunctionCrashDesc)],
+  differentiateExamples :: [(String, Example)]
 } deriving (Eq, Show)
 
 emptyFilterState = FilterState {
   inputs = [],
   solutions = [],
-  solutionExamples = []
+  solutionExamples = [],
+  differentiateExamples = []
 }
 
 type FilterTest m = StateT FilterState m

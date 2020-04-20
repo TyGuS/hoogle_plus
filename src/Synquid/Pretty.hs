@@ -60,7 +60,7 @@ import Types.Common
 import Types.Type
 import Types.Program
 import Types.Encoder
-
+import Database.Util
 import Synquid.Logic
 import Synquid.Type
 import Synquid.Error
@@ -343,7 +343,17 @@ prettyProgram (Program p typ) = case p of
                   "Cons" -> "(:)"
                   "Pair" -> "(,)"
                   _      -> f
-      prefix = hang tab $ text funName <+> hsep (map optParens x)
+      mbPair f = if f == "(,)" then hlParens else id
+      isTcArg p = case p of
+                    Program (PSymbol n) _ -> tyclassArgBase `isPrefixOf` n || tyclassInstancePrefix `isPrefixOf` n
+                    Program (PApp n _) _ -> tyclassPrefix `isPrefixOf` n || tyclassInstancePrefix `isPrefixOf` n
+                    _ -> False
+      countArgs = filter (not . isTcArg) x
+      prefix = if '(' == head funName && length countArgs == 2 -- infix operators
+                  then let funName' = drop 1 funName
+                           lastPart = reverse $ takeWhile ((/=) '.') $ tail $ reverse funName'
+                        in hang tab $ mbPair funName $ optParens (head countArgs) <+> text lastPart <+> optParens (countArgs !! 1)
+                  else hang tab $ text funName <+> hsep (map optParens x)
       in if f `elem` Map.elems unOpTokens
             then hang tab $ operator f <+> hsep (map optParens x)
             else prefix

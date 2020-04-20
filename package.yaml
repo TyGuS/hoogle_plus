@@ -28,6 +28,7 @@ dependencies:
 - conduit
 - conduit-extra
 - containers
+- deepseq
 - directory
 - extra
 - filepath
@@ -37,10 +38,12 @@ dependencies:
 - haskell-src-exts
 - heap
 - hint
+- hoogle
 - html
 - http-conduit
 - http-types
 - indents
+- leancheck
 - lens
 - logict
 - MissingH
@@ -67,6 +70,9 @@ dependencies:
 - uuid
 - vector
 - z3
+- ghci
+- ghc-boot-th
+- silently
 
 library:
   source-dirs:
@@ -90,22 +96,6 @@ executables:
     - -O2
     dependencies:
     - HooglePlus
-  webapp:
-    main: Main.hs
-    source-dirs:
-    - webapp/app
-    - webapp/src
-    ghc-options:
-    - -O2
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - HooglePlus
-    - yesod-core
-    - yesod-form
-    - yesod-static
-    - shakespeare
 
 tests:
   spec:

@@ -24,17 +24,12 @@ genOptsTier2 = genOptsTier1 {
 
 myModules = [
   -- base
-  "Data.Int",
   "Data.Bool",
   "Data.Maybe",
-  "Data.Either",
-  "Data.Tuple",
-  "GHC.Char",
   "Text.Show",
+  "GHC.Char",
   "GHC.List",
   "Data.Eq",
-  "Data.Function",
-  -- ByteString
-  "Data.ByteString.Lazy",
-  "Data.ByteString.Builder"
+  "Data.List",
+  "Data.Function"
   ]

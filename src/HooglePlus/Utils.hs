@@ -5,7 +5,11 @@ import Types.Environment
 import Types.Program
 import Types.Type
 import Types.Experiments
+import Types.Solver
+import qualified Types.TypeChecker as Checker
 import Types.Filtering
+import Types.IOFormat (Example(Example))
+import qualified Types.IOFormat as IOFormat
 import Synquid.Type
 import Synquid.Util hiding (fromRight)
 import Synquid.Pretty as Pretty
@@ -14,14 +18,18 @@ import Database.Util
 
 import Control.Exception
 import Control.Monad.Trans
+import Control.Monad.State
 import CorePrep
 import CoreSyn
 import Data.Data
+import Data.Ord
 import Data.Either
-import Data.List (isInfixOf, isPrefixOf, intercalate)
+import Data.List (sortOn, groupBy, isInfixOf, isPrefixOf, intercalate)
+import Data.List.Extra (nubOrdOn)
 import Data.List.Split (splitOn)
 import Data.Maybe
 import Data.Typeable
+import Data.Function (on)
 import Demand
 import DmdAnal
 import DynFlags
@@ -41,6 +49,7 @@ import Text.Printf
 import Text.Regex
 import Var hiding (Id)
 import Data.UUID.V4
+import Debug.Trace
 
 -- Converts the list of param types into a haskell function signature.
 -- Moves typeclass-looking things to the front in a context.
@@ -66,17 +75,13 @@ mkFunctionSigStr args = addConstraints $ Prelude.foldr accumConstraints ([],[]) 
             in (constraints, otherStr:baseSigs)
 
 -- mkLambdaStr produces a oneline lambda expr str:
--- (\x -> \y -> body))
+-- (\x y -> body))
 mkLambdaStr :: [String] -> UProgram -> String
-mkLambdaStr args body = let
-    unTypeclassed = toHaskellSolution (show body)
-    in
-        unwords . words . show $ foldr addFuncArg (text unTypeclassed) args
-    where
-        addFuncArg arg rest
-            | arg `elem` args && not (tyclassArgBase `isPrefixOf` arg) =
-                Pretty.parens $ text ("\\" ++ arg ++ " -> ") <+> rest
-            | otherwise = rest
+mkLambdaStr args body =
+    let nontcArgs = filter (not . (tyclassArgBase `isPrefixOf`)) args
+        argStr = unwords nontcArgs
+        unTypeclassed = toHaskellSolution (show body)
+     in printf "\\%s -> %s" argStr unTypeclassed
 
 toHaskellSolution :: String -> String
 toHaskellSolution bodyStr = let
@@ -108,11 +113,41 @@ printSolution solution = do
     putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
     putStrLn "************************************************"
 
-printFilter (FilterState [] [] []) = return ()
-printFilter (FilterState ((s_1, s_2):xs) _ ((_, x): _)) = do
-    putStrLn $ "Sample behavior: " ++ show x
-    putStrLn $ "Differentiated input: " ++ s_1 ++ " and " ++ s_2
-printFilter (FilterState _ _ ((_, x):_)) = putStrLn $ "Sample behavior: " ++ show x
+{-
+printFilter (FilterState _ solns samples) = unlines $ map printSol solns
+    where
+        printSol :: String -> String
+        printSol sol =
+            let [(_, desc)] = filter ((== sol) . fst) samples in
+                unlines [sol, show desc]
+-}
+
+collectExamples :: String -> FilterState -> AssociativeExamples
+collectExamples solution (FilterState _ sols samples examples) =
+    map mkGroup $ groupBy (\x y -> fst x == fst y)
+                $ sortOn fst
+                $ examples ++ checkedExs
+    where
+        [(_, desc)] = filter ((== solution) . fst) samples
+        checkedExs = zip (repeat solution) (descToExample desc)
+        mkGroup xs = (fst (head xs), nubOrdOn IOFormat.inputs $ map snd xs)
+
+
+descToExample :: FunctionCrashDesc -> [Example]
+descToExample (AlwaysSucceed ex) = [ex]
+descToExample (AlwaysFail ex) = [ex]
+descToExample (PartialFunction exs) = exs
+descToExample _ = []
+
+
+-- printSolutionState solution fs = unlines ["****************", solution, show fs, "***********"]
+printSolutionState solution (FilterState _ sols workingExamples diffExamples) = unlines [ios, diffs]
+    where
+        ios = let [(_, desc)] = filter ((== solution) . fst) workingExamples in show desc
+        diffs = let examples = groupBy ((==) `on` fst) (sortOn fst diffExamples) in unlines (map showGroup examples)
+        
+        showGroup :: [(String, Example)] -> String
+        showGroup xs = unlines ((fst $ head xs) : (map (show . snd) xs))
 
 extractSolution :: Environment -> RType -> UProgram -> ([String], String, String, [(Id, RSchema)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)
