@@ -319,7 +319,8 @@ generateIOPairs modules solution funcSig numPairs timeInMicro interpreterTimeInM
         formatProp (argLine, argDecl, argShow) wrappedSolution = unwords
           [ wrappedSolution
           , printf "let previousResults = [%s] in" (intercalate ", " $ map show existingResults)
-          , printf "let prop %s = monadic ((wrappedSolution %s) >>= (waitState %d %s previousResults)) in" argDecl argLine numPairs argShow
+          , printf "let previousInputs = %s in" (show existingInputs)
+          , printf "let prop %s = monadic ((wrappedSolution %s) >>= (waitState %d %s previousResults previousInputs)) in" argDecl argLine numPairs argShow
           , printf "execStateT (smallCheckM %d (exists prop)) []" depth] :: String
 
     buildWrapper solution typeStr params timeInMicro =
