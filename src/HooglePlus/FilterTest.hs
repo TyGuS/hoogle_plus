@@ -130,7 +130,7 @@ runInterpreter' timeInMicro exec =
 
         -- allow extensions for function execution
         extensions <- LHI.get languageExtensions
-        LHI.set [languageExtensions := (FlexibleInstances : ExtendedDefaultRules : ScopedTypeVariables : extensions)]
+        LHI.set [languageExtensions := (ScopedTypeVariables : extensions)]
 
 
         loadModules [srcPath]
@@ -171,7 +171,7 @@ validateSolution modules solution funcSig time = evaluateResult' <$> evaluatePro
       Left (UnknownError "timeout") -> Right $ AlwaysFail $ Example [] "timeout"
       Left error -> trace (show error) (Right $ AlwaysFail $ Example [] (show error))
       Right (Nothing, _) -> Right $ AlwaysFail $ caseToInput result
-      Right (_, examples) -> Right $ PartialFunction examples
+      Right (_, examples) -> Right $ PartialFunction $ take 2 examples -- only need the first two examples, one succeed, one fail
 
     caseToInput :: Either InterpreterError SmallCheckResult -> Example
     caseToInput (Right (_, example:_)) = example
@@ -210,13 +210,11 @@ checkSolutionNotCrash modules sigStr body = do
   fs@(FilterState _ _ examples _) <- get
   result <- liftIO executeCheck
 
-  liftIO $ print result
   let pass = case result of
-               Right (AlwaysFail example) -> False
+               Right (AlwaysFail _) -> False
                _ -> True
   let Right desc = result
   put $ fs {solutionExamples = (body, desc) : examples}
-  liftIO $ print pass
   return pass
 
   where
@@ -290,7 +288,7 @@ showParams args = (plain, typed, shows, unwrp)
         ArgTypeList t -> ArgTypeList (apply t)
         ArgTypeTuple ts -> ArgTypeTuple (map apply ts)
         ArgTypeApp _ _ -> apply x
-        ArgTypeFunc _ _ -> apply x
+        ArgTypeFunc arg res -> ArgTypeFunc (apply arg) (apply res)
 
 -- ******** Example Generator ********
 
