@@ -32,6 +32,7 @@ const mapStateToProps = (state) => {
         isEditing: !!state.spec.editingExampleRow,
         queryId: state.candidates.queryId,
         canStop: !!state.spec.searchPromise,
+        hasResults: state.candidates.results.length > 0,
     }
 };
 
@@ -56,7 +57,7 @@ const connectedSearchBar = (props) => {
             return;
         }
         props.markClean();
-        if (props.isDirty) {
+        if (props.isDirty && props.hasResults) {
             return props.refineSearch({query: searchType, examples: filteredUsages});
         }
         return doSearch({query: searchType, examples: filteredUsages});
@@ -87,7 +88,7 @@ const connectedSearchBar = (props) => {
     };
 
     const buttonContent = () => {
-        if (props.isDirty) {
+        if (props.isDirty && props.hasResults) {
             return "Refine results";
         }
         switch(searchStatus) {
