@@ -6,7 +6,8 @@
 module Examples.ExampleChecker(
     execExample,
     checkExamples,
-    checkExampleOutput
+    checkExampleOutput,
+    augmentTestSet
     )where
 
 import Types.Program
@@ -93,8 +94,6 @@ execExample mdls env typ prog ex = do
     let progCall = printf "Test.ChasingBottoms.approxShow 100 (f %s)" (unwords parensedInputs)
     runStmt mdls $ unwords [progBody, progCall]
 
--- to check two type are exactly the same
--- what about swapping arg orders?
 augmentTestSet :: Environment -> RSchema -> IO [Example]
 augmentTestSet env goal = do
     let candidates = env ^. queryCandidates

@@ -211,11 +211,13 @@ checkSolutionNotCrash modules sigStr body = do
   fs@(FilterState _ _ examples _) <- get
   result <- liftIO executeCheck
 
+  liftIO $ print result
   let pass = case result of
                Right (AlwaysFail example) -> False
                _ -> True
   let Right desc = result
   put $ fs {solutionExamples = (body, desc) : examples}
+  liftIO $ print pass
   return pass
 
   where

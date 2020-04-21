@@ -39,7 +39,6 @@ instance {-# OVERLAPPING #-} (SF.ShowFunction a) => Show (Inner [a]) where
   show (Inner xs) = show $ map Inner xs
 instance {-# OVERLAPPING #-} (SF.ShowFunction a) => Show (Inner (a, a)) where
   show (Inner p) = (show . over each Inner) p
-  
 
 printIOResult :: [String] -> [CB.Result String] -> IO ()
 printIOResult args rets = (putStrLn . show) result
