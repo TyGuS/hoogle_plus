@@ -3,7 +3,6 @@ module HooglePlus.FilterTest where
 
 import Language.Haskell.Interpreter hiding (get, set)
 import qualified Language.Haskell.Interpreter as LHI
-import Language.Haskell.Interpreter.Unsafe
 import Language.Haskell.Exts.Parser
 import Text.Printf
 import Control.Exception
@@ -34,8 +33,6 @@ import Synquid.Type
 import Paths_HooglePlus
 
 import Debug.Trace
-
-trace' x = trace x x
 
 parseTypeString :: String -> FunctionSignature
 parseTypeString input = FunctionSignature constraints argsType returnType
@@ -93,7 +90,7 @@ buildFunctionWrapper functions solutionType params@(plain, typed, shows, unwrp) 
       printf "let timeoutWrapper = \\%s -> (evaluateIO %d %s (Prelude.map (\\f -> f %s) [%s])) in" typed timeInMicro shows unwrp (intercalate ", " wrapperNames) :: String
 
 buildNotCrashProp :: String -> FunctionSignature -> String
-buildNotCrashProp solution funcSig = trace' $ formatAlwaysFailProp params wrapper
+buildNotCrashProp solution funcSig = formatAlwaysFailProp params wrapper
   where
     params@(plain, typed, shows, unwrp) = showParams (_argsType funcSig)
 
