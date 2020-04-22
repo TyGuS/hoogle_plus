@@ -288,7 +288,7 @@ showParams args = (plain, typed, shows, unwrp)
         ArgTypeList t -> ArgTypeList (apply t)
         ArgTypeTuple ts -> ArgTypeTuple (map apply ts)
         ArgTypeApp _ _ -> apply x
-        ArgTypeFunc arg res -> ArgTypeFunc (apply arg) (apply res)
+        ArgTypeFunc arg res -> apply (ArgTypeFunc (apply arg) (apply res))
 
 -- ******** Example Generator ********
 
