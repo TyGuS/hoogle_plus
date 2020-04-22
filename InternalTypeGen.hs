@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, LambdaCase, FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE UndecidableInstances #-}
 module InternalTypeGen where
 
 import Data.List (isInfixOf, elemIndex, nub, reverse, intersect)
@@ -63,21 +64,26 @@ instance Monad m => SS.CoSerial m (Inner Int) where
       msplit a >>=
       maybe (return []) (\(x,a') -> (x:) `liftM` unwind a')
 instance {-# OVERLAPPABLE #-} (SF.ShowFunction a) => Show (Inner a) where
-  show (Inner fcn) = SF.showFunctionLine defaultShowFunctionDepth fcn
+  show x = SF.showFunctionLine defaultShowFunctionDepth x
 instance {-# OVERLAPPING #-} (SF.ShowFunction a) => Show (Inner [a]) where
   show (Inner xs) = show $ map Inner xs
 instance {-# OVERLAPPING #-} (SF.ShowFunction a) => Show (Inner (a, a)) where
   show (Inner p) = (show . over each Inner) p
+instance {-# OVERLAPPING #-} (SF.ShowFunction (a -> b)) => Show (Inner (Inner a -> Inner b)) where
+  show fcn = SF.showFunctionLine defaultShowFunctionDepth (unwrap fcn :: a -> b)
 instance SF.ShowFunction a => SF.ShowFunction (Inner a) where
   bindtiers (Inner x) = SF.bindtiers x
 
 class Unwrappable a b where
   unwrap :: a -> b
-instance Unwrappable (Inner a) a where unwrap (Inner x) = x
-instance Unwrappable ([Inner a]) [a] where unwrap = map unwrap
+instance Unwrappable a a where unwrap x = x
+instance Unwrappable (Inner a) a where unwrap (Inner x) = unwrap x
+instance Unwrappable [Inner a] [a] where unwrap = map unwrap
 instance Unwrappable (Inner a, Inner b) (a, b) where unwrap (Inner x, Inner y) = (x, y)
 instance (Unwrappable (Inner b) b) => Unwrappable (Inner a -> Inner b) (a -> b) where
   unwrap f = \x -> unwrap $ f (Inner x)
+instance (Unwrappable (Inner b) b) => Unwrappable (Inner (Inner a -> Inner b)) (a -> b) where
+  unwrap (Inner f) = unwrap f
 
 printIOResult :: [String] -> [CB.Result String] -> IO ()
 printIOResult args rets = (putStrLn . show) result
