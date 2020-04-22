@@ -164,7 +164,8 @@ searchExamples synquidParams inStr num = do
     -- the diverse stream, we also need to pass all the current solutions into
     -- this query
     let prevResults = map output $ exampleExisting input
-    result <- generateIOPairs mdls prog funcSig num defaultTimeoutMicro defaultInterpreterTimeoutMicro defaultDepth prevResults
+    let prevInputs = map inputs $ exampleExisting input
+    result <- generateIOPairs mdls prog funcSig num defaultTimeoutMicro defaultInterpreterTimeoutMicro defaultDepth prevResults prevInputs
     let resultObj = case result of
           Left err -> ListOutput [] (show err)
           Right genRes | null genRes -> ListOutput [] "No more examples"

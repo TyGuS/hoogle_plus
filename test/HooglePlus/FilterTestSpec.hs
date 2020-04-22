@@ -67,7 +67,8 @@ testNotCrashHOFs =
   [("Succeed on basic application", [], "(a -> b) -> a -> b", "\\f x -> f x", True)
   , ("Succeed on HOF with data type", ["Data.Maybe"], "(a -> Maybe b) -> [a] -> Maybe b", "\\f xs -> Data.Maybe.listToMaybe (Data.Maybe.mapMaybe f xs)", True)
   , ("Succeed on simple HOF", ["GHC.List"], "(a -> Bool) -> [a] -> Int", "\\p xs -> GHC.List.length (GHC.List.takeWhile p xs)", True)
-  , ("Succeed on complex HOF", [], "(a -> b) -> (b -> c) -> (c -> d) -> a -> d", "\\h g f x -> (f . g . h) x", True)]
+  , ("Succeed on complex HOF", [], "(a -> b) -> (b -> c) -> (c -> d) -> a -> d", "\\h g f x -> (f . g . h) x", True)
+  , ("Succeed on the strange case #138", ["GHC.List"], "[a] -> ([a] -> [a]) -> Int -> [a]", "\\arg0 arg1 arg2 -> (GHC.List.iterate' arg1 arg0) !! arg2", True)]
 
 testNotCrashNonTerms :: [(String, [String], String, String, Bool)]
 testNotCrashNonTerms =

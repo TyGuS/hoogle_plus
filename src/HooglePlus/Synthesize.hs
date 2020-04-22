@@ -35,6 +35,7 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Data.Either
 import Data.List
+import Data.List.Extra (nubOrdOn)
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Maybe
@@ -112,9 +113,11 @@ synthesize searchParams goal examples messageChan = catch (do
     -- before synthesis, first check that user has provided valid examples
     let exWithOutputs = filter ((/=) "??" . output) examples
     checkResult <- checkExamples envWithHo goalType exWithOutputs messageChan
+    preseedExamples <- augmentTestSet envWithHo goalType
+    let augmentedExamples = nubOrdOn inputs $ examples ++ preseedExamples
     case checkResult of
       Right errs -> error (unlines ("examples does not type check" : errs))
-      Left _ -> evalStateT (runPNSolver envWithHo goalType examples) is)
+      Left _ -> evalStateT (runPNSolver envWithHo goalType augmentedExamples) is)
     (\e ->
          writeChan messageChan (MesgLog 0 "error" (show e)) >>
          writeChan messageChan (MesgClose (CSError e)) >>
