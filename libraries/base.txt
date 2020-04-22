@@ -95,7 +95,7 @@ foldr1 :: (a -> a -> a) -> [a] -> a
 -- scanr :: (a -> b -> b) -> b -> [a] -> [b]
 -- scanr1 :: (a -> a -> a) -> [a] -> [a]
 iterate :: (a -> a) -> a -> [a]
-iterate' :: (a -> a) -> a -> [a]
+-- iterate' :: (a -> a) -> a -> [a]
 repeat :: a -> [a]
 replicate :: Int -> a -> [a]
 -- cycle :: [a] -> [a]
