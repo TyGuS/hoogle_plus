@@ -9,10 +9,12 @@ import Types.IOFormat (Example)
 
 import Test.SmallCheck.Drivers
 
-defaultTimeoutMicro = 10^6 :: Int
+defaultTimeoutMicro = 1 * 10^6 :: Int
 defaultDepth = 3 :: Int
 defaultInterpreterTimeoutMicro = 4 * 10^6 :: Int
 defaultMaxOutputLength = 10 :: Int 
+defaultGenerationTimeoutMicro = 30 * 10^6 :: Int
+defaultGenerationDepth = 4 :: Int
 
 frameworkModules =
   zip [ "Test.SmallCheck"
@@ -21,7 +23,8 @@ frameworkModules =
   , "System.IO.Silently"
   , "Control.Exception"
   , "Control.Monad"
-  , "Control.Monad.State" ] (repeat Nothing)
+  , "Control.Monad.State"
+  ] (repeat Nothing)
 
   ++ [("Test.ChasingBottoms", Just "CB")]
 

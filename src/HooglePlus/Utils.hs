@@ -24,12 +24,13 @@ import CoreSyn
 import Data.Data
 import Data.Ord
 import Data.Either
-import Data.List (sortOn, groupBy, isInfixOf, isPrefixOf, intercalate)
-import Data.List.Extra (nubOrdOn)
+import Data.List (sortOn, groupBy, isInfixOf, isPrefixOf, isSuffixOf, intercalate)
+import Data.List.Extra (nubOrdOn, dropEnd)
 import Data.List.Split (splitOn)
 import Data.Maybe
 import Data.Typeable
 import Data.Function (on)
+import qualified Data.Text as Text
 import Demand
 import DmdAnal
 import DynFlags
@@ -50,6 +51,7 @@ import Text.Regex
 import Var hiding (Id)
 import Data.UUID.V4
 import Debug.Trace
+import qualified Language.Haskell.Interpreter as LHI
 
 -- Converts the list of param types into a haskell function signature.
 -- Moves typeclass-looking things to the front in a context.
@@ -113,15 +115,6 @@ printSolution solution = do
     putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
     putStrLn "************************************************"
 
-{-
-printFilter (FilterState _ solns samples) = unlines $ map printSol solns
-    where
-        printSol :: String -> String
-        printSol sol =
-            let [(_, desc)] = filter ((== sol) . fst) samples in
-                unlines [sol, show desc]
--}
-
 collectExamples :: String -> FilterState -> AssociativeExamples
 collectExamples solution (FilterState _ sols samples examples) =
     map mkGroup $ groupBy (\x y -> fst x == fst y)
@@ -174,3 +167,47 @@ preprocessEnvFromGoal goal = updateEnvWithSpecArgs monospec env''
     where
         env''' = gEnvironment goal
         (env'', monospec) = updateEnvWithBoundTyVars (gSpec goal) env'''
+
+replaceId a b = Text.unpack . Text.replace (Text.pack a) (Text.pack b) . Text.pack
+
+matchNiceFunctions :: String -> IO String
+matchNiceFunctions prog | null prog = print prog >> return prog
+matchNiceFunctions prog | '\\' == head prog = do
+    let inputs = [-1, 0, 1, 2]
+    let concatInputs = [[[0,1],[1,2]], [[1,2,3,4],[0,9,8]]]
+    let concatOutput = [[0,1,1,2], [1,2,3,4,0,9,8]]
+    let prog' = if "..." `isSuffixOf` prog then dropEnd 3 prog else prog
+    let stmt = printf "GHC.List.map (%s) %s" prog' (show inputs)
+    result <- runStmt stmt
+    print result
+    case result of
+        "[-3,0,3,6]" -> return "\\x -> x * 3"
+        "[0,1,2,3]" -> return "\\x -> x + 1"
+        "[1,0,1,4]" -> return "\\x -> x * x"
+        _ -> do
+            result2 <- runStmt $ printf "GHC.List.map (%s) %s" prog' (show concatInputs)
+            if result2 == show concatOutput
+                then return "\\x -> x ++ x"
+                else do
+                    result3 <- runStmt $ printf "(GHC.List.all ((==) (GHC.List.head %s)) %s, GHC.List.head %s)" result result result
+                    if take 5 result3 == "(True"
+                        then return $ printf "const %s" (dropEnd 1 $ drop 6 result3)
+                        else return prog
+    where
+        runStmt p = do
+            let mdls = ["Data.Maybe", "GHC.List", "Data.List", "Data.Eq", "GHC.Char", "Data.Function"]
+            result <- LHI.runInterpreter $ do
+                LHI.setImports mdls
+                LHI.eval p
+            return $ either show id result
+matchNiceFunctions prog | head prog == '[' && last prog == ']' =  do
+    let progElmts = dropEnd 1 $ drop 1 prog
+    let sepElmts = splitOn "," progElmts
+    convertedElmts <- mapM matchNiceFunctions sepElmts
+    return $ printf "[%s]" (intercalate "," convertedElmts)
+matchNiceFunctions prog = return prog
+
+niceInputs :: Example -> IO Example
+niceInputs (Example ins out) = do
+    ins' <- mapM matchNiceFunctions ins
+    return (Example ins' out)

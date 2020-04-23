@@ -41,6 +41,7 @@ import HooglePlus.TypeChecker
 import PetriNet.AbstractType
 import HooglePlus.GHCChecker
 import HooglePlus.FilterTest
+import HooglePlus.Utils
 import PetriNet.PNEncoder
 import PetriNet.Util
 import Synquid.Error
