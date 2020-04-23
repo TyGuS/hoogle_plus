@@ -80,22 +80,22 @@ instance {-# OVERLAPPABLE #-} SS.Serial m a => SS.Serial m (Inner a) where
 instance {-# OVERLAPPING #-} Monad m => SS.Serial m (Inner (Int -> Int)) where
   series = (SS.generate $ \_ -> map Inner [\x -> x + 1
                                           ,\x -> x * x
-                                          ,\x -> x * 2]) SS.\/
+                                          ,\x -> x * 3]) SS.\/
             SS.newtypeCons Inner
 instance {-# OVERLAPPING #-} Monad m => SS.Serial m (Inner (MyInt -> Int)) where
   series = (SS.generate $ \_ -> map Inner [\x -> toInt x + 1
                                           ,\x -> toInt x * toInt x
-                                          ,\x -> toInt x * 2]) SS.\/
+                                          ,\x -> toInt x * 3]) SS.\/
             SS.newtypeCons Inner
 instance {-# OVERLAPPING #-} Monad m => SS.Serial m (Inner (Inner Int -> Inner Int)) where
   series = (SS.generate $ \_ -> map Inner [\(Inner x) -> Inner (x + 1)
                                           ,\(Inner x) -> Inner (x * x)
-                                          ,\(Inner x) -> Inner (x * 2)]) SS.\/
+                                          ,\(Inner x) -> Inner (x * 3)]) SS.\/
             SS.newtypeCons Inner
 instance {-# OVERLAPPING #-} Monad m => SS.Serial m (Inner (Inner MyInt -> Inner Int)) where
   series = (SS.generate $ \_ -> map Inner [\(Inner x) -> Inner (toInt x + 1)
                                           ,\(Inner x) -> Inner (toInt x * toInt x)
-                                          ,\(Inner x) -> Inner (toInt x * 2)]) SS.\/
+                                          ,\(Inner x) -> Inner (toInt x * 3)]) SS.\/
             SS.newtypeCons Inner
 instance {-# OVERLAPPING #-} Monad m => SS.Serial m (Inner ([Int] -> [Int])) where
   series = (SS.generate $ \_ -> map Inner [\x -> x ++ x]) SS.\/
