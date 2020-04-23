@@ -3,12 +3,11 @@
 {-# LANGUAGE UndecidableInstances #-}
 module InternalTypeGen where
 
-import Data.List (isInfixOf, elemIndex, nub, reverse, intersect)
+import Data.List (isInfixOf, elemIndex, nub, drop, reverse, intersect)
 import Control.Monad
 import Control.Monad.State
 import Control.Monad.Logic
 import Data.Data
-import Data.Maybe
 
 import Text.Printf
 import System.IO.Silently
@@ -20,7 +19,7 @@ import qualified Test.SmallCheck.Series as SS
 
 defaultShowFunctionDepth = 4 :: Int
 defaultMaxOutputLength = 10 :: CB.Nat
-defaultSeriesLimit = 4 :: Int
+defaultSeriesLimit = 5 :: Int
 
 instance Eq a => Eq (CB.Result a) where
   (CB.Value a) == (CB.Value b) = a == b
@@ -36,53 +35,145 @@ isFailedResult result = case result of
   CB.Value a | "Exception" `isInfixOf` a -> True
   _ -> False
 
+data MyInt = MOne | Zero | One | Two deriving (Eq)
+
+instance Show MyInt where
+  show = show . toInt
+
+toInt :: MyInt -> Int
+toInt MOne = -1
+toInt Zero = 0
+toInt One = 1
+toInt Two = 2
+
+toMyInt :: Int -> MyInt
+toMyInt (-1) = MOne
+toMyInt 0 = Zero
+toMyInt 1 = One
+toMyInt 2 = Two
+toMyInt n | n < -1 = MOne
+          | n > 2 = Two
+
+instance Monad m => SS.Serial m MyInt where
+  series = SS.cons0 MOne SS.\/
+           SS.cons0 Zero SS.\/
+           SS.cons0 One SS.\/
+           SS.cons0 Two
+
+instance Monad m => SS.CoSerial m MyInt where
+  coseries r = let rs = SS.limit defaultSeriesLimit r
+                in SS.alts0 rs >>- \z1 ->
+                   SS.alts0 rs >>- \z2 ->
+                   SS.alts0 rs >>- \z3 ->
+                   SS.alts0 rs >>- \z4 ->
+                   return $ \x ->
+                       case x of
+                           MOne -> z1
+                           Zero -> z2
+                           One -> z3
+                           Two -> z4
+
 newtype Inner a = Inner a deriving (Eq)
+
 instance {-# OVERLAPPABLE #-} SS.Serial m a => SS.Serial m (Inner a) where
   series = SS.newtypeCons Inner
-instance {-# OVERLAPPING #-} Monad m => SS.Serial m (Inner Int) where
-  series = SS.limit defaultSeriesLimit $ SS.newtypeCons Inner
+instance {-# OVERLAPPING #-} Monad m => SS.Serial m (Inner (Int -> Int)) where
+  series = (SS.generate $ \_ -> map Inner [\x -> x + 1
+                                          ,\x -> x * x
+                                          ,\x -> x * 2]) SS.\/
+            SS.newtypeCons Inner
+instance {-# OVERLAPPING #-} Monad m => SS.Serial m (Inner (MyInt -> Int)) where
+  series = (SS.generate $ \_ -> map Inner [\x -> toInt x + 1
+                                          ,\x -> toInt x * toInt x
+                                          ,\x -> toInt x * 2]) SS.\/
+            SS.newtypeCons Inner
+instance {-# OVERLAPPING #-} Monad m => SS.Serial m (Inner (Inner Int -> Inner Int)) where
+  series = (SS.generate $ \_ -> map Inner [\(Inner x) -> Inner (x + 1)
+                                          ,\(Inner x) -> Inner (x * x)
+                                          ,\(Inner x) -> Inner (x * 2)]) SS.\/
+            SS.newtypeCons Inner
+instance {-# OVERLAPPING #-} Monad m => SS.Serial m (Inner (Inner MyInt -> Inner Int)) where
+  series = (SS.generate $ \_ -> map Inner [\(Inner x) -> Inner (toInt x + 1)
+                                          ,\(Inner x) -> Inner (toInt x * toInt x)
+                                          ,\(Inner x) -> Inner (toInt x * 2)]) SS.\/
+            SS.newtypeCons Inner
+instance {-# OVERLAPPING #-} Monad m => SS.Serial m (Inner ([Int] -> [Int])) where
+  series = (SS.generate $ \_ -> map Inner [\x -> x ++ x]) SS.\/
+            SS.newtypeCons Inner
+instance {-# OVERLAPPING #-} Monad m => SS.Serial m (Inner (Inner [Int] -> Inner [Int])) where
+  series = (SS.generate $ \_ -> map Inner [\(Inner x) -> Inner (x ++ x)]) SS.\/
+            SS.newtypeCons Inner
 instance {-# OVERLAPPABLE #-} SS.CoSerial m a => SS.CoSerial m (Inner a) where
   coseries rs = SS.newtypeAlts rs >>- \f ->
                 return $ \(Inner x) -> f x
-instance Monad m => SS.CoSerial m (Inner Int) where
-  coseries rs = do
-    -- all possible values for args, value is limited in Serial m (Inner Int)
-    args <- unwind SS.series
-    -- assign each arg value a new return series
-    let rsPairs = zip args (repeat rs)
-    -- pick one value from each series
-    rets <- foldM stackRs [] rsPairs
-    -- an extra series to handle input values outside [-depth, depth]
-    rets' <- rs SS.>>- (return . (:rets))
-    return $ \x -> case elemIndex x args of
-                     Just i -> rets' !! i
-                     Nothing -> last rets'
-    where
-    stackRs sofar (i, rets) = rets SS.>>- (\r -> return (r:sofar))
-    unwind a =
-      msplit a >>=
-      maybe (return []) (\(x,a') -> (x:) `liftM` unwind a')
-instance {-# OVERLAPPABLE #-} (SF.ShowFunction a) => Show (Inner a) where
-  show x = SF.showFunctionLine defaultShowFunctionDepth x
-instance {-# OVERLAPPING #-} (SF.ShowFunction a) => Show (Inner [a]) where
-  show (Inner xs) = show $ map Inner xs
-instance {-# OVERLAPPING #-} (SF.ShowFunction a) => Show (Inner (a, a)) where
-  show (Inner p) = (show . over each Inner) p
-instance {-# OVERLAPPING #-} (SF.ShowFunction (a -> b)) => Show (Inner (Inner a -> Inner b)) where
-  show fcn = SF.showFunctionLine defaultShowFunctionDepth (unwrap fcn :: a -> b)
-instance SF.ShowFunction a => SF.ShowFunction (Inner a) where
+
+instance {-# OVERLAPPABLE #-} (Show a) => Show (Inner a) where
+  show x = show ((unwrap :: Inner a -> a) x)
+instance {-# OVERLAPPING #-} Show (Inner MyInt) where
+  show (Inner x) = show $ toInt x
+instance {-# OVERLAPPING #-} (Show a) => Show (Inner [a]) where
+  show (Inner xs) = show $ map (wrap :: a -> Inner a) xs
+instance {-# OVERLAPPING #-} (Show a) => Show (Inner (Maybe a)) where
+  show (Inner mb) = show $ fmap (wrap :: a -> Inner a) mb
+instance {-# OVERLAPPING #-} (Show a, Show b) => Show (Inner (a, b)) where
+  show (Inner (f, s)) = show $ ((wrap :: a -> Inner a) f, (wrap :: b -> Inner b) s)
+instance {-# OVERLAPPING #-} (Show b) => Show (Inner (MyInt, b)) where
+  show (Inner (f, s)) = show $ (toInt f, (wrap :: b -> Inner b) s)
+instance {-# OVERLAPPING #-} (Show a) => Show (Inner (a, MyInt)) where
+  show (Inner (f, s)) = show $ ((wrap :: a -> Inner a) f, toInt s)
+instance {-# OVERLAPPING #-} (Unwrappable a Int, Unwrappable b Int) => Show (Inner (a -> b)) where
+  show (Inner f) = SF.showFunctionLine defaultShowFunctionDepth (unwrap f :: Int -> Int)
+instance {-# OVERLAPPING #-} (Unwrappable a Int, Unwrappable b Int, Unwrappable c Int) => Show (Inner (a -> Inner (b -> c))) where
+  show (Inner f) = SF.showFunctionLine defaultShowFunctionDepth (unwrap f :: Int -> Int -> Int)
+instance {-# OVERLAPPING #-} (Unwrappable a Int, Unwrappable b Int, Unwrappable c Int, Unwrappable d Int) => Show (Inner (a -> Inner (b -> Inner (c -> d)))) where
+  show (Inner f) = SF.showFunctionLine defaultShowFunctionDepth (unwrap f :: Int -> Int -> Int -> Int)
+instance (SF.ShowFunction a) => SF.ShowFunction (Inner a) where
   bindtiers (Inner x) = SF.bindtiers x
+instance SF.ShowFunction MyInt where
+  bindtiers = SF.bindtiers . toInt
 
 class Unwrappable a b where
+  wrap :: b -> a
   unwrap :: a -> b
-instance Unwrappable a a where unwrap x = x
-instance Unwrappable (Inner a) a where unwrap (Inner x) = unwrap x
-instance Unwrappable [Inner a] [a] where unwrap = map unwrap
-instance Unwrappable (Inner a, Inner b) (a, b) where unwrap (Inner x, Inner y) = (x, y)
-instance (Unwrappable (Inner b) b) => Unwrappable (Inner a -> Inner b) (a -> b) where
-  unwrap f = \x -> unwrap $ f (Inner x)
-instance (Unwrappable (Inner b) b) => Unwrappable (Inner (Inner a -> Inner b)) (a -> b) where
-  unwrap (Inner f) = unwrap f
+instance Unwrappable MyInt Int where
+  wrap = toMyInt
+  unwrap = toInt
+instance {-# OVERLAPPABLE #-} Unwrappable a a where
+  wrap x = x
+  unwrap x = x
+instance Unwrappable a b => Unwrappable (Inner a) b where
+  wrap = Inner . wrap
+  unwrap (Inner x) = unwrap x
+instance {-# OVERLAPPABLE #-} Unwrappable a b => Unwrappable [a] [b] where
+  wrap = map wrap
+  unwrap = map unwrap
+instance {-# OVERLAPPING #-} Unwrappable [a] [a] where
+  wrap x = x
+  unwrap x = x
+instance {-# OVERLAPPABLE #-} Unwrappable a b => Unwrappable (Maybe a) (Maybe b) where
+  wrap = fmap wrap
+  unwrap = fmap unwrap
+instance {-# OVERLAPPING #-} Unwrappable (Maybe a) (Maybe a) where
+  wrap x = x
+  unwrap x = x
+instance {-# OVERLAPPABLE #-} (Unwrappable a c, Unwrappable b d) => Unwrappable (a, b) (c, d) where
+  wrap (x, y) = (wrap x, wrap y)
+  unwrap (x, y) = (unwrap x, unwrap y)
+instance {-# OVERLAPPABLE #-} (Unwrappable a c, Unwrappable b d, Unwrappable e f) => Unwrappable (a, b, e) (c, d, f) where
+  wrap (x, y, z) = (wrap x, wrap y, wrap z)
+  unwrap (x, y, z) = (unwrap x, unwrap y, unwrap z)
+instance {-# OVERLAPPABLE #-} (Unwrappable a c, Unwrappable b d, Unwrappable e f, Unwrappable g h) => Unwrappable (a, b, e, g) (c, d, f, h) where
+  wrap (x, y, z, s) = (wrap x, wrap y, wrap z, wrap s)
+  unwrap (x, y, z, s) = (unwrap x, unwrap y, unwrap z, unwrap s)
+instance {-# OVERLAPPING #-} Unwrappable (a, a) (a, a) where
+  wrap x = x
+  unwrap x = x
+instance {-# OVERLAPPABLE #-} (Unwrappable a c, Unwrappable b d) => Unwrappable (a -> b) (c -> d) where
+  wrap f = \x -> wrap $ f (unwrap x)
+  unwrap f = \x -> unwrap $ f (wrap x)
+instance {-# OVERLAPPING #-} Unwrappable (a -> a) (a -> a) where
+  wrap x = x
+  unwrap x = x
 
 showCBResult :: CB.Result String -> String
 showCBResult = \case
@@ -124,17 +215,19 @@ waitState numIOs args previousRets previousArgs ret = case (not $ isFailedResult
     ioState <- get
 
     let retStr = showCBResult ret
-    when (retIsNotInState retStr ioState && paramsIsNotInState args ioState) (modify ((:) (Example args retStr)))
+    when (retIsNotInState retStr ioState && paramsIsNotInState args ioState)
+        (modify ((:) (Example args retStr)))
 
     state <- get
     return ((length state) == numIOs)
   where 
     retIsNotInState retStr state = not $ ((retStr `elem` (map output state)) || (retStr `elem` previousRets))
-    paramsIsNotInState params state = not $ ((anyCommonArgs params (map inputs state)) || (params `elem` previousArgs))
+    paramsIsNotInState params state = not (anyCommonArgs params (map inputs state ++ previousArgs))
 
-
+-- modify 2020/04/22 by Zheng
+-- only compare arguments in the same position, intersect is too strict
 anyCommonArgs :: [String] -> [[String]] -> Bool
-anyCommonArgs args inputs = any id $ map (compare args) inputs
+anyCommonArgs args inputs = or $ map (compare args) inputs
   where
     compare :: [String] -> [String] -> Bool
-    compare xs = not . null . intersect xs
+    compare xs = any (uncurry (==)) . zip xs

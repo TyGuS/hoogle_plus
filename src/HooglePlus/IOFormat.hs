@@ -16,7 +16,7 @@ import Types.IOFormat
 import Types.Experiments
 import Types.Environment
 import Types.Type
-import Types.Filtering (defaultTimeoutMicro, defaultDepth, defaultInterpreterTimeoutMicro)
+import Types.Filtering (defaultTimeoutMicro, defaultGenerationDepth, defaultInterpreterTimeoutMicro, defaultGenerationTimeoutMicro)
 import Synquid.Parser (parseType, parseProgram)
 import Synquid.Resolver (ResolverState(..), initResolverState, resolveSchema)
 import Synquid.Type
@@ -24,6 +24,7 @@ import Examples.ExampleChecker
 import Examples.InferenceDriver
 import Examples.Utils
 import HooglePlus.FilterTest (generateIOPairs, parseTypeString)
+import HooglePlus.Utils (niceInputs)
 
 import Control.Concurrent.Chan
 import Control.Monad
@@ -34,6 +35,7 @@ import Control.Lens
 import System.Directory
 import System.FilePath
 import Data.List
+import Data.List.Extra
 import Data.Maybe
 import Data.Either
 import qualified Data.Serialize as S
@@ -46,6 +48,7 @@ import qualified Data.Set as Set
 import Text.Parsec.Indent
 import Text.Parsec.Pos
 import Text.Printf
+import qualified Language.Haskell.Interpreter as LHI
 
 -- parse the input json string
 -- includes: type query, examples
@@ -164,13 +167,29 @@ searchExamples synquidParams inStr num = do
     -- the diverse stream, we also need to pass all the current solutions into
     -- this query
     let prevResults = map output $ exampleExisting input
-    let prevInputs = map inputs $ exampleExisting input
-    result <- generateIOPairs mdls prog funcSig num defaultTimeoutMicro defaultInterpreterTimeoutMicro defaultDepth prevResults prevInputs
-    let resultObj = case result of
-          Left err -> ListOutput [] (show err)
-          Right genRes | null genRes -> ListOutput [] "No more examples"
-                       | otherwise -> ListOutput genRes ""
+    let prevInputs = map (map toNormalFunctions . inputs) $ exampleExisting input
+    result <- generateIOPairs mdls prog funcSig num defaultTimeoutMicro defaultGenerationTimeoutMicro defaultGenerationDepth prevResults prevInputs
+    resultObj <- case result of
+          Left err -> return $ ListOutput [] (show err)
+          Right genRes | null genRes -> return $ ListOutput [] "No more examples"
+                       | otherwise -> do
+                            niceExamples <- mapM niceInputs genRes
+                            return $ ListOutput niceExamples ""
     printResult $ encodeWithPrefix resultObj
+    where
+        toNormalFunctions "" = ""
+        toNormalFunctions f | "const " `isPrefixOf` f =
+            let n = drop 6 f
+             in printf "\\x -> case x of 0 -> %s; 1 -> %s; -1 -> %s; 2 -> %s;" n n n n
+        toNormalFunctions "\\x -> x + 1" = "\\x -> case x of 0 -> 1; 1 -> 2; -1 -> 0; 2 -> 3; ..."
+        toNormalFunctions "\\x -> x * x" = "\\x -> case x of 0 -> 0; 1 -> 1; -1 -> 1; 2 -> 4; ..."
+        toNormalFunctions "\\x -> x * 3" = "\\x -> case x of 0 -> 0; 1 -> 3; -1 -> -3; 2 -> 6; ..."
+        toNormalFunctions f | head f == '[' && last f == ']' =
+            let elmts = dropEnd 1 $ drop 1 f
+                sepElmts = splitOn "," elmts
+                convElmts = map toNormalFunctions sepElmts
+             in printf "[%s]" (intercalate "," convElmts)
+        toNormalFunctions f = f
 
 searchResults :: SynquidParams -> String -> IO ()
 searchResults synquidParams inStr = do

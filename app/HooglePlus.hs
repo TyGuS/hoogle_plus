@@ -207,7 +207,7 @@ synt = Synthesis {
   use_refine          = TyGarQ          &= help ("Use abstract refinement or not (default: TyGarQ)"),
   stop_refine         = True            &= help ("Stop refine the abstraction cover after some threshold (default: False)"),
   stop_threshold      = 10              &= help ("Refinement stops when the number of places reaches the threshold, only when stop_refine is True"),
-  get_n_examples      = 3               &= help ("Number of more examples (used only for web mode)"),
+  get_n_examples      = 1               &= help ("Number of more examples (used only for web mode)"),
   get_n_types         = 10              &= help ("Number of inferred types (used only for web mode)"),
   incremental         = False           &= help ("Enable the incremental solving in z3 (default: False)"),
   disable_demand      = False           &= name "d" &= help ("Disable the demand analyzer (default: False)"),

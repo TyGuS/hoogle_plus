@@ -113,8 +113,8 @@ synthesize searchParams goal examples messageChan = catch (do
     -- before synthesis, first check that user has provided valid examples
     let exWithOutputs = filter ((/=) "??" . output) examples
     checkResult <- checkExamples envWithHo goalType exWithOutputs messageChan
-    preseedExamples <- augmentTestSet envWithHo goalType
-    let augmentedExamples = nubOrdOn inputs $ examples ++ preseedExamples
+    -- preseedExamples <- augmentTestSet envWithHo goalType
+    let augmentedExamples = examples -- nubOrdOn inputs $ examples ++ preseedExamples
     case checkResult of
       Right errs -> error (unlines ("examples does not type check" : errs))
       Left _ -> evalStateT (runPNSolver envWithHo goalType augmentedExamples) is)

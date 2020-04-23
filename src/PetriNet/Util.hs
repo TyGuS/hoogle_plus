@@ -75,7 +75,6 @@ nubSpence l = runST $ do
 
 listDiff left right = Set.toList $ (Set.fromList left) `Set.difference` (Set.fromList right)
 
-replaceId a b = Text.unpack . Text.replace (Text.pack a) (Text.pack b) . Text.pack
 
 var2any env t@(ScalarT (TypeVarT _ id) _) | isBound env id = t
 var2any env t@(ScalarT (TypeVarT _ id) _) = AnyT
@@ -184,7 +183,7 @@ toOutput env soln exs = do
     let argDocs = map (\(n, ty) -> FunctionDoc n (show ty) "") args
     let symbolsWoArgs = symbols \\ argNames
     docs <- liftIO $ hoogleIt symbolsWoArgs
-    let entries = map (\(sol, ex) -> ResultEntry (toHaskellSolution sol) ex) exs
+    entries <- mapM (\(sol, ex) -> ResultEntry (toHaskellSolution sol) <$> mapM niceInputs ex) exs
     return $ QueryOutput entries "" (docs ++ argDocs)
     where
         hoogleIt syms = do
@@ -203,4 +202,3 @@ toOutput env soln exs = do
 
 stripSuffix :: String -> String
 stripSuffix = replaceId hoPostfix "" . removeLast '_'
-

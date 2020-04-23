@@ -75,6 +75,7 @@ instantiateSignature (FunctionSignature _ argsType returnType) =
       instantiate (ArgTypeList sub) = ArgTypeList $ instantiate sub
       instantiate (ArgTypeTuple types) = ArgTypeTuple (map instantiate types)
       instantiate (ArgTypeApp l r) = ArgTypeApp (instantiate l) (instantiate r)
+      instantiate (ArgTypeFunc (Polymorphic name) r) = ArgTypeFunc (Concrete "MyInt") (instantiate r)
       instantiate (ArgTypeFunc l r) = ArgTypeFunc (instantiate l) (instantiate r)
 
 buildFunctionWrapper :: [(String, String)] -> String -> (String, String, String, String) -> Int -> String
@@ -84,7 +85,7 @@ buildFunctionWrapper functions solutionType params@(plain, typed, shows, unwrp) 
   where
     buildLetFunction :: (String, String) -> String -> String
     buildLetFunction (wrapperName, solution) solutionType =
-      printf "let %s = ((%s) :: %s) in" wrapperName solution solutionType :: String
+      printf "let %s = ((%s) :: %s) in" wrapperName solution (replaceId "MyInt" "Int" solutionType) :: String
 
     buildTimeoutWrapper :: [String] -> (String, String, String, String) -> Int -> String
     buildTimeoutWrapper wrapperNames (plain, typed, shows, unwrp) timeInMicro =
@@ -136,7 +137,6 @@ runInterpreter' timeInMicro exec =
         -- allow extensions for function execution
         extensions <- LHI.get languageExtensions
         LHI.set [languageExtensions := (ScopedTypeVariables : extensions)]
-
 
         loadModules [srcPath]
         setTopLevelModules ["InternalTypeGen"]
@@ -218,6 +218,7 @@ checkSolutionNotCrash modules sigStr body = do
   let pass = case result of
                Right (AlwaysFail _) -> False
                _ -> True
+
   let Right desc = result
   put $ fs {solutionExamples = (body, desc) : examples}
   return pass
@@ -304,7 +305,7 @@ showParams args = (plain, typed, shows, unwrp)
         ArgTypeList t -> ArgTypeList (apply t)
         ArgTypeTuple ts -> ArgTypeTuple (map apply ts)
         ArgTypeApp _ _ -> apply x
-        ArgTypeFunc arg res -> apply (ArgTypeFunc (apply arg) (apply res))
+        ArgTypeFunc arg res -> apply (ArgTypeFunc (replaceInner arg) (replaceInner res))
 
 -- ******** Example Generator ********
 
@@ -341,7 +342,7 @@ generateIOPairs modules solution funcSig numPairs timeInMicro interpreterTimeInM
       where
         buildLetFunction :: String -> String -> String
         buildLetFunction solution solutionType =
-          printf "let sol_wrappedSolution = ((%s) :: %s) in" solution typeStr :: String
+          printf "let sol_wrappedSolution = ((%s) :: %s) in" solution (replaceId "MyInt" "Int" typeStr) :: String
 
         buildTimeoutWrapper :: (String, String, String, String) -> Int -> String
         buildTimeoutWrapper (plain, typed, shows, unwrp) timeInMicro =
