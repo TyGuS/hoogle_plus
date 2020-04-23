@@ -1,0 +1,24 @@
+- name: firstJust
+  query: "a -> [Maybe a] -> a"
+  solution: "\\arg0 arg1 -> Data.Maybe.fromMaybe arg0 (Data.Maybe.listToMaybe (Data.Maybe.catMaybes arg1))"
+  source: "original"
+
+- name: dedupe
+  query: "Eq a => [a] -> [a]"
+  solution: "\\xs -> map head (group xs)"
+  source: "original"
+
+- name: inverseMap
+  query: "[a -> b] -> a -> [b]"
+  solution: "\\arg0 arg1 -> zipWith id arg0 (repeat arg1)"
+  source: "original"
+
+- name: applyNTimes
+  query: "(a -> a) -> a -> Int -> a"
+  solution: "\\f n x -> (!!) (iterate f x) n"
+  source: "original"
+
+- name: concatNTimes
+  query: "[a] -> Int -> [a]"
+  solution: "\\arg0 arg1 -> GHC.List.concat (GHC.List.replicate arg1 arg0)"
+  source: "original"

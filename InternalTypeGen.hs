@@ -13,7 +13,6 @@ import Data.Maybe
 import Text.Printf
 import System.IO.Silently
 import Control.Lens
-import Debug.Trace
 
 import qualified Test.LeanCheck.Function.ShowFunction as SF
 import qualified Test.ChasingBottoms as CB
@@ -85,10 +84,6 @@ instance (Unwrappable (Inner b) b) => Unwrappable (Inner a -> Inner b) (a -> b) 
 instance (Unwrappable (Inner b) b) => Unwrappable (Inner (Inner a -> Inner b)) (a -> b) where
   unwrap (Inner f) = unwrap f
 
-printIOResult :: [String] -> [CB.Result String] -> IO ()
-printIOResult args rets = (putStrLn . show) result
-  where result = (args, map showCBResult rets) :: ([String], [String])
-
 showCBResult :: CB.Result String -> String
 showCBResult = \case
                   CB.Value a | "_|_" `isInfixOf` a -> "bottom"
@@ -97,7 +92,9 @@ showCBResult = \case
                   CB.Exception ex -> show ex
 
 anyDuplicate :: Eq a => [a] -> Bool
-anyDuplicate xs = length (nub xs) /= length xs
+-- anyDuplicate xs = length (nub xs) /= length xs
+anyDuplicate [] = False
+anyDuplicate (x:xs) = x `elem` xs 
 
 -- * instance defined in `Types.IOFormat`
 data Example = Example {
