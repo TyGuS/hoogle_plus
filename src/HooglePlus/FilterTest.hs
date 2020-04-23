@@ -1,4 +1,5 @@
 -- module HooglePlus.FilterTest (runChecks, checkSolutionNotCrash, checkDuplicates) where
+{-# LANGUAGE FlexibleContexts #-}
 module HooglePlus.FilterTest where
 
 import Language.Haskell.Interpreter hiding (get, set)
@@ -104,8 +105,12 @@ buildNotCrashProp solution funcSig = formatAlwaysFailProp params wrapper
       , printf "let %s %s = monadic (%s <$> Prelude.head <$> timeoutWrapper %s) in" propName plain body plain
       , printf "runStateT (smallCheckM %d (%s)) []" defaultDepth propName] :: String
 
-buildDupCheckProp :: (String, [String]) -> FunctionSignature -> Int -> Depth -> String
+buildDupCheckProp :: (String, [String]) -> FunctionSignature -> Int -> Depth -> [String]
 buildDupCheckProp (sol, otherSols) funcSig timeInMicro depth =
+  map (\x -> buildDupCheckProp' (sol, [x]) funcSig timeInMicro depth) otherSols
+
+buildDupCheckProp' :: (String, [String]) -> FunctionSignature -> Int -> Depth -> String
+buildDupCheckProp' (sol, otherSols) funcSig timeInMicro depth =
 
   unwords [wrapper, formatProp]
   where
@@ -182,9 +187,9 @@ validateSolution modules solution funcSig time = evaluateResult' <$> evaluatePro
         ios = nub $ filter ([] /=) $ lines output
         selectedLine = filter (isInfixOf input) ios
 
-compareSolution :: [String] -> String -> [String] -> FunctionSignature -> Int -> IO (Either InterpreterError SmallCheckResult)
-compareSolution modules solution otherSolutions funcSig time = evaluateProperty modules prop
-  where prop = buildDupCheckProp (solution, otherSolutions) funcSig time defaultDepth
+compareSolution :: [String] -> String -> [String] -> FunctionSignature -> Int -> IO [Either InterpreterError SmallCheckResult]
+compareSolution modules solution otherSolutions funcSig time = mapM (evaluateProperty modules) props
+  where props = buildDupCheckProp (solution, otherSolutions) funcSig time defaultDepth
 
 runChecks :: MonadIO m => Environment -> RType -> UProgram -> FilterTest m (Maybe AssociativeExamples)
 runChecks env goalType prog = do
@@ -235,13 +240,32 @@ checkDuplicates modules sigStr solution = do
 
     -- find an input i such that all synthesized results can be differentiated semantically
     _ -> do
-      result <- liftIO $ compareSolution modules solution solns funcSig defaultTimeoutMicro
+      results <- liftIO $ compareSolution modules solution solns funcSig defaultTimeoutMicro
+      passTest <- and <$> zipWithM processResult results solns
+
+      fs'@(FilterState is solns _ examples) <- get
+      if passTest
+        then (put fs' {solutions = solution : solns})
+        else (put fs)
+
+      return passTest
+
+  where
+    funcSig = (instantiateSignature . parseTypeString) sigStr
+    caseToInput (Just (AtLeastTwo i_1 _ i_2 _)) = [i_1, i_2]
+
+    filterRelated i1 i2 (Example inputX _) = inputX == i1 || inputX == i2
+    filterSuccess (Left (UnknownError "timeout")) = False
+    filterSuccess (Left _) = True
+    filterSuccess (Right (r@(Just AtLeastTwo {}), newExamples)) = True
+    filterSuccess _ = False
+
+    processResult result otherSolution = do
+      state@(FilterState is solns _ examples) <- get
       case result of
         -- bypass the check on any timeout or error
         Left (UnknownError "timeout") -> return False -- no example -> reject
-        Left err -> do
-          put $ fs {solutions = solution:solns}
-          return True
+        Left err -> return True
 
         -- SmallCheck fails to find any differentiating input
         Right (Just NotExist, _) -> return False
@@ -250,20 +274,12 @@ checkDuplicates modules sigStr solution = do
         -- the trick to make SC to generate two inputs
         Right (r@(Just AtLeastTwo {}), newExamples) -> do
           let [i1, i2] = caseToInput r
-          let updatedSolutions = solution : solns
-          put $ fs {
+          put $ state {
             inputs = [i1, i2] ++ is,
-            solutions = updatedSolutions,
-            differentiateExamples = (zip updatedSolutions (filter (filterRelated i1 i2) newExamples)) ++ examples
+            differentiateExamples = (zip [solution, otherSolution] (filter (filterRelated i1 i2) newExamples)) ++ examples
           }
           return True
         _ -> return False
-
-  where
-    funcSig = (instantiateSignature . parseTypeString) sigStr
-    caseToInput (Just (AtLeastTwo i_1 _ i_2 _)) = [i_1, i_2]
-
-    filterRelated i1 i2 (Example inputX _) = inputX == i1 || inputX == i2
 
 -- show parameters to some Haskell representation
 -- (plain variables, typed variables, list of show, unwrapped variables)
