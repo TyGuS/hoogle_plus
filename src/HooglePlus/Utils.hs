@@ -170,44 +170,58 @@ preprocessEnvFromGoal goal = updateEnvWithSpecArgs monospec env''
 
 replaceId a b = Text.unpack . Text.replace (Text.pack a) (Text.pack b) . Text.pack
 
-matchNiceFunctions :: String -> IO String
-matchNiceFunctions prog | null prog = print prog >> return prog
-matchNiceFunctions prog | '\\' == head prog = do
-    let inputs = [-1, 0, 1, 2]
-    let concatInputs = [[[0,1],[1,2]], [[1,2,3,4],[0,9,8]]]
-    let concatOutput = [[0,1,1,2], [1,2,3,4,0,9,8]]
-    let prog' = if "..." `isSuffixOf` prog then dropEnd 3 prog else prog
-    let stmt = printf "GHC.List.map (%s) %s" prog' (show inputs)
-    result <- runStmt stmt
-    print result
-    case result of
-        "[-3,0,3,6]" -> return "\\x -> x * 3"
-        "[0,1,2,3]" -> return "\\x -> x + 1"
-        "[1,0,1,4]" -> return "\\x -> x * x"
-        _ -> do
-            result2 <- runStmt $ printf "GHC.List.map (%s) %s" prog' (show concatInputs)
-            if result2 == show concatOutput
-                then return "\\x -> x ++ x"
-                else do
-                    result3 <- runStmt $ printf "(GHC.List.all ((==) (GHC.List.head %s)) %s, GHC.List.head %s)" result result result
-                    if take 5 result3 == "(True"
-                        then return $ printf "const %s" (dropEnd 1 $ drop 6 result3)
-                        else return prog
+matchNiceFunctions :: String -> StateT [(String, String)] IO String
+matchNiceFunctions prog | null prog = return prog
+matchNiceFunctions prog | head prog == '[' && last prog == ']' =  do
+    st <- get
+    case lookup prog st of
+        Just p -> return p
+        Nothing -> do
+            let progElmts = dropEnd 1 $ drop 1 prog
+            let sepElmts = splitOn "," progElmts
+            convertedElmts <- mapM matchNiceFunctions sepElmts
+            let newProg = printf "[%s]" (intercalate "," convertedElmts)
+            modify ((prog, newProg):)
+            return newProg
+matchNiceFunctions prog | '\\' `elem` prog && "->" `isInfixOf` prog = do
+    st <- get
+    case lookup prog st of
+        Just p -> return p
+        Nothing -> do
+            let inputs = [-1, 0, 1, 2]
+            let concatInputs = [[], [0], [0,0],[1]]
+            let concatOutput = [[], [0,0], [0,0,0,0], [1,1]]
+            let prog' = if "..." `isInfixOf` prog then replaceId "..." "" prog else prog
+            let stmt = printf "GHC.List.map (%s) %s" prog' (show inputs)
+            result <- runStmt stmt
+            newProg <- case result of
+                "[-3,0,3,6]" -> return "\\x -> x * 3"
+                "[0,1,2,3]" -> return "\\x -> x + 1"
+                "[1,0,1,4]" -> return "\\x -> x * x"
+                _ -> do
+                    result2 <- runStmt $ printf "GHC.List.map (%s) %s" prog' (show concatInputs)
+                    if result2 == show concatOutput
+                        then return "\\x -> x ++ x"
+                        else do
+                            result3 <- runStmt $ printf "(GHC.List.all ((==) (GHC.List.head %s)) %s, GHC.List.head %s)" result result result
+                            if take 5 result3 == "(True"
+                                then return $ printf "const %s" (dropEnd 1 $ drop 6 result3)
+                                else return prog
+            modify ((prog, newProg):)
+            return newProg
     where
         runStmt p = do
             let mdls = ["Data.Maybe", "GHC.List", "Data.List", "Data.Eq", "GHC.Char", "Data.Function"]
             result <- LHI.runInterpreter $ do
                 LHI.setImports mdls
+                -- allow extensions for function execution
+                extensions <- LHI.get LHI.languageExtensions
+                LHI.set [LHI.languageExtensions LHI.:= (LHI.ExtendedDefaultRules : LHI.ScopedTypeVariables : extensions)]
                 LHI.eval p
             return $ either show id result
-matchNiceFunctions prog | head prog == '[' && last prog == ']' =  do
-    let progElmts = dropEnd 1 $ drop 1 prog
-    let sepElmts = splitOn "," progElmts
-    convertedElmts <- mapM matchNiceFunctions sepElmts
-    return $ printf "[%s]" (intercalate "," convertedElmts)
 matchNiceFunctions prog = return prog
 
 niceInputs :: Example -> IO Example
 niceInputs (Example ins out) = do
-    ins' <- mapM matchNiceFunctions ins
+    ins' <- evalStateT (mapM matchNiceFunctions ins) []
     return (Example ins' out)
