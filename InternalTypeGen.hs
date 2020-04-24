@@ -35,7 +35,7 @@ isFailedResult result = case result of
   CB.Value a | "Exception" `isInfixOf` a -> True
   _ -> False
 
-data MyInt = MOne | Zero | One | Two deriving (Eq)
+data MyInt = MOne | Zero | One | Two | Other Int deriving (Eq)
 
 instance Show MyInt where
   show = show . toInt
@@ -45,14 +45,14 @@ toInt MOne = -1
 toInt Zero = 0
 toInt One = 1
 toInt Two = 2
+toInt (Other n) = n
 
 toMyInt :: Int -> MyInt
 toMyInt (-1) = MOne
 toMyInt 0 = Zero
 toMyInt 1 = One
 toMyInt 2 = Two
-toMyInt n | n < -1 = MOne
-          | n > 2 = Two
+toMyInt n = Other n
 
 instance Monad m => SS.Serial m MyInt where
   series = SS.cons0 MOne SS.\/
