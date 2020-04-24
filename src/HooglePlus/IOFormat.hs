@@ -180,10 +180,10 @@ searchExamples synquidParams inStr num = do
         toNormalFunctions "" = ""
         toNormalFunctions f | "const " `isPrefixOf` f =
             let n = drop 6 f
-             in printf "\\x -> case x of 0 -> %s; 1 -> %s; -1 -> %s; 2 -> %s;" n n n n
-        toNormalFunctions "\\x -> x + 1" = "\\x -> case x of 0 -> 1; 1 -> 2; -1 -> 0; 2 -> 3; ..."
-        toNormalFunctions "\\x -> x * x" = "\\x -> case x of 0 -> 0; 1 -> 1; -1 -> 1; 2 -> 4; ..."
-        toNormalFunctions "\\x -> x * 3" = "\\x -> case x of 0 -> 0; 1 -> 3; -1 -> -3; 2 -> 6; ..."
+             in printf "(\\x -> case x of 0 -> %s; 1 -> %s; -1 -> %s; 2 -> %s; ...)" n n n n
+        toNormalFunctions "\\x -> x + 1" = "(\\x -> case x of 0 -> 1; 1 -> 2; -1 -> 0; 2 -> 3; ...)"
+        toNormalFunctions "\\x -> x * x" = "(\\x -> case x of 0 -> 0; 1 -> 1; -1 -> 1; 2 -> 4; ...)"
+        toNormalFunctions "\\x -> x * 3" = "(\\x -> case x of 0 -> 0; 1 -> 3; -1 -> -3; 2 -> 6; ...)"
         toNormalFunctions f | head f == '[' && last f == ']' =
             let elmts = dropEnd 1 $ drop 1 f
                 sepElmts = splitOn "," elmts

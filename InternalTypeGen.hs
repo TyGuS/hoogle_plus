@@ -1,6 +1,6 @@
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, LambdaCase, FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, TypeFamilies, LambdaCase, FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE UndecidableInstances, FunctionalDependencies #-}
 module InternalTypeGen where
 
 import Data.List (isInfixOf, elemIndex, nub, drop, reverse, intersect)
@@ -12,6 +12,7 @@ import Data.Data
 import Text.Printf
 import System.IO.Silently
 import Control.Lens
+import Debug.Trace
 
 import qualified Test.LeanCheck.Function.ShowFunction as SF
 import qualified Test.LeanCheck.Core as SF
@@ -81,109 +82,63 @@ instance Monad m => SS.CoSerial m MyInt where
                            One -> z3
                            Two -> z4
 
-newtype Inner a = Inner a deriving (Eq)
+newtype MyFun a b = MyFun (a -> b)
 
-instance {-# OVERLAPPABLE #-} SS.Serial m a => SS.Serial m (Inner a) where
-  series = SS.newtypeCons Inner
-instance {-# OVERLAPPING #-} Monad m => SS.Serial m (Inner (Int -> Int)) where
-  series = (SS.generate $ \_ -> map Inner [\x -> x + 1
+instance {-# OVERLAPPABLE #-} (SS.Serial m b, SS.CoSerial m a) => SS.Serial m (MyFun a b) where
+  series = SS.coseries SS.series >>-
+            \f -> return (MyFun f)
+
+instance {-# OVERLAPPING #-} Monad m => SS.Serial m (MyFun Int Int) where
+  series = (SS.generate $ \_ -> map MyFun [\x -> x + 1
                                           ,\x -> x * x
                                           ,\x -> x * 3]) SS.\/
-            SS.newtypeCons Inner
-instance {-# OVERLAPPING #-} Monad m => SS.Serial m (Inner (MyInt -> Int)) where
-  series = (SS.generate $ \_ -> map Inner [\x -> toInt x + 1
+            SS.newtypeCons MyFun
+instance {-# OVERLAPPING #-} Monad m => SS.Serial m (MyFun MyInt Int) where
+  series = (SS.generate $ \_ -> map MyFun [\x -> toInt x + 1
                                           ,\x -> toInt x * toInt x
                                           ,\x -> toInt x * 3]) SS.\/
-            SS.newtypeCons Inner
-instance {-# OVERLAPPING #-} Monad m => SS.Serial m (Inner (Inner Int -> Inner Int)) where
-  series = (SS.generate $ \_ -> map Inner [\(Inner x) -> Inner (x + 1)
-                                          ,\(Inner x) -> Inner (x * x)
-                                          ,\(Inner x) -> Inner (x * 3)]) SS.\/
-            SS.newtypeCons Inner
-instance {-# OVERLAPPING #-} Monad m => SS.Serial m (Inner (Inner MyInt -> Inner Int)) where
-  series = (SS.generate $ \_ -> map Inner [\(Inner x) -> Inner (toInt x + 1)
-                                          ,\(Inner x) -> Inner (toInt x * toInt x)
-                                          ,\(Inner x) -> Inner (toInt x * 3)]) SS.\/
-            SS.newtypeCons Inner
-instance {-# OVERLAPPING #-} Monad m => SS.Serial m (Inner ([Int] -> [Int])) where
-  series = (SS.generate $ \_ -> map Inner [\x -> x ++ x]) SS.\/
-            SS.newtypeCons Inner
-instance {-# OVERLAPPING #-} Monad m => SS.Serial m (Inner (Inner [Int] -> Inner [Int])) where
-  series = (SS.generate $ \_ -> map Inner [\(Inner x) -> Inner (x ++ x)]) SS.\/
-            SS.newtypeCons Inner
-instance {-# OVERLAPPABLE #-} SS.CoSerial m a => SS.CoSerial m (Inner a) where
+            (SS.coseries SS.series >>- 
+                \f -> return (MyFun f))
+instance {-# OVERLAPPING #-} Monad m => SS.Serial m (MyFun [Int] [Int]) where
+  series = (SS.generate $ \_ -> map MyFun [\x -> x ++ x]) SS.\/
+            SS.newtypeCons MyFun
+instance (SS.CoSerial m a, SS.Serial m a, SS.Serial m b, SS.CoSerial m b) => SS.CoSerial m (MyFun a b) where
   coseries rs = SS.newtypeAlts rs >>- \f ->
-                return $ \(Inner x) -> f x
+                return $ \(MyFun x) -> f x
 
-instance {-# OVERLAPPABLE #-} (Show a) => Show (Inner a) where
-  show (Inner x) = show x
-instance {-# OVERLAPPING #-} Show (Inner MyInt) where
-  show (Inner x) = show $ toInt x
-instance {-# OVERLAPPING #-} Show (Inner Int) where
-  show (Inner x) = if x < 0 then "(" ++ show x ++ ")" else show x
-instance {-# OVERLAPPING #-} (Show a) => Show (Inner [a]) where
-  show (Inner xs) = show (map (wrap :: a -> Inner a) xs)
-instance {-# OVERLAPPING #-} (Show a) => Show (Inner (Maybe a)) where
-  show (Inner mb) = show $ fmap (wrap :: a -> Inner a) mb
-instance {-# OVERLAPPING #-} (Show a, Show b) => Show (Inner (a, b)) where
-  show (Inner (f, s)) = show $ ((wrap :: a -> Inner a) f, (wrap :: b -> Inner b) s)
-instance {-# OVERLAPPING #-} (Show b) => Show (Inner (MyInt, b)) where
-  show (Inner (f, s)) = show $ (toInt f, (wrap :: b -> Inner b) s)
-instance {-# OVERLAPPING #-} (Show a) => Show (Inner (a, MyInt)) where
-  show (Inner (f, s)) = show $ ((wrap :: a -> Inner a) f, toInt s)
-instance {-# OVERLAPPING #-} (Unwrappable a Int, Unwrappable b Int) => Show (Inner (a -> b)) where
-  show (Inner f) = SF.showFunctionLine defaultShowFunctionDepth (unwrap f :: Int -> Int)
-instance {-# OVERLAPPING #-} (Unwrappable a Int, Unwrappable b Int, Unwrappable c Int) => Show (Inner (a -> Inner (b -> c))) where
-  show (Inner f) = SF.showFunctionLine defaultShowFunctionDepth (unwrap f :: Int -> Int -> Int)
-instance {-# OVERLAPPING #-} (Unwrappable a Int, Unwrappable b Int, Unwrappable c Int, Unwrappable d Int) => Show (Inner (a -> Inner (b -> Inner (c -> d)))) where
-  show (Inner f) = SF.showFunctionLine defaultShowFunctionDepth (unwrap f :: Int -> Int -> Int -> Int)
-instance (SF.ShowFunction a) => SF.ShowFunction (Inner a) where
-  bindtiers (Inner x) = SF.bindtiers x
+instance {-# OVERLAPPABLE #-} (Show a, SF.Listable a, SF.ShowFunction b) => Show (MyFun a b) where
+  show (MyFun f) = "(" ++ SF.showFunctionLine defaultShowFunctionDepth f ++ ")"
+instance {-# OVERLAPPING #-} (SF.ShowFunction b) => Show (MyFun MyInt b) where
+  show (MyFun f) = "(" ++ SF.showFunctionLine defaultShowFunctionDepth (\x -> f (toMyInt x)) ++ ")"
+
 instance SF.ShowFunction MyInt where
   bindtiers = SF.bindtiers . toInt
+instance (Show a, SF.Listable a, SF.ShowFunction b) => SF.ShowFunction (MyFun a b) where
+  bindtiers (MyFun f) = SF.bindtiers f
 
 class Unwrappable a b where
-  wrap :: b -> a
   unwrap :: a -> b
+  wrap :: b -> a
+
+instance {-# OVERLAPPABLE #-} (a ~ b) => Unwrappable a b where
+  unwrap = id
+  wrap = id
 instance Unwrappable MyInt Int where
-  wrap = toMyInt
   unwrap = toInt
-instance {-# OVERLAPPABLE #-} Unwrappable a a where
-  wrap x = x
-  unwrap x = x
-instance Unwrappable a b => Unwrappable (Inner a) b where
-  wrap = Inner . wrap
-  unwrap (Inner x) = unwrap x
-instance {-# OVERLAPPABLE #-} Unwrappable a b => Unwrappable [a] [b] where
-  wrap = map wrap
+  wrap = toMyInt
+instance (Unwrappable a c, Unwrappable b d) => Unwrappable (MyFun a b) (c -> d) where
+  unwrap (MyFun f) = \x -> unwrap (f (wrap x))
+  wrap f = MyFun $ \x -> wrap (f (unwrap x))
+instance (Unwrappable a b) => Unwrappable [a] [b] where
   unwrap = map unwrap
-instance {-# OVERLAPPING #-} Unwrappable [a] [a] where
-  wrap x = x
-  unwrap x = x
-instance {-# OVERLAPPABLE #-} Unwrappable a b => Unwrappable (Maybe a) (Maybe b) where
-  wrap = fmap wrap
+  wrap = map wrap
+instance {-# OVERLAPPING #-} (Unwrappable a b) => Unwrappable (Maybe a) (Maybe b) where
   unwrap = fmap unwrap
-instance {-# OVERLAPPING #-} Unwrappable (Maybe a) (Maybe a) where
-  wrap x = x
-  unwrap x = x
-instance {-# OVERLAPPABLE #-} (Unwrappable a c, Unwrappable b d) => Unwrappable (a, b) (c, d) where
-  wrap (x, y) = (wrap x, wrap y)
+  wrap = fmap wrap
+instance (Unwrappable a c, Unwrappable b d) => Unwrappable (a, b) (c, d) where
   unwrap (x, y) = (unwrap x, unwrap y)
-instance {-# OVERLAPPABLE #-} (Unwrappable a c, Unwrappable b d, Unwrappable e f) => Unwrappable (a, b, e) (c, d, f) where
-  wrap (x, y, z) = (wrap x, wrap y, wrap z)
-  unwrap (x, y, z) = (unwrap x, unwrap y, unwrap z)
-instance {-# OVERLAPPABLE #-} (Unwrappable a c, Unwrappable b d, Unwrappable e f, Unwrappable g h) => Unwrappable (a, b, e, g) (c, d, f, h) where
-  wrap (x, y, z, s) = (wrap x, wrap y, wrap z, wrap s)
-  unwrap (x, y, z, s) = (unwrap x, unwrap y, unwrap z, unwrap s)
-instance {-# OVERLAPPING #-} Unwrappable (a, a) (a, a) where
-  wrap x = x
-  unwrap x = x
-instance {-# OVERLAPPABLE #-} (Unwrappable a c, Unwrappable b d) => Unwrappable (a -> b) (c -> d) where
-  wrap f = \x -> wrap $ f (unwrap x)
-  unwrap f = \x -> unwrap $ f (wrap x)
-instance {-# OVERLAPPING #-} Unwrappable (a -> a) (a -> a) where
-  wrap x = x
-  unwrap x = x
+  wrap (x, y) = (wrap x, wrap y)
+
 
 showCBResult :: CB.Result String -> String
 showCBResult = \case
