@@ -197,7 +197,7 @@ toOutput env soln exs = do
                              segs = splitOn " :: " wholeSig
                              name = head segs
                              sig = unwords $ tail segs
-                             doc = Hoogle.targetDocs tg
+                             doc = unHTML $ Hoogle.targetDocs tg
                           in FunctionDoc name sig doc
 
 stripSuffix :: String -> String

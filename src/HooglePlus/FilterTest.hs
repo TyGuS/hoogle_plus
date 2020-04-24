@@ -153,7 +153,7 @@ evaluateProperty modules property =
     interpret property (as :: IO SmallCheckResult) >>= liftIO
 
 validateSolution :: [String] -> String -> FunctionSignature -> Int -> IO (Either InterpreterError FunctionCrashDesc)
-validateSolution modules solution funcSig time = evaluateResult' <$> evaluateProperty modules alwaysFailProp
+validateSolution modules solution funcSig time = traceShow alwaysFailProp $ evaluateResult' <$> evaluateProperty modules alwaysFailProp
   where
     alwaysFailProp = buildNotCrashProp solution funcSig
 
@@ -188,7 +188,7 @@ validateSolution modules solution funcSig time = evaluateResult' <$> evaluatePro
         selectedLine = filter (isInfixOf input) ios
 
 compareSolution :: [String] -> String -> [String] -> FunctionSignature -> Int -> IO [Either InterpreterError SmallCheckResult]
-compareSolution modules solution otherSolutions funcSig time = mapM (evaluateProperty modules) props
+compareSolution modules solution otherSolutions funcSig time = traceShow props $ mapM (evaluateProperty modules) props
   where props = buildDupCheckProp (solution, otherSolutions) funcSig time defaultDepth
 
 runChecks :: MonadIO m => Environment -> RType -> UProgram -> FilterTest m (Maybe AssociativeExamples)
@@ -302,9 +302,13 @@ showParams args = (plain, typed, shows, unwrp)
       let apply = ArgTypeApp (Concrete "Inner") in case x of
         Concrete _ -> apply x
         Polymorphic _ -> apply x
-        ArgTypeList t -> ArgTypeList (apply t)
-        ArgTypeTuple ts -> ArgTypeTuple (map apply ts)
-        ArgTypeApp _ _ -> apply x
+        ArgTypeList t -> apply (ArgTypeList (replaceInner t))
+        ArgTypeTuple ts -> apply (ArgTypeTuple (map replaceInner ts))
+        ArgTypeApp f a -> let f' = case f of
+                                    Concrete _ -> f
+                                    Polymorphic _ -> f
+                                    _ -> replaceInner f
+                            in apply (ArgTypeApp f' (replaceInner a))
         ArgTypeFunc arg res -> apply (ArgTypeFunc (replaceInner arg) (replaceInner res))
 
 -- ******** Example Generator ********
