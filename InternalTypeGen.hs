@@ -14,6 +14,7 @@ import System.IO.Silently
 import Control.Lens
 
 import qualified Test.LeanCheck.Function.ShowFunction as SF
+import qualified Test.LeanCheck.Core as SF
 import qualified Test.ChasingBottoms as CB
 import qualified Test.SmallCheck.Series as SS
 
@@ -53,6 +54,13 @@ toMyInt 0 = Zero
 toMyInt 1 = One
 toMyInt 2 = Two
 toMyInt n = Other n
+
+instance SF.Listable MyInt where
+  tiers = SF.cons0 MOne SF.\/
+          SF.cons0 Zero SF.\/
+          SF.cons0 One SF.\/
+          SF.cons0 Two SF.\/
+          SF.cons1 Other
 
 instance Monad m => SS.Serial m MyInt where
   series = SS.cons0 MOne SS.\/
@@ -108,11 +116,13 @@ instance {-# OVERLAPPABLE #-} SS.CoSerial m a => SS.CoSerial m (Inner a) where
                 return $ \(Inner x) -> f x
 
 instance {-# OVERLAPPABLE #-} (Show a) => Show (Inner a) where
-  show x = show ((unwrap :: Inner a -> a) x)
+  show (Inner x) = show x
 instance {-# OVERLAPPING #-} Show (Inner MyInt) where
   show (Inner x) = show $ toInt x
+instance {-# OVERLAPPING #-} Show (Inner Int) where
+  show (Inner x) = if x < 0 then "(" ++ show x ++ ")" else show x
 instance {-# OVERLAPPING #-} (Show a) => Show (Inner [a]) where
-  show (Inner xs) = show $ map (wrap :: a -> Inner a) xs
+  show (Inner xs) = show (map (wrap :: a -> Inner a) xs)
 instance {-# OVERLAPPING #-} (Show a) => Show (Inner (Maybe a)) where
   show (Inner mb) = show $ fmap (wrap :: a -> Inner a) mb
 instance {-# OVERLAPPING #-} (Show a, Show b) => Show (Inner (a, b)) where
