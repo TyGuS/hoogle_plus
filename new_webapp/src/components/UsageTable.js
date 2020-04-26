@@ -38,7 +38,7 @@ const mapDispatchToProps = (dispatch) => {
         dispatch(addExample(ex));
     })},
     updateUsage: (updatedRow) => {dispatch(updateCandidateUsages(updatedRow))},
-    addCandidateUsage: ({inputs}) => dispatch(addCandidateUsage({inputs}))
+    addCandidateUsage: ({inputs, candidateId, code}) => dispatch(addCandidateUsage({inputs, candidateId, code}))
   }
 };
 
@@ -71,7 +71,7 @@ const UsageTableBase = ({
     const commitChanges = ({ added, changed, deleted }) => {
       if (added) {
         const examples = namedArgsToExample(added, numColumns - 1);
-        addCandidateUsage({inputs: examples[0].inputs});
+        addCandidateUsage({inputs: examples[0].inputs, candidateId, code});
       }
       if (changed) {
         const changedIds = new Set(Object.keys(changed));

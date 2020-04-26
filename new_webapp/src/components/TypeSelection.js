@@ -29,7 +29,7 @@ const TypeSelectionBase = (props) => {
 
     return (
         <>
-        <Modal show={isOpen && !isDisabled} onHide={onClose}>
+        <Modal show={isOpen && !isDisabled} onHide={onClose} size="lg">
         <Modal.Header closeButton>
           <Modal.Title>Which type looks right to you?</Modal.Title>
         </Modal.Header>
@@ -49,7 +49,7 @@ const TypeSelectionBase = (props) => {
                             onClick={() => mkSelection(typeStr)}>
                                 {idx + 1}
                         </Button>
-                        <div className="col-11"><Highlight language="haskell">{typeStr}</Highlight></div>
+                        <div className="col-10"><Highlight language="haskell">{typeStr}</Highlight></div>
                     </div>);
                 })}
             </div>

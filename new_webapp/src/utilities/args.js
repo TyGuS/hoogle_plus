@@ -34,6 +34,7 @@ export const exampleToNamedArgs = (examples) => {
       return obj;
     }, {});
     namedArgs["output"] = example.output;
+    namedArgs["isLoading"] = example.isLoading;
     namedArgs["id"] = example.id;
     if (example.error) {
       namedArgs["error"] = example.error;

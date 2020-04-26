@@ -229,9 +229,10 @@ export function candidateReducer(state = initialCandidateState, action){
             })
             return {...state, results:updatedResults};
 
-        // action.payload : {candidateId, usageId, inputs}
+        // action.payload : {candidateId, inputs, usageId:optional}
         case Consts.ADD_CANDIDATE_USAGE:
-            const {candidateId:addToId, usageId:withUsageId, inputs:newInputs} = action.payload;
+            const {candidateId:addToId, inputs:newInputs} = action.payload;
+            const withUsageId = action.payload.usageId || v4();
             const resultsWithNewUsage = state.results.map(result => {
                 if (result.candidateId !== addToId) {
                     return result;

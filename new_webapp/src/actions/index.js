@@ -35,7 +35,7 @@ export const markClean = makeActionCreator(Consts.MARK_CLEAN);
 export const setExampleEditingRow = makeActionCreator(Consts.SET_EXAMPLE_EDITING_ROW, "payload");
 export const setExamples = makeActionCreator(Consts.SET_EXAMPLES, "payload");
 export const updateCandidateUsageTable = makeActionCreator(Consts.UPDATE_CANDIDATE_USAGE, "payload");
-const addCandidateUsageInternal = makeActionCreator(Consts.ADD_CANDIDATE_USAGE, "payload");
+export const addCandidateUsageInternal = makeActionCreator(Consts.ADD_CANDIDATE_USAGE, "payload");
 export const fetchMoreCandidateUsages = makeActionCreator(Consts.FETCH_MORE_CANDIDATE_USAGES, "payload");
 export const showMoreCandidateUsages = makeActionCreator(Consts.SHOW_MORE_USAGES, "payload");
 
@@ -72,19 +72,18 @@ export const updateCandidateUsages = ({usageId, inputs}) => (dispatch, getState)
     }
 };
 
-export const addCandidateUsage = ({inputs}) => (dispatch, getState) => {
-    const {candidates} = getState();
+export const addCandidateUsage = ({inputs, candidateId, code}) => (dispatch, getState) => {
+    const {spec} = getState();
+    const typeSignature = spec.searchType;
     const usageId = v4();
-    candidates.results.forEach(({candidateId}) => {
-        dispatch(addCandidateUsageInternal({
+    dispatch(addCandidateUsageInternal({
             candidateId,
-            usageId,
             inputs,
-        }));
-    });
+            usageId,
+    }));
     // Must sequence the fetch for after
     // we've added the new usage to each candidate.
-    dispatch(updateCandidateUsages({usageId, inputs}));
+    dispatch(updateCandidateUsage({candidateId, usageId, inputs, typeSignature, code}));
 };
 
 // Go and get a new output for a particular new input.
