@@ -237,12 +237,12 @@ export function candidateReducer(state = initialCandidateState, action){
                 if (result.candidateId !== addToId) {
                     return result;
                 }
-                const updatedExamples = result.examples.concat({
+                const updatedExamples = [{
                     id: withUsageId,
                     isLoading: true,
                     inputs: newInputs,
                     output: "??",
-                })
+                }, ...result.examples];
                 return {
                     ...result,
                     examplesShown: (result.examplesShown || defaultExamplesShown) + 1,
