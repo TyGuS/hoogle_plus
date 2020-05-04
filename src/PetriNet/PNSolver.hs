@@ -518,7 +518,7 @@ findProgram :: MonadIO m
 findProgram env goal examples cnt = do
     let dst = lastType (toMonotype goal)
     modify $ set (refineState . splitTypes) Set.empty
-    modify $ set (refineState . passOneOrMore) False
+    modify $ set (refineState . passOneOrMore) True
     modify $ set (typeChecker . typeAssignment) Map.empty
     writeLog 2 "findProgram" $ text "calling findProgram"
     path <- findPath env dst
@@ -572,6 +572,7 @@ checkPath env goal examples path = do
     let getRealName x = replaceId hoPostfix "" $ lookupWithError "nameMapping" x nameMap
     let filterPaths p = disrel || all (`elem` map getRealName p) hoArgs
     guard (filterPaths path)
+    modify $ set (refineState . passOneOrMore) False
 
     -- fill the sketch with the functions in the path
     codeResult <- fillSketch env path
