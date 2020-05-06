@@ -11,7 +11,7 @@ HPLUS_CMD = 'stack exec -- hplus'.split()
 HPLUS_DIR = '../../'
 OPTIONS = []
 TIMEOUT_CMD = 'timeout'
-TIMEOUT 120
+TIMEOUT = 120
 TIMEOUT_KILL = 5
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
