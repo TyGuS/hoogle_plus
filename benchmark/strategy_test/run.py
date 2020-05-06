@@ -60,7 +60,7 @@ def main():
 
     queries = load_queries(DEFAULT_QUERY_FILE)
 
-    experiments = [Experiment("filter-{}".format(x), queries, ["--disable-filter=False"]) for x in range(10)] + [Experiment("no-filter-{}".format(x), queries, ["--disable-filter=True"]) for x in range(10)]
+    experiments = [Experiment("filter-{}".format(x), queries, ["--disable-filter=False"]) for x in range(2)] + [Experiment("no-filter-{}".format(x), queries, ["--disable-filter=True"]) for x in range(2)]
 
     for expr in experiments:
         expr.create_dir()
