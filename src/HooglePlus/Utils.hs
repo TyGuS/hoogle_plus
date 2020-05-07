@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module HooglePlus.Utils where
 
 import Types.Common
@@ -55,7 +57,7 @@ import qualified Language.Haskell.Interpreter as LHI
 
 -- Converts the list of param types into a haskell function signature.
 -- Moves typeclass-looking things to the front in a context.
-mkFunctionSigStr :: [RType] -> String
+mkFunctionSigStr :: Show (TypeSkeleton r) => [TypeSkeleton r] -> String
 mkFunctionSigStr args = addConstraints $ Prelude.foldr accumConstraints ([],[]) args
     where
         showSigs = intercalate " -> "
@@ -63,7 +65,7 @@ mkFunctionSigStr args = addConstraints $ Prelude.foldr accumConstraints ([],[]) 
         addConstraints ([], baseSigs) = showSigs baseSigs
         addConstraints (constraints, baseSigs) = "(" ++ (intercalate ", " constraints) ++ ") => " ++ showSigs baseSigs
 
-        accumConstraints :: RType -> ([String], [String]) -> ([String], [String])
+        accumConstraints :: Show (TypeSkeleton r) => TypeSkeleton r -> ([String], [String]) -> ([String], [String])
         accumConstraints (ScalarT (DatatypeT id [ScalarT (TypeVarT _ tyvarName) _] _) _) (constraints, baseSigs)
             | tyclassPrefix `isPrefixOf` id = let
                 classNameRegex = mkRegex $ tyclassPrefix ++ "([a-zA-Z]*)"

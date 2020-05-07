@@ -250,7 +250,7 @@ prettyBase prettyType base = case base of
   DatatypeT "List" tArgs pArgs -> hlBrackets $ hsep (map (prettyType 0) tArgs) <+> hsep (map (hlAngles . pretty) pArgs)
   DatatypeT "Pair" (larg:rarg:[]) pArgs -> hlParens $ prettyType 0 larg <+> operator "," <+> prettyType 0 rarg <+> hsep (map (hlAngles . pretty) pArgs)
   TypeVarT s name -> if Map.null s then text name else hMapDoc pretty pretty s <> text name
-  DatatypeT name tArgs pArgs -> text name <+> hsep (map (prettyType 2) tArgs) <+> hsep (map (hlAngles . pretty) pArgs)
+  DatatypeT name tArgs pArgs -> text name <+> hsep (map (hlParens . prettyType 2) tArgs) <+> hsep (map (hlAngles . pretty) pArgs)
 
 instance Pretty (BaseType ()) where
   pretty = prettyBase (\_ -> pretty)

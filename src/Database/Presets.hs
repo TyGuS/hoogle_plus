@@ -30,5 +30,7 @@ myModules = [
   "GHC.List",
   "Data.Eq",
   "Data.List",
-  "Data.Function"
+  "Data.Function",
+  "Data.Either",
+  "Text.Show"
   ]

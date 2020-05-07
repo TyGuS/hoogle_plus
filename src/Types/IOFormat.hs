@@ -42,6 +42,7 @@ data QueryInput = QueryInput {
 } deriving(Eq, Show, Generic)
 
 instance FromJSON QueryInput
+instance ToJSON QueryInput
 
 data FunctionDoc = FunctionDoc {
     functionName :: String,

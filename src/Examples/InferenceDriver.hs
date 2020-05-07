@@ -165,8 +165,7 @@ findWithDefaultAntiVariable t1 t2 = do
     vs2 <- liftIO $ unifiableVars tass2 t2
     let overlap = vs1 `intersect` vs2
     if not (null overlap)
-       then if length overlap > 1 then error "antiUnficiation fails"
-                                else return $ vart_ (head overlap)
+       then return $ vart_ (head overlap)
        else checkTyclass t1 t2 
     where
         unifiableVars tass t = do
@@ -180,15 +179,16 @@ findWithDefaultAntiVariable t1 t2 = do
             return $ concat $ snd $ unzip results
 
 antiUnification' :: SType -> SType -> AntiUnifier IO SType
+antiUnification' t1 t2 | t1 == t2 = return t1
 antiUnification' AnyT t = return t
 antiUnification' t AnyT = return t
 antiUnification' t1@(ScalarT (TypeVarT _ id1) _) t2@(ScalarT (TypeVarT _ id2) _)
   | univTypeVarPrefix == head id1 = return $ vart_ id2
   | univTypeVarPrefix == head id2 = return $ vart_ id1
-  | otherwise = checkTyclass t1 t2
+  -- | otherwise = findWithDefaultAntiVariable t1 t2
 antiUnification' t1@(ScalarT (TypeVarT _ id) _) t
   | univTypeVarPrefix == head id = return t
-  | otherwise = checkTyclass t1 t
+  -- | otherwise = findWithDefaultAntiVariable t1 t
 antiUnification' t tv@(ScalarT (TypeVarT {}) _) = do
     swapAssignments
     result <- antiUnification' tv t
@@ -356,7 +356,7 @@ mkTyclassQuery tcass typ tyclass = do
                                     Just tc -> map (v,) $ Set.toList tc
                                     Nothing -> []) vars
     let varTcStrs = map (\(v, tc) -> unwords [tc, v]) varTcs
-    let allTcs = intercalate ", " $ varTcStrs ++ [unwords [tyclass, (show typ)]]
+    let allTcs = intercalate ", " $ varTcStrs ++ [printf "%s (%s)" tyclass (show typ)]
     let query = printf "undefined :: (%s) => ()" allTcs
     liftIO $
         catch (askGhc mdls (exprType TM_Default query) >> return (Just tyclass))

@@ -73,6 +73,9 @@ dependencies:
 - ghci
 - ghc-boot-th
 - silently
+- yaml
+- QuickCheck
+- random
 
 library:
   source-dirs:

@@ -9,7 +9,8 @@ module HooglePlus.IOFormat(
     searchExamples,
     readEnv,
     readBuiltinData,
-    printResult
+    printResult,
+    parseQueryType
     ) where
 
 import Types.IOFormat
@@ -17,9 +18,10 @@ import Types.Experiments
 import Types.Environment
 import Types.Type
 import Types.Filtering (defaultTimeoutMicro, defaultGenerationDepth, defaultInterpreterTimeoutMicro, defaultGenerationTimeoutMicro)
-import Synquid.Parser (parseType, parseProgram)
+import Synquid.Parser (parseSchema, parseProgram)
 import Synquid.Resolver (ResolverState(..), initResolverState, resolveSchema)
 import Synquid.Type
+import Synquid.Pretty
 import Examples.ExampleChecker
 import Examples.InferenceDriver
 import Examples.Utils
@@ -96,16 +98,16 @@ readBuiltinData synquidParams env = do
 parseQueryType :: Environment -> String -> RSchema
 parseQueryType env str = let
     parseResult = flip evalState (initialPos "type") $ 
-                  runIndentParserT parseType () "" str
+                  runIndentParserT parseSchema () "" str
     resolveResult t = runExcept $ evalStateT (resolveSchema t) $
                       initResolverState { _environment = env }
     in case parseResult of
            Left parseErr -> error "something wrong in the builtin json"
-           Right t -> case resolveResult (Monotype t) of
-                          Left err -> error "resolve fails for the buildin json"
+           Right t -> case resolveResult t of
+                          Left err -> error $ "resolve fails" ++ show err ++ " type " ++ show t
                           Right s -> s
 
-searchTypes :: SynquidParams -> String -> Int -> IO ()
+searchTypes :: SynquidParams -> String -> Int -> IO (ListOutput String)
 searchTypes synquidParams inStr num = do
     let input = decodeInput (LB.pack inStr)
     let exquery = inExamples input
@@ -117,6 +119,7 @@ searchTypes synquidParams inStr num = do
     resultObj <- if null invalidTypes then possibleQueries env exquery validSchemas
                                       else return $ ListOutput [] (unlines invalidTypes)
     printResult $ encodeWithPrefix resultObj
+    return resultObj
     where
         renameVars t = 
             let freeVars = Set.toList $ typeVarsOf t
@@ -160,7 +163,6 @@ searchExamples synquidParams inStr num = do
     env' <- readBuiltinData synquidParams env
     let mdls = Set.toList $ env' ^. included_modules
     let candMap = env' ^. queryCandidates
-    let tQuery = parseQueryType env' strQuery
     let funcSig = parseTypeString strQuery
     -- remove magic numbers later
     -- we not only need to know existing results, since this should come from

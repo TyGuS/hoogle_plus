@@ -30,6 +30,8 @@ import HooglePlus.Utils
 import HooglePlus.IOFormat
 import Examples.ExampleChecker
 import Types.Filtering
+import Evaluation.EvalTypeInf
+import Evaluation.ReadBenchmark
 
 import Control.Exception
 import Control.Monad
@@ -126,7 +128,7 @@ main = do
                                    (f, _) -> readFile f >>= executeSearch synquidParams searchParams
             case search_type of
               SearchPrograms -> searchPrograms
-              SearchTypes -> searchTypes synquidParams json get_n_types
+              SearchTypes -> searchTypes synquidParams json get_n_types >> return ()
               SearchResults -> searchResults synquidParams json
               SearchExamples -> searchExamples synquidParams json get_n_examples
         Generate {preset = (Just preset)} -> do
@@ -146,7 +148,8 @@ main = do
                         , Types.Generate.hoPath = hoPath
                         }
             precomputeGraph generationOpts
-
+        Evaluation benchmark fp -> do
+            readSuite fp >>= runTypeInferenceEval
 
 {- Command line arguments -}
 
@@ -193,6 +196,10 @@ data CommandLineArgs
         env_file_path_out :: String,
         ho_path :: String
       }
+      | Evaluation {
+        benchmark :: String,
+        file_path :: String
+      }
   deriving (Data, Typeable, Show, Eq)
 
 synt = Synthesis {
@@ -230,16 +237,17 @@ generate = Generate {
   ho_path              = "ho.txt"        &= typFile &= help ("Filename of components to be used as higher order arguments")
 } &= help "Generate the type conversion database for synthesis"
 
-mode = cmdArgsMode $ modes [synt, generate] &=
+evaluation = Evaluation {
+  benchmark            = ""              &= help ("Evaluate this single benchmark"),
+  file_path            = ""              &= help ("Path to the benchmark file, in the format of YAML")
+} &= help "Evaluate Hoogle+ modules"
+
+mode = cmdArgsMode $ modes [synt, generate, evaluation] &=
   help (programName ++ " program synthesizer") &=
   program programName &=
   summary (programName ++ " v" ++ versionName ++ ", " ++ showGregorian releaseDate)
 
 
-defaultSynquidParams = SynquidParams {
-    Types.Experiments.envPath = defaultEnvPath,
-    jsonPath = defaultJsonPath
-}
 
 precomputeGraph :: GenerationOpts -> IO ()
 precomputeGraph opts = generateEnv opts >>= writeEnv (Types.Generate.envPath opts)
