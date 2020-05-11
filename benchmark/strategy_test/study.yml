@@ -1,8 +1,3 @@
-- name: firstJust
-  query: "a -> [Maybe a] -> a"
-  solution: "\\arg0 arg1 -> Data.Maybe.fromMaybe arg0 (Data.Maybe.listToMaybe (Data.Maybe.catMaybes arg1))"
-  source: "original"
-
 - name: dedupe
   query: "Eq a => [a] -> [a]"
   solution: "\\xs -> map head (group xs)"
@@ -22,3 +17,289 @@
   query: "[a] -> Int -> [a]"
   solution: "\\arg0 arg1 -> GHC.List.concat (GHC.List.replicate arg1 arg0)"
   source: "original"
+
+- name: appBoth
+  query: "(a -> b) -> (a -> c) -> a -> (b, c)"
+  solution: "(f x, g x)"
+  source: "original"
+
+- name: intToBS
+  query: "Int64 -> ByteString"
+  solution: fromBuilder (Int64 arg0)
+  source: "original"
+
+- name: test
+  query: "Bool -> a -> Maybe a"
+  solution: bool Nothing (Just arg0) arg1
+  source: "original"
+
+- name: both
+  query: "(a -> b) -> (a, a) -> (b, b)"
+  solution: (,) (arg1 (fst arg0)) (arg1 (snd arg0))
+  source: "original"
+
+- name: firstJust
+  query: "a -> [Maybe a] -> a"
+  solution: fromMaybe x (listToMaybe (catMaybes xs))
+  source: "original"
+
+# - name: groupList
+#   query: "[(k, v)] -> Map k [v]"
+
+- name: mapEither
+  query: "(a -> Either b c) -> [a] -> ([b], [c])"
+  solution: foldr (\x (ys, zs) -> either (\y -> (y:ys,zs)) (\z -> (ys, z:zs)) (f x)) ([],[]) xs
+  source: "original"
+
+- name: mapMaybes
+  query: "(a -> Maybe b) -> [a] -> Maybe b"
+  solution: Data.Maybe.listToMaybe (Data.Maybe.mapMaybe f xs)
+  source: "original"
+
+- name: mergeEither
+  query: "Either a (Either a b) -> Either a b"
+  solution: either Left (Either Left Right) arg0
+  source: "original"
+
+- name: multiApp
+  query: "(a -> b -> c) -> (a -> b) -> a -> c"
+  solution: arg2 (arg0) (arg1 arg0)
+  source: "hoogle"
+
+- name: singleList
+  query: "Int -> [Int]"
+  solution: (:) arg0 []
+  source: "hoogle"
+
+- name: head-tail
+  query: "[a] -> (a,a)"
+  solution: (head arg1, last arg1)
+  source: "hoogle"
+
+- name: head-rest
+  query: "[a] -> (a, [a])"
+  solution: (head arg1, tail arg1)
+  source: "hoogle"
+
+- name: pred-match
+  query: "[a] -> (a -> Bool) -> Int"
+  solution: length (filter arg2 arg1)
+  source: "hoogle"
+
+- name: splitStr
+  query: "String -> Char -> [String]"
+  solution: map show (splitOn (pack xs) (singleton x))
+  source: "hoogle"
+
+- name: splitAtFirst
+  query: "a -> [a] -> ([a], [a])"
+  source: "hoogle"
+
+- name: mbToEither
+  query: "Maybe a -> b -> Either a b"
+  solution: bool (Right arg0) (Left (fromJust arg1)) (isJust arg1)
+  source: "original"
+
+- name: cartProduct
+  query: "[a] -> [b] -> [[(a,b)]]"
+  source: "original"
+
+- name: multiAppPair
+  query: "(a -> b, a -> c) -> a -> (b, c)"
+  solution: (,) ((fst arg1) arg0) ((snd arg1) arg0)
+  source: "original"
+
+# No useful solution. Head of map ?
+- name: hoogle01
+  query: "(a -> b) -> [a] -> b"
+  solution: arg1 (head arg0)
+  source: "hoogle"
+
+- name: firstMatch
+  query: "[a] -> (a -> Bool) -> a"
+  solution: head (filter arg0 arg1)
+  source: "hoogle"
+
+- name: firstMaybe
+  query: "[Maybe a] -> a"
+  solution: head (catMaybes arg0)
+  source: "hoogle"
+
+- name: rights
+  query: "[Either a b] -> Either a [b]"
+  solution: Right (rights arg0)
+  source: "hoogle"
+
+- name: firstKey
+  query: "[(a,b)] -> a"
+  solution: fst (head arg0)
+  source: "hoogle"
+
+- name: applyPair
+  query: "(a -> b, a) -> b"
+  solution: (fst arg0) (snd arg0)
+  source: "stackOverflow"
+
+# No solution?
+# - name: cross
+#   query: "(a, b) -> (a, b) -> (a, b)"
+#   source: "hoogle"
+
+- name: firstRight
+  query: "[Either a b] -> Either a b"
+  solution: Right (head (rights arg0))
+  source: "hoogle"
+
+- name: maybe
+  query: "Maybe a -> a -> Maybe a"
+  solution: Just (maybe arg0 arg1)
+  source: "hoogle"
+
+- name: app3
+  query: "(a -> b -> c -> d) -> a -> c -> b -> d"
+  solution: arg3 arg2 arg0 arg1
+  source: "hoogle"
+
+- name: appendN
+  query: "Int -> [a] -> [a]"
+  solution: concat (replicate n xs)
+  source: "hoogle"
+
+- name: flatten
+  query: "[[[a]]] -> [a]"
+  solution: concat (concat xs)
+  source: "stackOverflow"
+
+- name: takeNdropM
+  query: "Int -> Int -> [a] -> ([a], [a])"
+  solution: "(take n l, drop m l)"
+  source: "stackOverflow"
+
+- name: map
+  query: "(a->b)->[a]->[b]"
+  solution: map arg1 arg0
+  source: "original"
+
+- name: repl-funcs
+  query: "(a->b)->Int->[a->b]"
+  solution: GHC.List.replicate n f
+  source: "original"
+
+- name: mbAppFirst
+  query: "b -> (a -> b) -> [a] -> b"
+  solution: Data.Maybe.maybe x f (Data.Maybe.listToMaybe xs)
+  source: "original"
+
+- name: 2partApp
+  query: "(a->b)->(b->c)->[a]->[c]"
+  solution: GHC.List.map g (GHC.List.map f xs)
+  source: "original"
+
+- name: zipWithResult
+  query: "(a->b)->[a]->[(a,b)]"
+  solution: GHC.List.zip xs (GHC.List.map f [])
+  source: "hoogle"
+
+- name: resolveEither
+  query: "Either a b -> (a->b) -> b"
+  solution: Data.Either.either f GHC.List.id x
+  source: "original"
+
+- name: applyNtimes
+  query: "(a->a) -> a -> Int -> a"
+  solution: GHC.List.foldr Prelude.app x (GHC.List.replicate n f)
+  source: "hoogle"
+
+- name: eitherTriple
+  query: "Either a b -> Either a b -> Either a b"
+  solution: \x y -> either Left (const (either Left Right y)) x
+  source: "hoogle"
+
+- name: pipe
+  query: "[(a -> a)] -> (a -> a)"
+  solution: foldr ($) id xs
+  source: "hoogle"
+
+- name: indexesOf
+  query: "([(a,Int)] -> [(a,Int)]) -> [a] -> [Int] -> [Int]"
+  solution: map snd (f (zip xs ys))
+  source: "stackOverflow"
+
+# - name: dotProduct
+#   query: "[Int] -> [Int] -> Int"
+#   solution: \x y -> sum (zipWith (*) x y)
+
+# - name: appTuple
+#   query: "(a -> a') -> (b -> b') -> (a, b) -> (a', b')"
+#   solution: (f (fst t), g (snd t))
+
+# - name: numElem
+#   query: Eq a => [a] -> a -> Int
+#   solution: length (elemIndices x xs)
+
+- name: lookup
+  query: "Eq a => [(a,b)] -> a -> b"
+  solution: Data.Maybe.fromJust (GHC.List.lookup arg0 arg1)
+  source: "hoogle"
+
+# - name: intersperse
+#   query: Show a => a -> [String] -> String
+#   solution: intersperse (show arg1) arg0
+
+# - name: convertToInt
+#   query: Double -> Int
+
+# - name: toText
+#   query: Show a => a -> Text
+
+# - name: toFloat
+#   query: Float -> Int
+
+# - name: c2i
+#   query: Char -> Integer
+
+# - name: a2i
+#   query: Num a => a -> Int
+
+# - name: reverseMap
+#   query: Ord k, Ord v => Map k v -> Map v [k]
+
+# - name: overlapCount
+#   query: "Eq a => [a] -> [a] -> Int"
+
+- name: mbElem
+  query: "Eq a => a -> [a] -> Maybe a"
+  solution: bool (Nothing) (Just (arg1)) (elem arg1 arg0)
+  source: "hoogle"
+
+# - name: convert
+#   query: Int -> Int -> Float
+
+- name: areEq
+  query: "Eq a => a -> a -> Maybe a"
+  solution: bool (Nothing) (Just (arg1)) (== arg1 arg0)
+  source: "hoogle"
+
+# - name: d2i
+#   query: Double -> Integer
+
+# - name: keyOverlap
+#   query: Ord k => Map k v -> Set k -> Set k
+#   solution: Set.intersection arg0 (keySet arg1)
+
+# - name: justMap
+#   query: Ord k => [Maybe (k, v)] -> Map k v
+#   solution: Map.fromList (catMaybe arg0)
+
+# - name: removeListFromSet
+#   query: Ord k => [k] -> Set k -> Set k
+#   solution: (\\) arg0 (fromList arg1)
+
+# - name: updateAllInMap
+#   query: (v -> Maybe v) -> Map k v -> Map k v
+
+- name: containsEdge
+  query: "[Int] -> (Int,Int) -> Bool"
+  solution: containsEdge xs (a,b) = (a `elem` xs) && (b `elem` xs)
+  source: "stackOverflow"
+
