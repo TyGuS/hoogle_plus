@@ -67,7 +67,7 @@ getExampleTypes env validSchemas num = do
         let t = mbFreeVar
         let tvars = typeVarsOf t
         let tcass = st ^. tyclassAssignment
-        generalizeType tcass t
+        generalizeType validSchemas tcass t
         ) initTyclassState
     where
         stepAntiUnification (t1, st) t2 = antiUnification t1 t2 st
@@ -204,20 +204,22 @@ antiUnification' (FunctionT x1 tArg1 tRes1) (FunctionT x2 tArg2 tRes2) = do
     return $ FunctionT x1 tArg tRes
 antiUnification' t1 t2 = findWithDefaultAntiVariable t1 t2
 
-generalizeType :: TyclassAssignment -> SType -> StateT TypeClassState IO [String]
-generalizeType tcass t = do
+generalizeType :: [RSchema] -> TyclassAssignment -> SType -> StateT TypeClassState IO [String]
+generalizeType exTyps tcass t = do
     -- do the filtering inside observeAll
     liftIO $ print t
     liftIO $ print tcass
     typs <- observeAllT (do
-        (ass, gt) <- evalStateT (generalizeSType tcass t) (TypeNaming Map.empty Set.empty)
+        let (_, vars) = partition ((==) univTypeVarPrefix . head) $ Set.toList $ typeVarsOf t
+        (ass, gt) <- evalStateT (generalizeSType tcass t) (TypeNaming Map.empty Set.empty (Set.fromList vars))
         let (freeVars, vars) = partition ((==) univTypeVarPrefix . head) $ Set.toList $ typeVarsOf gt
         -- simplify computation here
         let mkSubst t = Map.fromList $ map (,t) freeVars
         if null vars && null freeVars
-           then return (ass, gt)
+           then liftIO (checkUnify gt) >>= guard >> return (ass, gt)
            else msum $ map (\v -> do
                 let t = stypeSubstitute (mkSubst (vart_ v)) gt
+                liftIO (checkUnify t) >>= guard
                 guard (isInhabited ass t)
                 return $ (ass, t)) vars
         )
@@ -225,6 +227,12 @@ generalizeType tcass t = do
              sortOn (uncurry $ scoreSignature t) $
              nubOrdBy dedupArgs typs
     where
+        checkUnify typ = do
+            let vars = typeVarsOf typ
+            let sch = foldr ForallT (Monotype (addTrue typ)) vars
+            messageChan <- newChan
+            checkResults <- mapM (\s -> checkTypes emptyEnv messageChan s sch) exTyps
+            return $ all fst checkResults
         toConstraint (id, s) = intercalate ", " $ map (unwords . (:[id])) (Set.toList s)
         addTyclasses (constraints, t) = 
             let tyclasses = intercalate ", " $
@@ -273,9 +281,13 @@ datatypeToVar tcass t = do
     tccache <- lift $ lift $ gets $ view tyclassCache
     typeCounting <- gets $ view substCounter
     prevVars <- gets $ view prevTypeVars
+    beginVars <- gets $ view beginTypeVars
     dtclasses <- case Map.lookup t tccache of
                     Just tc -> return tc
                     Nothing -> lift . lift $ Set.toList <$> getDtTyclasses tcass t
+    let matchedPrevVars = filter (\v -> case Map.lookup v tcass of
+            Just tc -> not (Set.null (tc `Set.intersection` Set.fromList dtclasses))
+            Nothing -> False) (Set.toList beginVars)
     let (v, startIdx) = case Map.lookup t typeCounting of
                             Just (v, i) -> (v, i)
                             Nothing -> let vars = Set.toList prevVars ++ map fst (Map.elems typeCounting)
@@ -285,6 +297,7 @@ datatypeToVar tcass t = do
     -- choose between incr the index or not
     msum (map (return . (Map.empty,) . vart_) $ Set.toList prevVars) `mplus`
     -- if reusing some previous var, do not backtrack over type classes
+      msum (map (\v -> return (Map.empty, vart_ v)) matchedPrevVars) `mplus`
       msum (map (\idx -> return (Map.empty, vart_ (v ++ show idx))) [1..startIdx]) `mplus`
         -- if start a new index
         (msum $ map (\tcs -> do

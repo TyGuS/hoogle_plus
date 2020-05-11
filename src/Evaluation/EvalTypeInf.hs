@@ -29,7 +29,7 @@ import Types.Filtering (FunctionSignature(..), defaultInterpreterTimeoutMicro)
 import HooglePlus.IOFormat (searchTypes, readEnv, parseQueryType)
 import HooglePlus.FilterTest (showParams, runInterpreter', parseTypeString)
 import HooglePlus.Utils (removeTypeclasses, mkFunctionSigStr, replaceId)
-import Synquid.Type (toMonotype, shape, stypeSubstitute, boundVarsOf, argsWithName, lastType)
+import Synquid.Type (toMonotype, shape, stypeSubstitute, boundVarsOf, argsWithName, lastType, eqType)
 import Evaluation.Benchmark
 
 {- set up candidates to be used in type variable instantiation -}
@@ -43,7 +43,6 @@ typeCandidates :: [SType]
 typeCandidates = 
     [ int_
     , char_
-    , list_ int_
     , list_ char_
     , double_
     ]
@@ -52,7 +51,8 @@ typeCandidates =
 data InferenceResult = InferenceResult {
     benchmark :: !Benchmark,
     genExamples :: ![Example],
-    infTypes :: ![String]
+    infTypes :: ![String],
+    correctIndex :: !String
 } deriving (Show)
 
 runTest :: Int -> Benchmark -> IO [Example]
@@ -72,8 +72,6 @@ runTest numOfExs bm@(Benchmark _ q sol _) = do
                         , "Test.QuickCheck"
                         , "System.Random"
                         , "Data.List"
-                        , "Data.ByteString.Builder"
-                        , "Data.ByteString.Lazy"
                         , "Data.Function"
                         , "Data.Tuple"
                         , "Data.Bool"
@@ -88,9 +86,9 @@ runTest numOfExs bm@(Benchmark _ q sol _) = do
             Left err -> print err >> return Nothing
             Right (Example ins out) -> do
                 let correctedCode = map correctFun ins
-                if "***Exception" `isInfixOf` out
+                if "***Exception" `isInfixOf` out || any ("Infinity" `isInfixOf`) ins
                     then return Nothing
-                    else return $ Just $ Example correctedCode out
+                    else return $ Just $ Example correctedCode (correctFun out)
             ) (\(e :: SomeException) -> print e >> return Nothing)
         ) [1..numOfExs]
     let examples = catMaybes mbExamples
@@ -114,13 +112,14 @@ runTest numOfExs bm@(Benchmark _ q sol _) = do
 
         buildProperty t refutes = let
             args = filter notTypeclass $ map snd (argsWithName t)
-            rndSize = "sz <- getStdRandom (randomR (0, 10))"
+            rndSize = "sz <- getStdRandom (randomR (3, 10))"
             namedArgs = map (\(a, i) -> ("arg" ++ show i, wrapMyFun a)) (zip args [0..])
-            genArg arg typ = printf "%s; %s <- QC.generate (QC.resize sz QC.arbitrary) :: IO (%s)" rndSize arg (show typ) :: String
+            nonEmpty t = if head (show t) == '[' then "QC.suchThat (QC.resize sz QC.arbitrary) (not . null)" else "QC.resize sz QC.arbitrary"
+            genArg arg typ = printf "%s; %s <- QC.generate (%s) :: IO (%s)" rndSize arg (nonEmpty typ) (show typ) :: String
             genArgs = map (uncurry genArg) namedArgs
             unwrpArgs = map (printf "(unwrap %s)" . fst) namedArgs
             showArgs = map (printf "(show %s)" . fst) namedArgs
-            callArgs = printf "out <- catch (show <$> evaluate (((%s) :: %s) %s)) (\\(e :: SomeException) -> return (\"***Exception\" ++ show e)); return (Example [%s] out)" sol (mkFunctionSigStr (args ++ [lastType t])) (unwords unwrpArgs) (intercalate "," showArgs)  :: String
+            callArgs = printf "out <- catch (show <$> ((wrap <$> evaluate (((%s) :: %s) %s)) :: IO (%s))) (\\(e :: SomeException) -> return (\"***Exception\" ++ show e)); return (Example [%s] out)" sol (mkFunctionSigStr (args ++ [lastType t])) (unwords unwrpArgs) (show (wrapMyFun (lastType t))) (intercalate "," showArgs)  :: String
             in printf "do {%s; %s}" (intercalate "; " genArgs) callArgs
 
 randomSubst :: [Id] -> Map Id SType -> IO (Map Id SType)
@@ -139,7 +138,8 @@ runInference bm = do
     mapM (\xs -> do
         let inStr = unpack (encode (QueryInput "??" xs))
         ListOutput res _ <- searchTypes defaultSynquidParams inStr 10
-        return (InferenceResult bm xs res)
+        checkRes <- getCorrectIndex (Evaluation.Benchmark.query bm) 1 res
+        return (InferenceResult bm xs res checkRes)
         ) (tail $ inits exs)
 
 runTypeInferenceEval :: [Benchmark] -> IO ()
@@ -147,20 +147,31 @@ runTypeInferenceEval bms = do
     results <- mapM runInference bms
     writeResultsTsv (concat results)
 
+getCorrectIndex :: String -> Int -> [String] -> IO String
+getCorrectIndex query _ [] = return "NO ANSWER"
+getCorrectIndex query idx (infer:xs) = do
+    env <- readEnv defaultEnvPath 
+    let q = parseQueryType env query
+    let t = parseQueryType env infer
+    if eqType (toMonotype q) (toMonotype t)
+        then return (show idx)
+        else getCorrectIndex query (idx + 1) xs
+
 writeResultsTsv :: [InferenceResult] -> IO ()
 writeResultsTsv results = 
     withFile "inference.tsv" WriteMode $ \hdl -> do
-        hPutStrLn hdl "bm_name\tbm_query\tgen_exs\tinf_typs"
+        hPutStrLn hdl "bm_name\tbm_query\tgen_exs\tinf_typs\trank"
         let padEnd n xs = xs ++ replicate n ""
-        mapM_ (\(InferenceResult bm exs typs) -> do
+        mapM_ (\(InferenceResult bm exs typs rank) -> do
             let len = max (length exs) (length typs)
             let exStrs = padEnd (len - length exs) (map show exs)
             let typStrs = padEnd (len - length typs) typs
             let nameStrs = padEnd (len - 1) [Evaluation.Benchmark.name bm]
             let queryStrs = padEnd (len - 1) [Evaluation.Benchmark.query bm]
-            mapM_ (\(n,q,e,t) -> do
-                let ln = printf "%s\t%s\t%s\t%s" n q e t
+            let rankStrs = padEnd (len - 1) [rank]
+            mapM_ (\(n,q,e,t,r) -> do
+                let ln = printf "%s\t%s\t%s\t%s\t%s" n q e t r
                 hPutStrLn hdl ln
-                ) (zip4 nameStrs queryStrs exStrs typStrs)
+                ) (zip5 nameStrs queryStrs exStrs typStrs rankStrs)
             ) results
 
