@@ -46,7 +46,6 @@ parseExample mdls mkFun = catch (do
     typ <- askGhc mdls $ exprType TM_Default mkFun
     let hsType = typeToLHsType typ
     let hpType = toInt $ resolveType hsType
-    print hpType
     return (Left hpType))
     (\(e :: SomeException) -> return (Right $ show e))
     where
@@ -216,10 +215,10 @@ generalizeType exTyps tcass t = do
         -- simplify computation here
         let mkSubst t = Map.fromList $ map (,t) freeVars
         if null vars && null freeVars
-           then liftIO (checkUnify gt) >>= guard >> return (ass, gt)
+           then {- liftIO (checkUnify gt) >>= guard >> -} return (ass, gt)
            else msum $ map (\v -> do
                 let t = stypeSubstitute (mkSubst (vart_ v)) gt
-                liftIO (checkUnify t) >>= guard
+                -- liftIO (checkUnify t) >>= guard
                 guard (isInhabited ass t)
                 return $ (ass, t)) vars
         )
@@ -246,17 +245,17 @@ generalizeSType :: TyclassAssignment -> SType -> TypeGeneralizer IO (TyclassAssi
 generalizeSType tcass t@(ScalarT (TypeVarT _ id) _) = (do
     -- either add type class or not 
     let tc = maybe [] Set.toList (Map.lookup id tcass)
-    let mkResult tcs = guard (checkImplies tcs) >> return (Map.singleton id (Set.fromList tcs), t)
+    let mkResult tc = {- guard (checkImplies tcs) >> -} return (Map.singleton id (Set.singleton tc), t)
     prevVars <- gets $ view prevTypeVars
     if id `Set.member` prevVars
        then return (Map.empty, t)
        else do
             modify $ over prevTypeVars (Set.insert id)
-            msum $ map mkResult (subsequences tc)
+            (msum $ map mkResult tc) `mplus` return (Map.empty, t)
     ) `mplus` (do
         -- or replace the variable with previous names
         -- type classes constraints lost
-        prevVars <- gets $ view prevTypeVars
+        prevVars <- gets $ view beginTypeVars
         let prevVars' = Set.delete id prevVars
         msum $ map (return . (Map.empty,) . vart_) (Set.toList prevVars')
         )
@@ -285,29 +284,28 @@ datatypeToVar tcass t = do
     dtclasses <- case Map.lookup t tccache of
                     Just tc -> return tc
                     Nothing -> lift . lift $ Set.toList <$> getDtTyclasses tcass t
+    -- TODO: what is the good option to post-filter this cases
+    -- because it is not always correct
     let matchedPrevVars = filter (\v -> case Map.lookup v tcass of
             Just tc -> not (Set.null (tc `Set.intersection` Set.fromList dtclasses))
             Nothing -> False) (Set.toList beginVars)
     let (v, startIdx) = case Map.lookup t typeCounting of
                             Just (v, i) -> (v, i)
                             Nothing -> let vars = Set.toList prevVars ++ map fst (Map.elems typeCounting)
-                                           currMaxOrd = maximum (map (ord . head) vars)
-                                        in if Map.null typeCounting then ("a", 0)
-                                                                    else ([chr (currMaxOrd + 1)], 0)
+                                           currMaxOrd = maximum (ord 'a' : map (ord . head) vars)
+                                        in ([chr (currMaxOrd + 1)], 0)
     -- choose between incr the index or not
-    msum (map (return . (Map.empty,) . vart_) $ Set.toList prevVars) `mplus`
     -- if reusing some previous var, do not backtrack over type classes
-      msum (map (\v -> return (Map.empty, vart_ v)) matchedPrevVars) `mplus`
+    msum (map (\v -> return (Map.empty, vart_ v)) matchedPrevVars) `mplus`
       msum (map (\idx -> return (Map.empty, vart_ (v ++ show idx))) [1..startIdx]) `mplus`
         -- if start a new index
-        (msum $ map (\tcs -> do
-            -- "Ord" implies "Eq"
-            guard (checkImplies tcs)
-            -- this should be reverted if we backtrack
-            modify $ over substCounter $ Map.insert t (v, startIdx + 1)
-            let varName = v ++ show (startIdx + 1)
-            return (Map.singleton varName (Set.fromList tcs), vart_ varName)
-            ) (subsequences dtclasses))
+        if startIdx < 2 -- optimization for eval only
+            then do
+                let varName = v ++ show (startIdx + 1)
+                modify $ over substCounter $ Map.insert t (v, startIdx + 1)
+                return (Map.empty, vart_ varName) `mplus`
+                    (msum $ map (\tc -> return (Map.singleton varName (Set.singleton tc), vart_ varName)) dtclasses)
+            else mzero
 
 swapAssignments :: AntiUnifier IO ()
 swapAssignments = do

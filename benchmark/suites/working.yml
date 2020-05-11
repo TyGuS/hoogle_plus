@@ -68,7 +68,7 @@
 
 - name: splitStr
   query: "String -> Char -> [String]"
-  solution: "\\xs x -> Data.List.words (Data.List.map (\\y -> bool ' ' y (y == x)) xs)"
+  solution: "\\xs x -> Data.List.words (Data.List.map (\\y -> bool y ' ' (y == x)) xs)"
   source: "hoogle"
 
 - name: splitAtFirst
@@ -259,7 +259,7 @@
 
 - name: areEq
   query: "Eq a => a -> a -> Maybe a"
-  solution: "\\x y -> bool (Just x) Nothing ((==) x y)"
+  solution: "\\x y -> bool Nothing (Just x) ((==) x y)"
   source: "hoogle"
 
 # - name: d2i

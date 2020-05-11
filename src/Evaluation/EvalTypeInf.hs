@@ -64,7 +64,6 @@ runTest numOfExs bm@(Benchmark _ q sol _) = do
         subst <- randomSubst (boundVarsOf sch) Map.empty
         let t = stypeSubstitute subst (shape $ toMonotype sch)
         let prop = buildProperty t []
-        print prop
         res <- runInterpreter' defaultInterpreterTimeoutMicro (do
             setImports [  "Data.Maybe"
                         , "Data.Either"
@@ -86,7 +85,7 @@ runTest numOfExs bm@(Benchmark _ q sol _) = do
             Left err -> print err >> return Nothing
             Right (Example ins out) -> do
                 let correctedCode = map correctFun ins
-                if "***Exception" `isInfixOf` out || any ("Infinity" `isInfixOf`) ins
+                if "***Exception" `isInfixOf` out || any ("Infinity" `isInfixOf`) ins || "[]" `isInfixOf` out
                     then return Nothing
                     else return $ Just $ Example correctedCode (correctFun out)
             ) (\(e :: SomeException) -> print e >> return Nothing)
