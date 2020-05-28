@@ -77,6 +77,7 @@ envToGoal env queryStr = do
 synthesize :: SearchParams -> Goal -> IO ()
 synthesize searchParams goal = do
     -- test hypergraph
+    {-
     let g = Map.fromList [ (Set.fromList [ATypeVarT "s" KnStar], [ (Set.fromList [ATypeVarT "s" KnStar], "f1", Set.fromList [ATypeVarT "1" KnStar]), (Set.fromList [ATypeVarT "s" KnStar], "f2", Set.fromList [ATypeVarT "2" KnStar]), (Set.fromList [ATypeVarT "s" KnStar], "", Set.fromList [ATypeVarT "2" KnStar, ATypeVarT "c" KnStar]) ])
             , (Set.fromList [ATypeVarT "1" KnStar, ATypeVarT "2" KnStar], [ (Set.fromList [ATypeVarT "1" KnStar, ATypeVarT "2" KnStar], "", Set.fromList [ATypeVarT "3" KnStar]) ])
             , (Set.fromList [ATypeVarT "2" KnStar], [ (Set.fromList [ATypeVarT "2" KnStar], "", Set.fromList [ATypeVarT "3" KnStar, ATypeVarT "4" KnStar]) ])
@@ -86,6 +87,15 @@ synthesize searchParams goal = do
             , (Set.fromList [ATypeVarT "c" KnStar], [ (Set.fromList [ATypeVarT "c" KnStar], "", Set.fromList [ATypeVarT "4" KnStar, ATypeVarT "d" KnStar])])
             , (Set.fromList [ATypeVarT "a" KnStar, ATypeVarT "1" KnStar], [ (Set.fromList [ATypeVarT "a" KnStar, ATypeVarT "1" KnStar], "", Set.fromList [ATypeVarT "b" KnStar])])
             , (Set.fromList [ATypeVarT "b" KnStar], [ (Set.fromList [ATypeVarT "b" KnStar], "", Set.fromList [ATypeVarT "t" KnStar]), (Set.fromList [ATypeVarT "b" KnStar], "", Set.fromList [ATypeVarT "a" KnStar])]) ]
+    -}
+    let v_ x = ATypeVarT x KnStar
+    let maybe_ a = ATyAppT (ADatatypeT "Maybe" KnStar) a KnStar
+    let list_ a = ATyAppT (ADatatypeT "List" KnStar) a KnStar
+    let g = Map.fromList [ (Set.fromList [v_ "s"], [ (Set.fromList [v_ "s"], "", Set.fromList [v_ "a", list_ (maybe_ (v_ "a"))]) ])
+                         , (Set.fromList [v_ "a"], [ (Set.fromList [v_ "a", maybe_ (v_ "a")], "fromMaybe", Set.fromList [v_ "a"]), (Set.fromList [v_ "a"], "", Set.fromList [v_ "t"]) ])
+                         , (Set.fromList [list_ (v_ "a")], [ (Set.fromList [list_ (v_ "a")], "listToMaybe", Set.fromList [maybe_ (v_ "a")]) ])
+                         , (Set.fromList [list_ (maybe_ (v_ "a"))], [ (Set.fromList [list_ (maybe_ (v_ "a"))], "catMaybes", Set.fromList [list_ (v_ "a")]) ])
+                         ]
     paths <- observeManyT (_solutionCnt searchParams) (getBFPath (ATypeVarT "s" KnStar) (ATypeVarT "t" KnStar) g)
     print paths
     error "stop"
