@@ -50,7 +50,8 @@ emptyAntiUnifState = AntiUnifState {
 
 data TypeNaming = TypeNaming {
     _substCounter :: Map SType (Id, Int),
-    _prevTypeVars :: Set Id
+    _prevTypeVars :: Set Id,
+    _beginTypeVars :: Set Id
 } deriving(Eq)
 
 makeLenses ''TypeNaming

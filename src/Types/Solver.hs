@@ -99,7 +99,7 @@ emptyRefineState = RefineState {
     _sourceTypes = [],
     _splitTypes = Set.empty,
     _toRemove = [],
-    _passOneOrMore = True,
+    _passOneOrMore = False,
     _lastError = undefined
 }
 

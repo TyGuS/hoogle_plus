@@ -8,6 +8,7 @@ import Synquid.Program
 import Synquid.Error
 import Types.Common
 import Types.Filtering
+import Types.Generate
 
 -- import Control.Monad.List
 import Data.Data
@@ -133,4 +134,9 @@ data CloseStatus
 data SynquidParams = SynquidParams {
     envPath :: String, -- ^ Path to the environment file
     jsonPath :: String
+}
+
+defaultSynquidParams = SynquidParams {
+    Types.Experiments.envPath = defaultEnvPath,
+    jsonPath = defaultJsonPath
 }

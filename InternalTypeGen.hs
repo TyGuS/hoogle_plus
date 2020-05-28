@@ -18,6 +18,7 @@ import qualified Test.LeanCheck.Function.ShowFunction as SF
 import qualified Test.LeanCheck.Core as SF
 import qualified Test.ChasingBottoms as CB
 import qualified Test.SmallCheck.Series as SS
+import qualified Test.QuickCheck as QC
 
 defaultShowFunctionDepth = 4 :: Int
 defaultMaxOutputLength = 10 :: CB.Nat
@@ -83,6 +84,12 @@ instance Monad m => SS.CoSerial m MyInt where
                            Two -> z4
 
 newtype MyFun a b = MyFun (a -> b)
+
+instance (QC.CoArbitrary a, QC.Arbitrary b) => QC.Arbitrary (MyFun a b) where
+  arbitrary = liftM MyFun QC.arbitrary
+
+instance (QC.Arbitrary a, QC.CoArbitrary b) => QC.CoArbitrary (MyFun a b) where
+  coarbitrary (MyFun f) = QC.coarbitrary f
 
 instance {-# OVERLAPPABLE #-} (SS.Serial m b, SS.CoSerial m a) => SS.Serial m (MyFun a b) where
   series = SS.coseries SS.series >>-
@@ -159,6 +166,12 @@ data Example = Example {
 } deriving(Eq, Show)
 
 type ExampleGeneration m = StateT [Example] m
+
+evaluateIOQC :: Show a => [String] -> a -> ExampleGeneration IO String
+evaluateIOQC inputs val = do
+    let result = show val
+    modify ((Example inputs result):)
+    return result
 
 evaluateIO :: Data a => Int -> [String] -> [a] -> ExampleGeneration IO ([CB.Result String])
 evaluateIO timeInMicro inputs vals = do

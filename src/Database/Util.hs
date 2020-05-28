@@ -64,13 +64,11 @@ defaultList = Pos (initialPos "List") $ DataDecl "List" ["a"] [] [
   ]
 
 defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [] [
-    {-
     ConstructorSig "Pair" $ FunctionT "x" (ScalarT (TypeVarT Map.empty "a") ftrue) $
       (FunctionT "y" (ScalarT (TypeVarT Map.empty "b") ftrue) $
         (ScalarT (DatatypeT "Pair" [
           ScalarT (TypeVarT Map.empty "a") ftrue,
           ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue))
-    -}
     ]
 
 

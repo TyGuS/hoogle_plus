@@ -46,7 +46,6 @@ parseExample mdls mkFun = catch (do
     typ <- askGhc mdls $ exprType TM_Default mkFun
     let hsType = typeToLHsType typ
     let hpType = toInt $ resolveType hsType
-    print hpType
     return (Left hpType))
     (\(e :: SomeException) -> return (Right $ show e))
     where
@@ -67,7 +66,7 @@ getExampleTypes env validSchemas num = do
         let t = mbFreeVar
         let tvars = typeVarsOf t
         let tcass = st ^. tyclassAssignment
-        generalizeType tcass t
+        generalizeType validSchemas tcass t
         ) initTyclassState
     where
         stepAntiUnification (t1, st) t2 = antiUnification t1 t2 st
@@ -165,8 +164,7 @@ findWithDefaultAntiVariable t1 t2 = do
     vs2 <- liftIO $ unifiableVars tass2 t2
     let overlap = vs1 `intersect` vs2
     if not (null overlap)
-       then if length overlap > 1 then error "antiUnficiation fails"
-                                else return $ vart_ (head overlap)
+       then return $ vart_ (head overlap)
        else checkTyclass t1 t2 
     where
         unifiableVars tass t = do
@@ -180,15 +178,16 @@ findWithDefaultAntiVariable t1 t2 = do
             return $ concat $ snd $ unzip results
 
 antiUnification' :: SType -> SType -> AntiUnifier IO SType
+antiUnification' t1 t2 | t1 == t2 = return t1
 antiUnification' AnyT t = return t
 antiUnification' t AnyT = return t
 antiUnification' t1@(ScalarT (TypeVarT _ id1) _) t2@(ScalarT (TypeVarT _ id2) _)
   | univTypeVarPrefix == head id1 = return $ vart_ id2
   | univTypeVarPrefix == head id2 = return $ vart_ id1
-  | otherwise = checkTyclass t1 t2
+  -- | otherwise = findWithDefaultAntiVariable t1 t2
 antiUnification' t1@(ScalarT (TypeVarT _ id) _) t
   | univTypeVarPrefix == head id = return t
-  | otherwise = checkTyclass t1 t
+  -- | otherwise = findWithDefaultAntiVariable t1 t
 antiUnification' t tv@(ScalarT (TypeVarT {}) _) = do
     swapAssignments
     result <- antiUnification' tv t
@@ -204,20 +203,22 @@ antiUnification' (FunctionT x1 tArg1 tRes1) (FunctionT x2 tArg2 tRes2) = do
     return $ FunctionT x1 tArg tRes
 antiUnification' t1 t2 = findWithDefaultAntiVariable t1 t2
 
-generalizeType :: TyclassAssignment -> SType -> StateT TypeClassState IO [String]
-generalizeType tcass t = do
+generalizeType :: [RSchema] -> TyclassAssignment -> SType -> StateT TypeClassState IO [String]
+generalizeType exTyps tcass t = do
     -- do the filtering inside observeAll
     liftIO $ print t
     liftIO $ print tcass
     typs <- observeAllT (do
-        (ass, gt) <- evalStateT (generalizeSType tcass t) (TypeNaming Map.empty Set.empty)
+        let (_, vars) = partition ((==) univTypeVarPrefix . head) $ Set.toList $ typeVarsOf t
+        (ass, gt) <- evalStateT (generalizeSType tcass t) (TypeNaming Map.empty Set.empty (Set.fromList vars))
         let (freeVars, vars) = partition ((==) univTypeVarPrefix . head) $ Set.toList $ typeVarsOf gt
         -- simplify computation here
         let mkSubst t = Map.fromList $ map (,t) freeVars
         if null vars && null freeVars
-           then return (ass, gt)
+           then {- liftIO (checkUnify gt) >>= guard >> -} return (ass, gt)
            else msum $ map (\v -> do
                 let t = stypeSubstitute (mkSubst (vart_ v)) gt
+                -- liftIO (checkUnify t) >>= guard
                 guard (isInhabited ass t)
                 return $ (ass, t)) vars
         )
@@ -225,6 +226,12 @@ generalizeType tcass t = do
              sortOn (uncurry $ scoreSignature t) $
              nubOrdBy dedupArgs typs
     where
+        checkUnify typ = do
+            let vars = typeVarsOf typ
+            let sch = foldr ForallT (Monotype (addTrue typ)) vars
+            messageChan <- newChan
+            checkResults <- mapM (\s -> checkTypes emptyEnv messageChan s sch) exTyps
+            return $ all fst checkResults
         toConstraint (id, s) = intercalate ", " $ map (unwords . (:[id])) (Set.toList s)
         addTyclasses (constraints, t) = 
             let tyclasses = intercalate ", " $
@@ -238,17 +245,17 @@ generalizeSType :: TyclassAssignment -> SType -> TypeGeneralizer IO (TyclassAssi
 generalizeSType tcass t@(ScalarT (TypeVarT _ id) _) = (do
     -- either add type class or not 
     let tc = maybe [] Set.toList (Map.lookup id tcass)
-    let mkResult tcs = guard (checkImplies tcs) >> return (Map.singleton id (Set.fromList tcs), t)
+    let mkResult tc = {- guard (checkImplies tcs) >> -} return (Map.singleton id (Set.singleton tc), t)
     prevVars <- gets $ view prevTypeVars
     if id `Set.member` prevVars
        then return (Map.empty, t)
        else do
             modify $ over prevTypeVars (Set.insert id)
-            msum $ map mkResult (subsequences tc)
+            (msum $ map mkResult tc) `mplus` return (Map.empty, t)
     ) `mplus` (do
         -- or replace the variable with previous names
         -- type classes constraints lost
-        prevVars <- gets $ view prevTypeVars
+        prevVars <- gets $ view beginTypeVars
         let prevVars' = Set.delete id prevVars
         msum $ map (return . (Map.empty,) . vart_) (Set.toList prevVars')
         )
@@ -273,28 +280,32 @@ datatypeToVar tcass t = do
     tccache <- lift $ lift $ gets $ view tyclassCache
     typeCounting <- gets $ view substCounter
     prevVars <- gets $ view prevTypeVars
+    beginVars <- gets $ view beginTypeVars
     dtclasses <- case Map.lookup t tccache of
                     Just tc -> return tc
                     Nothing -> lift . lift $ Set.toList <$> getDtTyclasses tcass t
+    -- TODO: what is the good option to post-filter this cases
+    -- because it is not always correct
+    let matchedPrevVars = filter (\v -> case Map.lookup v tcass of
+            Just tc -> not (Set.null (tc `Set.intersection` Set.fromList dtclasses))
+            Nothing -> False) (Set.toList beginVars)
     let (v, startIdx) = case Map.lookup t typeCounting of
                             Just (v, i) -> (v, i)
                             Nothing -> let vars = Set.toList prevVars ++ map fst (Map.elems typeCounting)
-                                           currMaxOrd = maximum (map (ord . head) vars)
-                                        in if Map.null typeCounting then ("a", 0)
-                                                                    else ([chr (currMaxOrd + 1)], 0)
+                                           currMaxOrd = maximum (ord 'a' : map (ord . head) vars)
+                                        in ([chr (currMaxOrd + 1)], 0)
     -- choose between incr the index or not
-    msum (map (return . (Map.empty,) . vart_) $ Set.toList prevVars) `mplus`
     -- if reusing some previous var, do not backtrack over type classes
+    msum (map (\v -> return (Map.empty, vart_ v)) matchedPrevVars) `mplus`
       msum (map (\idx -> return (Map.empty, vart_ (v ++ show idx))) [1..startIdx]) `mplus`
         -- if start a new index
-        (msum $ map (\tcs -> do
-            -- "Ord" implies "Eq"
-            guard (checkImplies tcs)
-            -- this should be reverted if we backtrack
-            modify $ over substCounter $ Map.insert t (v, startIdx + 1)
-            let varName = v ++ show (startIdx + 1)
-            return (Map.singleton varName (Set.fromList tcs), vart_ varName)
-            ) (subsequences dtclasses))
+        if startIdx < 2 -- optimization for eval only
+            then do
+                let varName = v ++ show (startIdx + 1)
+                modify $ over substCounter $ Map.insert t (v, startIdx + 1)
+                return (Map.empty, vart_ varName) `mplus`
+                    (msum $ map (\tc -> return (Map.singleton varName (Set.singleton tc), vart_ varName)) dtclasses)
+            else mzero
 
 swapAssignments :: AntiUnifier IO ()
 swapAssignments = do
@@ -356,7 +367,7 @@ mkTyclassQuery tcass typ tyclass = do
                                     Just tc -> map (v,) $ Set.toList tc
                                     Nothing -> []) vars
     let varTcStrs = map (\(v, tc) -> unwords [tc, v]) varTcs
-    let allTcs = intercalate ", " $ varTcStrs ++ [unwords [tyclass, (show typ)]]
+    let allTcs = intercalate ", " $ varTcStrs ++ [printf "%s (%s)" tyclass (show typ)]
     let query = printf "undefined :: (%s) => ()" allTcs
     liftIO $
         catch (askGhc mdls (exprType TM_Default query) >> return (Just tyclass))
