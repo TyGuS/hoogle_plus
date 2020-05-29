@@ -59,7 +59,6 @@ import Types.Abstract
 import Types.Common
 import Types.Type
 import Types.Program
-import Types.Encoder
 import Database.Util
 import Synquid.Logic
 import Synquid.Type
@@ -67,6 +66,7 @@ import Synquid.Error
 import Synquid.Program
 import Synquid.Tokens
 import Synquid.Util
+import Encoder.ConstraintEncoder (FunctionCode(..))
 
 import Text.PrettyPrint.ANSI.Leijen hiding ((<+>), (<$>), hsep, vsep)
 import qualified Text.PrettyPrint.ANSI.Leijen as L

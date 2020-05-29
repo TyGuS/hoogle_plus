@@ -6,8 +6,8 @@ module HooglePlus.CodeFormer(
     , CodePieces
     ) where
 
+import Encoder.ConstraintEncoder (FunctionCode(..))
 import Types.Common
-import Types.Encoder
 import Types.Abstract
 import Synquid.Util
 

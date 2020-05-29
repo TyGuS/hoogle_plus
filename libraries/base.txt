@@ -87,13 +87,13 @@ foldl :: forall a b. (b -> a -> b) -> b -> [a] -> b
 -- foldl' :: forall a b. (b -> a -> b) -> b -> [a] -> b
 foldl1 :: (a -> a -> a) -> [a] -> a
 -- foldl1' :: (a -> a -> a) -> [a] -> a
--- scanl :: (b -> a -> b) -> b -> [a] -> [b]
--- scanl1 :: (a -> a -> a) -> [a] -> [a]
+scanl :: (b -> a -> b) -> b -> [a] -> [b]
+scanl1 :: (a -> a -> a) -> [a] -> [a]
 -- scanl' :: (b -> a -> b) -> b -> [a] -> [b]
 foldr :: (a -> b -> b) -> b -> [a] -> b
 foldr1 :: (a -> a -> a) -> [a] -> a
--- scanr :: (a -> b -> b) -> b -> [a] -> [b]
--- scanr1 :: (a -> a -> a) -> [a] -> [a]
+scanr :: (a -> b -> b) -> b -> [a] -> [b]
+scanr1 :: (a -> a -> a) -> [a] -> [a]
 iterate :: (a -> a) -> a -> [a]
 -- iterate' :: (a -> a) -> a -> [a]
 repeat :: a -> [a]
@@ -122,11 +122,11 @@ infix 4 `notElem`
 lookup :: Eq a => a -> [(a, b)] -> Maybe b
 concatMap :: (a -> [b]) -> [a] -> [b]
 zip :: [a] -> [b] -> [(a, b)]
--- zip3 :: [a] -> [b] -> [c] -> [(a, b, c)]
+zip3 :: [a] -> [b] -> [c] -> [(a, b, c)]
 zipWith :: (a -> b -> c) -> [a] -> [b] -> [c]
--- zipWith3 :: (a -> b -> c -> d) -> [a] -> [b] -> [c] -> [d]
+zipWith3 :: (a -> b -> c -> d) -> [a] -> [b] -> [c] -> [d]
 unzip :: [(a, b)] -> ([a], [b])
--- unzip3 :: [(a, b, c)] -> ([a], [b], [c])
+unzip3 :: [(a, b, c)] -> ([a], [b], [c])
 module GHC.Char
 chr :: Int -> Char
 eqChar :: Char -> Char -> Bool

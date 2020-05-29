@@ -2,12 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
 
-module PetriNet.PNEncoder(
-     encoderInit
-    , encoderSolve
-    , encoderRefine
-    , encoderInc
-    ) where
+module Encoder.Z3SMTEnc () where
 
 import Data.Maybe
 import Data.List
@@ -27,8 +22,10 @@ import System.IO
 import System.Process
 import Control.Lens
 
+import Encoder.Z3SMTTypes
+import Encoder.ConstraintEncoder (FunctionCode(..))
+import qualified Encoder.ConstraintEncoder as CE
 import Types.Common
-import Types.Encoder
 import Types.Experiments
 import Types.Abstract
 import PetriNet.AbstractType
@@ -239,12 +236,12 @@ solveAndGetModel = do
         let tsVar = findVariable "time2variable" t tsMap
         mkIntNum tr >>= mkEq tsVar
 
-encoderInit :: EncodeState
+encoderInit :: Z3SMTState
             -> Int
             -> [AbstractSkeleton]
             -> [AbstractSkeleton]
             -> [FunctionCode]
-            -> IO EncodeState
+            -> IO Z3SMTState
 encoderInit encoderState len inputs rets sigs = do
     z3Env <- initialZ3Env
     false <- Z3.mkFalse (envContext z3Env)
@@ -254,7 +251,7 @@ encoderInit encoderState len inputs rets sigs = do
         modify $ set (refinements . returnTyps) rets
         createEncoder inputs (head rets) sigs) encoderState
 
-encoderSolve :: EncodeState -> IO ([Id], EncodeState)
+encoderSolve :: Z3SMTState -> IO ([Id], Z3SMTState)
 encoderSolve = runStateT solveAndGetModel
 
 -- optimize the optional constraints here:
@@ -540,3 +537,18 @@ mustFireTransitions = do
         fires <- mapM fireTransition mustTrans
         toFire <- mkOr (concat fires)
         modify $ over (constraints . optionalConstraints) (toFire :)
+
+instance CE.ConstraintEncoder Z3SMTState where
+    encoderInit = encoderInit
+    encoderInc sigs inputs rets = execStateT (encoderInc sigs inputs rets)
+    encoderRefine info inputs rets newSigs = execStateT (encoderRefine info inputs rets newSigs)
+    encoderSolve = encoderSolve
+
+    emptyEncoder = emptyZ3SMTState
+    getTy2tr enc = enc ^. variables . type2transition
+    -- TODO: maybe we need to explicitly add the second argument for the following
+    setTy2tr m = variables . type2transition .~ m
+    modifyTy2tr f = variables . type2transition %~ f
+    setPrevChecked c = increments . prevChecked .~ c
+    modifyMusters f = refinements . mustFirers %~ f
+    setParams p = encSearchParams .~ p

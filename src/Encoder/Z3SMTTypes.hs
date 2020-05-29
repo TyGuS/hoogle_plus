@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Types.Encoder where
+module Encoder.Z3SMTTypes where
 
 import Data.Maybe
 import Data.HashMap.Strict (HashMap)
@@ -14,39 +14,12 @@ import Z3.Monad hiding(Z3Env, newEnv)
 import Control.Monad.State
 import Data.Data
 import Data.Typeable
-import GHC.Generics
-import qualified Language.Haskell.Exts.Syntax as HSE
 import Data.Function
 import Control.Lens
 
 import Types.Common
 import Types.Abstract
 import Types.Experiments
-
-data EncoderType = Normal | Arity
-    deriving(Eq, Show, Data, Typeable)
-
-data VarType = VarPlace | VarTransition | VarFlow | VarTimestamp
-    deriving(Eq, Ord, Show)
-
-data FunctionCode = FunctionCode {
-    funName   :: String,  -- function name
-    hoParams  :: [FunctionCode],
-    funParams :: [AbstractSkeleton], -- function parameter types and their count
-    funReturn :: [AbstractSkeleton]   -- function return type
-}
-
-instance Eq FunctionCode where
-  fc1 == fc2 = let
-    areEq arg = on (==) arg fc1 fc2
-    in areEq hoParams && areEq funParams && areEq funReturn
-
-instance Ord FunctionCode where
-  compare fc1 fc2 = let
-    thenCmp EQ       ordering = ordering
-    thenCmp ordering _        = ordering
-    cmp arg = on compare arg fc1 fc2
-    in foldr1 thenCmp [cmp hoParams, cmp funParams, cmp funReturn]
 
 data Z3Env = Z3Env {
     envSolver  :: Z3.Solver,
@@ -121,7 +94,7 @@ emptyRefine = RefineInfo {
 
 makeLenses ''RefineInfo
 
-data EncodeState = EncodeState {
+data Z3SMTState = Z3SMTState {
     _z3env :: Z3Env,
     _encSearchParams :: SearchParams,
     _increments :: IncrementState,
@@ -130,7 +103,7 @@ data EncodeState = EncodeState {
     _refinements :: RefineInfo
 } deriving(Eq)
 
-emptyEncodeState = EncodeState {
+emptyZ3SMTState = Z3SMTState {
     _z3env = undefined,
     _encSearchParams = defaultSearchParams,
     _increments = emptyIncrements,
@@ -139,7 +112,7 @@ emptyEncodeState = EncodeState {
     _refinements = emptyRefine
 }
 
-makeLenses ''EncodeState
+makeLenses ''Z3SMTState
 
 newEnv :: Maybe Logic -> Opts -> IO Z3Env
 newEnv mbLogic opts =
@@ -151,11 +124,4 @@ newEnv mbLogic opts =
 
 initialZ3Env = newEnv Nothing stdOpts
 
-freshEnv :: Z3.Context -> IO Z3Env
-freshEnv ctx =
-  Z3.withConfig $ \cfg -> do
-    setOpts cfg stdOpts
-    solver <- Z3.mkSolver ctx
-    return $ Z3Env solver ctx
-
-type Encoder = StateT EncodeState IO
+type Encoder = StateT Z3SMTState IO

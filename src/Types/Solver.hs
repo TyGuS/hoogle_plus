@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts, UndecidableInstances #-}
+{-# LANGUAGE RankNTypes #-}
 module Types.Solver where
 
 import Data.Map (Map)
@@ -19,12 +20,12 @@ import Types.Abstract
 import Types.Experiments hiding (PetriNet)
 import Types.Type
 import Types.Common
-import Types.Encoder
 import Types.Filtering
 import Types.CheckMonad
 import Types.TypeChecker
 import Types.IOFormat
 import Database.Util
+import Encoder.ConstraintEncoder
 
 rootNode = AScalar (ATypeVarT varName)
 pairProj = "pair_match"
@@ -105,26 +106,26 @@ emptyRefineState = RefineState {
 
 makeLenses ''RefineState
 
-data SolverState = SolverState {
+data SolverState enc = SolverState {
     _searchParams :: SearchParams,
     _refineState :: RefineState,
     _statistics :: StatisticState,
     _searchState :: SearchState,
     _groupState :: GroupState,
-    _encoder :: EncodeState,
+    _encoder :: ConstraintEncoder enc => enc,
     _typeChecker :: CheckerState,
     _filterState :: FilterState,
     _messageChan :: Chan Message
-} deriving(Eq)
+}
 
-emptySolverState :: SolverState
+emptySolverState :: ConstraintEncoder enc => SolverState enc
 emptySolverState = SolverState {
     _searchParams = defaultSearchParams,
     _refineState = emptyRefineState,
     _statistics = emptyStatistic,
     _searchState = emptySearchState,
     _groupState = emptyGroup,
-    _encoder = emptyEncodeState,
+    _encoder = emptyEncoder,
     _typeChecker = emptyChecker,
     _filterState = emptyFilterState,
     _messageChan = undefined
@@ -132,10 +133,10 @@ emptySolverState = SolverState {
 
 makeLenses ''SolverState
 
-type PNSolver m = StateT SolverState m
-type BackTrack m = LogicT (PNSolver m)
+type PNSolver enc m = StateT (SolverState enc) m
+type BackTrack enc m = LogicT (PNSolver enc m)
 
-instance Monad m => CheckMonad (PNSolver m) where
+instance (ConstraintEncoder enc, Monad m) => CheckMonad (PNSolver enc m) where
     getNameCounter = gets (view (typeChecker . nameCounter))
     setNameCounter nc = modify (set (typeChecker . nameCounter) nc)
     getNameMapping = gets (view (typeChecker . nameMapping))
@@ -145,7 +146,7 @@ instance Monad m => CheckMonad (PNSolver m) where
     getMessageChan = gets (view messageChan)
     overStats f = modify (over (statistics . solverStats) f)
 
-instance Monad m => CheckMonad (BackTrack m) where
+instance (ConstraintEncoder enc, Monad m) => CheckMonad (BackTrack enc m) where
     getNameCounter = gets (view (typeChecker . nameCounter))
     setNameCounter nc = modify (set (typeChecker . nameCounter) nc)
     getNameMapping = gets (view (typeChecker . nameMapping))

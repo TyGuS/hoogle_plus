@@ -10,6 +10,7 @@ import Types.Solver
 import PetriNet.Util
 import Synquid.Pretty
 import Database.Util
+import Encoder.ConstraintEncoder
 
 import Control.Lens
 import GHC.Generics
@@ -147,7 +148,11 @@ checkUnification bound tass (AScalar (ADatatypeT id tArgs)) (AScalar (ADatatypeT
             Just m' -> checkArgs m' args args'
 checkUnification bound tass _ _ = Nothing
 
-typeConstraints :: MonadIO m => [Id] -> AbstractSkeleton -> AbstractSkeleton -> PNSolver m [UnifConstraint]
+typeConstraints :: (ConstraintEncoder enc, MonadIO m)
+                => [Id] 
+                -> AbstractSkeleton 
+                -> AbstractSkeleton 
+                -> PNSolver enc m [UnifConstraint]
 typeConstraints bound (AFunctionT tArg tRet) (AFunctionT tArg' tRet') = do
     argCons <- typeConstraints bound tArg tArg'
     retCons <- if isAFunctionT tRet then typeConstraints bound tRet tRet' else return []
@@ -211,7 +216,11 @@ abstractIntersect bound t1 t2 =
     unifier = getUnifier bound [(t1, t2)]
 
 -- | find the current most restrictive abstraction for a given type
-currentAbst :: MonadIO m => [Id] -> AbstractCover -> AbstractSkeleton -> PNSolver m AbstractSkeleton
+currentAbst :: (ConstraintEncoder enc, MonadIO m) 
+            => [Id] 
+            -> AbstractCover 
+            -> AbstractSkeleton 
+            -> PNSolver enc m AbstractSkeleton
 currentAbst tvs cover (AFunctionT tArg tRes) = do
     tArg' <- currentAbst tvs cover tArg
     tRes' <- currentAbst tvs cover tRes
@@ -229,7 +238,11 @@ currentAbst tvs cover at = do
                        else Just paren
     currentAbst' at paren = Nothing
 
-applySemantic :: MonadIO m => [Id] -> AbstractSkeleton -> [AbstractSkeleton] -> PNSolver m AbstractSkeleton
+applySemantic :: (ConstraintEncoder enc, MonadIO m) 
+              => [Id] 
+              -> AbstractSkeleton 
+              -> [AbstractSkeleton] 
+              -> PNSolver enc m AbstractSkeleton
 applySemantic tvs fun args = do
     let cargs = init (decompose fun)
     let ret = last (decompose fun)

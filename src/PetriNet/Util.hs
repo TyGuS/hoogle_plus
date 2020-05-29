@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-} 
 module PetriNet.Util where
 
+import Encoder.ConstraintEncoder
 import Types.Type
 import Types.Common
 import Types.Solver
@@ -8,7 +9,6 @@ import Types.Abstract
 import Types.Experiments
 import Types.Environment
 import Types.Program
-import Types.Encoder
 import Types.IOFormat
 import Types.Filtering (AssociativeExamples)
 import Types.CheckMonad
@@ -135,12 +135,18 @@ freshAbstract bound t = do
         (m'', tRes') <- freshAbstract' bound m' tRes
         return (m'', AFunctionT tArg' tRes')
 
-mkConstraint :: MonadIO m => [Id] -> Id -> AbstractSkeleton -> PNSolver m UnifConstraint
+mkConstraint :: (ConstraintEncoder enc, MonadIO m) 
+             => [Id] 
+             -> Id 
+             -> AbstractSkeleton 
+             -> PNSolver enc m UnifConstraint
 mkConstraint bound v t = do
     t' <- freshAbstract bound t
     return (AScalar (ATypeVarT v), t')
 
-groupSignatures :: MonadIO m => Map Id FunctionCode -> PNSolver m (Map FunctionCode GroupId, Map GroupId (Set Id))
+groupSignatures :: (ConstraintEncoder enc, MonadIO m) 
+                => Map Id FunctionCode 
+                -> PNSolver enc m (Map FunctionCode GroupId, Map GroupId (Set Id))
 groupSignatures sigs = do
     let sigsByType = Map.map Set.fromList $ groupByMap sigs
     writeLog 3 "groupSignatures" $ pretty sigsByType
