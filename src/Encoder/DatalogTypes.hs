@@ -32,33 +32,37 @@ type Place = Int
 type Transition = Int
 type Tokens = Int
 type TimeStep = Int
-
-data Constraint = Arc Direction Place Transition Tokens
+type Marking = [(Int, Int)]
+data Constraint = Node Id Int
+                | Arc Direction Place Transition Tokens
                 | FireAt TimeStep Transition
                 | NotFireAt TimeStep Transition
+                | MarkingAt TimeStep Marking
+                | NotMarkingAt TimeStep Marking
                 | Choices [Constraint]
+                | Comment String
 
 instance Show Constraint where
+    show (Node name i) = printf "%s(%d)." name i
     show (Arc dir p tr w) = printf "arc(%d, %s, %d, %d)" tr (show dir) p w
-    show (FireAt t tr) = printf "T%d == %d" t tr
-    show (NotFireAt t tr) = printf "T%d \\== %d" t tr
+    show (FireAt t tr) = printf "T%d = %d" t tr
+    show (NotFireAt t tr) = printf "T%d \\= %d" t tr
+    show (MarkingAt t m) = printf "M%d = %s" t (show m)
+    show (NotMarkingAt t m) = printf "M%d \\= %s" t (show m)
     show (Choices cs) = printf "(%s)" (intercalate "; " (map show cs))
-
-type Marking = [(Int, Int)]
-data Blocking = Blocking {
-    _blockTransition :: [Int],
-    _blockMarking :: [Marking]
-}
-
-makeLenses ''Blocking
+    show (Comment str) = printf "%% %s" str
 
 data Constraints = Constraints {
     _persistConstraints :: [Constraint],
-    _blockConstraints :: [Blocking]
+    _initConstraints :: Constraint,
+    _finalConstraints :: Constraint,
+    _blockConstraints :: [Constraint]
 }
 
 emptyConstraints = Constraints {
     _persistConstraints = [],
+    _initConstraints = undefined,
+    _finalConstraints = undefined,
     _blockConstraints = []
 }
 
@@ -96,6 +100,7 @@ emptyVariables = EncodeVariables {
     _variableNb = 1,
     _place2variable = HashMap.empty,
     _trans2variable = HashMap.empty,
+    _variable2trans = HashMap.empty,
     _type2transition = HashMap.empty
 }
 

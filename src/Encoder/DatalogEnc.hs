@@ -25,6 +25,7 @@ addPlaceVar p = do
     pvar <- gets $ view (variables . place2variable)
     vnbr <- gets $ view (variables . variableNb)
     let p2v = HashMap.insert p vnbr pvar
+    let node = Node "place" vnbr
     unless (HashMap.member p pvar) $ do
         modify $ set (variables . place2variable) p2v
         modify $ over (variables . variableNb) (+ 1)
@@ -39,38 +40,43 @@ addTransitionVar tr = do
         modify $ over (variables . variable2trans) (HashMap.insert tnbr tr)
         modify $ over (variables . transitionNb) (+ 1)
 
-setInitialState :: [AbstractSkeleton] -> [AbstractSkeleton] -> Encoder Marking
+assignToken :: AbstractSkeleton -> Int -> Encoder (Int, Int)
+assignToken p c = do
+    placeMap <- gets $ view (variables . place2variable)
+    let pvar = findVariable "place2variable" p placeMap
+    return (pvar, c)
+
+setInitialState :: [AbstractSkeleton] -> [AbstractSkeleton] -> Encoder ()
 setInitialState inputs places = do
     let nonInputs = filter (`notElem` inputs) places
     let inputCounts = map (\t -> (head t, length t)) (group $ sort inputs)
     let nonInputCounts = map (, 0) nonInputs
-    mapM (uncurry assignToken) (inputCounts ++ nonInputCounts)
-    where
-        assignToken p c = do
-            placeMap <- gets $ view (variables . place2variable)
-            let pvar = findVariable "place2variable" p placeMap
-            return (pvar, c)
+    marking <- mapM (uncurry assignToken) (inputCounts ++ nonInputCounts)
+    let initMarking = MarkingAt 0 marking
+    modify $ set (constraints . initConstraints) initMarking
 
-setFinalState :: AbstractSkeleton -> [AbstractSkeleton] -> Encoder Marking
+setFinalState :: AbstractSkeleton -> [AbstractSkeleton] -> Encoder ()
 setFinalState ret places = do
     let nonRets = filter ((/=) ret) places
     let nonRetCounts = map (, 0) nonRets
     let counts = (ret, 1) : nonRetCounts
-    mapM (uncurry assignToken) counts
-    where
-        assignToken p c = do
-            placeMap <- gets $ view (variables . place2variable)
-            let pvar = findVariable "place2variable" p placeMap
-            return (pvar, c)
+    marking <- mapM (uncurry assignToken) counts
+    l <- gets $ view (increments . loc)
+    let finalMarking = MarkingAt l marking
+    modify $ set (constraints . finalConstraints) finalMarking
 
-disableTransitions :: [Id] -> Int -> Encoder ()
-disableTransitions trs t = mapM_ disableTransitionAt trs
-    where
-        disableTransitionAt tr = do
-            transMap <- gets $ view (variables . trans2variable)
-            let trVar = findVariable "trans2variable" tr transMap
-            let dis = NotFireAt t trVar
-            modify $ over (constraints . persistConstraints) (dis :)
+disableTransitions :: [Id] -> Encoder ()
+disableTransitions trs = do
+    transMap <- gets $ view (variables . trans2variable)
+    let transMap' = foldr HashMap.delete transMap trs
+    modify $ set (variables . trans2variable) transMap'
+    -- mapM_ disableTransitionAt trs
+    -- where
+    --     disableTransitionAt tr = do
+    --         transMap <- gets $ view (variables . trans2variable)
+    --         let trVar = findVariable "trans2variable" tr transMap
+    --         let dis = NotFireAt t trVar
+    --         modify $ over (constraints . persistConstraints) (dis :)
 
 addArc :: FunctionCode -> Encoder ()
 addArc (FunctionCode f _ params rets) = do
@@ -135,13 +141,11 @@ encoderSolve = runStateT solveAndGetModel
 solveAndGetModel :: Encoder [Id]
 solveAndGetModel = do
     l <- gets $ view (increments . loc)
-    
     prev <- gets $ view (increments . prevChecked)
     when prev $ do
         toBlock <- gets $ view (increments . block)
         modify $ over (constraints . blockConstraints) (toBlock :)
         modify $ set (increments . prevChecked) False
-    let trVars = HashMap.elems transMap
     case solve problem of
         Left err 
             | length rets > 1 -> do
@@ -165,10 +169,24 @@ solveAndGetModel = do
             modify $ set (increments . block) unselChange
             return $ map fst $ sortOn snd transitions
     where
-        buildConsult = do
+        buildVariables = do
             transMap <- gets $ view (variables . trans2variable)
             placeMap <- gets $ view (variables . place2variable)
-            
+            let transitions = HashMap.elems transMap
+            let places = HashMap.elems placeMap
+            let trVars = map (Node "transition") transitions
+            let pVars = map (Node "place") places
+            return $ trVars ++ pVars
+
+        buildGoal = do
+            initial <- gets $ view (constraints . initConstraints)
+            final <- gets $ view (constraints . finalConstraints)
+            blocks <- gets $ view (constraints . blockConstraints)
+            l <- gets $ view (increments . loc)
+            let sequences = map (\t -> printf "fire_at(M%d, T%d, M%d)" t t (t + 1)) [0..(l - 1)]
+            let constraints = show initial : sequences ++ [show final] ++ map show blocks
+                                
+
 
 -- optimize the optional constraints here:
 -- we only need to change the must firers and noTransitionTokens and final states
