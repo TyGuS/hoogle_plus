@@ -1,0 +1,136 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE TemplateHaskell #-}
+
+module Encoder.DatalogTypes where
+
+import Data.List (intercalate)
+import Data.Maybe
+import Data.HashMap.Strict (HashMap)
+import Data.Map (Map)
+import Data.Set (Set)
+import qualified Data.Set as Set
+import qualified Data.HashMap.Strict as HashMap
+import Control.Monad.State
+import Data.Data
+import Data.Typeable
+import Data.Function
+import Control.Lens
+import Text.Printf
+
+import Types.Common
+import Types.Abstract
+import Types.Experiments
+import Encoder.ConstraintEncoder (FunctionCode)
+
+data Direction = In | Out
+
+instance Show Direction where
+    show In = "in"
+    show Out = "out"
+
+type Place = Int
+type Transition = Int
+type Tokens = Int
+type TimeStep = Int
+
+data Constraint = Arc Direction Place Transition Tokens
+                | FireAt TimeStep Transition
+                | NotFireAt TimeStep Transition
+                | Choices [Constraint]
+
+instance Show Constraint where
+    show (Arc dir p tr w) = printf "arc(%d, %s, %d, %d)" tr (show dir) p w
+    show (FireAt t tr) = printf "T%d == %d" t tr
+    show (NotFireAt t tr) = printf "T%d \\== %d" t tr
+    show (Choices cs) = printf "(%s)" (intercalate "; " (map show cs))
+
+type Marking = [(Int, Int)]
+data Blocking = Blocking {
+    _blockTransition :: [Int],
+    _blockMarking :: [Marking]
+}
+
+makeLenses ''Blocking
+
+data Constraints = Constraints {
+    _persistConstraints :: [Constraint],
+    _blockConstraints :: [Blocking]
+}
+
+emptyConstraints = Constraints {
+    _persistConstraints = [],
+    _blockConstraints = []
+}
+
+makeLenses ''Constraints
+
+data IncrementState = IncrementState {
+    _counter :: Int,
+    _block :: Blocking,
+    _prevChecked :: Bool,
+    _loc :: Int,
+    _encodedSigs :: [FunctionCode]
+}
+
+emptyIncrements = IncrementState {
+    _counter = 0,
+    _block = undefined,
+    _prevChecked = False,
+    _loc = 1,
+    _encodedSigs = []
+}
+
+makeLenses ''IncrementState
+
+data EncodeVariables = EncodeVariables {
+    _transitionNb :: Int,
+    _variableNb :: Int,
+    _place2variable :: HashMap AbstractSkeleton Int, -- place name and timestamp
+    _trans2variable :: HashMap Id Int, -- transition name and abstraction level
+    _variable2trans :: HashMap Int Id,
+    _type2transition :: HashMap AbstractSkeleton (Set Id)
+} deriving(Eq)
+
+emptyVariables = EncodeVariables {
+    _transitionNb = 0,
+    _variableNb = 1,
+    _place2variable = HashMap.empty,
+    _trans2variable = HashMap.empty,
+    _type2transition = HashMap.empty
+}
+
+makeLenses ''EncodeVariables
+
+data RefineInfo = RefineInfo {
+    _mustFirers :: HashMap Id [Id],
+    _disabledTrans :: [Id],
+    _returnTyps :: [AbstractSkeleton]
+} deriving(Eq)
+
+emptyRefine = RefineInfo {
+    _mustFirers = HashMap.empty,
+    _disabledTrans = [],
+    _returnTyps = []
+}
+
+makeLenses ''RefineInfo
+
+data DatalogState = DatalogState {
+    _encSearchParams :: SearchParams,
+    _increments :: IncrementState,
+    _variables :: EncodeVariables,
+    _constraints :: Constraints,
+    _refinements :: RefineInfo
+}
+
+emptyDatalogState = DatalogState {
+    _encSearchParams = defaultSearchParams,
+    _increments = emptyIncrements,
+    _variables = emptyVariables,
+    _constraints = emptyConstraints,
+    _refinements = emptyRefine
+}
+
+makeLenses ''DatalogState
+
+type Encoder = StateT DatalogState IO
