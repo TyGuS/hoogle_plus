@@ -35,6 +35,7 @@ data CoalesceStrategy =
 data SolverName =
       Z3SMT
     | Z3SAT
+    | CBC
     deriving (Data, Show, Eq)
 
 -- | Parameters of program exploration

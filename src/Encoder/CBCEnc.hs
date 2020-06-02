@@ -1,19 +1,24 @@
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies #-}
+
 module Encoder.CBCEnc() where
 
 import Numeric.Limp.Program
+import Numeric.Limp.Rep
 import Numeric.Limp.Solvers.Cbc
-import Data.Maybe
 import Data.List
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Control.Monad.State
-import Control.Lens
+import Control.Lens hiding ((:>))
 
 import Encoder.CBCTypes
 import Encoder.ConstraintEncoder (FunctionCode(..))
 import qualified Encoder.ConstraintEncoder as CE
+import Encoder.Utils
 import Types.Common
 import Types.Abstract
 import Synquid.Pretty
@@ -23,7 +28,7 @@ addPlaceVar p t = do
     pvar <- gets $ view (variables . place2variable)
     vnbr <- gets $ view (variables . variableNb)
     let p2v = HashMap.insert (p, t) vnbr pvar
-    let nonneg = lowerZ vnbr
+    let nonneg = lowerZ (Z 0) vnbr
     unless (HashMap.member (p, t) pvar) $ do
         modify $ set (variables . place2variable) p2v
         modify $ over (variables . variableNb) (+ 1)
@@ -40,7 +45,7 @@ addTransitionVar tr t = do
         modify $ over (variables . transitionNb) (+ 1)
         modify $ over (constraints . varBounds) (bin :)
 
-setInitialState :: [AbstractSkeleton] -> [AbstractSkeleton] -> Encoder () 
+setInitialState :: [AbstractSkeleton] -> [AbstractSkeleton] -> Encoder ()
 setInitialState inputs places = do
     let nonInputs = filter (`notElem` inputs) places
     let inputCounts = map (\t -> (head t, length t)) (group $ sort inputs)
@@ -85,12 +90,12 @@ transPrecondition (FunctionCode name [] params rets) t = do
     let pcnt = map (\l -> (head l, length l)) (group (sort params))
     let pmap = HashMap.fromList pcnt
     let trVar = z1 $ findVariable "trans2variable" (name, t) transMap
-    mapM_ (uncurry $ getPrecondition trVar) pmap
+    mapM_ (uncurry $ getPrecondition trVar) pcnt
     where
         getPrecondition trVar p c = do
             placeMap <- gets $ view (variables . place2variable)
             let before = z1 $ findVariable "place2variable" (p, t) placeMap
-            let sat = (trVar .* c) :<= before
+            let sat = (trVar .* Z c) :<= before
             modify $ over (constraints . persistConstraints) (sat :)
 
 transPostcondition :: AbstractSkeleton -> Int -> Encoder ()
@@ -102,8 +107,8 @@ transPostcondition p t = do
     let after = z1 $ findVariable "place2variable" (p, t + 1) placeMap
     let transSet = HashMap.lookupDefault Set.empty p t2tr
     let selectedSigs = filter (\(FunctionCode tid _ _ _) -> tid `Set.member` transSet) signatures
-    let changes = map getCounts selectedSigs
-    let changeLinear = LZ (zip changes $ repeat (Z 1)) (Z 0)
+    changes <- mapM getCounts selectedSigs
+    let changeLinear = foldr (.+.) c0 changes
     let mkChange = after :== (before .+. changeLinear)
     modify $ over (constraints . optionalConstraints) (mkChange :)
     where
@@ -114,20 +119,24 @@ transPostcondition p t = do
             let pmap = HashMap.fromList pcnt
             let rmap = foldl' (\acc t -> HashMap.insertWith (+) t (-1) acc) pmap rets
             let rcnt = HashMap.toList rmap
-            let cnt = findVariable "token change" p rcnt
+            let cnt = findVariable "token change" p rmap
             let trVar = z1 $ findVariable "trans2variable" (tr, t) transMap
-            return $ cnt *. trVar
+            return $ trVar .* Z cnt
 
 -- maybe we can change this into nonoverlapping transitions
 -- otherwise they are allowed to be execute parallelly
-singleTransition :: Int -> Encoder ()
-singleTransition t = do
-    signatures <- gets $ view (increments . encodedSigs)
-    transMap <- gets $ view (variables . trans2variable)
-    let trVars = map (\(FunctionCode tr _ _ _) ->
-        z1 $ findVariable "trans2variable" (tr, t) transMap) signatures
-    let sumOne = (LZ (zip trVars $ repeat (Z 1)) (Z 0)) :== c1
-    modify $ over (constraints . optionalConstraints) (sumOne :)
+singleTransition :: Encoder ()
+singleTransition = do
+    l <- gets $ view (increments . loc)
+    mapM_ singleTransitionAt [0..(l - 1)]
+    where
+        singleTransitionAt t = do
+            signatures <- gets $ view (increments . encodedSigs)
+            transMap <- gets $ view (variables . trans2variable)
+            let trVars = map (\(FunctionCode tr _ _ _) ->
+                            findVariable "trans2variable" (tr, t) transMap) signatures
+            let sumOne = LZ (zip trVars $ repeat (Z 1)) (Z 0) :== c1
+            modify $ over (constraints . optionalConstraints) (sumOne :)
 
 mustFireTransitions :: Encoder ()
 mustFireTransitions = do
@@ -137,8 +146,9 @@ mustFireTransitions = do
         fireTransition (_, tids) = do
             l <- gets $ view (increments . loc)
             transMap <- gets $ view (variables . trans2variable)
-            let trVars = map (\k -> findVariable "trans2variable" k transMap) (zip tids (repeat l))
-            let fire = (LZ (zip trVars $ repeat (Z 1)) (Z 0)) :>= c1
+            let trVars = [findVariable "trans2variable" (tr, t) transMap |
+                   tr <- tids, t <- [0 .. (l - 1)]]
+            let fire = LZ (zip trVars $ repeat (Z 1)) (Z 0) :>= c1
             modify $ over (constraints . optionalConstraints) (fire :)
 
 encoderInit :: CBCState
@@ -167,10 +177,10 @@ createEncoder inputs ret sigs = do
     -- create the transition variables
     mapM_ (uncurry addTransitionVar) [(tr, t) | tr <- transIds, t <- [0..(l - 1)]]
     -- add constraints for pre- and post-conditions
-    mapM_ (uncurry transPrecondition) [(tr, t) | tr <- transIds, t <- [0..(l - 1)]]
+    mapM_ (uncurry transPrecondition) [(tr, t) | tr <- sigs, t <- [0..(l - 1)]]
     mapM_ (uncurry transPostcondition) [(a, t) | a <- places, t <- [0..(l - 1)]]
     -- only one transition can be fired at each time step
-    mapM_ singleTransition [0..(l - 1)]
+    singleTransition
     -- add constraints for arguments
     mustFireTransitions
     -- set initial and final state for solver
@@ -183,37 +193,51 @@ encoderSolve = runStateT solveAndGetModel
 solveAndGetModel :: Encoder [Id]
 solveAndGetModel = do
     l <- gets $ view (increments . loc)
-    Constraints p o f b bds <- gets $ view constraints
     transMap <- gets $ view (variables . trans2variable)
+    prev <- gets $ view (increments . prevChecked)
+    rets <- gets $ view (refinements . returnTyps)
+    when prev $ do
+        toBlock <- gets $ view (increments . block)
+        modify $ over (constraints . blockConstraints) (toBlock :)
+        modify $ set (increments . prevChecked) False
+    Constraints p o f b bds <- gets $ view constraints
     let trVars = HashMap.elems transMap
     let obj = LZ (zip trVars $ repeat (Z 1)) (Z 0)
-    let constraint = foldl (foldr (.&&)) CTrue [p, o, f, b]
+    let constraint = foldl (foldr (:&&)) CTrue [p, o, f, b]
     let problem = minimise obj constraint bds
     case solve problem of
-        Left err -> liftIO (print err) >> return []
+        Left err 
+            | length rets > 1 -> do
+                -- try a more general return type
+                t2tr <- gets $ view (variables . type2transition)
+                modify $ set (constraints . finalConstraints) []
+                modify $ set (refinements . returnTyps) (tail rets)
+                modify $ set (increments . prevChecked) False
+                setFinalState (rets !! 1) (HashMap.keys t2tr)
+                solveAndGetModel
+            | otherwise -> liftIO (print err) >> return []
         Right ass -> do
             let transAssignment = map (\(k, i) -> (k, zOf ass i)) (HashMap.toList transMap)
             let transSelected = filter ((==) (Z 1) . snd) transAssignment
             let transitions = map fst transSelected
-            let currTrans = foldr (addAssignment transMap) CTrue transAssignment
-            modify $ set (increments . block) (neg currTrans)
+            let sameTrans = HashMap.filterWithKey (\k _ -> k `elem` transitions) transMap
+            let diffTrans = HashMap.difference transMap sameTrans
+            -- at least one unselected transition should be fired;
+            let unselSum = LZ (zip (HashMap.elems diffTrans) (repeat $ Z 1)) (Z 0)
+            let unselChange = unselSum :> c0
+            modify $ set (increments . block) unselChange
             return $ map fst $ sortOn snd transitions
-    where
-        addAssignment transMap (k, v) acc =
-            let i = findVariable "trans2variable" k transMap
-             in (z1 i :== v) .&& acc
 
 -- optimize the optional constraints here:
 -- we only need to change the must firers and noTransitionTokens and final states
-encoderInc :: [AbstractSkeleton] -> [AbstractSkeleton] -> Encoder ()
-encoderInc inputs rets = do
+encoderInc :: [FunctionCode] -> [AbstractSkeleton] -> [AbstractSkeleton] -> Encoder ()
+encoderInc sigs inputs rets = do
     persists <- gets $ view (constraints . persistConstraints)
     modify $ over (increments . loc) (+ 1)
     modify $ set (refinements . returnTyps) rets
     modify $ set constraints ( emptyConstraints { _persistConstraints = persists })
     ty2tr <- gets $ view (variables . type2transition)
     l <- gets $ view (increments . loc)
-    sigs <- gets $ view (increments . encodedSigs)
     toRemove <- gets $ view (refinements . disabledTrans)
     let places = HashMap.keys ty2tr
     let transitions = Set.toList $ Set.unions $ HashMap.elems ty2tr
@@ -229,17 +253,17 @@ encoderInc inputs rets = do
     -- refine the postcondition
     mapM_ (uncurry transPostcondition) [(a, l - 1) | a <- places]
     -- single transition can be fired at each time step
-    mapM_ singleTransition [0..(l - 1)]
+    singleTransition
     -- refine the must firers
     mustFireTransitions
     -- set new initial and final state
     setInitialState inputs places
     setFinalState (head rets) places
 
-encoderRefine :: SplitInfo 
-              -> [AbstractSkeleton] 
-              -> [AbstractSkeleton] 
-              -> [FunctionCode] 
+encoderRefine :: SplitInfo
+              -> [AbstractSkeleton]
+              -> [AbstractSkeleton]
+              -> [FunctionCode]
               -> Encoder ()
 encoderRefine info inputs rets newSigs = do
     {- update the abstraction level -}
@@ -256,13 +280,13 @@ encoderRefine info inputs rets newSigs = do
     let newPlaceIds = newPlaces info
     let newTransIds = newTrans info
     let currPlaces = HashMap.keys t2tr
-    let newTrans = [(functionName tr, t) | t <- [0..(l-1)], tr <- newSigs ]
-    let allTrans = [(functionName tr, t) | t <- [0..(l-1)], tr <- sigs ]
+    let newTrans = [(tr, t) | t <- [0..(l-1)], tr <- newSigs ]
+    let allTrans = [(funName tr, t) | t <- [0..(l-1)], tr <- sigs ]
 
     -- add new place variables
     mapM_ (uncurry addPlaceVar) [(a, i) | a <- newPlaceIds, i <- [0..l]]
     -- add new transition variables
-    mapM_ (uncurry addTransitionVar) newTrans
+    mapM_ (uncurry addTransitionVar . over _1 funName) newTrans
     -- refine the precondition constraints
     mapM_ (uncurry transPrecondition) newTrans
     -- refine the postcondition constraints
@@ -270,9 +294,23 @@ encoderRefine info inputs rets newSigs = do
     -- disable splitted transitions
     mapM_ (disableTransitions (removedTrans info)) [0..(l-1)]
     -- single transition can be fired at each time step
-    mapM_ singleTransition [0..(l - 1)]
+    singleTransition
     -- refine the must firers
     mustFireTransitions
     -- set new initial and final state
     setInitialState inputs currPlaces
     setFinalState (head rets) currPlaces
+
+instance CE.ConstraintEncoder CBCState where
+    encoderInit = encoderInit
+    encoderInc sigs inputs rets = execStateT (encoderInc sigs inputs rets)
+    encoderRefine info inputs rets newSigs = execStateT (encoderRefine info inputs rets newSigs)
+    encoderSolve = encoderSolve
+
+    emptyEncoder = emptyCBCState
+    getTy2tr enc = enc ^. variables . type2transition
+    setTy2tr m = variables . type2transition .~ m
+    modifyTy2tr f = variables . type2transition %~ f
+    setPrevChecked c = increments . prevChecked .~ c
+    modifyMusters f = refinements . mustFirers %~ f
+    setParams p = encSearchParams .~ p

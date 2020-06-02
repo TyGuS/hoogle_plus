@@ -3,16 +3,23 @@
 
 module Main (main) where
 
+-- generate databases
 import Database.Convert
 import Database.Download
 import Database.Environment
 import Database.Generate
 import Database.Presets
 import Database.Util
+-- encoders
 import Encoder.Z3SMTTypes (Z3SMTState)
 import Encoder.Z3SMTEnc ()
+import Encoder.Z3SATTypes (Z3SATState)
+import Encoder.Z3SATEnc ()
+import Encoder.CBCTypes (CBCState)
+import Encoder.CBCEnc ()
 import Evaluation.EvalTypeInf
 import Evaluation.ReadBenchmark
+-- synthesis with examples
 import Examples.ExampleChecker
 import HooglePlus.GHCChecker
 import HooglePlus.IOFormat
@@ -249,11 +256,8 @@ mode = cmdArgsMode $ modes [synt, generate, evaluation] &=
   program programName &=
   summary (programName ++ " v" ++ versionName ++ ", " ++ showGregorian releaseDate)
 
-
-
 precomputeGraph :: GenerationOpts -> IO ()
 precomputeGraph opts = generateEnv opts >>= writeEnv (Types.Generate.envPath opts)
-
 
 -- | Parse and resolve file, then synthesize the specified goals
 executeSearch :: SynquidParams -> SearchParams -> String -> IO ()
@@ -265,11 +269,11 @@ executeSearch synquidParams searchParams inStr = catch (do
     env <- readBuiltinData synquidParams env'
     goal <- envToGoal env tquery
     solverChan <- newChan
-    forkIO $ synthesize searchParams goal exquery solverChan (
-        case searchParams ^. solver of
-            Z3SMT -> emptySolverState :: SolverState Z3SMTState
-            Z3SAT -> error "not implemented"
-        )
+    case searchParams ^. solver of
+        Z3SMT -> forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState Z3SMTState)
+        Z3SAT -> forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState Z3SATState)
+        CBC -> forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState CBCState)
+        _ -> error "not implemented"
     readChan solverChan >>= (handleMessages solverChan))
     (\(e :: SomeException) -> printResult $ encodeWithPrefix $ QueryOutput [] (show e) [])
     where

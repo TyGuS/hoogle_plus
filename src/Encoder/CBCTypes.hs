@@ -14,11 +14,13 @@ import Data.Data
 import Data.Typeable
 import Data.Function
 import Control.Lens
-import Numeric.Limp.Program
+import Numeric.Limp.Program hiding (_constraints)
+import Numeric.Limp.Rep
 
 import Types.Common
 import Types.Abstract
 import Types.Experiments
+import Encoder.ConstraintEncoder (FunctionCode)
 
 type LinearConstraint = Constraint Int Double IntDouble
 type VarBoundary = Bounds Int Double IntDouble
@@ -29,7 +31,7 @@ data Constraints = Constraints {
     _finalConstraints :: [LinearConstraint],
     _blockConstraints :: [LinearConstraint],
     _varBounds :: [VarBoundary]
-} deriving(Eq)
+}
 
 emptyConstraints = Constraints {
     _persistConstraints = [],
@@ -47,7 +49,7 @@ data IncrementState = IncrementState {
     _prevChecked :: Bool,
     _loc :: Int,
     _encodedSigs :: [FunctionCode]
-} deriving(Eq)
+}
 
 emptyIncrements = IncrementState {
     _counter = 0,
@@ -63,7 +65,7 @@ data EncodeVariables = EncodeVariables {
     _transitionNb :: Int,
     _variableNb :: Int,
     _place2variable :: HashMap (AbstractSkeleton, Int) Int, -- place name and timestamp
-    _trans2varaible :: HashMap Id Int, -- transition name and abstraction level
+    _trans2variable :: HashMap (Id, Int) Int, -- transition name and abstraction level
     _type2transition :: HashMap AbstractSkeleton (Set Id)
 } deriving(Eq)
 
@@ -97,7 +99,7 @@ data CBCState = CBCState {
     _variables :: EncodeVariables,
     _constraints :: Constraints,
     _refinements :: RefineInfo
-} deriving(Eq)
+}
 
 emptyCBCState = CBCState {
     _encSearchParams = defaultSearchParams,

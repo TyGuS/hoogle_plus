@@ -76,6 +76,8 @@ dependencies:
 - yaml
 - QuickCheck
 - random
+- limp
+- limp-cbc
 
 library:
   source-dirs:

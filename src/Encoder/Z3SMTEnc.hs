@@ -4,10 +4,8 @@
 
 module Encoder.Z3SMTEnc () where
 
-import Data.Maybe
 import Data.List
 import Data.List.Extra
-import Data.Hashable
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Set (Set)
@@ -25,6 +23,7 @@ import Control.Lens
 import Encoder.Z3SMTTypes
 import Encoder.ConstraintEncoder (FunctionCode(..))
 import qualified Encoder.ConstraintEncoder as CE
+import Encoder.Utils
 import Types.Common
 import Types.Experiments
 import Types.Abstract
@@ -129,9 +128,7 @@ nonincrementalSolve = do
         modify $ set (increments . prevChecked) False
 
     addAllConstraints
-    -- str <- solverToString
-    -- liftIO $ putStrLn str
-    -- liftIO $ writeFile "constraint.z3" str
+    
     check
 
 incrementalSolve :: Encoder Z3.Result
@@ -177,6 +174,7 @@ solveAndGetModel = do
             selected <- mapM (checkLit model) [0..(l-1)]
             placed <- mapM (uncurry $ checkPlace model) [(p, t) | p <- places
                                                                 , t <- [0..l]]
+            -- FIXME: this can be wrong
             blockTrs <- zipWithM blockTr [0..(l-1)] selected
             blockAss <- mkAnd (placed ++ blockTrs) >>= mkNot
             modify $ set (increments . block) blockAss
@@ -424,10 +422,6 @@ mkZ3IntVar var = do
     intS <- mkIntSort
     mkConst varSymbol intS
 
-findVariable :: (Eq k, Hashable k, Show k) => String -> k -> HashMap k v -> v
-findVariable blame k m = fromMaybe (error $ "cannot find in " ++ blame ++ " variable for " ++ show k)
-                             (HashMap.lookup k m)
-
 nonnegativeTokens :: [AbstractSkeleton] -> Encoder ()
 nonnegativeTokens places = do
     l <- gets $ view (increments . loc)
@@ -546,7 +540,6 @@ instance CE.ConstraintEncoder Z3SMTState where
 
     emptyEncoder = emptyZ3SMTState
     getTy2tr enc = enc ^. variables . type2transition
-    -- TODO: maybe we need to explicitly add the second argument for the following
     setTy2tr m = variables . type2transition .~ m
     modifyTy2tr f = variables . type2transition %~ f
     setPrevChecked c = increments . prevChecked .~ c
