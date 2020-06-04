@@ -7,7 +7,3 @@ Data.Function.flip
 (Data.Function..)
 GHC.List.reverse
 GHC.List.cycle
-Data.ByteString.Lazy.reverse
-Data.ByteString.Lazy.cycle
-Data.ByteString.Lazy.transpose
-Data.ByteString.Lazy.copy

@@ -34,8 +34,5 @@ myModules = [
   "Data.List",
   "Data.Function",
   "Data.Either",
-  "Text.Show",
-  -- bytestring
-  "Data.ByteString.Lazy",
-  "Data.ByteString.Builder"
+  "Text.Show"
   ]

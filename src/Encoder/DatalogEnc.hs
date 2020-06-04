@@ -11,6 +11,9 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Control.Monad.State
 import Control.Lens
+import Text.Printf
+import System.Process
+import System.Exit
 
 import Encoder.DatalogTypes
 import Encoder.ConstraintEncoder (FunctionCode(..))
@@ -52,7 +55,7 @@ setInitialState inputs places = do
     let inputCounts = map (\t -> (head t, length t)) (group $ sort inputs)
     let nonInputCounts = map (, 0) nonInputs
     marking <- mapM (uncurry assignToken) (inputCounts ++ nonInputCounts)
-    let initMarking = MarkingAt 0 marking
+    let initMarking = MarkingAt 0 (sortOn fst marking)
     modify $ set (constraints . initConstraints) initMarking
 
 setFinalState :: AbstractSkeleton -> [AbstractSkeleton] -> Encoder ()
@@ -62,7 +65,7 @@ setFinalState ret places = do
     let counts = (ret, 1) : nonRetCounts
     marking <- mapM (uncurry assignToken) counts
     l <- gets $ view (increments . loc)
-    let finalMarking = MarkingAt l marking
+    let finalMarking = MarkingAt l (sortOn fst marking)
     modify $ set (constraints . finalConstraints) finalMarking
 
 disableTransitions :: [Id] -> Encoder ()
@@ -134,6 +137,9 @@ createEncoder inputs ret sigs = do
     mapM_ addTransitionVar transIds
     -- add constraints for pre- and post-conditions
     mapM_ addArc sigs
+    -- initial and final constraints
+    setInitialState inputs places
+    setFinalState ret places
 
 encoderSolve :: DatalogState -> IO ([Id], DatalogState)
 encoderSolve = runStateT solveAndGetModel
@@ -142,32 +148,31 @@ solveAndGetModel :: Encoder [Id]
 solveAndGetModel = do
     l <- gets $ view (increments . loc)
     prev <- gets $ view (increments . prevChecked)
+    arcs <- gets $ view (constraints . persistConstraints)
+    rets <- gets $ view (refinements . returnTyps)
     when prev $ do
         toBlock <- gets $ view (increments . block)
         modify $ over (constraints . blockConstraints) (toBlock :)
         modify $ set (increments . prevChecked) False
-    case solve problem of
+    let arcRelation = map show arcs
+    pnRelation <- map show <$> buildVariables
+    let constraints = arcRelation ++ pnRelation
+    goal <- buildGoal
+    result <- askProlog l constraints goal
+    liftIO (print result)
+    case result of
         Left err 
             | length rets > 1 -> do
                 -- try a more general return type
                 t2tr <- gets $ view (variables . type2transition)
-                modify $ set (constraints . finalConstraints) []
                 modify $ set (refinements . returnTyps) (tail rets)
                 modify $ set (increments . prevChecked) False
                 setFinalState (rets !! 1) (HashMap.keys t2tr)
                 solveAndGetModel
             | otherwise -> liftIO (print err) >> return []
-        Right ass -> do
-            let transAssignment = map (\(k, i) -> (k, zOf ass i)) (HashMap.toList transMap)
-            let transSelected = filter ((==) (Z 1) . snd) transAssignment
-            let transitions = map fst transSelected
-            let sameTrans = HashMap.filterWithKey (\k _ -> k `elem` transitions) transMap
-            let diffTrans = HashMap.difference transMap sameTrans
-            -- at least one unselected transition should be fired;
-            let unselSum = LZ (zip (HashMap.elems diffTrans) (repeat $ Z 1)) (Z 0)
-            let unselChange = unselSum :> c0
-            modify $ set (increments . block) unselChange
-            return $ map fst $ sortOn snd transitions
+        Right transitions -> do
+            varMap <- gets $ view (variables . variable2trans)
+            return $ map (\(NotFireAt _ i) -> findVariable "variable2trans" i varMap) transitions
     where
         buildVariables = do
             transMap <- gets $ view (variables . trans2variable)
@@ -184,9 +189,44 @@ solveAndGetModel = do
             blocks <- gets $ view (constraints . blockConstraints)
             l <- gets $ view (increments . loc)
             let sequences = map (\t -> printf "fire_at(M%d, T%d, M%d)" t t (t + 1)) [0..(l - 1)]
-            let constraints = show initial : sequences ++ [show final] ++ map show blocks
-                                
+            let writes = map (\t -> printf "writeln(T%d)" t) [0..(l - 1)]
+                      ++ map (\t -> printf "writeln(M%d)" t) [1..(l - 1)]
+            let constraints = (show initial) : sequences
+                            ++ [(show final)]
+                            ++ map show blocks
+                            ++ writes
+            return $ intercalate ", " constraints
 
+        parseList sofar _ _ "]" = reverse sofar
+        parseList sofar curr prev ('[':str) = parseList sofar [] "" str
+        parseList sofar curr prev (']':str) = let n = read (reverse prev) :: Int
+                                               in parseList (reverse (n:curr) : sofar) [] "" str
+        parseList sofar curr prev (',':str) = let n = read (reverse prev) :: Int
+                                               in parseList sofar (n:curr) "" str
+        parseList sofar curr prev (c:str) = parseList sofar curr (c:prev) str
+
+        askProlog len constraints goal = do
+            liftIO $ print goal
+            prelude <- liftIO $ readFile "data/petrinet.pl"
+            -- write relations into a temperary file
+            let filename = "/tmp/tmp.pl"
+            liftIO $ writeFile filename (prelude ++ "\n" ++ intercalate "\n" constraints)
+            (exit, out, err) <- liftIO $ readProcessWithExitCode "swipl" ["-f", filename, "-g", goal] []
+            liftIO $ print out
+            -- parse transitions and markings
+            let outputs = lines out
+            let parseTransition str i = NotFireAt i (read str :: Int)
+            let transitions = zipWith parseTransition (take len outputs) [0..(len - 1)]
+            let parseMarking str t = let mList = readList str :: [([[Int]], String)]
+                                         marking = map (\[a, b] -> (a, b)) $ fst $ head mList
+                                      in NotMarkingAt t marking
+            let markings = zipWith parseMarking (drop len outputs) [1..(len - 1)]
+            if exit /= ExitSuccess
+                then return $ Left err
+                else do
+                    let blockExpr = Choices transitions
+                    modify $ set (increments . block) blockExpr
+                    return $ Right transitions
 
 -- optimize the optional constraints here:
 -- we only need to change the must firers and noTransitionTokens and final states
@@ -200,7 +240,11 @@ encoderInc sigs inputs rets = do
     l <- gets $ view (increments . loc)
     toRemove <- gets $ view (refinements . disabledTrans)
     -- disable transitions at the new timestamp
-    disableTransitions toRemove (l - 1)
+    disableTransitions toRemove
+    -- initial and final constraints
+    let places = HashMap.keys ty2tr
+    setInitialState inputs places
+    setFinalState (head rets) places
 
 encoderRefine :: SplitInfo 
               -> [AbstractSkeleton] 
@@ -230,7 +274,10 @@ encoderRefine info inputs rets newSigs = do
     -- refine the precondition constraints
     mapM_ addArc newSigs
     -- disable splitted transitions
-    mapM_ (disableTransitions (removedTrans info)) [0..(l-1)]
+    disableTransitions (removedTrans info)
+    -- initial and final constraints
+    setInitialState inputs currPlaces
+    setFinalState (head rets) currPlaces
 
 instance CE.ConstraintEncoder DatalogState where
     encoderInit = encoderInit

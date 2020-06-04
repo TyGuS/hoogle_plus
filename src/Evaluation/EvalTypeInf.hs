@@ -35,16 +35,14 @@ import Evaluation.Benchmark
 {- set up candidates to be used in type variable instantiation -}
 int_ = ScalarT (DatatypeT "Int" [] []) ()
 char_ = ScalarT (DatatypeT "Char" [] []) ()
-double_ = ScalarT (DatatypeT "Double" [] []) ()
 list_ t = ScalarT (DatatypeT "List" [t] []) ()
-maybe_ t = ScalarT (DatatypeT "Maybe" [t] []) ()
 
 typeCandidates :: [SType]
 typeCandidates = 
     [ int_
     , char_
     , list_ char_
-    , double_
+    , list_ int_
     ]
 
 {- definition of results -}

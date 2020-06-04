@@ -81,14 +81,15 @@ defaultFun = [Pos (initialPos "Fun") $ DataDecl "Fun" ["a", "b"] [] []]
 -- Integral, RealFloat, Fractional, RealFrac
 defaultTypeclassInstances =
     [
-      mkInstance "Show" intType
+    {-  mkInstance "Show" intType
     , mkInstance "Show" boolType
     , mkInstance "Show" charType
     , mkInstance "Show" intType
     , mkInstance "Show" floatType
     , mkInstance "Show" doubleType
     , mkInstance "Show" unitType
-    , mkInstance "Eq" intType
+    , -}
+      mkInstance "Eq" intType
     , mkInstance "Eq" boolType
     , mkInstance "Eq" charType
     , mkInstance "Eq" intType
@@ -142,7 +143,7 @@ listInstance tyclassName = let
           FunctionT "tc" instanceType $
             ScalarT (DatatypeT (tyclassPrefix ++ tyclassName) [listInstance] []) ftrue
 
-mkTyVar str = ScalarT (TypeVarT (Map.empty) str) ftrue
+mkTyVar str = ScalarT (TypeVarT Map.empty str) ftrue
 
 intType = ScalarT (DatatypeT "Int" [] []) ftrue
 boolType = ScalarT (DatatypeT "Bool" [] []) ftrue

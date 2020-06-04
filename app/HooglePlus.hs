@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, StandaloneDeriving, NamedFieldPuns #-}
+{-# LANGUAGE DeriveDataTypeable, NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Main (main) where
@@ -17,6 +17,8 @@ import Encoder.Z3SATTypes (Z3SATState)
 import Encoder.Z3SATEnc ()
 import Encoder.CBCTypes (CBCState)
 import Encoder.CBCEnc ()
+import Encoder.DatalogTypes (DatalogState)
+import Encoder.DatalogEnc ()
 import Evaluation.EvalTypeInf
 import Evaluation.ReadBenchmark
 -- synthesis with examples
@@ -53,7 +55,6 @@ import Data.HashMap.Strict (HashMap)
 import Data.List
 import Data.List.Split
 import Data.Map ((!))
-import Data.Maybe
 import Data.Maybe (mapMaybe, fromJust)
 import Data.Time.Calendar
 import Distribution.PackDeps
@@ -139,8 +140,7 @@ main = do
                 SearchTypes -> searchTypes synquidParams json get_n_types >> return ()
                 SearchResults -> searchResults synquidParams json
                 SearchExamples -> searchExamples synquidParams json get_n_examples
-        Generate {preset = (Just preset)} -> do
-            precomputeGraph (getOptsFromPreset preset)
+        Generate {preset = (Just preset)} -> precomputeGraph (getOptsFromPreset preset)
         Generate Nothing files pkgs mdls d ho pathToEnv hoPath -> do
             let fetchOpts =
                     if (length files > 0)
@@ -156,8 +156,7 @@ main = do
                         , Types.Generate.hoPath = hoPath
                         }
             precomputeGraph generationOpts
-        Evaluation benchmark fp -> do
-            readSuite fp >>= runTypeInferenceEval
+        Evaluation benchmark fp -> readSuite fp >>= runTypeInferenceEval
 
 {- Command line arguments -}
 
@@ -273,7 +272,7 @@ executeSearch synquidParams searchParams inStr = catch (do
         Z3SMT -> forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState Z3SMTState)
         Z3SAT -> forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState Z3SATState)
         CBC -> forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState CBCState)
-        _ -> error "not implemented"
+        Prolog -> forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState DatalogState)
     readChan solverChan >>= (handleMessages solverChan))
     (\(e :: SomeException) -> printResult $ encodeWithPrefix $ QueryOutput [] (show e) [])
     where
@@ -291,6 +290,6 @@ executeSearch synquidParams searchParams inStr = catch (do
             readChan ch >>= (handleMessages ch)
         handleMessages ch (MesgLog level tag msg) = do
             when (level <= logLevel) (do
-                mapM (printf "[%s]: %s\n" tag) (lines msg)
+                mapM_ (printf "[%s]: %s\n" tag) (lines msg)
                 hFlush stdout)
             readChan ch >>= (handleMessages ch)

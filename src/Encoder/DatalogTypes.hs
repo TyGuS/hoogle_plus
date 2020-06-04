@@ -44,11 +44,11 @@ data Constraint = Node Id Int
 
 instance Show Constraint where
     show (Node name i) = printf "%s(%d)." name i
-    show (Arc dir p tr w) = printf "arc(%d, %s, %d, %d)" tr (show dir) p w
+    show (Arc dir p tr w) = printf "arc(%d, %s, %d, %d)." tr (show dir) p w
     show (FireAt t tr) = printf "T%d = %d" t tr
     show (NotFireAt t tr) = printf "T%d \\= %d" t tr
-    show (MarkingAt t m) = printf "M%d = %s" t (show m)
-    show (NotMarkingAt t m) = printf "M%d \\= %s" t (show m)
+    show (MarkingAt t m) = printf "M%d = %s" t (show $ map (\(a,b) -> [a,b]) m)
+    show (NotMarkingAt t m) = printf "M%d \\= %s"  t (show $ map (\(a,b) -> [a,b]) m)
     show (Choices cs) = printf "(%s)" (intercalate "; " (map show cs))
     show (Comment str) = printf "%% %s" str
 
@@ -70,7 +70,7 @@ makeLenses ''Constraints
 
 data IncrementState = IncrementState {
     _counter :: Int,
-    _block :: Blocking,
+    _block :: Constraint,
     _prevChecked :: Bool,
     _loc :: Int,
     _encodedSigs :: [FunctionCode]

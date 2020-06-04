@@ -44,7 +44,7 @@ askGhc :: [String] -> Ghc a -> IO a
 askGhc mdls f = do
     mbResult <- timeout (10^6) $ runGhc (Just libdir) $ do
         dflags <- getSessionDynFlags
-        let dflags' = dflags { 
+        let dflags' = dflags {
             generalFlags = ES.delete Opt_OmitYields (generalFlags dflags),
             extensionFlags = ES.insert FlexibleContexts (extensionFlags dflags)
             }
@@ -61,7 +61,7 @@ askGhc mdls f = do
             return (map IIDecl decls)
 
 runStmt :: [String] -> String -> IO (Either ErrorMessage String)
-runStmt mdls prog = do
+runStmt mdls prog =
   catch (askGhc mdls $ do
     -- allow type defaulting during execution
     dflags <- getSessionDynFlags
@@ -83,7 +83,7 @@ runStmt mdls prog = do
                 Just (AnId aid) -> do
                     t <- gtry $ obtainTermFromId maxBound True aid
                     case t of
-                        Right term -> showTerm term >>= return . Right . dropEnd 1 . drop 1 . showSDocUnsafe
+                        Right term -> (Right . showSDocUnsafe) <$> showTerm term
                         Left (exn :: SomeException) -> return (Left $ show exn)
                 _ -> return (Left "Unknown error")
         getExecValue [] = return (Left "Empty result list")
@@ -96,9 +96,9 @@ skipTyclass t = t
 seqChars = map (:[]) ['a'..'z']
 
 integerToInt :: TypeSkeleton r -> TypeSkeleton r
-integerToInt (ScalarT (DatatypeT dt args _) r) 
+integerToInt (ScalarT (DatatypeT dt args _) r)
   | dt == "Integer" = ScalarT (DatatypeT "Int" (map integerToInt args) []) r
-  | otherwise = ScalarT (DatatypeT dt (map integerToInt args) []) r 
+  | otherwise = ScalarT (DatatypeT dt (map integerToInt args) []) r
 integerToInt (FunctionT x tArg tRes) =
     FunctionT x (integerToInt tArg) (integerToInt tRes)
 integerToInt t = t

@@ -52,7 +52,7 @@ writeLog :: (CheckMonad (t m), MonadIO (t m), MonadIO m) => Int -> String -> Doc
 writeLog level tag msg = do
     mesgChan <- getMessageChan
     liftIO $ writeChan mesgChan (MesgLog level tag $ show $ plain msg)
-    -- if level <= 3 then trace (printf "[%s]: %s\n" tag (show $ plain msg)) $ return () else return ()
+    -- when (level <= level) (trace (printf "[%s]: %s\n" tag (show $ plain msg)) $ return ())
 
 multiPermutation len elmts | len == 0 = [[]]
 multiPermutation len elmts | len == 1 = [[e] | e <- elmts]
@@ -91,7 +91,7 @@ freshId bounds prefix = do
 
 -- | Replace all bound type variables with fresh free variables
 freshType :: (CheckMonad (t m), MonadIO m) => [Id] -> RSchema -> t m RType
-freshType bounds t = freshType' Map.empty [] t
+freshType bounds = freshType' Map.empty []
   where
     freshType' subst constraints (ForallT a sch) = do
         a' <- freshId bounds "tau"

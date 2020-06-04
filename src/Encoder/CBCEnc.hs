@@ -37,12 +37,12 @@ addPlaceVar p t = do
 addTransitionVar :: Id -> Int -> Encoder ()
 addTransitionVar tr t = do
     tvar <- gets $ view (variables . trans2variable)
-    tnbr <- gets $ view (variables . transitionNb)
+    tnbr <- gets $ view (variables . variableNb)
     let tr2v = HashMap.insert (tr, t) tnbr tvar
     let bin = binary tnbr
     unless (HashMap.member (tr, t) tvar) $ do
         modify $ set (variables . trans2variable) tr2v
-        modify $ over (variables . transitionNb) (+ 1)
+        modify $ over (variables . variableNb) (+ 1)
         modify $ over (constraints . varBounds) (bin :)
 
 setInitialState :: [AbstractSkeleton] -> [AbstractSkeleton] -> Encoder ()
@@ -121,22 +121,16 @@ transPostcondition p t = do
             let rcnt = HashMap.toList rmap
             let cnt = findVariable "token change" p rmap
             let trVar = z1 $ findVariable "trans2variable" (tr, t) transMap
-            return $ trVar .* Z cnt
+            return $ trVar .* Z (-cnt)
 
 -- maybe we can change this into nonoverlapping transitions
 -- otherwise they are allowed to be execute parallelly
-singleTransition :: Encoder ()
-singleTransition = do
-    l <- gets $ view (increments . loc)
-    mapM_ singleTransitionAt [0..(l - 1)]
-    where
-        singleTransitionAt t = do
-            signatures <- gets $ view (increments . encodedSigs)
-            transMap <- gets $ view (variables . trans2variable)
-            let trVars = map (\(FunctionCode tr _ _ _) ->
-                            findVariable "trans2variable" (tr, t) transMap) signatures
-            let sumOne = LZ (zip trVars $ repeat (Z 1)) (Z 0) :== c1
-            modify $ over (constraints . optionalConstraints) (sumOne :)
+singleTransition :: Int -> Encoder ()
+singleTransition t = do
+    transMap <- gets $ view (variables . trans2variable)
+    let trVars = HashMap.elems $ HashMap.filterWithKey (\(_, l) _ -> l == t) transMap
+    let sumOne = LZ (zip trVars $ repeat (Z 1)) (Z 0) :== c1
+    modify $ over (constraints . optionalConstraints) (sumOne :)
 
 mustFireTransitions :: Encoder ()
 mustFireTransitions = do
@@ -147,9 +141,23 @@ mustFireTransitions = do
             l <- gets $ view (increments . loc)
             transMap <- gets $ view (variables . trans2variable)
             let trVars = [findVariable "trans2variable" (tr, t) transMap |
-                   tr <- tids, t <- [0 .. (l - 1)]]
+                          tr <- tids, t <- [0 .. (l - 1)]]
             let fire = LZ (zip trVars $ repeat (Z 1)) (Z 0) :>= c1
-            modify $ over (constraints . optionalConstraints) (fire :)
+            modify $ over (constraints . mustConstraints) (fire :)
+
+expandBlocks :: [Id] -> Encoder ()
+expandBlocks newTransIds = do
+    transMap <- gets $ view (variables . trans2variable)
+    l <- gets $ view (increments . loc)
+    let newTransVars = [findVariable "trans2variable" (tr, t) transMap |
+                        tr <- newTransIds, t <- [0 .. (l - 1)]]
+    modify $ over (constraints . blockConstraints) (map (allowMore newTransVars))
+    modify $ over (increments . block) (allowMore newTransVars)
+    where
+        allowMore transVars b = b ++ transVars
+
+mkBlock :: [Int] -> LinearConstraint
+mkBlock transitions = LZ (zip transitions (repeat $ Z 1)) (Z 0) :> c0
 
 encoderInit :: CBCState
             -> Int
@@ -180,7 +188,7 @@ createEncoder inputs ret sigs = do
     mapM_ (uncurry transPrecondition) [(tr, t) | tr <- sigs, t <- [0..(l - 1)]]
     mapM_ (uncurry transPostcondition) [(a, t) | a <- places, t <- [0..(l - 1)]]
     -- only one transition can be fired at each time step
-    singleTransition
+    mapM_ singleTransition [0 .. (l - 1)]
     -- add constraints for arguments
     mustFireTransitions
     -- set initial and final state for solver
@@ -200,13 +208,16 @@ solveAndGetModel = do
         toBlock <- gets $ view (increments . block)
         modify $ over (constraints . blockConstraints) (toBlock :)
         modify $ set (increments . prevChecked) False
-    Constraints p o f b bds <- gets $ view constraints
+    Constraints p o f m b bds <- gets $ view constraints
     let trVars = HashMap.elems transMap
     let obj = LZ (zip trVars $ repeat (Z 1)) (Z 0)
-    let constraint = foldl (foldr (:&&)) CTrue [p, o, f, b]
+    let blocks = map mkBlock b
+    let constraint = foldl (foldr (:&&)) CTrue [p, o, f, m, blocks]
+    -- liftIO $ print constraint
+    -- error "stop"
     let problem = minimise obj constraint bds
     case solve problem of
-        Left err 
+        Left err
             | length rets > 1 -> do
                 -- try a more general return type
                 t2tr <- gets $ view (variables . type2transition)
@@ -217,25 +228,27 @@ solveAndGetModel = do
                 solveAndGetModel
             | otherwise -> liftIO (print err) >> return []
         Right ass -> do
+            -- liftIO $ print ass
             let transAssignment = map (\(k, i) -> (k, zOf ass i)) (HashMap.toList transMap)
             let transSelected = filter ((==) (Z 1) . snd) transAssignment
             let transitions = map fst transSelected
-            let sameTrans = HashMap.filterWithKey (\k _ -> k `elem` transitions) transMap
-            let diffTrans = HashMap.difference transMap sameTrans
+            let diffTrans = HashMap.filterWithKey (\k _ -> k `notElem` transitions) transMap
             -- at least one unselected transition should be fired;
-            let unselSum = LZ (zip (HashMap.elems diffTrans) (repeat $ Z 1)) (Z 0)
-            let unselChange = unselSum :> c0
-            modify $ set (increments . block) unselChange
+            modify $ set (increments . block) (HashMap.elems diffTrans)
+            -- liftIO $ print transitions
+            -- liftIO $ print transMap
             return $ map fst $ sortOn snd transitions
 
 -- optimize the optional constraints here:
 -- we only need to change the must firers and noTransitionTokens and final states
 encoderInc :: [FunctionCode] -> [AbstractSkeleton] -> [AbstractSkeleton] -> Encoder ()
 encoderInc sigs inputs rets = do
-    persists <- gets $ view (constraints . persistConstraints)
     modify $ over (increments . loc) (+ 1)
     modify $ set (refinements . returnTyps) rets
-    modify $ set constraints ( emptyConstraints { _persistConstraints = persists })
+    modify $ set (constraints . finalConstraints) []
+    modify $ set (constraints . blockConstraints) []
+    modify $ set (constraints . mustConstraints) []
+
     ty2tr <- gets $ view (variables . type2transition)
     l <- gets $ view (increments . loc)
     toRemove <- gets $ view (refinements . disabledTrans)
@@ -246,6 +259,8 @@ encoderInc sigs inputs rets = do
 
     -- add new place, transition and timestamp variables
     mapM_ (uncurry addPlaceVar) newPlaces
+    -- add new transition variables
+    mapM_ (uncurry addTransitionVar . over _1 funName) newTransitions
     -- disable transitions at the new timestamp
     disableTransitions toRemove (l - 1)
     -- refine the precondition
@@ -253,11 +268,11 @@ encoderInc sigs inputs rets = do
     -- refine the postcondition
     mapM_ (uncurry transPostcondition) [(a, l - 1) | a <- places]
     -- single transition can be fired at each time step
-    singleTransition
+    singleTransition (l - 1)
     -- refine the must firers
     mustFireTransitions
     -- set new initial and final state
-    setInitialState inputs places
+    -- setInitialState inputs places
     setFinalState (head rets) places
 
 encoderRefine :: SplitInfo
@@ -272,6 +287,7 @@ encoderRefine info inputs rets newSigs = do
     modify $ set (refinements . returnTyps) rets
     modify $ set (constraints . optionalConstraints) []
     modify $ set (constraints . finalConstraints) []
+    modify $ set (constraints . mustConstraints) []
 
     {- operation on places -}
     l <- gets $ view (increments . loc)
@@ -294,9 +310,11 @@ encoderRefine info inputs rets newSigs = do
     -- disable splitted transitions
     mapM_ (disableTransitions (removedTrans info)) [0..(l-1)]
     -- single transition can be fired at each time step
-    singleTransition
+    mapM_ singleTransition [0 .. (l - 1)]
     -- refine the must firers
     mustFireTransitions
+    -- supplement the block constraints with new transitions
+    expandBlocks newTransIds
     -- set new initial and final state
     setInitialState inputs currPlaces
     setFinalState (head rets) currPlaces

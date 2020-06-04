@@ -29,7 +29,8 @@ data Constraints = Constraints {
     _persistConstraints :: [LinearConstraint],
     _optionalConstraints :: [LinearConstraint],
     _finalConstraints :: [LinearConstraint],
-    _blockConstraints :: [LinearConstraint],
+    _mustConstraints :: [LinearConstraint],
+    _blockConstraints :: [[Int]],
     _varBounds :: [VarBoundary]
 }
 
@@ -37,6 +38,7 @@ emptyConstraints = Constraints {
     _persistConstraints = [],
     _optionalConstraints = [],
     _finalConstraints = [],
+    _mustConstraints = [],
     _blockConstraints = [],
     _varBounds = []
 }
@@ -45,7 +47,7 @@ makeLenses ''Constraints
 
 data IncrementState = IncrementState {
     _counter :: Int,
-    _block :: LinearConstraint,
+    _block :: [Int],
     _prevChecked :: Bool,
     _loc :: Int,
     _encodedSigs :: [FunctionCode]
@@ -53,7 +55,7 @@ data IncrementState = IncrementState {
 
 emptyIncrements = IncrementState {
     _counter = 0,
-    _block = undefined,
+    _block = [],
     _prevChecked = False,
     _loc = 1,
     _encodedSigs = []

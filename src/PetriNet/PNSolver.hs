@@ -54,7 +54,6 @@ import Types.Abstract
 import Types.Common
 import Types.Environment
 import Types.Experiments
-import Types.IOFormat
 import Types.Program
 import Types.Solver
 import Types.Type
@@ -572,8 +571,7 @@ findProgram env goal examples cnt = do
          (nextSolution env goal examples (cnt - solnNum))
     where
         handleResult NotFound = error "NotFound appeared in search results"
-        handleResult (Found (soln, exs)) = do
-            modify $ over (searchState . currentSolutions) ((:) soln)
+        handleResult (Found (soln, exs)) = modify $ over (searchState . currentSolutions) ((:) soln)
         handleResult (MoreRefine err)  = error "Should not encounter more refine"
 
         skipClone = not . isInfixOf "|clone"
