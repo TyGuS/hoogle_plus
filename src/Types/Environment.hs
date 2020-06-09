@@ -30,6 +30,9 @@ data Environment = Environment {
   _arguments :: Map Id RSchema,            -- ^ Function arguments, required in all the solutions
   _typeClasses :: Map Id (Set Id),         -- ^ Type class instances
   _boundTypeVars :: [Id],                  -- ^ Bound type variables
+  -- | Group concrete types
+  _groups :: Map Id RSchema,
+  _symbolGroups :: Map Id (Set Id),
   -- | Constant part:
   _constants :: Set Id,                    -- ^ Subset of symbols that are constants
   _datatypes :: Map Id DatatypeDef,        -- ^ Datatype definitions
@@ -58,6 +61,8 @@ emptyEnv = Environment {
   _arguments = Map.empty,
   _typeClasses = Map.empty,
   _boundTypeVars = [],
+  _groups = Map.empty,
+  _symbolGroups = Map.empty,
   _constants = Set.empty,
   _datatypes = Map.empty,
   _typeSynonyms = Map.empty,

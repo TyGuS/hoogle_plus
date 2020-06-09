@@ -208,3 +208,19 @@ toOutput env soln exs = do
 
 stripSuffix :: String -> String
 stripSuffix = replaceId hoPostfix "" . removeLast '_'
+
+recoverNames :: Map Id Id -> Program t -> Program t
+recoverNames mapping (Program (PSymbol sym) t) =
+    case Map.lookup sym mapping of
+      Nothing -> Program (PSymbol (stripSuffix sym)) t
+      Just name -> Program (PSymbol (stripSuffix name)) t
+recoverNames mapping (Program (PApp fun pArg) t) = Program (PApp fun' pArg') t
+  where
+    fun' = case Map.lookup fun mapping of
+                Nothing -> stripSuffix fun
+                Just name -> stripSuffix name
+    pArg' = map (recoverNames mapping) pArg
+recoverNames mapping (Program (PFun x body) t) = Program (PFun x body') t
+  where
+    body' = recoverNames mapping body
+

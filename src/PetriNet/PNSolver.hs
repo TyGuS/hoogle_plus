@@ -825,21 +825,6 @@ writeSolution out = do
     liftIO $ writeChan msgChan (MesgP (out, stats', undefined))
     writeLog 1 "writeSolution" $ text (show stats')
 
-recoverNames :: Map Id Id -> Program t -> Program t
-recoverNames mapping (Program (PSymbol sym) t) =
-    case Map.lookup sym mapping of
-      Nothing -> Program (PSymbol (stripSuffix sym)) t
-      Just name -> Program (PSymbol (stripSuffix name)) t
-recoverNames mapping (Program (PApp fun pArg) t) = Program (PApp fun' pArg') t
-  where
-    fun' = case Map.lookup fun mapping of
-                Nothing -> stripSuffix fun
-                Just name -> stripSuffix name
-    pArg' = map (recoverNames mapping) pArg
-recoverNames mapping (Program (PFun x body) t) = Program (PFun x body') t
-  where
-    body' = recoverNames mapping body
-
 substName :: [Id] -> [FunctionCode] -> [FunctionCode]
 substName [] [] = []
 substName (n:ns) (fc:fcs) = fc { funName = n } : substName ns fcs

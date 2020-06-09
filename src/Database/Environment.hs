@@ -23,8 +23,8 @@ import Text.Printf
 import Synquid.Error (Pos(Pos))
 import Synquid.Logic (ftrue)
 import Types.Type -- (BaseType(..), TypeSkeleton(..), SchemaSkeleton(..))
-import Synquid.Type (isHigherOrder, toMonotype)
-import Synquid.Pretty as Pretty
+import Synquid.Type (isHigherOrder, toMonotype, eqType)
+import Synquid.Pretty
 import Database.Util
 import qualified Database.Download as DD
 import qualified Database.Convert as DC
@@ -38,7 +38,13 @@ import Synquid.Util
 import qualified Debug.Trace as D
 
 writeEnv :: FilePath -> Environment -> IO ()
-writeEnv path env = B.writeFile path (encode env)
+writeEnv path env = do
+    -- serialize environment into file
+    B.writeFile path (encode env)
+    -- write datalog templates
+    writeFile "./data/souffle/funName.facts" funNames
+    where
+        funNames = unlines (Map.keys (env ^. groups))
 
 -- getDeps will try its best to come up with the declarations needed to satisfy unmet type dependencies in ourEntries.
 -- There are the entries in the current set of packages (allEntries), and the strategy to look at other packages.
@@ -81,6 +87,28 @@ generateHigherOrder genOpts env = do
              in (i' + 1, (newHoName name i', currHo):sofar)
         unfoldFuns' name i sofarArgs t = (i, [])
 
+groupSymbols :: Environment -> Environment
+groupSymbols env =
+    let functions = env ^. symbols
+        (gps, symGps, _) = Map.foldrWithKey addSignature (Map.empty, Map.empty, 0) functions
+     in env {
+            _groups = gps,
+            _symbolGroups = symGps,
+        }
+    where
+        addSignature f sig (gps, symGps, i) = 
+            let alphaEquivs = Map.filter (eqType (toMonotype sig)) gps
+             in case Map.size alphaEquivs of
+                0 -> ( Map.insert ("g" ++ show i) sig gps -- insert group and its signature
+                     , Map.insert ("g" ++ show i) (Set.singleton f) symGps -- create a new group and add the function name to this group
+                     , i + 1
+                     )
+                1 -> ( gps -- keep the group same
+                     , Map.insertWith Set.union (head $ Map.keys gps) (Set.singleton f) symGps
+                     , i
+                     )
+                _ -> error $ "more than one signature alpha equivalent to " ++ show sig ++ " : " ++ show (Map.elems alphaEquivs)
+
 generateEnv :: GenerationOpts -> IO Environment
 generateEnv genOpts = do
     let useHO = enableHOF genOpts
@@ -120,9 +148,9 @@ generateEnv genOpts = do
        Right env -> do
             let env' = env { _symbols = if useHO then env ^. symbols
                                                 else Map.filter (not . isHigherOrder . toMonotype) $ env ^. symbols,
-                           _included_modules = Set.fromList (moduleNames)
-                          }
-            generateHigherOrder genOpts env'
+                             _included_modules = Set.fromList (moduleNames)
+                           }
+            groupSymbols <$> generateHigherOrder genOpts env'
     printStats result
     return result
    where
