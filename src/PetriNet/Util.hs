@@ -30,7 +30,7 @@ import Control.Monad.ST (runST, ST)
 import Debug.Trace
 import Data.Array.ST (STArray, readArray, writeArray, newListArray, getElems)
 import Data.Hashable
-import Data.List.Extra
+import Data.List.Extra hiding (stripSuffix)
 import Data.Maybe
 import qualified Data.Text as Text
 import Data.Map (Map)
