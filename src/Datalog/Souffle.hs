@@ -1,55 +1,38 @@
-module Datalog.Souffle where
+module Datalog.Souffle (
+    runSouffle
+    ) where
 
-import Database.Util
-import Types.Common
+import Datalog.Datalog
+import Text.Read
+import Types.Experiment
 import Types.Environment
-import Types.Experiments
-import Types.Filtering
 import Types.Type
 import Types.IOFormat
-import Types.Program
-import Synquid.Type
-import Synquid.Program
-import PetriNet.Util
-import HooglePlus.Utils
-import HooglePlus.GHCChecker
-import HooglePlus.IOFormat
 
-import Control.Monad.Logic
-import Control.Monad.State
-import Control.Lens
-import Control.Concurrent.Chan
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import Data.List
-import Data.Maybe
+import System.Process
+import System.IO
+import System.Directory
 
-runSouffle :: SearchParams -> Environment -> RSchema -> [Example] -> IO ()
-runSouffle params env goal examples = do
-    let dst = lastType (toMonotype goal)
-    paths <- findPath env dst
-    observeT $ msum $ map (enumeratePath params env goal examples) paths
+runSouffle :: SearchParams -> Environment -> RSchema -> [Example] -> Int -> IO ()
+runSouffle params env goal examples d = do
+    paths <- findPath env d
+    ite (msum $ map (enumeratePath params env goal examples) paths)
+        (return ())
+        (runSouffle params env goal examples (d + 1))
 
-enumeratePath :: SearchParams -> Environment -> RSchema -> [Example] -> UProgram -> LogicT IO ()
-enumeratePath params env goal examples prog = do
-    let gm = env ^. symbolGroups
-    let getFuncs p = Map.findWithDefault Set.empty p gm
-    let foArgs = Map.keys $ Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
-    let syms = Set.toList (symbolsOf prog) \\ foArgs
-    let allPaths = map (Set.toList . getFuncs) syms
-    msum $ map (\path -> 
-        let subst = Map.fromList (zip syms path)
-         in checkPath params env goal examples (recoverNames subst prog)) (sequence allPaths)
-
-checkPath :: SearchParams -> Environment -> RSchema -> [Example] -> UProgram -> LogicT IO ()
-checkPath params env goal examples prog = do
-    -- ensure the usage of all arguments
-    let args = Map.keys (env ^. arguments)
-    let getRealName = replaceId hoPostfix ""
-    let filterPaths p = all (`Set.member` Set.map getRealName (symbolsOf p)) args
-    guard (filterPaths prog)
-
-    liftIO $ do
-        msgChan <- newChan
-        (checkResult, _) <- runStateT (check env params examples prog goal msgChan) emptyFilterState
-        maybe mzero (\exs -> toOutput env prog exs >>= printResult . encodeWithPrefix) checkResult
+findPath :: Environment -> Int -> IO [UProgram]
+findPath env d = do
+    -- get higher-order arguments
+    let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+    let hoArgSat = map (uncurry writeFunction) hoArgs
+    -- write depth into the constraints
+    let source = "./souffle/main.dl"
+    fileContent <- readFile source
+    writeFile source (replaceId "{}" (show d) fileContent ++ unlines hoArgSat)
+    -- write the arguments into the file
+    writeFile ("./souffle/inh.facts") (unlines $ map (uncurry writeArg) (env ^. arguments))
+    -- execute the solver
+    readProcess "souffle" ["--facts=./souffle/", "--output=./souffle/"] ""
+    -- read results
+    out <- readFile "./souffle/query.csv"
+    return $ map fst (readList $ replaceId "nil" "[]" out) :: [SProgram]

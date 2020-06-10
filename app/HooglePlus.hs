@@ -256,7 +256,10 @@ mode = cmdArgsMode $ modes [synt, generate, evaluation] &=
   summary (programName ++ " v" ++ versionName ++ ", " ++ showGregorian releaseDate)
 
 precomputeGraph :: GenerationOpts -> IO ()
-precomputeGraph opts = generateEnv opts >>= writeEnv (Types.Generate.envPath opts)
+precomputeGraph opts = do
+    env <- generateEnv opts
+    writeEnv (Types.Generate.envPath opts) env
+    writeSouffle env
 
 -- | Parse and resolve file, then synthesize the specified goals
 executeSearch :: SynquidParams -> SearchParams -> String -> IO ()

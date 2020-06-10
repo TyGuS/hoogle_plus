@@ -5,6 +5,10 @@ module Database.Environment(
   , toFunType
   , getFiles
   , filesToEntries
+  , writeSouffle
+  , writeFunction
+  , writeArg
+  , writeType
   ) where
 
 import Data.Either
@@ -22,7 +26,7 @@ import Text.Printf
 
 import Synquid.Error (Pos(Pos))
 import Synquid.Logic (ftrue)
-import Types.Type -- (BaseType(..), TypeSkeleton(..), SchemaSkeleton(..))
+import Types.Type
 import Synquid.Type (isHigherOrder, toMonotype, eqType)
 import Synquid.Pretty
 import Database.Util
@@ -37,14 +41,65 @@ import qualified Types.Program as TP
 import Synquid.Util
 import qualified Debug.Trace as D
 
+soufflePreamble = unlines [ ".type ListSym = [head: symbol, tail: ListSym]"
+                          , ".type Program = [fun: symbol, args: ListProgram]"
+                          , ".type ListProgram = [head: Program, tail: ListProgram]"
+                          , ".type Type = [a: symbol, b: ListTyp]"
+                          , ".input funName"
+                          , ".decl funName(f: symbol)"
+                          , ".input inh"
+                          , ".decl inh(t: Type, x: symbol)"
+                          , ".decl sat(t: Type, fs: Program, d: number)"
+                          , "sat(t, [x, nil], 0) :- inh(t, x)."
+                          , ".decl query(fs: Program)"
+                          , ".output query"
+                          -- , ".decl append(xs: ListSym, ys: ListSym, zs: ListSym, d: number)"
+                          -- , "append(nil, nil, nil, 0)."
+                          -- , "append(nil, [y, ys], [y, zs], d + 1) :- d <= 3, funName(y), append(nil, ys, zs, d)."
+                          -- , "append([x, xs], ys, [x, zs], d + 1) :- d <= 3, funName(x), append(xs, ys, zs, d)."
+                          ]
+
+writeSouffle :: Environment -> IO ()
+writeSouffle env = do
+    -- write datalog templates
+    writeFile "./data/souffle/main.dl" $
+        unlines (soufflePreamble : map (uncurry writeFunction) (env ^. groups))
+    -- write datalog function names
+    writeFile "./data/souffle/funName.facts" $
+        unlines (Map.keys (env ^. groups))
+
+writeArg :: Id -> RSchema -> String
+writeArg name tArg = printf "inh(%s, \"%s\")" (writeType $ shape $ toMonotype tArg) name
+
+writeFunction :: Id -> RSchema -> String
+writeFunction f t = 
+    printf "%s :- %s, d <= {}, d = %s." headClause (intercalate ", " (map argClause args)) (intercalate " + " depthVars)
+    where
+        monotype = shape (toMonotype t)
+        ret = lastType monotype
+        headClause = printf "sat(%s, [\"%s\", %s], d + 1)" (writeType ret) f (foldr (printf "[%s, %s]") "nil" progVars)
+        args = map snd (argsWithName monotype)
+        argClause arg = printf "sat(%s, p%d, d%d)" (writeType arg)
+        vars = boundVarsOf t
+        typVars = map (("t" ++) . show) [0 .. (length vars - 1)]
+        progVars = map (("p" ++) . show) [0 .. (length args - 1)]
+        depthVars = map (("d" ++) . show) [0 .. (length args - 1)]
+        subst = Map.fromList $ zip vars typVars
+
+writeType :: SType -> String
+writeType (ScalarT (TypeVarT _ id) _) = id
+writeType (ScalarT (DatatypeT dt args _) _) = printf "[%s, %s]" dt argStrs
+    where
+        argStrs = foldr (\a acc -> printf "[%s, %s]" (writeType a) acc) "nil" args
+writeType (FunctionT _ tArg tRes) = printf "[%s, [%s, [%s, nil]]]" "Fun" arg res
+    where
+        arg = writeType tArg
+        res = writeType tRes
+
 writeEnv :: FilePath -> Environment -> IO ()
 writeEnv path env = do
     -- serialize environment into file
     B.writeFile path (encode env)
-    -- write datalog templates
-    writeFile "./data/souffle/funName.facts" funNames
-    where
-        funNames = unlines (Map.keys (env ^. groups))
 
 -- getDeps will try its best to come up with the declarations needed to satisfy unmet type dependencies in ourEntries.
 -- There are the entries in the current set of packages (allEntries), and the strategy to look at other packages.
