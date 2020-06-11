@@ -19,11 +19,13 @@ import Control.Lens ((^.), over, _2)
 import qualified Data.ByteString as B
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Set (Set)
 import qualified Data.Set as Set
 import Control.Monad.State (evalStateT)
 import System.Exit (exitFailure)
 import Text.Parsec.Pos (initialPos)
 import Text.Printf
+import Debug.Trace
 
 import Synquid.Error (Pos(Pos))
 import Synquid.Logic (ftrue)
@@ -63,47 +65,77 @@ soufflePreamble = unlines [ ".type ListSym = [head: symbol, tail: ListSym]"
                           -- , "append([x, xs], ys, [x, zs], d + 1) :- d <= 3, funName(x), append(xs, ys, zs, d)."
                           ]
 
+formulogPreamble = unlines [ "type tvar = string"
+                           , "type var = string"
+                           , "type typ = typ_tvar(tvar) | typ_datatype(tvar, typ list)"
+                           , "type exp = exp_var(var) | exp_app(var, exp list)"
+                           , "fun append(L1 : 'a list, L2 : 'a list) : 'a list ="
+                           , "match L1 with"
+                           , "| [] => L2"
+                           , "| X :: L1rest => X :: append(L1rest, L2)"
+                           , "end"
+                           , "fun elem(X : 'a, L : 'a list) : bool ="
+                           , "match L with"
+                           , "| [] => false"
+                           , "| Y :: Lrest => X = Y || elem(X, Lrest)"
+                           , "end"
+                           , "input inh(typ, var)"
+                           , "output sat(typ, exp, typ list, i32)"
+                           , "output result(exp)"
+                           ]
+
 writeSouffle :: Environment -> IO ()
 writeSouffle env = do
     -- write datalog templates
     writeFile "./data/souffle/input.dl" $
-        unlines (soufflePreamble : map (uncurry writeFunction) (Map.toList $ env ^. groups))
+        unlines ( soufflePreamble 
+                : map (uncurry $ writeFunction "sat(%s, [\"%s\", %s], %s)"
+                                               (foldr (printf "[%s, %s]") "nil")) (Map.toList $ env ^. groups))
     -- write datalog function names
     writeFile "./data/souffle/funName.facts" $
         unlines (Map.keys (env ^. groups))
 
 writeArg :: Id -> RSchema -> String
-writeArg name tArg = printf "inh(%s, \"%s\")" (writeType $ shape $ toMonotype tArg) name
-
-writeFunction :: Id -> RSchema -> String
-writeFunction f t = 
-    if null args
-        then printf "%s." (headClause "0")
-        else printf "%s :- d <= {} %s %s." 
-                (headClause "d + 1")
-                (if null depthVars then "" else printf ", d = %s" (intercalate "+" depthVars))
-                (unwords (map ((',' :) . argClause) [0 .. (length args - 1)]))  :: String
+writeArg name tArg = printf "inh(%s, \"%s\")" (writeType (typeVarsOf tArg') tArg') name
     where
-        monotype = shape (toMonotype t)
+        tArg' = shape $ toMonotype tArg
+
+writeFunction :: String 
+              -> ([String] -> String) 
+              -> String -> Id -> RSchema -> String
+writeFunction headerTempl printApp typTempl f t | retVars `Set.isSubsetOf` argVars =
+    if null args 
+       then printf "%s." (headClause "0")
+       else printf "%s :- D >= 0, D <= {} %s %s." 
+               (headClause "D + 1")
+               (if null depthVars then "" else printf ", D = %s" (intercalate " + " depthVars))
+               (unwords (map ((',' :) . argClause) [0 .. (length args - 1)]))  :: String
+    where
+        monotype = stypeSubstitute subst (shape (toMonotype t))
         ret = lastType monotype
-        headClause depth = printf "sat(%s, [\"%s\", %s], %s)" (writeType ret) f (foldr (printf "[%s, %s]") "nil" progVars) depth :: String
+        retVars = typeVarsOf ret
+        headClause depth = printf headerTempl (writeType retVars ret) f (printApp progVars) depth :: String
         args = map snd (argsWithName monotype)
-        argClause i = printf "sat(%s, p%d, d%d)" (writeType $ args !! i) i i
+        argClause i = printf "sat(%s, P%d, D%d)" (writeType retVars $ args !! i) i i
+        argVars = Set.unions $ map typeVarsOf args
+        argNum = (arity (toMonotype t) - 1)
         vars = boundVarsOf t
-        typVars = map (("t" ++) . show) [0 .. (length vars - 1)]
-        progVars = map (("p" ++) . show) [0 .. (length args - 1)]
-        depthVars = map (("d" ++) . show) [0 .. (length args - 1)]
-        subst = Map.fromList $ zip vars typVars
+        nextAvailable i = let v = "T" ++ show i
+                           in if v `elem` vars then nextAvailable (i + 1) else (i + 1, v)
+        (_, typVars) = foldr (\_ (i, lst) ->
+            let (j, v) = nextAvailable i
+             in (j, lst ++ [v])) (0, []) [0 .. (length vars - 1)]
+        progVars = map (("P" ++) . show) [0 .. argNum]
+        depthVars = map (("D" ++) . show) [0 .. argNum]
+        subst = Map.fromList $ zipWith (\v1 v2 -> (v1, vart_ v2)) (filter ((`elem` ("D" : depthVars ++ progVars)) . map toUpper) vars) typVars
+writeFunction _ _ = ""
 
-writeType :: SType -> String
-writeType (ScalarT (TypeVarT _ id) _) = id
-writeType (ScalarT (DatatypeT dt args _) _) = printf "[\"%s\", %s]" (replaceId tyclassPrefix "" dt) argStrs
+writeType :: Set Id -> SType -> String
+writeType vars (ScalarT (TypeVarT _ id) _) = if id `Set.member` vars then map toUpper id else "_"
+writeType vars (ScalarT (DatatypeT dt args _) _) = printf "[\"%s\", %s]" (replaceId tyclassPrefix "" dt) argStrs
     where
-        argStrs = foldr (\a acc -> printf "[%s, %s]" (writeType a) acc) "nil" args
-writeType (FunctionT _ tArg tRes) = printf "[\"Fun\", [%s, [%s, nil]]]" arg res
-    where
-        arg = writeType tArg
-        res = writeType tRes
+        argStrs = foldr (\a acc -> printf "[%s, %s]" (writeType vars a) acc) "nil" args
+writeType vars (FunctionT _ tArg tRes) = writeType vars (ScalarT (DatatypeT "Fun" [tArg, tRes] []) ())
 
 writeEnv :: FilePath -> Environment -> IO ()
 writeEnv path env =
