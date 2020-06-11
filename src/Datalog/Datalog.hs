@@ -1,4 +1,5 @@
-module Datalog.Souffle where
+
+module Datalog.Datalog where
 
 import Database.Environment
 import Database.Util
@@ -32,7 +33,7 @@ enumeratePath params env goal examples prog = do
     let foArgs = Map.keys $ Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
     let syms = Set.toList (symbolsOf prog) \\ foArgs
     let allPaths = map (Set.toList . getFuncs) syms
-    msum $ map (\path -> 
+    msum $ map (\path ->
         let subst = Map.fromList (zip syms path)
          in checkPath params env goal examples (recoverNames subst prog)) (sequence allPaths)
 
@@ -44,7 +45,7 @@ checkPath params env goal examples prog = do
     let filterPaths p = all (`Set.member` Set.map getRealName (symbolsOf p)) args
     guard (filterPaths prog)
 
-    (checkResult, _) <- liftIO $ do
+    liftIO $ do
         msgChan <- newChan
-        runStateT (check env params examples prog goal msgChan) emptyFilterState
-    maybe mzero (\exs -> toOutput env prog exs >>= (printResult . encodeWithPrefix)) checkResult
+        (checkResult, _) <- runStateT (check env params examples prog goal msgChan) emptyFilterState
+        maybe mzero (toOutput env prog >=> (printResult . encodeWithPrefix)) checkResult

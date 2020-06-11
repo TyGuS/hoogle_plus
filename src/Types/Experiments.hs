@@ -37,6 +37,7 @@ data SolverName =
     | Z3SAT
     | CBC
     | Prolog
+    | Souffle
     deriving (Data, Show, Eq)
 
 -- | Parameters of program exploration

@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Database.Environment(
     writeEnv
   , generateEnv
@@ -27,7 +28,8 @@ import Text.Printf
 import Synquid.Error (Pos(Pos))
 import Synquid.Logic (ftrue)
 import Types.Type
-import Synquid.Type (isHigherOrder, toMonotype, eqType)
+import Types.Common
+import Synquid.Type
 import Synquid.Pretty
 import Database.Util
 import qualified Database.Download as DD
@@ -39,11 +41,13 @@ import Synquid.Resolver (resolveDecls)
 import qualified Data.List.Utils as LUtils
 import qualified Types.Program as TP
 import Synquid.Util
+import HooglePlus.Utils
 import qualified Debug.Trace as D
 
 soufflePreamble = unlines [ ".type ListSym = [head: symbol, tail: ListSym]"
                           , ".type Program = [fun: symbol, args: ListProgram]"
                           , ".type ListProgram = [head: Program, tail: ListProgram]"
+                          , ".type ListTyp = [head: Type, tail: ListTyp]"
                           , ".type Type = [a: symbol, b: ListTyp]"
                           , ".input funName"
                           , ".decl funName(f: symbol)"
@@ -62,8 +66,8 @@ soufflePreamble = unlines [ ".type ListSym = [head: symbol, tail: ListSym]"
 writeSouffle :: Environment -> IO ()
 writeSouffle env = do
     -- write datalog templates
-    writeFile "./data/souffle/main.dl" $
-        unlines (soufflePreamble : map (uncurry writeFunction) (env ^. groups))
+    writeFile "./data/souffle/input.dl" $
+        unlines (soufflePreamble : map (uncurry writeFunction) (Map.toList $ env ^. groups))
     -- write datalog function names
     writeFile "./data/souffle/funName.facts" $
         unlines (Map.keys (env ^. groups))
@@ -73,13 +77,18 @@ writeArg name tArg = printf "inh(%s, \"%s\")" (writeType $ shape $ toMonotype tA
 
 writeFunction :: Id -> RSchema -> String
 writeFunction f t = 
-    printf "%s :- %s, d <= {}, d = %s." headClause (intercalate ", " (map argClause args)) (intercalate " + " depthVars)
+    if null args
+        then printf "%s." (headClause "0")
+        else printf "%s :- d <= {} %s %s." 
+                (headClause "d + 1")
+                (if null depthVars then "" else printf ", d = %s" (intercalate "+" depthVars))
+                (unwords (map ((',' :) . argClause) [0 .. (length args - 1)]))  :: String
     where
         monotype = shape (toMonotype t)
         ret = lastType monotype
-        headClause = printf "sat(%s, [\"%s\", %s], d + 1)" (writeType ret) f (foldr (printf "[%s, %s]") "nil" progVars)
+        headClause depth = printf "sat(%s, [\"%s\", %s], %s)" (writeType ret) f (foldr (printf "[%s, %s]") "nil" progVars) depth :: String
         args = map snd (argsWithName monotype)
-        argClause arg = printf "sat(%s, p%d, d%d)" (writeType arg)
+        argClause i = printf "sat(%s, p%d, d%d)" (writeType $ args !! i) i i
         vars = boundVarsOf t
         typVars = map (("t" ++) . show) [0 .. (length vars - 1)]
         progVars = map (("p" ++) . show) [0 .. (length args - 1)]
@@ -88,16 +97,16 @@ writeFunction f t =
 
 writeType :: SType -> String
 writeType (ScalarT (TypeVarT _ id) _) = id
-writeType (ScalarT (DatatypeT dt args _) _) = printf "[%s, %s]" dt argStrs
+writeType (ScalarT (DatatypeT dt args _) _) = printf "[\"%s\", %s]" (replaceId tyclassPrefix "" dt) argStrs
     where
         argStrs = foldr (\a acc -> printf "[%s, %s]" (writeType a) acc) "nil" args
-writeType (FunctionT _ tArg tRes) = printf "[%s, [%s, [%s, nil]]]" "Fun" arg res
+writeType (FunctionT _ tArg tRes) = printf "[\"Fun\", [%s, [%s, nil]]]" arg res
     where
         arg = writeType tArg
         res = writeType tRes
 
 writeEnv :: FilePath -> Environment -> IO ()
-writeEnv path env = do
+writeEnv path env =
     -- serialize environment into file
     B.writeFile path (encode env)
 
@@ -148,11 +157,11 @@ groupSymbols env =
         (gps, symGps, _) = Map.foldrWithKey addSignature (Map.empty, Map.empty, 0) functions
      in env {
             _groups = gps,
-            _symbolGroups = symGps,
+            _symbolGroups = symGps
         }
     where
         addSignature f sig (gps, symGps, i) = 
-            let alphaEquivs = Map.filter (eqType (toMonotype sig)) gps
+            let alphaEquivs = Map.filter (eqType (toMonotype sig) . toMonotype) gps
              in case Map.size alphaEquivs of
                 0 -> ( Map.insert ("g" ++ show i) sig gps -- insert group and its signature
                      , Map.insert ("g" ++ show i) (Set.singleton f) symGps -- create a new group and add the function name to this group

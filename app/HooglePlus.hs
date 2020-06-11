@@ -49,6 +49,7 @@ import Control.Exception
 import Control.Lens ((^.))
 import Control.Monad
 import Control.Monad.State (runState, evalStateT, execStateT, evalState)
+import Control.Monad.Logic (observeT)
 import Data.Char
 import Data.Foldable
 import Data.HashMap.Strict (HashMap)
@@ -57,6 +58,7 @@ import Data.List.Split
 import Data.Map ((!))
 import Data.Maybe (mapMaybe, fromJust)
 import Data.Time.Calendar
+import Datalog.Souffle
 import Distribution.PackDeps
 import Language.Haskell.Exts (Decl(TypeSig))
 import System.Console.ANSI
@@ -272,11 +274,12 @@ executeSearch synquidParams searchParams inStr = catch (do
     goal <- envToGoal env tquery
     solverChan <- newChan
     case searchParams ^. solver of
-        Z3SMT -> forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState Z3SMTState)
-        Z3SAT -> forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState Z3SATState)
-        CBC -> forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState CBCState)
-        Prolog -> forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState DatalogState)
-    readChan solverChan >>= (handleMessages solverChan))
+        Z3SMT -> forkIO (synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState Z3SMTState)) >> readChan solverChan >>= (handleMessages solverChan)
+        Z3SAT -> (forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState Z3SATState)) >> readChan solverChan >>= (handleMessages solverChan)
+        CBC -> (forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState CBCState)) >> readChan solverChan >>= (handleMessages solverChan)
+        Prolog -> (forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState DatalogState)) >> readChan solverChan >>= (handleMessages solverChan)
+        Souffle -> observeT $ runSouffle searchParams env (gSpec goal) exquery 1
+    )
     (\(e :: SomeException) -> printResult $ encodeWithPrefix $ QueryOutput [] (show e) [])
     where
         logLevel = searchParams ^. explorerLogLevel
