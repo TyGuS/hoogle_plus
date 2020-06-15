@@ -10,6 +10,8 @@ import Database.Environment
 import Database.Generate
 import Database.Presets
 import Database.Util
+import Datalog.Formulog
+import Datalog.Souffle
 -- encoders
 import Encoder.Z3SMTTypes (Z3SMTState)
 import Encoder.Z3SMTEnc ()
@@ -262,6 +264,7 @@ precomputeGraph opts = do
     env <- generateEnv opts
     writeEnv (Types.Generate.envPath opts) env
     writeSouffle env
+    writeFormulog env
 
 -- | Parse and resolve file, then synthesize the specified goals
 executeSearch :: SynquidParams -> SearchParams -> String -> IO ()
