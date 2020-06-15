@@ -1,7 +1,7 @@
--- {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 module Datalog.SouffleType where
 
+import Datalog.DatalogType
 import Types.Type
 import Types.Program
 
@@ -29,3 +29,12 @@ instance Read UProgram where
             then return (Program (PSymbol sym) AnyT, "")
             else return (Program (PApp sym args) AnyT, "")
     readsPrec _ _ = []
+
+instance PrintType SouffleType where
+    writeType vars (SouffleType (ScalarT (TypeVarT _ id) _)) = if id `Set.member` vars then map toUpper id else "_"
+    writeType vars (SouffleType (ScalarT (DatatypeT dt args _) _)) = printf "[\"%s\", %s]" (replaceId tyclassPrefix "" dt) argStrs
+        where
+            argStrs = foldr (\a acc -> printf "[%s, %s]" (writeType vars a) acc) "nil" args
+    writeType vars (SouffleType (FunctionT _ tArg tRes)) = writeType vars (SouffleType $ ScalarT (DatatypeT "Fun" [tArg, tRes] []) ())
+
+    writeArg name t@(SouffleType tArg) = printf "inh(%s, \"%s\")" (writeType (typeVarsOf tArg) t) name
