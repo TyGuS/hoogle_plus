@@ -31,7 +31,7 @@ data Environment = Environment {
   _typeClasses :: Map Id (Set Id),         -- ^ Type class instances
   _boundTypeVars :: [Id],                  -- ^ Bound type variables
   -- | Group concrete types
-  _groups :: Map Id RSchema,
+  _groups :: Map Id SType,
   _symbolGroups :: Map Id (Set Id),
   -- | Constant part:
   _constants :: Set Id,                    -- ^ Subset of symbols that are constants

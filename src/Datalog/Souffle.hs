@@ -4,9 +4,11 @@ module Datalog.Souffle
     ) where
 
 import Datalog.Datalog
+import Datalog.DatalogType
 import Datalog.SouffleType
+import Datalog.Utils
 import Database.Environment
-import Text.Read
+import Types.Common
 import Types.Experiments
 import Types.Environment
 import Types.Type
@@ -14,13 +16,15 @@ import Types.IOFormat
 import Types.Program
 import HooglePlus.Utils
 import Synquid.Type
+import Synquid.Pretty
 
-import Control.Monad.Logic
 import Control.Lens
+import Control.Monad.Logic
 import qualified Data.Map as Map
 import System.Process
 import System.IO
 import System.Directory
+import Text.Read
 import Text.Printf
 
 soufflePreamble = unlines [ ".type ListSym = [head: symbol, tail: ListSym]"
@@ -41,6 +45,8 @@ soufflePreamble = unlines [ ".type ListSym = [head: symbol, tail: ListSym]"
 runSouffle :: SearchParams -> Environment -> RSchema -> [Example] -> Int -> LogicT IO ()
 runSouffle params env goal examples d = do
     paths <- liftIO $ findPath env goal d
+    liftIO $ print paths
+    error "stop"
     ifte (msum $ map (enumeratePath params env goal examples) paths)
          return
          (runSouffle params env goal examples (d + 1))
@@ -48,20 +54,20 @@ runSouffle params env goal examples d = do
 findPath :: Environment -> RSchema -> Int -> IO [UProgram]
 findPath env goal d = do
     -- get higher-order arguments
-    let args = over _2 (shape . toMonotype) (Map.toList (env ^. arguments))
+    let args = map (over _2 (shape . toMonotype)) (Map.toList (env ^. arguments))
     let hoArgs = filter (isFunctionType . snd) args
-    let hoArgSat = map (uncurry writeFunction) hoArgs
+    let hoArgSat = map (uncurry writeFunctionSouffle) hoArgs
     -- write query into the file
-    let dstTyp = lastType (shape (toMonotype goal))
-    let query = printf "query(P) :- sat(%s, P, D), D <= %d, D >= 0." (writeType (typeVarsOf dstTyp) (SouffleType dstTyp)) d
+    let dstTyp = varToDatatype (lastType (shape (toMonotype goal)))
+    let query = printf "query(P) :- sat(%s, P, D), D <= %d, D >= 0." (writeType (typeVarsOf dstTyp) (SoufflePack dstTyp)) d
     -- write depth into the constraints
     let src = "./data/souffle/input.dl"
     let dst = "./data/souffle/main.dl"
     fileContent <- readFile src
-    writeFile dst (replaceId "{}" (show (d - 1)) fileContent ++ unlines (query:hoArgSat))
+    writeFile dst (replaceId "{}" (show (d - 1)) fileContent ++ unlines (query : hoArgSat))
     -- write the arguments into the file
-    let packedArgs = over _2 SouffleType args
-    writeFile "./data/souffle/inh.facts" (unlines $ map (uncurry writeArg) args)
+    let packedArgs = map (over _2 SoufflePack) args
+    writeFile "./data/souffle/inh.facts" (unlines $ map (uncurry writeArg) packedArgs)
     -- execute the solver
     readProcess "souffle" ["--fact-dir=./data/souffle/", "--output-dir=./data/souffle/", "./data/souffle/main.dl"] ""
     -- read results
@@ -77,3 +83,7 @@ writeSouffle env = do
     -- write datalog function names
     writeFile "./data/souffle/funName.facts" $
         unlines (Map.keys (env ^. groups))
+
+writeFunctionSouffle :: Id -> SType -> String
+writeFunctionSouffle = writeFunction "sat(%s, [\"%s\", %s], %s)" (foldr (printf "[%s, %s]") "nil") SoufflePack
+

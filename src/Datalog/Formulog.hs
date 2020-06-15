@@ -3,22 +3,28 @@ module Datalog.Formulog
     , writeFormulog
     ) where
 
+import Database.Environment
 import Datalog.Datalog
 import Datalog.DatalogType
 import Datalog.FormulogType
+import Datalog.Utils
+import Types.Common
 import Types.Environment
 import Types.Type
 import Types.Experiments
 import Types.Program
 import Types.IOFormat
 import HooglePlus.Utils
+import Synquid.Type
 
+import Control.Lens
 import Control.Monad.Logic
 import Data.List
 import qualified Data.Map as Map
 import System.IO
 import System.Directory
 import System.Process
+import Text.Read
 import Text.Printf
 
 formulogPreamble = unlines [ "type tvar = string"
@@ -48,20 +54,22 @@ runFormulog params env goal examples d = do
          (runFormulog params env goal examples (d + 1))
 
 findPath :: Environment -> RSchema -> Int -> IO [UProgram]
+findPath env goal d = do
     -- get higher-order arguments
-    let args = Map.toList (env ^. arguments)
-    let hoArgs = filter (isFunctionType . toMonotype . snd) args
-    let hoArgSat = map (uncurry writeFunction) hoArgs
+    let args = map (over _2 (shape . toMonotype)) (Map.toList (env ^. arguments))
+    let hoArgs = filter (isFunctionType . snd) args
+    let hoArgSat = map (uncurry writeFunctionFormulog) hoArgs
     -- write query into the file
-    let dst = lastType (shape (toMonotype goal))
-    let query = printf "result(P) :- sat(%s, P, D), D <= %d, D >= 0." (writeType (typeVarsOf dst) dst) d
+    let dst = varToDatatype (lastType (shape (toMonotype goal)))
+    let query = printf "result(P) :- sat(%s, P, D), D <= %d, D >= 0." (writeType (typeVarsOf dst) (FormulogPack dst)) d
     -- write depth into the constraints
-    let src = "./data/formulog/input.dl"
-    let dst = "./data/formulog/main.dl"
+    let src = "./data/formulog/input.flg"
+    let dst = "./data/formulog/main.flg"
     fileContent <- readFile src
-    writeFile dst (replaceId "{}" (show (d - 1)) fileContent ++ unlines (query:hoArgSat))
+    writeFile dst (replaceId "{}" (show (d - 1)) fileContent ++ unlines (query : hoArgSat))
     -- write the arguments into the file
-    writeFile "./data/formulog/inh.facts" (unlines $ map (uncurry writeArg) args)
+    let packedArgs = map (over _2 FormulogPack) args
+    writeFile "./data/formulog/inh.facts" (unlines $ map (uncurry writeArg) packedArgs)
     -- execute the solver
     out <- readProcess "java" ["-DprintResults=\"some:result\"", "--fact-dir=./data/souffle/", "--output-dir=./data/souffle/", "-jar", "./data/formulog/formulog-0.3.0.jar", "./data/formulog/main.dl"] ""
     -- read results
@@ -70,7 +78,9 @@ findPath :: Environment -> RSchema -> Int -> IO [UProgram]
 writeFormulog :: Environment -> IO ()
 writeFormulog env = do
     -- write datalog templates
-    writeFile "./data/formulog/input.dl" $
-        unlines ( formulogPreamble 
-                : map (uncurry $ writeFunction "sat(%s, exp_app(\"%s\", %s), %s)"
-                                               (foldr (printf "%s :: %s") "[]")) (Map.toList $ env ^. groups))
+    writeFile "./data/formulog/input.flg" $
+        unlines (formulogPreamble : map (uncurry writeFunctionFormulog) (Map.toList $ env ^. groups))
+
+writeFunctionFormulog :: Id -> SType -> String
+writeFunctionFormulog = writeFunction "sat(%s, exp_app(\"%s\", %s), %s)" (foldr (printf "%s :: %s") "[]") FormulogPack
+

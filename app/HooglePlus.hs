@@ -277,11 +277,19 @@ executeSearch synquidParams searchParams inStr = catch (do
     goal <- envToGoal env tquery
     solverChan <- newChan
     case searchParams ^. solver of
-        Z3SMT -> forkIO (synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState Z3SMTState)) >> readChan solverChan >>= (handleMessages solverChan)
-        Z3SAT -> (forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState Z3SATState)) >> readChan solverChan >>= (handleMessages solverChan)
-        CBC -> (forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState CBCState)) >> readChan solverChan >>= (handleMessages solverChan)
-        Prolog -> (forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState DatalogState)) >> readChan solverChan >>= (handleMessages solverChan)
-        Souffle -> observeT $ runSouffle searchParams env (gSpec goal) exquery 1
+        Z3SMT -> do
+            forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState Z3SMTState)
+            readChan solverChan >>= (handleMessages solverChan)
+        Z3SAT -> do
+            forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState Z3SATState)
+            readChan solverChan >>= (handleMessages solverChan)
+        CBC -> do
+            forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState CBCState)
+            readChan solverChan >>= (handleMessages solverChan)
+        Prolog -> do
+            forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState DatalogState)
+            readChan solverChan >>= (handleMessages solverChan)
+        Souffle -> observeT $ runSouffle searchParams (gEnvironment goal) (gSpec goal) exquery 0
     )
     (\(e :: SomeException) -> printResult $ encodeWithPrefix $ QueryOutput [] (show e) [])
     where

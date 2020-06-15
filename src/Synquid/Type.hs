@@ -137,6 +137,8 @@ vart n = ScalarT (TypeVarT Map.empty n)
 vart_ n = vart n ()
 vartAll n = vart n ftrue
 
+datatype_ v = ScalarT (DatatypeT v [] []) ()
+
 asSortSubst :: TypeSubstitution -> SortSubstitution
 asSortSubst = Map.map (toSort . baseTypeOf)
 

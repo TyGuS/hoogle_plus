@@ -6,10 +6,10 @@ module Database.Environment
     , toFunType
     , getFiles
     , filesToEntries
-    , writeFunctionSouffle
-    , writeFunctionFormulog 
+    , writeFunction
     ) where
 
+import Data.Char
 import Data.Either
 import Data.Serialize (encode)
 import Data.List.Extra
@@ -25,6 +25,7 @@ import Text.Parsec.Pos (initialPos)
 import Text.Printf
 import Debug.Trace
 
+import Datalog.DatalogType
 import Synquid.Error (Pos(Pos))
 import Synquid.Logic (ftrue)
 import Types.Type
@@ -44,15 +45,12 @@ import Synquid.Util
 import HooglePlus.Utils
 import qualified Debug.Trace as D
 
-writeFunctionSouffle :: Id -> RSchema -> String
-writeFunctionSouffle f t = writeFunction "sat(%s, [\"%s\", %s], %s)" (foldr (printf "[%s, %s]") "nil") SouffleType
-
 writeFunction :: PrintType a
               => String 
               -> ([String] -> String) 
               -> (SType -> a)
               -> Id 
-              -> RSchema 
+              -> SType 
               -> String
 writeFunction headerTempl printApp pkTyp f t | retVars `Set.isSubsetOf` argVars =
     if null args 
@@ -62,15 +60,15 @@ writeFunction headerTempl printApp pkTyp f t | retVars `Set.isSubsetOf` argVars 
                (if null depthVars then "" else printf ", D = %s" (intercalate " + " depthVars))
                (unwords (map ((',' :) . argClause) [0 .. (length args - 1)]))  :: String
     where
-        monotype = stypeSubstitute subst (shape (toMonotype t))
+        monotype = stypeSubstitute subst t
         ret = lastType monotype
         retVars = typeVarsOf ret
         headClause depth = printf headerTempl (writeType retVars (pkTyp ret)) f (printApp progVars) depth :: String
         args = map snd (argsWithName monotype)
         argClause i = printf "sat(%s, P%d, D%d)" (writeType retVars $ pkTyp (args !! i)) i i
         argVars = Set.unions $ map typeVarsOf args
-        argNum = (arity (toMonotype t) - 1)
-        vars = boundVarsOf t
+        argNum = arity t - 1
+        vars = Set.toList (typeVarsOf t)
         nextAvailable i = let v = "T" ++ show i
                            in if v `elem` vars then nextAvailable (i + 1) else (i + 1, v)
         (_, typVars) = foldr (\_ (i, lst) ->
@@ -79,7 +77,7 @@ writeFunction headerTempl printApp pkTyp f t | retVars `Set.isSubsetOf` argVars 
         progVars = map (("P" ++) . show) [0 .. argNum]
         depthVars = map (("D" ++) . show) [0 .. argNum]
         subst = Map.fromList $ zipWith (\v1 v2 -> (v1, vart_ v2)) (filter ((`elem` ("D" : depthVars ++ progVars)) . map toUpper) vars) typVars
-writeFunction _ _ = ""
+writeFunction _ _ _ _ _ = ""
 
 writeEnv :: FilePath -> Environment -> IO ()
 writeEnv path env =
@@ -137,9 +135,9 @@ groupSymbols env =
         }
     where
         addSignature f sig (gps, symGps, i) = 
-            let alphaEquivs = Map.filter (eqType (toMonotype sig) . toMonotype) gps
+            let alphaEquivs = Map.filter (eqType (shape (toMonotype sig))) gps
              in case Map.size alphaEquivs of
-                0 -> ( Map.insert ("g" ++ show i) sig gps -- insert group and its signature
+                0 -> ( Map.insert ("g" ++ show i) (shape (toMonotype sig)) gps -- insert group and its signature
                      , Map.insert ("g" ++ show i) (Set.singleton f) symGps -- create a new group and add the function name to this group
                      , i + 1
                      )
