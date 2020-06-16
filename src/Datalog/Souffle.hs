@@ -46,7 +46,6 @@ runSouffle :: SearchParams -> Environment -> RSchema -> [Example] -> Int -> Logi
 runSouffle params env goal examples d = do
     paths <- liftIO $ findPath env goal d
     liftIO $ print paths
-    error "stop"
     ifte (msum $ map (enumeratePath params env goal examples) paths)
          return
          (runSouffle params env goal examples (d + 1))

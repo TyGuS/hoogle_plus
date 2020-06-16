@@ -38,13 +38,15 @@ instance Read UProgram where
     readsPrec _ _ = []
 
 instance PrintType SoufflePack where
-    writeType vars (SoufflePack (ScalarT (TypeVarT _ id) _)) = if id `Set.member` vars then map toUpper id else "_"
+    writeType vars (SoufflePack (ScalarT (TypeVarT _ id) _)) = map toUpper id -- if id `Set.member` vars then map toUpper id else "_"
     writeType vars (SoufflePack (ScalarT (DatatypeT dt args _) _)) = printf "[\"%s\", %s]" (replaceId tyclassPrefix "" dt) argStrs
         where
             argStrs = foldr (\a acc -> printf "[%s, %s]" (writeType vars $ SoufflePack a) acc) "nil" args
     writeType vars (SoufflePack (FunctionT _ tArg tRes)) = writeType vars (SoufflePack $ ScalarT (DatatypeT "Fun" [tArg, tRes] []) ())
 
-    writeArg name (SoufflePack tArg) = 
-        let vars = typeVarsOf tArg
-            substedType = varToDatatype tArg
-         in printf "%s\t\"%s\"" (writeType vars (SoufflePack substedType)) name
+    writeArg name (SoufflePack tArg) = printf "%s\t%s" (writeArg' tArg) name
+        where
+            writeArg' (ScalarT (TypeVarT _ id) _) = printf "[%s, nil]" id :: String
+            writeArg' (ScalarT (DatatypeT dt args _) _) = let argStrs = foldr (\a acc -> printf "[%s, %s]" (writeArg' a) acc) "nil" args
+                                                           in printf "[\"%s\", %s]" (replaceId tyclassPrefix "" dt) argStrs
+            writeArg' (FunctionT _ tArg tRes) = writeArg' (ScalarT (DatatypeT "Fun" [tArg, tRes] []) ())

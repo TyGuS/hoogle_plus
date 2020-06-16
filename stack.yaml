@@ -15,4 +15,7 @@ setup-info:
     linux64-custom-yields:
       8.4.4:
         url: "https://github.com/mistzzt/build-ghc-no-omit-yields/releases/download/v8.4.4/ghc-8.4.4-x86_64-unknown-linux.tar.xz"
+    macosx-custom-yields:
+      8.4.4:
+        url: .
 ghc-variant: yields
