@@ -58,7 +58,7 @@ findPath env goal d = do
     let hoArgSat = map (uncurry writeFunctionSouffle) hoArgs
     -- write query into the file
     let dstTyp = varToDatatype (lastType (shape (toMonotype goal)))
-    let query = printf "query(P) :- sat(%s, P, D), D <= %d, D >= 0." (writeType (typeVarsOf dstTyp) (SoufflePack dstTyp)) d
+    let query = printf "query(P) :- sat(%s, P, D), D = %d." (writeType (SoufflePack dstTyp)) d
     -- write depth into the constraints
     let src = "./data/souffle/input.dl"
     let dst = "./data/souffle/main.dl"

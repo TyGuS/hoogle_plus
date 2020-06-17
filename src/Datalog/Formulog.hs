@@ -61,22 +61,23 @@ findPath env goal d = do
     let hoArgSat = map (uncurry writeFunctionFormulog) hoArgs
     -- write query into the file
     let dst = varToDatatype (lastType (shape (toMonotype goal)))
-    let query = printf "result(P) :- sat(%s, P, D), D <= %d, D >= 0." (writeType (typeVarsOf dst) (FormulogPack dst)) d
+    let query = printf "result(P) :- sat(%s, P, D), D = %d." (writeType (FormulogPack dst)) d
     -- write depth into the constraints
     let src = "./data/formulog/input.flg"
     let dst = "./data/formulog/main.flg"
     fileContent <- readFile src
-    writeFile dst (replaceId "{}" (show (d - 1)) fileContent ++ unlines (query : hoArgSat))
     -- write the arguments into the file
     let packedArgs = map (over _2 FormulogPack) args
-    writeFile "./data/formulog/inh.facts" (unlines $ map (uncurry writeArg) packedArgs)
+    let argsStr = map (uncurry writeArg) packedArgs
+    writeFile dst (replaceId "{}" (show (d - 1)) fileContent ++ unlines (query : hoArgSat ++ argsStr))
+    
     -- execute the solver
-    out <- readProcess "java" ["-DprintResults=\"some:result\"", "--fact-dir=./data/souffle/", "--output-dir=./data/souffle/", "-jar", "./data/formulog/formulog-0.3.0.jar", "./data/formulog/main.dl"] ""
+    out <- readProcess "java" ["-DprintResults=\"some:result\"", "-jar", "./data/formulog/formulog-0.3.0.jar", "./data/formulog/main.dl"] ""
     -- read results
     return $ map read $ lines out :: IO [UProgram]
 
 writeFormulog :: Environment -> IO ()
-writeFormulog env = do
+writeFormulog env =
     -- write datalog templates
     writeFile "./data/formulog/input.flg" $
         unlines (formulogPreamble : map (uncurry writeFunctionFormulog) (Map.toList $ env ^. groups))

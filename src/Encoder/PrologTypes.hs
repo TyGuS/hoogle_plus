@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Encoder.DatalogTypes where
+module Encoder.PrologTypes where
 
 import Data.List (intercalate)
 import Data.Maybe
@@ -120,7 +120,7 @@ emptyRefine = RefineInfo {
 
 makeLenses ''RefineInfo
 
-data DatalogState = DatalogState {
+data PrologState = PrologState {
     _encSearchParams :: SearchParams,
     _increments :: IncrementState,
     _variables :: EncodeVariables,
@@ -128,7 +128,7 @@ data DatalogState = DatalogState {
     _refinements :: RefineInfo
 }
 
-emptyDatalogState = DatalogState {
+emptyPrologState = PrologState {
     _encSearchParams = defaultSearchParams,
     _increments = emptyIncrements,
     _variables = emptyVariables,
@@ -136,6 +136,6 @@ emptyDatalogState = DatalogState {
     _refinements = emptyRefine
 }
 
-makeLenses ''DatalogState
+makeLenses ''PrologState
 
-type Encoder = StateT DatalogState IO
+type Encoder = StateT PrologState IO

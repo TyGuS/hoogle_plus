@@ -25,6 +25,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.List
 import Data.Maybe
+import Debug.Trace
 
 enumeratePath :: SearchParams -> Environment -> RSchema -> [Example] -> UProgram -> LogicT IO ()
 enumeratePath params env goal examples prog = do
@@ -43,9 +44,9 @@ checkPath params env goal examples prog = do
     let args = Map.keys (env ^. arguments)
     let getRealName = replaceId hoPostfix ""
     let filterPaths p = all (`Set.member` Set.map getRealName (symbolsOf p)) args
+    liftIO $ print prog
     guard (filterPaths prog)
 
-    liftIO $ do
-        msgChan <- newChan
-        (checkResult, _) <- runStateT (check env params examples prog goal msgChan) emptyFilterState
-        maybe mzero (toOutput env prog >=> (printResult . encodeWithPrefix)) checkResult
+    (checkResult, _) <- liftIO $
+        runStateT (liftIO newChan >>= check env params examples prog goal) emptyFilterState
+    maybe mzero (liftIO . (toOutput env prog >=> (printResult . encodeWithPrefix))) checkResult

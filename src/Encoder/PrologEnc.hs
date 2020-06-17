@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Encoder.DatalogEnc() where
+module Encoder.PrologEnc() where
 
 import Data.List
 import Data.HashMap.Strict (HashMap)
@@ -15,7 +15,7 @@ import Text.Printf
 import System.Process
 import System.Exit
 
-import Encoder.DatalogTypes
+import Encoder.PrologTypes
 import Encoder.ConstraintEncoder (FunctionCode(..))
 import qualified Encoder.ConstraintEncoder as CE
 import Encoder.Utils
@@ -110,12 +110,12 @@ mustFireTransitions = do
             let fireAt = [FireAt t tr | tr <- trVars, t <- [0..(l - 1)]]
             return $ Choices fireAt
 
-encoderInit :: DatalogState
+encoderInit :: PrologState
             -> Int
             -> [AbstractSkeleton]
             -> [AbstractSkeleton]
             -> [FunctionCode]
-            -> IO DatalogState
+            -> IO PrologState
 encoderInit encoderState len inputs rets sigs =
     execStateT (do
         modify $ set (increments . loc) len
@@ -141,7 +141,7 @@ createEncoder inputs ret sigs = do
     setInitialState inputs places
     setFinalState ret places
 
-encoderSolve :: DatalogState -> IO ([Id], DatalogState)
+encoderSolve :: PrologState -> IO ([Id], PrologState)
 encoderSolve = runStateT solveAndGetModel
 
 solveAndGetModel :: Encoder [Id]
@@ -279,13 +279,13 @@ encoderRefine info inputs rets newSigs = do
     setInitialState inputs currPlaces
     setFinalState (head rets) currPlaces
 
-instance CE.ConstraintEncoder DatalogState where
+instance CE.ConstraintEncoder PrologState where
     encoderInit = encoderInit
     encoderInc sigs inputs rets = execStateT (encoderInc sigs inputs rets)
     encoderRefine info inputs rets newSigs = execStateT (encoderRefine info inputs rets newSigs)
     encoderSolve = encoderSolve
 
-    emptyEncoder = emptyDatalogState
+    emptyEncoder = emptyPrologState
     getTy2tr enc = enc ^. variables . type2transition
     setTy2tr m = variables . type2transition .~ m
     modifyTy2tr f = variables . type2transition %~ f

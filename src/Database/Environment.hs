@@ -63,9 +63,9 @@ writeFunction headerTempl printApp pkTyp f t | retVars `Set.isSubsetOf` argVars 
         monotype = stypeSubstitute subst t
         ret = lastType monotype
         retVars = typeVarsOf ret
-        headClause depth = printf headerTempl (writeType retVars (pkTyp ret)) f (printApp progVars) depth :: String
+        headClause depth = printf headerTempl (writeType (pkTyp ret)) f (printApp progVars) depth :: String
         args = map snd (argsWithName monotype)
-        argClause i = printf "sat(%s, P%d, D%d)" (writeType retVars $ pkTyp (args !! i)) i i
+        argClause i = printf "sat(%s, P%d, D%d)" (writeType $ pkTyp (args !! i)) i i
         argVars = Set.unions $ map typeVarsOf args
         argNum = arity t - 1
         vars = Set.toList (typeVarsOf t)

@@ -46,13 +46,13 @@ instance Read UProgram where
     readsPrec _ _ = []
 
 instance PrintType FormulogPack where
-    writeType vars (FormulogPack (ScalarT (TypeVarT _ id) _)) = if id `Set.member` vars then map toUpper id else "_"
-    writeType vars (FormulogPack (ScalarT (DatatypeT dt args _) _)) = printf "typ_app(\"%s\", %s)" (replaceId tyclassPrefix "" dt) argStrs
+    writeType (FormulogPack (ScalarT (TypeVarT _ id) _)) = map toUpper id
+    writeType (FormulogPack (ScalarT (DatatypeT dt args _) _)) = printf "typ_app(\"%s\", %s)" (replaceId tyclassPrefix "" dt) argStrs
         where
-            argStrs = foldr (\a acc -> printf "%s :: %s" (writeType vars $ FormulogPack a) acc) "[]" args
-    writeType vars (FormulogPack (FunctionT _ tArg tRes)) = writeType vars (FormulogPack $ ScalarT (DatatypeT "Fun" [tArg, tRes] []) ())
+            argStrs = foldr (\a acc -> printf "%s :: %s" (writeType $ FormulogPack a) acc) "[]" args
+    writeType (FormulogPack (FunctionT _ tArg tRes)) = writeType (FormulogPack $ ScalarT (DatatypeT "Fun" [tArg, tRes] []) ())
 
     writeArg name t@(FormulogPack tArg) =
         let vars = typeVarsOf tArg
             substedType = varToDatatype tArg
-         in printf "%s\t%s" (writeType vars (FormulogPack substedType)) name
+         in printf "%s\t%s" (writeType (FormulogPack substedType)) name

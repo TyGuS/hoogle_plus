@@ -11,5 +11,5 @@ newtype SoufflePack = SoufflePack SType
 newtype FormulogPack = FormulogPack SType
 
 class PrintType a where
-    writeType :: Set Id -> a -> String
+    writeType :: a -> String
     writeArg :: Id -> a -> String

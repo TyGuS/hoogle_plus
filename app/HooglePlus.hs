@@ -19,8 +19,8 @@ import Encoder.Z3SATTypes (Z3SATState)
 import Encoder.Z3SATEnc ()
 import Encoder.CBCTypes (CBCState)
 import Encoder.CBCEnc ()
-import Encoder.DatalogTypes (DatalogState)
-import Encoder.DatalogEnc ()
+import Encoder.PrologTypes (PrologState)
+import Encoder.PrologEnc ()
 import Evaluation.EvalTypeInf
 import Evaluation.ReadBenchmark
 -- synthesis with examples
@@ -287,7 +287,7 @@ executeSearch synquidParams searchParams inStr = catch (do
             forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState CBCState)
             readChan solverChan >>= (handleMessages solverChan)
         Prolog -> do
-            forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState DatalogState)
+            forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState PrologState)
             readChan solverChan >>= (handleMessages solverChan)
         Souffle -> observeT $ runSouffle searchParams (gEnvironment goal) (gSpec goal) exquery 0
     )
