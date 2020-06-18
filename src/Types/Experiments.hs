@@ -38,6 +38,8 @@ data SolverName =
     | CBC
     | Prolog
     | Souffle
+    | SouffleAbs
+    | FormulogAbs
     deriving (Data, Show, Eq)
 
 -- | Parameters of program exploration

@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric  #-}
+{-# LANGUAGE DeriveFunctor  #-}
 {-# LANGUAGE FlexibleContexts #-}
 module Types.Type where
 
@@ -21,7 +22,7 @@ instance FromJSON r => FromJSON (SchemaSkeleton r)
 {- Type skeletons -}
 
 data BaseType r = BoolT | IntT | DatatypeT Id [TypeSkeleton r] [r] | TypeVarT Substitution Id
-  deriving (Eq, Ord, Generic)
+  deriving (Eq, Ord, Functor, Generic)
 
 instance ToJSON r => ToJSON (BaseType r)
 instance FromJSON r => FromJSON (BaseType r)
@@ -32,7 +33,7 @@ data TypeSkeleton r =
   FunctionT Id (TypeSkeleton r) (TypeSkeleton r) |
   AnyT |
   BotT 
-  deriving (Eq, Ord, Generic)
+  deriving (Eq, Ord, Functor, Generic)
 
 instance ToJSON r => ToJSON (TypeSkeleton r)
 instance FromJSON r => FromJSON (TypeSkeleton r)

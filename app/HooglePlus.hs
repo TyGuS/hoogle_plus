@@ -60,7 +60,6 @@ import Data.List.Split
 import Data.Map ((!))
 import Data.Maybe (mapMaybe, fromJust)
 import Data.Time.Calendar
-import Datalog.Souffle
 import Distribution.PackDeps
 import Language.Haskell.Exts (Decl(TypeSig))
 import System.Console.ANSI
@@ -290,6 +289,7 @@ executeSearch synquidParams searchParams inStr = catch (do
             forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState PrologState)
             readChan solverChan >>= (handleMessages solverChan)
         Souffle -> observeT $ runSouffle searchParams (gEnvironment goal) (gSpec goal) exquery 0
+        _ -> error "not implemented"
     )
     (\(e :: SomeException) -> printResult $ encodeWithPrefix $ QueryOutput [] (show e) [])
     where
