@@ -27,10 +27,10 @@ import qualified Encoder.ConstraintEncoder as CE
 import Encoder.Utils
 import Types.Common
 import Types.Experiments
-import Types.Abstract
+import Types.Type
 import PetriNet.AbstractType
-import PetriNet.Util
-import Synquid.Util
+import PetriNet.Utils
+import Synquid.Utils
 import Synquid.Pretty
 
 instance MonadZ3 Encoder where
@@ -262,7 +262,7 @@ maxToken ty = do
     let inputCounts = map (\l -> (head l, length l)) (group $ sort inputs)
     let cnt = fromMaybe 0 (lookup ty inputCounts)
     let connects = HashMap.lookupDefault Set.empty ty t2tr
-    let consume (FunctionCode f _ args _) = if f `Set.member` connects then length (filter (== ty) args) else 0
+    let consume (FunctionCode f args _) = if f `Set.member` connects then length (filter (== ty) args) else 0
     return $ (+ 1) . maximum $ cnt : map consume signatures
 
 -- | add variables for each place
@@ -343,7 +343,7 @@ noTransitionTokens p t = do
         mkImplies noFire tokenSame
 
 fireTransitions :: FunctionCode -> Int -> Encoder ()
-fireTransitions (FunctionCode name [] params rets) t = do
+fireTransitions (FunctionCode name params rets) t = do
     transMap <- gets $ view (variables . trans2variable)
     placeMap <- gets $ view (variables . place2variable)
 
@@ -373,8 +373,6 @@ fireTransitions (FunctionCode name [] params rets) t = do
             mkAnd [before, after]
             ) [start..end]
         mkOr changes
-
-fireTransitions fc _ = error $ "unhandled " ++ show fc
 
 mustFireTransitions :: Encoder ()
 mustFireTransitions = do

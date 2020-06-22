@@ -1,5 +1,4 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module Types.InfConstraint where
@@ -21,7 +20,7 @@ type TyclassConstraints = Set Id
 type TyclassAssignment = Map Id TyclassConstraints
 
 data TypeClassState = TypeClassState {
-    _tyclassCache :: Map SType [Id],
+    _tyclassCache :: Map TypeSkeleton [Id],
     _supportModules :: [String]
 } deriving(Eq)
 
@@ -34,8 +33,8 @@ emptyTyclassState = TypeClassState {
 
 data AntiUnifState = AntiUnifState {
     _generalNames :: Map Id Int,
-    _typeAssignment1 :: Map SType [Id],
-    _typeAssignment2 :: Map SType [Id],
+    _typeAssignment1 :: Map TypeSkeleton [Id],
+    _typeAssignment2 :: Map TypeSkeleton [Id],
     _tyclassAssignment :: TyclassAssignment
 } deriving(Eq)
 
@@ -49,7 +48,7 @@ emptyAntiUnifState = AntiUnifState {
 }
 
 data TypeNaming = TypeNaming {
-    _substCounter :: Map SType (Id, Int),
+    _substCounter :: Map TypeSkeleton (Id, Int),
     _prevTypeVars :: Set Id,
     _beginTypeVars :: Set Id
 } deriving(Eq)
@@ -69,4 +68,4 @@ instance Monad m => CheckMonad (AntiUnifier m) where
     getMessageChan = getMessageChan
     overStats = overStats
 
-univTypeVarPrefix = '?'
+existTypeVarPrefix = '?'

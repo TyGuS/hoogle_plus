@@ -9,18 +9,19 @@ import Database.Download
 import Database.Environment
 import Database.Generate
 import Database.Presets
-import Database.Util
+import Database.Utils
+-- encoders
 import Datalog.Formulog
 import Datalog.Souffle
--- encoders
-import Encoder.Z3SMTTypes (Z3SMTState)
-import Encoder.Z3SMTEnc ()
-import Encoder.Z3SATTypes (Z3SATState)
-import Encoder.Z3SATEnc ()
-import Encoder.CBCTypes (CBCState)
 import Encoder.CBCEnc ()
-import Encoder.PrologTypes (PrologState)
+import Encoder.CBCTypes (CBCState)
 import Encoder.PrologEnc ()
+import Encoder.PrologTypes (PrologState)
+import Encoder.Z3SATEnc ()
+import Encoder.Z3SATTypes (Z3SATState)
+import Encoder.Z3SMTEnc ()
+import Encoder.Z3SMTTypes (Z3SMTState)
+-- evaluation
 import Evaluation.EvalTypeInf
 import Evaluation.ReadBenchmark
 -- synthesis with examples
@@ -31,11 +32,12 @@ import HooglePlus.Stats
 import HooglePlus.Synthesize
 import HooglePlus.Utils
 import Synquid.Error
-import Synquid.Logic
+import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
 import Synquid.Pretty
 import Synquid.Program
+import Synquid.Resolver (resolveDecls, ResolverState (..), initResolverState, resolveSchema)
 import Synquid.Type
-import Synquid.Util (showme)
+import Synquid.Utils (showme)
 import Types.Environment
 import Types.Experiments
 import Types.Filtering

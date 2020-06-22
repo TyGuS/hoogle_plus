@@ -1,52 +1,37 @@
 module Encoder.ConstraintEncoder where
 
 import Types.Common
-import Types.Abstract
 import Types.Experiments
+import Types.Type
 
 import Data.Function
 import Data.HashMap.Strict (HashMap)
 import Data.Set (Set)
 
 data FunctionCode = FunctionCode {
-    funName   :: String,  -- function name
-    hoParams  :: [FunctionCode],
-    funParams :: [AbstractSkeleton], -- function parameter types and their count
-    funReturn :: [AbstractSkeleton]   -- function return type
+    funName   :: Id,            -- function name
+    funParams :: AbsArguments,  -- function parameter types and their count
+    funReturn :: AbsReturn      -- function return type
 }
 
 instance Eq FunctionCode where
   fc1 == fc2 = let
     areEq arg = on (==) arg fc1 fc2
-    in areEq hoParams && areEq funParams && areEq funReturn
+    in areEq funParams && areEq funReturn
 
 instance Ord FunctionCode where
   compare fc1 fc2 = let
     thenCmp EQ       ordering = ordering
     thenCmp ordering _        = ordering
     cmp arg = on compare arg fc1 fc2
-    in foldr1 thenCmp [cmp hoParams, cmp funParams, cmp funReturn]
+    in foldr1 thenCmp [cmp funParams, cmp funReturn]
 
 type TransMap = HashMap AbstractSkeleton (Set Id)
 
 class ConstraintEncoder s where
-    encoderInit     :: s
-                    -> Int
-                    -> [AbstractSkeleton]
-                    -> [AbstractSkeleton]
-                    -> [FunctionCode]
-                    -> IO s
-    encoderInc      :: [FunctionCode] 
-                    -> [AbstractSkeleton] 
-                    -> [AbstractSkeleton]
-                    -> s
-                    -> IO s
-    encoderRefine   :: SplitInfo 
-                    -> [AbstractSkeleton] 
-                    -> [AbstractSkeleton] 
-                    -> [FunctionCode]
-                    -> s
-                    -> IO s
+    encoderInit     :: s -> Int -> [TypeSkeleton] -> [TypeSkeleton] -> [FunctionCode] -> IO s
+    encoderInc      :: [FunctionCode] -> [TypeSkeleton] -> [TypeSkeleton] -> s -> IO s
+    encoderRefine   :: SplitInfo -> [TypeSkeleton] -> [TypeSkeleton] -> [FunctionCode] -> s -> IO s
     encoderSolve    :: s -> IO ([Id], s)
 
     emptyEncoder    :: s

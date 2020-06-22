@@ -1,6 +1,5 @@
 module Encoder.SouffleType where
 
-import Types.Abstract
 import Types.Type
 import Datalog.SouffleType
 import Datalog.DatalogType

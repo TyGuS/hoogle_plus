@@ -8,8 +8,8 @@ import Data.Conduit (runConduit, (.|), ($$+-))
 import Control.Monad.Trans.Resource (runResourceT)
 import qualified Data.ByteString.Lazy as L
 import Data.Aeson
-import qualified Data.Map as Map
-import Data.Map (Map)
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
 import GHC.Generics
 import Data.Maybe
 import Network.HTTP.Types.Status
@@ -18,8 +18,8 @@ import System.Directory
 import System.IO
 
 import Types.Generate
-import Database.Util
-import Synquid.Util (getTmpDir)
+import Database.Utils
+import Synquid.Utils (getTmpDir)
 
 docVersionsUrl = "https://hackage.haskell.org/packages/docs"
 docDownloadUrl = "https://hackage.haskell.org/package/"

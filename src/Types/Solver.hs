@@ -4,8 +4,8 @@
 {-# LANGUAGE RankNTypes #-}
 module Types.Solver where
 
-import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.HashMap.Strict (HashMap)
@@ -15,19 +15,18 @@ import Control.Monad.State
 import Control.Concurrent.Chan
 import Control.Monad.Logic
 
-import Types.Program
-import Types.Abstract
-import Types.Experiments hiding (PetriNet)
-import Types.Type
-import Types.Common
-import Types.Filtering
-import Types.CheckMonad
-import Types.TypeChecker
-import Types.IOFormat
-import Database.Util
+import Database.Utils
 import Encoder.ConstraintEncoder
+import Types.CheckMonad
+import Types.Common
+import Types.Experiments hiding (PetriNet)
+import Types.Filtering
+import Types.IOFormat
+import Types.Program
+import Types.Type
+import Types.TypeChecker
 
-rootNode = AScalar (ATypeVarT varName)
+rootNode = TypeVarT varName
 pairProj = "pair_match"
 
 type AbstractCover = HashMap AbstractSkeleton (Set AbstractSkeleton)
@@ -49,7 +48,7 @@ emptyGroup = GroupState {
 makeLenses ''GroupState
 
 data SearchState = SearchState {
-    _currentSolutions :: [RProgram], -- type checked solutions
+    _currentSolutions :: [TProgram], -- type checked solutions
     _currentLoc :: Int, -- current solution depth
     _currentSigs :: Map Id AbstractSkeleton, -- current type signature groups
     _activeSigs :: Set Id,
@@ -80,11 +79,12 @@ emptyStatistic = StatisticState {
 
 makeLenses ''StatisticState
 
-type CheckError = (RProgram, AbstractSkeleton)
+type CheckError = (TProgram, AbstractSkeleton)
+type InstanceMap = HashMap (Id, AbsArguments) (Id, AbsReturn)
 
 data RefineState = RefineState {
     _abstractionCover :: AbstractCover,
-    _instanceMapping :: HashMap (Id, [AbstractSkeleton]) (Id, AbstractSkeleton),
+    _instanceMapping :: InstanceMap,
     _targetType :: AbstractSkeleton,
     _sourceTypes :: [AbstractSkeleton],
     _splitTypes :: Set AbstractSkeleton,
@@ -96,7 +96,7 @@ data RefineState = RefineState {
 emptyRefineState = RefineState {
     _abstractionCover = HashMap.empty,
     _instanceMapping = HashMap.empty,
-    _targetType = AScalar (ATypeVarT varName),
+    _targetType = TypeVarT varName,
     _sourceTypes = [],
     _splitTypes = Set.empty,
     _toRemove = [],
@@ -157,6 +157,6 @@ instance (ConstraintEncoder enc, Monad m) => CheckMonad (BackTrack enc m) where
     overStats f = modify (over (statistics . solverStats) f)
 
 data SearchResult = NotFound 
-                  | Found (RProgram, AssociativeExamples)
-                  | MoreRefine (RProgram, AbstractSkeleton)
+                  | Found (TProgram, AssociativeExamples)
+                  | MoreRefine (TProgram, AbstractSkeleton)
                   deriving(Eq)

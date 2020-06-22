@@ -7,8 +7,8 @@ import Synquid.Pretty
 import Data.Set (Set)
 import Text.Printf
 
-newtype SoufflePack = SoufflePack SType
-newtype FormulogPack = FormulogPack SType
+newtype SoufflePack = SoufflePack TypeSkeleton
+newtype FormulogPack = FormulogPack TypeSkeleton
 
 class PrintType a where
     writeType :: a -> String

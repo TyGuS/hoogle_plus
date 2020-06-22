@@ -2,25 +2,25 @@
 
 module Database.Generate where
 
+import Control.Monad.Extra
 import Control.Monad.IO.Class
-import Language.Haskell.Exts
+import Data.Char
 import Data.Conduit
 import Data.Data
-import qualified Data.ByteString as B
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import Data.Char
-import Data.List.Extra
 import Data.Either
+import Data.List.Extra
 import GHC.Generics
-import Control.Monad.Extra
-import Types.Type (SType, RSchema, TypeSkeleton(..))
-import Types.Generate
-import Synquid.Type (isFunctionType, lastType, toMonotype, shape, arity)
+import Language.Haskell.Exts
+import qualified Data.ByteString as B
+import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
+
+import Database.Utils
 import qualified Synquid.Program as SP
 import Synquid.Pretty
-
-import Database.Util
+import Synquid.Type (isFunctionType, lastType, toMonotype, arity)
+import Types.Generate
+import Types.Type (SchemaSkeleton(..), TypeSkeleton(..))
 
 
 parseMode :: ParseMode
@@ -29,7 +29,7 @@ parseMode = defaultParseMode{extensions=map EnableExtension es}
                ,TypeFamilies,FlexibleContexts,FunctionalDependencies,ImplicitParams,MagicHash,UnboxedTuples
                ,ParallelArrays,UnicodeSyntax,DataKinds,PolyKinds]
 
-myParseDecl = fmap (fmap $ const ()) . parseDeclWithMode parseMode -- partial application, to share the initialisation cost
+myParseDecl = fmap void . parseDeclWithMode parseMode -- partial application, to share the initialisation cost
 
 unGADT (GDataDecl a b c d _  [] e) = DataDecl a b c d [] e
 unGADT x = x

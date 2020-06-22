@@ -6,15 +6,14 @@ import Synquid.Pretty () -- Instances
 import Types.Type
 import Types.Program
 import Synquid.Type
-import Synquid.Logic
-import Database.Util
+import Database.Utils
 
 import Test.Hspec
 import Text.Pretty.Simple
 import Text.Parsec.Pos
 import Control.Monad.State
 import Text.Parsec.Indent
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import Data.Either
 
 
@@ -22,7 +21,6 @@ doParseType tyStr = flip evalState (initialPos "goal") $ runIndentParserT parseT
 
 anyTy program = Program{typeOf=AnyT, content=program}
 
--- separateFunctions :: String -> ([RType], RType)
 separateFunctions query = let
     res = either (\left -> error $ show left) id $ doParseType query
     in allBaseTypes res

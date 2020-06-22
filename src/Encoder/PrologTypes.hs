@@ -18,7 +18,7 @@ import Control.Lens
 import Text.Printf
 
 import Types.Common
-import Types.Abstract
+import Types.Type
 import Types.Experiments
 import Encoder.ConstraintEncoder (FunctionCode)
 

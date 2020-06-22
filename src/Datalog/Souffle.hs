@@ -42,7 +42,7 @@ soufflePreamble = unlines [ ".type ListSym = [head: symbol, tail: ListSym]"
                           , ".output query"
                           ]
 
-runSouffle :: SearchParams -> Environment -> RSchema -> [Example] -> Int -> LogicT IO ()
+runSouffle :: SearchParams -> Environment -> SchemaSkeleton -> [Example] -> Int -> LogicT IO ()
 runSouffle params env goal examples d = do
     paths <- liftIO $ findPath env goal d
     liftIO $ print paths
@@ -50,14 +50,14 @@ runSouffle params env goal examples d = do
          return
          (runSouffle params env goal examples (d + 1))
 
-findPath :: Environment -> RSchema -> Int -> IO [UProgram]
+findPath :: Environment -> SchemaSkeleton -> Int -> IO [UProgram]
 findPath env goal d = do
     -- get higher-order arguments
-    let args = map (over _2 (shape . toMonotype)) (Map.toList (env ^. arguments))
+    let args = map (over _2 toMonotype) (Map.toList (env ^. arguments))
     let hoArgs = filter (isFunctionType . snd) args
     let hoArgSat = map (uncurry writeFunctionSouffle) hoArgs
     -- write query into the file
-    let dstTyp = varToDatatype (lastType (shape (toMonotype goal)))
+    let dstTyp = varToDatatype (lastType (toMonotype goal))
     let query = printf "query(P) :- sat(%s, P, D), D = %d." (writeType (SoufflePack dstTyp)) d
     -- write depth into the constraints
     let src = "./data/souffle/input.dl"
@@ -83,6 +83,6 @@ writeSouffle env = do
     writeFile "./data/souffle/funName.facts" $
         unlines (Map.keys (env ^. groups))
 
-writeFunctionSouffle :: Id -> SType -> String
+writeFunctionSouffle :: Id -> TypeSkeleton -> String
 writeFunctionSouffle = writeFunction "sat(%s, [\"%s\", %s], %s)" (foldr (printf "[%s, %s]") "nil") SoufflePack
 

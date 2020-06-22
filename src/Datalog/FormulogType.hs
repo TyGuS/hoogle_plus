@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 module Datalog.FormulogType where
 
-import Database.Util
+import Database.Utils
 import Datalog.DatalogType
 import Datalog.Utils
 import Types.Type
@@ -46,13 +46,15 @@ instance Read UProgram where
     readsPrec _ _ = []
 
 instance PrintType FormulogPack where
-    writeType (FormulogPack (ScalarT (TypeVarT _ id) _)) = map toUpper id
-    writeType (FormulogPack (ScalarT (DatatypeT dt args _) _)) = printf "typ_app(\"%s\", %s)" (replaceId tyclassPrefix "" dt) argStrs
-        where
-            argStrs = foldr (\a acc -> printf "%s :: %s" (writeType $ FormulogPack a) acc) "[]" args
-    writeType (FormulogPack (FunctionT _ tArg tRes)) = writeType (FormulogPack $ ScalarT (DatatypeT "Fun" [tArg, tRes] []) ())
+    writeType (FormulogPack (TypeVarT id)) = map toUpper id
+    writeType (FormulogPack (DatatypeT dt)) = replaceId tyclassPrefix "" dt
+    writeType (FormulogPack t@TyAppT {}) = let (dt, args) = collectArgs t
+                                               argStrs = foldr (\a acc -> printf "%s :: %s" (writeType $ FormulogPack a) acc) "[]" args
+                                            in printf "typ_app(\"%s\", %s)" (replaceId tyclassPrefix "" dt) argStrs
+    writeType (FormulogPack (TyFunT tArg tRes)) = writeType (FormulogPack (TyAppT (TyAppT (DatatypeT "Fun") tArg) tRes))
+    writeType (FormulogPack (FunctionT _ tArg tRes)) = writeType (FormulogPack (TyFunT tArg tRes))
 
     writeArg name t@(FormulogPack tArg) =
         let vars = typeVarsOf tArg
             substedType = varToDatatype tArg
-         in printf "%s\t%s" (writeType (FormulogPack substedType)) name
+         in printf "inh(%s, %s)." (writeType (FormulogPack substedType)) name

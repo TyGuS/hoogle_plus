@@ -12,9 +12,9 @@ import Types.Experiments
 import Types.Filtering
 import Types.IOFormat
 import Synquid.Type
-import Synquid.Util hiding (fromRight)
+import Synquid.Utils
 import Synquid.Pretty as Pretty
-import Database.Util
+import Database.Utils
 import HooglePlus.Utils
 import HooglePlus.FilterTest (runChecks)
 import HooglePlus.IOFormat
@@ -40,7 +40,7 @@ import HscTypes
 import IdInfo
 import Outputable hiding (text, (<+>))
 import qualified CoreSyn as Syn
-import qualified Data.Map as Map hiding (map, foldr)
+import qualified Data.Map.Strict as Map hiding (map, foldr)
 import qualified Data.Set as Set hiding (map)
 import qualified Data.Text as Text
 import SimplCore (core2core)
@@ -132,8 +132,8 @@ check :: MonadIO m
        => Environment -- symbol environment
        -> SearchParams -- search parameters: to control what to be checked
        -> [Example] -- examples for post-filtering
-       -> RProgram -- program to be checked
-       -> RSchema -- goal type to be checked against
+       -> TProgram -- program to be checked
+       -> SchemaSkeleton -- goal type to be checked against
        -> Chan Message -- message channel for logging
        -> FilterTest m (Maybe AssociativeExamples) -- return Nothing is check fails, otherwise return a list of updated examples
 check env searchParams examples program goalType solverChan =
@@ -144,7 +144,7 @@ check env searchParams examples program goalType solverChan =
 runGhcChecks :: MonadIO m 
              => SearchParams 
              -> Environment 
-             -> RType 
+             -> TypeSkeleton 
              -> [Example]
              -> UProgram 
              -> FilterTest m (Maybe AssociativeExamples)
@@ -172,7 +172,7 @@ runGhcChecks params env goalType examples prog = let
     where
         mdls = Set.toList (_included_modules env)
         (modules, funcSig, body, argList) = extractSolution env goalType prog
-        checkOutputs prog exs = checkExampleOutput mdls env funcSig (show prog) exs
+        checkOutputs = checkExampleOutput mdls env funcSig . show
 
 -- ensures that the program type-checks
 checkType :: String -> [String] -> Interpreter Bool

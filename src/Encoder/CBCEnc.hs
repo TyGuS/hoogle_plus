@@ -20,7 +20,7 @@ import Encoder.ConstraintEncoder (FunctionCode(..))
 import qualified Encoder.ConstraintEncoder as CE
 import Encoder.Utils
 import Types.Common
-import Types.Abstract
+import Types.Type
 import Synquid.Pretty
 
 addPlaceVar :: AbstractSkeleton -> Int -> Encoder ()
@@ -84,7 +84,7 @@ disableTransitions trs t = mapM_ disableTransitionAt trs
             modify $ over (constraints . persistConstraints) (eq :)
 
 transPrecondition :: FunctionCode -> Int -> Encoder ()
-transPrecondition (FunctionCode name [] params rets) t = do
+transPrecondition (FunctionCode name params rets) t = do
     transMap <- gets $ view (variables . trans2variable)
     -- accumulate counting for parameters and return types
     let pcnt = map (\l -> (head l, length l)) (group (sort params))
@@ -106,13 +106,13 @@ transPostcondition p t = do
     let before = z1 $ findVariable "place2variable" (p, t) placeMap
     let after = z1 $ findVariable "place2variable" (p, t + 1) placeMap
     let transSet = HashMap.lookupDefault Set.empty p t2tr
-    let selectedSigs = filter (\(FunctionCode tid _ _ _) -> tid `Set.member` transSet) signatures
+    let selectedSigs = filter (\(FunctionCode tid _ _) -> tid `Set.member` transSet) signatures
     changes <- mapM getCounts selectedSigs
     let changeLinear = foldr (.+.) c0 changes
     let mkChange = after :== (before .+. changeLinear)
     modify $ over (constraints . optionalConstraints) (mkChange :)
     where
-        getCounts (FunctionCode tr _ params rets) = do
+        getCounts (FunctionCode tr params rets) = do
             transMap <- gets $ view (variables . trans2variable)
             -- accumulate counting for parameters and return types
             let pcnt = map (\l -> (head l, length l)) (group (sort params))

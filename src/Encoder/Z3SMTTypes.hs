@@ -18,8 +18,8 @@ import Data.Function
 import Control.Lens
 
 import Types.Common
-import Types.Abstract
 import Types.Experiments
+import Types.Type
 
 data Z3Env = Z3Env {
     envSolver  :: Z3.Solver,

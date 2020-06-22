@@ -1,54 +1,60 @@
 {-# LANGUAGE DeriveGeneric  #-}
-{-# LANGUAGE DeriveFunctor  #-}
 {-# LANGUAGE FlexibleContexts #-}
 module Types.Type where
 
 import Types.Common
-import Synquid.Logic
 
 import GHC.Generics
 import Data.Map (Map)
 import Data.Aeson
+import Data.Hashable
 
-data SchemaSkeleton r =
-  Monotype (TypeSkeleton r) |
-  ForallT Id (SchemaSkeleton r) | -- Type-polymorphic, each type variable may have some class constraints
-  ForallP PredSig (SchemaSkeleton r)    -- Predicate-polymorphic
+data SchemaSkeleton =
+  Monotype TypeSkeleton |
+  ForallT Id SchemaSkeleton -- Type-polymorphic, each type variable may have some class constraints
   deriving (Eq, Ord, Generic)
 
-instance ToJSON r => ToJSON (SchemaSkeleton r)
-instance FromJSON r => FromJSON (SchemaSkeleton r)
+instance ToJSON SchemaSkeleton
+instance FromJSON SchemaSkeleton
+
+{- Type kind -}
+data Kind = KnVar Id | KnAny | KnStar | KnArr Kind Kind
+  deriving (Eq, Ord, Generic)
 
 {- Type skeletons -}
-
-data BaseType r = BoolT | IntT | DatatypeT Id [TypeSkeleton r] [r] | TypeVarT Substitution Id
-  deriving (Eq, Ord, Functor, Generic)
-
-instance ToJSON r => ToJSON (BaseType r)
-instance FromJSON r => FromJSON (BaseType r)
-
--- | Type skeletons (parametrized by refinements)
-data TypeSkeleton r =
-  ScalarT (BaseType r) r |
-  FunctionT Id (TypeSkeleton r) (TypeSkeleton r) |
+data TypeSkeleton =
+  TypeVarT Id |
+  DatatypeT Id |
+  TyFunT TypeSkeleton TypeSkeleton |
+  TyAppT TypeSkeleton TypeSkeleton |
+  FunctionT Id TypeSkeleton TypeSkeleton |
   AnyT |
-  BotT 
-  deriving (Eq, Ord, Functor, Generic)
+  BottomT 
+  deriving (Eq, Ord, Generic)
 
-instance ToJSON r => ToJSON (TypeSkeleton r)
-instance FromJSON r => FromJSON (TypeSkeleton r)
+instance ToJSON TypeSkeleton
+instance FromJSON TypeSkeleton
+instance Hashable TypeSkeleton
 
--- | Unrefined typed
-type SType = TypeSkeleton ()
+-- distinguish one type from a given general one
+type SplitMsg = (TypeSkeleton, TypeSkeleton)
 
--- | Refined types
-type RType = TypeSkeleton Formula
+data SplitInfo = SplitInfo {
+    newPlaces :: [TypeSkeleton],
+    removedTrans :: [Id],
+    newTrans :: [Id]
+} deriving (Eq, Ord)
 
--- | Unrefined schemas
-type SSchema = SchemaSkeleton ()
-
--- | Refined schemas
-type RSchema = SchemaSkeleton Formula
-
+{- Type synonyms -}
+-- abstract type can be represented in the same data structure
+type AbstractSkeleton = TypeSkeleton
+type AbsArguments = [AbstractSkeleton]
+type AbsReturn = [AbstractSkeleton]
+-- unification constraints
+type UnifConstraint = (TypeSkeleton, TypeSkeleton)
 -- | Mapping from type variables to types
-type TypeSubstitution = Map Id RType
+type TypeSubstitution = Map Id TypeSkeleton
+-- second order kind
+knFst = KnArr KnStar KnStar
+-- third order kind
+knSec = KnArr KnStar (KnArr KnStar KnStar)

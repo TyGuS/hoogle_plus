@@ -4,33 +4,34 @@
 
 module Encoder.Z3SMTEnc () where
 
-import Data.List
-import Data.List.Extra
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
-import Data.Set (Set)
-import qualified Data.Set as Set
-import Z3.Monad hiding(Z3Env, newEnv)
-import qualified Z3.Base as Z3
-import Control.Monad.State
-import System.CPUTime
-import Text.Printf
-import Data.Text (pack, unpack, replace)
-import System.IO
-import System.Process
-import Control.Lens
-
-import Encoder.Z3SMTTypes
 import Encoder.ConstraintEncoder (FunctionCode(..))
-import qualified Encoder.ConstraintEncoder as CE
 import Encoder.Utils
+import Encoder.Z3SMTTypes
+import PetriNet.AbstractType
+import PetriNet.Utils
+import qualified Encoder.ConstraintEncoder as CE
+import Synquid.Pretty
+import Synquid.Utils
 import Types.Common
 import Types.Experiments
-import Types.Abstract
-import PetriNet.AbstractType
-import PetriNet.Util
-import Synquid.Util
-import Synquid.Pretty
+import Types.Type
+
+import Control.Lens
+import Control.Monad.Extra
+import Control.Monad.State
+import Data.HashMap.Strict (HashMap)
+import Data.List
+import Data.List.Extra
+import Data.Set (Set)
+import Data.Text (pack, unpack, replace)
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Set as Set
+import qualified Z3.Base as Z3
+import System.CPUTime
+import System.IO
+import System.Process
+import Text.Printf
+import Z3.Monad hiding(Z3Env, newEnv)
 
 instance MonadZ3 Encoder where
     getSolver = gets (envSolver . _z3env)
@@ -197,7 +198,7 @@ solveAndGetModel = do
                     mapM_ (mkNot >=> assert) blocks
                 return []
               else do
-                -- liftIO $ print "unsat for change goal"
+                liftIO $ print "unsat for change goal"
                 -- try a more general return type
                 t2tr <- gets $ view (variables . type2transition)
                 when incremental $ cancelConstraints "final"
@@ -476,7 +477,7 @@ noTransitionTokens t p = do
         mapM (mkEq tsVar) transitions
 
 fireTransitions :: Int -> FunctionCode -> Encoder ()
-fireTransitions t (FunctionCode name [] params rets) = do
+fireTransitions t (FunctionCode name params rets) = do
     transMap <- gets $ view (variables . transition2id)
     placeMap <- gets $ view (variables . place2variable)
     tsMap <- gets $ view (variables . time2variable)
@@ -511,7 +512,6 @@ fireTransitions t (FunctionCode name [] params rets) = do
         placeMap <- gets $ view (variables . place2variable)
         let pVar = findVariable "placemap" (p, t) placeMap
         mkGe pVar w
-fireTransitions t fc = error $ "unhandled " ++ show fc
 
 mustFireTransitions ::  Encoder ()
 mustFireTransitions = do

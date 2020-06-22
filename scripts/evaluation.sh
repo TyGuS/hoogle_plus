@@ -16,5 +16,5 @@ mv bounded_variants.pdf $OUTPUTDIR/bounded_variants.pdf
 mv major_variants.pdf $OUTPUTDIR/major_variants.pdf
 mv quality.csv $OUTPUTDIR/quality.csv
 mv table_results.tex $OUTPUTDIR/table_results.tex
-cp table.tex $OUTPUTDIR/table.tex
+cp data/table.tex $OUTPUTDIR/table.tex
 echo "In another terminal, please navigate to your output directory and run 'pdflatex table.tex'"

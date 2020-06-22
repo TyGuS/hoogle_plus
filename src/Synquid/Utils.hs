@@ -1,5 +1,5 @@
 -- | Common types and helper functions
-module Synquid.Util where
+module Synquid.Utils where
 
 import Types.Common
 import Data.Maybe
@@ -7,8 +7,8 @@ import Data.Either
 import Data.List
 import qualified Data.Set as Set
 import Data.Set (Set)
-import qualified Data.Map as Map
-import Data.Map (Map)
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
 import Data.Char
 import Data.Function (on)
 import Data.Ord (comparing)
@@ -47,9 +47,6 @@ deleteAt i xs = reverse res
 
 uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
 uncurry3 f (x, y, z) = f x y z
-
-fromRight (Right x) = x
-fromLeft (Left x) = x
 
 mapLeft :: (a -> b) -> Either a c -> Either b c
 mapLeft f (Left x) = Left $ f x
@@ -97,7 +94,7 @@ removeDomain keys m = snd $ partitionDomain keys m
 
 -- | 'partitionDomain' @keys m@ : map @m@ partitioned into two maps, restricted to @keys@ and the rest
 partitionDomain :: Ord k => Set k -> Map k a -> (Map k a, Map k a)
-partitionDomain keys m = Map.partitionWithKey (\k _ -> k `Set.member` keys) m
+partitionDomain keys = Map.partitionWithKey (\k _ -> k `Set.member` keys)
 
 -- | 'constMap' @keys val@ : map that maps each of @keys@ to @val@
 constMap :: Ord k => Set k -> a -> Map k a
@@ -134,46 +131,14 @@ toDisjointGroups m = toDisjointGroups' m []
         then (keys, vals)
         else close (keys `Set.union` Map.keysSet mNonDisj) (vals `Set.union` (Set.unions $ Map.elems mNonDisj)) mDisj
 
-
--- | Monadic equivalent of 'partition'
-partitionM :: Monad m => (a -> m Bool) -> [a] -> m ([a], [a])
-partitionM f [] = return ([], [])
-partitionM f (x:xs) = do
-  res <- f x
-  (ys, zs) <- partitionM f xs
-  return (if res then (x:ys, zs) else (ys, x:zs))
-
--- | Monadic version of 'any'
-anyM :: (Functor m, Monad m) => (a -> m Bool) -> [a] -> m Bool
-anyM pred xs = isJust <$> findM pred xs
-
--- | Monadic version of 'all'
-allM :: (Functor m, Monad m) => (a -> m Bool) -> [a] -> m Bool
-allM pred xs = isNothing <$> findM (\x -> not <$> pred x) xs
-
--- | Monadic version of 'find' (finds the first element in a list for which a computation evaluates to True)
-findM :: (Functor m, Monad m) => (a -> m Bool) -> [a] -> m (Maybe a)
-findM _ [] = return Nothing
-findM pred (x : xs) = do
-  res <- pred x
-  if res then return (Just x) else findM pred xs
-
 -- | Monadic version of 'find' (finds the first element in a list for which a computation evaluates to True)
 findJustM :: (Functor m, Monad m) => (a -> m (Maybe b)) -> [a] -> m (Maybe b)
 findJustM _ [] = return Nothing
 findJustM f (x : xs) = do
-  resMb <- f x
-  case resMb of
-    Nothing -> findJustM f xs
-    Just res -> return $ Just res
-
--- | Monadic version of if-then-else
-ifM :: Monad m => m Bool -> m a -> m a -> m a
-ifM cond t e = cond >>= (\res -> if res then t else e)
-
--- | Monadic equivalent of 'Set.partition'
-setPartitionM :: (Ord a, Monad m) => (a -> m Bool) -> Set a -> m (Set a, Set a)
-setPartitionM f s = both Set.fromList `liftM` partitionM f (Set.toList s)
+    resMb <- f x
+    case resMb of
+        Nothing -> findJustM f xs
+        Just res -> return $ Just res
 
 -- | 'pairGetter' @g1 g2@ : combine two getters into one that gets a pair
 pairGetter g1 g2 = to (\x -> (view g1 x, view g2 x))
@@ -203,9 +168,9 @@ groupTuples = map (\l -> (fst . head $ l, concatMap snd l)) . groupBy ((==) `on`
 
 showme :: (Show a) => String -> a -> a
 showme label thing = let
-  newlabel = Data.Text.Lazy.pack (label ++ ": \n")
-  in
-  pTraceShow (newlabel `Data.Text.Lazy.append` (pShow thing)) thing
+    newlabel = Data.Text.Lazy.pack (label ++ ": \n")
+    in
+    pTraceShow (newlabel `Data.Text.Lazy.append` (pShow thing)) thing
 
 showFullPrecision :: Double -> String
 showFullPrecision x = showFFloat Nothing x ""
@@ -223,8 +188,8 @@ getTmpDir = (fromMaybe "/tmp" <$> lookupEnv "TMPDIR") >>= (\x -> return $ x ++ "
 
 lookupWithError :: (Ord k, Show k) => String -> k -> Map k v -> v
 lookupWithError blame k mp = case Map.lookup k mp of
-  Just v -> v
-  Nothing -> error $ "Failed to find in " ++ blame ++ ": " ++ show k
+    Just v -> v
+    Nothing -> error $ "Failed to find in " ++ blame ++ ": " ++ show k
 
 groupByMap :: (Ord k, Ord v) => Map k v -> Map v [k]
 groupByMap mp = foldr (\(k, v) newMap -> Map.insertWith (++) v [k] newMap) Map.empty (Map.toList mp)
@@ -232,8 +197,8 @@ groupByMap mp = foldr (\(k, v) newMap -> Map.insertWith (++) v [k] newMap) Map.e
 -- Assumes that the v are all distinct.
 unPartitionMap :: (Ord k, Ord v) => Map k [v] -> Map v k
 unPartitionMap mp = foldr update Map.empty (Map.toList mp)
-  where
-    update (k, vs) m = foldr (`Map.insert` k) m vs
+    where
+        update (k, vs) m = foldr (`Map.insert` k) m vs
 
 permuteBy :: [Int] -> [a] -> [a]
 permuteBy ord xs = map snd $ sortOn fst $ zip ord xs

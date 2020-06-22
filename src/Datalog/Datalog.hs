@@ -2,7 +2,7 @@
 module Datalog.Datalog where
 
 import Database.Environment
-import Database.Util
+import Database.Utils
 import Types.Common
 import Types.Environment
 import Types.Experiments
@@ -12,7 +12,7 @@ import Types.IOFormat
 import Types.Program
 import Synquid.Type
 import Synquid.Program
-import PetriNet.Util
+import PetriNet.Utils
 import HooglePlus.Utils
 import HooglePlus.GHCChecker
 import HooglePlus.IOFormat
@@ -27,7 +27,7 @@ import Data.List
 import Data.Maybe
 import Debug.Trace
 
-enumeratePath :: SearchParams -> Environment -> RSchema -> [Example] -> UProgram -> LogicT IO ()
+enumeratePath :: SearchParams -> Environment -> SchemaSkeleton -> [Example] -> UProgram -> LogicT IO ()
 enumeratePath params env goal examples prog = do
     let gm = env ^. symbolGroups
     let getFuncs p = Map.findWithDefault Set.empty p gm
@@ -38,7 +38,7 @@ enumeratePath params env goal examples prog = do
         let subst = Map.fromList (zip syms path)
          in checkPath params env goal examples (recoverNames subst prog)) (sequence allPaths)
 
-checkPath :: SearchParams -> Environment -> RSchema -> [Example] -> UProgram -> LogicT IO ()
+checkPath :: SearchParams -> Environment -> SchemaSkeleton -> [Example] -> UProgram -> LogicT IO ()
 checkPath params env goal examples prog = do
     -- ensure the usage of all arguments
     let args = Map.keys (env ^. arguments)

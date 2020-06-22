@@ -18,7 +18,7 @@ import Data.Function
 import Control.Lens
 
 import Types.Common
-import Types.Abstract
+import Types.Type
 import Types.Experiments
 import Encoder.ConstraintEncoder
 

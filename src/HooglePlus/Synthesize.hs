@@ -1,18 +1,17 @@
 module HooglePlus.Synthesize(synthesize, envToGoal) where
 
 import Database.Environment
-import Database.Util
+import Database.Utils
 import Encoder.ConstraintEncoder
 import qualified HooglePlus.Abstraction as Abstraction
 import PetriNet.PNSolver
 import Synquid.Error
-import Synquid.Logic
 import Synquid.Parser
 import Synquid.Pretty
 import Synquid.Program
 import Synquid.Resolver
 import Synquid.Type
-import Synquid.Util
+import Synquid.Utils
 import Types.Common
 import Types.Environment
 import Types.Experiments
@@ -115,8 +114,8 @@ synthesize searchParams goal examples messageChan initSolverState = catch (do
     -- preseedExamples <- augmentTestSet envWithHo goalType
     let augmentedExamples = examples -- nubOrdOn inputs $ examples ++ preseedExamples
     case checkResult of
-        Right errs -> error (unlines ("examples does not type check" : errs))
-        Left _ -> evalStateT (runPNSolver envWithHo goalType augmentedExamples) is
+        Left errs -> error (unlines ("examples does not type check" : errs))
+        Right _ -> evalStateT (runPNSolver envWithHo goalType augmentedExamples) is
     )
     (\e ->
          writeChan messageChan (MesgLog 0 "error" (show e)) >>

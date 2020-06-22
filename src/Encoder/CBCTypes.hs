@@ -18,7 +18,7 @@ import Numeric.Limp.Program hiding (_constraints)
 import Numeric.Limp.Rep
 
 import Types.Common
-import Types.Abstract
+import Types.Type
 import Types.Experiments
 import Encoder.ConstraintEncoder (FunctionCode)
 

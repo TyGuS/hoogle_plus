@@ -46,21 +46,21 @@ formulogPreamble = unlines [ "type tvar = string"
                            , "output result(exp)"
                            ]
 
-runFormulog :: SearchParams -> Environment -> RSchema -> [Example] -> Int -> LogicT IO ()
+runFormulog :: SearchParams -> Environment -> SchemaSkeleton -> [Example] -> Int -> LogicT IO ()
 runFormulog params env goal examples d = do
     paths <- liftIO $ findPath env goal d
     ifte (msum $ map (enumeratePath params env goal examples) paths)
          return
          (runFormulog params env goal examples (d + 1))
 
-findPath :: Environment -> RSchema -> Int -> IO [UProgram]
+findPath :: Environment -> SchemaSkeleton -> Int -> IO [UProgram]
 findPath env goal d = do
     -- get higher-order arguments
-    let args = map (over _2 (shape . toMonotype)) (Map.toList (env ^. arguments))
+    let args = map (over _2 toMonotype) (Map.toList (env ^. arguments))
     let hoArgs = filter (isFunctionType . snd) args
     let hoArgSat = map (uncurry writeFunctionFormulog) hoArgs
     -- write query into the file
-    let dst = varToDatatype (lastType (shape (toMonotype goal)))
+    let dst = varToDatatype (lastType (toMonotype goal))
     let query = printf "result(P) :- sat(%s, P, D), D = %d." (writeType (FormulogPack dst)) d
     -- write depth into the constraints
     let src = "./data/formulog/input.flg"
@@ -82,6 +82,6 @@ writeFormulog env =
     writeFile "./data/formulog/input.flg" $
         unlines (formulogPreamble : map (uncurry writeFunctionFormulog) (Map.toList $ env ^. groups))
 
-writeFunctionFormulog :: Id -> SType -> String
+writeFunctionFormulog :: Id -> TypeSkeleton -> String
 writeFunctionFormulog = writeFunction "sat(%s, exp_app(\"%s\", %s), %s)" (foldr (printf "%s :: %s") "[]") FormulogPack
 

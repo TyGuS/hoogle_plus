@@ -3733,9 +3733,9 @@ when :: Applicative f => Bool -> f () -> f ()
 unless :: Applicative f => Bool -> f () -> f ()
 liftM :: Monad m => (a1 -> r) -> m a1 -> m r
 liftM2 :: Monad m => (a1 -> a2 -> r) -> m a1 -> m a2 -> m r
-liftM3 :: Monad m => (a1 -> a2 -> a3 -> r) -> m a1 -> m a2 -> m a3 -> m r
-liftM4 :: Monad m => (a1 -> a2 -> a3 -> a4 -> r) -> m a1 -> m a2 -> m a3 -> m a4 -> m r
-liftM5 :: Monad m => (a1 -> a2 -> a3 -> a4 -> a5 -> r) -> m a1 -> m a2 -> m a3 -> m a4 -> m a5 -> m r
+-- liftM3 :: Monad m => (a1 -> a2 -> a3 -> r) -> m a1 -> m a2 -> m a3 -> m r
+-- liftM4 :: Monad m => (a1 -> a2 -> a3 -> a4 -> r) -> m a1 -> m a2 -> m a3 -> m a4 -> m r
+-- liftM5 :: Monad m => (a1 -> a2 -> a3 -> a4 -> a5 -> r) -> m a1 -> m a2 -> m a3 -> m a4 -> m a5 -> m r
 ap :: Monad m => m (a -> b) -> m a -> m b
 (<$!>) :: Monad m => (a -> b) -> m a -> m b
 infixl 4 <$!>
@@ -6805,3 +6805,6 @@ instance GHC.Float.RealFloat a => GHC.Float.Floating (Data.Complex.Complex a)
 instance Foreign.Storable.Storable a => Foreign.Storable.Storable (Data.Complex.Complex a)
 instance GHC.Base.Applicative Data.Complex.Complex
 instance GHC.Base.Monad Data.Complex.Complex
+module Control.Monad.State
+data StateT s m a
+runStateT :: StateT s m a -> s -> m (a, s)

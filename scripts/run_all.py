@@ -19,6 +19,7 @@ LOGFILE = 'data/results.log'                                         # Log file
 CSV_FILE = 'data/result.tsv'                                         # CSV-output file
 DEFAULT_QUERY_FILE = "benchmark/suites/working.yml"
 DUMPFILE = 'data/results'                                            # Result serialization file
+FNULL = open(os.devnull, 'w')
 
 class Benchmark:
     def __init__(self, name, query, example, options=[]):

@@ -20,7 +20,7 @@ import Encoder.ConstraintEncoder (FunctionCode(..))
 import qualified Encoder.ConstraintEncoder as CE
 import Encoder.Utils
 import Types.Common
-import Types.Abstract
+import Types.Type
 import Synquid.Pretty
 
 addPlaceVar :: AbstractSkeleton -> Encoder ()
@@ -82,7 +82,7 @@ disableTransitions trs = do
     --         modify $ over (constraints . persistConstraints) (dis :)
 
 addArc :: FunctionCode -> Encoder ()
-addArc (FunctionCode f _ params rets) = do
+addArc (FunctionCode f params rets) = do
     transMap <- gets $ view (variables . trans2variable)
     let trVar = findVariable "trans2variable" f transMap
     -- add incoming arcs
