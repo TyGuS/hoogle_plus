@@ -113,11 +113,9 @@ executables:
 
 tests:
   spec:
-    main: Spec.hs
-    source-dirs:
-      - test
+    main: Test.hs
+    source-dirs: test
     dependencies:
       - HooglePlus
-      - hspec
-      - hspec-discover
-    build-tools: hspec-discover
+      - tasty
+      - tasty-hunit

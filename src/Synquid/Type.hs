@@ -72,6 +72,7 @@ breakdown t = [t]
 
 allBaseTypes :: TypeSkeleton -> [TypeSkeleton]
 allBaseTypes t@TypeVarT {} = [t]
+allBaseTypes t@DatatypeT {} = [t]
 allBaseTypes t@TyAppT {} = [t]
 allBaseTypes t@TyFunT {} = [t]
 allBaseTypes (FunctionT _ tArg tRet) = allBaseTypes tArg ++ allBaseTypes tRet
