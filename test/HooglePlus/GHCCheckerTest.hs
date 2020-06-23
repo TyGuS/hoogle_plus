@@ -58,7 +58,6 @@ tests = testGroup "GHCChecker"
         let modules = ["Prelude"]
         result <- checkStrictness' tyclassCount lambdaExpr typeExpr modules
         result @?= True
-
     , testCase "checkStrictness': reject a partially used lambda" $ do
         let tyclassCount = 0
         let lambdaExpr = "(\\x -> \\y -> x)"
