@@ -14,5 +14,5 @@ class Monad m => CheckMonad m where
     setNameMapping :: Map Id Id -> m ()
     getIsChecked :: m Bool
     setIsChecked :: Bool -> m ()
-    getMessageChan :: m (Chan Message)
+    getLogLevel :: m Int
     overStats :: (TimeStatistics -> TimeStatistics) -> m ()

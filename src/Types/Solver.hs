@@ -114,8 +114,7 @@ data SolverState enc = SolverState {
     _groupState :: GroupState,
     _encoder :: ConstraintEncoder enc => enc,
     _typeChecker :: CheckerState,
-    _filterState :: FilterState,
-    _messageChan :: Chan Message
+    _filterState :: FilterState
 }
 
 emptySolverState :: ConstraintEncoder enc => SolverState enc
@@ -127,8 +126,7 @@ emptySolverState = SolverState {
     _groupState = emptyGroup,
     _encoder = emptyEncoder,
     _typeChecker = emptyChecker,
-    _filterState = emptyFilterState,
-    _messageChan = undefined
+    _filterState = emptyFilterState
 }
 
 makeLenses ''SolverState
@@ -143,7 +141,7 @@ instance (ConstraintEncoder enc, Monad m) => CheckMonad (PNSolver enc m) where
     setNameMapping nm = modify (set (typeChecker . nameMapping) nm)
     getIsChecked = gets (view (typeChecker . isChecked))
     setIsChecked c = modify (set (typeChecker . isChecked) c)
-    getMessageChan = gets (view messageChan)
+    getLogLevel = gets (view (searchParams . explorerLogLevel))
     overStats f = modify (over (statistics . solverStats) f)
 
 instance (ConstraintEncoder enc, Monad m) => CheckMonad (BackTrack enc m) where
@@ -153,7 +151,7 @@ instance (ConstraintEncoder enc, Monad m) => CheckMonad (BackTrack enc m) where
     setNameMapping nm = modify (set (typeChecker . nameMapping) nm)
     getIsChecked = gets (view (typeChecker . isChecked))
     setIsChecked c = modify (set (typeChecker . isChecked) c)
-    getMessageChan = gets (view messageChan)
+    getLogLevel = gets (view (searchParams . explorerLogLevel))
     overStats f = modify (over (statistics . solverStats) f)
 
 data SearchResult = NotFound 

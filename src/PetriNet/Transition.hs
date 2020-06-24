@@ -40,7 +40,7 @@ instantiate :: (ConstraintEncoder enc, MonadIO m)
 instantiate env sigs = do
     modify $ set (refineState . toRemove) []
     noBlack <- getExperiment disableBlack
-    blacks <- liftIO $ readFile "blacklist.txt"
+    blacks <- liftIO $ readFile "data/blacklist.txt"
     let filteredSigs = Map.filterWithKey (\k _ -> noBlack || k `notElem` words blacks) sigs
     Map.fromList <$> instantiate' filteredSigs
   where
@@ -170,7 +170,6 @@ groupSignatures sigs = do
     let groupMap = Map.fromList $ map (\(gid, (_, ids)) -> (gid, ids)) signatureGroups
     let t2g = Map.fromList $ map (\(gid, (aty, _)) -> (aty, gid)) signatureGroups
     -- write out the info.
-    mesgChan <- gets $ view messageChan
     modify $ over (statistics . solverStats . duplicateSymbols) (++ [(length sigLists, sum dupes, sum $ map length $ sigLists)])
     return (t2g, groupMap)
 
@@ -362,5 +361,5 @@ updateTy2Tr id f =
         modify $ \st -> 
             st { _encoder = modifyTy2tr (addTransition t id) (_encoder st) }) includedTyps
     where
-        includedTyps = nub (allArgTypes f)
+        includedTyps = nub (breakdown f)
         addTransition k tid = HashMap.insertWith Set.union k (Set.singleton tid)

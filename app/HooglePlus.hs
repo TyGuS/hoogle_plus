@@ -48,7 +48,6 @@ import Types.Solver
 import Types.Type
 
 import Control.Concurrent
-import Control.Concurrent.Chan
 import Control.Exception
 import Control.Lens ((^.))
 import Control.Monad
@@ -276,39 +275,12 @@ executeSearch synquidParams searchParams inStr = catch (do
     env' <- readEnv $ Types.Experiments.envPath synquidParams
     env <- readBuiltinData synquidParams env'
     goal <- envToGoal env tquery
-    solverChan <- newChan
     case searchParams ^. solver of
-        Z3SMT -> do
-            forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState Z3SMTState)
-            readChan solverChan >>= (handleMessages solverChan)
-        Z3SAT -> do
-            forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState Z3SATState)
-            readChan solverChan >>= (handleMessages solverChan)
-        CBC -> do
-            forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState CBCState)
-            readChan solverChan >>= (handleMessages solverChan)
-        Prolog -> do
-            forkIO $ synthesize searchParams goal exquery solverChan (emptySolverState :: SolverState PrologState)
-            readChan solverChan >>= (handleMessages solverChan)
+        Z3SMT -> synthesize searchParams goal exquery (emptySolverState :: SolverState Z3SMTState)
+        Z3SAT -> synthesize searchParams goal exquery (emptySolverState :: SolverState Z3SATState)
+        CBC -> synthesize searchParams goal exquery (emptySolverState :: SolverState CBCState)
+        Prolog -> synthesize searchParams goal exquery (emptySolverState :: SolverState PrologState)
         Souffle -> observeT $ runSouffle searchParams (gEnvironment goal) (gSpec goal) exquery 0
         _ -> error "not implemented"
     )
     (\(e :: SomeException) -> printResult $ encodeWithPrefix $ QueryOutput [] (show e) [])
-    where
-        logLevel = searchParams ^. explorerLogLevel
-
-        handleMessages ch (MesgClose _) = when (logLevel > 0) (putStrLn "Search complete") >> return ()
-        handleMessages ch (MesgP (out, stats, _)) = do
-            when (logLevel > 0) $ printf "[writeStats]: %s\n" (show stats)
-            -- printSolution program
-            printResult $ encodeWithPrefix out
-            hFlush stdout
-            readChan ch >>= (handleMessages ch)
-        handleMessages ch (MesgS debug) = do
-            when (logLevel > 1) $ printf "[writeStats]: %s\n" (show debug)
-            readChan ch >>= (handleMessages ch)
-        handleMessages ch (MesgLog level tag msg) = do
-            when (level <= logLevel) (do
-                mapM_ (printf "[%s]: %s\n" tag) (lines msg)
-                hFlush stdout)
-            readChan ch >>= (handleMessages ch)

@@ -1,3 +1,5 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module HooglePlus.Synthesize(synthesize, envToGoal) where
 
 import Database.Environment
@@ -73,10 +75,9 @@ synthesize :: ConstraintEncoder enc
            => SearchParams 
            -> Goal 
            -> [Example] 
-           -> Chan Message
            -> SolverState enc
            -> IO ()
-synthesize searchParams goal examples messageChan initSolverState = catch (do
+synthesize searchParams goal examples initSolverState = catch (do
     let rawEnv = gEnvironment goal
     let goalType = gSpec goal
     let destinationType = lastType (toMonotype goalType)
@@ -104,22 +105,19 @@ synthesize searchParams goal examples messageChan initSolverState = catch (do
     let is = initSolverState { 
           _searchParams = searchParams
         , _refineState = emptyRefineState { _abstractionCover = initCover }
-        , _messageChan = messageChan
-        , _typeChecker = emptyChecker { _checkerChan = messageChan }
+        , _typeChecker = emptyChecker { _checkerLogLevel = searchParams ^. explorerLogLevel }
         }
 
     -- before synthesis, first check that user has provided valid examples
     let exWithOutputs = filter ((/=) "??" . output) examples
-    checkResult <- checkExamples envWithHo goalType exWithOutputs messageChan
+    checkResult <- checkExamples envWithHo goalType exWithOutputs
     -- preseedExamples <- augmentTestSet envWithHo goalType
     let augmentedExamples = examples -- nubOrdOn inputs $ examples ++ preseedExamples
     case checkResult of
         Left errs -> error (unlines ("examples does not type check" : errs))
         Right _ -> evalStateT (runPNSolver envWithHo goalType augmentedExamples) is
     )
-    (\e ->
-         writeChan messageChan (MesgLog 0 "error" (show e)) >>
-         writeChan messageChan (MesgClose (CSError e)) >>
-         printResult (encodeWithPrefix (QueryOutput [] (show e) [])) >>
+    (\(e :: SomeException) -> do
+         printResult (encodeWithPrefix (QueryOutput [] (show e) []))
          error (show e))
     -- return ()

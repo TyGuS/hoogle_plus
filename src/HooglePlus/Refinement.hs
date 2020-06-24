@@ -259,7 +259,7 @@ generalize bound t@(TyAppT tFun tArg) =
     (lift (freshId bound "T") >>= (return . TypeVarT)) `mplus` do
         let (dt, args) = collectArgs t
         args' <- mapM (generalize bound) args
-        return (foldr TyAppT (DatatypeT dt) args')
+        return (foldl' TyAppT (DatatypeT dt) args')
 generalize bound (TyFunT tArg tRes) = do
     tArg' <- generalize bound tArg
     tRes' <- generalize bound tRes

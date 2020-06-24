@@ -90,10 +90,10 @@ toMonotype :: SchemaSkeleton -> TypeSkeleton
 toMonotype (Monotype t) = t
 toMonotype (ForallT _ t) = toMonotype t
 
-toPolytype :: TypeSkeleton -> SchemaSkeleton
-toPolytype t = foldr ForallT (Monotype t) vars
+toPolytype :: [Id] -> TypeSkeleton -> SchemaSkeleton
+toPolytype bound t = foldr ForallT (Monotype t) vars
     where
-        vars = typeVarsOf t
+        vars = typeVarsOf t `Set.difference` Set.fromList bound
 
 boundVarsOf :: SchemaSkeleton -> [Id]
 boundVarsOf (ForallT a sch) = a : boundVarsOf sch

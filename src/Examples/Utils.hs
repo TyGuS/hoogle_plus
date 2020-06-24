@@ -23,7 +23,6 @@ import Data.List.Extra (dropEnd)
 import Outputable
 import Control.Monad.State
 import Control.Lens
-import Control.Concurrent.Chan
 
 import Types.Filtering (defaultTimeoutMicro, defaultDepth, defaultInterpreterTimeoutMicro, frameworkModules)
 import Types.IOFormat
@@ -120,9 +119,8 @@ wrapParens = printf "(%s)"
 supportedTyclasses :: [String]
 supportedTyclasses = ["Num", "Ord", "Eq"]
 
-checkTypes :: Environment -> Chan Message -> SchemaSkeleton -> SchemaSkeleton -> IO (Bool, TypeSkeleton)
-checkTypes env checkerChan s1 s2 = do
-    let initChecker = emptyChecker { _checkerChan = checkerChan }
+checkTypes :: Environment -> SchemaSkeleton -> SchemaSkeleton -> IO (Bool, TypeSkeleton)
+checkTypes env s1 s2 = do
     let bound = env ^. boundTypeVars
     (t, state) <- runStateT (do
         r1 <- freshType bound s1
@@ -131,7 +129,7 @@ checkTypes env checkerChan s1 s2 = do
         let t2 = skipTyclass r2
         state $ runState $ solveTypeConstraint env t1 t2
         tass <- gets $ view typeAssignment
-        return $ typeSubstitute tass r2) initChecker
+        return $ typeSubstitute tass r2) emptyChecker
     return (state ^. isChecked, t)
 
 mkPolyType :: TypeSkeleton -> SchemaSkeleton

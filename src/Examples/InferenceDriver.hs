@@ -18,7 +18,6 @@ import Synquid.Type
 import PetriNet.Utils
 import Synquid.Pretty
 
-import Control.Concurrent.Chan
 import Control.Exception
 import Control.Monad.State
 import Control.Monad.Logic
@@ -161,12 +160,11 @@ findWithDefaultAntiVariable t1 t2 = do
        else checkTyclass t1 t2
     where
         unifiableVars tass t = do
-            messageChan <- newChan
             results <- filterM (\(k, vs) -> do
                 let vars = Set.toList $ typeVarsOf k `Set.union` typeVarsOf t
                 let boundVars = filter (not . (==) existTypeVarPrefix . head) vars
                 let env = emptyEnv { _boundTypeVars = boundVars }
-                (isChecked, _) <- checkTypes env messageChan (mkPolyType t) (mkPolyType k)
+                (isChecked, _) <- checkTypes env (mkPolyType t) (mkPolyType k)
                 return isChecked) (Map.toList tass)
             return $ concatMap snd results
 
@@ -191,7 +189,7 @@ antiUnification' t1@(TyAppT tFun1 tArg1) t2@(TyAppT tFun2 tArg2) = do
     let (dt2, args2) = collectArgs t2
     if dt1 == dt2
         then do args' <- zipWithM antiUnification' args1 args2
-                return $ foldr TyAppT (DatatypeT dt1) args'
+                return $ foldl' TyAppT (DatatypeT dt1) args'
         else findWithDefaultAntiVariable t1 t2
 antiUnification' t1@(TyFunT tArg1 tRes1) t2@(TyFunT tArg2 tRes2) = do
     tArg <- antiUnification' tArg1 tArg2
@@ -229,8 +227,7 @@ generalizeType exTyps tcass t = do
         checkUnify typ = do
             let vars = typeVarsOf typ
             let sch = foldr ForallT (Monotype typ) vars
-            messageChan <- newChan
-            checkResults <- mapM (\s -> checkTypes emptyEnv messageChan s sch) exTyps
+            checkResults <- mapM (\s -> checkTypes emptyEnv s sch) exTyps
             return $ all fst checkResults
         toConstraint (id, s) = intercalate ", " $ map (unwords . (:[id])) (Set.toList s)
         addTyclasses (constraints, t) =
@@ -270,7 +267,7 @@ generalizeSType tcass t@(TyAppT tFun tArg) = (do
         generalizedArgs <- mapM (generalizeSType tcass) args
         let (tyclassMaps, args') = unzip generalizedArgs
         let argTyclasses = foldr (Map.foldrWithKey (Map.insertWith Set.union)) Map.empty tyclassMaps
-        return (argTyclasses, foldr TyAppT (DatatypeT dt) args')
+        return (argTyclasses, foldl' TyAppT (DatatypeT dt) args')
     ) `mplus`
     if (show t == "[Char]") then datatypeToVar tcass t else mzero
 generalizeSType _ t = error $ "unsupported type " ++ show t

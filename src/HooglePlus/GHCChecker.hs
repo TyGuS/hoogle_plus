@@ -49,7 +49,6 @@ import Text.Printf
 import Text.Regex
 import Var
 import Data.UUID.V4
-import Control.Concurrent.Chan
 import Control.Monad.Trans.State
 import Control.Concurrent
 import Debug.Trace
@@ -134,9 +133,8 @@ check :: MonadIO m
        -> [Example] -- examples for post-filtering
        -> TProgram -- program to be checked
        -> SchemaSkeleton -- goal type to be checked against
-       -> Chan Message -- message channel for logging
        -> FilterTest m (Maybe AssociativeExamples) -- return Nothing is check fails, otherwise return a list of updated examples
-check env searchParams examples program goalType solverChan =
+check env searchParams examples program goalType =
     runGhcChecks searchParams env (lastType $ toMonotype goalType) examples program
 
 -- validate type signiture, run demand analysis, and run filter test

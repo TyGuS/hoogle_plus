@@ -20,7 +20,6 @@ import HooglePlus.IOFormat
 import Control.Monad.Logic
 import Control.Monad.State
 import Control.Lens
-import Control.Concurrent.Chan
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.List
@@ -48,5 +47,5 @@ checkPath params env goal examples prog = do
     guard (filterPaths prog)
 
     (checkResult, _) <- liftIO $
-        runStateT (liftIO newChan >>= check env params examples prog goal) emptyFilterState
+        runStateT (check env params examples prog goal) emptyFilterState
     maybe mzero (liftIO . (toOutput env prog >=> (printResult . encodeWithPrefix))) checkResult

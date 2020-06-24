@@ -14,7 +14,9 @@ import qualified Data.Map as Map
 tests :: TestTree
 tests = testGroup "Test TypeChecker"
     [ testGroup "solveTypeConstraint"
-        [ testCase "a ~ a" $
+        [ testCase "bottom ~ bottom" $
+            checkTypeSolver BottomT BottomT True Map.empty
+        , testCase "a ~ a" $
             checkTypeSolver (TypeVarT "a") (TypeVarT "a") True Map.empty
         , testCase "a /~ b" $
             checkTypeSolver (TypeVarT "a") (TypeVarT "b") False Map.empty

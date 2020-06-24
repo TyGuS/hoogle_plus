@@ -65,7 +65,7 @@ instance Monad m => CheckMonad (AntiUnifier m) where
     setNameMapping = setNameMapping
     getIsChecked = getIsChecked
     setIsChecked = setIsChecked
-    getMessageChan = getMessageChan
+    getLogLevel = getLogLevel
     overStats = overStats
 
 existTypeVarPrefix = '?'

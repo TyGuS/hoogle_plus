@@ -158,10 +158,10 @@ instance (Pretty k, Pretty v) => Pretty (HashMap k v) where
 {- Types -}
 
 instance Pretty TypeSkeleton where
-  pretty = prettyType
+    pretty = prettyType
 
 instance Show TypeSkeleton where
- show = show . plain . pretty
+    show = show . plain . pretty
 
 -- | Pretty-printed refinement type
 prettyType :: TypeSkeleton -> Doc

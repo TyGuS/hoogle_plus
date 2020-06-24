@@ -30,7 +30,6 @@ import Examples.InferenceDriver
 import Control.Exception
 import Control.Monad.State
 import Control.Lens
-import Control.Concurrent.Chan
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
@@ -41,8 +40,8 @@ import Data.List
 import Text.Printf
 import Debug.Trace
 
-checkExample :: Environment -> SchemaSkeleton -> Example -> Chan Message -> IO (Either ErrorMessage SchemaSkeleton)
-checkExample env typ ex checkerChan = do
+checkExample :: Environment -> SchemaSkeleton -> Example -> IO (Either ErrorMessage SchemaSkeleton)
+checkExample env typ ex = do
     let mdls = Set.toList $ env ^. included_modules
     eitherTyp <- parseExample mdls mkFun
     case eitherTyp of
@@ -50,7 +49,7 @@ checkExample env typ ex checkerChan = do
         Right exTyp -> do
             let err = printf "%s does not have type %s" (show ex) (show typ) :: String
             let tcErr = printf "%s does not satisfy type class constraint in %s" (show ex) (show typ) :: String
-            (res, substedTyp) <- checkTypes env checkerChan exTyp typ
+            (res, substedTyp) <- checkTypes env exTyp typ
             let (tyclasses, strippedTyp) = unprefixTc substedTyp
             let tyclassesPrenex = intercalate ", " $ map show tyclasses
             let breakTypes = map show $ breakdown strippedTyp
@@ -72,9 +71,9 @@ checkExample env typ ex checkerChan = do
              in (currTc : tcs, t) 
         unprefixTc t = ([], t)
 
-checkExamples :: Environment -> SchemaSkeleton -> [Example] -> Chan Message -> IO (Either [ErrorMessage] [SchemaSkeleton])
-checkExamples env typ exs checkerChan = do
-    outExs <- mapM (\ex -> checkExample env typ ex checkerChan) exs
+checkExamples :: Environment -> SchemaSkeleton -> [Example] -> IO (Either [ErrorMessage] [SchemaSkeleton])
+checkExamples env typ exs = do
+    outExs <- mapM (\ex -> checkExample env typ ex) exs
     let (errs, validResults) = partitionEithers outExs
     if null errs then return $ Right validResults
                  else return $ Left errs
@@ -110,15 +109,13 @@ augmentTestSet env goal = do
                                in zip typesList examplesList
 
         generalThan s1 s2 = do
-            msgChan <- newChan
-            let initChecker = emptyChecker { _checkerChan = msgChan }
             let bound = env ^. boundTypeVars
             state <- execStateT (do
                 s1' <- freshType bound s1
                 s2' <- freshType bound s2
                 let vars = typeVarsOf s2'
                 let env' = foldr addTypeVar env vars
-                state $ runState $ solveTypeConstraint env' s1' s2') initChecker
+                state $ runState $ solveTypeConstraint env' s1' s2') emptyChecker
             return $ state ^. isChecked
 
 checkExampleOutput :: [String] -> Environment -> TypeQuery -> String -> [Example] -> IO (Maybe [Example])

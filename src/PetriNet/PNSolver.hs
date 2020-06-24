@@ -10,6 +10,7 @@ import Database.Utils
 import Encoder.ConstraintEncoder
 import HooglePlus.Abstraction
 import HooglePlus.CodeFormer
+import HooglePlus.IOFormat
 import HooglePlus.Refinement
 import HooglePlus.Stats
 import HooglePlus.TypeChecker
@@ -33,6 +34,7 @@ import Types.Solver
 import Types.Type
 import Types.IOFormat
 import Types.TypeChecker
+import Types.CheckMonad
 
 import Control.Concurrent.Chan
 import Control.Lens
@@ -170,10 +172,7 @@ findPath env dst = do
         [] -> do
             loc <- gets $ view (searchState . currentLoc)
             maxDepth <- getExperiment maxApplicationDepth
-            when (loc >= maxDepth) $ do
-                mesgChan <- gets $ view messageChan
-                liftIO $ writeChan mesgChan (MesgClose CSNoSolution)
-                error "cannot find a path"
+            when (loc >= maxDepth) $ error "cannot find a path"
             modify $ set (searchState . currentLoc) (loc + 1)
             withTime EncodingTime $ incEncoder env
             findPath env dst
@@ -285,7 +284,8 @@ parseAndCheck env dst code = do
     counter <- gets $ view (typeChecker . nameCounter)
     writeLog 1 "parseAndCheck" $ text "Find program second" <+> pretty (recoverNames mapping prog)
     checkerState <- gets $ view typeChecker
-    let checkerState' = checkerState { _typeAssignment = Map.empty, _isChecked = True }
+    logLv <- getLogLevel
+    let checkerState' = checkerState { _typeAssignment = Map.empty, _isChecked = True, _checkerLogLevel = logLv }
     (btm, checkerState) <- runStateT (bottomUpCheck env prog) checkerState'
     modify $ set typeChecker checkerState
     writeLog 2 "parseAndCheck" $ text "bottom up checking get program" <+> pretty (recoverNames mapping btm)
@@ -413,11 +413,10 @@ checkSolution env goal examples code = do
     solutions <- gets $ view (searchState . currentSolutions)
     mapping <- gets $ view (typeChecker . nameMapping)
     params <- gets $ view searchParams
-    msgChan <- gets $ view messageChan
     fState <- gets $ view filterState
     let code' = recoverNames mapping code
     (checkResult, fState') <- withTime TypeCheckTime $ 
-        liftIO $ runStateT (check env params examples code' goal msgChan) fState
+        liftIO $ runStateT (check env params examples code' goal) fState
     modify $ set filterState fState'
     if (code' `elem` solutions) || isNothing checkResult
         then mzero
@@ -440,8 +439,6 @@ runPNSolver env goal examples = do
     withTime TotalSearch $ withTime EncodingTime $ resetEncoder env t
     -- findFirstN env goal st examples [] cnt
     findProgram env goal examples cnt
-    msgChan <- gets $ view messageChan
-    liftIO $ writeChan msgChan (MesgClose CSNormal)
 
 --------------------------------------------------------------------------------
 -- Helper functions for printing results
@@ -452,10 +449,9 @@ writeSolution :: (ConstraintEncoder enc, MonadIO m)
 writeSolution out = do
     stats <- gets $ view (statistics . solverStats)
     loc <- gets $ view (searchState . currentLoc)
-    msgChan <- gets $ view messageChan
     let stats' = stats { _pathLength = loc }
-    liftIO $ writeChan msgChan (MesgP (out, stats', undefined))
     writeLog 1 "writeSolution" $ text (show stats')
+    liftIO $ printResult $ encodeWithPrefix out
 
 --------------------------------------------------------------------------------
 -- Helper functions for refinements

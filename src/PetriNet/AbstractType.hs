@@ -122,7 +122,8 @@ currentAbst env cover (FunctionT x tArg tRes) = do
     tRes' <- currentAbst env cover tRes
     return $ FunctionT x tArg' tRes'
 currentAbst env cover at = do
-    freshAt <- freshType (env ^. boundTypeVars) (toPolytype at)
+    let bound = env ^. boundTypeVars
+    freshAt <- freshType bound (toPolytype bound at)
     case currentAbst' freshAt rootNode of
         Nothing -> error $ "cannot find current abstraction for type " ++ show at
         Just t -> return t
@@ -157,7 +158,7 @@ applySemantic env fun args = do
         else return BottomT
     where
         typeConstraint bound t1 t2 = do
-            t2' <- freshType bound (toPolytype t2)
+            t2' <- freshType bound (toPolytype bound t2)
             return (t1, t2')
 
 compareAbstract :: Environment -> AbstractSkeleton -> AbstractSkeleton -> Ordering

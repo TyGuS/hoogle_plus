@@ -167,11 +167,10 @@ recoverNames mapping (Program (PFun x body) t) = Program (PFun x body') t
 
 getExperiment exp = gets $ view (searchParams . exp)
 
-writeLog :: (CheckMonad (t m), MonadIO (t m), MonadIO m) => Int -> String -> Doc -> t m ()
+writeLog :: CheckMonad m => Int -> String -> Doc -> m ()
 writeLog level tag msg = do
-    mesgChan <- getMessageChan
-    liftIO $ writeChan mesgChan (MesgLog level tag $ show $ plain msg)
-    -- when (level <= level) (trace (printf "[%s]: %s\n" tag (show $ plain msg)) $ return ())
+    logLevel <- getLogLevel
+    when (level <= logLevel) (trace (printf "[%s]: %s\n" tag (show $ plain msg)) $ return ())
 
 stripSuffix :: String -> String
 stripSuffix = replaceId hoPostfix "" . removeLast '_'

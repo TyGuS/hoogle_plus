@@ -14,7 +14,7 @@ from colorama import init, Fore, Back, Style
 HPLUS_CMD = ['stack', 'exec', '--', 'hplus'] # Command to call hoogle+
 TIMEOUT_CMD = 'timeout' # Timeout command
 TIMEOUT = '60' # Timeout value (seconds)
-CMD_OPTS = ['--stop-refine', '--stop-threshold=10', '--solver-name=cbc']
+CMD_OPTS = ['--stop-refine', '--stop-threshold=10', '--solver-name=z3smt']
 LOGFILE = 'data/results.log'                                         # Log file
 CSV_FILE = 'data/result.tsv'                                         # CSV-output file
 DEFAULT_QUERY_FILE = "benchmark/suites/working.yml"
@@ -76,7 +76,7 @@ def run_benchmark(name, query, examples, default_opts):
             # print(line)
             if line[:8] == b'RESULTS:':
                 solution = json.loads(line[8:])
-        
+
         print('{0:0.2f}'.format(end - start), end=' ')
 
         if not solution or solution['outError']: # Synthesis failed

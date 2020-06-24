@@ -14,7 +14,7 @@ import Types.Common
 import Synquid.Type
 import Synquid.Pretty
 import Synquid.Program
-import PetriNet.Utils hiding (writeLog)
+import PetriNet.Utils
 
 import Control.Monad.State
 import Control.Lens
@@ -56,6 +56,8 @@ bottomUpCheck env (Program (PApp f args) typ) = do
       state $ runState $ mapM_ (uncurry (solveTypeConstraint env)) (zip checkedArgTys argVars)
       -- we eagerly substitute the assignments into the return type of t
       tass <- gets (view typeAssignment)
+      writeLog 3 "bottomUpCheck" $ pretty tass
+      writeLog 3 "bottomUpCheck" $ pretty (partialReturn checkedArgs t)
       let ret = typeSubstitute tass (partialReturn checkedArgs t)
       -- if any of these checks returned false, this function application
       -- would produce a bottom type
@@ -102,6 +104,7 @@ checkAssignment env id tv = do
     solveTypeConstraint env typ tv
 
 solveTypeConstraint :: Environment -> TypeSkeleton -> TypeSkeleton -> Checker ()
+solveTypeConstraint _ t1 t2 | t1 == t2 = return ()
 solveTypeConstraint _ AnyT _ = return ()
 solveTypeConstraint _ _ AnyT = return ()
 solveTypeConstraint env tv@(TypeVarT id) tv'@(TypeVarT id')
@@ -173,10 +176,6 @@ unify env v t =
 --------------------------------------------------------------------------------
 -- | Miscellaneous
 --------------------------------------------------------------------------------
-
-writeLog :: Monad m => Int -> String -> Doc -> m ()
-writeLog level tag msg =
-    when (level <= 0) (trace (printf "[%s]: %s\n" tag (show $ plain msg)) $ return ())
 
 isValidSubst :: Map Id TypeSkeleton -> Bool
 isValidSubst m = not $ any (\(v, t) -> v `Set.member` typeVarsOf t) (Map.toList m)

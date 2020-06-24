@@ -186,7 +186,7 @@ generateEnv genOpts = do
                            }
             groupSymbols <$> generateHigherOrder genOpts env'
     printStats result
-    print (result ^. symbols)
+    -- print (result ^. symbols)
     return result
    where
      filterEntries entries Nothing = entries
