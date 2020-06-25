@@ -86,7 +86,7 @@
     - inputs: ["\\x y -> GHC.List.length x * GHC.List.length y", "\\x -> x ++ x", "[1,2,3]"]
       output: "18"
 
-- name: singleList
+- name: singletonList
   query: "x: a -> [a]"
   solution: "\\arg0 -> (:) arg0 []"
   source: "hoogle"
@@ -96,7 +96,7 @@
     - inputs: ["\"abc\""]
       output: "[\"abc\"]"
 
-- name: head-last
+- name: headLast
   query: "xs: [a] -> (a,a)"
   solution: "\\arg1 -> (Data.List.head arg1, Data.List.last arg1)"
   source: "hoogle"
@@ -104,7 +104,7 @@
     - inputs: ["[1,2,3,4]"]
       output: (1, 4)
 
-- name: head-rest
+- name: headRest
   query: "xs: [a] -> (a, [a])"
   solution: "\\arg1 -> (Data.List.head arg1, Data.List.tail arg1)"
   source: "hoogle"
@@ -112,7 +112,7 @@
     - inputs: ["[1,2,3,4]"]
       output: (1, [2,3,4])
 
-- name: pred-match
+- name: coundPredMatch
   query: "xs: [a] -> p: (a -> Bool) -> Int"
   solution: "\\xs f -> Data.List.length (Data.List.filter f xs)"
   source: "hoogle"
@@ -278,7 +278,7 @@
     - inputs: ["\\x -> x * x", "[1,2,3]"]
       output: "[1,4,9]"
 
-- name: repl-funcs
+- name: replFuncs
   query: "f: (a -> b) -> n: Int-> [a -> b]"
   solution: "\\f n -> Data.List.replicate n f"
   source: "original"
@@ -341,7 +341,7 @@
       output: "Right 3"
 
 - name: pipe
-  query: "fs: [(a -> a)] -> (x: a -> a)"
+  query: "fs: [(a -> a)] -> x: a -> a"
   solution: "\\xs x -> Data.List.foldr ($) x xs"
   source: "hoogle"
   example:
@@ -349,7 +349,7 @@
       output: "19"
 
 - name: indexesOf
-  query: "f: ([(a,Int)] -> [(a,Int)]) -> xs: [a] -> ys: [Int] -> [Int]"
+  query: "f: ([(a, Int)] -> [(a, Int)]) -> xs: [a] -> ys: [Int] -> [Int]"
   solution: "\\f xs ys -> Data.List.map Data.Tuple.snd (f (Data.List.zip xs ys))"
   source: "stackOverflow"
   example:
