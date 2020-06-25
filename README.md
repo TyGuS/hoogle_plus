@@ -1,6 +1,6 @@
 # hoogle_plus
 Type-driven, component based synthesis, showcasing TYpe Guided Abstract Refinement (TYGAR).
-Try it at <https://hoogleplus.goto.ucsd.edu>
+Try it at <http://hoogleplus.goto.ucsd.edu>
 
 # Using Evaluation Docker Image
 ## System Prerequisites:
