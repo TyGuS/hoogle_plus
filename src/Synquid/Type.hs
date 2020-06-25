@@ -101,7 +101,7 @@ boundVarsOf _ = []
 
 typeSubstitute :: Map Id TypeSkeleton -> TypeSkeleton -> TypeSkeleton
 typeSubstitute subst t@(TypeVarT id) | id `Map.member` subst =
-    fromJust $ Map.lookup id subst
+    typeSubstitute subst $ fromJust $ Map.lookup id subst
 typeSubstitute subst (TyAppT tFun tArg) = TyAppT tFun' tArg'
     where
         tFun' = typeSubstitute subst tFun

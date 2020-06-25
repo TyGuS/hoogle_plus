@@ -154,6 +154,7 @@ applySemantic env fun args = do
             cover <- gets $ view (refineState . abstractionCover)
             let substRes = typeSubstitute ass ret
             writeLog 3 "applySemantic" $ text "current cover" <+> text (show cover)
+            writeLog 3 "applySemantic" $ text "apply result" <+> pretty substRes
             currentAbst env cover substRes
         else return BottomT
     where
