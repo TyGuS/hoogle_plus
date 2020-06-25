@@ -3,3 +3,5 @@ Data.Function.id
 (Data.Eq./=)
 (Data.Eq.==)
 GHC.List.head
+Data.Either.Left
+Data.Either.Right

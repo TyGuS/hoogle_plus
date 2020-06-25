@@ -137,14 +137,14 @@
       output: ([2,3],[4,1,5])
 
 - name: mbToEither
-  query: "mb: Maybe a -> x: b -> Either a b"
-  solution: "\\mb x -> Data.Bool.bool (Right x) (Left (Data.Maybe.fromJust mb)) (Data.Maybe.isJust mb)"
+  query: "x: a -> mb: Maybe b -> Either a b"
+  solution: "\\x mb -> maybe (Left x) Right mb"
   source: "original"
   example:
     - inputs: [Nothing, "1"]
-      output: Right 1
+      output: Left 1
     - inputs: [Just 2, "3"]
-      output: Left 2
+      output: Right 2
 
 - name: cartProduct
   query: "xs: [a] -> ys: [b] -> [[(a,b)]]"

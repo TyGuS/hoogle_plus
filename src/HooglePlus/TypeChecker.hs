@@ -159,7 +159,10 @@ unify :: Environment -> Id -> TypeSkeleton -> Checker ()
 unify env v t =
     if v `Set.member` typeVarsOf t
       then modify $ set isChecked False
-      else modify $ over typeAssignment (Map.insert v t)
+      else do
+          modify $ over typeAssignment (Map.insert v t)
+          tass <- gets $ view typeAssignment
+          unless (isValidSubst tass) (modify $ set isChecked False)
         {- no eager substitution
         do
         tass' <- gets (view typeAssignment)
@@ -178,4 +181,14 @@ unify env v t =
 --------------------------------------------------------------------------------
 
 isValidSubst :: Map Id TypeSkeleton -> Bool
-isValidSubst m = not $ any (\(v, t) -> v `Set.member` typeVarsOf t) (Map.toList m)
+isValidSubst m = case Map.lookupMin varGraph of
+                   Nothing -> True
+                   Just v -> let nodes = Map.keysSet varGraph `Set.union` Set.unions (Map.elems varGraph)
+                              in not (any (hasLoop Set.empty) (Set.toList nodes))
+    where
+        insertToMap v = Map.insertWith Set.union v . Set.singleton
+        varGraph = foldr (\(v, t) acc -> Set.foldr (insertToMap v) acc (typeVarsOf t)) Map.empty (Map.toList m)
+
+        hasLoop seen v | v `Set.member` seen = True
+        hasLoop seen v = let nexts = Map.findWithDefault Set.empty v varGraph
+                          in any (hasLoop (Set.insert v seen)) (Set.toList nexts)

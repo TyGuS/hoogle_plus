@@ -52,6 +52,14 @@ tests = testGroup "Test TypeChecker"
             checkTypeSolver (FunctionT "" (list_ (either_ (TypeVarT "a") (TypeVarT "b"))) (either_ (TypeVarT "a") (list_ (TypeVarT "b"))))
                             (FunctionT "" (list_ (either_ (TypeVarT "T1") (TypeVarT "b"))) (either_ (TypeVarT "T2") (TypeVarT "T3")))
                             True (Map.fromList [("T1", TypeVarT "a"), ("T2", TypeVarT "a"), ("T3", list_ (TypeVarT "b"))])
+        , testCase "T1 -> T1 -> T1 /~ T2 -> T2" $
+            let a = TypeVarT "T1"
+                b = TypeVarT "T2"
+             in checkTypeSolver (FunctionT "" a (FunctionT "" a a)) (FunctionT "" b b) False Map.empty
+        , testCase "T1 -> [T1] /~ [T2] -> T2" $
+            let a = TypeVarT "T1"
+                b = TypeVarT "T2"
+             in checkTypeSolver (FunctionT "" a (list_ a)) (FunctionT "" (list_ b) b) False Map.empty
         ]
     ]
     where
