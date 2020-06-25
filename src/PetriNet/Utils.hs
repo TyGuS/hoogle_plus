@@ -123,8 +123,8 @@ unHTML = unescapeHTML . innerTextHTML
 toOutput :: Environment -> TProgram -> AssociativeExamples -> IO QueryOutput
 toOutput env soln exs = do
     let symbols = Set.toList $ symbolsOf soln
-    let argNames = Map.keys $ env ^. arguments
-    let args = Map.toList $ env ^. arguments
+    let argNames = map fst $ env ^. arguments
+    let args = env ^. arguments
     let argDocs = map (\(n, ty) -> FunctionDoc n (show ty) "") args
     let symbolsWoArgs = symbols \\ argNames
     docs <- liftIO $ hoogleIt symbolsWoArgs
@@ -164,6 +164,9 @@ recoverNames mapping (Program (PFun x body) t) = Program (PFun x body') t
 --------------------------------------------------------------------------------
 -- | Miscellaneous
 --------------------------------------------------------------------------------
+
+foArgsOf :: Environment -> [(Id, SchemaSkeleton)]
+foArgsOf = filter (not . isFunctionType . toMonotype . snd) . _arguments
 
 getExperiment exp = gets $ view (searchParams . exp)
 

@@ -67,12 +67,12 @@ addSignatures :: (ConstraintEncoder enc, MonadIO m)
               => Environment 
               -> PNSolver enc m (Map Id AbstractSkeleton)
 addSignatures env = do
-    let foArgs = Map.keys $ foArgsOf env
+    let foArgs = map fst (foArgsOf env)
     -- first abstraction all the symbols with fresh type variables and then instantiate them
     let envSymbols = allSymbols env
     let usefulPipe k _ = k `notElem` foArgs
     let usefulSymbols = Map.filterWithKey usefulPipe envSymbols
-    let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+    let hoArgs = filter (isFunctionType . toMonotype . snd) (env ^. arguments)
     let binds = env ^. boundTypeVars
     envSigs <- instantiate env usefulSymbols
     let sigs = envSigs
@@ -104,8 +104,8 @@ initNet env = withTime ConstructionTime $ do
         let allTy = HashMap.keys ty2tr
         mapM_ addCloneFunction allTy
     -- add higher order query arguments
-    let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    mapM_ addMusters (Map.keys hoArgs)
+    let hoArgs = filter (isFunctionType . toMonotype . snd) (env ^. arguments)
+    mapM_ addMusters (map fst hoArgs)
   where
     abstractSymbol id sch = do
         let bound = env ^. boundTypeVars
@@ -236,7 +236,7 @@ checkPath env goal examples path = do
     -- ensure the usage of all the higher order arguments
     disrel <- getExperiment disableRelevancy
     nameMap <- gets $ view (typeChecker . nameMapping)
-    let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+    let hoArgs = map fst $ filter (isFunctionType . toMonotype . snd) (env ^. arguments)
     let getRealName x = replaceId hoPostfix "" $ lookupWithError "nameMapping" x nameMap
     let filterPaths p = disrel || all (`elem` map getRealName p) hoArgs
     guard (filterPaths path)
@@ -329,7 +329,7 @@ fillSketch env firedTrans = do
     nameMap <- gets $ view (typeChecker . nameMapping)
     repLists <- lift $ mapM getGroupRep firedTrans
     fm <- gets $ view (searchState . functionMap)
-    let args = Map.keys $ foArgsOf env
+    let args = map fst (foArgsOf env)
     writeLog 1 "fillSketch" $ text "found path" <+> pretty firedTrans
     mapM_ (\f -> do
          let name = lookupWithError "nameMapping" f nameMap
@@ -470,8 +470,8 @@ updateSrcTgt env dst = do
     tgt <- currentAbst env abstraction (toAbstractType dst)
     modify $ set (refineState . targetType) tgt
 
-    let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
-    srcTypes <- mapM (currentAbst env abstraction . toAbstractType . toMonotype) $ Map.elems foArgs
+    let foArgs = map snd (foArgsOf env)
+    srcTypes <- mapM (currentAbst env abstraction . toAbstractType . toMonotype) foArgs
     modify $ set (refineState . sourceTypes) srcTypes
     return (srcTypes, tgt)
 
@@ -486,9 +486,6 @@ prepEncoderArgs env tgt = do
     let rets = sortBy (compareAbstract env) accepts
     let sigs = HashMap.elems funcs
     return (loc, rets, sigs)
-
-foArgsOf :: Environment -> Map Id SchemaSkeleton
-foArgsOf = Map.filter (not . isFunctionType . toMonotype) . _arguments
 
 findFunction :: HashMap Id FunctionCode -> Id -> FunctionCode
 findFunction fm name = fromMaybe (error $ "cannot find function name " ++ name)

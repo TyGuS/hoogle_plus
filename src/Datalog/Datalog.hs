@@ -30,7 +30,7 @@ enumeratePath :: SearchParams -> Environment -> SchemaSkeleton -> [Example] -> U
 enumeratePath params env goal examples prog = do
     let gm = env ^. symbolGroups
     let getFuncs p = Map.findWithDefault Set.empty p gm
-    let foArgs = Map.keys $ Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
+    let foArgs = map fst (foArgsOf env)
     let syms = Set.toList (symbolsOf prog) \\ foArgs
     let allPaths = map (Set.toList . getFuncs) syms
     msum $ map (\path ->
@@ -40,7 +40,7 @@ enumeratePath params env goal examples prog = do
 checkPath :: SearchParams -> Environment -> SchemaSkeleton -> [Example] -> UProgram -> LogicT IO ()
 checkPath params env goal examples prog = do
     -- ensure the usage of all arguments
-    let args = Map.keys (env ^. arguments)
+    let args = map fst (env ^. arguments)
     let getRealName = replaceId hoPostfix ""
     let filterPaths p = all (`Set.member` Set.map getRealName (symbolsOf p)) args
     liftIO $ print prog

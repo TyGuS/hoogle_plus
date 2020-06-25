@@ -25,8 +25,8 @@ makeLenses ''DatatypeDef
 
 -- | Typing environment
 data Environment = Environment {
-  _symbols :: Map Id SchemaSkeleton,          -- ^ Variables and constants (with their refinement types), indexed by arity
-  _arguments :: Map Id SchemaSkeleton,            -- ^ Function arguments, required in all the solutions
+  _symbols :: Map Id SchemaSkeleton,       -- ^ Variables and constants (with their refinement types), indexed by arity
+  _arguments :: [(Id, SchemaSkeleton)],    -- ^ Function arguments, required in all the solutions
   _typeClasses :: Map Id (Set Id),         -- ^ Type class instances
   _boundTypeVars :: [Id],                  -- ^ Bound type variables
   -- | Group concrete types
@@ -57,7 +57,7 @@ instance Ord Environment where
 -- | Empty environment
 emptyEnv = Environment {
   _symbols = Map.empty,
-  _arguments = Map.empty,
+  _arguments = [],
   _typeClasses = Map.empty,
   _boundTypeVars = [],
   _groups = Map.empty,

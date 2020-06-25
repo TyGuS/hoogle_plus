@@ -85,15 +85,15 @@ synthesize searchParams goal examples initSolverState = catch (do
     let rawSyms = rawEnv ^. symbols
     let hoCands = rawEnv ^. hoCandidates
     let args = rawEnv ^. arguments
-    let hoArgs = Map.filter (isFunctionType . toMonotype) args
-    let hoFuns = map (\(k, v) -> (k ++ hoPostfix, withSchema toFunType v)) (Map.toList hoArgs)
+    let hoArgs = filter (isFunctionType . toMonotype . snd) args
+    let hoFuns = map (\(k, v) -> (k ++ hoPostfix, withSchema toFunType v)) hoArgs
     let syms = Map.filter (not . isHigherOrder . toMonotype) rawSyms
     let envWithHo = rawEnv { 
             _symbols = if useHO then rawSyms `Map.union` Map.fromList hoFuns
                                 else Map.withoutKeys syms $ Set.fromList hoCands,
             _hoCandidates = if useHO then hoCands ++ map fst hoFuns else []
         }
-    let args = Monotype destinationType : Map.elems (envWithHo ^. arguments)
+    let args = Monotype destinationType : map snd (envWithHo ^. arguments)
     -- start with all the datatypes defined in the components, first level abstraction
     let rs = _refineStrategy searchParams
     let initCover = case rs of

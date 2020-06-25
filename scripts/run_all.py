@@ -58,19 +58,21 @@ def run_benchmark(name, query, examples, default_opts):
     '''Run benchmark name with command-line options opts (use default_opts with running the common context variant); record results in the results dictionary'''
 
     with open(LOGFILE, 'a+') as logfile:
-        start = time.time()
         logfile.write(name + '\n')
         logfile.seek(0, os.SEEK_END)
         # Run Synquid on the benchmark:
         # return_code = call([TIMEOUT_CMD] + [TIMEOUT] + HPLUS_CMD + CMD_OPTS + opts + [query], stdout=logfile, stderr=logfile)
         command = HPLUS_CMD + CMD_OPTS + ['--json={{"query":"{}", "inExamples":{}}}'.format(query, json.dumps(examples))]
         # print(command)
+
+        start = time.time()
         try:
             output = check_output(command, stderr=STDOUT, timeout=60)
-            # process = subprocess.Popen(command, stdout=subprocess.PIPE)
-        except:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             output = b""
         end = time.time()
+
+        logfile.write(output.decode('utf-8') + '\n')
         solution = None
         for line in output.split(b'\n'):
             # print(line)
@@ -80,48 +82,12 @@ def run_benchmark(name, query, examples, default_opts):
         print('{0:0.2f}'.format(end - start), end=' ')
 
         if not solution or solution['outError']: # Synthesis failed
-            print(Fore.RED + Style.BRIGHT + 'FAIL' + Style.RESET_ALL, end='\n')
+            print(Fore.RED + 'FAIL' + Style.RESET_ALL, end='\n')
             results[name] = SynthesisResult(name, (end - start), '-', '-', '-', '-', '-', '-')
         else: # Synthesis succeeded: code metrics from the output and record synthesis time
-            # lastLines = os.popen("tail -n 12 %s" % LOGFILE).read().split('\n')
-            # solution = re.match(r"^SOLUTION: (.+)$", lastLines[0]).group(1)
-            # encoding_time = re.match(r"Encoding time: (\d+.*)$", lastLines[2]).group(1)
-            # solver_time = re.match(r"Solver time: (\d+.*)$", lastLines[3]).group(1)
-            # refine_time = re.match(r"Refine time: (\d+.*)$", lastLines[4]).group(1)
-            # checker_time = re.match(r"Checker time: (\d+.*)$", lastLines[5]).group(1)
-            # total_time = re.match(r"Total time: (\d+.*)$", lastLines[6]).group(1)
-            # path_len = re.match(r"Path length: (\d+)$", lastLines[7]).group(1)
             results[name] = SynthesisResult(name, '{0:0.2f}'.format(end - start), solution['outCandidates'][0]['solution'], None, None, None, None, None)
-            print(Fore.GREEN + Style.BRIGHT + 'OK' + Style.RESET_ALL, end='\n')
+            print(Fore.GREEN + 'OK' + Style.RESET_ALL, end='\n')
 
-        # variant_options = [   # Command-line options to use for each variant of Synquid
-        #     ('def', default_opts)
-        #     ]
-
-        # Run each variant:
-        # for (variant_id, opts) in variant_options:
-        #     run_version(name, query, variant_id, opts, logfile)
-
-def run_version(name, query, variant_id, variant_opts, logfile):
-    '''Run benchmark name using command-line options variant_opts and record it as a Synquid variant variant_id in the results dictionary'''
-
-    start = time.time()
-    logfile.seek(0, os.SEEK_END)
-    # Run Synquid on the benchmark, mute output:
-    return_code = call([TIMEOUT_CMD] + [TIMEOUT] + [HPLUS_CMD] + CMD_OPTS +
-        variant_opts + [query], stdout=FNULL, stderr=STDOUT)
-    end = time.time()
-
-    print('{0:0.2f}'.format(end - start), end='')
-    if return_code == 124:  # Timeout: record timeout
-      print(Fore.RED + Style.BRIGHT + 'TIMEOUT' + Style.RESET_ALL, end='')
-      results[name].variant_times[variant_id] = -1
-    elif return_code: # Synthesis failed: record failure
-      print(Fore.RED + Style.BRIGHT + 'FAIL' + Style.RESET_ALL, end='')
-      results[name].variant_times[variant_id] = -2
-    else: # Synthesis succeeded: record time for variant
-      results[name].variant_times[variant_id] = (end - start)
-      print(Fore.GREEN + Style.BRIGHT + 'OK' + Style.RESET_ALL, end='')
 
 def format_time(t):
     if t < 0:
@@ -145,49 +111,6 @@ def write_csv():
                     outfile.write (result.solution['outCandidates'][0]['solution'])
                 # outfile.write (format_time(result.variant_times['def']) + ',')
                 outfile.write ('\n')
-
-def write_latex():
-    '''Generate Latex table from the results dictionary'''
-    pass
-    # total_count = 0
-    # to_def = 0
-    # to_nrt = 0
-    # to_ncc = 0
-    # to_nmus = 0
-
-    # with open(LATEX_FILE, 'w') as outfile:
-    #     for group in groups:
-    #         outfile.write ('\multirow{')
-    #         outfile.write (str(group.benchmarks.__len__()))
-    #         outfile.write ('}{*}{\\parbox{1cm}{\vspace{-0.85\baselineskip}\center{')
-    #         outfile.write (group.name)
-    #         outfile.write ('}}}')
-
-    #         for b in group.benchmarks:
-    #             result = results [b.name]
-    #             row = \
-    #                 ' & ' + b.description +\
-    #                 ' & ' + result.goal_count +\
-    #                 ' & ' + b.components + \
-    #                 ' & ' + result.measure_count + \
-    #                 ' & ' + result.spec_size + \
-    #                 ' & ' + result.code_size + \
-    #                 ' & ' + format_time(result.time) + \
-    #                 ' & ' + format_time(result.variant_times['def']) + \
-    #                 ' & ' + format_time(result.variant_times['nrt']) + \
-    #                 ' & ' + format_time(result.variant_times['ncc']) + \
-    #                 ' & ' + format_time(result.variant_times['nmus']) + ' \\\\'
-    #             outfile.write (row)
-    #             outfile.write ('\n')
-
-    #             total_count = total_count + 1
-    #             if result.variant_times['def'] < 0.0:
-    #                to_def = to_def + 1
-
-    #         outfile.write ('\\hline')
-
-    # print 'Total:', total_count
-    # print 'TO def:', to_def
 
 def cmdline():
     import argparse
@@ -232,7 +155,7 @@ if __name__ == '__main__':
     for group in groups:
         for b in group.benchmarks:
             if b.name in results:
-                print(b.str() + ' ' + Fore.YELLOW + Style.BRIGHT + 'SKIPPED' + Style.RESET_ALL)
+                print(b.str() + ' ' + Fore.YELLOW + 'SKIPPED' + Style.RESET_ALL)
             else:
                 print(b.str(), end=' ')
                 run_benchmark(b.name, b.query, b.example, group.default_options)
@@ -241,13 +164,3 @@ if __name__ == '__main__':
 
     # Generate CSV
     write_csv()
-    # Generate Latex table
-    # write_latex()
-
-    # Compare with previous solutions and print the diff
-    # if os.path.isfile(ORACLE_FILE) and (not cl_opts.small):
-    #     fromlines = open(ORACLE_FILE).readlines()
-    #     tolines = open(LOGFILE, 'U').readlines()
-    #     diff = difflib.unified_diff(fromlines, tolines, n=0)
-    #     print
-    #     sys.stdout.writelines(diff)

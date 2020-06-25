@@ -67,7 +67,7 @@ isBound :: Environment -> Id -> Bool
 isBound env tv = tv `elem` env ^. boundTypeVars
 
 addArgument :: Id -> TypeSkeleton -> Environment -> Environment
-addArgument name t = (arguments %~ Map.insert name (Monotype t))
+addArgument name t = arguments %~ ((name, Monotype t) :)
 
 addVariable :: Id -> TypeSkeleton -> Environment -> Environment
 addVariable name t = addPolyVariable name (Monotype t)

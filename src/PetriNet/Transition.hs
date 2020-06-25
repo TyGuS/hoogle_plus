@@ -182,7 +182,7 @@ mkGroups env sigs = do
     (t2g, sigGroups) <- groupSignatures encodedSigs
     -- Do I want to take the sigs here?
     nameMap <- gets $ view (typeChecker . nameMapping)
-    let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+    let hoArgs = map fst $ filter (isFunctionType . toMonotype . snd) (env ^. arguments)
     let hoAlias = Map.keysSet $ Map.filter (`elem` hoArgs) nameMap
     representatives <- mapM (selectOurRep hoAlias) sigGroups
     let sigs' = Map.restrictKeys sigs (Set.fromList $ Map.elems representatives)
@@ -281,7 +281,7 @@ updateRepresentatives env (addables, removables, newReps) (gid, rep)= do
         Just currentGroup
             | rep `Set.notMember` currentGroup && not (null currentGroup) -> do
                 -- We need to elect a new leader for the group!
-                let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+                let hoArgs = map fst $ filter (isFunctionType . toMonotype . snd) (env ^. arguments)
                 let hoAlias = Map.keysSet $ Map.filter (`elem` hoArgs) nameMap
                 newRep <- selectRepresentative hoAlias currentGroup
                 let abstractType = lookupWithError "currentSigs" rep sigs

@@ -53,7 +53,7 @@ runSouffle params env goal examples d = do
 findPath :: Environment -> SchemaSkeleton -> Int -> IO [UProgram]
 findPath env goal d = do
     -- get higher-order arguments
-    let args = map (over _2 toMonotype) (Map.toList (env ^. arguments))
+    let args = map (over _2 toMonotype) (env ^. arguments)
     let hoArgs = filter (isFunctionType . snd) args
     let hoArgSat = map (uncurry writeFunctionSouffle) hoArgs
     -- write query into the file

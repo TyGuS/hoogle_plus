@@ -55,20 +55,21 @@ checkExample env typ ex = do
             let breakTypes = map show $ breakdown strippedTyp
             let mkTyclass = printf "%s :: (%s) => (%s)" mkFun tyclassesPrenex (intercalate ", " breakTypes)
             eitherTyclass <- if null tyclasses then return (Right (Monotype AnyT)) else parseExample mdls mkTyclass
-            if res then if isLeft eitherTyclass then return $ Right exTyp
-                                                else return $ Left tcErr
+            if res then if isRight eitherTyclass then return $ Right exTyp
+                                                 else return $ Left tcErr
                 else return $ Left err
     where
         mkFun = printf "(%s)" (intercalate ", " $ inputs ex ++ [output ex])
 
+        unprefixTc (FunctionT x t@(TyAppT {}) tRes) | tyclassPrefix `isPrefixOf` name = (currTc : tcs, tRes')
+            where
+                (name, args) = collectArgs t
+                (tcs, tRes') = unprefixTc tRes
+                currTc = foldl' TyAppT (DatatypeT (drop (length tyclassPrefix) name)) args
         unprefixTc (FunctionT x tArg tRes) = (argTcs ++ resTcs, FunctionT x tArg' tRes')
             where
                 (argTcs, tArg') = unprefixTc tArg
                 (resTcs, tRes') = unprefixTc tRes
-        unprefixTc (TyAppT (DatatypeT name) tArg) | tyclassPrefix `isPrefixOf` name =
-            let (tcs, t) = unprefixTc tArg
-                currTc = DatatypeT (drop (length tyclassPrefix) name)
-             in (currTc : tcs, t) 
         unprefixTc t = ([], t)
 
 checkExamples :: Environment -> SchemaSkeleton -> [Example] -> IO (Either [ErrorMessage] [SchemaSkeleton])
@@ -80,14 +81,15 @@ checkExamples env typ exs = do
 
 execExample :: [String] -> Environment -> TypeQuery -> String -> Example -> IO (Either ErrorMessage String)
 execExample mdls env typ prog ex = do
-    let args = Map.keys $ env ^. arguments
+    let args = map fst $ env ^. arguments
     let nontcArgs = filter (not . (tyclassArgBase `isPrefixOf`)) args
     let prependArg = unwords nontcArgs
-    let progBody = if Map.null (env ^. arguments) -- if this is a request from front end
+    let progBody = if null (env ^. arguments) -- if this is a request from front end
         then printf "let f = (%s) :: %s in" prog typ
         else printf "let f = (\\%s -> %s) :: %s in" prependArg prog typ
     let parensedInputs = map wrapParens $ inputs ex
     let progCall = printf "(f %s)" (unwords parensedInputs)
+    print progBody
     runStmt mdls $ unwords [progBody, progCall]
 
 augmentTestSet :: Environment -> SchemaSkeleton -> IO [Example]

@@ -102,8 +102,8 @@ refineSemantic env prog at = do
                              else mapM addCloneFunction $ Set.toList splits
 
     -- update the higer order query arguments
-    let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    mapM_ addMusters (Map.keys hoArgs)
+    let hoArgs = filter (isFunctionType . toMonotype . snd) (env ^. arguments)
+    mapM_ addMusters (map fst hoArgs)
 
     -- call the refined encoder on these signatures and disabled signatures
     return SplitInfo { newPlaces = Set.toList splits
