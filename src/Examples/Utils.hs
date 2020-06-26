@@ -23,6 +23,7 @@ import Data.List.Extra (dropEnd)
 import Outputable
 import Control.Monad.State
 import Control.Lens
+import System.IO.Silently
 
 import Types.Filtering (defaultTimeoutMicro, defaultDepth, defaultInterpreterTimeoutMicro, frameworkModules)
 import Types.IOFormat
@@ -40,7 +41,7 @@ import PetriNet.Utils
 
 askGhc :: [String] -> Ghc a -> IO a
 askGhc mdls f = do
-    mbResult <- timeout (10^6) $ runGhc (Just libdir) $ do
+    mbResult <- timeout (10^6) $ silence $ runGhc (Just libdir) $ do
         dflags <- getSessionDynFlags
         let dflags' = dflags {
             generalFlags = ES.delete Opt_OmitYields (generalFlags dflags),

@@ -224,13 +224,14 @@ propagate env p@(Program (PApp f args) _) upstream = do
         -- such that ct < at' < at
         currAbs <- lift $ mapM (currentAbst env cover) cArgs
         absArgs <- mapM (generalize bound) cArgs
-        -- lift $ writeLog 3 "propagate" $ text "try" <+> pretty absArgs <+> text "from" <+> pretty cArgs <+> text "with currently" <+> pretty currAbs
-        guard ((all (uncurry $ isSubtypeOf env)) (zip absArgs currAbs))
-        lift $ writeLog 3 "propagate" $ text "get generalized types" <+> pretty absArgs <+> text "from" <+> pretty cArgs
-        res <- lift $ applySemantic env t absArgs
-        lift $ writeLog 3 "propagate" $ text "apply" <+> pretty absArgs <+> text "to" <+> pretty t <+> text "gets" <+> pretty res
+        freshArgs <- mapM (freshType bound . toPolytype bound) absArgs
+        lift $ writeLog 3 "propagate" $ text "try" <+> pretty freshArgs <+> text "from" <+> pretty cArgs <+> text "with currently" <+> pretty currAbs
+        guard ((all (uncurry $ isSubtypeOf env)) (zip freshArgs currAbs))
+        lift $ writeLog 3 "propagate" $ text "get generalized types" <+> pretty freshArgs <+> text "from" <+> pretty cArgs
+        res <- lift $ applySemantic env t freshArgs
+        lift $ writeLog 3 "propagate" $ text "apply" <+> pretty freshArgs <+> text "to" <+> pretty t <+> text "gets" <+> pretty res
         guard (isSubtypeOf env res upstream)
-        return $ map toAbstractFun absArgs
+        return $ map toAbstractFun freshArgs
 -- | case for lambda functions
 propagate env (Program (PFun x body) (FunctionT _ tArg tRet)) (FunctionT _ atArg atRet) =
     propagate (addVariable x tArg env) body atRet

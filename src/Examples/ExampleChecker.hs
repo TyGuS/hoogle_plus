@@ -89,7 +89,6 @@ execExample mdls env typ prog ex = do
         else printf "let f = (\\%s -> %s) :: %s in" prependArg prog typ
     let parensedInputs = map wrapParens $ inputs ex
     let progCall = printf "(f %s)" (unwords parensedInputs)
-    print progBody
     runStmt mdls $ unwords [progBody, progCall]
 
 augmentTestSet :: Environment -> SchemaSkeleton -> IO [Example]

@@ -141,9 +141,9 @@
   solution: "\\x mb -> maybe (Left x) Right mb"
   source: "original"
   example:
-    - inputs: [Nothing, "1"]
+    - inputs: ["1", Nothing]
       output: Left 1
-    - inputs: [Just 2, "3"]
+    - inputs: ["3", Just 2]
       output: Right 2
 
 - name: cartProduct

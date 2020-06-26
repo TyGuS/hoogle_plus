@@ -13,7 +13,7 @@ from colorama import init, Fore, Back, Style
 
 HPLUS_CMD = ['stack', 'exec', '--', 'hplus'] # Command to call hoogle+
 TIMEOUT_CMD = 'timeout' # Timeout command
-TIMEOUT = '60' # Timeout value (seconds)
+TIMEOUT = '100' # Timeout value (seconds)
 CMD_OPTS = ['--stop-refine', '--stop-threshold=10', '--solver-name=z3smt']
 LOGFILE = 'data/results.log'                                         # Log file
 CSV_FILE = 'data/result.tsv'                                         # CSV-output file
