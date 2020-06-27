@@ -26,7 +26,6 @@ import Control.Monad.State
 import Control.Monad.Extra
 import Control.Monad.ST (runST, ST)
 import Debug.Trace
-import Data.Array.ST (STArray, readArray, writeArray, newListArray, getElems)
 import Data.Hashable
 import Data.List.Extra hiding (stripSuffix)
 import Data.Maybe

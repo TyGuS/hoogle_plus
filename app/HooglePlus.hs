@@ -61,9 +61,7 @@ import Data.List.Split
 import Data.Map ((!))
 import Data.Maybe (mapMaybe, fromJust)
 import Data.Time.Calendar
-import Distribution.PackDeps
 import Language.Haskell.Exts (Decl(TypeSig))
-import System.Console.ANSI
 import System.Console.CmdArgs hiding (Normal)
 import System.Directory
 import System.Exit

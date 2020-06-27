@@ -69,8 +69,6 @@ import Data.HashMap.Strict (HashMap)
 import Data.List
 import Data.Map.Strict (Map, (!))
 import Data.Set (Set)
-import Data.Tree
-import Data.Tree.Pretty
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set

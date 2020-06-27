@@ -49,7 +49,7 @@ The input should follow the json format that
     ]            
 }
 ```
-The default search mode is `TYGARAQB10` as described in the paper: bounded abstraction refinement of size 10.
+The default search mode is `TYGARAQB-10` as described in the paper: bounded abstraction refinement of size 10.
 
 The default argument names will be `arg0, 1, ...`.
 You may specify your own argument names. For example, the previous type query can be written as `d: a -> xs: [Maybe a] -> a`.
@@ -64,7 +64,17 @@ You may try searches with different variants with the following command line arg
 # Building from scratch, for the developers
 
 ## build
-To build this project, you need to have z3-4.7.1.
+To build this project, you need to have [z3-4.7.1](https://github.com/Z3Prover/z3/releases/z3-4.7.1).
+
+If you are on macOS, please use stack version 1.9.3 to build the project.
+You may execute `stack upgrade --binary-version 1.9.3` to switch to the required version.
+Also, you need to work around a runtime error that 
+```
+lookupSymbol failed in relocateSection (RELOC_GOT)
+/Users/<username>/.stack/programs/x86_64-osx/ghc-custom-yields-8.4.4/lib/ghc-8.4.4/integer-gmp-1.0.2.0/HSinteger-gmp-1.0.2.0.o: unknown symbol `___gmp_rands'
+error: GhcException "unable to load package `integer-gmp-1.0.2.0'"
+```
+To fix this, you may execute `rm /Users/<username>/.stack/programs/x86_64-osx/ghc-custom-yields-8.4.4/lib/ghc-8.4.4/integer-gmp-1.0.2.0/HSinteger-gmp-1.0.2.0.o`
 
 ## usage
 Execute in the `hoogle_plus` directory:
