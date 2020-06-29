@@ -66,15 +66,16 @@ You may try searches with different variants with the following command line arg
 ## build
 To build this project, you need to have [z3-4.7.1](https://github.com/Z3Prover/z3/releases/z3-4.7.1).
 
-If you are on macOS, please use stack version 1.9.3 to build the project.
-You may execute `stack upgrade --binary-version 1.9.3` to switch to the required version.
-Also, you need to work around a runtime error that 
+### MacOS users
+If you see the runtime error message like 
 ```
 lookupSymbol failed in relocateSection (RELOC_GOT)
-/Users/<username>/.stack/programs/x86_64-osx/ghc-custom-yields-8.4.4/lib/ghc-8.4.4/integer-gmp-1.0.2.0/HSinteger-gmp-1.0.2.0.o: unknown symbol `___gmp_rands'
+/Users/<username>/.stack/programs/x86_64-osx/ghc-custom-yields-8.8.3/lib/ghc-8.8.3/integer-gmp-1.0.2.0/HSinteger-gmp-1.0.2.0.o: unknown symbol `___gmp_rands'
 error: GhcException "unable to load package `integer-gmp-1.0.2.0'"
 ```
-To fix this, you may execute `rm /Users/<username>/.stack/programs/x86_64-osx/ghc-custom-yields-8.4.4/lib/ghc-8.4.4/integer-gmp-1.0.2.0/HSinteger-gmp-1.0.2.0.o`
+To fix this, you may execute `rm /Users/<username>/.stack/programs/x86_64-osx/ghc-custom-yields-8.8.3/lib/ghc-8.8.3/integer-gmp-1.0.2.0/HSinteger-gmp-1.0.2.0.o`
+
+If you see a lot of XCode linker error when you install ghc-8.8.3, please feel free to ignore them.
 
 ## usage
 Execute in the `hoogle_plus` directory:
