@@ -72,19 +72,19 @@ getExampleTypes env validSchemas num = do
 
 -- turn a GHC type into Hoogle+ type
 resolveType :: LHsType GhcPs -> SchemaSkeleton
-resolveType (L _ (HsForAllTy bs t)) = foldr ForallT (resolveType t) vs
+resolveType (L _ (HsForAllTy _ bs t)) = foldr ForallT (resolveType t) vs
     where
         vs = map vname bs
-        vname (L _ (UserTyVar (L _ id))) = showSDocUnsafe (ppr id)
-        vname (L _ (KindedTyVar (L _ id) _)) = showSDocUnsafe (ppr id)
-resolveType t@(L _ (HsAppTy fun arg)) =
+        vname (L _ (UserTyVar _ (L _ id))) = showSDocUnsafe (ppr id)
+        vname (L _ (KindedTyVar _ (L _ id) _)) = showSDocUnsafe (ppr id)
+resolveType t@(L _ (HsAppTy _ fun arg)) =
     let typs = tail $ map resolveType' $ breakApp t
         (args, [res]) = splitAt (length typs - 1) typs
      in Monotype $ foldr (FunctionT "") res args
     where
-        breakApp (L _ (HsAppTy fun arg)) = breakApp fun ++ [arg]
+        breakApp (L _ (HsAppTy _ fun arg)) = breakApp fun ++ [arg]
         breakApp t = [t]
-resolveType (L _ (HsQualTy ctx body)) = Monotype bodyWithTcArgs
+resolveType (L _ (HsQualTy _ ctx body)) = Monotype bodyWithTcArgs
     where
         unlocatedCtx = let L _ c = ctx in c
         tyConstraints = map (prefixTyclass . resolveType') unlocatedCtx
@@ -96,15 +96,15 @@ resolveType (L _ (HsQualTy ctx body)) = Monotype bodyWithTcArgs
 resolveType t = Monotype $ resolveType' t
 
 resolveType' :: LHsType GhcPs -> TypeSkeleton
-resolveType' (L _ (HsFunTy f r)) = FunctionT "" (resolveType' f) (resolveType' r)
-resolveType' (L _ (HsQualTy _ t)) = resolveType' t
-resolveType' (L _ (HsTyVar _ (L _ v))) =
+resolveType' (L _ (HsFunTy _ f r)) = FunctionT "" (resolveType' f) (resolveType' r)
+resolveType' (L _ (HsQualTy _ _ t)) = resolveType' t
+resolveType' (L _ (HsTyVar _ _ (L _ v))) =
     if isLower (head name)
        then TypeVarT (existTypeVarPrefix:name)
        else DatatypeT name
     where
         name = showSDocUnsafe $ ppr v
-resolveType' (L _ (HsAppTy f a)) = TyAppT dt a'
+resolveType' (L _ (HsAppTy _ f a)) = TyAppT dt a'
     where
         f' = resolveType' f
         a' = resolveType' a
@@ -112,11 +112,11 @@ resolveType' (L _ (HsAppTy f a)) = TyAppT dt a'
                 DatatypeT "[]" -> DatatypeT "List"
                 DatatypeT "(,)" -> DatatypeT "Pair"
                 _ -> f'
-resolveType' (L _ (HsListTy t)) = TyAppT (DatatypeT "List") (resolveType' t)
-resolveType' (L _ (HsTupleTy _ ts)) = foldr TyAppT (DatatypeT "Pair") ts'
+resolveType' (L _ (HsListTy _ t)) = TyAppT (DatatypeT "List") (resolveType' t)
+resolveType' (L _ (HsTupleTy _ _ ts)) = foldr TyAppT (DatatypeT "Pair") ts'
     where
         ts' = map resolveType' ts
-resolveType' (L _ (HsParTy t)) = resolveType' t
+resolveType' (L _ (HsParTy _ t)) = resolveType' t
 resolveType' t = error $ showSDocUnsafe (ppr t)
 
 antiSubstitute :: TypeSkeleton -> Id -> TypeSkeleton -> TypeSkeleton

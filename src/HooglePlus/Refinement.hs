@@ -21,6 +21,7 @@ import Types.CheckMonad
 import Types.Experiments
 
 import Control.Lens
+import Control.Monad.Fail
 import Control.Monad.Logic
 import Control.Monad.State
 import qualified Data.HashMap.Strict as HashMap
@@ -70,7 +71,7 @@ updateCover' env cover intscts t paren =
 -- | refine the current abstraction
 -- do the bidirectional type checking first, compare the two programs we get,
 -- with the type split information update the abstraction tree
-refineSemantic :: (ConstraintEncoder enc, MonadIO m)
+refineSemantic :: (ConstraintEncoder enc, MonadIO m, MonadFail m)
                => Environment 
                -> TProgram 
                -> AbstractSkeleton 
@@ -188,7 +189,7 @@ splitTransition env newAt fid = do
 
 -- | back propagate the abstract type from root to leaves
 -- by lattice search over the current abstraction cover
-propagate :: (ConstraintEncoder enc, MonadIO m) 
+propagate :: (ConstraintEncoder enc, MonadIO m, MonadFail m) 
           => Environment 
           -> TProgram 
           -> AbstractSkeleton 

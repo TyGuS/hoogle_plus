@@ -38,6 +38,7 @@ import Types.CheckMonad
 
 import Control.Concurrent.Chan
 import Control.Lens
+import Control.Monad.Fail
 import Control.Monad.Logic
 import Control.Monad.State
 import Control.Monad.Extra
@@ -178,7 +179,7 @@ findPath env dst = do
             findPath env dst
         _  -> return res
 
-findProgram :: (ConstraintEncoder enc, MonadIO m)
+findProgram :: (ConstraintEncoder enc, MonadIO m, MonadFail m)
             => Environment -- the search environment
             -> SchemaSkeleton     -- the goal type
             -> [Example]   -- examples for post-filtering
@@ -366,7 +367,7 @@ generateCode initialFormer env src args sigs = do
     writeLog 1 "generateCode" $ pretty rets
     liftIO (evalStateT (generateProgram sigs src args rets disrel) initialFormer)
 
-nextSolution :: (ConstraintEncoder enc, MonadIO m)
+nextSolution :: (ConstraintEncoder enc, MonadIO m, MonadFail m)
              => Environment 
              -> SchemaSkeleton
              -> [Example] 
@@ -426,7 +427,7 @@ checkSolution env goal examples code = do
             lift $ writeSolution out
             return $ Found (code', exs)
 
-runPNSolver :: (ConstraintEncoder enc, MonadIO m)
+runPNSolver :: (ConstraintEncoder enc, MonadIO m, MonadFail m)
             => Environment 
             -> SchemaSkeleton 
             -> [Example] 
