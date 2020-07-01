@@ -4,6 +4,7 @@ import Database.Environment
 import Database.Util
 import qualified HooglePlus.Abstraction as Abstraction
 import PetriNet.PNSolver
+import HooglePlus.Refinement
 import Synquid.Error
 import Synquid.Logic
 import Synquid.Parser
@@ -17,15 +18,13 @@ import Types.Environment
 import Types.Experiments
 import Types.Program
 import Types.Solver
-import Types.TypeChecker
 import Types.Type
-import Types.IOFormat
-import HooglePlus.Utils
-import HooglePlus.IOFormat
-import Examples.ExampleChecker
+import Types.TopDown
+import PetriNet.Util -- TODO can we do this? lol 
 
 import Control.Applicative ((<$>))
 import Control.Concurrent.Chan
+--import Control.DeepSeq
 import Control.Exception
 import Control.Lens
 import Control.Monad
@@ -35,7 +34,6 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Data.Either
 import Data.List
-import Data.List.Extra (nubOrdOn)
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Maybe
@@ -43,61 +41,54 @@ import qualified Data.Set as Set
 import Data.Set (Set)
 import Data.Time.Clock
 import Data.Time.Format
+import System.CPUTime
 import System.Exit
 import Text.Parsec.Indent
 import Text.Parsec.Pos
 import Text.Printf (printf)
 
 
+updateEnvWithBoundTyVars :: RSchema -> Environment -> (Environment, RType)
+updateEnvWithBoundTyVars (Monotype ty) env = (env, ty)
+updateEnvWithBoundTyVars (ForallT x ty) env = updateEnvWithBoundTyVars ty (addTypeVar x env)
+
+updateEnvWithSpecArgs :: RType -> Environment -> (Environment, RType)
+updateEnvWithSpecArgs ty@(ScalarT _ _) env = (env, ty)
+updateEnvWithSpecArgs (FunctionT x tArg tRes) env = updateEnvWithSpecArgs tRes $ addVariable x tArg $ addArgument x tArg env
+
 envToGoal :: Environment -> String -> IO Goal
 envToGoal env queryStr = do
   let transformedSig = "goal :: " ++ queryStr ++ "\ngoal = ??"
   let parseResult = flip evalState (initialPos "goal") $ runIndentParserT parseProgram () "" transformedSig
   case parseResult of
-    Left parseErr -> let e = toErrorMessage parseErr
-                      in putDoc (pretty e) >> putDoc linebreak >> error (prettyShow e)
+    Left parseErr -> putDoc (pretty $ toErrorMessage parseErr) >> putDoc empty >> error "uh oh"
     Right (funcDecl:decl:_) -> case decl of
       Pos _ (SynthesisGoal id uprog) -> do
         let Pos _ (FuncDecl _ sch) = funcDecl
         let goal = Goal id env sch uprog 3 $ initialPos "goal"
         let spec = runExcept $ evalStateT (resolveSchema (gSpec goal)) (initResolverState { _environment = env })
         case spec of
-          Right sp -> do
-            let (env', monospec) = updateEnvWithBoundTyVars sp env
-            let (env'', destinationType) = updateEnvWithSpecArgs monospec env'
-            return $ goal { gEnvironment = env'', gSpec = sp }
-          Left parseErr -> putDoc (pretty parseErr) >> putDoc linebreak >> error (prettyShow parseErr)
+          Right sp -> return $ goal { gEnvironment = env, gSpec = sp }
+          Left parseErr -> putDoc (pretty parseErr) >> putDoc empty >> exitFailure
+
       _ -> error "parse a signature for a none goal declaration"
 
-synthesize :: SearchParams -> Goal -> [Example] -> Chan Message -> IO ()
-synthesize searchParams goal examples messageChan = catch (do
-    let rawEnv = gEnvironment goal
-    let goalType = gSpec goal
-    let destinationType = lastType (toMonotype goalType)
+synthesize :: SearchParams -> Goal -> Chan Message -> IO ()
+synthesize searchParams goal messageChan = do
+    let env''' = gEnvironment goal
+    let (env'', monospec) = updateEnvWithBoundTyVars (gSpec goal) env'''
+    let (env', destinationType) = updateEnvWithSpecArgs monospec env''
+
     let useHO = _useHO searchParams
-    let rawSyms = rawEnv ^. symbols
-    let hoCands = rawEnv ^. hoCandidates
-    envWithHo <- do
+    let rawSyms = env' ^. symbols
+    let hoCands = env' ^. hoCandidates
 
-    --------------------------
-    -- HIGHER ORDER STUFF 
-    -- envWithHo <- if useHO -- add higher order query arguments
-    --     then do
-    --         let args = rawEnv ^. arguments
-    --         let hoArgs = Map.filter (isFunctionType . toMonotype) args
-    --         let hoFuns = map (\(k, v) -> (k ++ hoPostfix, withSchema toFunType v)) (Map.toList hoArgs)
-    --         return $ rawEnv { 
-    --             _symbols = rawSyms `Map.union` Map.fromList hoFuns, 
-    --             _hoCandidates = hoCands ++ map fst hoFuns
-    --             }
-    --     else do
-    --------------------------
+    env <- do
+      let syms = Map.filter (not . isHigherOrder . toMonotype) rawSyms
+      return $
+          env'
+              {_symbols = Map.withoutKeys syms $ Set.fromList hoCands, _hoCandidates = []}
 
-            let syms = Map.filter (not . isHigherOrder . toMonotype) rawSyms
-            return $ rawEnv {
-                _symbols = Map.withoutKeys syms $ Set.fromList hoCands, 
-                _hoCandidates = []
-                }
     -- used for figuring out which programs to filter (those without all arguments)
     let numArgs = length (Map.elems (env ^. arguments))
 
@@ -116,7 +107,8 @@ synthesize searchParams goal examples messageChan = catch (do
 
 ------------
     writeChan messageChan (CSClose CSNormal) -- TODO added to get rid of VMar (?) error
-    return ()
+    return () 
+
 
 type CompsSolver = StateT Comps (StateT SolverState IO)
 -- http://book.realworldhaskell.org/read/monad-transformers.html#Stacking-multiple-monad-transformers
@@ -217,6 +209,12 @@ getUnifiedFunctions envv messageChan xs goalType = do
 
 -----------------------
 
+--
+-- checks if a program is ground (has no more arguments to synthesize - aka function w/o args)
+--
+isGround :: SType -> Bool
+isGround (FunctionT id arg0 arg1) = False
+isGround _ = True
 
 -- 
 -- runs dfs of given depth and keeps trying to find complete programs (no filtering yet)
@@ -256,8 +254,3 @@ dfs env messageChan depth (id, schema)
         formatFn args = Program { content = PApp id args, typeOf = refineTop env schema }
     let finalResultList = map formatFn programsPerArg
     return finalResultList
-  where
-    -- checks if a program is ground (has no more arguments to synthesize - aka function w/o args)
-    isGround :: SType -> Bool
-    isGround (FunctionT id arg0 arg1) = False
-    isGround _ = True
