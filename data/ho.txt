@@ -1,5 +1,6 @@
 (Data.Function.$)
 Data.Function.id
 GHC.List.head
+(Data.Eq./=)
 Data.Either.Left
 Data.Either.Right

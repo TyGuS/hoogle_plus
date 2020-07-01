@@ -168,6 +168,7 @@ findWithDefaultAntiVariable t1 t2 = do
                 return isChecked) (Map.toList tass)
             return $ concatMap snd results
 
+-- | this is a test document
 antiUnification' :: TypeSkeleton -> TypeSkeleton -> AntiUnifier IO TypeSkeleton
 antiUnification' t1 t2 | t1 == t2 = return t1
 antiUnification' AnyT t = return t
@@ -175,10 +176,10 @@ antiUnification' t AnyT = return t
 antiUnification' t1@(TypeVarT id1) t2@(TypeVarT id2)
   | existTypeVarPrefix == head id1 = return $ TypeVarT id2
   | existTypeVarPrefix == head id2 = return $ TypeVarT id1
-  -- | otherwise = findWithDefaultAntiVariable t1 t2
+  ---- | otherwise = findWithDefaultAntiVariable t1 t2
 antiUnification' t1@(TypeVarT id) t
   | existTypeVarPrefix == head id = return t
-  -- | otherwise = findWithDefaultAntiVariable t1 t
+  ---- | otherwise = findWithDefaultAntiVariable t1 t
 antiUnification' t tv@(TypeVarT _) = do
     swapAssignments
     result <- antiUnification' tv t

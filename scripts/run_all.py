@@ -13,7 +13,7 @@ from colorama import init, Fore, Back, Style
 
 HPLUS_CMD = ['stack', 'exec', '--', 'hplus'] # Command to call hoogle+
 TIMEOUT_CMD = 'timeout' # Timeout command
-TIMEOUT = '100' # Timeout value (seconds)
+TIMEOUT = 75 # Timeout value (seconds)
 CMD_OPTS = ['--stop-refine', '--stop-threshold=10', '--solver-name=z3smt']
 LOGFILE = 'data/results.log'                                         # Log file
 CSV_FILE = 'data/result.tsv'                                         # CSV-output file
@@ -57,6 +57,7 @@ class SynthesisResult:
 def run_benchmark(name, query, examples, default_opts):
     '''Run benchmark name with command-line options opts (use default_opts with running the common context variant); record results in the results dictionary'''
 
+    sys.stdout.flush()
     with open(LOGFILE, 'a+') as logfile:
         logfile.write(name + '\n')
         logfile.seek(0, os.SEEK_END)
@@ -67,7 +68,7 @@ def run_benchmark(name, query, examples, default_opts):
 
         start = time.time()
         try:
-            output = check_output(command, stderr=STDOUT, timeout=60)
+            output = check_output(command, stderr=STDOUT, timeout=TIMEOUT)
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             output = b""
         end = time.time()

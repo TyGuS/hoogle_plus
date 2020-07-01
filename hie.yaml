@@ -1,1 +1,30 @@
-cradle: { stack: {}}
+cradle:
+  multi:
+    - path: "./"
+      config:
+        cradle: 
+          stack:
+          - path: "./src/"
+            component: "HooglePlus:lib"
+          - path: "./app/HooglePlus.hs"
+            component: "HooglePlus:exe:hplus"
+          - path: "./test"
+            component: "HooglePlus:test:spec"
+    - path: "./InternalTypeGen.hs"
+      config:
+        cradle:
+          none:
+    - path: "./notes/"
+      config:
+        cradle:
+          none:
+    - path: "./.stack-work/"
+      config:
+        cradle:
+          none:
+
+dependencies:
+    - package.yaml
+    - stack.yaml
+    - HooglePlus.cabal
+    - InternalTypeGen.hs

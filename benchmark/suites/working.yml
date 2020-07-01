@@ -76,7 +76,7 @@
     - inputs: ["Right (Right 2.2)"]
       output: Right 2.2
 
-- name: multiApp
+- name: app2
   query: "f: (a -> b -> c) -> g: (a -> b) -> x: a -> c"
   solution: "\\f g x -> f x (g x)"
   source: "hoogle"
@@ -97,7 +97,7 @@
       output: "[\"abc\"]"
 
 - name: headLast
-  query: "xs: [a] -> (a,a)"
+  query: "xs: [a] -> (a, a)"
   solution: "\\arg1 -> (Data.List.head arg1, Data.List.last arg1)"
   source: "hoogle"
   example:
@@ -147,7 +147,7 @@
       output: Right 2
 
 - name: cartProduct
-  query: "xs: [a] -> ys: [b] -> [[(a,b)]]"
+  query: "xs: [a] -> ys: [b] -> [[(a, b)]]"
   solution: "\\xs ys -> Data.List.map (\\x -> Data.List.map ((,) x) ys) xs"
   source: "original"
   example:
@@ -369,7 +369,7 @@
 #   solution: length (elemIndices x xs)
 
 - name: lookup
-  query: "Eq a => xs: [(a,b)] -> k: a -> b"
+  query: "Eq a => xs: [(a, b)] -> k: a -> b"
   solution: "\\xs k -> Data.Maybe.fromJust (Data.List.lookup k xs)"
   source: "hoogle"
   example:

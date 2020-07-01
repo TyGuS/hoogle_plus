@@ -128,8 +128,8 @@ matchDtWithCons [] = []
 matchDtWithCons (decl:decls) = case decl of
     EDecl (DataDecl a b c hd conDecls d) -> case decls of
         [] -> decl : matchDtWithCons decls
-        decl':decls' 
-            | EDecl (TypeSig _ names typ) <- decl' -> 
+        decl':decls'
+            | EDecl (TypeSig _ names typ) <- decl' ->
                 if nameStr (head names) == declHeadName hd
                     then let conDecl = QualConDecl a Nothing c (ConDecl a (head names) [typ])
                         in EDecl (DataDecl a b c hd (conDecl:conDecls) d) : matchDtWithCons decls'
@@ -178,7 +178,7 @@ toSynquidSkeleton (TyApp _ fun arg) = do
     f <- toSynquidSkeleton fun
     a <- toSynquidSkeleton arg
     return $ TyAppT f a
-toSynquidSkeleton (TyVar _ name) = 
+toSynquidSkeleton (TyVar _ name) =
     return $ TypeVarT (nameStr name)
 toSynquidSkeleton (TyList _ typ) = do
     typ' <- toSynquidSkeleton typ
@@ -210,7 +210,7 @@ processConDecls (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
     case conDecl of
         ConDecl _ name typs -> do
             typ <- toSynquidSkeleton $ head typs
-            if hasAny typ 
+            if hasAny typ
                 then processConDecls decls
                 else (:) (TP.ConstructorSig (nameStr name) typ) <$> processConDecls decls
         InfixConDecl _ typl name typr -> do
@@ -233,9 +233,9 @@ toSynquidDecl :: MonadIO m => Entry -> StateT Int m Declaration
 toSynquidDecl (EDecl (TypeDecl _ head typ)) = do
     typ' <- toSynquidSkeleton typ
     let dt = DatatypeT (declHeadName head)
-    let synonym = foldl' (\a t -> TyAppT t a) dt (map TypeVarT $ declHeadVars head)
+    let synonym = foldl' (flip TyAppT) dt (map TypeVarT $ declHeadVars head)
     return $ Pos (initialPos $ declHeadName head) $ TP.TypeDecl synonym typ'
-toSynquidDecl (EDecl (DataFamDecl a b head c)) = 
+toSynquidDecl (EDecl (DataFamDecl a b head c)) =
     toSynquidDecl (EDecl (DataDecl a (DataType a) b head [] []))
 toSynquidDecl (EDecl (DataDecl _ _ _ head conDecls _)) = do
     constructors <- processConDecls conDecls
@@ -244,7 +244,7 @@ toSynquidDecl (EDecl (DataDecl _ _ _ head conDecls _)) = do
     return $ Pos (initialPos name) $ TP.DataDecl name vars constructors
 toSynquidDecl (EDecl (TypeSig _ names typ)) = do
     sch <- toSynquidSchema typ
-    return $ Pos (initialPos (nameStr $ names !! 0)) 
+    return $ Pos (initialPos (nameStr $ names !! 0))
            $ TP.FuncDecl (nameStr $ head names) sch
 toSynquidDecl (EDecl (ClassDecl _ _ head _ _)) = do
     let name = fixTCName (declHeadName head)
@@ -290,9 +290,10 @@ instanceToFunction (IParen _ inst) n = instanceToFunction inst n
 instanceToFunction (IRule _ _ ctx h) n = do
     tyclass <- resolveInstHead h
     let (name, tyVars) = collectArgs tyclass
+    let name' = fixTCName name
     let tyVars' = map fixDataType tyVars
-    let base = foldl' TyAppT (DatatypeT name) tyVars'
-    let toDecl' = toDecl . Text.unpack $ Text.replace (Text.pack tyclassPrefix) (Text.pack "") (Text.pack name)
+    let base = foldl' TyAppT (DatatypeT name') tyVars'
+    let toDecl' = toDecl . Text.unpack $ Text.replace (Text.pack tyclassPrefix) (Text.pack "") (Text.pack name')
     case ctx of
         Nothing -> toDecl' base
         Just (CxTuple _ tyclassConds) -> toDecl' =<< foldrM go base tyclassConds
@@ -313,8 +314,8 @@ fixTCName str =
         in end'
 
 breakLast :: String -> (String, String)
-breakLast str = (reverse (drop 1 y), reverse x) 
-    where 
+breakLast str = (reverse (drop 1 y), reverse x)
+    where
         (x, y) = break (== '.') $ reverse str
 
 getInstanceRule :: Entry -> InstRule ()
