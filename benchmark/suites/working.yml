@@ -61,12 +61,12 @@
   solution: "\\f xs -> Data.Maybe.listToMaybe (Data.Maybe.mapMaybe f xs)"
   source: "original"
   example:
-    - inputs: ["\\x -> if x < 3 then Nothing else Just (x * x)", "[2,4,6]"]
+    - inputs: ["\\x -> if x < 3 then Nothing else Just (x * x)", "[2,4,8,6]"]
       output: Just 16
 
 - name: mergeEither
   query: "e: Either a (Either a b) -> Either a b"
-  solution: "\\arg0 -> Data.Either.either Left (Data.Either.either Left Right) arg0"
+  solution: "\\arg0 -> Data.Either.either Left id arg0"
   source: "original"
   example:
     - inputs: ["Left 2"]
@@ -225,7 +225,7 @@
   solution: "\\arg0 -> Right (Data.List.head (Data.Either.rights arg0))"
   source: "hoogle"
   example:
-    - inputs: ["[Left 1, Left 2, Right 3, Right 4]"]
+    - inputs: ["[Left 1, Left 2, Right 3, Left 3, Right 4]"]
       output: "Right 3"
 
 - name: maybe
@@ -330,7 +330,7 @@
 
 - name: eitherTriple
   query: "e1: Either a b -> e2: Either a b -> Either a b"
-  solution: "\\x y -> Data.Either.either Left (const (Data.Either.either Left Right y)) x"
+  solution: "\\e1 e2 -> Data.Bool.bool e2 e1 (Data.Either.isLeft e1)"
   source: "hoogle"
   example:
     - inputs: ["Left 1", "Left 2"]

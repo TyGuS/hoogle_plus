@@ -1,4 +1,3 @@
-(Data.Function.$)
 Data.Function.id
 GHC.List.head
 (Data.Eq./=)
