@@ -25,15 +25,13 @@ type AbstractCover = HashMap AbstractSkeleton (Set AbstractSkeleton)
 
 data Comps = Comps {
     _components :: [(Id, SType)],
-    _memoize :: Map SType [(Id, SType)],
-    _counter :: Int
+    _memoize :: Map SType [(Id, SType)]
 }
 
 emptyComps :: Comps
 emptyComps = Comps {
     _components = [],
-    _memoize = Map.empty,
-    _counter = 0
+    _memoize = Map.empty
 }
 
 makeLenses ''Comps

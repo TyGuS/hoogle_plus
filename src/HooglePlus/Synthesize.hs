@@ -1,3 +1,6 @@
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
+
 module HooglePlus.Synthesize(synthesize, envToGoal) where
 
 import Database.Environment
@@ -12,17 +15,20 @@ import Synquid.Program
 import Synquid.Resolver
 import Synquid.Type
 import Synquid.Util
+import Types.CheckMonad
 import Types.Common
 import Types.Environment
 import Types.Experiments
 import Types.Program
 import Types.Solver
+import Types.TopDown
 import Types.TypeChecker
 import Types.Type
 import Types.IOFormat
 import HooglePlus.Utils
 import HooglePlus.IOFormat
 import Examples.ExampleChecker
+import PetriNet.Util -- TODO can we do this? lol 
 
 import Control.Applicative ((<$>))
 import Control.Concurrent.Chan
@@ -43,6 +49,7 @@ import qualified Data.Set as Set
 import Data.Set (Set)
 import Data.Time.Clock
 import Data.Time.Format
+import System.CPUTime
 import System.Exit
 import Text.Parsec.Indent
 import Text.Parsec.Pos
@@ -70,7 +77,7 @@ envToGoal env queryStr = do
       _ -> error "parse a signature for a none goal declaration"
 
 synthesize :: SearchParams -> Goal -> [Example] -> Chan Message -> IO ()
-synthesize searchParams goal examples messageChan = catch (do
+synthesize searchParams goal examples messageChan = do
     let rawEnv = gEnvironment goal
     let goalType = gSpec goal
     let destinationType = lastType (toMonotype goalType)
@@ -93,19 +100,20 @@ synthesize searchParams goal examples messageChan = catch (do
     --     else do
     --------------------------
 
-            let syms = Map.filter (not . isHigherOrder . toMonotype) rawSyms
-            return $ rawEnv {
-                _symbols = Map.withoutKeys syms $ Set.fromList hoCands, 
-                _hoCandidates = []
-                }
+      let syms = Map.filter (not . isHigherOrder . toMonotype) rawSyms
+      return $ rawEnv {
+          _symbols = Map.withoutKeys syms $ Set.fromList hoCands, 
+          _hoCandidates = []
+          }
+
     -- used for figuring out which programs to filter (those without all arguments)
-    let numArgs = length (Map.elems (env ^. arguments))
+    let numArgs = length (Map.elems (envWithHo ^. arguments))
 
     -- start timing and print out how long it took
     start <- getCPUTime
     printf "running dfsTop on %s\n" (show $ shape destinationType)
-    -- foo <- dfsTop env messageChan 3 (shape destinationType) numArgs
-    foo <- dfsTop env messageChan 3 (shape destinationType) numArgs
+    -- foo <- dfsTop envWithHo messageChan 3 (shape destinationType) numArgs
+    foo <- dfsTop envWithHo messageChan 3 (shape destinationType) numArgs
     
     printf "done running dfsTop on %s\n" (show $ shape destinationType)
 
@@ -113,12 +121,78 @@ synthesize searchParams goal examples messageChan = catch (do
     
     let diff = fromIntegral (end - start) / (10^12)
     printf "Computation time: %0.3f sec\n" (diff :: Double)
-
 ------------
-    writeChan messageChan (CSClose CSNormal) -- TODO added to get rid of VMar (?) error
+    writeChan messageChan (MesgClose CSNormal) -- TODO added to get rid of VMar (?) error
     return ()
 
-type CompsSolver = StateT Comps (StateT SolverState IO)
+
+-- type CompsSolver' = StateT Comps (StateT SolverState IO)
+type CompsSolver m = StateT Comps (StateT SolverState m)
+-- 
+
+-- https://stackoverflow.com/questions/53944435/illegal-instance-declaration-for-monad-writer-string
+-- https://wiki.haskell.org/Functional_dependencies
+-- You can express this by specifying a functional dependency, or fundep for short:
+-- class Mult a b c | a b -> c where
+--   (*) :: a -> b -> c
+
+instance Monad m => CheckMonad (CompsSolver m) where
+    getNameCounter   = return Map.empty -- this is probably very wrong
+    setNameCounter _ = return ()
+    getNameMapping   = return Map.empty
+    setNameMapping _ = return ()
+    getIsChecked     = return False
+    setIsChecked _   = return ()
+    getMessageChan   = getMessageChan
+    overStats _      = return ()
+
+
+-- type PNSolver m = StateT SolverState m
+-- type BackTrack m = LogicT (PNSolver m)
+
+-- instance Monad m => CheckMonad (PNSolver m) where
+--     getNameCounter = gets (view (typeChecker . nameCounter))
+--     setNameCounter nc = modify (set (typeChecker . nameCounter) nc)
+--     getNameMapping = gets (view (typeChecker . nameMapping))
+--     setNameMapping nm = modify (set (typeChecker . nameMapping) nm)
+--     getIsChecked = gets (view (typeChecker . isChecked))
+--     setIsChecked c = modify (set (typeChecker . isChecked) c)
+--     getMessageChan = gets (view messageChan)
+--     overStats f = modify (over (statistics . solverStats) f)
+
+-- instance Monad m => CheckMonad (BackTrack m) where
+--     getNameCounter = gets (view (typeChecker . nameCounter))
+--     setNameCounter nc = modify (set (typeChecker . nameCounter) nc)
+--     getNameMapping = gets (view (typeChecker . nameMapping))
+--     setNameMapping nm = modify (set (typeChecker . nameMapping) nm)
+--     getIsChecked = gets (view (typeChecker . isChecked))
+--     setIsChecked c = modify (set (typeChecker . isChecked) c)
+--     getMessageChan = gets (view messageChan)
+--     overStats f = modify (over (statistics . solverStats) f)
+
+-- class Monad m => CheckMonad m where
+--     getNameCounter :: m (Map Id Int)
+--     setNameCounter :: Map Id Int -> m ()
+--     getNameMapping :: m (Map Id Id)
+--     setNameMapping :: Map Id Id -> m ()
+--     getIsChecked :: m Bool
+--     setIsChecked :: Bool -> m ()
+--     getMessageChan :: m (Chan Message)
+--     overStats :: (TimeStatistics -> TimeStatistics) -> m ()
+
+-- type AntiUnifier m = StateT AntiUnifState (StateT TypeClassState m)
+
+-- instance Monad m => CheckMonad (AntiUnifier m) where
+--     getNameCounter = gets (view generalNames)
+--     setNameCounter nc = modify (set generalNames nc)
+--     getNameMapping = getNameMapping
+--     setNameMapping = setNameMapping
+--     getIsChecked = getIsChecked
+--     setIsChecked = setIsChecked
+--     getMessageChan = getMessageChan
+--     overStats = overStats
+
+
 -- http://book.realworldhaskell.org/read/monad-transformers.html#Stacking-multiple-monad-transformers
 
 --  helper :: StateT Comps (StateT SolverState IO) [String]
@@ -133,20 +207,20 @@ type CompsSolver = StateT Comps (StateT SolverState IO)
 dfsTop :: Environment -> Chan Message -> Int -> SType -> Int -> IO [String] -- TODO change to RProgram
 dfsTop env messageChan depth hole numArgs = helper `evalStateT` emptyComps `evalStateT` (emptySolverState { _messageChan = messageChan })
   where
-    helper :: CompsSolver [String]
+    helper :: CompsSolver IO [String]
     helper = do
       -- collect all the component types (which we might use to fill the holes)
       let components = Map.toList (env ^. symbols)
       -- map each hole ?? to a list of component types that unify with the hole
-      unifiedFuncs <- getUnifiedFunctions env messageChan components hole :: CompsSolver [(Id, SType)]
+      unifiedFuncs <- getUnifiedFunctions env messageChan components hole :: CompsSolver IO [(Id, SType)]
       liftIO $ putStrLn $ show unifiedFuncs
       -- get the first valid program from each of the functions in unifiedFuncs
-      fmap concat $ mapM getFirstValidProgram unifiedFuncs :: CompsSolver [String]
-      -- fmap concat <$> mapM getFirstValidProgram (drop 12 unifiedFuncs) :: CompsSolver [String]
+      fmap concat $ mapM getFirstValidProgram unifiedFuncs :: CompsSolver IO [String]
+      -- fmap concat <$> mapM getFirstValidProgram (drop 12 unifiedFuncs) :: CompsSolver IO [String]
     
-    getFirstValidProgram :: (Id, SType) -> CompsSolver [String]
+    getFirstValidProgram :: (Id, SType) -> CompsSolver IO [String]
     getFirstValidProgram x = do 
-                      sampleProgram <- map show <$> (dfs env messageChan depth x :: CompsSolver [RProgram])
+                      sampleProgram <- map show <$> (dfs env messageChan depth x :: CompsSolver IO [RProgram])
                       let filtered = filter (filterParams numArgs) sampleProgram
                       unless (null filtered) (liftIO $ putStrLn $ head filtered) -- we print out the first result for each function
                       return sampleProgram
@@ -160,7 +234,7 @@ dfsTop env messageChan depth hole numArgs = helper `evalStateT` emptyComps `eval
 --
 -- gets list of components/functions that unify with a given type
 -- 
-getUnifiedFunctions :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> CompsSolver [(Id, SType)]
+getUnifiedFunctions :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> CompsSolver IO [(Id, SType)]
 getUnifiedFunctions envv messageChan xs goalType = do
 
   modify $ set components []
@@ -179,7 +253,7 @@ getUnifiedFunctions envv messageChan xs goalType = do
       return $ st ^. components
   
   where 
-    helper :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> CompsSolver ()
+    helper :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> CompsSolver IO ()
     helper _ _ [] _ = return ()
 
     -- skip components with @@ or Nil -- TODO fix this so that we can use these things too
@@ -191,7 +265,14 @@ getUnifiedFunctions envv messageChan xs goalType = do
     
     helper envv messageChan ( v@(id, schema) : ys) goalType = do
         (freshVars, st') <- lift $ do
-          freshVars <- freshType schema
+            -- let bound = env ^. boundTypeVars
+            -- state <- execStateT (do
+            --     s1' <- freshType bound s1
+            --     s2' <- freshType bound s2
+
+          freshVars <- freshType (envv ^. boundTypeVars) schema
+-- freshType :: (CheckMonad (t m), MonadIO m) => [Id] -> RSchema -> t m RType
+-- freshType bounds t = freshType' Map.empty [] t
           let t1 = shape (lastType freshVars) :: SType
           let t2 = goalType :: SType
 
@@ -221,7 +302,7 @@ getUnifiedFunctions envv messageChan xs goalType = do
 -- 
 -- runs dfs of given depth and keeps trying to find complete programs (no filtering yet)
 --
-dfs :: Environment -> Chan Message -> Int -> (Id, SType) -> CompsSolver [RProgram]
+dfs :: Environment -> Chan Message -> Int -> (Id, SType) -> CompsSolver IO [RProgram]
 dfs env messageChan depth (id, schema)
   | isGround schema = return $ [
       Program { content = PSymbol id, typeOf = refineTop env schema }
@@ -239,13 +320,13 @@ dfs env messageChan depth (id, schema)
     let components = Map.toList (env ^. symbols)
 
     -- map each hole ?? to a list of component types that unify with the hole
-    argUnifiedFuncs <- mapM (getUnifiedFunctions env messageChan components) args :: CompsSolver [[(Id, SType)]]
+    argUnifiedFuncs <- mapM (getUnifiedFunctions env messageChan components) args :: CompsSolver IO [[(Id, SType)]]
 
     -- recurse, solving each unified component as a goal, solution is a list of programs
     -- the first element of solutionsPerArg is the list of solutions for the first argument
     -- e.g. 
     let recurse = dfs env messageChan (depth - 1)
-    solutionsPerArg <- mapM (fmap concat . mapM recurse) argUnifiedFuncs :: CompsSolver [[RProgram]] -- [[a,b,c], [d,e,f]]
+    solutionsPerArg <- mapM (fmap concat . mapM recurse) argUnifiedFuncs :: CompsSolver IO [[RProgram]] -- [[a,b,c], [d,e,f]]
     
     -- each arg hole is a list of programs
     -- take cartesian product of args and prepend our func name
