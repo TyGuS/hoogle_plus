@@ -7,6 +7,7 @@ module Encoder.CBCEnc() where
 
 import Numeric.Limp.Program
 import Numeric.Limp.Rep
+import Numeric.Limp.Solvers.Cbc
 import Data.List
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -218,7 +219,7 @@ solveAndGetModel = do
     -- liftIO $ print constraint
     -- error "stop"
     let problem = minimise obj constraint bds
-    let solve = error "unable to use"
+    -- let solve = error "unable to use"
     case solve problem of
         Left err
             | length rets > 1 -> do

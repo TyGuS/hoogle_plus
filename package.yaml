@@ -66,6 +66,7 @@ dependencies:
 - QuickCheck
 - random
 - limp
+- limp-cbc
 
 library:
   source-dirs:

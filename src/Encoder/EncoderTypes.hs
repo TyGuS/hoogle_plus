@@ -22,6 +22,8 @@ import qualified Z3.Base as Z3
 import Z3.Monad hiding(Z3Env, newEnv)
 -- for prolog
 import qualified Encoder.PrologTypes as Prolog
+-- for souffle
+import Encoder.SouffleTypes
 
 import Types.Common
 import Types.Type
