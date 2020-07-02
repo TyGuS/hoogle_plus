@@ -1,6 +1,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Encoder.PrologEnc() where
 
@@ -15,6 +16,7 @@ import Text.Printf
 import System.Process
 import System.Exit
 
+import Encoder.EncoderTypes
 import Encoder.PrologTypes
 import Encoder.ConstraintEncoder (FunctionCode(..))
 import qualified Encoder.ConstraintEncoder as CE
@@ -22,6 +24,8 @@ import Encoder.Utils
 import Types.Common
 import Types.Type
 import Synquid.Pretty
+
+type Encoder = StateT PrologState IO
 
 addPlaceVar :: AbstractSkeleton -> Encoder ()
 addPlaceVar p = do
@@ -40,7 +44,7 @@ addTransitionVar tr = do
     let tr2v = HashMap.insert tr tnbr tvar
     unless (HashMap.member tr tvar) $ do
         modify $ set (variables . trans2variable) tr2v
-        modify $ over (variables . variable2trans) (HashMap.insert tnbr tr)
+        modify $ over (variables . id2transition) (HashMap.insert tnbr tr)
         modify $ over (variables . transitionNb) (+ 1)
 
 assignToken :: AbstractSkeleton -> Int -> Encoder (Int, Int)
@@ -56,7 +60,7 @@ setInitialState inputs places = do
     let nonInputCounts = map (, 0) nonInputs
     marking <- mapM (uncurry assignToken) (inputCounts ++ nonInputCounts)
     let initMarking = MarkingAt 0 (sortOn fst marking)
-    modify $ set (constraints . initConstraints) initMarking
+    modify $ over (constraints . finalConstraints) (initMarking:)
 
 setFinalState :: AbstractSkeleton -> [AbstractSkeleton] -> Encoder ()
 setFinalState ret places = do
@@ -66,7 +70,7 @@ setFinalState ret places = do
     marking <- mapM (uncurry assignToken) counts
     l <- gets $ view (increments . loc)
     let finalMarking = MarkingAt l (sortOn fst marking)
-    modify $ set (constraints . finalConstraints) finalMarking
+    modify $ over (constraints . finalConstraints) (finalMarking:)
 
 disableTransitions :: [Id] -> Encoder ()
 disableTransitions trs = do
@@ -138,6 +142,7 @@ createEncoder inputs ret sigs = do
     -- add constraints for pre- and post-conditions
     mapM_ addArc sigs
     -- initial and final constraints
+    modify $ set (constraints . finalConstraints) []
     setInitialState inputs places
     setFinalState ret places
 
@@ -161,7 +166,7 @@ solveAndGetModel = do
     result <- askProlog l constraints goal
     liftIO (print result)
     case result of
-        Left err 
+        Left err
             | length rets > 1 -> do
                 -- try a more general return type
                 t2tr <- gets $ view (variables . type2transition)
@@ -171,8 +176,8 @@ solveAndGetModel = do
                 solveAndGetModel
             | otherwise -> liftIO (print err) >> return []
         Right transitions -> do
-            varMap <- gets $ view (variables . variable2trans)
-            return $ map (\(NotFireAt _ i) -> findVariable "variable2trans" i varMap) transitions
+            varMap <- gets $ view (variables . id2transition)
+            return $ map (\(NotFireAt _ i) -> findVariable "id2transition" i varMap) transitions
     where
         buildVariables = do
             transMap <- gets $ view (variables . trans2variable)
@@ -184,15 +189,14 @@ solveAndGetModel = do
             return $ trVars ++ pVars
 
         buildGoal = do
-            initial <- gets $ view (constraints . initConstraints)
-            final <- gets $ view (constraints . finalConstraints)
+            finals <- gets $ view (constraints . finalConstraints)
             blocks <- gets $ view (constraints . blockConstraints)
             l <- gets $ view (increments . loc)
             let sequences = map (\t -> printf "fire_at(M%d, T%d, M%d)" t t (t + 1)) [0..(l - 1)]
-            let writes = map (\t -> printf "writeln(T%d)" t) [0..(l - 1)]
-                      ++ map (\t -> printf "writeln(M%d)" t) [1..(l - 1)]
-            let constraints = (show initial) : sequences
-                            ++ [(show final)]
+            let writes = map (printf "writeln(T%d)") [0..(l - 1)]
+                      ++ map (printf "writeln(M%d)") [1..(l - 1)]
+            let constraints = sequences
+                            ++ map show finals
                             ++ map show blocks
                             ++ writes
             return $ intercalate ", " constraints
@@ -246,10 +250,10 @@ encoderInc sigs inputs rets = do
     setInitialState inputs places
     setFinalState (head rets) places
 
-encoderRefine :: SplitInfo 
-              -> [AbstractSkeleton] 
-              -> [AbstractSkeleton] 
-              -> [FunctionCode] 
+encoderRefine :: SplitInfo
+              -> [AbstractSkeleton]
+              -> [AbstractSkeleton]
+              -> [FunctionCode]
               -> Encoder ()
 encoderRefine info inputs rets newSigs = do
     {- update the abstraction level -}
@@ -276,6 +280,7 @@ encoderRefine info inputs rets newSigs = do
     -- disable splitted transitions
     disableTransitions (removedTrans info)
     -- initial and final constraints
+    modify $ set (constraints . finalConstraints) []
     setInitialState inputs currPlaces
     setFinalState (head rets) currPlaces
 
@@ -285,7 +290,7 @@ instance CE.ConstraintEncoder PrologState where
     encoderRefine info inputs rets newSigs = execStateT (encoderRefine info inputs rets newSigs)
     encoderSolve = encoderSolve
 
-    emptyEncoder = emptyPrologState
+    emptyEncoder = emptyEncoderState
     getTy2tr enc = enc ^. variables . type2transition
     setTy2tr m = variables . type2transition .~ m
     modifyTy2tr f = variables . type2transition %~ f

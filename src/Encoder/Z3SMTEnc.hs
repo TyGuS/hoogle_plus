@@ -6,7 +6,7 @@ module Encoder.Z3SMTEnc () where
 
 import Encoder.ConstraintEncoder (FunctionCode(..))
 import Encoder.Utils
-import Encoder.Z3SMTTypes
+import Encoder.EncoderTypes
 import PetriNet.AbstractType
 import PetriNet.Utils
 import qualified Encoder.ConstraintEncoder as CE
@@ -32,6 +32,8 @@ import System.IO
 import System.Process
 import Text.Printf
 import Z3.Monad hiding(Z3Env, newEnv)
+
+type Encoder = StateT Z3SMTState IO
 
 instance MonadZ3 Encoder where
     getSolver = gets (envSolver . _z3env)
@@ -101,7 +103,7 @@ setFinalState ret places = do
 
 getParam :: Encoder (Int, Z3.Sort)
 getParam = do
-    cnt <- gets $ view (increments . counter)
+    cnt <- gets $ view (variables . cancelNb)
     boolS <- mkBoolSort
     return (cnt, boolS)
 
@@ -114,7 +116,7 @@ cancelConstraints name = do
 
 addAllConstraints :: Encoder ()
 addAllConstraints = do
-    Constraints p o f b <- gets $ view constraints
+    Constraints p o f _ b _ <- gets $ view constraints
     mapM_ assert p
     mapM_ assert o
     mapM_ assert f
@@ -134,7 +136,7 @@ nonincrementalSolve = do
 
 incrementalSolve :: Encoder Z3.Result
 incrementalSolve = do
-    modify $ over (increments . counter) (+ 1)
+    modify $ over (variables . cancelNb) (+ 1)
     prev <- gets $ view (increments . prevChecked)
     (cnt, boolS) <- getParam
     blockSym <- mkStringSymbol $ "block" ++ show cnt
@@ -344,7 +346,7 @@ disableTransitions :: [Id] -> Int -> Encoder ()
 disableTransitions trs t = mapM_ disableTrAt trs
   where
     disableTrAt tr = do
-        transMap <- gets $ view (variables . transition2id)
+        transMap <- gets $ view (variables . trans2variable)
         tsMap <- gets $ view (variables . time2variable)
         let trVar = findVariable "transition2id" tr transMap
         let tsVar = findVariable "time2variable" t tsMap
@@ -370,12 +372,12 @@ addTransitionVar :: [Id] -> Encoder ()
 addTransitionVar = mapM_ addTransitionVarFor
   where
     addTransitionVarFor tr = do
-        trvar <- gets $ view (variables . transition2id)
+        trvar <- gets $ view (variables . trans2variable)
         tid <- gets $ view (variables . transitionNb)
         trVar <- mkIntNum tid
         unless (HashMap.member tr trvar) $ do
             modify $ over (variables . transitionNb) (+ 1)
-            modify $ over (variables . transition2id) (HashMap.insert tr trVar)
+            modify $ over (variables . trans2variable) (HashMap.insert tr trVar)
             modify $ over (variables . id2transition) (HashMap.insert tid tr)
 
 addTimestampVar :: Int -> Encoder ()
@@ -457,7 +459,7 @@ transitionRng = do
 -- it has the same # of tokens
 noTransitionTokens :: Int -> AbstractSkeleton -> Encoder ()
 noTransitionTokens t p = do
-    trans <- gets $ view (variables . transition2id)
+    trans <- gets $ view (variables . trans2variable)
     t2tr <- gets $ view (variables . type2transition)
     let transSet = Set.toList $ HashMap.lookupDefault Set.empty p t2tr
     let transitions = map (\x -> findVariable "transition2id" x trans) transSet
@@ -477,7 +479,7 @@ noTransitionTokens t p = do
 
 fireTransitions :: Int -> FunctionCode -> Encoder ()
 fireTransitions t (FunctionCode name params rets) = do
-    transMap <- gets $ view (variables . transition2id)
+    transMap <- gets $ view (variables . trans2variable)
     placeMap <- gets $ view (variables . place2variable)
     tsMap <- gets $ view (variables . time2variable)
 
@@ -525,7 +527,7 @@ mustFireTransitions = do
         mapM (mkEq tid) tsVars
 
     fireTransitionFor (_, tids) = do
-        transitions <- gets $ view (variables . transition2id)
+        transitions <- gets $ view (variables . trans2variable)
         let mustTrans = HashMap.filterWithKey (\k _ -> nameInMust tids k) transitions
         fires <- mapM fireTransition mustTrans
         toFire <- mkOr (concat fires)
@@ -537,7 +539,7 @@ instance CE.ConstraintEncoder Z3SMTState where
     encoderRefine info inputs rets newSigs = execStateT (encoderRefine info inputs rets newSigs)
     encoderSolve = encoderSolve
 
-    emptyEncoder = emptyZ3SMTState
+    emptyEncoder = emptyEncoderState
     getTy2tr enc = enc ^. variables . type2transition
     setTy2tr m = variables . type2transition .~ m
     modifyTy2tr f = variables . type2transition %~ f

@@ -21,7 +21,7 @@ import System.IO
 import System.Process
 import Control.Lens
 
-import Encoder.Z3SATTypes
+import Encoder.EncoderTypes
 import Encoder.ConstraintEncoder (FunctionCode(..))
 import qualified Encoder.ConstraintEncoder as CE
 import Encoder.Utils
@@ -32,6 +32,8 @@ import PetriNet.AbstractType
 import PetriNet.Utils
 import Synquid.Utils
 import Synquid.Pretty
+
+type Encoder = StateT Z3SATState IO
 
 instance MonadZ3 Encoder where
     getSolver = gets (envSolver . _z3env)
@@ -74,15 +76,9 @@ setFinalState ret places = do
     let outputCount = (ret, 1)
     mapM_ (uncurry $ assignToken finalConstraints) (outputCount : nonOutputCounts)
 
-getParam :: Encoder (Int, Z3.Sort)
-getParam = do
-    cnt <- gets $ view (increments . counter)
-    boolS <- mkBoolSort
-    return (cnt, boolS)
-
 addAllConstraints :: Encoder ()
 addAllConstraints = do
-    Constraints p o f b <- gets $ view constraints
+    Constraints p o f _ b _ <- gets $ view constraints
     mapM_ assert p
     mapM_ assert o
     mapM_ assert f
@@ -416,7 +412,7 @@ instance CE.ConstraintEncoder Z3SATState where
     encoderRefine info inputs rets newSigs = execStateT (encoderRefine info inputs rets newSigs)
     encoderSolve = encoderSolve
 
-    emptyEncoder = emptyZ3SATState
+    emptyEncoder = emptyEncoderState
     getTy2tr enc = enc ^. variables . type2transition
     setTy2tr m = variables . type2transition .~ m
     modifyTy2tr f = variables . type2transition %~ f

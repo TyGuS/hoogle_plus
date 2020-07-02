@@ -1,12 +1,12 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Encoder.CBCEnc() where
 
 import Numeric.Limp.Program
 import Numeric.Limp.Rep
--- import Numeric.Limp.Solvers.Cbc
 import Data.List
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -15,13 +15,15 @@ import qualified Data.Set as Set
 import Control.Monad.State
 import Control.Lens hiding ((:>))
 
-import Encoder.CBCTypes
 import Encoder.ConstraintEncoder (FunctionCode(..))
+import Encoder.EncoderTypes
 import qualified Encoder.ConstraintEncoder as CE
 import Encoder.Utils
 import Types.Common
 import Types.Type
 import Synquid.Pretty
+
+type Encoder = StateT CBCState IO
 
 addPlaceVar :: AbstractSkeleton -> Int -> Encoder ()
 addPlaceVar p t = do
@@ -326,7 +328,7 @@ instance CE.ConstraintEncoder CBCState where
     encoderRefine info inputs rets newSigs = execStateT (encoderRefine info inputs rets newSigs)
     encoderSolve = encoderSolve
 
-    emptyEncoder = emptyCBCState
+    emptyEncoder = emptyEncoderState
     getTy2tr enc = enc ^. variables . type2transition
     setTy2tr m = variables . type2transition .~ m
     modifyTy2tr f = variables . type2transition %~ f

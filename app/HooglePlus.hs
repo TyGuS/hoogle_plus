@@ -14,13 +14,10 @@ import Database.Utils
 import Datalog.Formulog
 import Datalog.Souffle
 import Encoder.CBCEnc ()
-import Encoder.CBCTypes (CBCState)
-import Encoder.PrologEnc ()
-import Encoder.PrologTypes (PrologState)
-import Encoder.Z3SATEnc ()
-import Encoder.Z3SATTypes (Z3SATState)
 import Encoder.Z3SMTEnc ()
-import Encoder.Z3SMTTypes (Z3SMTState)
+import Encoder.EncoderTypes (CBCState, Z3SMTState, PrologState, Z3SATState)
+import Encoder.PrologEnc ()
+import Encoder.Z3SATEnc ()
 -- evaluation
 import Evaluation.EvalTypeInf
 import Evaluation.ReadBenchmark
