@@ -110,10 +110,10 @@ synthesize searchParams goal examples messageChan = do
     -- used for figuring out which programs to filter (those without all arguments)
     let numArgs = length (Map.elems (envWithHo ^. arguments))
 
-    -- start timing and print out how long it took
+    -- TIMING STUF
     start <- getCPUTime
     printf "running dfsTop on %s\n" (show $ shape destinationType)
-    -- foo <- dfsTop envWithHo messageChan 3 (shape destinationType) numArgs
+
     foo <- dfsTop envWithHo messageChan 3 (shape destinationType) numArgs
     
     printf "done running dfsTop on %s\n" (show $ shape destinationType)
@@ -123,20 +123,11 @@ synthesize searchParams goal examples messageChan = do
     let diff = fromIntegral (end - start) / (10^12)
     printf "Computation time: %0.3f sec\n" (diff :: Double)
 ------------
-    writeChan messageChan (MesgClose CSNormal) -- TODO added to get rid of VMar (?) error
+    writeChan messageChan (MesgClose CSNormal)
     return ()
 
 
--- type CompsSolver' = StateT Comps (StateT SolverState IO)
 type CompsSolver m = StateT Comps (StateT CheckerState m)
--- 
-
--- https://stackoverflow.com/questions/53944435/illegal-instance-declaration-for-monad-writer-string
--- https://wiki.haskell.org/Functional_dependencies
--- https://hackage.haskell.org/package/lens-tutorial-1.0.4/docs/Control-Lens-Tutorial.html
--- You can express this by specifying a functional dependency, or fundep for short:
--- class Mult a b c | a b -> c where
---   (*) :: a -> b -> c
 
 instance Monad m => CheckMonad (CompsSolver m) where
     getNameCounter = lift getNameCounter
@@ -149,60 +140,6 @@ instance Monad m => CheckMonad (CompsSolver m) where
     overStats      = lift . overStats
 
 
--- type PNSolver m = StateT SolverState m
--- type BackTrack m = LogicT (PNSolver m)
-
--- instance Monad m => CheckMonad (PNSolver m) where
---     getNameCounter = gets (view (typeChecker . nameCounter))
---     setNameCounter nc = modify (set (typeChecker . nameCounter) nc)
---     getNameMapping = gets (view (typeChecker . nameMapping))
---     setNameMapping nm = modify (set (typeChecker . nameMapping) nm)
---     getIsChecked = gets (view (typeChecker . isChecked))
---     setIsChecked c = modify (set (typeChecker . isChecked) c)
---     getMessageChan = gets (view messageChan)
---     overStats f = modify (over (statistics . solverStats) f)
-
--- instance Monad m => CheckMonad (BackTrack m) where
---     getNameCounter = gets (view (typeChecker . nameCounter))
---     setNameCounter nc = modify (set (typeChecker . nameCounter) nc)
---     getNameMapping = gets (view (typeChecker . nameMapping))
---     setNameMapping nm = modify (set (typeChecker . nameMapping) nm)
---     getIsChecked = gets (view (typeChecker . isChecked))
---     setIsChecked c = modify (set (typeChecker . isChecked) c)
---     getMessageChan = gets (view messageChan)
---     overStats f = modify (over (statistics . solverStats) f)
-
--- class Monad m => CheckMonad m where
---     getNameCounter :: m (Map Id Int)
---     setNameCounter :: Map Id Int -> m ()
---     getNameMapping :: m (Map Id Id)
---     setNameMapping :: Map Id Id -> m ()
---     getIsChecked :: m Bool
---     setIsChecked :: Bool -> m ()
---     getMessageChan :: m (Chan Message)
---     overStats :: (TimeStatistics -> TimeStatistics) -> m ()
-
--- type AntiUnifier m = StateT AntiUnifState (StateT TypeClassState m)
-
--- instance Monad m => CheckMonad (AntiUnifier m) where
---     getNameCounter = gets (view generalNames)
---     setNameCounter nc = modify (set generalNames nc)
---     getNameMapping = getNameMapping
---     setNameMapping = setNameMapping
---     getIsChecked = getIsChecked
---     setIsChecked = setIsChecked
---     getMessageChan = getMessageChan
---     overStats = overStats
-
-
--- http://book.realworldhaskell.org/read/monad-transformers.html#Stacking-multiple-monad-transformers
-
---  helper :: StateT Comps (StateT SolverState IO) [String]
---  emptyComps :: Comps
---  helper `evalStateT` emptyComps :: StateT SolverState IO [String]
---  (emptySolverState { _messageChan = messageChan }) :: SolverState
---  helper `evalStateT` emptyComps `evalStateT` emptySolverState :: IO [String]
-
 --
 -- start off calling dfs with an empty memoize map
 --
@@ -211,23 +148,29 @@ dfsTop env messageChan depth hole numArgs = helper `evalStateT` emptyComps `eval
   where
     helper :: CompsSolver IO [String]
     helper = do
+
       -- collect all the component types (which we might use to fill the holes)
       let components = Map.toList (env ^. symbols)
+
       -- map each hole ?? to a list of component types that unify with the hole
       unifiedFuncs <- getUnifiedFunctions env messageChan components hole :: CompsSolver IO [(Id, SType)]
       liftIO $ putStrLn $ show unifiedFuncs
+
       -- get the first valid program from each of the functions in unifiedFuncs
       fmap concat $ mapM getFirstValidProgram unifiedFuncs :: CompsSolver IO [String]
-      -- fmap concat <$> mapM getFirstValidProgram (drop 12 unifiedFuncs) :: CompsSolver IO [String]
     
+    -- get the first valid program that matches the given component
+    -- TODO right now it returns a list of all of the functions as a [String]
+    -- TODO   change it to return a single RProgram
     getFirstValidProgram :: (Id, SType) -> CompsSolver IO [String]
-    getFirstValidProgram x = do 
-                      sampleProgram <- map show <$> (dfs env messageChan depth x :: CompsSolver IO [RProgram])
-                      let filtered = filter (filterParams numArgs) sampleProgram
+    getFirstValidProgram comp = do 
+                      samplePrograms <- dfs env messageChan depth comp :: CompsSolver IO [RProgram]
+                      let samplePrograms' = map show samplePrograms :: [String] -- TODO we should not map show; just return single RProgram
+                      let filtered = filter (filterParams numArgs) samplePrograms'
                       unless (null filtered) (liftIO $ putStrLn $ head filtered) -- we print out the first result for each function
-                      return sampleProgram
+                      return samplePrograms'
     
-    -- determines if the result has the appropriate arguments given the number of args
+    -- determines if the result has all the appropriate arguments given the number of args
     filterParams :: Int -> String -> Bool
     filterParams 0       _ = error "filterParams error: shouldn't have 0 args!" -- TODO maybe should be true here? 
     filterParams 1       x = "arg0" `isInfixOf` x
@@ -257,34 +200,22 @@ getUnifiedFunctions envv messageChan xs goalType = do
   where 
     helper :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> CompsSolver IO ()
     helper _ _ [] _ = return ()
-
-    -- skip components with @@ or Nil -- TODO fix this so that we can use these things too
-    -- helper envv messageChan ( v@(id, schema) : ys) goalType
-      -- | isInfixOf "@@"      id = helper envv messageChan ys goalType
-      -- | isInfixOf "Nil"     id = helper envv messageChan ys goalType
-      -- | isInfixOf "Nothing" id = helper envv messageChan ys goalType
-      -- | otherwise = do
     
     helper envv messageChan ( v@(id, schema) : ys) goalType = do
         (freshVars, st') <- lift $ do
-            -- let bound = env ^. boundTypeVars
-            -- state <- execStateT (do
-            --     s1' <- freshType bound s1
-            --     s2' <- freshType bound s2
 
           freshVars <- freshType (envv ^. boundTypeVars) schema
--- freshType :: (CheckMonad (t m), MonadIO m) => [Id] -> RSchema -> t m RType
--- freshType bounds t = freshType' Map.empty [] t
+
           let t1 = shape (lastType freshVars) :: SType
           let t2 = goalType :: SType
 
           modify $ set isChecked True
           modify $ set typeAssignment Map.empty
 
-          -- solveTypeConstraint :: MonadIO m => Environment -> SType -> SType -> Checker m ()
           solveTypeConstraint envv t1 t2 :: StateT CheckerState IO ()
-          st <- get
-          return (freshVars, st) -- :: StateT CheckerState IO (SType, CheckerState)
+          st' <- get
+          
+          return (freshVars, st') :: StateT CheckerState IO (RType, CheckerState)
 
         let sub =  st' ^. typeAssignment
         let checkResult = st' ^. isChecked
@@ -294,15 +225,13 @@ getUnifiedFunctions envv messageChan xs goalType = do
 
         st <- get
 
+        -- if it unifies, add that particular unified compoenent to state's list of components
         if (checkResult) 
           then do
             modify $ set components ((id, schema') : st ^. components) 
           else return ()
 
         helper envv messageChan ys goalType
-
------------------------
-
 
 -- 
 -- runs dfs of given depth and keeps trying to find complete programs (no filtering yet)
@@ -316,7 +245,6 @@ dfs env messageChan depth (id, schema)
   | otherwise = do
 
     st <- get
-
 
     -- collect all the argument types (the holes ?? we need to fill)
     let args = allArgTypes schema
@@ -342,6 +270,7 @@ dfs env messageChan depth (id, schema)
         formatFn args = Program { content = PApp id args, typeOf = refineTop env schema }
     let finalResultList = map formatFn programsPerArg
     return finalResultList
+  
   where
     -- checks if a program is ground (has no more arguments to synthesize - aka function w/o args)
     isGround :: SType -> Bool
