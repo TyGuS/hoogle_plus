@@ -22,7 +22,8 @@ import Database.Generate
 import Database.Download
 import Database.Util
 import Synquid.Util (showme)
-import HooglePlus.Synthesize
+import TopDown.Synthesize
+-- import HooglePlus.Synthesize
 import HooglePlus.Stats
 import Types.Encoder
 import HooglePlus.GHCChecker

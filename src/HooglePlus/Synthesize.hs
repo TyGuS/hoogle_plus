@@ -1,13 +1,9 @@
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
-
 module HooglePlus.Synthesize(synthesize, envToGoal) where
 
 import Database.Environment
 import Database.Util
 import qualified HooglePlus.Abstraction as Abstraction
 import PetriNet.PNSolver
-import HooglePlus.TypeChecker
 import Synquid.Error
 import Synquid.Logic
 import Synquid.Parser
@@ -16,20 +12,17 @@ import Synquid.Program
 import Synquid.Resolver
 import Synquid.Type
 import Synquid.Util
-import Types.CheckMonad
 import Types.Common
 import Types.Environment
 import Types.Experiments
 import Types.Program
 import Types.Solver
-import Types.TopDown
 import Types.TypeChecker
 import Types.Type
 import Types.IOFormat
 import HooglePlus.Utils
 import HooglePlus.IOFormat
 import Examples.ExampleChecker
-import PetriNet.Util -- TODO can we do this? lol 
 
 import Control.Applicative ((<$>))
 import Control.Concurrent.Chan
@@ -50,7 +43,6 @@ import qualified Data.Set as Set
 import Data.Set (Set)
 import Data.Time.Clock
 import Data.Time.Format
-import System.CPUTime
 import System.Exit
 import Text.Parsec.Indent
 import Text.Parsec.Pos
@@ -78,201 +70,57 @@ envToGoal env queryStr = do
       _ -> error "parse a signature for a none goal declaration"
 
 synthesize :: SearchParams -> Goal -> [Example] -> Chan Message -> IO ()
-synthesize searchParams goal examples messageChan = do
+synthesize searchParams goal examples messageChan = catch (do
     let rawEnv = gEnvironment goal
     let goalType = gSpec goal
     let destinationType = lastType (toMonotype goalType)
     let useHO = _useHO searchParams
     let rawSyms = rawEnv ^. symbols
     let hoCands = rawEnv ^. hoCandidates
-    envWithHo <- do
+    envWithHo <- if useHO -- add higher order query arguments
+        then do
+            let args = rawEnv ^. arguments
+            let hoArgs = Map.filter (isFunctionType . toMonotype) args
+            let hoFuns = map (\(k, v) -> (k ++ hoPostfix, withSchema toFunType v)) (Map.toList hoArgs)
+            return $ rawEnv { 
+                _symbols = rawSyms `Map.union` Map.fromList hoFuns, 
+                _hoCandidates = hoCands ++ map fst hoFuns
+                }
+        else do
+            let syms = Map.filter (not . isHigherOrder . toMonotype) rawSyms
+            return $ rawEnv {
+                _symbols = Map.withoutKeys syms $ Set.fromList hoCands, 
+                _hoCandidates = []
+                }
+    -- putStrLn $ "Component number: " ++ show (Map.size $ allSymbols env)
+    let args = Monotype destinationType : Map.elems (envWithHo ^. arguments)
+  -- start with all the datatypes defined in the components, first level abstraction
+    let rs = _refineStrategy searchParams
+    let initCover = case rs of
+                        SypetClone -> Abstraction.firstLvAbs envWithHo (Map.elems (allSymbols envWithHo))
+                        TyGar0 -> emptySolverState ^. (refineState . abstractionCover)
+                        TyGarQ -> Abstraction.specificAbstractionFromTypes envWithHo args
+                        NoGar -> Abstraction.specificAbstractionFromTypes envWithHo args
+                        NoGar0 -> emptySolverState ^. (refineState . abstractionCover)
+    let is =
+            emptySolverState
+                { _searchParams = searchParams
+                , _refineState = emptyRefineState { _abstractionCover = initCover }
+                , _messageChan = messageChan
+                , _typeChecker = emptyChecker { _checkerChan = messageChan }
+                }
 
-    --------------------------
-    -- HIGHER ORDER STUFF 
-    -- envWithHo <- if useHO -- add higher order query arguments
-    --     then do
-    --         let args = rawEnv ^. arguments
-    --         let hoArgs = Map.filter (isFunctionType . toMonotype) args
-    --         let hoFuns = map (\(k, v) -> (k ++ hoPostfix, withSchema toFunType v)) (Map.toList hoArgs)
-    --         return $ rawEnv { 
-    --             _symbols = rawSyms `Map.union` Map.fromList hoFuns, 
-    --             _hoCandidates = hoCands ++ map fst hoFuns
-    --             }
-    --     else do
-    --------------------------
-
-      let syms = Map.filter (not . isHigherOrder . toMonotype) rawSyms
-      return $ rawEnv {
-          _symbols = Map.withoutKeys syms $ Set.fromList hoCands, 
-          _hoCandidates = []
-          }
-
-    -- used for figuring out which programs to filter (those without all arguments)
-    let numArgs = length (Map.elems (envWithHo ^. arguments))
-
-    -- TIMING STUF
-    start <- getCPUTime
-    printf "running dfsTop on %s\n" (show $ shape destinationType)
-
-    foo <- dfsTop envWithHo messageChan 3 (shape destinationType) numArgs
-    
-    printf "done running dfsTop on %s\n" (show $ shape destinationType)
-
-    end <- getCPUTime
-    
-    let diff = fromIntegral (end - start) / (10^12)
-    printf "Computation time: %0.3f sec\n" (diff :: Double)
-------------
-    writeChan messageChan (MesgClose CSNormal)
-    return ()
-
-
-type CompsSolver m = StateT Comps (StateT CheckerState m)
-
-instance Monad m => CheckMonad (CompsSolver m) where
-    getNameCounter = lift getNameCounter
-    setNameCounter = lift . setNameCounter
-    getNameMapping = lift getNameMapping
-    setNameMapping = lift . setNameMapping
-    getIsChecked   = lift getIsChecked
-    setIsChecked   = lift . setIsChecked
-    getMessageChan = lift getMessageChan
-    overStats      = lift . overStats
-
-
---
--- start off calling dfs with an empty memoize map
---
-dfsTop :: Environment -> Chan Message -> Int -> SType -> Int -> IO [String] -- TODO change to RProgram
-dfsTop env messageChan depth hole numArgs = helper `evalStateT` emptyComps `evalStateT` (emptyChecker { _checkerChan = messageChan })
-  where
-    helper :: CompsSolver IO [String]
-    helper = do
-
-      -- collect all the component types (which we might use to fill the holes)
-      let components = Map.toList (env ^. symbols)
-
-      -- map each hole ?? to a list of component types that unify with the hole
-      unifiedFuncs <- getUnifiedFunctions env messageChan components hole :: CompsSolver IO [(Id, SType)]
-      liftIO $ putStrLn $ show unifiedFuncs
-
-      -- get the first valid program from each of the functions in unifiedFuncs
-      fmap concat $ mapM getFirstValidProgram unifiedFuncs :: CompsSolver IO [String]
-    
-    -- get the first valid program that matches the given component
-    -- TODO right now it returns a list of all of the functions as a [String]
-    -- TODO   change it to return a single RProgram
-    getFirstValidProgram :: (Id, SType) -> CompsSolver IO [String]
-    getFirstValidProgram comp = do 
-                      samplePrograms <- dfs env messageChan depth comp :: CompsSolver IO [RProgram]
-                      let samplePrograms' = map show samplePrograms :: [String] -- TODO we should not map show; just return single RProgram
-                      let filtered = filter (filterParams numArgs) samplePrograms'
-                      unless (null filtered) (liftIO $ putStrLn $ head filtered) -- we print out the first result for each function
-                      return samplePrograms'
-    
-    -- determines if the result has all the appropriate arguments given the number of args
-    filterParams :: Int -> String -> Bool
-    filterParams 0       _ = error "filterParams error: shouldn't have 0 args!" -- TODO maybe should be true here? 
-    filterParams 1       x = "arg0" `isInfixOf` x
-    filterParams numArgs x = isInfixOf ("arg" ++ (show (numArgs - 1))) x && filterParams (numArgs - 1) x
-
---
--- gets list of components/functions that unify with a given type
--- 
-getUnifiedFunctions :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> CompsSolver IO [(Id, SType)]
-getUnifiedFunctions envv messageChan xs goalType = do
-
-  modify $ set components []
-
-  st <- get
-  let memoized = st ^. memoize :: Map SType [(Id, SType)]
-
-  case Map.lookup goalType memoized of
-    Just cs -> do
-      return cs
-    Nothing -> do
-      helper envv messageChan xs goalType
-      st <- get
-      let cs = st ^. components
-      modify $ set memoize (Map.insert goalType cs (st ^. memoize))
-      return $ st ^. components
-  
-  where 
-    helper :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> CompsSolver IO ()
-    helper _ _ [] _ = return ()
-    
-    helper envv messageChan ( v@(id, schema) : ys) goalType = do
-        (freshVars, st') <- lift $ do
-
-          freshVars <- freshType (envv ^. boundTypeVars) schema
-
-          let t1 = shape (lastType freshVars) :: SType
-          let t2 = goalType :: SType
-
-          modify $ set isChecked True
-          modify $ set typeAssignment Map.empty
-
-          solveTypeConstraint envv t1 t2 :: StateT CheckerState IO ()
-          st' <- get
-          
-          return (freshVars, st') :: StateT CheckerState IO (RType, CheckerState)
-
-        let sub =  st' ^. typeAssignment
-        let checkResult = st' ^. isChecked
-        -- liftIO $ putStrLn $ show (id, "      ", t1, "      ", t2, "      ",freshVars,"      ",checkResult)
-
-        let schema' = stypeSubstitute sub (shape freshVars)
-
-        st <- get
-
-        -- if it unifies, add that particular unified compoenent to state's list of components
-        if (checkResult) 
-          then do
-            modify $ set components ((id, schema') : st ^. components) 
-          else return ()
-
-        helper envv messageChan ys goalType
-
--- 
--- runs dfs of given depth and keeps trying to find complete programs (no filtering yet)
---
-dfs :: Environment -> Chan Message -> Int -> (Id, SType) -> CompsSolver IO [RProgram]
-dfs env messageChan depth (id, schema)
-  | isGround schema = return $ [
-      Program { content = PSymbol id, typeOf = refineTop env schema }
-    ]
-  | depth == 0 = return []  -- stop if depth is 0
-  | otherwise = do
-
-    st <- get
-
-    -- collect all the argument types (the holes ?? we need to fill)
-    let args = allArgTypes schema
-
-    -- collect all the component types (which we might use to fill the holes)
-    let components = Map.toList (env ^. symbols)
-
-    -- map each hole ?? to a list of component types that unify with the hole
-    argUnifiedFuncs <- mapM (getUnifiedFunctions env messageChan components) args :: CompsSolver IO [[(Id, SType)]]
-
-    -- recurse, solving each unified component as a goal, solution is a list of programs
-    -- the first element of solutionsPerArg is the list of solutions for the first argument
-    -- e.g. 
-    let recurse = dfs env messageChan (depth - 1)
-    solutionsPerArg <- mapM (fmap concat . mapM recurse) argUnifiedFuncs :: CompsSolver IO [[RProgram]] -- [[a,b,c], [d,e,f]]
-    
-    -- each arg hole is a list of programs
-    -- take cartesian product of args and prepend our func name
-    -- to get the list of resulting programs solving our original goal
-    -- the first element of programsPerArg is a list of programs that fit as first argument
-    let programsPerArg = sequence solutionsPerArg :: [[RProgram]] -- [[a,d], [a,e], [a,f], [b,d], [b,e], [b,f], ...]
-    let formatFn :: [RProgram] -> RProgram
-        formatFn args = Program { content = PApp id args, typeOf = refineTop env schema }
-    let finalResultList = map formatFn programsPerArg
-    return finalResultList
-  
-  where
-    -- checks if a program is ground (has no more arguments to synthesize - aka function w/o args)
-    isGround :: SType -> Bool
-    isGround (FunctionT id arg0 arg1) = False
-    isGround _ = True
+    -- before synthesis, first check that user has provided valid examples
+    let exWithOutputs = filter ((/=) "??" . output) examples
+    checkResult <- checkExamples envWithHo goalType exWithOutputs messageChan
+    -- preseedExamples <- augmentTestSet envWithHo goalType
+    let augmentedExamples = examples -- nubOrdOn inputs $ examples ++ preseedExamples
+    case checkResult of
+      Right errs -> error (unlines ("examples does not type check" : errs))
+      Left _ -> evalStateT (runPNSolver envWithHo goalType augmentedExamples) is)
+    (\e ->
+         writeChan messageChan (MesgLog 0 "error" (show e)) >>
+         writeChan messageChan (MesgClose (CSError e)) >>
+         printResult (encodeWithPrefix (QueryOutput [] (show e) [])) >>
+         error (show e))
+    -- return ()
