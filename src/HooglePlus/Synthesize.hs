@@ -7,6 +7,7 @@ import Database.Environment
 import Database.Util
 import qualified HooglePlus.Abstraction as Abstraction
 import PetriNet.PNSolver
+import HooglePlus.TypeChecker
 import Synquid.Error
 import Synquid.Logic
 import Synquid.Parser
@@ -127,24 +128,25 @@ synthesize searchParams goal examples messageChan = do
 
 
 -- type CompsSolver' = StateT Comps (StateT SolverState IO)
-type CompsSolver m = StateT Comps (StateT SolverState m)
+type CompsSolver m = StateT Comps (StateT CheckerState m)
 -- 
 
 -- https://stackoverflow.com/questions/53944435/illegal-instance-declaration-for-monad-writer-string
 -- https://wiki.haskell.org/Functional_dependencies
+-- https://hackage.haskell.org/package/lens-tutorial-1.0.4/docs/Control-Lens-Tutorial.html
 -- You can express this by specifying a functional dependency, or fundep for short:
 -- class Mult a b c | a b -> c where
 --   (*) :: a -> b -> c
 
 instance Monad m => CheckMonad (CompsSolver m) where
-    getNameCounter   = return Map.empty -- this is probably very wrong
-    setNameCounter _ = return ()
-    getNameMapping   = return Map.empty
-    setNameMapping _ = return ()
-    getIsChecked     = return False
-    setIsChecked _   = return ()
-    getMessageChan   = getMessageChan
-    overStats _      = return ()
+    getNameCounter = lift getNameCounter
+    setNameCounter = lift . setNameCounter
+    getNameMapping = lift getNameMapping
+    setNameMapping = lift . setNameMapping
+    getIsChecked   = lift getIsChecked
+    setIsChecked   = lift . setIsChecked
+    getMessageChan = lift getMessageChan
+    overStats      = lift . overStats
 
 
 -- type PNSolver m = StateT SolverState m
@@ -205,7 +207,7 @@ instance Monad m => CheckMonad (CompsSolver m) where
 -- start off calling dfs with an empty memoize map
 --
 dfsTop :: Environment -> Chan Message -> Int -> SType -> Int -> IO [String] -- TODO change to RProgram
-dfsTop env messageChan depth hole numArgs = helper `evalStateT` emptyComps `evalStateT` (emptySolverState { _messageChan = messageChan })
+dfsTop env messageChan depth hole numArgs = helper `evalStateT` emptyComps `evalStateT` (emptyChecker { _checkerChan = messageChan })
   where
     helper :: CompsSolver IO [String]
     helper = do
@@ -279,9 +281,10 @@ getUnifiedFunctions envv messageChan xs goalType = do
           modify $ set isChecked True
           modify $ set typeAssignment Map.empty
 
-          solveTypeConstraint envv t1 t2
+          -- solveTypeConstraint :: MonadIO m => Environment -> SType -> SType -> Checker m ()
+          solveTypeConstraint envv t1 t2 :: StateT CheckerState IO ()
           st <- get
-          return (freshVars, st)
+          return (freshVars, st) -- :: StateT CheckerState IO (SType, CheckerState)
 
         let sub =  st' ^. typeAssignment
         let checkResult = st' ^. isChecked
@@ -290,10 +293,12 @@ getUnifiedFunctions envv messageChan xs goalType = do
         let schema' = stypeSubstitute sub (shape freshVars)
 
         st <- get
+
         if (checkResult) 
           then do
             modify $ set components ((id, schema') : st ^. components) 
           else return ()
+
         helper envv messageChan ys goalType
 
 -----------------------
