@@ -182,3 +182,9 @@ type Z3SATState = EncoderState Z3.AST Z3.AST Z3.AST (AbstractSkeleton, Int, Int)
 --------------------------------------------------------------------------------
 
 type PrologState = EncoderState Prolog.Constraint Prolog.Constraint Prolog.Constraint AbstractSkeleton Id Int
+
+--------------------------------------------------------------------------------
+-- | Souffle State Synonyms
+--------------------------------------------------------------------------------
+
+type SouffleState = EncoderState Int Int Int Int Int Int

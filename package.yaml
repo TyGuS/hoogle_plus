@@ -6,106 +6,113 @@ author: "Zheng Guo"
 maintainer: "zhg069@eng.ucsd.edu"
 
 extra-source-files:
-- README.md
+  - README.md
 data-files:
-- InternalTypeGen.hs
+  - InternalTypeGen.hs
 
 description: Please see the README
 
 dependencies:
-- aeson
-- ansi-wl-pprint
-- base
-- bytestring
-- Cabal
-- cereal
-- ChasingBottoms
-- cmdargs
-- conduit
-- conduit-extra
-- containers
-- deepseq
-- directory
-- extra
-- filepath
-- ghc
-- ghc-paths
-- hashable
-- haskell-src-exts
-- hint
-- hoogle
-- http-conduit
-- http-types
-- indents
-- leancheck
-- lens
-- logict
-- MissingH
-- mtl
-- parsec
-- pretty-simple
-- process
-- QuickCheck
-- regex-compat
-- regex-posix
-- resourcet
-- safe
-- smallcheck
-- sort
-- split
-- text
-- time
-- transformers
-- unordered-containers
-- uuid
-- z3
-- ghci
-- ghc-boot-th
-- silently
-- yaml
-- QuickCheck
-- random
-- limp
-- limp-cbc
+  - aeson
+  - ansi-wl-pprint
+  - base
+  - bytestring
+  - Cabal
+  - cereal
+  - ChasingBottoms
+  - cmdargs
+  - conduit
+  - conduit-extra
+  - containers
+  - deepseq
+  - directory
+  - extra
+  - filepath
+  - ghc
+  - ghc-paths
+  - hashable
+  - haskell-src-exts
+  - hint
+  - hoogle
+  - http-conduit
+  - http-types
+  - indents
+  - leancheck
+  - lens
+  - logict
+  - MissingH
+  - mtl
+  - parsec
+  - pretty-simple
+  - process
+  - QuickCheck
+  - regex-compat
+  - regex-posix
+  - resourcet
+  - safe
+  - smallcheck
+  - sort
+  - split
+  - text
+  - time
+  - transformers
+  - unordered-containers
+  - uuid
+  - z3
+  - ghci
+  - ghc-boot-th
+  - silently
+  - yaml
+  - QuickCheck
+  - random
+  - limp
+  - limp-cbc
+  - souffle-haskell
 
 library:
   source-dirs:
-  - src
+    - src
   other-extensions:
-  - TemplateHaskell
-  - Rank2Types
-  - FlexibleInstances
-  - TypeSynonymInstances
-  - FlexibleContexts
+    - TemplateHaskell
+    - Rank2Types
+    - FlexibleInstances
+    - TypeSynonymInstances
+    - FlexibleContexts
   verbatim:
-  - "includes: z3.h"
-  extra-libraries: z3
+    - "includes: z3.h"
+  extra-libraries:
+    - z3
+  when:
+    - condition: os(linux)
+      extra-libraries: stdc++
+    - condition: os(darwin)
+      extra-libraries: c++
 
 executables:
   hplus:
     main: HooglePlus.hs
     source-dirs: app
     ghc-options:
-    # - -fext-core
-    - -rtsopts
-    # - -ddump-simpl 
-    # - -dsuppress-idinfo
-    # - -dsuppress-coercions 
-    # - -dsuppress-type-applications
-    # - -dsuppress-uniques 
-    # - -dsuppress-module-prefixes
-    # - -prof
-    # - -fprof-auto
-    - -O2
+      # - -fext-core
+      - -rtsopts
+      # - -ddump-simpl 
+      # - -dsuppress-idinfo
+      # - -dsuppress-coercions 
+      # - -dsuppress-type-applications
+      # - -dsuppress-uniques 
+      # - -dsuppress-module-prefixes
+      # - -prof
+      # - -fprof-auto
+      - -O2
     dependencies:
-    - HooglePlus
+      - HooglePlus
 
 tests:
   spec:
     main: Test.hs
     source-dirs: test
     ghc-options:
-    - -O2
+      - -O2
     dependencies:
       - HooglePlus
       - tasty

@@ -1,12 +1,13 @@
 packages:
-- .
+  - .
 resolver: lts-16.2
 extra-deps:
-    - z3-408.1
-    - leancheck-0.9.3
-    - hoogle-5.0.17.15
-    - limp-0.3.2.3
-    - limp-cbc-0.3.2.3
+  - z3-408.1
+  - leancheck-0.9.3
+  - hoogle-5.0.17.15
+  - limp-0.3.2.3
+  - limp-cbc-0.3.2.3
+  - souffle-haskell-0.2.3
 compiler: ghc-8.8.3
 allow-different-user: true
 setup-info:
