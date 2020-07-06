@@ -107,20 +107,50 @@ synthesize searchParams goal examples messageChan = do
           _hoCandidates = []
           }
 
-    -- used for figuring out which programs to filter (those without all arguments)
-    let numArgs = length (Map.elems (envWithHo ^. arguments))
+     -- before synthesis, first check that user has provided valid examples
+    let exWithOutputs = filter ((/=) "??" . output) examples
+    checkResult <- checkExamples envWithHo goalType exWithOutputs messageChan
+    --  checkSolution env goal examples code
+    let augmentedExamples = examples -- nubOrdOn inputs $ examples ++ preseedExamples
+    case checkResult of
+      Right errs -> error (unlines ("examples does not type check" : errs))
+      Left _ -> do
+        -- used for figuring out which programs to filter (those without all arguments)
+        let numArgs = length (Map.elems (envWithHo ^. arguments))
 
-    solutions <- evalCompsSolver messageChan $ dfs envWithHo messageChan 3 (shape destinationType) :: IO [RProgram]
+        solutions <- evalCompsSolver messageChan $ dfs envWithHo messageChan 3 (shape destinationType) :: IO [RProgram]
 
-    -- print the first solution that has all the arguments
-    mapM print $ take 1 $ filter (filterParams numArgs) solutions
+        -- print the first solution that has all the arguments
+        mapM print $ take 1 $ filter (filterParams numArgs) solutions
+
+
+
+        -- check :: MonadIO m 
+        --       => Environment -- symbol environment
+        --       -> SearchParams -- search parameters: to control what to be checked
+        --       -> [Example] -- examples for post-filtering
+        --       -> RProgram -- program to be checked
+        --       -> RSchema -- goal type to be checked against
+        --       -> Chan Message -- message channel for logging
+        --       -> FilterTest m (Maybe AssociativeExamples) -- return Nothing is check fails, otherwise return a list of updated examples
+        -- check env searchParams examples program goalType solverChan =
+        --     runGhcChecks searchParams env (lastType $ toMonotype goalType) examples program
+
+        -- how to use FilterTest (from check in GHCChecker.hs)
+        -- (checkResult, fState') <- withTime TypeCheckTime $ 
+        --     liftIO $ runStateT (check env params examples code' goal msgChan) fState
+
+        -- how to use BackTrack (from findProgram in PNSolver.hs)
+        -- searchResults <- withTime FormerTime $ observeManyT cnt $
+        --     enumeratePath env goal examples usefulTrans
 
 ------------
-    writeChan messageChan (MesgClose CSNormal)
-    return ()
+        writeChan messageChan (MesgClose CSNormal)
+        return ()
 
     where
       -- determines if the result has all the appropriate arguments given the number of args
+      -- TODO add "check" function here
       filterParams :: Int -> RProgram -> Bool
       filterParams 0       _ = error "filterParams error: shouldn't have 0 args!" -- TODO maybe should be true here? 
       filterParams 1       x = "arg0" `isInfixOf` (show x)
