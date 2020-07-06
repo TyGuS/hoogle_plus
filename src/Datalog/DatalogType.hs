@@ -6,10 +6,10 @@ import Synquid.Pretty
 
 import Data.Set (Set)
 import Text.Printf
+import Control.Monad.State
 
 newtype SoufflePack = SoufflePack TypeSkeleton
 newtype FormulogPack = FormulogPack TypeSkeleton
 
 class PrintType a where
-    writeType :: a -> String
-    writeArg :: Id -> a -> String
+    writeType :: String -> a -> State Int String

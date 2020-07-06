@@ -10,7 +10,7 @@ import Types.Program
 import HooglePlus.Utils
 import Synquid.Type
 
-import Text.Read
+import Text.Read hiding (get)
 import Data.Char
 import Data.List
 import Data.List.Extra (dropEnd)
@@ -18,6 +18,7 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Debug.Trace
 import Text.Printf
+import Control.Monad.State
 
 getArgs :: Int -> String -> String -> [String] -> [String]
 getArgs 0 "" curr sofar = sofar
@@ -40,25 +41,20 @@ instance Read UProgram where
     readsPrec _ _ = []
 
 instance PrintType SoufflePack where
-    writeType (SoufflePack (TypeVarT id)) = id
-    writeType (SoufflePack (DatatypeT dt)) =
+    writeType _ (SoufflePack (TypeVarT id)) = return id
+    writeType _ (SoufflePack (DatatypeT dt)) = do
         let name = replaceId tyclassPrefix "" dt
-         in printf "TyAppT(\"%s\", \"\", \"%s\", 0, _)" name name
-    writeType (SoufflePack t@(TyAppT tFun tArg)) =
-        let tFun' = printf (writeType (SoufflePack tFun))
-            tArg' = writeType (SoufflePack tArg)
+        return $ printf "TyApp(\"%s\", \"\", \"%s\", 0, _)" name name
+    writeType pre (SoufflePack t@(TyAppT tFun tArg)) = do
         let (dt, args) = collectArgs t
-            argStrs = foldr (\a acc -> printf "[%s, %s]" (writeType $ SoufflePack a) acc) "nil" args
-         in printf "[\"%s\", %s]" (replaceId tyclassPrefix "" dt) argStrs
-    writeType (SoufflePack (TyFunT tArg tRes)) = writeType (SoufflePack (TyAppT (TyAppT (DatatypeT "Fun") tArg) tRes))
-    writeType (SoufflePack (FunctionT _ tArg tRes)) = writeType (SoufflePack (TyFunT tArg tRes))
-
-    writeArg name (SoufflePack tArg) = printf "%s\t%s" (writeArg' tArg) name
-        where
-            writeArg' (TypeVarT id) = printf "[%s, nil]" id :: String
-            writeArg' (DatatypeT dt) = replaceId tyclassPrefix "" dt
-            writeArg' t@(TyAppT tFun tArg) = let (dt, args) = collectArgs t
-                                                 argStrs = foldr (\a acc -> printf "[%s, %s]" (writeArg' a) acc) "nil" args
-                                              in printf "[%s, %s]" (replaceId tyclassPrefix "" dt) argStrs
-            writeArg' (TyFunT tArg tRes) = writeArg' (TyAppT (TyAppT (DatatypeT "Fun") tArg) tRes)
-            writeArg' (FunctionT _ tArg tRes) = writeArg' (TyFunT tArg tRes)
+        idx <- get
+        let myPrefix = pre ++ show idx
+        let writeArg pre = writeType pre . SoufflePack
+        -- start a new naming index in the inner level
+        let (innerIdx, argStrs) = runState (mapM (writeArg myPrefix) args) 0
+        let name = replaceId tyclassPrefix "" dt
+        let argApps = map (\i -> printf "TyApp(%s, %s%d, %s%d, %d, _)" (if i == 0 then show name else (myPrefix ++ show (i - 1))) myPrefix (i + innerIdx) myPrefix i (length args - i - 1))) name [0 .. length args]
+        put (idx + 1)
+        return $ intercalate ", " (argStrs ++ argApps)
+    writeType pre (SoufflePack (TyFunT tArg tRes)) = writeType pre (SoufflePack (TyAppT (TyAppT (DatatypeT "Fun") tArg) tRes))
+    writeType pre (SoufflePack (FunctionT _ tArg tRes)) = writeType pre (SoufflePack (TyFunT tArg tRes))
