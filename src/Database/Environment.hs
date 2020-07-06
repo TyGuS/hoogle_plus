@@ -51,32 +51,36 @@ writeFunction :: PrintType a
               -> Id
               -> TypeSkeleton
               -> String
-writeFunction headerTempl printApp pkTyp f t | retVars `Set.isSubsetOf` argVars =
+writeFunction headerTempl printApp pkTyp f t =
     if null args
        then printf "%s." (headClause "0")
-       else printf "%s :- D >= 0, D <= {} %s %s."
+       else printf "%s :- D >= 0, D <= 5, %s, %s."
                (headClause "D + 1")
                (if null depthVars then "" else printf ", D = %s" (intercalate " + " depthVars))
-               (unwords (map ((',' :) . argClause) [0 .. (length args - 1)]))  :: String
+               (intercalate ", " (map argClause [0 .. argNum]))
     where
-        monotype = typeSubstitute subst t
-        ret = lastType monotype
-        retVars = typeVarsOf ret
-        headClause depth = printf headerTempl (writeType (pkTyp ret)) f (printApp progVars) depth :: String
-        args = map snd (argsWithName monotype)
-        argClause i = printf "sat(%s, P%d, D%d)" (writeType $ pkTyp (args !! i)) i i
-        argVars = Set.unions $ map typeVarsOf args
-        argNum = arity t - 1
+        renamedTyp = typeSubstitute subst t
+        ret = lastType renamedTyp
+        retStr = printf (writeType (pkTyp ret)) "T" :: String
+
+        headClause depth = printf headerTempl "T" f (printApp progVars) depth :: String
+        args = allArgTypes renamedTyp
+
+        argClause i = foldr underscoreSingleton (printf "Program(T%d, P%d, D%d)" i i i) singletonVars
+        argsStr = zipWith (printf . writeType . pkTyp) args argTypVars :: [String]
+
         vars = Set.toList (typeVarsOf t)
-        nextAvailable i = let v = "T" ++ show i
-                           in if v `elem` vars then nextAvailable (i + 1) else (i + 1, v)
-        (_, typVars) = foldr (\_ (i, lst) ->
-            let (j, v) = nextAvailable i
-             in (j, lst ++ [v])) (0, []) [0 .. (length vars - 1)]
-        progVars = map (("P" ++) . show) [0 .. argNum]
-        depthVars = map (("D" ++) . show) [0 .. argNum]
-        subst = Map.fromList $ zipWith (\v1 v2 -> (v1, TypeVarT v2)) (filter ((`elem` ("D" : depthVars ++ progVars)) . map toUpper) vars) typVars
-writeFunction _ _ _ _ _ = ""
+        dupVars = concatMap (Set.toList . typeVarsOf) (ret : args)
+        singletonVars = map head (filter ((<= 1) . length) (group (sort dupVars)))
+        underscoreSingleton v = replaceId v "_" 
+
+        -- rename the type variables to make sure all the variables are unique in one rule
+        mkVarTo v i = map ((v:) . show) [0 .. i]
+        argNum = arity t - 1
+        [progVars, depthVars, argTypVars] = map (`mkVarTo` argNum) ['P', 'D', 'T']
+
+        typeVars = mkVarTo 'A' (length vars)
+        subst = Map.fromList $ zipWith (\v1 v2 -> (v1, TypeVarT v2)) vars typeVars
 
 writeEnv :: FilePath -> Environment -> IO ()
 writeEnv path env =

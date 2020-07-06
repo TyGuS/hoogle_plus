@@ -10,6 +10,8 @@ extra-deps:
   - souffle-haskell-0.2.3
 compiler: ghc-8.8.3
 allow-different-user: true
+ghc-options:
+  souffle-haskell: -optc-std=c++17
 setup-info:
   ghc:
     linux64-custom-yields:

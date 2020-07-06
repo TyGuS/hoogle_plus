@@ -40,11 +40,16 @@ instance Read UProgram where
     readsPrec _ _ = []
 
 instance PrintType SoufflePack where
-    writeType (SoufflePack (TypeVarT id)) = map toUpper id -- if id `Set.member` vars then map toUpper id else "_"
-    writeType (SoufflePack (DatatypeT dt)) = printf "[\"%s\", nil]" (replaceId tyclassPrefix "" dt)
-    writeType (SoufflePack t@(TyAppT tFun tArg)) = let (dt, args) = collectArgs t
-                                                       argStrs = foldr (\a acc -> printf "[%s, %s]" (writeType $ SoufflePack a) acc) "nil" args
-                                                    in printf "[\"%s\", %s]" (replaceId tyclassPrefix "" dt) argStrs
+    writeType (SoufflePack (TypeVarT id)) = id
+    writeType (SoufflePack (DatatypeT dt)) =
+        let name = replaceId tyclassPrefix "" dt
+         in printf "TyAppT(\"%s\", \"\", \"%s\", 0, _)" name name
+    writeType (SoufflePack t@(TyAppT tFun tArg)) =
+        let tFun' = printf (writeType (SoufflePack tFun))
+            tArg' = writeType (SoufflePack tArg)
+        let (dt, args) = collectArgs t
+            argStrs = foldr (\a acc -> printf "[%s, %s]" (writeType $ SoufflePack a) acc) "nil" args
+         in printf "[\"%s\", %s]" (replaceId tyclassPrefix "" dt) argStrs
     writeType (SoufflePack (TyFunT tArg tRes)) = writeType (SoufflePack (TyAppT (TyAppT (DatatypeT "Fun") tArg) tRes))
     writeType (SoufflePack (FunctionT _ tArg tRes)) = writeType (SoufflePack (TyFunT tArg tRes))
 

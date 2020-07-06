@@ -27,20 +27,24 @@ import System.Directory
 import Text.Read
 import Text.Printf
 
-soufflePreamble = unlines [ ".type ListSym = [head: symbol, tail: ListSym]"
-                          , ".type Program = [fun: symbol, args: ListProgram]"
-                          , ".type ListProgram = [head: Program, tail: ListProgram]"
-                          , ".type ListTyp = [head: Type, tail: ListTyp]"
-                          , ".type Type = [a: symbol, b: ListTyp]"
-                          , ".input funName"
-                          , ".decl funName(f: symbol)"
-                          , ".input inh"
-                          , ".decl inh(t: Type, x: symbol)"
-                          , ".decl sat(t: Type, fs: Program, d: number)"
-                          , "sat(t, [x, nil], 0) :- inh(t, x)."
-                          , ".decl query(fs: Program)"
-                          , ".output query"
-                          ]
+soufflePreamble :: [String]
+soufflePreamble =   [ ".decl Nullary(t: symbol)"
+                    , ".decl Unary(t: symbol)"
+                    , ".decl Binary(t: symbol)"
+                    , ".decl TyApp(dt: symbol, arg: symbol, t: symbol, k: number, d: number)"
+                    , "TyApp(X, \"\", X, 0, 0) :- Nullary(X)."
+                    , "TyApp(X, Y, cat(X, cat(\" \", Y)), 0, D+1) :- Unary(X), TyApp(_, _, Y, 0, D), D <= 4."
+                    , "TyApp(X, Y, cat(X, cat(\" \", Y)), 1, D+1) :- Binary(X), TyApp(_, _, Y, 0, D), D <= 4."
+                    , "TyApp(T, Z, cat(T, cat(\" \", Z)), 0, D+1) :- Binary(X), TyApp(X, _, T, 1, D1), TyApp(_, _, Z, 0, D2), D1 + D2 = D, D <= 4."
+                    , ".decl program(t: symbol, p: symbol, d: number)"
+                    , ".decl Inh(x: symbol, t: symbol)"
+                    , ".decl IsGoal(t: symbol)"
+                    , ".decl IsGoalDepth(d: number)"
+                    , ".decl Query(p: symbol)"
+                    , ".output Query"
+                    , "Query(P) :- Program(T, P, D), IsGoal(T), IsGoalDepth(D)."
+                    , "Program(T, X, 0) :- Inh(X, T)."
+                    ]
 
 runSouffle :: SearchParams -> Environment -> SchemaSkeleton -> [Example] -> Int -> LogicT IO ()
 runSouffle params env goal examples d = do
@@ -74,15 +78,17 @@ findPath env goal d = do
     return $ map read $ lines out :: IO [UProgram]
 
 writeSouffle :: Environment -> IO ()
-writeSouffle env = do
+writeSouffle env =
     -- write datalog templates
-    writeFile "./data/souffle/input.dl" $
-        unlines (soufflePreamble : map (uncurry writeFunctionSouffle) 
-                (Map.toList $ env ^. groups))
-    -- write datalog function names
-    writeFile "./data/souffle/funName.facts" $
-        unlines (Map.keys (env ^. groups))
+    withFile "./data/souffle/input.dl" WriteMode $ \hdl -> do
+        -- write preamble above
+        mapM_ (hPutStrLn hdl) soufflePreamble
+        -- write function definitions
+        mapM_ (hPutStrLn hdl . uncurry writeFunctionSouffle) (Map.toList $ env ^. groups)
 
 writeFunctionSouffle :: Id -> TypeSkeleton -> String
-writeFunctionSouffle = writeFunction "sat(%s, [\"%s\", %s], %s)" (foldr (printf "[%s, %s]") "nil") SoufflePack
+writeFunctionSouffle = 
+    writeFunction "Program(%s, cat(cat(\"(\", cat(\"%s\", %s)), \")\"), %s)" 
+                  (foldr (printf "cat(\" \", cat(%s, %s))") "")
+                  SoufflePack
 

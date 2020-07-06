@@ -82,6 +82,8 @@ library:
     - "includes: z3.h"
   extra-libraries:
     - z3
+  cxx-options:
+    - -std=c++17
   when:
     - condition: os(linux)
       extra-libraries: stdc++
