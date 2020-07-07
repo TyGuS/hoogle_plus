@@ -130,7 +130,7 @@ synthesize searchParams goal examples messageChan = do
 
         printf "running dfsTop on %s with depth %d\n" (show $ shape destinationType) depth
 
-        solutions <- evalCompsSolver messageChan $ dfs envWithHo messageChan depth (shape destinationType) :: IO [RProgram]
+        solutions <- evalTopDownBackTrack messageChan $ dfs envWithHo messageChan depth (shape destinationType) :: IO [RProgram]
 
         -- print the first solution that has all the arguments
         mapM print $ take 1 $ filter (filterParams numArgs) solutions
@@ -213,19 +213,104 @@ instance Monad m => CheckMonad (CompsSolver m) where
 -- does DFS stuff
 --
 -- Environment -> Int -> SType -> [RProgram]
-dfs :: Environment -> Chan Message -> Int -> SType -> CompsSolver IO [RProgram]
+dfs :: Environment -> Chan Message -> Int -> SType -> TopDownBackTrack IO RProgram
 dfs env messageChan depth goalType = do
   
   -- collect all the component types (which we might use to fill the holes)
   let components = Map.toList (env ^. symbols)
 
   -- find all functions that unify with goal type
-  unifiedFuncs <- getUnifiedFunctions env messageChan components goalType :: CompsSolver IO [(Id, SType)]
+  -- unifiedFuncs <- getUnifiedFunctions' env messageChan components goalType :: CompsSolver IO [(Id, SType)]
+
+  -- Int -> Int
+  -- unifiedFuncs should first return arg0
+  -- checks if that's ground and returns that
+  -- if it gets to something else, like `add`
+    -- then 
+
+
+  -- unifiedFunc@(id, schema) <- getUnifiedFunctions' env messageChan components goalType mzero :: TopDownBackTrack IO (Id, SType)
+  unifiedFunc@(id, schema) <- getUnifiedFunctions' env messageChan (choices components) goalType :: TopDownBackTrack IO (Id, SType)
+  -- guard (isGround schema)
+  guard (isInfixOf "length" id)
+  
+  liftIO $ print $ unifiedFunc
+  -- liftIO $ print $ "here"
+
+
+
+    -- print $ unifiedFunc
+    -- guard ?????????
+    -- return undefined
+
+    -- guard (check if unfiedFunc)
+
+
+      {--
+            functionA :: Int -> [Int] -> [Int]
+            functionA (x : xs)
+
+            functionB :: Int -> [Int]
+            = x : functionB xs 
+      --}
+
+
+{--
+    takes in single type (return type)          e.g. Int
+    finds all functions that unify with it      e.g. [f: Int, g: Int -> Int, h: Int -> Bool -> Int]
+      for each of these functions F:
+        if not ground:                          e.g. [Int -> Int, Int -> Bool -> Int]
+          get arguments of F                    e.g. [[Int], [Int, Bool]]
+          for each argument:
+            call dfs on the argument to get the programs that create that argument
+                                                e.g. Int becomes [f,g,h], Bool becomes []
+          now you have a list of [RProgram] for each argument
+          take our function F (e.g. h: Int -> Bool -> Int) and fill in the arguments using the [RProgram] we get
+          to get a new list of [RProgram]       e.g. if F is g, then return [g f]
+          we somehow take these programs for each argument and combine them into a bunch of larger programs
+    then we return [RProgram] that build up the goalType
+--}
+
+
+    {--
+        * get unified functions for original goal type
+        * if any of those are ground
+              return the first one that's ground
+        * if neither are ground 
+              look at the first unified function and recurse on its chiren 
+
+                query: Bool -> Int
+                                        goalType
+              guard: whatever program we're looking at that's coming out of getUnifiedFunctions,
+                     we want to check if it's ground          
+          level 1:    find the ground program at this level, else           (incomplete: f (?? :: Bool) )     g ??? ??? ???? ???? ????        arg0
+          level 2:    find the ground program at this level, else       
+          level 3:    find the ground program at this level
+
+
+    --}
+
+
+
+
+    -- guard ()
+
+  return undefined 
+
+
+-- naiveFactorize' :: Int -> Logic (Int, Int)
+-- naiveFactorize' n =
+--     x <- nat
+--     y <- nat
+--     guard (2^x * y == n)
+--     return (x, y)
+
+
 
   -- for each of these functions, find solutions
-  functionSolutions <- mapM turnFunctionIntoSolutions unifiedFuncs :: CompsSolver IO [[RProgram]] -- [solutions for func1, solutions for func2]
-  let allFunctionSolutions = concat functionSolutions :: [RProgram]
-  return allFunctionSolutions
+  -- functionSolutions <- mapM turnFunctionIntoSolutions unifiedFuncs :: TopDownBackTrack IO [RProgram] -- [solutions for func1, solutions for func2]
+  -- let allFunctionSolutions = concat functionSolutions :: [RProgram]
+  -- return allFunctionSolutions
   
   where
     -- checks if a program is ground (has no more arguments to synthesize - aka function w/o args)
@@ -233,33 +318,51 @@ dfs env messageChan depth goalType = do
     isGround (FunctionT id arg0 arg1) = False
     isGround _ = True
 
-    turnFunctionIntoSolutions :: (Id, SType) -> CompsSolver IO [RProgram]
-    turnFunctionIntoSolutions (id, schema)
-      | isGround schema = return [Program { content = PSymbol id, typeOf = refineTop env schema }]
-      | depth == 0 = return []  -- stop if depth is 0
-      | otherwise = do
+    -- converts [a] to a Logic a
+    choices :: MonadPlus m => [a] -> m a
+    choices = msum . map return
 
-        -- collect all the argument types (the holes ?? we need to fill)
-        let args = allArgTypes schema :: [SType]
+  --   -- given a function that returns the type we want (goalType)
+  --   -- find all the possible ways to call that function and return them as RProgram
+  --   turnFunctionIntoSolutions :: (Id, SType) -> TopDownBackTrack IO RProgram
+  --   turnFunctionIntoSolutions (id, schema)
+  --     | isGround schema = return Program { content = PSymbol id, typeOf = refineTop env schema }
+  --     | depth == 0 = return []  -- stop if depth is 0
+  --     | otherwise = do
 
-        -- recursively call DFS on the arguments' types to get the functions that return those types
-        let recurse = dfs env messageChan (depth-1) :: SType -> CompsSolver IO [RProgram]
-        solutionsPerArg <- mapM recurse args :: CompsSolver IO [[RProgram]] -- [[a,b,c], [d,e,f]]
+  --       -- collect all the argument types (the holes ?? we need to fill)
+  --       let args = allArgTypes schema :: [SType]
 
-        -- get cartesian product of all the arguments
-        let programsPerArg = sequence solutionsPerArg :: [[RProgram]] -- [[a,d], [a,e], [a,f], [b,d], [b,e], [b,f]]
+  --       -- recursively call DFS on the arguments' types to get the functions that return those types
+  --       let recurse = dfs env messageChan (depth-1) :: SType -> TopDownBackTrack IO RProgram
+  --       solutionsPerArg <- mapM recurse args :: TopDownBackTrack IO [RProgram] -- [[a,b,c], [d,e,f]]
 
-        -- fill in arguments of func as RPrograms - [func a d, func a e, func a f, func b d, func b e, func b f]
-        let formatFn :: [RProgram] -> RProgram
-            formatFn args = Program { content = PApp id args, typeOf = refineTop env schema }
+  --       -- get cartesian product of all the arguments
+  --       let programsPerArg = sequence solutionsPerArg :: [[RProgram]] -- [[a,d], [a,e], [a,f], [b,d], [b,e], [b,f]]
+
+  --       -- fill in arguments of func as RPrograms - [func a d, func a e, func a f, func b d, func b e, func b f]
+  --       let formatFn :: [RProgram] -> RProgram
+  --           formatFn args = Program { content = PApp id args, typeOf = refineTop env schema }
         
-        let finalResultList = map formatFn programsPerArg
+  --       let finalResultList = map formatFn programsPerArg
 
-        return finalResultList
+  --       return finalResultList
+
+
+
+
+
+
+
 
 -- type PNSolver m = StateT SolverState m
 -- type BackTrack m = LogicT (PNSolver m)
 type TopDownBackTrack m = LogicT (StateT CheckerState m)
+-- evalTopDownBackTrack :: Monad m => Chan Message -> TopDownBackTrack m a -> m [a]
+-- evalTopDownBackTrack messageChan action = observeAllT action `evalStateT` (emptyChecker { _checkerChan = messageChan })
+evalTopDownBackTrack :: Monad m => Chan Message -> TopDownBackTrack m a -> m [a]
+evalTopDownBackTrack messageChan action = fmap (\x -> [x]) $ observeT action `evalStateT` (emptyChecker { _checkerChan = messageChan })
+
 -- type CompsSolver m = StateT Comps (StateT CheckerState m)
 
 
@@ -267,16 +370,18 @@ type TopDownBackTrack m = LogicT (StateT CheckerState m)
 -- gets list of components/functions that unify with a given type
 -- 
 -- getUnifiedFunctions :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> CompsSolver IO [(Id, SType)]
-getUnifiedFunctions' :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> TopDownBackTrack IO (Id, SType) -> TopDownBackTrack IO (Id, SType)
+getUnifiedFunctions' :: Environment -> Chan Message -> TopDownBackTrack IO (Id, RSchema) -> SType -> TopDownBackTrack IO (Id, SType)
 
 -- MAYBE HOW TO DO THIS ????????????????????
 -- existingList `mplus` (return singleElement) 
-getUnifiedFunctions' _ _ [] _ unifiedFuncs = unifiedFuncs
+-- getUnifiedFunctions' _ _ [] _ = mzero
 
-getUnifiedFunctions' env messageChan ( v@(id, schema) : ys) goalType unifiedFuncs = do
+getUnifiedFunctions' env messageChan func goalType = do
+    (id, schema) <- func
     (freshVars, st') <- lift $ do
 
       freshVars <- freshType (env ^. boundTypeVars) schema
+      liftIO $ putStrLn $ "Consumed a value: " ++ id ++ ", with goalType: " ++ (show goalType)
 
       let t1 = shape (lastType freshVars) :: SType
       let t2 = goalType :: SType
@@ -295,66 +400,48 @@ getUnifiedFunctions' env messageChan ( v@(id, schema) : ys) goalType unifiedFunc
     let schema' = stypeSubstitute sub (shape freshVars)
 
     -- if it unifies, add that particular unified compoenent to state's list of components
-    getUnifiedFunctions' env messageChan ys goalType $
-      if (checkResult) 
-        then unifiedFuncs `mplus` (return (id, schema'))
-        else unifiedFuncs
+    -- getUnifiedFunctions' env messageChan ys goalType `mplus`
+    --   if (checkResult) 
+    --     then (return (id, schema'))
+    --     else mzero
+    guard checkResult
+    return (id, schema')
 
 
 
 
 
----------------
-getUnifiedFunctions envv messageChan xs goalType = do
+-- getUnifiedFunctions' :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> TopDownBackTrack IO (Id, SType) -> TopDownBackTrack IO (Id, SType)
 
-  modify $ set components []
+-- -- MAYBE HOW TO DO THIS ????????????????????
+-- -- existingList `mplus` (return singleElement) 
+-- getUnifiedFunctions' _ _ [] _ unifiedFuncs = unifiedFuncs
 
-  st <- get
-  let memoized = st ^. memoize :: Map SType [(Id, SType)]
+-- getUnifiedFunctions' env messageChan ( v@(id, schema) : ys) goalType unifiedFuncs = do
+--     (freshVars, st') <- lift $ do
 
-  case Map.lookup goalType memoized of
-    Just cs -> do
-      return cs
-    Nothing -> do
-      helper envv messageChan xs goalType
-      st <- get
-      let cs = st ^. components
-      modify $ set memoize (Map.insert goalType cs (st ^. memoize))
-      return $ st ^. components
-  
-  where 
-    helper :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> CompsSolver IO ()
-    helper _ _ [] _ = return ()
-    
-    helper envv messageChan ( v@(id, schema) : ys) goalType = do
-        (freshVars, st') <- lift $ do
+--       freshVars <- freshType (env ^. boundTypeVars) schema
+--       liftIO $ putStrLn $ "Consumed a value: " ++ id ++ ", with goalType: " ++ (show goalType)
 
-          freshVars <- freshType (envv ^. boundTypeVars) schema
+--       let t1 = shape (lastType freshVars) :: SType
+--       let t2 = goalType :: SType
 
-          let t1 = shape (lastType freshVars) :: SType
-          let t2 = goalType :: SType
+--       modify $ set isChecked True
+--       modify $ set typeAssignment Map.empty
 
-          modify $ set isChecked True
-          modify $ set typeAssignment Map.empty
+--       solveTypeConstraint env t1 t2 :: StateT CheckerState IO ()
+--       st' <- get
+      
+--       return (freshVars, st') :: StateT CheckerState IO (RType, CheckerState)
 
-          solveTypeConstraint envv t1 t2 :: StateT CheckerState IO ()
-          st' <- get
-          
-          return (freshVars, st') :: StateT CheckerState IO (RType, CheckerState)
+--     let sub =  st' ^. typeAssignment
+--     let checkResult = st' ^. isChecked
 
-        let sub =  st' ^. typeAssignment
-        let checkResult = st' ^. isChecked
-        -- liftIO $ putStrLn $ show (id, "      ", t1, "      ", t2, "      ",freshVars,"      ",checkResult)
+--     let schema' = stypeSubstitute sub (shape freshVars)
 
-        let schema' = stypeSubstitute sub (shape freshVars)
+--     -- if it unifies, add that particular unified compoenent to state's list of components
+--     getUnifiedFunctions' env messageChan ys goalType $
+--       if (checkResult) 
+--         then unifiedFuncs `mplus` (return (id, schema'))
+--         else unifiedFuncs
 
-        st <- get
-
-        -- if it unifies, add that particular unified compoenent to state's list of components
-        if (checkResult) 
-          then do
-            modify $ set components ((id, schema') : st ^. components) 
-          else return ()
-
-        helper envv messageChan ys goalType
-----------
