@@ -8,6 +8,7 @@ import Database.Util
 import qualified HooglePlus.Abstraction as Abstraction
 import PetriNet.PNSolver
 import HooglePlus.TypeChecker
+import HooglePlus.GHCChecker 
 import Synquid.Error
 import Synquid.Logic
 import Synquid.Parser
@@ -18,6 +19,7 @@ import Synquid.Type
 import Synquid.Util
 import Types.CheckMonad
 import Types.Common
+import Types.Filtering
 import Types.Environment
 import Types.Experiments
 import Types.Program
@@ -111,19 +113,56 @@ synthesize searchParams goal examples messageChan = do
     let exWithOutputs = filter ((/=) "??" . output) examples
     checkResult <- checkExamples envWithHo goalType exWithOutputs messageChan
     --  checkSolution env goal examples code
+    
     let augmentedExamples = examples -- nubOrdOn inputs $ examples ++ preseedExamples
+    
     case checkResult of
+      
       Right errs -> error (unlines ("examples does not type check" : errs))
+      
       Left _ -> do
+
         -- used for figuring out which programs to filter (those without all arguments)
         let numArgs = length (Map.elems (envWithHo ^. arguments))
+        
+        let depth = 7
+        start <- getCPUTime
 
-        solutions <- evalCompsSolver messageChan $ dfs envWithHo messageChan 3 (shape destinationType) :: IO [RProgram]
+        printf "running dfsTop on %s with depth %d\n" (show $ shape destinationType) depth
+
+        solutions <- evalCompsSolver messageChan $ dfs envWithHo messageChan depth (shape destinationType) :: IO [RProgram]
 
         -- print the first solution that has all the arguments
         mapM print $ take 1 $ filter (filterParams numArgs) solutions
 
+        -- printf "done running dfsTop on %s\n" (show $ shape destinationType)
 
+        end <- getCPUTime
+
+        let diff = fromIntegral (end - start) / (10^12)
+        printf "Computation time: %0.3f sec\n" (diff :: Double)
+
+
+
+
+---------------
+        -- TODO should we use `examples` or something else? also, `goalType` correct? 
+        -- let myCheck :: RProgram -> FilterTest m (Maybe AssociativeExamples)
+        --     myCheck program = check envWithHo searchParams examples program goalType messageChan
+
+        -- -- how to use FilterTest in BackTrack (from check in src/PetriNet/PNSolver.hs)
+        -- (checkResult, fState') <- withTime TypeCheckTime $ 
+        --     liftIO $ runStateT (check env params examples code' goal msgChan) fState
+
+        -- -- this is how you evaluate BackTrack, in PNSolver
+        -- searchResults <- withTime FormerTime $ observeManyT cnt $
+        --     enumeratePath env goal examples usefulTrans
+
+        -- this is how to use PNSolver TODO ask zheng
+
+
+        -- type PNSolver m = StateT SolverState m
+        -- type BackTrack m = LogicT (PNSolver m)
 
         -- check :: MonadIO m 
         --       => Environment -- symbol environment
@@ -136,11 +175,11 @@ synthesize searchParams goal examples messageChan = do
         -- check env searchParams examples program goalType solverChan =
         --     runGhcChecks searchParams env (lastType $ toMonotype goalType) examples program
 
-        -- how to use FilterTest (from check in GHCChecker.hs)
+        -- how to use FilterTest (from check in HooglePlus/GHCChecker.hs)
         -- (checkResult, fState') <- withTime TypeCheckTime $ 
         --     liftIO $ runStateT (check env params examples code' goal msgChan) fState
 
-        -- how to use BackTrack (from findProgram in PNSolver.hs)
+        -- how to use BackTrack (from findProgram in PetriNet/PNSolver.hs)
         -- searchResults <- withTime FormerTime $ observeManyT cnt $
         --     enumeratePath env goal examples usefulTrans
 
@@ -173,6 +212,7 @@ instance Monad m => CheckMonad (CompsSolver m) where
 --
 -- does DFS stuff
 --
+-- Environment -> Int -> SType -> [RProgram]
 dfs :: Environment -> Chan Message -> Int -> SType -> CompsSolver IO [RProgram]
 dfs env messageChan depth goalType = do
   
@@ -217,10 +257,54 @@ dfs env messageChan depth goalType = do
 
         return finalResultList
 
+-- type PNSolver m = StateT SolverState m
+-- type BackTrack m = LogicT (PNSolver m)
+type TopDownBackTrack m = LogicT (StateT CheckerState m)
+-- type CompsSolver m = StateT Comps (StateT CheckerState m)
+
+
 --
 -- gets list of components/functions that unify with a given type
 -- 
-getUnifiedFunctions :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> CompsSolver IO [(Id, SType)]
+-- getUnifiedFunctions :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> CompsSolver IO [(Id, SType)]
+getUnifiedFunctions' :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> TopDownBackTrack IO (Id, SType) -> TopDownBackTrack IO (Id, SType)
+
+-- MAYBE HOW TO DO THIS ????????????????????
+-- existingList `mplus` (return singleElement) 
+getUnifiedFunctions' _ _ [] _ unifiedFuncs = unifiedFuncs
+
+getUnifiedFunctions' env messageChan ( v@(id, schema) : ys) goalType unifiedFuncs = do
+    (freshVars, st') <- lift $ do
+
+      freshVars <- freshType (env ^. boundTypeVars) schema
+
+      let t1 = shape (lastType freshVars) :: SType
+      let t2 = goalType :: SType
+
+      modify $ set isChecked True
+      modify $ set typeAssignment Map.empty
+
+      solveTypeConstraint env t1 t2 :: StateT CheckerState IO ()
+      st' <- get
+      
+      return (freshVars, st') :: StateT CheckerState IO (RType, CheckerState)
+
+    let sub =  st' ^. typeAssignment
+    let checkResult = st' ^. isChecked
+
+    let schema' = stypeSubstitute sub (shape freshVars)
+
+    -- if it unifies, add that particular unified compoenent to state's list of components
+    getUnifiedFunctions' env messageChan ys goalType $
+      if (checkResult) 
+        then unifiedFuncs `mplus` (return (id, schema'))
+        else unifiedFuncs
+
+
+
+
+
+---------------
 getUnifiedFunctions envv messageChan xs goalType = do
 
   modify $ set components []
@@ -273,3 +357,4 @@ getUnifiedFunctions envv messageChan xs goalType = do
           else return ()
 
         helper envv messageChan ys goalType
+----------
