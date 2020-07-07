@@ -130,13 +130,19 @@ synthesize searchParams goal examples messageChan = do
 
         printf "running dfsTop on %s with depth %d\n" (show $ shape destinationType) depth
 
-        solutions <- evalTopDownBackTrack messageChan $ dfs envWithHo messageChan depth (shape destinationType) :: IO [RProgram]
-
+        solution <- evalTopDownBackTrack messageChan $ do
+          sol <- dfs envWithHo messageChan depth (shape destinationType) :: TopDownBackTrack IO RProgram
+          
+          guard (filterParams numArgs sol)
+          -- guard (isInfixOf "arg1" (show sol))
+          
+          return sol
+        
         -- print the first solution that has all the arguments
-        mapM print $ take 1 $ filter (filterParams numArgs) solutions
+        -- mapM print $ take 1 $ filter (filterParams numArgs) solutions
 
         -- printf "done running dfsTop on %s\n" (show $ shape destinationType)
-
+        printf "\n\n\nSOLUTION: %s\n\n\n" (show solution)
         end <- getCPUTime
 
         let diff = fromIntegral (end - start) / (10^12)
@@ -186,7 +192,25 @@ synthesize searchParams goal examples messageChan = do
 ------------
         writeChan messageChan (MesgClose CSNormal)
         return ()
+        -- https://hackage.haskell.org/package/logict-0.7.0.2/docs/Control-Monad-Logic.html
+        -- https://stackoverflow.com/questions/17239511/prologs-returns-in-haskell
+        -- runLogic :: Logic a -> (a -> r -> r) -> r -> r
 
+
+-- Main> runLogic (once $ myFunc 1 []) (\a r -> a:r) []
+-- [[16,15,14,13,12,11,10]]
+
+
+-- newtype LogicT m a =
+--     LogicT { unLogicT :: forall r. (a -> m r -> m r) -> m r -> m r }
+
+--         runLogic :: Logic a -> (a -> r -> r) -> r -> r
+--         runLogic l s f = runIdentity $ unLogicT l si fi
+--         where
+--         si = fmap . s
+--         fi = Identity f
+
+        -- Runs a Logic computation with the specified initial success and failure continuations.
     where
       -- determines if the result has all the appropriate arguments given the number of args
       -- TODO add "check" function here
@@ -230,29 +254,57 @@ dfs env messageChan depth goalType = do
 
 
   -- unifiedFunc@(id, schema) <- getUnifiedFunctions' env messageChan components goalType mzero :: TopDownBackTrack IO (Id, SType)
+  -- unifiedFuncs <- lift $ getUnifiedFunctions' env messageChan components goalType :: TopDownBackTrack IO [(Id, SType)]
   unifiedFunc@(id, schema) <- getUnifiedFunctions' env messageChan (choices components) goalType :: TopDownBackTrack IO (Id, SType)
+
   -- guard (isGround schema)
-  guard (isInfixOf "length" id)
+  -- guard (isInfixOf "length" id)
   
-  liftIO $ print $ unifiedFunc
+  -- liftIO $ print $ unifiedFunc
+
+  return Program { content = PSymbol id, typeOf = refineTop env schema }
   -- liftIO $ print $ "here"
+  
+  where
+    -- checks if a program is ground (has no more arguments to synthesize - aka function w/o args)
+    isGround :: SType -> Bool
+    isGround (FunctionT id arg0 arg1) = False
+    isGround _ = True
+
+    -- converts [a] to a Logic a
+    choices :: MonadPlus m => [a] -> m a
+    choices = msum . map return
+
+    -- gets first one that's ground
 
 
+  --   -- given a function that returns the type we want (goalType)
+  --   -- find all the possible ways to call that function and return them as RProgram
+  --   turnFunctionIntoSolutions :: (Id, SType) -> TopDownBackTrack IO RProgram
+  --   turnFunctionIntoSolutions (id, schema)
+  --     | isGround schema = return Program { content = PSymbol id, typeOf = refineTop env schema }
+  --     | depth == 0 = return []  -- stop if depth is 0
+  --     | otherwise = do
 
-    -- print $ unifiedFunc
-    -- guard ?????????
-    -- return undefined
+  --       -- collect all the argument types (the holes ?? we need to fill)
+  --       let args = allArgTypes schema :: [SType]
 
-    -- guard (check if unfiedFunc)
+  --       -- recursively call DFS on the arguments' types to get the functions that return those types
+  --       let recurse = dfs env messageChan (depth-1) :: SType -> TopDownBackTrack IO RProgram
+  --       solutionsPerArg <- mapM recurse args :: TopDownBackTrack IO [RProgram] -- [[a,b,c], [d,e,f]]
+
+  --       -- get cartesian product of all the arguments
+  --       let programsPerArg = sequence solutionsPerArg :: [[RProgram]] -- [[a,d], [a,e], [a,f], [b,d], [b,e], [b,f]]
+
+  --       -- fill in arguments of func as RPrograms - [func a d, func a e, func a f, func b d, func b e, func b f]
+  --       let formatFn :: [RProgram] -> RProgram
+  --           formatFn args = Program { content = PApp id args, typeOf = refineTop env schema }
+        
+  --       let finalResultList = map formatFn programsPerArg
+
+  --       return finalResultList
 
 
-      {--
-            functionA :: Int -> [Int] -> [Int]
-            functionA (x : xs)
-
-            functionB :: Int -> [Int]
-            = x : functionB xs 
-      --}
 
 
 {--
@@ -295,7 +347,7 @@ dfs env messageChan depth goalType = do
 
     -- guard ()
 
-  return undefined 
+  -- return undefined 
 
 
 -- naiveFactorize' :: Int -> Logic (Int, Int)
@@ -311,42 +363,10 @@ dfs env messageChan depth goalType = do
   -- functionSolutions <- mapM turnFunctionIntoSolutions unifiedFuncs :: TopDownBackTrack IO [RProgram] -- [solutions for func1, solutions for func2]
   -- let allFunctionSolutions = concat functionSolutions :: [RProgram]
   -- return allFunctionSolutions
-  
-  where
-    -- checks if a program is ground (has no more arguments to synthesize - aka function w/o args)
-    isGround :: SType -> Bool
-    isGround (FunctionT id arg0 arg1) = False
-    isGround _ = True
 
-    -- converts [a] to a Logic a
-    choices :: MonadPlus m => [a] -> m a
-    choices = msum . map return
 
-  --   -- given a function that returns the type we want (goalType)
-  --   -- find all the possible ways to call that function and return them as RProgram
-  --   turnFunctionIntoSolutions :: (Id, SType) -> TopDownBackTrack IO RProgram
-  --   turnFunctionIntoSolutions (id, schema)
-  --     | isGround schema = return Program { content = PSymbol id, typeOf = refineTop env schema }
-  --     | depth == 0 = return []  -- stop if depth is 0
-  --     | otherwise = do
 
-  --       -- collect all the argument types (the holes ?? we need to fill)
-  --       let args = allArgTypes schema :: [SType]
 
-  --       -- recursively call DFS on the arguments' types to get the functions that return those types
-  --       let recurse = dfs env messageChan (depth-1) :: SType -> TopDownBackTrack IO RProgram
-  --       solutionsPerArg <- mapM recurse args :: TopDownBackTrack IO [RProgram] -- [[a,b,c], [d,e,f]]
-
-  --       -- get cartesian product of all the arguments
-  --       let programsPerArg = sequence solutionsPerArg :: [[RProgram]] -- [[a,d], [a,e], [a,f], [b,d], [b,e], [b,f]]
-
-  --       -- fill in arguments of func as RPrograms - [func a d, func a e, func a f, func b d, func b e, func b f]
-  --       let formatFn :: [RProgram] -> RProgram
-  --           formatFn args = Program { content = PApp id args, typeOf = refineTop env schema }
-        
-  --       let finalResultList = map formatFn programsPerArg
-
-  --       return finalResultList
 
 
 
@@ -360,8 +380,8 @@ dfs env messageChan depth goalType = do
 type TopDownBackTrack m = LogicT (StateT CheckerState m)
 -- evalTopDownBackTrack :: Monad m => Chan Message -> TopDownBackTrack m a -> m [a]
 -- evalTopDownBackTrack messageChan action = observeAllT action `evalStateT` (emptyChecker { _checkerChan = messageChan })
-evalTopDownBackTrack :: Monad m => Chan Message -> TopDownBackTrack m a -> m [a]
-evalTopDownBackTrack messageChan action = fmap (\x -> [x]) $ observeT action `evalStateT` (emptyChecker { _checkerChan = messageChan })
+evalTopDownBackTrack :: Monad m => Chan Message -> TopDownBackTrack m a -> m a
+evalTopDownBackTrack messageChan action = observeT action `evalStateT` (emptyChecker { _checkerChan = messageChan })
 
 -- type CompsSolver m = StateT Comps (StateT CheckerState m)
 
@@ -370,6 +390,40 @@ evalTopDownBackTrack messageChan action = fmap (\x -> [x]) $ observeT action `ev
 -- gets list of components/functions that unify with a given type
 -- 
 -- getUnifiedFunctions :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> CompsSolver IO [(Id, SType)]
+
+
+-- getUnifiedFunctions' :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> StateT CheckerState IO [(Id, SType)]
+-- getUnifiedFunctions' env messageChan ((id, schema) : ys) goalType = do
+--     -- (id, schema) <- func
+--     freshVars <- freshType (env ^. boundTypeVars) schema
+--     -- liftIO $ putStrLn $ "Consumed a value: " ++ id ++ ", with goalType: " ++ (show goalType)
+
+--     let t1 = shape (lastType freshVars) :: SType
+--     let t2 = goalType :: SType
+
+--     modify $ set isChecked True
+--     modify $ set typeAssignment Map.empty
+
+--     solveTypeConstraint env t1 t2 :: StateT CheckerState IO ()
+--     st' <- get
+    
+--     -- (freshVars, st') <- do
+
+--     --   return (freshVars, st') :: StateT CheckerState IO (RType, CheckerState)
+
+--     let sub =  st' ^. typeAssignment
+--     let checkResult = st' ^. isChecked
+
+--     let schema' = stypeSubstitute sub (shape freshVars)
+
+--     -- if it unifies, add that particular unified compoenent to state's list of components
+--     if (checkResult) 
+--       then fmap ((id, schema') :) (getUnifiedFunctions' env messageChan ys goalType)
+--       else getUnifiedFunctions' env messageChan ys goalType 
+--     -- guard checkResult
+--     -- return (id, schema')
+
+
 getUnifiedFunctions' :: Environment -> Chan Message -> TopDownBackTrack IO (Id, RSchema) -> SType -> TopDownBackTrack IO (Id, SType)
 
 -- MAYBE HOW TO DO THIS ????????????????????
@@ -381,7 +435,7 @@ getUnifiedFunctions' env messageChan func goalType = do
     (freshVars, st') <- lift $ do
 
       freshVars <- freshType (env ^. boundTypeVars) schema
-      liftIO $ putStrLn $ "Consumed a value: " ++ id ++ ", with goalType: " ++ (show goalType)
+      -- liftIO $ putStrLn $ "Consumed a value: " ++ id ++ ", with goalType: " ++ (show goalType)
 
       let t1 = shape (lastType freshVars) :: SType
       let t2 = goalType :: SType
