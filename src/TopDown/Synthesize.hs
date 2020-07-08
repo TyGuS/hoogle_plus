@@ -125,24 +125,29 @@ synthesize searchParams goal examples messageChan = do
         -- used for figuring out which programs to filter (those without all arguments)
         let numArgs = length (Map.elems (envWithHo ^. arguments))
         
-        let depth = 7
+        -- let depth = 7
         start <- getCPUTime
 
-        printf "running dfsTop on %s with depth %d\n" (show $ shape destinationType) depth
-
-        solution <- evalTopDownBackTrack messageChan $ do
-          sol <- dfs envWithHo messageChan depth (shape destinationType) :: TopDownBackTrack IO RProgram
+        printf "running bfs on %s\n" (show $ shape destinationType)
+      
+        let startType = [Program { content = PHole, typeOf = refineTop envWithHo (shape destinationType) } ]
+        
+        -- bfs :: Environment -> Chan Message -> Int -> [RProgram] -> StateT CheckerState IO RProgram
+        
+        sol <- bfs envWithHo messageChan numArgs startType `evalStateT` emptyChecker { _checkerChan = messageChan } :: IO RProgram
+        -- solution <- evalTopDownBackTrack messageChan $ do
+        --   sol <- dfs envWithHo messageChan depth (shape destinationType) :: TopDownBackTrack IO RProgram
           
-          guard (filterParams numArgs sol)
-          -- guard (isInfixOf "arg1" (show sol))
+        --   guard (filterParams numArgs sol)
+        --   -- guard (isInfixOf "arg1" (show sol))
           
-          return sol
+        --   return sol
         
         -- print the first solution that has all the arguments
         -- mapM print $ take 1 $ filter (filterParams numArgs) solutions
 
         -- printf "done running dfsTop on %s\n" (show $ shape destinationType)
-        printf "\n\n\nSOLUTION: %s\n\n\n" (show solution)
+        printf "\n\n\nSOLUTION: %s\n\n\n" (show sol)
         end <- getCPUTime
 
         let diff = fromIntegral (end - start) / (10^12)
@@ -211,13 +216,13 @@ synthesize searchParams goal examples messageChan = do
 --         fi = Identity f
 
         -- Runs a Logic computation with the specified initial success and failure continuations.
-    where
-      -- determines if the result has all the appropriate arguments given the number of args
-      -- TODO add "check" function here
-      filterParams :: Int -> RProgram -> Bool
-      filterParams 0       _ = error "filterParams error: shouldn't have 0 args!" -- TODO maybe should be true here? 
-      filterParams 1       x = "arg0" `isInfixOf` (show x)
-      filterParams numArgs x = isInfixOf ("arg" ++ (show (numArgs - 1))) (show x) && filterParams (numArgs - 1) x
+    -- where
+    --   -- determines if the result has all the appropriate arguments given the number of args
+    --   -- TODO add "check" function here
+    --   filterParams :: Int -> RProgram -> Bool
+    --   filterParams 0       _ = error "filterParams error: shouldn't have 0 args!" -- TODO maybe should be true here? 
+    --   filterParams 1       x = "arg0" `isInfixOf` (show x)
+    --   filterParams numArgs x = isInfixOf ("arg" ++ (show (numArgs - 1))) (show x) && filterParams (numArgs - 1) x
 
 
 type CompsSolver m = StateT Comps (StateT CheckerState m)
@@ -239,12 +244,164 @@ instance Monad m => CheckMonad (CompsSolver m) where
 -- Environment -> Int -> SType -> [RProgram]
 -- type TopDownBackTrack m = LogicT (StateT IncompletePrograms (StateT CheckerState m))
 
-dfs :: Environment -> Chan Message -> Int -> SType -> TopDownBackTrack IO RProgram
-dfs env messageChan depth goalType = do
+-- we want to have the first level generate the second level
+--   before processing the second level, e.g.
+-- first level (goal is Int) is arg0, id, length
+-- second level (goal is [a]) is concat, tail, Nil
+
+
+
+
+---------------------
+-- bfs :: Environment -> Chan Message -> Int -> SType -> TopDownBackTrack IO RProgram
+-- bfs env messageChan depth goalType = do
+  
+--   -- collect all the component types (which we might use to fill the holes)
+--   let components = Map.toList (env ^. symbols)
+
+--   -- find all functions that unify with goal type
+--   -- unifiedFuncs <- getUnifiedFunctions' env messageChan components goalType :: CompsSolver IO [(Id, SType)]
+
+--   -- Int -> Int
+--   -- unifiedFuncs should first return arg0
+--   -- checks if that's ground and returns that
+--   -- if it gets to something else, like `add`
+--     -- then 
+
+-- {-
+--   (x:xs)
+--     x is new program 
+--     do stuff with x (decide if complete or not)
+--       and check that it matches the examples
+--         return if that's the case
+--       if not ground, do the newFunc that we wrote
+--           recurse with (xs ++ newStuff)
+-- -}
+
+--   -- unifiedFunc@(id, schema) <- getUnifiedFunctions' env messageChan components goalType mzero :: TopDownBackTrack IO (Id, SType)
+--   -- unifiedFuncs <- lift $ getUnifiedFunctions' env messageChan components goalType :: TopDownBackTrack IO [(Id, SType)]
+  
+--   unifiedFuncs <- lift $ lift $ getUnifiedFunctions''' env messageChan components goalType :: TopDownBackTrack IO [RProgram]
+  
+--   program <- choices unifiedFuncs :: TopDownBackTrack IO RProgram
+
+--   when (hasHole program) $ do
+--     -- fillHoles :: Environment -> Chan Message -> RProgram -> StateT CheckerState IO [RProgram]
+--     newHoledPrograms <- lift $ lift $ fillHoles env messageChan program :: TopDownBackTrack IO [RProgram]
+--     st <- get
+--     st `mplus` (choices newHoledPrograms)
+
+--   guard (not $ hasHole program)
+--   return program
+  -- return Program { content = PSymbol id, typeOf = refineTop env schema }
+----------------------
+
+
+
+-- [?? :: Goaltype]
+-- take a list of programs with holes and return the first ground valid program
+bfs :: Environment -> Chan Message -> Int -> [RProgram] -> StateT CheckerState IO RProgram
+bfs env messageChan _ [] = error "cannot find solution"
+bfs env messageChan numArgs (p:ps)
+  | hasHole p = do
+        newHoledPrograms <- fillHoles env messageChan p :: StateT CheckerState IO [RProgram]
+        liftIO $ printf "Non-ground program found: %s. adding %d newHoledPrograms\n" (show p) (length newHoledPrograms)
+        bfs env messageChan numArgs (ps ++ newHoledPrograms)
+ ?? !! ??
+ bool
+ fromLeft
+ ....
+ minimum ??
+ product ??
+ sum ??
+ (?? !! ??) !! (?? !! ??)
+ (?? ++ ??) !! (?? !! ??)
+ (?? : ??) !! (?? !! ??)
+ (bool ??) !! (?? !! ??)
+ (fromLeft ??) !! (?? !! ??)
+ ...
+ length (arg0)
+
+                  Int
+    (?? !! ??)  (?? ++ ??)  (bool ??) (fromLeft ??) (length ??)
+    (a !! a) (a ++ a) (bool a) (fromLeft a) (length a)
+    (b !! a)
+
+Non-ground program found: (?? :: Int). adding 15 newHoledPrograms
+Non-ground program found: (?? :: [Int]) !! (?? :: Int). adding 450 newHoledPrograms
+Non-ground program found: Data.Bool.bool (?? :: Int) (?? :: Int) (?? :: Bool). adding 7425 newHoledPrograms
+Non-ground program found: Data.Either.fromLeft (?? :: Int) (?? :: Either (Int) (tau23)). adding 240 newHoledPrograms
+Non-ground program found: Data.Either.fromRight (?? :: Int) (?? :: Either (tau26) (Int)). adding 240 newHoledPrograms
+Non-ground program found: Data.Function.const (?? :: Int) (?? :: tau37). adding 1380 newHoledPrograms
+Non-ground program found: Data.Function.id (?? :: Int). adding 15 newHoledPrograms
+Non-ground program found: Data.Maybe.fromJust (?? :: Maybe (Int)). adding 18 newHoledPrograms
+Non-ground program found: Data.Maybe.fromMaybe (?? :: Int) (?? :: Maybe (Int)). adding 270 newHoledPrograms
+Non-ground program found: GHC.List.head (?? :: [Int]). adding 30 newHoledPrograms
+Non-ground program found: GHC.List.last (?? :: [Int]). adding 30 newHoledPrograms
+Non-ground program found: GHC.List.length (?? :: [tau56]). adding 38 newHoledPrograms
+Non-ground program found: GHC.List.maximum (?? :: @@hplusTC@@Ord (Int)) (?? :: [Int]). adding 480 newHoledPrograms
+Non-ground program found: GHC.List.minimum (?? :: @@hplusTC@@Ord (Int)) (?? :: [Int]). adding 480 newHoledPrograms
+Non-ground program found: GHC.List.product (?? :: @@hplusTC@@Num (Int)) (?? :: [Int]). adding 450 newHoledPrograms
+Non-ground program found: GHC.List.sum (?? :: @@hplusTC@@Num (Int)) (?? :: [Int]). adding 450 newHoledPrograms
+
+Non-ground program found: ((?? :: [[Int]]) !! (?? :: Int)) !! ((?? :: [Int]) !! (?? :: Int)). adding 202500 newHoledPrograms
+Non-ground program found: ((?? :: [[Int]]) !! (?? :: Int)) !! (Data.Bool.bool (?? :: Int) (?? :: Int) (?? :: Bool)). adding 3341250 newHoledPrograms
+Non-ground program found: ((?? :: [[Int]]) !! (?? :: Int)) !! (Data.Either.fromLeft (?? :: Int) (?? :: Either (Int) (tau189))). adding 108000 newHoledPrograms
+Non-ground program found: ((?? :: [[Int]]) !! (?? :: Int)) !! (Data.Either.fromRight (?? :: Int) (?? :: Either (tau192) (Int))). adding 108000 newHoledPrograms
+Non-ground program found: ((?? :: [[Int]]) !! (?? :: Int)) !! (Data.Function.const (?? :: Int) (?? :: tau203)). adding 621000 newHoledPrograms
+Non-ground program found: ((?? :: [[Int]]) !! (?? :: Int)) !! (Data.Function.id (?? :: Int)). adding 6750 newHoledPrograms
+Non-ground program found: ((?? :: [[Int]]) !! (?? :: Int)) !! (Data.Maybe.fromJust (?? :: Maybe (Int))). adding 8100 newHoledPrograms
+Non-ground program found: ((?? :: [[Int]]) !! (?? :: Int)) !! (Data.Maybe.fromMaybe (?? :: Int) (?? :: Maybe (Int))). adding 121500 newHoledPrograms
+Non-ground program found: ((?? :: [[Int]]) !! (?? :: Int)) !! (GHC.List.head (?? :: [Int])). adding 13500 newHoledPrograms
+Non-ground program found: ((?? :: [[Int]]) !! (?? :: Int)) !! (GHC.List.last (?? :: [Int])). adding 13500 newHoledPrograms
+Non-ground program found: ((?? :: [[Int]]) !! (?? :: Int)) !! (GHC.List.length (?? :: [tau222])). adding 17100 newHoledPrograms
+Non-ground program found: ((?? :: [[Int]]) !! (?? :: Int)) !! (GHC.List.maximum (?? :: @@hplusTC@@Ord (Int)) (?? :: [Int])). adding 216000 newHoledPrograms
+Non-ground program found: ((?? :: [[Int]]) !! (?? :: Int)) !! (GHC.List.minimum (?? :: @@hplusTC@@Ord (Int)) (?? :: [Int])). adding 216000 newHoledPrograms
+Non-ground program found: ((?? :: [[Int]]) !! (?? :: Int)) !! (GHC.List.product (?? :: @@hplusTC@@Num (Int)) (?? :: [Int])). adding 202500 newHoledPrograms
+Non-ground program found: ((?? :: [[Int]]) !! (?? :: Int)) !! (GHC.List.sum (?? :: @@hplusTC@@Num (Int)) (?? :: [Int])). adding 202500 newHoledPrograms
+Non-ground program found: ((?? :: [Int]) ++ (?? :: [Int])) !! ((?? :: [Int]) !! (?? :: Int)). adding 405000 newHoledPrograms
+Non-ground program found: ((?? :: [Int]) ++ (?? :: [Int])) !! (Data.Bool.bool (?? :: Int) (?? :: Int) (?? :: Bool)). adding 6682500 newHoledPrograms
+Non-ground program found: ((?? :: [Int]) ++ (?? :: [Int])) !! (Data.Either.fromLeft (?? :: Int) (?? :: Either (Int) (tau189))). adding 216000 newHoledPrograms
+Non-ground program found: ((?? :: [Int]) ++ (?? :: [Int])) !! (Data.Either.fromRight (?? :: Int) (?? :: Either (tau192) (Int))). adding 216000 newHoledPrograms
+Non-ground program found: ((?? :: [Int]) ++ (?? :: [Int])) !! (Data.Function.const (?? :: Int) (?? :: tau203)). adding 1242000 newHoledPrograms
+Non-ground program found: ((?? :: [Int]) ++ (?? :: [Int])) !! (Data.Function.id (?? :: Int)). adding 13500 newHoledPrograms
+Non-ground program found: ((?? :: [Int]) ++ (?? :: [Int])) !! (Data.Maybe.fromJust (?? :: Maybe (Int))). adding 16200 newHoledPrograms
+Non-ground program found: ((?? :: [Int]) ++ (?? :: [Int])) !! (Data.Maybe.fromMaybe (?? :: Int) (?? :: Maybe (Int))). adding 243000 newHoledPrograms
+Non-ground program found: ((?? :: [Int]) ++ (?? :: [Int])) !! (GHC.List.head (?? :: [Int])). adding 27000 newHoledPrograms
+Non-ground program found: ((?? :: [Int]) ++ (?? :: [Int])) !! (GHC.List.last (?? :: [Int])). adding 27000 newHoledPrograms
+Non-ground program found: ((?? :: [Int]) ++ (?? :: [Int])) !! (GHC.List.length (?? :: [tau222])). adding 34200 newHoledPrograms
+Non-ground program found: ((?? :: [Int]) ++ (?? :: [Int])) !! (GHC.List.maximum (?? :: @@hplusTC@@Ord (Int)) (?? :: [Int])). adding 432000 newHoledPrograms
+Non-ground program found: ((?? :: [Int]) ++ (?? :: [Int])) !! (GHC.List.minimum (?? :: @@hplusTC@@Ord (Int)) (?? :: [Int])). adding 432000 newHoledPrograms
+Non-ground program found: ((?? :: [Int]) ++ (?? :: [Int])) !! (GHC.List.product (?? :: @@hplusTC@@Num (Int)) (?? :: [Int])). adding 405000 newHoledPrograms
+Non-ground program found: ((?? :: [Int]) ++ (?? :: [Int])) !! (GHC.List.sum (?? :: @@hplusTC@@Num (Int)) (?? :: [Int])). adding 405000 newHoledPrograms
+Non-ground program found: ((?? :: Int) : (?? :: [Int])) !! ((?? :: [Int]) !! (?? :: Int)). adding 202500 newHoledPrograms
+Non-ground program found: ((?? :: Int) : (?? :: [Int])) !! (Data.Bool.bool (?? :: Int) (?? :: Int) (?? :: Bool)). adding 3341250 newHoledPrograms
+Non-ground program found: ((?? :: Int) : (?? :: [Int])) !! (Data.Either.fromLeft (?? :: Int) (?? :: Either (Int) (tau189))). adding 108000 newHoledPrograms
+Non-ground program found: ((?? :: Int) : (?? :: [Int])) !! (Data.Either.fromRight (?? :: Int) (?? :: Either (tau192) (Int))). adding 108000 newHoledPrograms
+Non-ground program found: ((?? :: Int) : (?? :: [Int])) !! (Data.Function.const (?? :: Int) (?? :: tau203)). adding 621000 newHoledPrograms
+Non-ground program found: ((?? :: Int) : (?? :: [Int])) !! (Data.Function.id (?? :: Int)). adding 6750 newHoledPrograms
+Non-ground program found: ((?? :: Int) : (?? :: [Int])) !! (Data.Maybe.fromJust (?? :: Maybe (Int))). adding 8100 newHoledPrograms
+Non-ground program found: ((?? :: Int) : (?? :: [Int])) !! (Data.Maybe.fromMaybe (?? :: Int) (?? :: Maybe (Int))). adding 121500 newHoledPrograms
+Non-ground program found: ((?? :: Int) : (?? :: [Int])) !! (GHC.List.head (?? :: [Int])). adding 13500 newHoledPrograms
+Non-ground program found: ((?? :: Int) : (?? :: [Int])) !! (GHC.List.last (?? :: [Int])). adding 13500 newHoledPrograms
+Non-ground program found: ((?? :: Int) : (?? :: [Int])) !! (GHC.List.length (?? :: [tau222])). adding 17100 newHoledPrograms
+Non-ground program found: ((?? :: Int) : (?? :: [Int])) !! (GHC.List.maximum (?? :: @@hplusTC@@Ord (Int)) (?? :: [Int])). adding 216000 newHoledPrograms
+Non-ground program found: ((?? :: Int) : (?? :: [Int])) !! (GHC.List.minimum (?? :: @@hplusTC@@Ord (Int)) (?? :: [Int])). adding 216000 newHoledPrograms
+Non-ground program found: ((?? :: Int) : (?? :: [Int])) !! (GHC.List.product (?? :: @@hplusTC@@Num (Int)) (?? :: [Int])). adding 202500 newHoledPrograms
+Non-ground program found: ((?? :: Int) : (?? :: [Int])) !! (GHC.List.sum (?? :: @@hplusTC@@Num (Int)) (?? :: [Int])). adding 202500 newHoledPrograms
+
+        liftIO $ printf "Ground program found: %s\n" (show p)
+        if (filterParams numArgs p) 
+          then return p
+          else bfs env messageChan numArgs ps
+        -- TODO check stuff
+
+  
   
   -- collect all the component types (which we might use to fill the holes)
-  let components = Map.toList (env ^. symbols)
+  -- let components = Map.toList (env ^. symbols)
 
+  -- if (hasHold p)
   -- find all functions that unify with goal type
   -- unifiedFuncs <- getUnifiedFunctions' env messageChan components goalType :: CompsSolver IO [(Id, SType)]
 
@@ -254,40 +411,156 @@ dfs env messageChan depth goalType = do
   -- if it gets to something else, like `add`
     -- then 
 
+{-
+  (x:xs)
+    x is new program 
+    do stuff with x (decide if complete or not)
+      and check that it matches the examples
+        return if that's the case
+      if not ground, do the newFunc that we wrote
+          recurse with (xs ++ newStuff)
+-}
 
   -- unifiedFunc@(id, schema) <- getUnifiedFunctions' env messageChan components goalType mzero :: TopDownBackTrack IO (Id, SType)
   -- unifiedFuncs <- lift $ getUnifiedFunctions' env messageChan components goalType :: TopDownBackTrack IO [(Id, SType)]
-  unifiedFunc@(id, schema) <- getUnifiedFunctions' env messageChan (choices components) goalType :: TopDownBackTrack IO (Id, SType)
   
-  -- we want to have the first level generate the second level
-  --   before processing the second level
-  -- first level (goal is Int) is arg0, id, length
-  -- second level (goal is [a]) is concat, tail, Nil
+  -- unifiedFuncs <- lift $ lift $ getUnifiedFunctions''' env messageChan components goalType :: TopDownBackTrack IO [RProgram]
+  
+  -- program <- choices unifiedFuncs :: TopDownBackTrack IO RProgram
+
+  -- when (hasHole program) $ do
+  --   -- fillHoles :: Environment -> Chan Message -> RProgram -> StateT CheckerState IO [RProgram]
+  --   newHoledPrograms <- lift $ lift $ fillHoles env messageChan program :: TopDownBackTrack IO [RProgram]
+  --   st <- get
+  --   st `mplus` (choices newHoledPrograms)
+
+  -- guard (not $ hasHole program)
+  -- return program
+ where
+    -- checks if a program is ground (has no more arguments to synthesize - aka function w/o args)
+    isGround :: SType -> Bool
+    isGround (FunctionT id arg0 arg1) = False
+    isGround _ = True
+
+    hasHole :: RProgram -> Bool
+    hasHole (Program p _) = case p of
+      PApp fun arg -> or (map hasHole arg)
+      PHole -> True
+      _ -> False
+
+    -- converts [a] to a Logic a
+    choices :: MonadPlus m => [a] -> m a
+    choices = msum . map return
+
+    -- length ?? -> [length (tail ??), length (Nil), length (?? ++ ??)]
+    getUnifiedFunctions'' :: Environment -> Chan Message -> SType -> [RProgram]
+    getUnifiedFunctions'' env messageChan goalType = do
+      undefined
+
+    getUnifiedFunctions''' :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> StateT CheckerState IO [RProgram]
+    getUnifiedFunctions''' env messageChan []                  goalType = return []
+    getUnifiedFunctions''' env messageChan ((id, schema) : ys) goalType = do
+        -- (id, schema) <- func
+        freshVars <- freshType (env ^. boundTypeVars) schema
+        -- liftIO $ putStrLn $ "Consumed a value: " ++ id ++ ", with goalType: " ++ (show goalType)
+
+        let t1 = shape (lastType freshVars) :: SType
+        let t2 = goalType :: SType
+
+        modify $ set isChecked True
+        modify $ set typeAssignment Map.empty
+
+        solveTypeConstraint env t1 t2 :: StateT CheckerState IO ()
+        st' <- get
+        
+        -- (freshVars, st') <- do
+
+        --   return (freshVars, st') :: StateT CheckerState IO (RType, CheckerState)
+
+        let sub =  st' ^. typeAssignment
+        let checkResult = st' ^. isChecked
+
+        let schema' = stypeSubstitute sub (shape freshVars) :: SType
+
+        let args = allArgTypes schema' :: [SType]
+        
+        let typeToHole :: SType -> RProgram
+            typeToHole t = Program { content = PHole, typeOf = refineTop env t } 
+        
+        let typedHoles = map typeToHole args :: [RProgram]
+        let resultingProgram = Program { content = PApp id typedHoles, typeOf = refineTop env schema' } :: RProgram
+
+        -- if it unifies, add that particular unified compoenent to state's list of components
+        if (checkResult) 
+          then fmap ( resultingProgram :) (getUnifiedFunctions''' env messageChan ys goalType)
+          else getUnifiedFunctions''' env messageChan ys goalType 
+
+    -- fillHoles :: Environment -> Chan Message -> RProgram -> StateT CheckerState IO [RProgram]
+    -- fillHoles env messageChan (Program (PApp f args) typ) = return filledPrograms
+    --   where
+    --     argUnifications = map (fillHoles env messageChan) args :: [[RProgram]]
+    --     cartesianArgs = sequence argUnifications :: [[RProgram]]
+    --     filledPrograms = [Program { content = PApp f filledArgs, typeOf = typ } | filledArgs <- cartesianArgs]
+
+    -- fillHoles env messageChan (Program PHole typ)         = getUnifiedFunctions''' env messageChan (env ^. compoenents) (shape typ)
+    -- fillHoles _   _           program                     = return [program]
+
+    -- fill one level of holes for the given RProgram with holes
+    fillHoles :: Environment -> Chan Message -> RProgram -> StateT CheckerState IO [RProgram]
+    fillHoles env messageChan (Program (PApp f args) typ) = do
+        argUnifications <- mapM (fillHoles env messageChan) args :: StateT CheckerState IO [[RProgram]]
+        let cartesianArgs = sequence argUnifications :: [[RProgram]]
+        let filledPrograms = [Program { content = PApp f filledArgs, typeOf = typ } | filledArgs <- cartesianArgs]
+        return filledPrograms
+    fillHoles env messageChan (Program PHole typ)         = getUnifiedFunctions''' env messageChan (Map.toList (env ^. symbols)) (shape typ)
+    fillHoles _   _           program                     = return [program]
+
 
 {-
-Logic does so, and exposes an alternate bind >>-. Instead of pursuing
-a computation of a single choice to completion, it pursues the computation
-until a single result is found, and then begins computation of a different
-choice. This has some subtle implications, as can be seen in the restructuring
-of factorize in Listing 10.
-
-The Logic monad defines the ifte operator for precisely this case.
-The expression `ifte expr th el` is equivalent to `expr >>= th`
-if expr succeeds with at least one result, and equivalent to el if it does not. 
-The intuition is similar to Haskell’s if..then..else construct, except that
-the results of expr are made available to th if it succeeds.
+      f [ ((g ??::PHole ) :: is a PApp) ((g ??) is a PHole) ]
+      f (g ??) ?? <- no need to recurse, fill the rightmost ??
+      f (g ??) (h ??) <- need to recurse, call fillFirstHole on (g ??), and then (h ??) only if that failed to fill a hole
+      f (g (i (k ??)) (h ??))
+      cartesian product no longer needed
 -}
 
-  liftIO $ putStrLn $ id ++ (show schema)
 
-  let args = map (refineTop env) $ allArgTypes schema :: [RType] -- Int, Int 
-  -- [ Program ... arg | arg <- args ]
-  let things = [ Program { content = PHole, typeOf = arg } | arg <- args]
-  liftIO $ putStrLn $ show things
+    -- TODO we are here
+    fillFirstHole :: Environment -> Chan Message -> RProgram -> StateT CheckerState IO [RProgram]
+    fillFirstHole env messageChan (Program (PApp f args) typ) = do
+        case span (/= PHole) args of
+          (l, PHole:r) -> Just $ Program (PApp f (l ++ thing ++ r)) typ -- fill hole with unifiedFunctions
+          _            -> -- need to recurse by applying fillFirstHole on each arg, but stop once we get a Just
+                          
+
+          
+          -- f (g ??) ?? <- no need to recurse, fill the rightmost ??
+          -- f (g ??) (h ??) <- need to recurse, call fillFirstHole on (g ??), and then (h ??) only if that failed to fill a hole
+          -- cartesian product no longer needed
+
+        -- check if args contains any holes
+        -- if so, fill the first one only
+        -- 
+        argUnifications <- mapM (fillFirstHole env messageChan) args :: StateT CheckerState IO [[RProgram]]
+        let cartesianArgs = sequence argUnifications :: [[RProgram]]
+        let filledPrograms = [Program { content = PApp f filledArgs, typeOf = typ } | filledArgs <- cartesianArgs]
+        return filledPrograms
+    fillFirstHole env messageChan (Program PHole typ)         = getUnifiedFunctions''' env messageChan (Map.toList (env ^. symbols)) (shape typ)
+    fillFirstHole _   _           program                     = return [program]
+
+
+    -- determines if the result has all the appropriate arguments given the number of args
+    -- TODO add "check" function here
+    filterParams :: Int -> RProgram -> Bool
+    filterParams 0       _ = error "filterParams error: shouldn't have 0 args!" -- TODO maybe should be true here? 
+    filterParams 1       x = "arg0" `isInfixOf` (show x)
+    filterParams numArgs x = isInfixOf ("arg" ++ (show (numArgs - 1))) (show x) && filterParams (numArgs - 1) x
+
+  
   -- return Program { content = PHole, typeOf = head args }
   {-
 
-      * list <- getUnifiedFunctions :: [RPrograms]  (they will have holes in them)
+      * list <- getUnifiedFunctions :: [RProgram`s]  (they will have holes in them)
       * add this list to a LogicT list 
       * go through this list
           * if program is ground
@@ -306,13 +579,34 @@ the results of expr are made available to th if it succeeds.
 --   PHole -> True
 --   _ -> False
 
+
+{-
+  PApp fun args = 
+  for every argument
+    [unifiedFunctions]
+    [unifiedFunctions]
+    [unifiedFunctions]
+
+  [[cartesian product of all of them]]
+  [PAgg fun cartesian[0], PAgg fun cartesian[1], ...]
+
+-}
+
+
+-- fillHoles (Program p schema) env messageChan = case p of
+  -- PApp f args -> 
+  -- PHole -> getUnifiedFunctions'' env messageChan 
+
+  -- -- Program { content = PHole, typeOf = arg } | arg <- args]
+  -- program -> [program] -- [arg0]
+  
+
+
 -- TODO fill holes function idea
 -- blah (Program p _) = case p of
 --   PApp f args -> PApp f (map blah args)
 --   PHole -> getUnifiedFunctions
 
-  guard (isGround schema)
-  return Program { content = PSymbol id, typeOf = refineTop env schema }
 
   
   -- unless (isGround schema) $ do
@@ -374,15 +668,8 @@ the results of expr are made available to th if it succeeds.
 
       -- http://hackage.haskell.org/package/control-monad-omega-0.3.2/docs/Control-Monad-Omega.html
       -- [length, id, arg0, (length arg0), (length id)]
-  where
-    -- checks if a program is ground (has no more arguments to synthesize - aka function w/o args)
-    isGround :: SType -> Bool
-    isGround (FunctionT id arg0 arg1) = False
-    isGround _ = True
+ 
 
-    -- converts [a] to a Logic a
-    choices :: MonadPlus m => [a] -> m a
-    choices = msum . map return
 
     -- gets first one that's ground
 
@@ -393,7 +680,11 @@ the results of expr are made available to th if it succeeds.
 -- type BackTrack m = LogicT (PNSolver m)
 type IncompletePrograms = [(Id, SType)]
 -- type TopDownBackTrack m = StateT IncompletePrograms (LogicT (StateT CheckerState m))
+
+
 type TopDownBackTrack m = LogicT (StateT IncompletePrograms (StateT CheckerState m))
+
+
 -- evalTopDownBackTrack :: Monad m => Chan Message -> TopDownBackTrack m a -> m [a]
 -- evalTopDownBackTrack messageChan action = observeAllT action `evalStateT` (emptyChecker { _checkerChan = messageChan })
 evalTopDownBackTrack :: Monad m => Chan Message -> TopDownBackTrack m a -> m a
@@ -444,9 +735,6 @@ getUnifiedFunctions' env messageChan func goalType = do
     --     else mzero
     guard checkResult
     return (id, schema')
-
-
-
 
 
 
