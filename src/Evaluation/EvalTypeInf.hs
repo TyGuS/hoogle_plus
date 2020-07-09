@@ -19,7 +19,7 @@ import Language.Haskell.Interpreter hiding (Id)
 import Control.Monad.IO.Class
 import Control.Exception
 
-import Database.Util (tyclassPrefix)
+import Database.Utils (tyclassPrefix)
 import Types.Common
 import Types.Type
 import Types.IOFormat
@@ -29,22 +29,20 @@ import Types.Filtering (FunctionSignature(..), defaultInterpreterTimeoutMicro)
 import HooglePlus.IOFormat (searchTypes, readEnv, parseQueryType)
 import HooglePlus.FilterTest (showParams, runInterpreter', parseTypeString)
 import HooglePlus.Utils (removeTypeclasses, mkFunctionSigStr, replaceId)
-import Synquid.Type (toMonotype, shape, stypeSubstitute, boundVarsOf, argsWithName, lastType, eqType)
+import Synquid.Type (toMonotype, typeSubstitute, boundVarsOf, argsWithName, lastType, eqType)
 import Evaluation.Benchmark
 
 {- set up candidates to be used in type variable instantiation -}
-int_ = ScalarT (DatatypeT "Int" [] []) ()
-char_ = ScalarT (DatatypeT "Char" [] []) ()
-double_ = ScalarT (DatatypeT "Double" [] []) ()
-list_ t = ScalarT (DatatypeT "List" [t] []) ()
-maybe_ t = ScalarT (DatatypeT "Maybe" [t] []) ()
+int_ = DatatypeT "Int"
+char_ = DatatypeT "Char"
+list_ = TyAppT (DatatypeT "List")
 
-typeCandidates :: [SType]
+typeCandidates :: [TypeSkeleton]
 typeCandidates = 
     [ int_
     , char_
     , list_ char_
-    , double_
+    , list_ int_
     ]
 
 {- definition of results -}
@@ -62,9 +60,8 @@ runTest numOfExs bm@(Benchmark _ q sol _) = do
     -- generate @numOfExs@ examples
     mbExamples <- mapM (const $ catch (do
         subst <- randomSubst (boundVarsOf sch) Map.empty
-        let t = stypeSubstitute subst (shape $ toMonotype sch)
+        let t = typeSubstitute subst (toMonotype sch)
         let prop = buildProperty t []
-        print prop
         res <- runInterpreter' defaultInterpreterTimeoutMicro (do
             setImports [  "Data.Maybe"
                         , "Data.Either"
@@ -86,7 +83,7 @@ runTest numOfExs bm@(Benchmark _ q sol _) = do
             Left err -> print err >> return Nothing
             Right (Example ins out) -> do
                 let correctedCode = map correctFun ins
-                if "***Exception" `isInfixOf` out || any ("Infinity" `isInfixOf`) ins
+                if "***Exception" `isInfixOf` out || any ("Infinity" `isInfixOf`) ins || "[]" `isInfixOf` out
                     then return Nothing
                     else return $ Just $ Example correctedCode (correctFun out)
             ) (\(e :: SomeException) -> print e >> return Nothing)
@@ -100,12 +97,13 @@ runTest numOfExs bm@(Benchmark _ q sol _) = do
             replaceId "..." (printf "_ -> error \"unhandled\";") code
         correctFun code = code
 
-        wrapMyFun :: SType -> SType
-        wrapMyFun (ScalarT (DatatypeT dt args _) _) =  ScalarT (DatatypeT dt (map wrapMyFun args) []) ()
-        wrapMyFun (FunctionT x tArg tRes) = ScalarT (DatatypeT "MyFun" [(wrapMyFun tArg), (wrapMyFun tRes)] []) ()
+        wrapMyFun :: TypeSkeleton -> TypeSkeleton
+        wrapMyFun (TyAppT tFun tArg) = TyAppT (wrapMyFun tFun) (wrapMyFun tArg)
+        wrapMyFun (FunctionT x tArg tRes) = TyAppT (TyAppT (DatatypeT "MyFun") (wrapMyFun tArg)) (wrapMyFun tRes)
         wrapMyFun t = t
 
-        notTypeclass (ScalarT (DatatypeT dt _ _) _) | tyclassPrefix `isPrefixOf` dt = False
+        notTypeclass (DatatypeT dt) = not (tyclassPrefix `isPrefixOf` dt)
+        notTypeclass (TyAppT tFun tArg) = notTypeclass tFun
         notTypeclass _ = True
 
         usedArgs t = filter notTypeclass $ map snd (argsWithName t)
@@ -122,7 +120,7 @@ runTest numOfExs bm@(Benchmark _ q sol _) = do
             callArgs = printf "out <- catch (show <$> ((wrap <$> evaluate (((%s) :: %s) %s)) :: IO (%s))) (\\(e :: SomeException) -> return (\"***Exception\" ++ show e)); return (Example [%s] out)" sol (mkFunctionSigStr (args ++ [lastType t])) (unwords unwrpArgs) (show (wrapMyFun (lastType t))) (intercalate "," showArgs)  :: String
             in printf "do {%s; %s}" (intercalate "; " genArgs) callArgs
 
-randomSubst :: [Id] -> Map Id SType -> IO (Map Id SType)
+randomSubst :: [Id] -> Map Id TypeSkeleton -> IO (Map Id TypeSkeleton)
 randomSubst [] sofar = return sofar
 randomSubst (v:vars) sofar = do
     -- update the random generator by splitting the seed

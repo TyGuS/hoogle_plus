@@ -1,17 +1,19 @@
 packages:
 - .
-resolver: lts-12.26
+resolver: lts-16.2
 extra-deps:
-  - table-layout-0.8.0.3
-  - data-default-instances-base-0.1.0.1
-  - pretty-tree-0.1.0.0
-  - z3-408.0
-  - leancheck-0.9.3
-
-compiler: ghc-8.4.4
+    - z3-408.1
+    - leancheck-0.9.3
+    - hoogle-5.0.17.15
+    - limp-0.3.2.3
+compiler: ghc-8.8.3
+allow-different-user: true
 setup-info:
   ghc:
     linux64-custom-yields:
-      8.4.4:
-        url: "https://github.com/mistzzt/build-ghc-no-omit-yields/releases/download/v8.4.4/ghc-8.4.4-x86_64-unknown-linux.tar.xz"
+      8.8.3:
+        url: "https://github.com/mistzzt/build-ghc-no-omit-yields/releases/download/v8.8.3/ghc-8.8.3-x86_64-unknown-linux.tar.xz"
+    macosx-custom-yields:
+      8.8.3:
+        url: "https://github.com/mistzzt/build-ghc-no-omit-yields/releases/download/v8.8.3/ghc-8.8.3-x86_64-apple-darwin.tar.xz"
 ghc-variant: yields

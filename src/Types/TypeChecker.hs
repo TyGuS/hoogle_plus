@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Types.TypeChecker where
 
 import Types.Common
@@ -16,9 +16,9 @@ import Control.Concurrent.Chan
 data CheckerState = CheckerState {
     _nameCounter :: Map Id Int,
     _isChecked :: Bool,
-    _typeAssignment :: Map Id SType,
+    _typeAssignment :: Map Id TypeSkeleton,
     _nameMapping :: Map Id Id,
-    _checkerChan :: Chan Message
+    _checkerLogLevel :: Int
 } deriving(Eq)
 
 emptyChecker :: CheckerState
@@ -27,20 +27,20 @@ emptyChecker = CheckerState {
     _isChecked = True,
     _typeAssignment = Map.empty,
     _nameMapping = Map.empty,
-    _checkerChan = undefined
+    _checkerLogLevel = 0
 }
 
 makeLenses ''CheckerState
 
-type Checker m = StateT CheckerState m
+type CheckerIO m = StateT CheckerState m
+type Checker = State CheckerState
 
-instance Monad m => CheckMonad (Checker m) where
+instance Monad m => CheckMonad (CheckerIO m) where
     getNameCounter = gets (view nameCounter)
     setNameCounter nc = modify (set nameCounter nc)
     getNameMapping = gets (view nameMapping)
     setNameMapping nm = modify (set nameMapping nm)
     getIsChecked = gets (view isChecked)
     setIsChecked c = modify (set isChecked c)
-    getMessageChan = gets (view checkerChan)
+    getLogLevel = gets (view checkerLogLevel)
     overStats = overStats
-

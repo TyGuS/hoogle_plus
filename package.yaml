@@ -1,9 +1,9 @@
 name: HooglePlus
 version: 0.1.0.0
-github: "davidmrdavid/hoogle_plus"
+github: "TyGus/hoogle_plus"
 license: BSD3
 author: "Zheng Guo"
-maintainer: "zhg069@ucsd.edu"
+maintainer: "zhg069@eng.ucsd.edu"
 
 extra-source-files:
 - README.md
@@ -14,12 +14,8 @@ description: Please see the README
 
 dependencies:
 - aeson
-- ansi-terminal
 - ansi-wl-pprint
-- array
-- async
 - base
-- bimap
 - bytestring
 - Cabal
 - cereal
@@ -36,10 +32,8 @@ dependencies:
 - ghc-paths
 - hashable
 - haskell-src-exts
-- heap
 - hint
 - hoogle
-- html
 - http-conduit
 - http-types
 - indents
@@ -48,12 +42,10 @@ dependencies:
 - logict
 - MissingH
 - mtl
-- packdeps
 - parsec
-- pqueue
 - pretty-simple
-- pretty-tree
 - process
+- QuickCheck
 - regex-compat
 - regex-posix
 - resourcet
@@ -61,14 +53,11 @@ dependencies:
 - smallcheck
 - sort
 - split
-- stm
 - text
 - time
 - transformers
-- transformers-compat
 - unordered-containers
 - uuid
-- vector
 - z3
 - ghci
 - ghc-boot-th
@@ -76,6 +65,7 @@ dependencies:
 - yaml
 - QuickCheck
 - random
+- limp
 
 library:
   source-dirs:
@@ -95,18 +85,27 @@ executables:
     main: HooglePlus.hs
     source-dirs: app
     ghc-options:
+    # - -fext-core
     - -rtsopts
+    # - -ddump-simpl 
+    # - -dsuppress-idinfo
+    # - -dsuppress-coercions 
+    # - -dsuppress-type-applications
+    # - -dsuppress-uniques 
+    # - -dsuppress-module-prefixes
+    # - -prof
+    # - -fprof-auto
     - -O2
     dependencies:
     - HooglePlus
 
 tests:
   spec:
-    main: Spec.hs
-    source-dirs:
-      - test
+    main: Test.hs
+    source-dirs: test
+    ghc-options:
+    - -O2
     dependencies:
       - HooglePlus
-      - hspec
-      - hspec-discover
-    build-tools: hspec-discover
+      - tasty
+      - tasty-hunit

@@ -26,16 +26,14 @@ myModules = [
   -- base
   "Data.Int",
   "Data.Bool",
+  "Data.Int",
   "Data.Maybe",
-  "Data.Either",
   "Data.Tuple",
-  "Text.Show",
   "GHC.Char",
   "GHC.List",
   "Data.Eq",
   "Data.List",
   "Data.Function",
-  -- ByteString
-  "Data.ByteString.Lazy",
-  "Data.ByteString.Builder"
+  "Data.Either",
+  "Text.Show"
   ]
