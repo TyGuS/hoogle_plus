@@ -109,11 +109,40 @@ synthesize searchParams goal examples messageChan = do
           _hoCandidates = []
           }
 
+
+
+    let depth = 7
+    start <- getCPUTime
+
+    printf "running bfs on %s\n" (show $ shape destinationType)
+    
     -- used for figuring out which programs to filter (those without all arguments)
     let numArgs = length (Map.elems (envWithHo ^. arguments))
 
     let actualGoalType = shape destinationType :: SType
-    solutions <- evalCompsSolver messageChan $ dfs envWithHo messageChan 3 actualGoalType :: IO [RProgram]
+    solutions <- evalCompsSolver messageChan $ dfs envWithHo messageChan depth actualGoalType :: IO [RProgram]
+
+    -- let startType = [Program { content = PHole, typeOf = refineTop envWithHo (shape destinationType) } ]
+    
+    -- bfs :: Environment -> Chan Message -> Int -> [RProgram] -> StateT CheckerState IO RProgram
+    
+    -- sol <- bfs envWithHo messageChan numArgs startType `evalStateT` emptyChecker { _checkerChan = messageChan } :: IO RProgram
+    -- solution <- evalTopDownBackTrack messageChan $ do
+    --   sol <- dfs envWithHo messageChan depth (shape destinationType) :: TopDownBackTrack IO RProgram
+      
+    --   guard (filterParams numArgs sol)
+    --   -- guard (isInfixOf "arg1" (show sol))
+      
+    --   return sol
+    
+    -- print the first solution that has all the arguments
+    -- mapM print $ take 1 $ filter (filterParams numArgs) solutions
+
+    -- printf "done running dfsTop on %s\n" (show $ shape destinationType)
+    -- printf "\n\n\nSOLUTION: %s\n\n\n" (show sol)
+
+
+
 
     -- print the first solution that has all the arguments
     -- mapM print $ take 1 $ filter (filterParams numArgs) solutions
@@ -133,8 +162,12 @@ synthesize searchParams goal examples messageChan = do
     let first10 = take 10 solutions
     -- mapM print $ take 1 $ solutions
     filtered <- filterM check' first10 :: IO [RProgram] -- let's hope it's lazy
-    mapM print $ take 1 $ filtered
+    -- mapM print $ take 1 $ filtered
+    
+    end <- getCPUTime
 
+    let diff = fromIntegral (end - start) / (10^12)
+    printf "Computation time: %0.3f sec\n" (diff :: Double)
 
 -- ghcCheckedFunction = \thisArg -> sum (sum (last []) []) (take (sum thisArg) (last []))
 
