@@ -76,7 +76,8 @@ defaultTypeclassInstances =
     , mkInstance "Show" floatType
     , mkInstance "Show" doubleType
     , mkInstance "Show" unitType
-    , mkInstance "Eq" intType
+    , -}
+      mkInstance "Eq" intType
     , mkInstance "Eq" boolType
     , mkInstance "Eq" charType
     , mkInstance "Eq" intType
@@ -92,6 +93,9 @@ defaultTypeclassInstances =
     , mkInstance "Num" intType
     , mkInstance "Num" floatType
     , mkInstance "Num" doubleType
+    , mkSupertype "Ord" "Eq"
+    , mkSupertype "Num" "Ord"
+    -- , mkSupertype "Num" "Eq"
     ]
 
 
