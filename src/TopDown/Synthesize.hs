@@ -8,7 +8,7 @@ import Database.Util
 import qualified HooglePlus.Abstraction as Abstraction
 import PetriNet.PNSolver
 import HooglePlus.TypeChecker
-import HooglePlus.GHCChecker 
+import HooglePlus.GHCChecker (check)
 import Synquid.Error
 import Synquid.Logic
 import Synquid.Parser
@@ -19,9 +19,9 @@ import Synquid.Type
 import Synquid.Util
 import Types.CheckMonad
 import Types.Common
-import Types.Filtering
 import Types.Environment
 import Types.Experiments
+import Types.Filtering
 import Types.Program
 import Types.Solver
 import Types.TopDown
@@ -82,7 +82,7 @@ envToGoal env queryStr = do
 synthesize :: SearchParams -> Goal -> [Example] -> Chan Message -> IO ()
 synthesize searchParams goal examples messageChan = do
     let rawEnv = gEnvironment goal
-    let goalType = gSpec goal
+    let goalType = gSpec goal :: RSchema
     let destinationType = lastType (toMonotype goalType)
     let useHO = _useHO searchParams
     let rawSyms = rawEnv ^. symbols
@@ -109,311 +109,177 @@ synthesize searchParams goal examples messageChan = do
           _hoCandidates = []
           }
 
-     -- before synthesis, first check that user has provided valid examples
-    let exWithOutputs = filter ((/=) "??" . output) examples
-    checkResult <- checkExamples envWithHo goalType exWithOutputs messageChan
-    --  checkSolution env goal examples code
-    
-    let augmentedExamples = examples -- nubOrdOn inputs $ examples ++ preseedExamples
-    
-    case checkResult of
+    -- used for figuring out which programs to filter (those without all arguments)
+    let numArgs = length (Map.elems (envWithHo ^. arguments))
+
+    let actualGoalType = shape destinationType :: SType
+    solutions <- evalCompsSolver messageChan $ dfs envWithHo messageChan 3 actualGoalType :: IO [RProgram]
+
+    -- print the first solution that has all the arguments
+    -- mapM print $ take 1 $ filter (filterParams numArgs) solutions
+
+    -- filter function for programs
+    let check' :: RProgram -> IO Bool
+        check' program = do
+          -- printf "omg we are checking this program: %s\n" (show program)
+          checkResult <- evalStateT (check envWithHo searchParams examples program goalType messageChan) emptyFilterState
+          case checkResult of
+            Nothing  -> return False
+            Just exs -> do
+              out <- toOutput envWithHo program exs
+              printResult $ encodeWithPrefix out
+              return True
+
+    let first10 = take 10 solutions
+    -- mapM print $ take 1 $ solutions
+    filtered <- filterM check' first10 :: IO [RProgram] -- let's hope it's lazy
+    mapM print $ take 1 $ filtered
+
+
+-- ghcCheckedFunction = \thisArg -> sum (sum (last []) []) (take (sum thisArg) (last []))
+
+-- sum :: Num a => [a] -> a
+-- last :: [a] -> a
+
+-- GHC.List.sum (GHC.List.last ([] :: [[a]]) ) []
+-- ------------
+    writeChan messageChan (MesgClose CSNormal)
+    return ()
+
+    where
       
-      Right errs -> error (unlines ("examples does not type check" : errs))
-      
-      Left _ -> do
-
-        -- used for figuring out which programs to filter (those without all arguments)
-        let numArgs = length (Map.elems (envWithHo ^. arguments))
-        
-        -- let depth = 7
-        start <- getCPUTime
-
-        printf "running bfs on %s\n" (show $ shape destinationType)
-      
-        let startType = [Program { content = PHole, typeOf = refineTop envWithHo (shape destinationType) } ]
-        
-        -- bfs :: Environment -> Chan Message -> Int -> [RProgram] -> StateT CheckerState IO RProgram
-        
-        sol <- bfs envWithHo messageChan numArgs startType `evalStateT` emptyChecker { _checkerChan = messageChan } :: IO RProgram
-        -- solution <- evalTopDownBackTrack messageChan $ do
-        --   sol <- dfs envWithHo messageChan depth (shape destinationType) :: TopDownBackTrack IO RProgram
-          
-        --   guard (filterParams numArgs sol)
-        --   -- guard (isInfixOf "arg1" (show sol))
-          
-        --   return sol
-        
-        -- print the first solution that has all the arguments
-        -- mapM print $ take 1 $ filter (filterParams numArgs) solutions
-
-        -- printf "done running dfsTop on %s\n" (show $ shape destinationType)
-        printf "\n\n\nSOLUTION: %s\n\n\n" (show sol)
-        end <- getCPUTime
-
-        let diff = fromIntegral (end - start) / (10^12)
-        printf "Computation time: %0.3f sec\n" (diff :: Double)
-
-        writeChan messageChan (MesgClose CSNormal)
-        return ()
-        -- https://hackage.haskell.org/package/logict-0.7.0.2/docs/Control-Monad-Logic.html
-        -- https://stackoverflow.com/questions/17239511/prologs-returns-in-haskell
-        -- runLogic :: Logic a -> (a -> r -> r) -> r -> r
+      -- determines if the result has all the appropriate arguments given the number of args
+      filterParams :: Int -> RProgram -> Bool
+      filterParams 0       _ = error "filterParams error: shouldn't have 0 args!" -- TODO maybe should be true here? 
+      filterParams 1       x = "arg0" `isInfixOf` (show x)
+      filterParams numArgs x = isInfixOf ("arg" ++ (show (numArgs - 1))) (show x) && filterParams (numArgs - 1) x
 
 
+type CompsSolver m = StateT Comps (StateT CheckerState m)
+evalCompsSolver messageChan m = m `evalStateT` emptyComps `evalStateT` (emptyChecker { _checkerChan = messageChan })
 
-check' :: MonadIO (t m) => Environment -> SearchParams -> [Example] -> RProgram -> RSchema -> Chan Message -> t m ()
-check' env params examples program goal msgChan = do
-  checkResult <- liftIO $ evalStateT (check env params examples program goal msgChan) emptyFilterState
-  case checkResult of
-    Just something -> do   
-      let exs = fromJust checkResult
-      out <- liftIO $ toOutput env program exs
-      liftIO $ printResult $ encodeWithPrefix out
-    _ -> error "todo" -- recurse
+instance Monad m => CheckMonad (CompsSolver m) where
+    getNameCounter = lift getNameCounter
+    setNameCounter = lift . setNameCounter
+    getNameMapping = lift getNameMapping
+    setNameMapping = lift . setNameMapping
+    getIsChecked   = lift getIsChecked
+    setIsChecked   = lift . setIsChecked
+    getMessageChan = lift getMessageChan
+    overStats      = lift . overStats
 
--- [?? :: Goaltype]
--- take a list of programs with holes and return the first ground valid program
-bfs :: Environment -> Chan Message -> Int -> [RProgram] -> StateT CheckerState IO RProgram
-bfs env messageChan _ [] = error "cannot find solution"
-bfs env messageChan numArgs (p:ps) = do
-  testPrograms <- testFillFirstHole env messageChan :: StateT CheckerState IO [RProgram]
-  liftIO $ mapM print testPrograms
-  return undefined
-
-------------
--- bfs env messageChan numArgs (p:ps)
---   | hasHole p = do
---         newHoledPrograms <- fillFirstHole env messageChan p :: StateT CheckerState IO [RProgram]
---         liftIO $ printf "Non-ground program found: %s. adding %d newHoledPrograms\n" (show p) (length newHoledPrograms)
---         bfs env messageChan numArgs (ps ++ newHoledPrograms)
---   | otherwise = do
---         liftIO $ printf "Ground program found: %s\n" (show p)
---         if (filterParams numArgs p) 
---           then return p
---           else bfs env messageChan numArgs ps
--------------
-
-
-
--- If it returns Just something, then check passed (passed examples)
-
-        
-        -- TODO check stuff
-
-      -- fillHoles :: Environment -> Chan Message -> RProgram -> StateT CheckerState IO [RProgram]
-
-
+--
+-- does DFS stuff
+--
+dfs :: Environment -> Chan Message -> Int -> SType -> CompsSolver IO [RProgram]
+dfs env messageChan depth goalType = do
   
+  -- collect all the component types (which we might use to fill the holes)
+  let components = Map.toList (env ^. symbols)
 
--- checks if a program is ground (has no more arguments to synthesize - aka function w/o args)
-isGround :: SType -> Bool
-isGround (FunctionT id arg0 arg1) = False
-isGround _ = True
+  -- find all functions that unify with goal type
+  unifiedFuncs <- getUnifiedFunctions env messageChan components goalType :: CompsSolver IO [(Id, SType)]
 
--- hasHole :: RProgram -> Bool
--- hasHole (Program p _) = case p of
---   PApp fun arg -> or (map hasHole arg)
---   PHole -> True
---   _ -> False
-
--- converts [a] to a Logic a
-choices :: MonadPlus m => [a] -> m a
-choices = msum . map return
-
--- length ?? -> [length (tail ??), length (Nil), length (?? ++ ??)]
-getUnifiedFunctions'' :: Environment -> Chan Message -> SType -> [RProgram]
-getUnifiedFunctions'' env messageChan goalType = do
-  undefined
-
-getUnifiedFunctions''' :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> StateT CheckerState IO [RProgram]
-getUnifiedFunctions''' env messageChan []                  goalType = return []
-getUnifiedFunctions''' env messageChan ((id, schema) : ys) goalType = do
-    -- (id, schema) <- func
-    freshVars <- freshType (env ^. boundTypeVars) schema
-    
-    let t1 = shape (lastType freshVars) :: SType
-    let t2 = goalType :: SType
-
-    liftIO $ printf "NewThing: \n\tfreshVars: %s\n\tid: %s\n\tschema: %s\n\tt1: %s\n\tt2: %s\n" 
-      (show freshVars) id (show schema) (show t1) (show t2)
-
--- NewThing: 
---         id: GHC.List.length
---         schema: <a> . ([a] -> Int)
---         t1: Int
---         t2: Int
---         goalType: Int
-
--- NewThing: 
---         id: GHC.List.sum
---         schema: <a> . (@@hplusTC@@Num (a) -> ([a] -> a))
---         t1: tau68
---         t2: Int
---         goalType: Int
-
-
-    -- reset previous calls of solveTypeConstraint
-    modify $ set isChecked True
-    modify $ set typeAssignment Map.empty
-
-    solveTypeConstraint env t1 t2 :: StateT CheckerState IO ()
-    st' <- get
-    
-    -- (freshVars, st') <- do
-
-    --   return (freshVars, st') :: StateT CheckerState IO (RType, CheckerState)
-
-    let sub =  st' ^. typeAssignment
-    let checkResult = st' ^. isChecked
-
-    -- if it unifies, add that particular unified compoenent to state's list of components
-    if (checkResult) 
-      then do 
-        let schema' = stypeSubstitute sub (shape freshVars) :: SType
-
-        let args = allArgTypes schema' :: [SType]
-        
-        let typeToHole :: SType -> RProgram
-            typeToHole t = Program { content = PHole, typeOf = refineTop env t } 
-        
-        let typedHoles = map typeToHole args :: [RProgram]
-        let resultingProgram = Program { content = PApp id typedHoles, typeOf = refineTop env schema' } :: RProgram
-
-        liftIO $ printf "unified with: %s\n" (show resultingProgram)
-        fmap (resultingProgram :) (getUnifiedFunctions''' env messageChan ys goalType)
-      
-      else getUnifiedFunctions''' env messageChan ys goalType
-
-{-
-do
-  chan <- newChan
-  do
-    solveTypeConstraint emptyEnv (ScalarT (IntT) ()) (ScalarT (IntT) ())
-    st <- get
-    return $ st ^. isChecked
-  `evalStateT` emptyChecker { _checkerChan = chan }
-
-False
-
-newChan >>= \chan -> 
-  solveTypeConstraint emptyEnv (ScalarT (IntT) ()) (ScalarT (IntT) ()) >> get >>= \st -> return $ st ^. isChecked
-  `evalStateT` emptyChecker { _checkerChan = chan }
--}
-
-
--- fill one level of holes for the given RProgram with holes
-fillHoles :: Environment -> Chan Message -> RProgram -> StateT CheckerState IO [RProgram]
-fillHoles env messageChan (Program (PApp f args) typ) = do
-    argUnifications <- mapM (fillHoles env messageChan) args :: StateT CheckerState IO [[RProgram]]
-    let cartesianArgs = sequence argUnifications :: [[RProgram]]
-    let filledPrograms = [Program { content = PApp f filledArgs, typeOf = typ } | filledArgs <- cartesianArgs]
-    return filledPrograms
-fillHoles env messageChan (Program PHole typ)         = getUnifiedFunctions''' env messageChan (Map.toList (env ^. symbols)) (shape typ)
-fillHoles _   _           program                     = return [program]
-
--------------
-
--- data TypeSkeleton r =
---   ScalarT (BaseType r) r |
---   FunctionT Id (TypeSkeleton r) (TypeSkeleton r) |
+  -- for each of these functions, find solutions
+  functionSolutions <- mapM turnFunctionIntoSolutions unifiedFuncs :: CompsSolver IO [[RProgram]] -- [solutions for func1, solutions for func2]
+  let allFunctionSolutions = concat functionSolutions :: [RProgram]
+  return allFunctionSolutions
   
--- data BaseType r = BoolT | IntT | DatatypeT Id [TypeSkeleton r] [r] | TypeVarT Substitution Id
-
-
--- -- | Program skeletons parametrized by information stored symbols, conditionals, and by node types
--- data BareProgram t =
---   PSymbol Id |                                -- ^ Symbol (variable or constant)
---   PApp Id [Program t] |              -- ^ Function application
---   PHole |                                     -- ^ Hole (program to fill in)
-
--- -- | Programs annotated with types
--- data Program t = Program {
---   content :: BareProgram t,
---   typeOf :: t
--- } deriving (Functor, Generic)
-
--- -- | Refinement-typed programs
--- type RProgram = Program RType
-
--- -- | Type skeletons (parametrized by refinements)
--- data TypeSkeleton r =
---   ScalarT (BaseType r) r |
---   FunctionT Id (TypeSkeleton r) (TypeSkeleton r) |
---   AnyT |
---   BotT 
---   deriving (Eq, Ord, Generic)
-
--- -- | Refined types
--- type RType = TypeSkeleton Formula
-
--------------
-
-testFillFirstHole :: Environment -> Chan Message -> StateT CheckerState IO [RProgram]
-testFillFirstHole env messageChan = do
-
-  let intT = ScalarT (IntT) ftrue :: RType
-  let funcT a b = FunctionT "f" a b :: RType
-  let arg0 = (Program (PSymbol "arg0") intT) :: RProgram
-  let intHole = Program PHole intT :: RProgram
-  -- f arg0 ?? :: Int
-  -- where f :: Int -> Int -> Int
-  let p = Program (PApp "f" [arg0, intHole]) (intT) :: RProgram
-  fillFirstHole env messageChan p :: StateT CheckerState IO [RProgram]
-
-  -- should give us things like
-  -- f arg0 arg0
-  -- f arg0 (length ??)
-  
-  -- fillFirstHole undefined undefined
-
--- RESULTS
--- f arg0 ((?? :: [Int]) !! (?? :: Int))
--- f arg0 (Data.Bool.bool (?? :: Int) (?? :: Int) (?? :: Bool))
--- f arg0 (Data.Either.fromLeft (?? :: Int) (?? :: Either (Int) (tau23)))
--- f arg0 (Data.Either.fromRight (?? :: Int) (?? :: Either (tau26) (Int)))
--- f arg0 (Data.Function.const (?? :: Int) (?? :: tau37))
--- f arg0 (Data.Function.id (?? :: Int))
--- f arg0 (Data.Maybe.fromJust (?? :: Maybe (Int)))
--- f arg0 (Data.Maybe.fromMaybe (?? :: Int) (?? :: Maybe (Int)))
--- f arg0 (GHC.List.head (?? :: [Int]))
--- f arg0 (GHC.List.last (?? :: [Int]))
--- f arg0 (GHC.List.maximum (?? :: @@hplusTC@@Ord (Int)) (?? :: [Int]))
--- f arg0 (GHC.List.minimum (?? :: @@hplusTC@@Ord (Int)) (?? :: [Int]))
--- f arg0 (GHC.List.product (?? :: @@hplusTC@@Num (Int)) (?? :: [Int]))
--- f arg0 (GHC.List.sum (?? :: @@hplusTC@@Num (Int)) (?? :: [Int]))
-----------------
-
-
-
-fillFirstHole :: Environment -> Chan Message -> RProgram -> StateT CheckerState IO [RProgram]
-fillFirstHole env messageChan p = increaseDepth 1
-
   where
-    increaseDepth :: Int -> StateT CheckerState IO [RProgram]
-    increaseDepth depth = do
-      -- liftIO $ printf "fillFirstHole trying depth %d\n" depth
-      result <- helper depth p :: StateT CheckerState IO (Maybe [RProgram])
-      case result of
-        Nothing -> increaseDepth (depth+1)
-        Just programs -> return programs
+    -- checks if a program is ground (has no more arguments to synthesize - aka function w/o args)
+    isGround :: SType -> Bool
+    isGround (FunctionT id arg0 arg1) = False
+    isGround _ = True
 
-    helper :: Int -> RProgram                     -> StateT CheckerState IO (Maybe [RProgram])
-    helper    0      _                            = return Nothing
-    helper    1      (Program (PApp _ _   ) _  )  = return Nothing
-    helper    _      (Program PHole         typ)  = Just <$> getUnifiedFunctions''' env messageChan (Map.toList (env ^. symbols)) (shape typ)
-    helper    depth  (Program (PApp f args) typ)  = do
-        case span (\arg -> content arg /= PHole) args of
-          (l, (Program PHole _):r) -> do
-            unifiedFuncs <- getUnifiedFunctions''' env messageChan (Map.toList (env ^. symbols)) (shape typ) :: StateT CheckerState IO [RProgram]
-            return $ Just $ [Program (PApp f (l ++ [func] ++ r)) typ | func <- unifiedFuncs] -- fill first hole with unifiedFunctions
-          _            -> do -- need to recurse by applying fillFirstHole on each arg, but stop once we get a Just
-            possiblyFilled <- mapM (helper (depth-1)) args :: StateT CheckerState IO [Maybe [RProgram]]
-            return $ msum $ possiblyFilled :: StateT CheckerState IO (Maybe [RProgram])
-                          -- msum :: [Maybe [RProgram]] -> [RProgram] -- get the first Just
-    helper    _      _                            = error "helper: shouldn't be here"
+    turnFunctionIntoSolutions :: (Id, SType) -> CompsSolver IO [RProgram]
+    turnFunctionIntoSolutions (id, schema)
+      | isGround schema = return [Program { content = PSymbol id, typeOf = refineTop env schema }]
+      | depth == 0 = return []  -- stop if depth is 0
+      | otherwise = do
 
--- TODO add "check" function here
-filterParams :: Int -> RProgram -> Bool
-filterParams 0       _ = error "filterParams error: shouldn't have 0 args!" -- TODO maybe should be true here? 
-filterParams 1       x = "arg0" `isInfixOf` (show x)
-filterParams numArgs x = isInfixOf ("arg" ++ (show (numArgs - 1))) (show x) && filterParams (numArgs - 1) x
+        -- collect all the argument types (the holes ?? we need to fill)
+        -- get rid of any argument that has @@ (since they are for typeclasses, which we don't synthesize)
+        
+        -- let args = filter (not . \t -> "@@" `isInfixOf` show t) $ allArgTypes schema :: [SType]
+        let args = allArgTypes schema :: [SType]
+  
+        -- recursively call DFS on the arguments' types to get the functions that return those types
+        let recurse = dfs env messageChan (depth-1) :: SType -> CompsSolver IO [RProgram]
+        solutionsPerArg <- mapM recurse args :: CompsSolver IO [[RProgram]] -- [[a,b,c], [d,e,f]]
+
+        -- get cartesian product of all the arguments
+        let programsPerArg = sequence solutionsPerArg :: [[RProgram]] -- [[a,d], [a,e], [a,f], [b,d], [b,e], [b,f]]
+
+-- (GHC.List.sum :: @@hplusTC@@Num (Char) -> [Char] -> Char)
+
+        -- fill in arguments of func as RPrograms - [func a d, func a e, func a f, func b d, func b e, func b f]
+        let formatFn :: [RProgram] -> RProgram
+            formatFn args = Program { content = PApp id args, typeOf = refineTop env schema }
+        
+        let finalResultList = map formatFn programsPerArg
+
+        -- when (id == "GHC.List.length") $ do
+        --   liftIO $ printf "trying to turn (%s :: %s) into programs that look like (%s ...args...) \n" id (show schema) id
+        --   liftIO $ printf "\t* args: %s\n" (show args)
+        --   liftIO $ printf "\t* programsPerArg: %s\n" (take 80 $ show programsPerArg)
+        --   liftIO $ printf "\t* solutionsPerArg: %s\n" (take 80 $ show solutionsPerArg)
+        --   liftIO $ printf "\t* finalResultList: %s\n" (take 80 $ show finalResultList)
+
+        return finalResultList
+
+--
+-- gets list of components/functions that unify with a given type
+-- 
+getUnifiedFunctions :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> CompsSolver IO [(Id, SType)]
+getUnifiedFunctions envv messageChan xs goalType = do
+
+  modify $ set components []
+
+  st <- get
+  let memoized = st ^. memoize :: Map SType [(Id, SType)]
+
+  case Map.lookup goalType memoized of
+    Just cs -> do
+      return cs
+    Nothing -> do
+      helper envv messageChan xs goalType
+      st <- get
+      let cs = st ^. components
+      modify $ set memoize (Map.insert goalType cs (st ^. memoize))
+      return $ st ^. components
+  
+  where 
+    helper :: Environment -> Chan Message -> [(Id, RSchema)] -> SType -> CompsSolver IO ()
+    helper _ _ [] _ = return ()
+    
+    helper envv messageChan ( v@(id, schema) : ys) goalType = do
+        (freshVars, st') <- lift $ do
+
+          freshVars <- freshType (envv ^. boundTypeVars) schema
+
+          let t1 = shape (lastType freshVars) :: SType
+          let t2 = goalType :: SType
+
+          modify $ set isChecked True
+          modify $ set typeAssignment Map.empty
+
+          solveTypeConstraint envv t1 t2 :: StateT CheckerState IO ()
+          st' <- get
+          
+          return (freshVars, st') :: StateT CheckerState IO (RType, CheckerState)
+
+        let sub =  st' ^. typeAssignment
+        let checkResult = st' ^. isChecked
+        -- liftIO $ putStrLn $ show (id, "      ", t1, "      ", t2, "      ",freshVars,"      ",checkResult)
+
+        let schema' = stypeSubstitute sub (shape freshVars)
+
+        st <- get
+
+        -- if it unifies, add that particular unified compoenent to state's list of components
+        if (checkResult) 
+          then do
+            modify $ set components ((id, schema') : st ^. components) 
+          else return ()
+
+        helper envv messageChan ys goalType
