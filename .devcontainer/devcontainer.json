@@ -1,6 +1,6 @@
 {
     "name": "H+ w/ HIE 1.4, GHC 8.4.4",
-    "image": "mistzzt/hoogle_plus_dev:hie1.4_ghc8.4.4",
+    "image": "mistzzt/hoogle_plus_dev:latest",
 
     "extensions": [
         "eamodio.gitlens",

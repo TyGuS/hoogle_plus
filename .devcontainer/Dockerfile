@@ -1,4 +1,4 @@
-FROM mistzzt/haskell-ide-engine:1.4-ghc8.4.4
+FROM mistzzt/haskell-ide-engine:latest
 
 # Avoid warnings by switching to noninteractive
 ENV DEBIAN_FRONTEND=noninteractive
@@ -13,7 +13,7 @@ RUN apt-get -y install --no-install-recommends apt-utils 2>&1 \
     && apt-get -y install python make 
 
 # Install z3 Prover
-RUN git clone --branch z3-4.7.1 https://github.com/Z3Prover/z3.git \
+RUN git clone --branch z3-4.8.1 https://github.com/Z3Prover/z3.git \
     && cd z3 \
     && python scripts/mk_make.py \
     && cd build \
@@ -22,6 +22,10 @@ RUN git clone --branch z3-4.7.1 https://github.com/Z3Prover/z3.git \
 
 # Clean z3 build files
 RUN rm -rf /z3
+
+# Get tools for the evaluation
+RUN apt-get install -y python3 python3-pip
+RUN pip3 install --user PyYAML numpy tabulate matplotlib argparse
 
 # Clean up
 RUN apt-get autoremove -y \
