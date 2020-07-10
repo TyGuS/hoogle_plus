@@ -108,9 +108,12 @@ synthesize searchParams goal examples messageChan = do
           _hoCandidates = []
           }
 
+    -- used for figuring out which programs to filter (those without all arguments)
+    let numArgs = length (Map.elems (envWithHo ^. arguments))
+
     start <- getCPUTime
 
-    iterativeDeepening envWithHo messageChan searchParams examples goalType
+    iterativeDeepening envWithHo messageChan searchParams examples goalType numArgs
 
     end <- getCPUTime
 
@@ -128,13 +131,13 @@ synthesize searchParams goal examples messageChan = do
     writeChan messageChan (MesgClose CSNormal)
     return ()
 
-    where
+    -- where
       
-      -- determines if the result has all the appropriate arguments given the number of args
-      filterParams :: Int -> RProgram -> Bool
-      filterParams 0       _ = error "filterParams error: shouldn't have 0 args!" -- TODO maybe should be true here? 
-      filterParams 1       x = "arg0" `isInfixOf` (show x)
-      filterParams numArgs x = isInfixOf ("arg" ++ (show (numArgs - 1))) (show x) && filterParams (numArgs - 1) x
+-- determines if the result has all the appropriate arguments given the number of args
+filterParams :: Int -> RProgram -> Bool
+filterParams 0       _ = error "filterParams error: shouldn't have 0 args!" -- TODO maybe should be true here? 
+filterParams 1       x = "arg0" `isInfixOf` (show x)
+filterParams numArgs x = isInfixOf ("arg" ++ (show (numArgs - 1))) (show x) && filterParams (numArgs - 1) x
 
 
 type CompsSolver m = StateT Comps (StateT CheckerState m)
@@ -163,16 +166,19 @@ type BTCompsSolver = LogicT (CompsSolver IO)
 
 -- try to get solutions by calling dfs on depth 1 2 3 4... until we get an answer
 
+-- stack run -- hplus --json='{"query": "arg0:a -> arg1:[Maybe a] -> a", "inExamples": []}'
+-- arg0:a -> arg1:[Maybe a] -> a
+
 -- without CompsSolver
 -- Data.Maybe.fromMaybe arg0 (GHC.List.last arg1)
--- Computation time: 81.295 sec
+-- Computation time: 35.623 sec, 34.724 sec, 22.624 sec
 
 -- with CompsSolver
 -- Data.Maybe.fromMaybe arg0 (GHC.List.last arg1)
--- Computation time: 98.223 sec
+-- Computation time: 26.022 sec, 27.586 sec
 
-iterativeDeepening :: Environment -> Chan Message -> SearchParams -> [Example] -> RSchema -> IO ()
-iterativeDeepening env messageChan searchParams examples goal = do
+iterativeDeepening :: Environment -> Chan Message -> SearchParams -> [Example] -> RSchema -> Int -> IO ()
+iterativeDeepening env messageChan searchParams examples goal numArgs = do
 -- solution <- choices []
 -- solution <- once $ iterativeDeepening 1 `mplus` iterativeDeepening 2 `mplus` ...
 -- solution <- once $ msum [iterativeDeepening 1, iterativeDeepening 2]
@@ -185,7 +191,12 @@ iterativeDeepening env messageChan searchParams examples goal = do
     helper depth = do
       liftIO $ printf "running dfs on %s at depth %d\n" (show goal) depth
 
-      let goalType = shape $ lastType (toMonotype goal) :: SType
+      -- print size of map
+      comps <- lift get
+      let memoMap = comps ^. memoize :: Map SType [(Id, SType)]
+      liftIO $ print $ Map.size memoMap
+
+      let goalType = shape $ lastType $ toMonotype goal :: SType
       solutions <- lift $ dfs env messageChan depth goalType :: BTCompsSolver [RProgram]
 
       solutionLazy <- choices solutions
@@ -196,23 +207,91 @@ iterativeDeepening env messageChan searchParams examples goal = do
       return solutionLazy
     check' :: RProgram -> IO Bool
     check' program = do
-      -- printf "omg we are checking this program: %s\n" (show program)
-      checkResult <- evalStateT (check env searchParams examples program goal messageChan) emptyFilterState
-      case checkResult of
-        Nothing  -> return False
-        Just exs -> do
-          -- TODO add this back in
-          -- out <- toOutput env program exs
-          -- printResult $ encodeWithPrefix out
-          return True
+      if (filterParams numArgs program) 
+        then do
+          -- return True
+          
+          printf "omg we are checking this program: %s\n" (show program)
+          checkResult <- evalStateT (check env searchParams examples program goal messageChan) emptyFilterState
+          case checkResult of
+            Nothing  -> return False
+            Just exs -> do
+              -- TODO add this back in
+              -- out <- toOutput env program exs
+              -- printResult $ encodeWithPrefix out
+            
+              return True
+        else return False
     
+    -- Data.Bool.bool 
 
     -- converts [a] to a Logic a
     choices :: MonadPlus m => [a] -> m a
     choices = msum . map return
 
+
+-- a -> a -> Int
+-- a ==> Int
+-- a ==> Li
+
+-- from paper: Data.Either.Right (Data.Tuple.snd ((,) arg0 arg1))
+-- Don't have all args: 
+--         Data.Either.Right arg1
+--         Data.Either.Left (Data.Maybe.fromJust arg0)
+
+-- stack run -- hplus --json='{"query": "Maybe a -> b -> Either a b", "inExamples": []}'
+-- Data.Bool.bool (GHC.List.last []) (Data.Either.Right arg1) (Data.Maybe.isNothing arg0)
+-- Computation time: 205.012 sec
+
+-- head :: [a] -> a
+-- [] :: [a]
+ 
+-- head []     === undefined :: a
+
+-- lookup :: Eq a => a -> [(a, b)] -> Maybe b
+
+-- stack run -- hplus --json='{"query": "[(a,b)] -> a", "inExamples": []}'
+
+-- Data.Tuple.fst (GHC.List.last arg0)
+-- Data.Tuple.fst (GHC.List.head arg0)
+-- Data.Tuple.fst (GHC.List.last arg0)
+-- Data.Tuple.fst (GHC.List.head arg0)
+-- Data.Tuple.fst (GHC.List.head arg0)
+-- Data.Tuple.fst (GHC.List.last arg0)
+
+-- == :: Eq a => a -> a -> Bool
+--             A51  A52
+-- 
 --
 -- does DFS stuff
+
+
+
+
+
+-- example
+--  we have: ( "f" . a51 -> [a51] -> Bool)
+-- when we unify a51, we get [(id, schema, sub)]
+-- can use sub to plug into the rest of the arguments
+--  we should do the following
+--    recurse on the first argument
+--    for each function that unifies with the first argument (like type Int)
+--      recurse on the second argument except the second argument is now [Int]
+--    (backtrack until you find all the pairs of first and second arguments: like [a,b]
+--    build things using f 
+-- 
+
+
+
+
+
+
+-- [a51, a51]
+-- { a51: some type }
+-- typeAssignment :: Map Id Sometypething
+-- a :: SolverState
+-- a = undefined 
+
 --
 dfs :: Environment -> Chan Message -> Int -> SType -> CompsSolver IO [RProgram]
 dfs env messageChan depth goalType = do
@@ -243,12 +322,16 @@ dfs env messageChan depth goalType = do
         -- collect all the argument types (the holes ?? we need to fill)
         -- get rid of any argument that has @@ (since they are for typeclasses, which we don't synthesize)
         
+        -- lift $ modify $ set typeAssignment Map.empty
+
         -- let args = filter (not . \t -> "@@" `isInfixOf` show t) $ allArgTypes schema :: [SType]
         let args = allArgTypes schema :: [SType]
   
         -- recursively call DFS on the arguments' types to get the functions that return those types
         let recurse = dfs env messageChan (depth-1) :: SType -> CompsSolver IO [RProgram]
         solutionsPerArg <- mapM recurse args :: CompsSolver IO [[RProgram]] -- [[a,b,c], [d,e,f]]
+
+         -- [[a,[d,e]], [b,[d,e,f]], [c,[f]]]
 
         -- get cartesian product of all the arguments
         let programsPerArg = sequence solutionsPerArg :: [[RProgram]] -- [[a,d], [a,e], [a,f], [b,d], [b,e], [b,f]]
@@ -301,14 +384,19 @@ getUnifiedFunctions envv messageChan xs goalType = do
     
     helper envv messageChan ( v@(id, schema) : ys) goalType = do
         (freshVars, st') <- lift $ do
-
+          
           freshVars <- freshType (envv ^. boundTypeVars) schema
+
+          -- liftIO $ print $ 
+
+          when (id == "==") $ do
+            liftIO $ printf "we used freshVars and turned schema %s into type %s\n" (show schema) (show freshVars)
 
           let t1 = shape (lastType freshVars) :: SType
           let t2 = goalType :: SType
 
           modify $ set isChecked True
-          modify $ set typeAssignment Map.empty
+          -- modify $ set typeAssignment Map.empty
 
           solveTypeConstraint envv t1 t2 :: StateT CheckerState IO ()
           st' <- get
@@ -316,7 +404,16 @@ getUnifiedFunctions envv messageChan xs goalType = do
           return (freshVars, st') :: StateT CheckerState IO (RType, CheckerState)
 
         let sub =  st' ^. typeAssignment
+
+        -- a
+        -- int
+
+        -- map a::Int
+        -- schema: a -> a -> a
+        -- schema' : Int -> Int -> Int
+
         let checkResult = st' ^. isChecked
+        liftIO $ putStrLn $ take 200 $ show sub
         -- liftIO $ putStrLn $ show (id, "      ", t1, "      ", t2, "      ",freshVars,"      ",checkResult)
 
         let schema' = stypeSubstitute sub (shape freshVars)
