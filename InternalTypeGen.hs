@@ -159,6 +159,17 @@ anyDuplicate :: Eq a => [a] -> Bool
 anyDuplicate [] = False
 anyDuplicate (x:xs) = x `elem` xs 
 
+evaluateValue :: Data a => Int -> [a] -> IO [CB.Result String]
+evaluateValue timeInMicro values = mapM (silence . eval) values
+  where
+    eval value =
+      let str = CB.approxShow defaultMaxOutputLength value in
+        CB.timeOutMicro timeInMicro (putStrLn str >> return str)
+
+labelProperty :: QC.Testable prop => [String] -> [CB.Result String] -> prop -> QC.Property
+labelProperty inputs outputs prop = QC.label (show examples) prop
+  where examples = map (Example inputs . showCBResult) outputs
+
 -- * instance defined in `Types.IOFormat`
 data Example = Example {
     inputs :: [String],
@@ -166,25 +177,6 @@ data Example = Example {
 } deriving(Eq, Show)
 
 type ExampleGeneration m = StateT [Example] m
-
-evaluateIOQC :: Show a => [String] -> a -> ExampleGeneration IO String
-evaluateIOQC inputs val = do
-    let result = show val
-    modify ((Example inputs result):)
-    return result
-
-evaluateIO :: Data a => Int -> [String] -> [a] -> ExampleGeneration IO ([CB.Result String])
-evaluateIO timeInMicro inputs vals = do
-    results <- liftIO $ silence $ mapM (CB.timeOutMicro timeInMicro . eval) vals
-    
-    let resultsStr = map showCBResult results
-    modify ((++) (map (Example inputs) resultsStr))
-    return results
-  where
-    evalStr val = CB.approxShow defaultMaxOutputLength val
-    io str = ((putStrLn str) >> return str)
-
-    eval val = io (evalStr val)
  
 waitState :: Int -> [String] -> [String] -> [[String]] -> CB.Result String -> ExampleGeneration IO Bool
 waitState numIOs args previousRets previousArgs ret = case (not $ isFailedResult ret) of
