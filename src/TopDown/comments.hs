@@ -1222,6 +1222,46 @@ module comments where
 
 
 
+-- iterativeDeepening :: Environment -> Chan Message -> SearchParams -> [Example] -> RSchema -> IO ()
+-- iterativeDeepening env messageChan searchParams examples goal = do
+-- -- solution <- choices []
+-- -- solution <- once $ iterativeDeepening 1 `mplus` iterativeDeepening 2 `mplus` ...
+-- -- solution <- once $ msum [iterativeDeepening 1, iterativeDeepening 2]
+-- -- solution <- once $ msum $ map iterativeDeepening [1..]
+--   solution <- observeT $ msum $ map helper [1..] :: IO RProgram
+--   print solution
+
+--   where
+--     helper :: Int -> LogicT IO RProgram
+--     helper depth = do
+--       liftIO $ printf "running dfs on %s at depth %d\n" (show goal) depth
+
+--       let goalType = shape $ lastType $ toMonotype goal :: SType
+--       solutions <- lift $ evalCompsSolver messageChan $ dfs env messageChan depth goalType :: LogicT IO [RProgram]
+
+--       solutionLazy <- choices solutions
+--       isChecked <- liftIO $ check' solutionLazy
+--       guard isChecked -- gets the first valid program
+
+--       -- liftIO $ print solutionLazy
+--       return solutionLazy
+--     check' :: RProgram -> IO Bool
+--     check' program = do
+--       -- printf "omg we are checking this program: %s\n" (show program)
+--       checkResult <- evalStateT (check env searchParams examples program goal messageChan) emptyFilterState
+--       case checkResult of
+--         Nothing  -> return False
+--         Just exs -> do
+--           -- TODO add this back in
+--           -- out <- toOutput env program exs
+--           -- printResult $ encodeWithPrefix out
+--           return True
+    
+--     -- converts [a] to a Logic a
+--     choices :: MonadPlus m => [a] -> m a
+--     choices = msum . map return
+
+
 
 
 
