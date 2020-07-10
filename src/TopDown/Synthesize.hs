@@ -162,7 +162,7 @@ instance Monad m => CheckMonad (CompsSolver m) where
     getMessageChan = lift getMessageChan
     overStats      = lift . overStats
 
-type BTCompsSolver = LogicT (CompsSolver IO)
+type BTCompsSolver m = LogicT (CompsSolver m)
 
 -- try to get solutions by calling dfs on depth 1 2 3 4... until we get an answer
 
@@ -179,7 +179,6 @@ type BTCompsSolver = LogicT (CompsSolver IO)
 
 iterativeDeepening :: Environment -> Chan Message -> SearchParams -> [Example] -> RSchema -> Int -> IO ()
 iterativeDeepening env messageChan searchParams examples goal numArgs = do
--- solution <- choices []
 -- solution <- once $ iterativeDeepening 1 `mplus` iterativeDeepening 2 `mplus` ...
 -- solution <- once $ msum [iterativeDeepening 1, iterativeDeepening 2]
 -- solution <- once $ msum $ map iterativeDeepening [1..]
@@ -187,7 +186,7 @@ iterativeDeepening env messageChan searchParams examples goal numArgs = do
   print solution
 
   where
-    helper :: Int -> BTCompsSolver RProgram
+    helper :: Int -> BTCompsSolver IO RProgram
     helper depth = do
       liftIO $ printf "running dfs on %s at depth %d\n" (show goal) depth
 
@@ -197,9 +196,9 @@ iterativeDeepening env messageChan searchParams examples goal numArgs = do
       liftIO $ print $ Map.size memoMap
 
       let goalType = shape $ lastType $ toMonotype goal :: SType
-      solutions <- lift $ dfs env messageChan depth goalType :: BTCompsSolver [RProgram]
+      solutionLazy <- dfs env messageChan depth goalType :: BTCompsSolver IO RProgram
 
-      solutionLazy <- choices solutions
+      -- solutionLazy <- choices solutions
       isChecked <- liftIO $ check' solutionLazy
       guard isChecked -- gets the first valid program
 
@@ -223,49 +222,32 @@ iterativeDeepening env messageChan searchParams examples goal numArgs = do
               return True
         else return False
     
-    -- Data.Bool.bool 
-
-    -- converts [a] to a Logic a
-    choices :: MonadPlus m => [a] -> m a
-    choices = msum . map return
 
 
--- a -> a -> Int
--- a ==> Int
--- a ==> Li
-
--- from paper: Data.Either.Right (Data.Tuple.snd ((,) arg0 arg1))
--- Don't have all args: 
---         Data.Either.Right arg1
---         Data.Either.Left (Data.Maybe.fromJust arg0)
-
--- stack run -- hplus --json='{"query": "Maybe a -> b -> Either a b", "inExamples": []}'
--- Data.Bool.bool (GHC.List.last []) (Data.Either.Right arg1) (Data.Maybe.isNothing arg0)
--- Computation time: 205.012 sec
-
--- head :: [a] -> a
--- [] :: [a]
- 
--- head []     === undefined :: a
-
--- lookup :: Eq a => a -> [(a, b)] -> Maybe b
-
--- stack run -- hplus --json='{"query": "[(a,b)] -> a", "inExamples": []}'
-
--- Data.Tuple.fst (GHC.List.last arg0)
--- Data.Tuple.fst (GHC.List.head arg0)
--- Data.Tuple.fst (GHC.List.last arg0)
--- Data.Tuple.fst (GHC.List.head arg0)
--- Data.Tuple.fst (GHC.List.head arg0)
--- Data.Tuple.fst (GHC.List.last arg0)
-
--- == :: Eq a => a -> a -> Bool
---             A51  A52
--- 
---
--- does DFS stuff
 
 
+-- converts [a] to a Logic a
+choices :: MonadPlus m => [a] -> m a
+choices = msum . map return
+
+
+
+-- [a51, a51]
+-- { a51: some type }
+-- typeAssignment :: Map Id Sometypething
+-- a :: SolverState
+-- a = undefined 
+
+
+--- TODO                                     
+-- we should rewrite dfs to not use turnFunctionIntoSolutions
+-- dfs should solve this problem:
+--   given a goal type, give all the programs that solve this goal type
+-- getUnifiedFunctions solves this problem:
+--   given a goal type, give all the functions whose return value unifies with that goal type
+-- turnFunctionIntoSolutions solves this problem:
+--   given a function, construct all the programs by filling in arguments of this function
+--   (this is a problem since we need it to worry about typeAssignment)
 
 
 
@@ -273,7 +255,7 @@ iterativeDeepening env messageChan searchParams examples goal numArgs = do
 --  we have: ( "f" . a51 -> [a51] -> Bool)
 -- when we unify a51, we get [(id, schema, sub)]
 -- can use sub to plug into the rest of the arguments
---  we should do the following
+--  we could do the following
 --    recurse on the first argument
 --    for each function that unifies with the first argument (like type Int)
 --      recurse on the second argument except the second argument is now [Int]
@@ -284,29 +266,26 @@ iterativeDeepening env messageChan searchParams examples goal numArgs = do
 
 
 
-
-
--- [a51, a51]
--- { a51: some type }
--- typeAssignment :: Map Id Sometypething
--- a :: SolverState
--- a = undefined 
-
---
-dfs :: Environment -> Chan Message -> Int -> SType -> CompsSolver IO [RProgram]
+-- TODO rewrite this function in a nicer way 
+dfs :: Environment -> Chan Message -> Int -> SType -> BTCompsSolver IO RProgram
 dfs env messageChan depth goalType = do
   
   -- collect all the component types (which we might use to fill the holes)
   let components = Map.toList (env ^. symbols)
 
-  -- find all functions that unify with goal type
-  unifiedFuncs <- getUnifiedFunctions env messageChan components goalType :: CompsSolver IO [(Id, SType)]
 
-  -- for each of these functions, find solutions
-  functionSolutions <- mapM turnFunctionIntoSolutions unifiedFuncs :: CompsSolver IO [[RProgram]] -- [solutions for func1, solutions for func2]
-  let allFunctionSolutions = concat functionSolutions :: [RProgram]
-  return allFunctionSolutions
+  allFunctionSolutions <- lift $ do
+  -- find all functions that unify with goal type
+
+    unifiedFuncs <- getUnifiedFunctions env messageChan components goalType :: CompsSolver IO [(Id, SType)]
+
+    -- for each of these functions, find solutions
+    functionSolutions <- mapM turnFunctionIntoSolutions unifiedFuncs :: CompsSolver IO [[RProgram]] -- [solutions for func1, solutions for func2]
+    let allFunctionSolutions = concat functionSolutions :: [RProgram]
+    return allFunctionSolutions
   
+  choices allFunctionSolutions
+
   where
     -- checks if a program is ground (has no more arguments to synthesize - aka function w/o args)
     isGround :: SType -> Bool
@@ -326,12 +305,20 @@ dfs env messageChan depth goalType = do
 
         -- let args = filter (not . \t -> "@@" `isInfixOf` show t) $ allArgTypes schema :: [SType]
         let args = allArgTypes schema :: [SType]
+
+        -- TODO this is the hard part
+        
+        -- given a function with schema <a> . a -> [a] -> Bool
+        -- we need to take the arguments [a, a]
+        -- try all possibilities for the first a (and have that affect possibilities for the second a using typeAssignment or something)
   
         -- recursively call DFS on the arguments' types to get the functions that return those types
-        let recurse = dfs env messageChan (depth-1) :: SType -> CompsSolver IO [RProgram]
-        solutionsPerArg <- mapM recurse args :: CompsSolver IO [[RProgram]] -- [[a,b,c], [d,e,f]]
+        let recurse = dfs env messageChan (depth-1) :: SType -> BTCompsSolver IO RProgram
+        solutionsPerArg <- mapM recurse args :: BTCompsSolver IO [RProgram] -- [[a,b,c], [d,e,f]]
+        -- [a, d]
+        -- func a d
 
-         -- [[a,[d,e]], [b,[d,e,f]], [c,[f]]]
+        -- [[a,[d,e]], [b,[d,e,f]], [c,[f]]]
 
         -- get cartesian product of all the arguments
         let programsPerArg = sequence solutionsPerArg :: [[RProgram]] -- [[a,d], [a,e], [a,f], [b,d], [b,e], [b,f]]
@@ -405,15 +392,8 @@ getUnifiedFunctions envv messageChan xs goalType = do
 
         let sub =  st' ^. typeAssignment
 
-        -- a
-        -- int
-
-        -- map a::Int
-        -- schema: a -> a -> a
-        -- schema' : Int -> Int -> Int
-
         let checkResult = st' ^. isChecked
-        liftIO $ putStrLn $ take 200 $ show sub
+        -- liftIO $ putStrLn $ take 200 $ show sub
         -- liftIO $ putStrLn $ show (id, "      ", t1, "      ", t2, "      ",freshVars,"      ",checkResult)
 
         let schema' = stypeSubstitute sub (shape freshVars)
