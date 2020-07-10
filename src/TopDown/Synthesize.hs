@@ -88,7 +88,6 @@ synthesize searchParams goal examples messageChan = do
     let rawSyms = rawEnv ^. symbols
     let hoCands = rawEnv ^. hoCandidates
     envWithHo <- do
-
     --------------------------
     -- HIGHER ORDER STUFF 
     -- envWithHo <- if useHO -- add higher order query arguments
@@ -109,61 +108,10 @@ synthesize searchParams goal examples messageChan = do
           _hoCandidates = []
           }
 
-
-
-    let depth = 7
     start <- getCPUTime
 
-    printf "running bfs on %s\n" (show $ shape destinationType)
-    
-    -- used for figuring out which programs to filter (those without all arguments)
-    let numArgs = length (Map.elems (envWithHo ^. arguments))
+    iterativeDeepening envWithHo messageChan searchParams examples goalType
 
-    let actualGoalType = shape destinationType :: SType
-    solutions <- evalCompsSolver messageChan $ dfs envWithHo messageChan depth actualGoalType :: IO [RProgram]
-
-    -- let startType = [Program { content = PHole, typeOf = refineTop envWithHo (shape destinationType) } ]
-    
-    -- bfs :: Environment -> Chan Message -> Int -> [RProgram] -> StateT CheckerState IO RProgram
-    
-    -- sol <- bfs envWithHo messageChan numArgs startType `evalStateT` emptyChecker { _checkerChan = messageChan } :: IO RProgram
-    -- solution <- evalTopDownBackTrack messageChan $ do
-    --   sol <- dfs envWithHo messageChan depth (shape destinationType) :: TopDownBackTrack IO RProgram
-      
-    --   guard (filterParams numArgs sol)
-    --   -- guard (isInfixOf "arg1" (show sol))
-      
-    --   return sol
-    
-    -- print the first solution that has all the arguments
-    -- mapM print $ take 1 $ filter (filterParams numArgs) solutions
-
-    -- printf "done running dfsTop on %s\n" (show $ shape destinationType)
-    -- printf "\n\n\nSOLUTION: %s\n\n\n" (show sol)
-
-
-
-
-    -- print the first solution that has all the arguments
-    -- mapM print $ take 1 $ filter (filterParams numArgs) solutions
-
-    -- filter function for programs
-    let check' :: RProgram -> IO Bool
-        check' program = do
-          -- printf "omg we are checking this program: %s\n" (show program)
-          checkResult <- evalStateT (check envWithHo searchParams examples program goalType messageChan) emptyFilterState
-          case checkResult of
-            Nothing  -> return False
-            Just exs -> do
-              out <- toOutput envWithHo program exs
-              printResult $ encodeWithPrefix out
-              return True
-
-    let first10 = take 10 solutions
-    -- mapM print $ take 1 $ solutions
-    filtered <- filterM check' first10 :: IO [RProgram] -- let's hope it's lazy
-    -- mapM print $ take 1 $ filtered
-    
     end <- getCPUTime
 
     let diff = fromIntegral (end - start) / (10^12)
@@ -176,6 +124,7 @@ synthesize searchParams goal examples messageChan = do
 
 -- GHC.List.sum (GHC.List.last ([] :: [[a]]) ) []
 -- ------------
+    
     writeChan messageChan (MesgClose CSNormal)
     return ()
 
@@ -191,6 +140,15 @@ synthesize searchParams goal examples messageChan = do
 type CompsSolver m = StateT Comps (StateT CheckerState m)
 evalCompsSolver messageChan m = m `evalStateT` emptyComps `evalStateT` (emptyChecker { _checkerChan = messageChan })
 
+-- type TopDownBackTrack m = LogicT (StateT CheckerState m)
+-- -- evalTopDownBackTrack :: Monad m => Chan Message -> TopDownBackTrack m a -> m [a]
+-- -- evalTopDownBackTrack messageChan action = observeAllT action `evalStateT` (emptyChecker { _checkerChan = messageChan })
+-- -- evalTopDownBackTrack :: Monad m => Chan Message -> TopDownBackTrack m a -> m [a]
+-- -- evalTopDownBackTrack messageChan action = fmap (\x -> [x]) $ observeT action `evalStateT` (emptyChecker { _checkerChan = messageChan })
+-- evalTopDownBackTrack :: Monad m => Chan Message -> TopDownBackTrack m a -> m a
+-- evalTopDownBackTrack messageChan action = observeT action `evalStateT` (emptyChecker { _checkerChan = messageChan })
+
+
 instance Monad m => CheckMonad (CompsSolver m) where
     getNameCounter = lift getNameCounter
     setNameCounter = lift . setNameCounter
@@ -200,6 +158,58 @@ instance Monad m => CheckMonad (CompsSolver m) where
     setIsChecked   = lift . setIsChecked
     getMessageChan = lift getMessageChan
     overStats      = lift . overStats
+
+type BTCompsSolver = LogicT (CompsSolver IO)
+
+-- try to get solutions by calling dfs on depth 1 2 3 4... until we get an answer
+
+-- without CompsSolver
+-- Data.Maybe.fromMaybe arg0 (GHC.List.last arg1)
+-- Computation time: 81.295 sec
+
+-- with CompsSolver
+-- Data.Maybe.fromMaybe arg0 (GHC.List.last arg1)
+-- Computation time: 98.223 sec
+
+iterativeDeepening :: Environment -> Chan Message -> SearchParams -> [Example] -> RSchema -> IO ()
+iterativeDeepening env messageChan searchParams examples goal = do
+-- solution <- choices []
+-- solution <- once $ iterativeDeepening 1 `mplus` iterativeDeepening 2 `mplus` ...
+-- solution <- once $ msum [iterativeDeepening 1, iterativeDeepening 2]
+-- solution <- once $ msum $ map iterativeDeepening [1..]
+  solution <- evalCompsSolver messageChan $ observeT $ msum $ map helper [1..] :: IO RProgram
+  print solution
+
+  where
+    helper :: Int -> BTCompsSolver RProgram
+    helper depth = do
+      liftIO $ printf "running dfs on %s at depth %d\n" (show goal) depth
+
+      let goalType = shape $ lastType (toMonotype goal) :: SType
+      solutions <- lift $ dfs env messageChan depth goalType :: BTCompsSolver [RProgram]
+
+      solutionLazy <- choices solutions
+      isChecked <- liftIO $ check' solutionLazy
+      guard isChecked -- gets the first valid program
+
+      -- liftIO $ print solutionLazy
+      return solutionLazy
+    check' :: RProgram -> IO Bool
+    check' program = do
+      -- printf "omg we are checking this program: %s\n" (show program)
+      checkResult <- evalStateT (check env searchParams examples program goal messageChan) emptyFilterState
+      case checkResult of
+        Nothing  -> return False
+        Just exs -> do
+          -- TODO add this back in
+          -- out <- toOutput env program exs
+          -- printResult $ encodeWithPrefix out
+          return True
+    
+
+    -- converts [a] to a Logic a
+    choices :: MonadPlus m => [a] -> m a
+    choices = msum . map return
 
 --
 -- does DFS stuff
@@ -271,6 +281,10 @@ getUnifiedFunctions envv messageChan xs goalType = do
   st <- get
   let memoized = st ^. memoize :: Map SType [(Id, SType)]
 
+  -- helper envv messageChan xs goalType
+  -- st <- get
+  -- return $ st ^. components
+  ------------------
   case Map.lookup goalType memoized of
     Just cs -> do
       return cs
