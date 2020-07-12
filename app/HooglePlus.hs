@@ -4,12 +4,8 @@
 module Main (main) where
 
 -- generate databases
-import Database.Convert
-import Database.Download
 import Database.Environment
-import Database.Generate
 import Database.Presets
-import Database.Utils
 -- encoders
 import Datalog.Formulog
 import Datalog.Souffle
@@ -21,67 +17,32 @@ import Encoder.Z3SATEnc ()
 import Evaluation.EvalTypeInf
 import Evaluation.ReadBenchmark
 -- synthesis with examples
-import Examples.ExampleChecker
-import HooglePlus.GHCChecker
 import HooglePlus.IOFormat
-import HooglePlus.Stats
 import HooglePlus.Synthesize
-import HooglePlus.Utils
-import Synquid.Error
-import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
-import Synquid.Pretty
-import Synquid.Program
-import Synquid.Resolver (resolveDecls, ResolverState (..), initResolverState, resolveSchema)
-import Synquid.Type
-import Synquid.Utils (showme)
-import Types.Environment
 import Types.Experiments
-import Types.Filtering
 import Types.Generate hiding (files)
 import Types.IOFormat
 import Types.Program
 import Types.Solver
-import Types.Type
 
-import Control.Concurrent
 import Control.Exception
 import Control.Lens ((^.))
-import Control.Monad
-import Control.Monad.State (runState, evalStateT, execStateT, evalState)
 import Control.Monad.Logic (observeT)
-import Data.Char
-import Data.Foldable
-import Data.HashMap.Strict (HashMap)
-import Data.List
-import Data.List.Split
-import Data.Map ((!))
-import Data.Maybe (mapMaybe, fromJust)
 import Data.Time.Calendar
-import Language.Haskell.Exts (Decl(TypeSig))
 import System.Console.CmdArgs hiding (Normal)
-import System.Directory
-import System.Exit
-import System.FilePath
-import System.IO
-import Text.Parsec hiding (State)
-import Text.Parsec.Indent
-import Text.Parsec.Pos
-import Text.Pretty.Simple
-import Text.PrettyPrint.ANSI.Leijen (fill, column)
-import Text.Printf
-import qualified Data.Aeson as Aeson
-import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy.Char8 as LB
-import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Text.PrettyPrint.ANSI.Leijen as PP
 
+programName :: String
 programName = "hoogleplus"
-versionName = "0.1"
+
+versionName :: String
+versionName = "0.2"
+
+releaseDate :: Day
 releaseDate = fromGregorian 2019 3 10
 
 -- | Type-check and synthesize a program, according to command-line arguments
+main :: IO ()
 main = do
     res <- cmdArgsRun $ mode
     case res of
@@ -154,7 +115,7 @@ main = do
                         , Types.Generate.hoPath = hoPath
                         }
             precomputeGraph generationOpts
-        Evaluation benchmark fp -> readSuite fp >>= runTypeInferenceEval
+        Evaluation _ fp -> readSuite fp >>= runTypeInferenceEval
 
 {- Command line arguments -}
 
@@ -207,6 +168,7 @@ data CommandLineArgs
       }
   deriving (Data, Typeable, Show, Eq)
 
+synt :: CommandLineArgs
 synt = Synthesis {
   file                = ""              &= typFile &= help ("Input query from the specified file path, file should be in json format"),
   json                = ""              &= help ("Input query from a json string"),
@@ -232,6 +194,7 @@ synt = Synthesis {
   solver_name         = Z3SMT           &= help ("Constraint solver used in petri net search")
   } &= auto &= help "Synthesize goals specified in the input file"
 
+generate :: CommandLineArgs
 generate = Generate {
   preset               = Nothing         &= help ("Environment preset to use"),
   files                = []              &= help ("Files to use to generate from. Exclusive with packages and modules. Takes precedence"),
@@ -243,6 +206,7 @@ generate = Generate {
   ho_path              = "ho.txt"        &= typFile &= help ("Filename of components to be used as higher order arguments")
 } &= help "Generate the type conversion database for synthesis"
 
+evaluation :: CommandLineArgs
 evaluation = Evaluation {
   benchmark            = ""              &= help ("Evaluate this single benchmark"),
   file_path            = ""              &= help ("Path to the benchmark file, in the format of YAML")

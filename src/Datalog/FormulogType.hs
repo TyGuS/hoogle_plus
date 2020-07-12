@@ -46,6 +46,10 @@ instance Read UProgram where
     readsPrec _ _ = []
 
 instance PrintType FormulogPack where
+    writeType = undefined
+
+{-
+instance PrintType FormulogPack where
     writeType (FormulogPack (TypeVarT id)) = map toUpper id
     writeType (FormulogPack (DatatypeT dt)) = replaceId tyclassPrefix "" dt
     writeType (FormulogPack t@TyAppT {}) = let (dt, args) = collectArgs t
@@ -53,3 +57,4 @@ instance PrintType FormulogPack where
                                             in printf "typ_app(\"%s\", %s)" (replaceId tyclassPrefix "" dt) argStrs
     writeType (FormulogPack (TyFunT tArg tRes)) = writeType (FormulogPack (TyAppT (TyAppT (DatatypeT "Fun") tArg) tRes))
     writeType (FormulogPack (FunctionT _ tArg tRes)) = writeType (FormulogPack (TyFunT tArg tRes))
+-}

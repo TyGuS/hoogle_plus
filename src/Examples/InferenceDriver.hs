@@ -72,7 +72,7 @@ getExampleTypes env validSchemas num = do
 
 -- turn a GHC type into Hoogle+ type
 resolveType :: LHsType GhcPs -> SchemaSkeleton
-resolveType (L _ (HsForAllTy _ bs t)) = foldr ForallT (resolveType t) vs
+resolveType (L _ (HsForAllTy _ _ bs t)) = foldr ForallT (resolveType t) vs
     where
         vs = map vname bs
         vname (L _ (UserTyVar _ (L _ id))) = showSDocUnsafe (ppr id)

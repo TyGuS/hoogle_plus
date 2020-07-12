@@ -70,16 +70,13 @@ dependencies:
 library:
   source-dirs:
     - src
-  other-extensions:
-    - TemplateHaskell
-    - Rank2Types
-    - FlexibleInstances
-    - TypeSynonymInstances
-    - FlexibleContexts
   verbatim:
     - "includes: z3.h"
   extra-libraries:
     - z3
+  ghc-options:
+    - -O2
+    - -Wall
   cxx-options:
     - -std=c++17
   when:

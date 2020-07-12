@@ -57,17 +57,17 @@ writeFunction headerTempl printApp pkTyp f t =
        else printf "%s :- D >= 0, D <= 5, %s, %s."
                (headClause "D + 1")
                (if null depthVars then "" else printf ", D = %s" (intercalate " + " depthVars))
-               (intercalate ", " (map argClause [0 .. argNum]))
+               (intercalate ", " (map argClause [1 .. argNum]))
     where
         renamedTyp = typeSubstitute subst t
         ret = lastType renamedTyp
-        retStr = printf (writeType (pkTyp ret)) "T" :: String
+        retStr = evalStateT (writeType "T0" (pkTyp ret)) 0
 
-        headClause depth = printf headerTempl "T" f (printApp progVars) depth :: String
+        headClause depth = printf headerTempl "T0" f (printApp progVars) depth :: String
         args = allArgTypes renamedTyp
 
         argClause i = foldr underscoreSingleton (printf "Program(T%d, P%d, D%d)" i i i) singletonVars
-        argsStr = zipWith (printf . writeType . pkTyp) args argTypVars :: [String]
+        argsStr = zipWith (\t v -> evalStateT (writeType v (pkTyp t)) 0) args argTypVars
 
         vars = Set.toList (typeVarsOf t)
         dupVars = concatMap (Set.toList . typeVarsOf) (ret : args)
@@ -75,8 +75,8 @@ writeFunction headerTempl printApp pkTyp f t =
         underscoreSingleton v = replaceId v "_" 
 
         -- rename the type variables to make sure all the variables are unique in one rule
-        mkVarTo v i = map ((v:) . show) [0 .. i]
-        argNum = arity t - 1
+        mkVarTo v i = map ((v:) . show) [1 .. i]
+        argNum = arity t
         [progVars, depthVars, argTypVars] = map (`mkVarTo` argNum) ['P', 'D', 'T']
 
         typeVars = mkVarTo 'A' (length vars)

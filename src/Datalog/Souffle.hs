@@ -62,20 +62,7 @@ findPath env goal d = do
     let hoArgSat = map (uncurry writeFunctionSouffle) hoArgs
     -- write query into the file
     let dstTyp = varToDatatype (lastType (toMonotype goal))
-    let query = printf "query(P) :- sat(%s, P, D), D = %d." (writeType (SoufflePack dstTyp)) d
-    -- write depth into the constraints
-    let src = "./data/souffle/input.dl"
-    let dst = "./data/souffle/main.dl"
-    fileContent <- readFile src
-    writeFile dst (replaceId "{}" (show (d - 1)) fileContent ++ unlines (query : hoArgSat))
-    -- write the arguments into the file
-    let packedArgs = map (over _2 SoufflePack) args
-    writeFile "./data/souffle/inh.facts" (unlines $ map (uncurry writeArg) packedArgs)
-    -- execute the solver
-    readProcess "souffle" ["--fact-dir=./data/souffle/", "--output-dir=./data/souffle/", "./data/souffle/main.dl"] ""
-    -- read results
-    out <- readFile "./data/souffle/query.csv"
-    return $ map read $ lines out :: IO [UProgram]
+    error "not implemented"
 
 writeSouffle :: Environment -> IO ()
 writeSouffle env =

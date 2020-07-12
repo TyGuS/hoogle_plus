@@ -9,9 +9,9 @@ import Types.IOFormat (Example)
 
 import Test.SmallCheck.Drivers
 
-defaultTimeoutMicro = 1 * 10^6 :: Int
+defaultTimeoutMicro = 3 * 10^6 :: Int
 defaultDepth = 3 :: Int
-defaultInterpreterTimeoutMicro = 3 * 10^6 :: Int
+defaultInterpreterTimeoutMicro = 5 * 10^6 :: Int
 defaultMaxOutputLength = 10 :: Int 
 defaultGenerationTimeoutMicro = 30 * 10^6 :: Int
 defaultGenerationDepth = 4 :: Int

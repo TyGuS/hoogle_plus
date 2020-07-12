@@ -61,20 +61,8 @@ findPath env goal d = do
     let hoArgSat = map (uncurry writeFunctionFormulog) hoArgs
     -- write query into the file
     let dst = varToDatatype (lastType (toMonotype goal))
-    let query = printf "result(P) :- sat(%s, P, D), D = %d." (writeType (FormulogPack dst)) d
-    -- write depth into the constraints
-    let src = "./data/formulog/input.flg"
-    let dst = "./data/formulog/main.flg"
-    fileContent <- readFile src
-    -- write the arguments into the file
-    let packedArgs = map (over _2 FormulogPack) args
-    let argsStr = map (uncurry writeType) packedArgs
-    writeFile dst (replaceId "{}" (show (d - 1)) fileContent ++ unlines (query : hoArgSat ++ argsStr))
-    
-    -- execute the solver
-    out <- readProcess "java" ["-DprintResults=\"some:result\"", "-jar", "./data/formulog/formulog-0.3.0.jar", "./data/formulog/main.dl"] ""
-    -- read results
-    return $ map read $ lines out :: IO [UProgram]
+
+    error "not implemented"
 
 writeFormulog :: Environment -> IO ()
 writeFormulog env =

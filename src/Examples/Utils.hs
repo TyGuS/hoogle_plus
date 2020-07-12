@@ -6,8 +6,8 @@ import GHC hiding (Id)
 import GHC.Paths
 import qualified EnumSet as ES
 import GHC.LanguageExtensions.Type
-import HsUtils
-import HsTypes
+-- import HsUtils
+-- import HsTypes
 import TcRnDriver
 import Exception
 import Debugger
