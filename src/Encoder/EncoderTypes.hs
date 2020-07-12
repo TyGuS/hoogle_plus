@@ -15,15 +15,15 @@ import Data.Typeable
 import Data.Function
 import Control.Lens
 -- for ILP
-import Numeric.Limp.Program hiding (_constraints)
-import Numeric.Limp.Rep
+-- import Numeric.Limp.Program hiding (_constraints)
+-- import Numeric.Limp.Rep
 -- for z3
 import qualified Z3.Base as Z3
 import Z3.Monad hiding(Z3Env, newEnv)
 -- for prolog
 import qualified Encoder.PrologTypes as Prolog
 -- for souffle
-import Encoder.SouffleTypes
+-- import Encoder.SouffleTypes
 
 import Types.Common
 import Types.Type
@@ -151,9 +151,9 @@ makeLenses ''EncoderState
 -- | CBC State Synonyms
 --------------------------------------------------------------------------------
 
-type LinearConstraint = Constraint Int Double IntDouble
-type VarBoundary = Bounds Int Double IntDouble
-type CBCState = EncoderState LinearConstraint [Int] VarBoundary (AbstractSkeleton, Int) (Id, Int) Int
+-- type LinearConstraint = Constraint Int Double IntDouble
+-- type VarBoundary = Bounds Int Double IntDouble
+-- type CBCState = EncoderState LinearConstraint [Int] VarBoundary (AbstractSkeleton, Int) (Id, Int) Int
 
 --------------------------------------------------------------------------------
 -- | Z3 SMT State Synonyms

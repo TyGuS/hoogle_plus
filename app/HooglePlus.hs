@@ -13,9 +13,8 @@ import Database.Utils
 -- encoders
 import Datalog.Formulog
 import Datalog.Souffle
-import Encoder.CBCEnc ()
 import Encoder.Z3SMTEnc ()
-import Encoder.EncoderTypes (CBCState, Z3SMTState, PrologState, Z3SATState)
+import Encoder.EncoderTypes (Z3SMTState, PrologState, Z3SATState)
 import Encoder.PrologEnc ()
 import Encoder.Z3SATEnc ()
 -- evaluation
@@ -273,7 +272,6 @@ executeSearch synquidParams searchParams inStr = catch (do
     case searchParams ^. solver of
         Z3SMT -> synthesize searchParams goal exquery (emptySolverState :: SolverState Z3SMTState)
         Z3SAT -> synthesize searchParams goal exquery (emptySolverState :: SolverState Z3SATState)
-        CBC -> synthesize searchParams goal exquery (emptySolverState :: SolverState CBCState)
         Prolog -> synthesize searchParams goal exquery (emptySolverState :: SolverState PrologState)
         Souffle -> observeT $ runSouffle searchParams (gEnvironment goal) (gSpec goal) exquery 0
         _ -> error "not implemented"

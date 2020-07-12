@@ -1,23 +1,21 @@
 packages:
   - .
-resolver: lts-16.2
+resolver: nightly-2020-07-12 # lts-16.2
 extra-deps:
   - z3-408.1
   - leancheck-0.9.3
   - hoogle-5.0.17.15
-  - limp-0.3.2.3
-  - limp-cbc-0.3.2.3
   - souffle-haskell-0.2.3
-compiler: ghc-8.8.3
+compiler: ghc-8.10.1 # ghc-8.8.3
 allow-different-user: true
 ghc-options:
-  souffle-haskell: -optc-std=c++17
-setup-info:
-  ghc:
-    linux64-custom-yields:
-      8.8.3:
-        url: "https://github.com/mistzzt/build-ghc-no-omit-yields/releases/download/v8.8.3/ghc-8.8.3-x86_64-unknown-linux.tar.xz"
-    macosx-custom-yields:
-      8.8.3:
-        url: "https://github.com/mistzzt/build-ghc-no-omit-yields/releases/download/v8.8.3/ghc-8.8.3-x86_64-apple-darwin.tar.xz"
-ghc-variant: yields
+    souffle-haskell: -optcxx-std=c++17
+    # setup-info:
+    # ghc:
+    # linux64-custom-yields:
+    #   8.8.3:
+    #     url: "https://github.com/mistzzt/build-ghc-no-omit-yields/releases/download/v8.8.3/ghc-8.8.3-x86_64-unknown-linux.tar.xz"
+    # macosx-custom-yields:
+    #  8.8.3:
+    #     url: "https://github.com/mistzzt/build-ghc-no-omit-yields/releases/download/v8.8.3/ghc-8.8.3-x86_64-apple-darwin.tar.xz"
+    # ghc-variant: yields

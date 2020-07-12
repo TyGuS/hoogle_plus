@@ -48,13 +48,14 @@ instance PrintType SoufflePack where
     writeType pre (SoufflePack t@(TyAppT tFun tArg)) = do
         let (dt, args) = collectArgs t
         idx <- get
+        put (idx + 1)
         let myPrefix = pre ++ show idx
         let writeArg pre = writeType pre . SoufflePack
         -- start a new naming index in the inner level
-        let (innerIdx, argStrs) = runState (mapM (writeArg myPrefix) args) 0
+        let (argStrs, innerIdx) = runState (mapM (writeArg myPrefix) args) 0
         let name = replaceId tyclassPrefix "" dt
-        let argApps = map (\i -> printf "TyApp(%s, %s%d, %s%d, %d, _)" (if i == 0 then show name else (myPrefix ++ show (i - 1))) myPrefix (i + innerIdx) myPrefix i (length args - i - 1))) name [0 .. length args]
-        put (idx + 1)
+        let argNum = length args
+        let argApps = map (\i -> printf "TyApp(%s, %s%d, %s%d, %d, _)" (if i == 0 then show name else (myPrefix ++ show (i - 1))) myPrefix (i + innerIdx) myPrefix i (argNum - i - 1)) [0 .. argNum]
         return $ intercalate ", " (argStrs ++ argApps)
     writeType pre (SoufflePack (TyFunT tArg tRes)) = writeType pre (SoufflePack (TyAppT (TyAppT (DatatypeT "Fun") tArg) tRes))
     writeType pre (SoufflePack (FunctionT _ tArg tRes)) = writeType pre (SoufflePack (TyFunT tArg tRes))

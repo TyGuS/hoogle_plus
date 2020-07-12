@@ -65,8 +65,6 @@ dependencies:
   - yaml
   - QuickCheck
   - random
-  - limp
-  - limp-cbc
   - souffle-haskell
 
 library:
@@ -96,6 +94,7 @@ executables:
     source-dirs: app
     ghc-options:
       # - -fext-core
+      - -Wall
       - -rtsopts
       # - -ddump-simpl 
       # - -dsuppress-idinfo

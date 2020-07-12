@@ -68,7 +68,7 @@ findPath env goal d = do
     fileContent <- readFile src
     -- write the arguments into the file
     let packedArgs = map (over _2 FormulogPack) args
-    let argsStr = map (uncurry writeArg) packedArgs
+    let argsStr = map (uncurry writeType) packedArgs
     writeFile dst (replaceId "{}" (show (d - 1)) fileContent ++ unlines (query : hoArgSat ++ argsStr))
     
     -- execute the solver

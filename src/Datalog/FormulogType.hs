@@ -53,8 +53,3 @@ instance PrintType FormulogPack where
                                             in printf "typ_app(\"%s\", %s)" (replaceId tyclassPrefix "" dt) argStrs
     writeType (FormulogPack (TyFunT tArg tRes)) = writeType (FormulogPack (TyAppT (TyAppT (DatatypeT "Fun") tArg) tRes))
     writeType (FormulogPack (FunctionT _ tArg tRes)) = writeType (FormulogPack (TyFunT tArg tRes))
-
-    writeArg name t@(FormulogPack tArg) =
-        let vars = typeVarsOf tArg
-            substedType = varToDatatype tArg
-         in printf "inh(%s, %s)." (writeType (FormulogPack substedType)) name
