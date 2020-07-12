@@ -115,31 +115,29 @@ printSolution solution = do
     putStrLn "************************************************"
 
 collectExamples :: String -> FilterState -> AssociativeExamples
-collectExamples solution (FilterState _ sols samples examples) =
-    map mkGroup $ groupBy (\x y -> fst x == fst y)
-                $ sortOn fst
-                $ examples ++ checkedExs
-    where
-        [(_, desc)] = filter ((== solution) . fst) samples
-        checkedExs = zip (repeat solution) (descToExample desc)
-        mkGroup xs = (fst (head xs), nubOrdOn IOFormat.inputs $ map snd xs)
+-- collectExamples solution (FilterState _ sols samples examples) =
+--     map mkGroup $ groupBy (\x y -> fst x == fst y)
+--                 $ sortOn fst
+--                 $ examples ++ checkedExs
+--     where
+--         [(_, desc)] = filter ((== solution) . fst) samples
+--         checkedExs = zip (repeat solution) (descToExample desc)
+--         mkGroup xs = (fst (head xs), nubOrdOn IOFormat.inputs $ map snd xs)
+collectExamples = error "implement me"
 
 
-descToExample :: FunctionCrashDesc -> [Example]
-descToExample (AlwaysSucceed ex) = [ex]
-descToExample (AlwaysFail ex) = [ex]
-descToExample (PartialFunction exs) = exs
-descToExample _ = []
+descToExample :: FuncTestDesc -> [Example]
+descToExample = error "implement me"
 
-
--- printSolutionState solution fs = unlines ["****************", solution, show fs, "***********"]
-printSolutionState solution (FilterState _ sols workingExamples diffExamples) = unlines [ios, diffs]
-    where
-        ios = let [(_, desc)] = filter ((== solution) . fst) workingExamples in show desc
-        diffs = let examples = groupBy ((==) `on` fst) (sortOn fst diffExamples) in unlines (map showGroup examples)
+printSolutionState solution fs = unlines ["****************", solution, show fs, "***********"]
+-- printSolutionState solution (FilterState _ sols workingExamples diffExamples) = unlines [ios, diffs]
+--     where
+--         ios = let [(_, desc)] = filter ((== solution) . fst) workingExamples in show desc
+--         diffs = let examples = groupBy ((==) `on` fst) (sortOn fst diffExamples) in unlines (map showGroup examples)
         
-        showGroup :: [(String, Example)] -> String
-        showGroup xs = unlines ((fst $ head xs) : (map (show . snd) xs))
+--         showGroup :: [(String, Example)] -> String
+--         showGroup xs = unlines ((fst $ head xs) : (map (show . snd) xs))
+-- *todo: implement me
 
 extractSolution :: Environment -> TypeSkeleton -> UProgram -> ([String], String, String, [(Id, SchemaSkeleton)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)
@@ -225,3 +223,8 @@ niceInputs :: Example -> IO Example
 niceInputs (Example ins out) = do
     ins' <- evalStateT (mapM matchNiceFunctions ins) []
     return (Example ins' out)
+
+-- >>> splitConsecutive [1..6]
+-- ([1,3,5],[2,4,6])
+splitConsecutive :: [a] -> ([a],[a])
+splitConsecutive = foldr (\x ~(y2,y1) -> (x:y1, y2)) ([],[])

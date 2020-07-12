@@ -17,7 +17,7 @@ import Types.IOFormat
 import Types.Experiments
 import Types.Environment
 import Types.Type
-import Types.Filtering (defaultTimeoutMicro, defaultGenerationDepth, defaultInterpreterTimeoutMicro, defaultGenerationTimeoutMicro)
+import Types.Filtering (defaultTimeoutMicro, defaultInterpreterTimeoutMicro, defaultGenerationTimeoutMicro)
 import Synquid.Parser (parseSchema, parseProgram)
 import Synquid.Resolver (ResolverState(..), initResolverState, resolveSchema)
 import Synquid.Type
@@ -170,7 +170,7 @@ searchExamples synquidParams inStr num = do
     -- this query
     let prevResults = map output $ exampleExisting input
     let prevInputs = map (map toNormalFunctions . inputs) $ exampleExisting input
-    result <- generateIOPairs mdls prog funcSig num defaultTimeoutMicro defaultGenerationTimeoutMicro defaultGenerationDepth prevResults prevInputs
+    result <- generateIOPairs mdls prog funcSig num defaultTimeoutMicro defaultGenerationTimeoutMicro prevResults prevInputs
     resultObj <- case result of
           Left err -> return $ ListOutput [] (show err)
           Right genRes | null genRes -> return $ ListOutput [] "No more examples"

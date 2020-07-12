@@ -24,7 +24,7 @@ instance ToJSON QueryType
 data Example = Example {
     inputs :: [String],
     output :: String
-} deriving(Eq, Generic)
+} deriving(Eq, Generic, Read)
 
 instance Show Example where
     show e = unwords [unwords (inputs e), "==>", output e]

@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module Types.Filtering where
 
 import Control.Exception
@@ -5,46 +6,47 @@ import Control.Monad.State
 import Data.Typeable
 import Text.Printf
 import Data.List (intercalate)
+import Test.QuickCheck (Result)
+import qualified Data.Map as Map
+
 import Types.IOFormat (Example)
 
-import Test.SmallCheck.Drivers
-
 defaultTimeoutMicro = 1 * 10^6 :: Int
-defaultDepth = 3 :: Int
 defaultInterpreterTimeoutMicro = 3 * 10^6 :: Int
 defaultMaxOutputLength = 10 :: Int 
 defaultGenerationTimeoutMicro = 30 * 10^6 :: Int
-defaultGenerationDepth = 4 :: Int
 
 frameworkModules =
-  zip [ "Test.SmallCheck"
-  , "Test.SmallCheck.Drivers"
-  , "Test.LeanCheck.Function.ShowFunction"
+  zip [ "Test.QuickCheck"
+  , "Test.QuickCheck.Monadic"
+  , "Test.QuickCheck.Function"
   , "System.IO.Silently"
   , "Control.Exception"
   , "Control.Monad"
-  , "Control.Monad.State"
   ] (repeat Nothing)
 
   ++ [("Test.ChasingBottoms", Just "CB")]
 
-type SmallCheckResult = (Maybe PropertyFailure, [Example])
+type BackendResult = Result
 type GeneratorResult = [Example]
 
 type AssociativeExamples = [(String, [Example])]
 
-data FunctionCrashDesc = 
-    AlwaysSucceed Example
-  | AlwaysFail Example
-  | PartialFunction [Example]
-  | UnableToCheck String
+data FuncTestDesc = 
+    Total   [Example]
+  | Partial [Example]
+  | Invalid
+  | Unknown String
   deriving (Eq)
 
-instance Show FunctionCrashDesc where
-  show (AlwaysSucceed i) = show i
-  show (AlwaysFail i) = show i
-  show (PartialFunction xs) = unlines (map show xs)
-  show (UnableToCheck ex) = "Exception: " ++ show ex
+instance Show FuncTestDesc where
+  show = \case
+      Total   examples -> showExamples examples
+      Partial examples -> showExamples examples
+      Invalid          -> "<bottom>"
+      Unknown ex       -> "<exception> " ++ ex
+    where
+      showExamples examples = unlines $ map show examples
 
 data ArgumentType =
     Concrete    String
@@ -87,15 +89,21 @@ instance Show FunctionSignature where
 data FilterState = FilterState {
   inputs :: [[String]],
   solutions :: [String],
-  solutionExamples :: [(String, FunctionCrashDesc)],
-  differentiateExamples :: [(String, Example)]
+  solutionDescriptions :: [(String, FuncTestDesc)],
+  differentiateExamples :: Map.Map String [Example]
 } deriving (Eq, Show)
 
 emptyFilterState = FilterState {
   inputs = [],
   solutions = [],
-  solutionExamples = [],
-  differentiateExamples = []
+  solutionDescriptions = [],
+  differentiateExamples = Map.empty
 }
 
 type FilterTest m = StateT FilterState m
+
+class TestPassable a where isSuccess :: a -> Bool
+instance TestPassable FuncTestDesc where
+  isSuccess = \case
+    Invalid -> False
+    _       -> True

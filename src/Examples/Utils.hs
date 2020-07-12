@@ -25,7 +25,7 @@ import Control.Monad.State
 import Control.Lens
 import System.IO.Silently
 
-import Types.Filtering (defaultTimeoutMicro, defaultDepth, defaultInterpreterTimeoutMicro, frameworkModules)
+import Types.Filtering (defaultTimeoutMicro, defaultInterpreterTimeoutMicro, frameworkModules)
 import Types.IOFormat
 import Types.Type
 import Types.Common
