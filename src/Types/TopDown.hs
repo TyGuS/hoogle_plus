@@ -24,6 +24,8 @@ pairProj = "pair_match"
 type AbstractCover = HashMap AbstractSkeleton (Set AbstractSkeleton)
 
 data Comps = Comps {
+    -- _components :: [(Id, SType, Map Id SType)],
+    -- _memoize :: Map SType [(Id, SType, Map Id SType)]
     _components :: [(Id, SType)],
     _memoize :: Map SType [(Id, SType)]
 }
