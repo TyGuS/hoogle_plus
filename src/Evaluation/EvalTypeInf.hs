@@ -27,7 +27,7 @@ import Types.Experiments (defaultSynquidParams)
 import Types.Generate (defaultEnvPath)
 import Types.Filtering (FunctionSignature(..), defaultInterpreterTimeoutMicro)
 import HooglePlus.IOFormat (searchTypes, readEnv, parseQueryType)
-import HooglePlus.FilterTest (showParams, runInterpreter', parseTypeString)
+import HooglePlus.FilterTest (showParams, runInterpreterWithEnvTimeout, parseTypeString)
 import HooglePlus.Utils (removeTypeclasses, mkFunctionSigStr, replaceId)
 import Synquid.Type (toMonotype, typeSubstitute, boundVarsOf, argsWithName, lastType, eqType)
 import Evaluation.Benchmark
@@ -62,7 +62,7 @@ runTest numOfExs bm@(Benchmark _ q sol _) = do
         subst <- randomSubst (boundVarsOf sch) Map.empty
         let t = typeSubstitute subst (toMonotype sch)
         let prop = buildProperty t []
-        res <- runInterpreter' defaultInterpreterTimeoutMicro (do
+        res <- runInterpreterWithEnvTimeout defaultInterpreterTimeoutMicro (do
             setImports [  "Data.Maybe"
                         , "Data.Either"
                         , "Data.Char"

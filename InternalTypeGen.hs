@@ -5,6 +5,8 @@ module InternalTypeGen where
 
 import Data.List (isInfixOf, elemIndex, nub, drop, reverse, intersect)
 import Data.Containers.ListUtils (nubOrd)
+import Control.DeepSeq (force)
+import Control.Exception (evaluate)
 
 import Control.Monad
 import Control.Monad.State
@@ -25,6 +27,8 @@ import qualified Test.QuickCheck as QC
 defaultShowFunctionDepth = 4 :: Int
 defaultMaxOutputLength = 10 :: CB.Nat
 defaultSeriesLimit = 5 :: Int
+defaultTimeoutMicro = 100 :: Int
+defaultTestArgs = QC.stdArgs {QC.chatty = False, QC.maxDiscardRatio = 1, QC.maxSuccess = 30} :: QC.Args
 
 instance Eq a => Eq (CB.Result a) where
   (CB.Value a) == (CB.Value b) = a == b
@@ -60,16 +64,15 @@ anyDuplicate :: Ord a => [a] -> Bool
 anyDuplicate [x, y] = x == y
 anyDuplicate xs = length (nubOrd xs) /= length xs
 
-evaluateValue :: Data a => Int -> [a] -> IO [CB.Result String]
-evaluateValue timeInMicro values = mapM (silence . eval) values
+labelEvaluation :: (Data a, QC.Testable prop) => [String] -> [a] -> ([CB.Result String] -> prop) -> IO QC.Property
+labelEvaluation inputs values prop = do
+    outputs <- mapM (evaluateValue defaultTimeoutMicro) values
+    
+    let examples = map (Example inputs . showCBResult) outputs
+    return $ QC.label (show examples) (prop outputs)
   where
-    eval value =
-      let str = CB.approxShow defaultMaxOutputLength value in
-        CB.timeOutMicro timeInMicro (putStrLn str >> return str)
-
-labelProperty :: QC.Testable prop => [String] -> [CB.Result String] -> prop -> QC.Property
-labelProperty inputs outputs prop = QC.label (show examples) prop
-  where examples = map (Example inputs . showCBResult) outputs
+    evaluateValue :: Data a => Int -> a -> IO (CB.Result String)
+    evaluateValue timeInMicro = (CB.timeOutMicro timeInMicro . evaluate . force . CB.approxShow defaultMaxOutputLength)
 
 -- * instance defined in `Types.IOFormat`
 data Example = Example {

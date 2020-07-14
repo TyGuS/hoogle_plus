@@ -14,8 +14,15 @@ import Types.Filtering
 
 modules = ["Prelude"]
 
+runNotCrashTest :: [String] -> String -> String -> IO Bool
 runNotCrashTest modules' funcSig body =
-    evalStateT (checkSolutionNotCrash (modules' ++ modules) funcSig body) emptyFilterState
+    evalStateT (checkSolutionNotCrash (modules' ++ modules) funcSig' body) emptyFilterState
+        where funcSig' = (instantiateSignature . parseTypeString) funcSig
+
+runDuplicateTest :: FilterState -> [String] -> String -> String -> IO (Bool, FilterState)
+runDuplicateTest st modules' funcSig body = 
+    runStateT (checkDuplicates (modules ++ modules') funcSig' body) st
+        where funcSig' = (instantiateSignature . parseTypeString) funcSig
 
 itNotCrashCase :: (String, [String], String, String, Bool) -> TestTree
 itNotCrashCase (desc, modules, funcSig, body, expectedRetVal) =
@@ -37,10 +44,6 @@ itDupCase (desc, modules, tipe, main : rest, shouldPass) =
 
             if shouldPass then (ret' @?= True) >> assertBool "state not unique" (st' /= st)
                           else (ret' @?= False) >> (st' @?= st)
-
-        runDuplicateTest :: FilterState -> [String] -> String -> String -> IO (Bool, FilterState)
-        runDuplicateTest st modules' funcSig body = 
-            runStateT (checkDuplicates (modules ++ modules') funcSig body) st
 
 testNotCrashCases :: [(String, [String], String, String, Bool)]
 testNotCrashCases =

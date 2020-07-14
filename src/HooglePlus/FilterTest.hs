@@ -73,96 +73,90 @@ instantiateSignature (FunctionSignature _ argsType returnType) =
       instantiate (ArgTypeApp l r) = ArgTypeApp (instantiate l) (instantiate r)
       instantiate (ArgTypeFunc l r) = ArgTypeFunc (instantiate l) (instantiate r)
 
-buildFunctionWrapper :: [(String, String)] -> String -> (String, String, String, String) -> Int -> String
-buildFunctionWrapper functions solutionType params@(plain, typed, shows, unwrp) timeInMicro =
+buildFunctionWrapper :: [(String, String)] -> String -> (String, String, String, String) -> String
+buildFunctionWrapper functions solutionType params@(plain, typed, shows, unwrp) =
     unwords
-      (map (`buildLetFunction` solutionType) functions ++ [buildTimeoutWrapper (map fst functions) params timeInMicro])
+      (map (buildLetFunction solutionType) functions ++ [buildWrapper (map fst functions) params])
   where
-    buildLetFunction :: (String, String) -> String -> String
-    buildLetFunction (wrapperName, solution) solutionType =
-      printf "let %s = ((%s) :: %s) in" wrapperName solution solutionType :: String
+    buildLetFunction :: String -> (String, String) -> String
+    buildLetFunction programType (wrapperName, program) =
+      printf "let %s = ((%s) :: %s) in" wrapperName program programType :: String
 
-    buildTimeoutWrapper :: [String] -> (String, String, String, String) -> Int -> String
-    buildTimeoutWrapper wrapperNames (plain, typed, shows, unwrp) timeInMicro =
-      printf "let timeoutValue = \\%s -> (evaluateValue %d (Prelude.map (\\f -> f %s) [%s])) in" typed timeInMicro unwrp (intercalate ", " wrapperNames) :: String
+    buildWrapper :: [String] -> (String, String, String, String) -> String
+    buildWrapper wrapperNames (plain, typed, shows, unwrp) =
+      printf "let executeWrapper %s = (Prelude.map (\\f -> f %s) [%s]) in" typed unwrp (intercalate ", " wrapperNames) :: String
 
 buildNotCrashProp :: String -> FunctionSignature -> String
-buildNotCrashProp solution funcSig = formatNotCrashProp params wrapper
+buildNotCrashProp solution funcSig = traceId $ formatNotCrashProp params wrapper
   where
     params@(plain, typed, shows, unwrp) = showParams (_argsType funcSig)
 
-    wrapper = buildFunctionWrapper [("wrappedSolution", solution)] (show funcSig) params defaultTimeoutMicro
-
-    formatNotCrashProp  = formatProp "prop_not_crash" "not $ isFailedResult $ Prelude.head out"
-    -- formatCrashProp     = formatProp "prop_crash" "isFailedResult $ Prelude.head out"
+    wrapper = buildFunctionWrapper [("wrappedSolution", solution)] (show funcSig) params
+    formatNotCrashProp = formatProp "prop_not_crash" "\\out -> (not $ isFailedResult $ Prelude.head out) ==> True"
 
     formatProp propName propBody (plain, typed, shows, unwrp) wrappedSolution = unwords
       [ wrappedSolution
-      , printf "let %s %s = monadicIO $ run $ do { out <- timeoutWrapper %s; return $ labelProperty %s out ((%s) ==> True); } in" propName plain plain shows propBody
-      , printf "quickCheckResult %s" propName ] :: String
+      , printf "let %s %s = monadicIO $ run $ labelEvaluation (%s) (executeWrapper %s) (%s) in" propName plain shows plain propBody
+      , printf "quickCheckWithResult defaultTestArgs %s" propName ] :: String
 
-buildDupCheckProp :: (String, [String]) -> FunctionSignature -> Int -> [String]
-buildDupCheckProp (sol, otherSols) funcSig timeInMicro =
-  map (\x -> buildDupCheckProp' (sol, [x]) funcSig timeInMicro) otherSols
+buildDupCheckProp :: (String, [String]) -> FunctionSignature -> [String]
+buildDupCheckProp (sol, otherSols) funcSig =
+  map (\x -> buildDupCheckProp' (sol, [x]) funcSig) otherSols
 
-buildDupCheckProp' :: (String, [String]) -> FunctionSignature -> Int -> String
-buildDupCheckProp' (sol, otherSols) funcSig timeInMicro =
+buildDupCheckProp' :: (String, [String]) -> FunctionSignature -> String
+buildDupCheckProp' (sol, otherSols) funcSig =
 
-  unwords [wrapper, formatProp]
+  traceId $ unwords [wrapper, formatProp]
   where
     params@(plain, typed, shows, unwrp) = showParams (_argsType funcSig)
     solutionType = show funcSig
 
-    wrapper = buildFunctionWrapper solutions (show funcSig) params defaultTimeoutMicro
+    wrapper = buildFunctionWrapper solutions (show funcSig) params
     solutions = zip [printf "result_%d" x :: String | x <- [0..] :: [Int]] (sol:otherSols)
 
     formatProp = unwords
-      [ printf "let prop_duplicate %s = monadicIO $ run $ do { out <- timeoutWrapper %s; return $ labelProperty %s out ((anyDuplicate out) ==> True); } in" plain plain shows
-      , printf "quickCheckResult prop_duplicate" ] :: String
+      [ printf "let prop_duplicate %s = monadicIO $ run $ labelEvaluation (%s) (executeWrapper %s) (\\out -> (not $ anyDuplicate out) ==> True) in" plain shows plain
+      , printf "quickCheckWithResult defaultTestArgs prop_duplicate" ] :: String
 
-runInterpreter' :: Int -> InterpreterT IO a -> IO (Either InterpreterError a)
-runInterpreter' timeInMicro exec = toResult <$> timeout timeInMicro execute
+runInterpreterWithEnvTimeout :: Int -> InterpreterT IO a -> IO (Either InterpreterError a)
+runInterpreterWithEnvTimeout timeInMicro executeInterpreter =
+    mergeTimeout <$> timeout timeInMicro (getDataFileName "InternalTypeGen.hs" >>= runInterpreter)
   where
-    execute = do
-      srcPath <- getDataFileName "InternalTypeGen.hs"
-      LHI.runInterpreter $ do
-        extensions <- LHI.get LHI.languageExtensions
-        LHI.set [LHI.languageExtensions := (ExtendedDefaultRules : ScopedTypeVariables : extensions)]
+    runInterpreter scriptFile = LHI.runInterpreter $ do
+      LHI.set [LHI.languageExtensions := [ExtendedDefaultRules, ScopedTypeVariables]]
+      LHI.loadModules [scriptFile]
+      LHI.setTopLevelModules ["InternalTypeGen"]
+      executeInterpreter
 
-        LHI.loadModules [srcPath]
-        LHI.setTopLevelModules ["InternalTypeGen"]
-
-        exec
-
-    toResult = \case
-      Nothing -> Left $ NotAllowed "timeout"
+    mergeTimeout = \case
       Just v  -> v
+      Nothing -> Left $ NotAllowed "timeout"
 
-evaluateProperty :: [String] -> String -> IO (Either InterpreterError BackendResult)
-evaluateProperty modules property =
-  runInterpreter' defaultInterpreterTimeoutMicro $ do
+evaluateProperties :: [String] -> [String] -> IO (Either InterpreterError [BackendResult])
+evaluateProperties modules properties =
+  runInterpreterWithEnvTimeout defaultInterpreterTimeoutMicro $ do
     LHI.setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
-    LHI.interpret property (LHI.as :: IO BackendResult) >>= liftIO
+    mapM (\prop -> LHI.interpret prop (LHI.as :: IO BackendResult) >>= liftIO) properties
 
-validateSolution :: [String] -> String -> FunctionSignature -> Int -> IO (Either InterpreterError FuncTestDesc)
-validateSolution modules solution funcSig time = do
-    result <- evaluateProperty modules prop
+validateSolution :: [String] -> String -> FunctionSignature -> IO (Either InterpreterError FuncTestDesc)
+validateSolution modules solution funcSig = do
+    result <- evaluateProperties modules [prop]
     case result of
-      Left  (NotAllowed _)            -> return $ Right $ Unknown "timeout"
-      Left  error                     -> return $ Right $ Unknown $ show error
-      Right result                    -> return $ Right $ readResult result
+      Left  (NotAllowed _)            -> return $ Right $ Unknown (traceId "timeout")
+      Left  error                     -> return $ Right $ Unknown (traceId $ show error)
+      Right [result]                  -> return $ Right $ readResult result
   where
     prop = buildNotCrashProp solution funcSig
 
     readResult :: BackendResult -> FuncTestDesc
-    readResult r@QC.GaveUp{QC.numTests, QC.numDiscarded}
-              | numTests == numDiscarded  = Invalid
-              | otherwise                 = Partial $ parseExamples r
+    readResult r@QC.GaveUp{QC.numTests}
+              | numTests == 0 = Invalid
+              | otherwise     = Partial $ parseExamples r
     readResult r@QC.Success{} = Total $ parseExamples r
 
-compareSolution :: [String] -> String -> [String] -> FunctionSignature -> Int -> IO [Either InterpreterError BackendResult]
-compareSolution modules solution otherSolutions funcSig time = mapM (evaluateProperty modules) props
-  where props = buildDupCheckProp (solution, otherSolutions) funcSig time
+compareSolution :: [String] -> String -> [String] -> FunctionSignature -> IO (Either InterpreterError [BackendResult])
+compareSolution modules solution otherSolutions funcSig = evaluateProperties modules props
+  where props = buildDupCheckProp (solution, otherSolutions) funcSig
 
 runChecks :: MonadIO m => Environment -> TypeSkeleton -> UProgram -> FilterTest m (Maybe AssociativeExamples)
 runChecks env goalType prog = do
@@ -187,16 +181,15 @@ runChecks env goalType prog = do
 
 checkSolutionNotCrash :: MonadIO m => [String] -> FunctionSignature -> String -> FilterTest m Bool
 checkSolutionNotCrash modules funcSig solution = do
-  result <- liftIO executeCheck
-  case result of
-    Left  _       -> return True
-    Right result  -> do
-      modify $ \s -> s {solutionDescriptions = (solution, result) : solutionDescriptions s }
-      return $ isSuccess result
-
+    result <- liftIO executeCheck
+    case result of
+      Left  _       -> return True
+      Right result  -> do
+        modify $ \s -> s {solutionDescriptions = (solution, result) : solutionDescriptions s }
+        return $ isSuccess result
   where
     handleNotSupported = (`catch` ((\ex -> return (Left (UnknownError $ show ex))) :: NotSupportedException -> IO (Either InterpreterError FuncTestDesc)))
-    executeCheck = handleNotSupported $ validateSolution modules solution funcSig defaultTimeoutMicro
+    executeCheck = handleNotSupported $ validateSolution modules solution funcSig
 
 
 checkDuplicates :: MonadIO m => [String] -> FunctionSignature -> String -> FilterTest m Bool
@@ -204,12 +197,14 @@ checkDuplicates modules funcSig solution = do
   FilterState _ solns_ _ _ <- get
   case solns_ of
     -- base case: skip the check for the first solution
-    [] -> (modify $ \s -> s {solutions = [solution]}) >> return True
+    [] -> modify (\s -> s {solutions = [solution]}) >> return True
 
     -- inductive: find an input i such that all synthesized results can be differentiated semantically
     _ -> do
-      results       <-  liftIO $ compareSolution modules solution solns_ funcSig defaultTimeoutMicro
-      examples      <-  zipWithM readInterpreterResult solns_ results
+      interpreterResult <- liftIO $ compareSolution modules solution solns_ funcSig
+      examples          <- readInterpreterResult solns_ interpreterResult
+
+      -- liftIO $ print examples
 
       let isSucceed =   all isJust examples
       if  not isSucceed then return False else do
@@ -221,19 +216,21 @@ checkDuplicates modules funcSig solution = do
 
         return True
   where
-    readResult :: String -> BackendResult -> Maybe AssociativeExamples
-    readResult prevSolution r@QC.GaveUp {QC.numTests, QC.numDiscarded}
-              | numTests == numDiscarded  = Nothing
-              | otherwise                 = Just [(solution, examples), (prevSolution, examplesForPrev)]
+    readResult prevSolution result = case result of
+        QC.Failure {}                           -> Nothing
+        QC.GaveUp {QC.numTests} | numTests == 0 -> Nothing
+        QC.GaveUp {}                            -> assocs
+        QC.Success {}                           -> assocs
       where
-        (examples, examplesForPrev) = splitConsecutive $ parseExamples r
+        (examples, examplesForPrev) = splitConsecutive $ parseExamples result
+        assocs = Just [(solution, examples), (prevSolution, examplesForPrev)]
 
-    readInterpreterResult :: MonadIO m => String -> Either InterpreterError BackendResult -> FilterTest m (Maybe AssociativeExamples)
-    readInterpreterResult prevSolution =
+    readInterpreterResult :: MonadIO m => [String] -> Either InterpreterError [BackendResult] -> FilterTest m [Maybe AssociativeExamples]
+    readInterpreterResult prevSolutions =
       \case
-        Left (NotAllowed _) -> return Nothing
-        Left _              -> return $ Just []
-        Right result        -> return $ readResult prevSolution result
+        Left (NotAllowed _) -> return [trace "timeout" Nothing]
+        Left _              -> return $ []
+        Right results       -> return $ zipWith readResult prevSolutions results
 
 -- show parameters to some Haskell representation
 -- (plain variables, typed variables, list of show, unwrapped variables)
