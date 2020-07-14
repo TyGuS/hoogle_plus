@@ -109,8 +109,11 @@ synthesize searchParams goal examples messageChan = do
           }
 
     start <- getCPUTime
+    
+    -- used for figuring out which programs to filter (those without all arguments)
+    let numArgs = length (Map.elems (envWithHo ^. arguments))
 
-    iterativeDeepening envWithHo messageChan searchParams examples goalType
+    iterativeDeepening envWithHo messageChan searchParams examples goalType numArgs
 
     end <- getCPUTime
 
@@ -129,38 +132,45 @@ filterParams 0       _ = error "filterParams error: shouldn't have 0 args!" -- T
 filterParams 1       x = "arg0" `isInfixOf` (show x)
 filterParams numArgs x = isInfixOf ("arg" ++ (show (numArgs - 1))) (show x) && filterParams (numArgs - 1) x
 
+type CompsSolver m = StateT CheckerState (LogicT (StateT Comps m))
 
--- type CompsSolver m = StateT Comps (StateT CheckerState m)
--- evalCompsSolver messageChan m = m `evalStateT` emptyComps `evalStateT` (emptyChecker { _checkerChan = messageChan })
+evalCompsSolver :: Monad m => Chan Message -> CompsSolver m a -> m a
+evalCompsSolver messageChan m = (`evalStateT` emptyComps) $ observeT $ (`evalStateT` emptyChecker {_checkerChan = messageChan}) m
 
--- instance Monad m => CheckMonad (CompsSolver m) where
---     getNameCounter = lift getNameCounter
---     setNameCounter = lift . setNameCounter
---     getNameMapping = lift getNameMapping
---     setNameMapping = lift . setNameMapping
---     getIsChecked   = lift getIsChecked
---     setIsChecked   = lift . setIsChecked
---     getMessageChan = lift getMessageChan
---     overStats      = lift . overStats
+evalCompsSolverList :: Monad m => Chan Message -> [CompsSolver m a] -> m a
+evalCompsSolverList messageChan m = do
+  let foo1 = map (`evalStateT` emptyChecker {_checkerChan = messageChan}) m
+  let foo2 = msum foo1
+  let foo3 = (`evalStateT` emptyComps) $ observeT foo2
+  foo3
 
--- type BTCompsSolver = LogicT (CompsSolver IO)
 
 -- try to get solutions by calling dfs on depth 1 2 3 4... until we get an answer
-iterativeDeepening :: Environment -> Chan Message -> SearchParams -> [Example] -> RSchema -> IO ()
-iterativeDeepening env messageChan searchParams examples goal = do
+iterativeDeepening :: Environment -> Chan Message -> SearchParams -> [Example] -> RSchema -> Int -> IO ()
+iterativeDeepening env messageChan searchParams examples goal numArgs = do
 
-  solution <- (`evalStateT` emptyComps) $ observeT $ msum $ map helper [0..] :: IO RProgram
+  -- do basically this:
+  -- evalCompsSolver $ (helper 0) `mplus` (helper 1) `mplus` (helper 2) ...
+  -- 
+  -- let foo = map helper [0..] :: [CompsSolver IO RProgram]
+
+
+  -- solution <- evalCompsSolver messageChan $ foo :: IO RProgram
+  solution <- evalCompsSolverList messageChan (map helper [0..])
   print solution
+ 
+    --  Expected type: CompsSolver (StateT CheckerState (LogicT (StateT Comps IO))) (Id, SType)
+    --     Actual type: StateT CheckerState (CompsSolver IO) (Id, SType)
 
   where
 
     -- calls dfs at a certain depth and checks to see if there is a solution
-    helper :: Int -> LogicT (StateT Comps IO) RProgram
+    helper :: Int -> CompsSolver IO RProgram
     helper depth = do
       liftIO $ printf "running dfs on %s at depth %d\n" (show goal) depth
 
       let goalType = shape $ lastType (toMonotype goal) :: SType
-      solution <- dfs env messageChan depth goalType :: LogicT (StateT Comps IO) RProgram
+      solution <- dfs env messageChan depth goalType :: CompsSolver IO RProgram
       
       isChecked <- liftIO $ check' solution
       guard isChecked -- gets the first valid program
@@ -170,16 +180,19 @@ iterativeDeepening env messageChan searchParams examples goal = do
     
     check' :: RProgram -> IO Bool
     check' program = do
-      -- printf "omg we are checking this program: %s\n" (show program)
-      liftIO $ print "we are about to call check"
-      checkResult <- evalStateT (check env searchParams examples program goal messageChan) emptyFilterState
-      case checkResult of
-        Nothing  -> return False
-        Just exs -> do
-          -- TODO add this back in
-          -- out <- toOutput env program exs
-          -- printResult $ encodeWithPrefix out
-          return True
+      printf "omg we are checking this program: %s\n" (show program)
+      if (filterParams numArgs program)
+        then do
+        -- liftIO $ printf "we are about to call check on "
+          checkResult <- evalStateT (check env searchParams examples program goal messageChan) emptyFilterState
+          case checkResult of
+            Nothing  -> return False
+            Just exs -> do
+              -- TODO add this back in
+              -- out <- toOutput env program exs
+              -- printResult $ encodeWithPrefix out
+              return True
+        else return False
 
 -- "Data.Tuple.fst (GHC.List.last arg0)
 -- Data.Tuple.fst (GHC.List.head arg0)"
@@ -191,8 +204,16 @@ iterativeDeepening env messageChan searchParams examples goal = do
 -- (,) (GHC.List.init arg1) (GHC.List.repeat arg0)"
 
 -- a -> [a] -> ([a], [a])
+-- GHC.List.splitAt (GHC.List.last []) (arg0 : arg1)
+
+-- a -> [a] -> ([a], [a])
 
 -- ([] ++ []) !! (GHC.List.length arg0)
+
+
+
+-- theirs: Data.Either.Right (Data.Tuple.snd ((,) arg0 arg1))
+-- ours: Data.Bool.bool (Data.Either.Right arg1) (Data.Either.Right arg1) (Data.Maybe.isJust arg0)
 
 -- converts [a] to a Logic a
 choices :: MonadPlus m => [a] -> m a
@@ -201,7 +222,7 @@ choices = msum . map return
 --
 -- does DFS stuff
 --
-dfs :: Environment -> Chan Message -> Int -> SType -> LogicT (StateT Comps IO) RProgram
+dfs :: Environment -> Chan Message -> Int -> SType -> CompsSolver IO RProgram
 dfs env messageChan depth goalType = do
   
   -- collect all the component types (which we might use to fill the holes)
@@ -209,9 +230,9 @@ dfs env messageChan depth goalType = do
 
   -- liftIO $ print $ "dang we are here"
   -- find all functions that unify with goal type
-  unifiedFunc <- (`evalStateT` emptyChecker {_checkerChan = messageChan}) $ getUnifiedFunctions env messageChan component goalType :: LogicT (StateT Comps IO) (Id, SType)
+  unifiedFunc <- getUnifiedFunctions env messageChan component goalType :: CompsSolver IO (Id, SType)
   -- for each of these functions, find solutions
-  functionSolution <- turnFunctionIntoSolutions unifiedFunc :: LogicT (StateT Comps IO) RProgram
+  functionSolution <- turnFunctionIntoSolutions unifiedFunc :: CompsSolver IO RProgram
   return functionSolution
   
   where
@@ -220,7 +241,7 @@ dfs env messageChan depth goalType = do
     isGround (FunctionT id arg0 arg1) = False
     isGround _ = True
 
-    turnFunctionIntoSolutions :: (Id, SType) -> LogicT (StateT Comps IO) RProgram
+    turnFunctionIntoSolutions :: (Id, SType) -> CompsSolver IO RProgram
     turnFunctionIntoSolutions (id, schema)
       | isGround schema = return Program { content = PSymbol id, typeOf = refineTop env schema }
       | depth == 0 = mzero  -- stop if depth is 0
@@ -242,7 +263,7 @@ dfs env messageChan depth goalType = do
         -- dfsstuff1 <- dfs ... arg1 :: RProgram
         -- dfsstuff2 <- dfs ... arg2 :: RProgram
         -- argsFilled = [dfsstuff0, dfsstuff1, dfsstuff2]
-        argsFilled <- mapM (dfs env messageChan (depth - 1)) args :: LogicT (StateT Comps IO) [RProgram]
+        argsFilled <- mapM (dfs env messageChan (depth - 1)) args :: CompsSolver IO [RProgram]
 
 
         -- fill in arguments of func as RPrograms - e.g. func a d, func a e, func a f, func b d, func b e, func b f
@@ -298,11 +319,16 @@ dfs env messageChan depth goalType = do
 
 
 getUnifiedFunctions :: Environment -> Chan Message -> (Id, RSchema) -> SType
-                    -> StateT CheckerState (LogicT (StateT Comps IO)) (Id, SType)
+                    -> CompsSolver IO (Id, SType)
 --  getUnifiedFunctions env messageChan components goalType mzero
 getUnifiedFunctions env messageChan (id, schema) goalType = do
     
+    -- liftIO $ putStrLn $ "==================="
     freshVars <- freshType (env ^. boundTypeVars) schema
+    -- liftIO $ printf "id = %s of type %s\n" id (show freshVars)
+
+    -- st <- get
+    -- liftIO $ putStrLn $ "type assignment before: " ++ show (st ^. typeAssignment)
 
     let t1 = shape (lastType freshVars) :: SType
     let t2 = goalType :: SType
@@ -310,9 +336,11 @@ getUnifiedFunctions env messageChan (id, schema) goalType = do
     -- modify $ set isChecked True
     -- modify $ set typeAssignment Map.empty
 
-    solveTypeConstraint env t1 t2 :: StateT CheckerState (LogicT (StateT Comps IO)) ()
+    solveTypeConstraint env t1 t2 :: CompsSolver IO ()
     st' <- get
     
+    -- liftIO $ putStrLn $ "type assignment after: " ++ show (st ^. typeAssignment)
+
     let sub =  st' ^. typeAssignment
     let checkResult = st' ^. isChecked
 
@@ -326,8 +354,8 @@ getUnifiedFunctions env messageChan (id, schema) goalType = do
 ------
 
 -- getUnifiedFunctions :: Environment -> Chan Message -> [(Id, RSchema)] -> SType
---                     -> StateT CheckerState (LogicT (StateT Comps IO)) (Id, SType)
---                     -> StateT CheckerState (LogicT (StateT Comps IO)) (Id, SType)
+--                     -> StateT CheckerState (CompsSolver IO) (Id, SType)
+--                     -> StateT CheckerState (CompsSolver IO) (Id, SType)
 -- --  getUnifiedFunctions env messageChan components goalType mzero
 -- getUnifiedFunctions _   _           []                     _        unifiedFuncs = unifiedFuncs
 -- getUnifiedFunctions env messageChan ( v@(id, schema) : ys) goalType unifiedFuncs = do
@@ -341,7 +369,7 @@ getUnifiedFunctions env messageChan (id, schema) goalType = do
 --     modify $ set isChecked True
 --     -- modify $ set typeAssignment Map.empty
 
---     solveTypeConstraint env t1 t2 :: StateT CheckerState (LogicT (StateT Comps IO)) ()
+--     solveTypeConstraint env t1 t2 :: StateT CheckerState (CompsSolver IO) ()
 --     st' <- get
     
 --     let sub =  st' ^. typeAssignment
