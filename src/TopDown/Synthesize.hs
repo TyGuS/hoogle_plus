@@ -79,7 +79,7 @@ envToGoal env queryStr = do
           Left parseErr -> putDoc (pretty parseErr) >> putDoc linebreak >> error (prettyShow parseErr)
       _ -> error "parse a signature for a none goal declaration"
 
-synthesize :: SearchParams -> Goal -> [Example] -> Chan Message -> IO ()
+: SearchParams -> Goal -> [Example] -> Chan Message -> IO ()
 synthesize searchParams goal examples messageChan = do
     let rawEnv = gEnvironment goal
     let goalType = gSpec goal :: RSchema
@@ -131,16 +131,29 @@ evalCompsSolverList messageChan m = do
 iterativeDeepening :: Environment -> Chan Message -> SearchParams -> [Example] -> RSchema -> IO ()
 iterativeDeepening env messageChan searchParams examples goal = evalCompsSolverList messageChan (map helper [0..]) >> return ()
   where
-    -- used for figuring out which programs to filter out (those without all arguments)
-    numArgs :: Int
-    numArgs = length (Map.elems (env ^. arguments))
+    -- -- used for figuring out which programs to filter out (those without all arguments)
+    -- numArgs :: Int
+    -- numArgs = length $ filterOutTypeClass $ Map.elems $ env ^. arguments
 
+    -- -- filters out type classes (@@type_class@@) so that numArgs can be correct when used
+    -- -- in filterParams
+    -- filterOutTypeClass :: [RSchema] -> [RSchema]
+    -- filterOutTypeClass xs = filter (not . \x -> "@@" `isInfixOf` (show x)) xs
+
+    -- filters out type classes (@@type_class@@) so that numArgs can be correct when used
+    -- in filterParams
+    filterOutTypeClass :: [Id] -> [Id]
+    filterOutTypeClass xs = filter (not . \x -> "tc" `isPrefixOf` (show x)) xs
+
+  
     -- calls dfs at a certain depth and checks to see if there is a solution
     helper :: Int -> CompsSolver IO RProgram
     helper depth = do
       
+      -- liftIO $ printf "num args: %d\n" numArgs
+      -- liftIO $ printf "args: %s\n" (show $ Map.elems (env ^. arguments))
       liftIO $ printf "running dfs on %s at depth %d\n" (show goal) depth
-
+      -- liftIO $ print $ Map.keys $ env ^. arguments
       let goalType = shape $ lastType (toMonotype goal) :: SType
       solution <- dfs env messageChan depth goalType :: CompsSolver IO RProgram
       
@@ -153,8 +166,13 @@ iterativeDeepening env messageChan searchParams examples goal = evalCompsSolverL
     check' :: RProgram -> IO Bool
     check' program = do
       -- printf "omg we are checking this program: %s\n" (show program)
-      if (filterParams numArgs program)
+      -- liftIO $ printf "about to filter program: %s\n" $ show program
+      let blah = filterParams program
+      if blah
+        
         then do
+          liftIO $ printf "\t\tthis has all the args: %s\n" $ show program
+
           checkResult <- evalStateT (check env searchParams examples program goal messageChan) emptyFilterState
           case checkResult of
             Nothing  -> return False
@@ -162,13 +180,58 @@ iterativeDeepening env messageChan searchParams examples goal = evalCompsSolverL
               out <- toOutput env program exs
               printResult $ encodeWithPrefix out
               return True
-        else return False
+        else do
+          liftIO $ printf "\t\tthis doesn't have all the args: %s\n" $ show program
+          return False
 
-    -- determines if the result has all the appropriate arguments given the number of args
-    filterParams :: Int -> RProgram -> Bool
-    filterParams 0       _ = error "filterParams error: shouldn't have 0 args!" -- TODO maybe should be true here? 
-    filterParams 1       x = "arg0" `isInfixOf` (show x)
-    filterParams numArgs x = isInfixOf ("arg" ++ (show (numArgs - 1))) (show x) && filterParams (numArgs - 1) x
+-- running dfs on (Int -> (Int -> Int)) at depth 0
+-- running dfs on (Int -> (Int -> Int)) at depth 1
+--                 this has all the args: Data.Bool.bool arg0 arg1 Data.Bool.False
+--                 this has all the args: Data.Bool.bool arg0 arg1 Data.Bool.True
+--                 this has all the args: Data.Bool.bool arg0 arg1 Data.Bool.otherwise
+--                 this has all the args: Data.Bool.bool arg1 arg0 Data.Bool.False
+--                 this has all the args: Data.Bool.bool arg1 arg0 Data.Bool.True
+--                 this has all the args: Data.Bool.bool arg1 arg0 Data.Bool.otherwise
+--                 this has all the args: Data.Function.const arg0 arg1
+--                 this has all the args: Data.Function.const arg1 arg0
+-- running dfs on (Int -> (Int -> Int)) at depth 2
+--                 this has all the args: ([] !! arg0) !! ([] !! arg1)
+-- RESULTS:{"outCandidates":[{"outExamples":[],"solution":"\\arg0 arg1 -> ([] !! arg0) !! ([] !! arg1)"}],"outDocs":[{"functionSig":"[a] -> Int -> a","functionName":"(!!)","functionDesc":"List index (subscript) operator, starting from 0. It is an instance of\nthe more general genericIndex, which takes an index of any\nintegral type.\n"},{"functionSig":"IntMap a","functionName":"Nil","functionDesc":""},{"functionSig":"Int","functionName":"arg0","functionDesc":""},{"functionSig":"Int","functionName":"arg1","functionDesc":""}],"outError":""}
+-- Computation time: 1.908 sec
+
+
+
+-- stack run -- hplus --json='{"query": "arg1: Bool -> arg0: Int -> Int", "inExamples": []}'
+-- running dfs on (Bool -> (Int -> Int)) at depth 0
+-- running dfs on (Bool -> (Int -> Int)) at depth 1
+--                 this has all the args: Data.Bool.bool arg0 arg0 arg1
+-- RESULTS:{"outCandidates":[{"outExamples":[],"solution":"\\arg0 arg1 -> Data.Bool.bool arg0 arg0 arg1"}],"outDocs":[{"functionSig":"a -> a -> Bool -> a","functionName":"bool","functionDesc":"Case analysis for the Bool type. bool x y p\nevaluates to x when p is False, and evaluates\nto y when p is True.\n\nThis is equivalent to if p then y else x; that is, one can\nthink of it as an if-then-else construct with its arguments reordered.\n\nExamples\n\nBasic usage:\n\n\n>>> bool \"foo\" \"bar\" True\n\"bar\"\n\n>>> bool \"foo\" \"bar\" False\n\"foo\"\n\n\nConfirm that bool x y p and if p then y else\nx are equivalent:\n\n\n>>> let p = True; x = \"bar\"; y = \"foo\"\n\n>>> bool x y p == if p then y else x\nTrue\n\n>>> let p = False\n\n>>> bool x y p == if p then y else x\nTrue\n\n"},{"functionSig":"Int","functionName":"arg0","functionDesc":""},{"functionSig":"Bool","functionName":"arg1","functionDesc":""}],"outError":""}
+-- "solution":"\\arg0 arg1 -> Data.Bool.bool arg1 arg1 arg0"
+
+-- running dfs on (Bool -> (Int -> Int)) at depth 0
+-- running dfs on (Bool -> (Int -> Int)) at depth 1
+--                 this has all the args: Data.Bool.bool b b Data.Bool.False
+--                 this has all the args: Data.Bool.bool b b Data.Bool.True
+--                 this has all the args: Data.Bool.bool b b Data.Bool.otherwise
+--                 this has all the args: Data.Bool.bool b b a
+-- "solution":"\\a b -> Data.Bool.bool b b a"
+
+
+
+
+
+
+
+    -- determines if the result has all the appropriate arguments
+    filterParams :: RProgram -> Bool
+    -- filterParams program = True
+    filterParams program = all (`isInfixOf` (show program)) $ Map.keys $ env ^. arguments
+    -- filterParams 0       _ = error "filterParams error: shouldn't have 0 args!" -- TODO maybe should be true here? 
+    -- filterParams 1       x = "arg0" `isInfixOf` (show x)
+    -- filterParams numArgs x = isInfixOf ("arg" ++ (show (numArgs - 1))) (show x) && filterParams (numArgs - 1) x
+
+-- arg2: (a -> b) -> arg1: (a -> c) -> arg0: a -> (b, c)
+-- \arg0 arg1 arg2 -> ((arg0 arg2) , (arg1 arg2))
 
 --
 -- does DFS stuff
