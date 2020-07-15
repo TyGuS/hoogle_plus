@@ -79,7 +79,7 @@ envToGoal env queryStr = do
           Left parseErr -> putDoc (pretty parseErr) >> putDoc linebreak >> error (prettyShow parseErr)
       _ -> error "parse a signature for a none goal declaration"
 
-: SearchParams -> Goal -> [Example] -> Chan Message -> IO ()
+synthesize :: SearchParams -> Goal -> [Example] -> Chan Message -> IO ()
 synthesize searchParams goal examples messageChan = do
     let rawEnv = gEnvironment goal
     let goalType = gSpec goal :: RSchema
@@ -150,6 +150,7 @@ iterativeDeepening env messageChan searchParams examples goal = evalCompsSolverL
     helper :: Int -> CompsSolver IO RProgram
     helper depth = do
       
+
       -- liftIO $ printf "num args: %d\n" numArgs
       -- liftIO $ printf "args: %s\n" (show $ Map.elems (env ^. arguments))
       liftIO $ printf "running dfs on %s at depth %d\n" (show goal) depth
@@ -171,7 +172,7 @@ iterativeDeepening env messageChan searchParams examples goal = evalCompsSolverL
       if blah
         
         then do
-          liftIO $ printf "\t\tthis has all the args: %s\n" $ show program
+          liftIO $ printf "program: %s\n" $ show program
 
           checkResult <- evalStateT (check env searchParams examples program goal messageChan) emptyFilterState
           case checkResult of
@@ -181,8 +182,10 @@ iterativeDeepening env messageChan searchParams examples goal = evalCompsSolverL
               printResult $ encodeWithPrefix out
               return True
         else do
-          liftIO $ printf "\t\tthis doesn't have all the args: %s\n" $ show program
+          -- liftIO $ printf "\t\tthis doesn't have all the args: %s\n" $ show program
           return False
+
+-- Data.Bool.bool (Data.Bool.bool Data.Maybe.Nothing Data.Maybe.Nothing Data.Bool.False) (Data.Maybe.Just arg1) (Data.Bool.bool arg0 Data.Bool.False Data.Bool.False)
 
 -- running dfs on (Int -> (Int -> Int)) at depth 0
 -- running dfs on (Int -> (Int -> Int)) at depth 1
@@ -233,6 +236,9 @@ iterativeDeepening env messageChan searchParams examples goal = evalCompsSolverL
 -- arg2: (a -> b) -> arg1: (a -> c) -> arg0: a -> (b, c)
 -- \arg0 arg1 arg2 -> ((arg0 arg2) , (arg1 arg2))
 
+-- Data.Bool.bool (Data.Function.const Data.Maybe.Nothing Data.ByteString.Lazy.getContents) (Data.Function.const Data.Maybe.Nothing arg1) (Data.Function.const arg0 Data.Maybe.Nothing)
+
+
 --
 -- does DFS stuff
 --
@@ -241,6 +247,11 @@ dfs env messageChan depth goalType = do
   
   -- collect all the component types (which we might use to fill the holes)
   component <- choices $ Map.toList (env ^. symbols)
+
+  guard (fst component /= "Data.Bool.True")
+  guard (fst component /= "Data.Bool.False")
+  -- guard (fst component /= "Data.Maybe.Nothing")
+  guard (fst component /= "Data.Bool.otherwise")
 
   -- stream of components that unify with goal type
   (id, schema) <- getUnifiedComponents env messageChan component goalType :: CompsSolver IO (Id, SType)
