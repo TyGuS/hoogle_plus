@@ -1,0 +1,46 @@
+Name	Query	Time	Solution
+appBoth	(a -> b) -> (a -> c) -> a -> (b, c)	15.16	\arg0 arg1 arg2 -> ((arg0 arg2) , (arg1 arg2))
+test	b: Bool -> x: a -> Maybe a	600.11	-
+both	f: (a -> b) -> p: (a, a) -> (b, b)	600.19	-
+firstJust	x: a -> xs: [Maybe a] -> a	600.26	-
+mapEither	f: (a -> Either b c) -> xs: [a] -> ([b], [c])	600.16	-
+mapMaybes	f: (a -> Maybe b) -> xs: [a] -> Maybe b	600.20	-
+mergeEither	e: Either a (Either a b) -> Either a b	600.18	-
+mbToEither	x: a -> mb: Maybe b -> Either a b	600.22	-
+cartProduct	xs: [a] -> ys: [b] -> [[(a, b)]]	600.28	-
+multiAppPair	tp: (a -> b, a -> c) -> x: a -> (b, c)	600.15	-
+map	f: (a -> b) -> xs: [a] -> [b]	600.23	-
+replFuncs	f: (a -> b) -> n: Int-> [a -> b]	600.16	-
+mbAppFirst	x: b -> f: (a -> b) -> xs: [a] -> b	600.23	-
+mapTwice	f: (a -> b) -> g: (b -> c) -> xs: [a] -> [c]	600.16	-
+resolveEither	e: Either a b -> f: (a -> b) -> b	600.18	-
+dedupe	Eq a => xs: [a] -> [a]	600.14	-
+inverseMap	fs: [a -> b] -> x: a -> [b]	600.21	-
+app2	f: (a -> b -> c) -> g: (a -> b) -> x: a -> c	128.62	\f g x -> f (Data.Function.const x Data.ByteString.Lazy.empty) (g x)
+singletonList	x: a -> [a]	5.27	\x -> x : []
+headLast	xs: [a] -> (a, a)	600.18	-
+headRest	xs: [a] -> (a, [a])	600.08	-
+coundPredMatch	xs: [a] -> p: (a -> Bool) -> Int	600.09	-
+splitStr	str: String -> c: Char -> [String]	57.73	\c str -> (c : []) : (str : [])
+splitAtFirst	x: a -> xs: [a] -> ([a], [a])	600.07	-
+hoogle01	f: (a -> b) -> xs: [a] -> b	25.84	\f xs -> f (GHC.List.head xs)
+firstMatch	xs: [a] -> p: (a -> Bool) -> a	600.08	-
+firstMaybe	mbs: [Maybe a] -> a	11.91	\mbs -> (Data.Maybe.catMaybes mbs) !! (GHC.List.length [])
+rights	es: [Either a b] -> Either a [b]	600.08	-
+firstKey	xs: [(a, b)] -> a	81.52	\xs -> Data.Tuple.fst (GHC.List.head xs)
+firstRight	es: [Either a b] -> Either a b	600.09	-
+maybe	mb: Maybe a -> x: a -> Maybe a	189.15	\mb x -> Data.Bool.bool (Data.Function.const mb Data.ByteString.Lazy.empty) (Data.Maybe.Just x) (Data.Maybe.isNothing mb)
+app3	f: (a -> b -> c -> d) -> x: a -> y: c -> z: b -> d	2.79	\f x y z -> f x z y
+appendN	n: Int -> xs: [a] -> [a]	109.07	\n xs -> (xs ++ xs) ++ (GHC.List.drop n [])
+zipWithResult	f: (a -> b) -> xs: [a]-> [(a, b)]	600.08	-
+applyNtimes	f: (a -> a) -> x: a -> n: Int -> a	600.07	-
+eitherTriple	e1: Either a b -> e2: Either a b -> Either a b	600.13	-
+pipe	fs: [(a -> a)] -> x: a -> a	600.09	-
+lookup	Eq a => xs: [(a, b)] -> k: a -> b	600.08	-
+mbElem	Eq a => x: a -> xs: [a] -> Maybe a	600.12	-
+areEq	Eq a => x: a -> y: a -> Maybe a	600.12	-
+applyPair	p: (a -> b, a) -> b	600.06	-
+flatten	xss: [[[a]]] -> [a]	600.06	-
+takeNdropM	n: Int -> m: Int -> xs: [a] -> ([a], [a])	600.07	-
+indexesOf	f: ([(a, Int)] -> [(a, Int)]) -> xs: [a] -> ys: [Int] -> [Int]	600.07	-
+containsEdge	vs: [Int] -> edge: (Int, Int) -> Bool	600.05	-

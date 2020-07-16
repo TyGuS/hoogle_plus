@@ -7,40 +7,40 @@
       output: (4, 9)
     - inputs: ["\\x -> x ++ x", "Data.List.reverse", "[1,2,3]"]
       output: ([1,2,3,1,2,3], [3,2,1])
-solution: arg0 arg1 arg2 -> (arg0 arg2 , arg1 arg2)
-((arg1 arg2) , (arg0 arg2))
+# solution: arg0 arg1 arg2 -> (arg0 arg2 , arg1 arg2)
+# ((arg1 arg2) , (arg0 arg2))
 
-oh no
+# oh no
 
-i think i know the bug
+# i think i know the bug
 
-oh no
+# oh no
 
 
-        let func :: (Int, [RProgram]) -> SType -> CompsSolver IO (Int, [RProgram])
-            func (quota', programs) arg = do
-              program <- dfs env messageChan quota' arg
-              return (quota' - sizeOf program, programs ++ [program])
-              o
-              m
-              g 
-              IT TOOK US :(
-              THIS LONG
-              TO FIGURE     did you time it
-              THAT OUTTTT 
-              OMMMGGGG
-              ok well fi
+#         let func :: (Int, [RProgram]) -> SType -> CompsSolver IO (Int, [RProgram])
+#             func (quota', programs) arg = do
+#               program <- dfs env messageChan quota' arg
+#               return (quota' - sizeOf program, programs ++ [program])
+#               o
+#               m
+#               g 
+#               IT TOOK US :(
+#               THIS LONG
+#               TO FIGURE     did you time it
+#               THAT OUTTTT 
+#               OMMMGGGG
+#               ok well fi
               
 
-              wait... why is fst running again? are there repeat functions? 
-              terminal 4 says 65 which i tink is accurate 
-              so 1 hour lol rip
-              :(
-wait but
-given solution: (arg0 arg2 , arg1 arg2)
-ours:           ((arg1 arg2) , (arg0 arg2))
-                ok but it arrives at the right solution so what if we just short cut it next run
-                filter out everything except (,) arg0 arg1 arg2 lolllll 
+#               wait... why is fst running again? are there repeat functions? 
+#               terminal 4 says 65 which i tink is accurate 
+#               so 1 hour lol rip
+#               :(
+# wait but
+# given solution: (arg0 arg2 , arg1 arg2)
+# ours:           ((arg1 arg2) , (arg0 arg2))
+#                 ok but it arrives at the right solution so what if we just short cut it next run
+#                 filter out everything except (,) arg0 arg1 arg2 lolllll 
                 
 # solution: ((Data.Maybe.fromJust Data.Maybe.Nothing) , (Data.Maybe.fromJust Data.Maybe.Nothing))
 # solution: ((GHC.List.head []) , (Data.Maybe.fromJust Data.Maybe.Nothing))

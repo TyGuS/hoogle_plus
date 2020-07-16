@@ -13,7 +13,8 @@ from colorama import init, Fore, Back, Style
 
 HPLUS_CMD = ['stack', 'exec', '--', 'hplus'] # Command to call hoogle+
 TIMEOUT_CMD = 'timeout' # Timeout command
-TIMEOUT = 75 # Timeout value (seconds)
+TIMEOUT = 600 # Timeout value (seconds)
+# TIMEOUT = 75 # Timeout value (seconds)
 # CMD_OPTS = ['--stop-refine', '--stop-threshold=10', '--solver-name=z3smt']
 CMD_OPTS = []
 LOGFILE = 'data/results.log'                                         # Log file
