@@ -129,17 +129,8 @@ evalCompsSolverList messageChan m = do
 -- try to get solutions by calling dfs on depth 0, 1, 2, 3, ... until we get an answer
 --
 iterativeDeepening :: Environment -> Chan Message -> SearchParams -> [Example] -> RSchema -> IO ()
-iterativeDeepening env messageChan searchParams examples goal = evalCompsSolverList messageChan (map helper [0..]) >> return ()
+iterativeDeepening env messageChan searchParams examples goal = evalCompsSolverList messageChan (map helper [1..]) >> return ()
   where
-    -- -- used for figuring out which programs to filter out (those without all arguments)
-    -- numArgs :: Int
-    -- numArgs = length $ filterOutTypeClass $ Map.elems $ env ^. arguments
-
-    -- -- filters out type classes (@@type_class@@) so that numArgs can be correct when used
-    -- -- in filterParams
-    -- filterOutTypeClass :: [RSchema] -> [RSchema]
-    -- filterOutTypeClass xs = filter (not . \x -> "@@" `isInfixOf` (show x)) xs
-
     -- filters out type classes (@@type_class@@) so that numArgs can be correct when used
     -- in filterParams
     filterOutTypeClass :: [Id] -> [Id]
@@ -148,16 +139,13 @@ iterativeDeepening env messageChan searchParams examples goal = evalCompsSolverL
   
     -- calls dfs at a certain depth and checks to see if there is a solution
     helper :: Int -> CompsSolver IO RProgram
-    helper depth = do
-      
+    helper quota = do
+      liftIO $ printf "running dfs on %s at size %d\n" (show goal) quota
 
-      -- liftIO $ printf "num args: %d\n" numArgs
-      -- liftIO $ printf "args: %s\n" (show $ Map.elems (env ^. arguments))
-      liftIO $ printf "running dfs on %s at depth %d\n" (show goal) depth
-      -- liftIO $ print $ Map.keys $ env ^. arguments
       let goalType = shape $ lastType (toMonotype goal) :: SType
-      solution <- dfs env messageChan depth goalType :: CompsSolver IO RProgram
+      solution <- dfs env messageChan quota goalType :: CompsSolver IO RProgram
       
+      -- liftIO $ printf "solution: %s\n" (show solution)
       isChecked <- liftIO $ check' solution
       guard isChecked -- gets the first valid program
 
@@ -167,12 +155,11 @@ iterativeDeepening env messageChan searchParams examples goal = evalCompsSolverL
     check' :: RProgram -> IO Bool
     check' program = do
       -- printf "omg we are checking this program: %s\n" (show program)
-      -- liftIO $ printf "about to filter program: %s\n" $ show program
       let blah = filterParams program
       if blah
         
         then do
-          liftIO $ printf "program: %s\n" $ show program
+          -- liftIO $ printf "program: %s\n" $ show program
 
           checkResult <- evalStateT (check env searchParams examples program goal messageChan) emptyFilterState
           case checkResult of
@@ -185,95 +172,55 @@ iterativeDeepening env messageChan searchParams examples goal = evalCompsSolverL
           -- liftIO $ printf "\t\tthis doesn't have all the args: %s\n" $ show program
           return False
 
--- Data.Bool.bool (Data.Bool.bool Data.Maybe.Nothing Data.Maybe.Nothing Data.Bool.False) (Data.Maybe.Just arg1) (Data.Bool.bool arg0 Data.Bool.False Data.Bool.False)
-
--- running dfs on (Int -> (Int -> Int)) at depth 0
--- running dfs on (Int -> (Int -> Int)) at depth 1
---                 this has all the args: Data.Bool.bool arg0 arg1 Data.Bool.False
---                 this has all the args: Data.Bool.bool arg0 arg1 Data.Bool.True
---                 this has all the args: Data.Bool.bool arg0 arg1 Data.Bool.otherwise
---                 this has all the args: Data.Bool.bool arg1 arg0 Data.Bool.False
---                 this has all the args: Data.Bool.bool arg1 arg0 Data.Bool.True
---                 this has all the args: Data.Bool.bool arg1 arg0 Data.Bool.otherwise
---                 this has all the args: Data.Function.const arg0 arg1
---                 this has all the args: Data.Function.const arg1 arg0
--- running dfs on (Int -> (Int -> Int)) at depth 2
---                 this has all the args: ([] !! arg0) !! ([] !! arg1)
--- RESULTS:{"outCandidates":[{"outExamples":[],"solution":"\\arg0 arg1 -> ([] !! arg0) !! ([] !! arg1)"}],"outDocs":[{"functionSig":"[a] -> Int -> a","functionName":"(!!)","functionDesc":"List index (subscript) operator, starting from 0. It is an instance of\nthe more general genericIndex, which takes an index of any\nintegral type.\n"},{"functionSig":"IntMap a","functionName":"Nil","functionDesc":""},{"functionSig":"Int","functionName":"arg0","functionDesc":""},{"functionSig":"Int","functionName":"arg1","functionDesc":""}],"outError":""}
--- Computation time: 1.908 sec
-
-
-
--- stack run -- hplus --json='{"query": "arg1: Bool -> arg0: Int -> Int", "inExamples": []}'
--- running dfs on (Bool -> (Int -> Int)) at depth 0
--- running dfs on (Bool -> (Int -> Int)) at depth 1
---                 this has all the args: Data.Bool.bool arg0 arg0 arg1
--- RESULTS:{"outCandidates":[{"outExamples":[],"solution":"\\arg0 arg1 -> Data.Bool.bool arg0 arg0 arg1"}],"outDocs":[{"functionSig":"a -> a -> Bool -> a","functionName":"bool","functionDesc":"Case analysis for the Bool type. bool x y p\nevaluates to x when p is False, and evaluates\nto y when p is True.\n\nThis is equivalent to if p then y else x; that is, one can\nthink of it as an if-then-else construct with its arguments reordered.\n\nExamples\n\nBasic usage:\n\n\n>>> bool \"foo\" \"bar\" True\n\"bar\"\n\n>>> bool \"foo\" \"bar\" False\n\"foo\"\n\n\nConfirm that bool x y p and if p then y else\nx are equivalent:\n\n\n>>> let p = True; x = \"bar\"; y = \"foo\"\n\n>>> bool x y p == if p then y else x\nTrue\n\n>>> let p = False\n\n>>> bool x y p == if p then y else x\nTrue\n\n"},{"functionSig":"Int","functionName":"arg0","functionDesc":""},{"functionSig":"Bool","functionName":"arg1","functionDesc":""}],"outError":""}
--- "solution":"\\arg0 arg1 -> Data.Bool.bool arg1 arg1 arg0"
-
--- running dfs on (Bool -> (Int -> Int)) at depth 0
--- running dfs on (Bool -> (Int -> Int)) at depth 1
---                 this has all the args: Data.Bool.bool b b Data.Bool.False
---                 this has all the args: Data.Bool.bool b b Data.Bool.True
---                 this has all the args: Data.Bool.bool b b Data.Bool.otherwise
---                 this has all the args: Data.Bool.bool b b a
--- "solution":"\\a b -> Data.Bool.bool b b a"
-
-
-
-
-
 
 
     -- determines if the result has all the appropriate arguments
     filterParams :: RProgram -> Bool
-    -- filterParams program = True
     filterParams program = all (`isInfixOf` (show program)) $ Map.keys $ env ^. arguments
-    -- filterParams 0       _ = error "filterParams error: shouldn't have 0 args!" -- TODO maybe should be true here? 
-    -- filterParams 1       x = "arg0" `isInfixOf` (show x)
-    -- filterParams numArgs x = isInfixOf ("arg" ++ (show (numArgs - 1))) (show x) && filterParams (numArgs - 1) x
-
--- arg2: (a -> b) -> arg1: (a -> c) -> arg0: a -> (b, c)
--- \arg0 arg1 arg2 -> ((arg0 arg2) , (arg1 arg2))
-
--- Data.Bool.bool (Data.Function.const Data.Maybe.Nothing Data.ByteString.Lazy.getContents) (Data.Function.const Data.Maybe.Nothing arg1) (Data.Function.const arg0 Data.Maybe.Nothing)
-
 
 --
--- does DFS stuff
+-- does DFS stuff, with max size of program given as a quota
 --
 dfs :: Environment -> Chan Message -> Int -> SType -> CompsSolver IO RProgram
-dfs env messageChan depth goalType = do
-  
-  -- collect all the component types (which we might use to fill the holes)
-  component <- choices $ Map.toList (env ^. symbols)
+dfs env messageChan quota goalType
+  | quota <= 0 = mzero
+  | otherwise  = do
+    -- collect all the component types (which we might use to fill the holes)
+    component <- choices $ Map.toList (env ^. symbols)
 
-  guard (fst component /= "Data.Bool.True")
-  guard (fst component /= "Data.Bool.False")
-  -- guard (fst component /= "Data.Maybe.Nothing")
-  guard (fst component /= "Data.Bool.otherwise")
+    guard (fst component /= "Data.Bool.True")
+    guard (fst component /= "Data.Bool.False")
+    -- -- guard (fst component /= "Data.Maybe.Nothing")
+    guard (fst component /= "Data.Bool.otherwise")
+    -- guard (fst component /= "Data.Bool.otherwise")
+    -- guard ("Pair" `isInfixOf` fst component || "arg" `isPrefixOf` fst component)
 
-  -- stream of components that unify with goal type
-  (id, schema) <- getUnifiedComponents env messageChan component goalType :: CompsSolver IO (Id, SType)
-  
-  -- stream of solutions to the (id, schema) returned from getUnifiedComponents
-  case () of -- hack to use guards
-  
-    _ | isGround schema -> return Program { content = PSymbol id, typeOf = refineTop env schema }
-      | depth == 0 -> mzero  -- stop if depth is 0
-      | otherwise -> do
-
+    -- stream of components that unify with goal type
+    (id, schema) <- getUnifiedComponents env messageChan component goalType :: CompsSolver IO (Id, SType)
+    
+    -- stream of solutions to the (id, schema) returned from getUnifiedComponents
+    if isGround schema
+      then return Program { content = PSymbol id, typeOf = refineTop env schema }
+      else do
         -- collect all the argument types (the holes ?? we need to fill)
         let args = allArgTypes schema :: [SType]
 
         -- do basically this:
-        -- dfsstuff0 <- dfs ... arg0 :: RProgram
-        -- dfsstuff1 <- dfs ... arg1 :: RProgram
-        -- dfsstuff2 <- dfs ... arg2 :: RProgram
+        -- dfsstuff0 <- dfs ... arg0 (quota - 1) :: RProgram
+        -- dfsstuff1 <- dfs ... arg1 (quota - 1 - sizeOf dfsstuff0) :: RProgram
+        -- dfsstuff2 <- dfs ... arg2 (quota - 1 - sizeOf dfsstuff0 - sizeOf dfsstuff1) :: RProgram
         -- argsFilled = [dfsstuff0, dfsstuff1, dfsstuff2]
-        argsFilled <- mapM (dfs env messageChan (depth - 1)) args :: CompsSolver IO [RProgram]
+        let func :: (Int, [RProgram]) -> SType -> CompsSolver IO (Int, [RProgram])
+            func (quota', programs) arg = do
+              program <- dfs env messageChan quota' arg
+              return (quota' - sizeOf program, programs ++ [program])
+
+        (_, argsFilled) <- foldM func (quota - 1, []) args :: CompsSolver IO (Int, [RProgram])
+        -- let argSize = sum (map sizeOf argsFilled)
+        -- liftIO $ printf "%s: Args %s have size %d (quota is %d)\n" id (show argsFilled) argSize quota
+
         return Program { content = PApp id argsFilled, typeOf = refineTop env schema } 
-        
+      
   where
     -- checks if a program is ground (has no more arguments to synthesize - aka function w/o args)
     isGround :: SType -> Bool
@@ -283,6 +230,10 @@ dfs env messageChan depth goalType = do
     -- converts [a] to a Logic a
     choices :: MonadPlus m => [a] -> m a
     choices = msum . map return
+
+    -- gets the size of a program, used for checking quota
+    sizeOf :: RProgram -> Int
+    sizeOf = length . words . show
 
 --
 -- Given a component (id, schema) like ("length", <a>. [a] -> Int)
