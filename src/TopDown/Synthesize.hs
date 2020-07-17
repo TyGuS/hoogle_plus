@@ -24,7 +24,6 @@ import Types.Experiments
 import Types.Filtering
 import Types.Program
 import Types.Solver
-import Types.TopDown
 import Types.TypeChecker
 import Types.Type
 import Types.IOFormat
@@ -109,27 +108,27 @@ synthesize searchParams goal examples messageChan = do
           _hoCandidates = []
           }
 
-    start <- getCPUTime
+    -- start <- getCPUTime
     iterativeDeepening envWithHo messageChan searchParams examples goalType
-    end <- getCPUTime
+    -- end <- getCPUTime
 
-    let diff = fromIntegral (end - start) / (10^12)
-    printf "Computation time: %0.3f sec\n" (diff :: Double)
+    -- let diff = fromIntegral (end - start) / (10^12)
+    -- printf "Computation time: %0.3f sec\n" (diff :: Double)
 
     writeChan messageChan (MesgClose CSNormal)
     return ()
 
-type CompsSolver m = StateT CheckerState (LogicT (StateT Comps m))
+type TopDownSolver m = StateT CheckerState (LogicT m)
 
-evalCompsSolverList :: Monad m => Chan Message -> [CompsSolver m a] -> m a
-evalCompsSolverList messageChan m = do
-  (`evalStateT` emptyComps) $ observeT $ msum $ map (`evalStateT` emptyChecker {_checkerChan = messageChan}) m
+evalTopDownSolverList :: Monad m => Chan Message -> [TopDownSolver m a] -> m a
+evalTopDownSolverList messageChan m = do
+  observeT $ msum $ map (`evalStateT` emptyChecker {_checkerChan = messageChan}) m
 
 -- 
 -- try to get solutions by calling dfs on depth 0, 1, 2, 3, ... until we get an answer
 --
 iterativeDeepening :: Environment -> Chan Message -> SearchParams -> [Example] -> RSchema -> IO ()
-iterativeDeepening env messageChan searchParams examples goal = evalCompsSolverList messageChan (map helper [1..]) >> return ()
+iterativeDeepening env messageChan searchParams examples goal = evalTopDownSolverList messageChan (map helper [1..]) >> return ()
   where
     -- filters out type classes (@@type_class@@) so that numArgs can be correct when used
     -- in filterParams
@@ -138,12 +137,12 @@ iterativeDeepening env messageChan searchParams examples goal = evalCompsSolverL
 
   
     -- calls dfs at a certain depth and checks to see if there is a solution
-    helper :: Int -> CompsSolver IO RProgram
+    helper :: Int -> TopDownSolver IO RProgram
     helper quota = do
       liftIO $ printf "running dfs on %s at size %d\n" (show goal) quota
 
       let goalType = shape $ lastType (toMonotype goal) :: SType
-      solution <- dfs env messageChan quota goalType :: CompsSolver IO RProgram
+      solution <- dfs env messageChan quota goalType :: TopDownSolver IO RProgram
       
       -- liftIO $ printf "solution: %s\n" (show solution)
       isChecked <- liftIO $ check' solution
@@ -172,8 +171,6 @@ iterativeDeepening env messageChan searchParams examples goal = evalCompsSolverL
           -- liftIO $ printf "\t\tthis doesn't have all the args: %s\n" $ show program
           return False
 
-
-
     -- determines if the result has all the appropriate arguments
     filterParams :: RProgram -> Bool
     filterParams program = all (`isInfixOf` (show program)) $ Map.keys $ env ^. arguments
@@ -181,22 +178,15 @@ iterativeDeepening env messageChan searchParams examples goal = evalCompsSolverL
 --
 -- does DFS stuff, with max size of program given as a quota
 --
-dfs :: Environment -> Chan Message -> Int -> SType -> CompsSolver IO RProgram
+dfs :: Environment -> Chan Message -> Int -> SType -> TopDownSolver IO RProgram
 dfs env messageChan quota goalType
   | quota <= 0 = mzero
   | otherwise  = do
     -- collect all the component types (which we might use to fill the holes)
     component <- choices $ Map.toList (env ^. symbols)
 
-    guard (fst component /= "Data.Bool.True")
-    guard (fst component /= "Data.Bool.False")
-    -- -- guard (fst component /= "Data.Maybe.Nothing")
-    guard (fst component /= "Data.Bool.otherwise")
-    -- guard (fst component /= "Data.Bool.otherwise")
-    -- guard ("Pair" `isInfixOf` fst component || "arg" `isPrefixOf` fst component)
-
     -- stream of components that unify with goal type
-    (id, schema) <- getUnifiedComponents env messageChan component goalType :: CompsSolver IO (Id, SType)
+    (id, schema) <- getUnifiedComponents env messageChan component goalType :: TopDownSolver IO (Id, SType)
     
     -- stream of solutions to the (id, schema) returned from getUnifiedComponents
     if isGround schema
@@ -210,14 +200,12 @@ dfs env messageChan quota goalType
         -- dfsstuff1 <- dfs ... arg1 (quota - 1 - sizeOf dfsstuff0) :: RProgram
         -- dfsstuff2 <- dfs ... arg2 (quota - 1 - sizeOf dfsstuff0 - sizeOf dfsstuff1) :: RProgram
         -- argsFilled = [dfsstuff0, dfsstuff1, dfsstuff2]
-        let func :: (Int, [RProgram]) -> SType -> CompsSolver IO (Int, [RProgram])
+        let func :: (Int, [RProgram]) -> SType -> TopDownSolver IO (Int, [RProgram])
             func (quota', programs) arg = do
               program <- dfs env messageChan quota' arg
               return (quota' - sizeOf program, programs ++ [program])
 
-        (_, argsFilled) <- foldM func (quota - 1, []) args :: CompsSolver IO (Int, [RProgram])
-        -- let argSize = sum (map sizeOf argsFilled)
-        -- liftIO $ printf "%s: Args %s have size %d (quota is %d)\n" id (show argsFilled) argSize quota
+        (_, argsFilled) <- foldM func (quota - 1, []) args :: TopDownSolver IO (Int, [RProgram])
 
         return Program { content = PApp id argsFilled, typeOf = refineTop env schema } 
       
@@ -238,7 +226,7 @@ dfs env messageChan quota goalType
 --
 -- Given a component (id, schema) like ("length", <a>. [a] -> Int)
 --
-getUnifiedComponents :: Environment -> Chan Message -> (Id, RSchema) -> SType -> CompsSolver IO (Id, SType)
+getUnifiedComponents :: Environment -> Chan Message -> (Id, RSchema) -> SType -> TopDownSolver IO (Id, SType)
 getUnifiedComponents env messageChan (id, schema) goalType = do
     
     freshVars <- freshType (env ^. boundTypeVars) schema
@@ -246,7 +234,7 @@ getUnifiedComponents env messageChan (id, schema) goalType = do
     let t1 = shape (lastType freshVars) :: SType
     let t2 = goalType :: SType
 
-    solveTypeConstraint env t1 t2 :: CompsSolver IO ()
+    solveTypeConstraint env t1 t2 :: TopDownSolver IO ()
     st' <- get
     
     let sub = st' ^. typeAssignment

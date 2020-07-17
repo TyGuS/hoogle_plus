@@ -7,134 +7,12 @@
       output: (4, 9)
     - inputs: ["\\x -> x ++ x", "Data.List.reverse", "[1,2,3]"]
       output: ([1,2,3,1,2,3], [3,2,1])
-# solution: arg0 arg1 arg2 -> (arg0 arg2 , arg1 arg2)
-# ((arg1 arg2) , (arg0 arg2))
-
-# oh no
-
-# i think i know the bug
-
-# oh no
-
-
-#         let func :: (Int, [RProgram]) -> SType -> CompsSolver IO (Int, [RProgram])
-#             func (quota', programs) arg = do
-#               program <- dfs env messageChan quota' arg
-#               return (quota' - sizeOf program, programs ++ [program])
-#               o
-#               m
-#               g 
-#               IT TOOK US :(
-#               THIS LONG
-#               TO FIGURE     did you time it
-#               THAT OUTTTT 
-#               OMMMGGGG
-#               ok well fi
-              
-
-#               wait... why is fst running again? are there repeat functions? 
-#               terminal 4 says 65 which i tink is accurate 
-#               so 1 hour lol rip
-#               :(
-# wait but
-# given solution: (arg0 arg2 , arg1 arg2)
-# ours:           ((arg1 arg2) , (arg0 arg2))
-#                 ok but it arrives at the right solution so what if we just short cut it next run
-#                 filter out everything except (,) arg0 arg1 arg2 lolllll 
-                
-# solution: ((Data.Maybe.fromJust Data.Maybe.Nothing) , (Data.Maybe.fromJust Data.Maybe.Nothing))
-# solution: ((GHC.List.head []) , (Data.Maybe.fromJust Data.Maybe.Nothing))
-# solution: ((GHC.List.last []) , (Data.Maybe.fromJust Data.Maybe.Nothing))
-# solution: ((arg1 arg2) , (Data.Maybe.fromJust Data.Maybe.Nothing))
-# solution: ((Data.Maybe.fromJust Data.Maybe.Nothing) , (GHC.List.head []))
-# solution: ((GHC.List.head []) , (GHC.List.head []))
-# solution: ((GHC.List.last []) , (GHC.List.head []))
-# solution: ((arg1 arg2) , (GHC.List.head []))
-# solution: ((Data.Maybe.fromJust Data.Maybe.Nothing) , (GHC.List.last []))
-# solution: ((GHC.List.head []) , (GHC.List.last []))
-# solution: ((GHC.List.last []) , (GHC.List.last []))
-# solution: ((arg1 arg2) , (GHC.List.last []))
-# solution: ((Data.Maybe.fromJust Data.Maybe.Nothing) , (arg0 arg2))
-# solution: ((GHC.List.head []) , (arg0 arg2))
-# solution: ((GHC.List.last []) , (arg0 arg2))
-# solution: ((arg1 arg2) , (arg0 arg2))
-
-# /tmp/402bc6c7-3b05-4236-8b01-a020e13c2c15.hs:18:43: error:
-#     • Couldn't match expected type ‘b’ with actual type ‘c’
-#       ‘c’ is a rigid type variable bound by
-#         the type signature for:
-#           ghcCheckedFunction :: forall a b c.
-#                                 (a -> b) -> (a -> c) -> a -> (b, c)
-#         at /tmp/402bc6c7-3b05-4236-8b01-a020e13c2c15.hs:17:1-62
-#       ‘b’ is a rigid type variable bound by
-#         the type signature for:
-#           ghcCheckedFunction :: forall a b c.
-#                                 (a -> b) -> (a -> c) -> a -> (b, c)
-#         at /tmp/402bc6c7-3b05-4236-8b01-a020e13c2c15.hs:17:1-62
-#     • In the expression: (arg1 arg2)
-#       In the expression: ((arg1 arg2), (arg0 arg2))
-#       In the expression: \ arg0 arg1 arg2 -> ((arg1 arg2), (arg0 arg2))
-#     • Relevant bindings include
-#         arg1 :: a -> c
-#           (bound at /tmp/402bc6c7-3b05-4236-8b01-a020e13c2c15.hs:18:28)
-#         arg0 :: a -> b
-#           (bound at /tmp/402bc6c7-3b05-4236-8b01-a020e13c2c15.hs:18:23)
-#         ghcCheckedFunction :: (a -> b) -> (a -> c) -> a -> (b, c)
-#           (bound at /tmp/402bc6c7-3b05-4236-8b01-a020e13c2c15.hs:18:1)
-#    |
-# 18 | ghcCheckedFunction = \arg0 arg1 arg2 -> ((arg1 arg2) , (arg0 arg2))
-#    |                                           ^^^^^^^^^
-# <interactive>:1:23: error:
-#     • Couldn't match expected type ‘b1’ with actual type ‘c1’
-#       ‘c1’ is a rigid type variable bound by
-#         an expression type signature:
-#           forall a1 b1 c1. (a1 -> b1) -> (a1 -> c1) -> a1 -> (b1, c1)
-#         at <interactive>:1:53-92
-#       ‘b1’ is a rigid type variable bound by
-#         an expression type signature:
-#           forall a1 b1 c1. (a1 -> b1) -> (a1 -> c1) -> a1 -> (b1, c1)
-#         at <interactive>:1:53-92
-#     • In the expression: (arg1 arg2)
-#       In the expression: ((arg1 arg2), (arg0 arg2))
-#       In the expression:
-#           (\ arg0 arg1 arg2 -> ((arg1 arg2), (arg0 arg2))) ::
-#             ((a -> b)) -> ((a -> c)) -> a -> (b, c)
-#     • Relevant bindings include
-#         arg1 :: a1 -> c1 (bound at <interactive>:1:8)
-#         arg0 :: a1 -> b1 (bound at <interactive>:1:3)
-
-
-
-
-# pair (arg0 arg)
-# solution: snd (GHC.List.last (GHC.List.last []))
-# GHC.List.last: Args [GHC.List.reverse []] have size 2 (quota is 3)
-# solution: snd (GHC.List.last (GHC.List.reverse []))
-# GHC.List.last: Args [GHC.List.tail []] have size 2 (quota is 3)
-# solution: snd (GHC.List.last (GHC.List.tail []))
-# GHC.List.last: Args [[]] have size 1 (quota is 3)
-# solution: snd (GHC.List.last [])
-# fst: Args [Data.Maybe.fromJust Data.Maybe.Nothing] have size 2 (quota is 3)
-# solution: snd (fst (Data.Maybe.fromJust Data.Maybe.Nothing))
-# fst: Args [GHC.List.head []] have size 2 (quota is 3)
-# solution: snd (fst (GHC.List.head []))
-# fst: Args [GHC.List.last []] have size 2 (quota is 3)
-# solution: snd (fst (GHC.List.last []))
-# snd: Args [Data.Maybe.fromJust Data.Maybe.Nothing] have size 2 (quota is 3)
-# solution: snd (snd (Data.Maybe.fromJust Data.Maybe.Nothing))
-# snd: Args [GHC.List.head []] have size 2 (quota is 3)
-# solution: snd (snd (GHC.List.head []))
-# snd: Args [GHC.List.last []] have size 2 (quota is 3)
-# solution: snd (snd (GHC.List.last []))
-
-
 
 #- name: intToBS
 #  query: "Int64 -> ByteString"
 #  solution: "toLazyByteString . int64Dec"
 #  source: "original"
 
-# TODO took too long
 - name: test
   query: "Bool -> a -> Maybe a"
   solution: "\\arg0 arg1 -> Data.Bool.bool Nothing (Just arg1) arg0"
@@ -144,33 +22,6 @@
       output: Just 1
     - inputs: ["False", "2"]
       output: Nothing
-
-# program: Data.Bool.bool (Data.Bool.bool Data.Maybe.Nothing Data.Maybe.Nothing Data.Bool.False) (Data.Maybe.Just arg1) (arg0 || Data.Bool.False)
-# "Just 1"
-# "Nothing"
-# "Just 1"
-# program: Data.Bool.bool (Data.Bool.bool Data.Maybe.Nothing Data.Maybe.Nothing Data.Bool.False) (Data.Maybe.Just arg1) (arg0 || Data.Bool.True)
-# "Just 1"
-# "Just 2"
-# "Just 1"
-# program: Data.Bool.bool (Data.Bool.bool Data.Maybe.Nothing Data.Maybe.Nothing Data.Bool.False) (Data.Maybe.Just arg1) (arg0 || Data.Bool.otherwise)
-# "Just 1"
-# "Just 2"
-# "Just 1"
-# program: Data.Bool.bool (Data.Bool.bool Data.Maybe.Nothing Data.Maybe.Nothing Data.Bool.False) (Data.Maybe.Just arg1) (arg0 || arg0)
-# "Just 1"
-# "Nothing"
-# "Just 1"
-
-
-
-
-# stack run -- hplus --json='{"query": "Bool -> a -> Maybe a", "inExamples": [{"inputs": ["True", "1"], "output": "Just 1"}, {"inputs": ["False", "2"], "output": "Nothing"}]}'
-# \\arg0 arg1 -> Data.Bool.bool
-#   (Data.Bool.bool Data.Maybe.Nothing Data.Maybe.Nothing Data.Bool.False)
-#   (Data.Maybe.Just arg1)
-#   (Data.Bool.True && arg0)
-# Data.Bool.bool (Data.Bool.bool Data.Maybe.Nothing Data.Maybe.Nothing Data.Bool.False) (Data.Maybe.Just arg1) (Data.Bool.False || arg0)
 
 - name: both
   query: "(a -> b) -> (a, a) -> (b, b)"
@@ -191,10 +42,6 @@
       output: "2"
     - inputs: ["3", "[]"]
       output: "3"
-# stack run -- hplus --json='{"query": "a -> [Maybe a] -> a", "inExamples": [{"inputs": ["3", "[Nothing, Just 2, Nothing]"], "output": "2"}, {"inputs": ["3", "[]"], "output": "3"}]}'
-
-# - name: groupList
-#   query: "[(k, v)] -> Map k [v]"
 
 - name: mapEither
   query: "(a -> Either b c) -> [a] -> ([b], [c])"
