@@ -1,7 +1,0 @@
-@package base
-@version 4.12.0.0
-
-module Data.List
-data List a
-(++) :: [a] -> [a] -> [a]
-length :: [a] -> Int

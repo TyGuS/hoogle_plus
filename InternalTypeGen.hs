@@ -4,6 +4,10 @@
 module InternalTypeGen where
 
 import Data.List (isInfixOf, elemIndex, nub, drop, reverse, intersect)
+import Data.Containers.ListUtils (nubOrd)
+import Control.DeepSeq (force)
+import Control.Exception (evaluate)
+
 import Control.Monad
 import Control.Monad.State
 import Control.Monad.Logic
@@ -23,12 +27,23 @@ import qualified Test.QuickCheck as QC
 defaultShowFunctionDepth = 4 :: Int
 defaultMaxOutputLength = 10 :: CB.Nat
 defaultSeriesLimit = 5 :: Int
+defaultTimeoutMicro = 100 :: Int
+defaultTestArgs = QC.stdArgs {QC.chatty = False, QC.maxDiscardRatio = 1, QC.maxSuccess = 30} :: QC.Args
 
 instance Eq a => Eq (CB.Result a) where
   (CB.Value a) == (CB.Value b) = a == b
   CB.NonTermination == CB.NonTermination = True
   (CB.Exception _) == (CB.Exception _) = True
   _ == _ = False
+
+instance Ord a => Ord (CB.Result a) where
+  (CB.Value a) `compare` (CB.Value b) = a `compare` b
+  (CB.Value _) `compare` _ = GT
+  (CB.Exception _) `compare` (CB.Exception _) = EQ
+  (CB.Exception _) `compare` (CB.Value _) = LT
+  (CB.Exception _) `compare` _ = GT
+  (CB.NonTermination) `compare` (CB.NonTermination) = EQ
+  (CB.NonTermination) `compare` _ = LT
 
 isFailedResult :: CB.Result String -> Bool
 isFailedResult result = case result of
@@ -38,6 +53,34 @@ isFailedResult result = case result of
   CB.Value a | "Exception" `isInfixOf` a -> True
   _ -> False
 
+showCBResult :: CB.Result String -> String
+showCBResult = \case
+                  CB.Value a | "_|_" `isInfixOf` a -> "bottom"
+                  CB.Value a -> a
+                  CB.NonTermination -> "diverge"
+                  CB.Exception ex -> show ex
+
+anyDuplicate :: Ord a => [a] -> Bool
+anyDuplicate [x, y] = x == y
+anyDuplicate xs = length (nubOrd xs) /= length xs
+
+labelEvaluation :: (Data a, QC.Testable prop) => [String] -> [a] -> ([CB.Result String] -> prop) -> IO QC.Property
+labelEvaluation inputs values prop = do
+    outputs <- mapM (evaluateValue defaultTimeoutMicro) values
+    
+    let examples = map (Example inputs . showCBResult) outputs
+    return $ QC.label (show examples) (prop outputs)
+  where
+    evaluateValue :: Data a => Int -> a -> IO (CB.Result String)
+    evaluateValue timeInMicro = (CB.timeOutMicro timeInMicro . evaluate . force . CB.approxShow defaultMaxOutputLength)
+
+-- * instance defined in `Types.IOFormat`
+data Example = Example {
+    inputs :: [String],
+    output :: String
+} deriving(Eq, Show, Read)
+
+-- * Custom Datatype for Range Restriction
 data MyInt = MOne | Zero | One | Two | Other Int deriving (Eq)
 
 instance Show MyInt where
@@ -145,67 +188,3 @@ instance {-# OVERLAPPING #-} (Unwrappable a b) => Unwrappable (Maybe a) (Maybe b
 instance (Unwrappable a c, Unwrappable b d) => Unwrappable (a, b) (c, d) where
   unwrap (x, y) = (unwrap x, unwrap y)
   wrap (x, y) = (wrap x, wrap y)
-
-
-showCBResult :: CB.Result String -> String
-showCBResult = \case
-                  CB.Value a | "_|_" `isInfixOf` a -> "bottom"
-                  CB.Value a -> a
-                  CB.NonTermination -> "diverge"
-                  CB.Exception ex -> show ex
-
-anyDuplicate :: Eq a => [a] -> Bool
--- anyDuplicate xs = length (nub xs) /= length xs
-anyDuplicate [] = False
-anyDuplicate (x:xs) = x `elem` xs 
-
--- * instance defined in `Types.IOFormat`
-data Example = Example {
-    inputs :: [String],
-    output :: String
-} deriving(Eq, Show)
-
-type ExampleGeneration m = StateT [Example] m
-
-evaluateIOQC :: Show a => [String] -> a -> ExampleGeneration IO String
-evaluateIOQC inputs val = do
-    let result = show val
-    modify ((Example inputs result):)
-    return result
-
-evaluateIO :: Data a => Int -> [String] -> [a] -> ExampleGeneration IO ([CB.Result String])
-evaluateIO timeInMicro inputs vals = do
-    results <- liftIO $ silence $ mapM (CB.timeOutMicro timeInMicro . eval) vals
-    
-    let resultsStr = map showCBResult results
-    modify ((++) (map (Example inputs) resultsStr))
-    return results
-  where
-    evalStr val = CB.approxShow defaultMaxOutputLength val
-    io str = ((putStrLn str) >> return str)
-
-    eval val = io (evalStr val)
- 
-waitState :: Int -> [String] -> [String] -> [[String]] -> CB.Result String -> ExampleGeneration IO Bool
-waitState numIOs args previousRets previousArgs ret = case (not $ isFailedResult ret) of
-  False -> pure False
-  _ -> do
-    ioState <- get
-
-    let retStr = showCBResult ret
-    when (retIsNotInState retStr ioState && paramsIsNotInState args ioState)
-        (modify ((:) (Example args retStr)))
-
-    state <- get
-    return ((length state) == numIOs)
-  where 
-    retIsNotInState retStr state = not $ ((retStr `elem` (map output state)) || (retStr `elem` previousRets))
-    paramsIsNotInState params state = not (anyCommonArgs params (map inputs state ++ previousArgs))
-
--- modify 2020/04/22 by Zheng
--- only compare arguments in the same position, intersect is too strict
-anyCommonArgs :: [String] -> [[String]] -> Bool
-anyCommonArgs args inputs = or $ map (compare args) inputs
-  where
-    compare :: [String] -> [String] -> Bool
-    compare xs = any (uncurry (==)) . zip xs

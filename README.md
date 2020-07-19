@@ -1,5 +1,6 @@
 # hoogle_plus
 Type-driven, component based synthesis, showcasing TYpe Guided Abstract Refinement (TYGAR).
+Try it at <http://hoogleplus.goto.ucsd.edu>
 
 # Using Evaluation Docker Image
 ## System Prerequisites:
@@ -33,10 +34,25 @@ These are the results of the evaluation.
 
 ## Usage
 ```
-stack exec -- hplus "Maybe a -> [a] -> a"
+stack exec -- hplus --json='{"query": "a -> [Maybe a] -> a", "inExamples": [{"inputs": ["1", "[Nothing ,Just 3, Nothing]"], "output":"3"}]}'
 ```
-Replace the type query with whatever your heart fancies.
-The default search mode is `TYGARAQ` as described in the paper: unbounded abstraction refinement.
+Replace the type query and examples with whatever your heart fancies.
+The input should follow the json format that
+```json
+{
+    "query": str,
+    "inExamples": [
+        {
+            "inputs": [str],
+            "output": str
+        }
+    ]            
+}
+```
+The default search mode is `TYGARAQB-10` as described in the paper: bounded abstraction refinement of size 10.
+
+The default argument names will be `arg0, 1, ...`.
+You may specify your own argument names. For example, the previous type query can be written as `d: a -> xs: [Maybe a] -> a`.
 
 You may try searches with different variants with the following command line args:
 - TYGARQ: Unbounded abstraction refinement. This is the default mode. The initial abstract cover are the types in the query.
@@ -48,18 +64,29 @@ You may try searches with different variants with the following command line arg
 # Building from scratch, for the developers
 
 ## build
-To build this project, you need to have z3-4.7.1.
+To build this project, you need to have [z3-4.7.1](https://github.com/Z3Prover/z3/releases/z3-4.7.1).
+
+### MacOS users
+If you see the runtime error message like 
+```
+lookupSymbol failed in relocateSection (RELOC_GOT)
+/Users/<username>/.stack/programs/x86_64-osx/ghc-custom-yields-8.8.3/lib/ghc-8.8.3/integer-gmp-1.0.2.0/HSinteger-gmp-1.0.2.0.o: unknown symbol `___gmp_rands'
+error: GhcException "unable to load package `integer-gmp-1.0.2.0'"
+```
+To fix this, you may execute `rm /Users/<username>/.stack/programs/x86_64-osx/ghc-custom-yields-8.8.3/lib/ghc-8.8.3/integer-gmp-1.0.2.0/HSinteger-gmp-1.0.2.0.o`
+
+If you see a lot of XCode linker error when you install ghc-8.8.3, please feel free to ignore them.
 
 ## usage
 Execute in the `hoogle_plus` directory:
 ```
-stack exec -- hplus generate --preset totalfunctions
-stack exec -- hplus [DESIRED TYPE] [OPTIONAL ARGS]
+stack exec -- hplus generate --preset partialfunctions
+stack exec -- hplus [DESIRED QUERY] [OPTIONAL ARGS]
 ```
 
 ## Example:
 `stack exec -- hplus generate -p base -m "Data.Maybe"` to generate the componenet set
-`stack exec -- hplus "Maybe a -> Pair a b -> Pair a b"`. Then you will get a solution:
+`stack exec -- hplus --json='{"query": "Maybe a -> (a, b) -> (a, b)", "inExamples": []}'`. Then you will get a solution:
 
 `SOLUTION: (,) (Data.Maybe.fromMaybe (fst arg0) arg1) (snd arg0)`
 
@@ -67,22 +94,7 @@ stack exec -- hplus [DESIRED TYPE] [OPTIONAL ARGS]
 ## Artifacts
 You may run any of these with `stack exec -- <artifactname>`:
 - `hplus` : This is the CLI for running single queries
-- `webapp`: Hosts a simple web interface at localhost:3000
-
-## Sample genererate:
-You need to generate the component library that's used for synthesis.
-
-Use our bigger set of components here:
-```
-stack exec -- hplus generate --preset partialfunctions
-```
-
-If you would just like to consider functions that are total (i.e., well defined
-on all inputs), use:
-```
-stack exec -- hplus generate --preset totalfunctions
-```
-
+- `new_webapp` and `web_server`: Hosts a simple web interface at localhost:3000
 
 If you have your own file(s) you want to use, you may specify them. You will then use all the modules within the files. At this time you may not filter within the file:
 ```

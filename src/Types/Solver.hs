@@ -1,10 +1,11 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts, UndecidableInstances #-}
+{-# LANGUAGE RankNTypes #-}
 module Types.Solver where
 
-import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.HashMap.Strict (HashMap)
@@ -14,19 +15,18 @@ import Control.Monad.State
 import Control.Concurrent.Chan
 import Control.Monad.Logic
 
-import Types.Program
-import Types.Abstract
-import Types.Experiments hiding (PetriNet)
-import Types.Type
-import Types.Common
-import Types.Encoder
-import Types.Filtering
+import Database.Utils
+import Encoder.ConstraintEncoder
 import Types.CheckMonad
-import Types.TypeChecker
+import Types.Common
+import Types.Experiments hiding (PetriNet)
+import Types.Filtering
 import Types.IOFormat
-import Database.Util
+import Types.Program
+import Types.Type
+import Types.TypeChecker
 
-rootNode = AScalar (ATypeVarT varName)
+rootNode = TypeVarT varName
 pairProj = "pair_match"
 
 type AbstractCover = HashMap AbstractSkeleton (Set AbstractSkeleton)
@@ -48,7 +48,7 @@ emptyGroup = GroupState {
 makeLenses ''GroupState
 
 data SearchState = SearchState {
-    _currentSolutions :: [RProgram], -- type checked solutions
+    _currentSolutions :: [TProgram], -- type checked solutions
     _currentLoc :: Int, -- current solution depth
     _currentSigs :: Map Id AbstractSkeleton, -- current type signature groups
     _activeSigs :: Set Id,
@@ -79,11 +79,12 @@ emptyStatistic = StatisticState {
 
 makeLenses ''StatisticState
 
-type CheckError = (RProgram, AbstractSkeleton)
+type CheckError = (TProgram, AbstractSkeleton)
+type InstanceMap = HashMap (Id, AbsArguments) (Id, AbsReturn)
 
 data RefineState = RefineState {
     _abstractionCover :: AbstractCover,
-    _instanceMapping :: HashMap (Id, [AbstractSkeleton]) (Id, AbstractSkeleton),
+    _instanceMapping :: InstanceMap,
     _targetType :: AbstractSkeleton,
     _sourceTypes :: [AbstractSkeleton],
     _splitTypes :: Set AbstractSkeleton,
@@ -95,7 +96,7 @@ data RefineState = RefineState {
 emptyRefineState = RefineState {
     _abstractionCover = HashMap.empty,
     _instanceMapping = HashMap.empty,
-    _targetType = AScalar (ATypeVarT varName),
+    _targetType = TypeVarT varName,
     _sourceTypes = [],
     _splitTypes = Set.empty,
     _toRemove = [],
@@ -105,57 +106,55 @@ emptyRefineState = RefineState {
 
 makeLenses ''RefineState
 
-data SolverState = SolverState {
+data SolverState enc = SolverState {
     _searchParams :: SearchParams,
     _refineState :: RefineState,
     _statistics :: StatisticState,
     _searchState :: SearchState,
     _groupState :: GroupState,
-    _encoder :: EncodeState,
+    _encoder :: ConstraintEncoder enc => enc,
     _typeChecker :: CheckerState,
-    _filterState :: FilterState,
-    _messageChan :: Chan Message
-} deriving(Eq)
+    _filterState :: FilterState
+}
 
-emptySolverState :: SolverState
+emptySolverState :: ConstraintEncoder enc => SolverState enc
 emptySolverState = SolverState {
     _searchParams = defaultSearchParams,
     _refineState = emptyRefineState,
     _statistics = emptyStatistic,
     _searchState = emptySearchState,
     _groupState = emptyGroup,
-    _encoder = emptyEncodeState,
+    _encoder = emptyEncoder,
     _typeChecker = emptyChecker,
-    _filterState = emptyFilterState,
-    _messageChan = undefined
+    _filterState = emptyFilterState
 }
 
 makeLenses ''SolverState
 
-type PNSolver m = StateT SolverState m
-type BackTrack m = LogicT (PNSolver m)
+type PNSolver enc m = StateT (SolverState enc) m
+type BackTrack enc m = LogicT (PNSolver enc m)
 
-instance Monad m => CheckMonad (PNSolver m) where
+instance (ConstraintEncoder enc, Monad m) => CheckMonad (PNSolver enc m) where
     getNameCounter = gets (view (typeChecker . nameCounter))
     setNameCounter nc = modify (set (typeChecker . nameCounter) nc)
     getNameMapping = gets (view (typeChecker . nameMapping))
     setNameMapping nm = modify (set (typeChecker . nameMapping) nm)
     getIsChecked = gets (view (typeChecker . isChecked))
     setIsChecked c = modify (set (typeChecker . isChecked) c)
-    getMessageChan = gets (view messageChan)
+    getLogLevel = gets (view (searchParams . explorerLogLevel))
     overStats f = modify (over (statistics . solverStats) f)
 
-instance Monad m => CheckMonad (BackTrack m) where
+instance (ConstraintEncoder enc, Monad m) => CheckMonad (BackTrack enc m) where
     getNameCounter = gets (view (typeChecker . nameCounter))
     setNameCounter nc = modify (set (typeChecker . nameCounter) nc)
     getNameMapping = gets (view (typeChecker . nameMapping))
     setNameMapping nm = modify (set (typeChecker . nameMapping) nm)
     getIsChecked = gets (view (typeChecker . isChecked))
     setIsChecked c = modify (set (typeChecker . isChecked) c)
-    getMessageChan = gets (view messageChan)
+    getLogLevel = gets (view (searchParams . explorerLogLevel))
     overStats f = modify (over (statistics . solverStats) f)
 
 data SearchResult = NotFound 
-                  | Found (RProgram, AssociativeExamples)
-                  | MoreRefine (RProgram, AbstractSkeleton)
+                  | Found (TProgram, AssociativeExamples)
+                  | MoreRefine (TProgram, AbstractSkeleton)
                   deriving(Eq)

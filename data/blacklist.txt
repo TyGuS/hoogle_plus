@@ -1,0 +1,11 @@
+Data.Function.const
+Data.Function.id
+Data.Function.fix
+Data.Function.on
+Data.Function.flip
+(Data.Function.&)
+(Data.Function..)
+GHC.List.cycle
+GHC.List.zip3
+GHC.List.unzip3
+GHC.List.zipWith3

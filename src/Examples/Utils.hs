@@ -23,9 +23,9 @@ import Data.List.Extra (dropEnd)
 import Outputable
 import Control.Monad.State
 import Control.Lens
-import Control.Concurrent.Chan
+import System.IO.Silently
 
-import Types.Filtering (defaultTimeoutMicro, defaultDepth, defaultInterpreterTimeoutMicro, frameworkModules)
+import Types.Filtering (defaultTimeoutMicro, defaultInterpreterTimeoutMicro, frameworkModules)
 import Types.IOFormat
 import Types.Type
 import Types.Common
@@ -33,18 +33,17 @@ import Types.Environment
 import Types.Experiments
 import Types.TypeChecker
 import Types.InfConstraint
-import Database.Util
-import Synquid.Logic
+import Database.Utils
 import Synquid.Type
-import HooglePlus.FilterTest (runInterpreter')
+import HooglePlus.FilterTest (runInterpreterWithEnvTimeout)
 import HooglePlus.TypeChecker (solveTypeConstraint)
-import PetriNet.Util
+import PetriNet.Utils
 
 askGhc :: [String] -> Ghc a -> IO a
 askGhc mdls f = do
-    mbResult <- timeout (10^6) $ runGhc (Just libdir) $ do
+    mbResult <- timeout (10^6) $ silence $ runGhc (Just libdir) $ do
         dflags <- getSessionDynFlags
-        let dflags' = dflags { 
+        let dflags' = dflags {
             generalFlags = ES.delete Opt_OmitYields (generalFlags dflags),
             extensionFlags = ES.insert FlexibleContexts (extensionFlags dflags)
             }
@@ -61,7 +60,7 @@ askGhc mdls f = do
             return (map IIDecl decls)
 
 runStmt :: [String] -> String -> IO (Either ErrorMessage String)
-runStmt mdls prog = do
+runStmt mdls prog =
   catch (askGhc mdls $ do
     -- allow type defaulting during execution
     dflags <- getSessionDynFlags
@@ -83,24 +82,36 @@ runStmt mdls prog = do
                 Just (AnId aid) -> do
                     t <- gtry $ obtainTermFromId maxBound True aid
                     case t of
-                        Right term -> showTerm term >>= return . Right . dropEnd 1 . drop 1 . showSDocUnsafe
+                        Right term -> (Right . showSDocUnsafe) <$> showTerm term
                         Left (exn :: SomeException) -> return (Left $ show exn)
                 _ -> return (Left "Unknown error")
         getExecValue [] = return (Left "Empty result list")
 
-skipTyclass :: TypeSkeleton r -> TypeSkeleton r
-skipTyclass (FunctionT x (ScalarT (DatatypeT name args _) _) tRes)
-    | tyclassPrefix `isPrefixOf` name = skipTyclass tRes
+isTyclass :: TypeSkeleton -> Bool
+isTyclass (DatatypeT name) = tyclassPrefix `isPrefixOf` name
+isTyclass (TyAppT tFun _) = isTyclass tFun
+isTyclass _ = False
+
+skipTyclass :: TypeSkeleton -> TypeSkeleton
+skipTyclass (FunctionT x tArg tRes) | isTyclass tArg = skipTyclass tRes
 skipTyclass t = t
 
 seqChars = map (:[]) ['a'..'z']
 
-integerToInt :: TypeSkeleton r -> TypeSkeleton r
-integerToInt (ScalarT (DatatypeT dt args _) r) 
-  | dt == "Integer" = ScalarT (DatatypeT "Int" (map integerToInt args) []) r
-  | otherwise = ScalarT (DatatypeT dt (map integerToInt args) []) r 
-integerToInt (FunctionT x tArg tRes) =
-    FunctionT x (integerToInt tArg) (integerToInt tRes)
+integerToInt :: TypeSkeleton -> TypeSkeleton
+integerToInt (DatatypeT "Integer") = DatatypeT "Int"
+integerToInt (TyAppT tFun tArg) = TyAppT tFun' tArg'
+    where
+        tFun' = integerToInt tFun
+        tArg' = integerToInt tArg
+integerToInt (TyFunT tArg tRes) = TyFunT tArg' tRes'
+    where
+        tArg' = integerToInt tArg
+        tRes' = integerToInt tRes
+integerToInt (FunctionT x tArg tRes) = FunctionT x tArg' tRes'
+    where
+        tArg' = integerToInt tArg
+        tRes' = integerToInt tRes
 integerToInt t = t
 
 wrapParens :: String -> String
@@ -109,21 +120,20 @@ wrapParens = printf "(%s)"
 supportedTyclasses :: [String]
 supportedTyclasses = ["Num", "Ord", "Eq"]
 
-checkTypes :: Environment -> Chan Message -> RSchema -> RSchema -> IO (Bool, SType)
-checkTypes env checkerChan s1 s2 = do
-    let initChecker = emptyChecker { _checkerChan = checkerChan }
+checkTypes :: Environment -> SchemaSkeleton -> SchemaSkeleton -> IO (Bool, TypeSkeleton)
+checkTypes env s1 s2 = do
     let bound = env ^. boundTypeVars
     (t, state) <- runStateT (do
         r1 <- freshType bound s1
         r2 <- freshType bound s2
         let t1 = skipTyclass r1
         let t2 = skipTyclass r2
-        solveTypeConstraint env (shape t1) (shape t2)
+        state $ runState $ solveTypeConstraint env t1 t2
         tass <- gets $ view typeAssignment
-        return $ stypeSubstitute tass $ shape r2) initChecker
+        return $ typeSubstitute tass r2) emptyChecker
     return (state ^. isChecked, t)
 
-mkPolyType :: TypeSkeleton r -> SchemaSkeleton r
+mkPolyType :: TypeSkeleton -> SchemaSkeleton
 mkPolyType t = let tvars = Set.toList $ typeVarsOf t
-                   freeVars = filter ((==) univTypeVarPrefix . head) tvars
+                   freeVars = filter ((==) existTypeVarPrefix . head) tvars
                 in foldr ForallT (Monotype t) freeVars

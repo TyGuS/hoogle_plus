@@ -17,7 +17,7 @@ import Types.IOFormat
 import Types.Experiments
 import Types.Environment
 import Types.Type
-import Types.Filtering (defaultTimeoutMicro, defaultGenerationDepth, defaultInterpreterTimeoutMicro, defaultGenerationTimeoutMicro)
+import Types.Filtering (defaultTimeoutMicro, defaultInterpreterTimeoutMicro, defaultGenerationTimeoutMicro)
 import Synquid.Parser (parseSchema, parseProgram)
 import Synquid.Resolver (ResolverState(..), initResolverState, resolveSchema)
 import Synquid.Type
@@ -65,7 +65,7 @@ decodeInput bs = case mbInput of
 -- includes: solutions, each solution is an ast
 -- accompanied with several examples
 encodeOutput :: QueryOutput -> ByteString
-encodeOutput out = A.encode out
+encodeOutput = A.encode
 
 instance Show QueryOutput where
     show = show . encodeOutput 
@@ -73,7 +73,7 @@ instance Show QueryOutput where
 readEnv :: FilePath -> IO Environment
 readEnv envPathIn = do
     doesExist <- doesFileExist envPathIn
-    when (not doesExist) (error ("Please run `stack exec -- hplus generate -p [PACKAGES]` to generate database first"))
+    unless doesExist (error "Please run `stack exec -- hplus generate -p [PACKAGES]` to generate database first")
     envRes <- S.decode <$> B.readFile envPathIn
     case envRes of
         Left err -> error err
@@ -83,7 +83,7 @@ readBuiltinData :: SynquidParams -> Environment -> IO Environment
 readBuiltinData synquidParams env = do
     let jsonPathIn = jsonPath synquidParams
     doesExist <- doesFileExist jsonPathIn
-    when (not doesExist) (error "cannot find builtin json file")
+    unless doesExist (error "cannot find builtin json file")
     json <- readFile jsonPathIn
     let mbBuildObjs = A.decode (LB.pack json) :: Maybe [QueryInput]
     case mbBuildObjs of
@@ -95,7 +95,7 @@ readBuiltinData synquidParams env = do
     where
         transformObj (QueryInput q exs) = (parseQueryType env q, exs)
 
-parseQueryType :: Environment -> String -> RSchema
+parseQueryType :: Environment -> String -> SchemaSkeleton
 parseQueryType env str = let
     parseResult = flip evalState (initialPos "type") $ 
                   runIndentParserT parseSchema () "" str
@@ -115,7 +115,7 @@ searchTypes synquidParams inStr num = do
     let mdls = Set.toList $ env ^. included_modules
     let mkFun ex = printf "(%s)" (intercalate ", " $ inputs ex ++ [output ex])
     exTypes <- mapM (parseExample mdls . mkFun) exquery
-    let (validSchemas, invalidTypes) = partitionEithers exTypes
+    let (invalidTypes, validSchemas) = partitionEithers exTypes
     resultObj <- if null invalidTypes then possibleQueries env exquery validSchemas
                                       else return $ ListOutput [] (unlines invalidTypes)
     printResult $ encodeWithPrefix resultObj
@@ -125,8 +125,8 @@ searchTypes synquidParams inStr num = do
             let freeVars = Set.toList $ typeVarsOf t
                 validVars = foldr delete seqChars freeVars
                 substVars = foldr delete freeVars seqChars
-                substMap = Map.fromList $ zip substVars $ map vart_ validVars
-             in stypeSubstitute substMap t
+                substMap = Map.fromList $ zip substVars $ map TypeVarT validVars
+             in typeSubstitute substMap t
 
         possibleQueries env exquery exTypes = do
             generalTypes <- getExampleTypes env exTypes num
@@ -170,7 +170,7 @@ searchExamples synquidParams inStr num = do
     -- this query
     let prevResults = map output $ exampleExisting input
     let prevInputs = map (map toNormalFunctions . inputs) $ exampleExisting input
-    result <- generateIOPairs mdls prog funcSig num defaultTimeoutMicro defaultGenerationTimeoutMicro defaultGenerationDepth prevResults prevInputs
+    result <- generateIOPairs mdls prog funcSig num defaultTimeoutMicro defaultGenerationTimeoutMicro prevResults prevInputs
     resultObj <- case result of
           Left err -> return $ ListOutput [] (show err)
           Right genRes | null genRes -> return $ ListOutput [] "No more examples"
