@@ -1,0 +1,43 @@
+Name	Query	Time	Solution
+appBoth	(a -> b) -> (a -> c) -> a -> (b, c)	5.40	\arg0 arg1 arg2 -> ((arg0 arg2) , (arg1 arg2))
+test	Bool -> a -> Maybe a	5.89	\arg0 arg1 -> Data.Bool.bool Data.Maybe.Nothing (Data.Maybe.Just arg1) arg0
+both	(a -> b) -> (a, a) -> (b, b)	3.81	\arg0 arg1 -> ((arg0 (fst arg1)) , (arg0 (snd arg1)))
+firstJust	a -> [Maybe a] -> a	26.32	\arg0 arg1 -> Data.Maybe.fromMaybe arg0 (Data.Maybe.listToMaybe (Data.Maybe.catMaybes arg1))
+mapEither	(a -> Either b c) -> [a] -> ([b], [c])	32.96	\arg0 arg1 -> Data.Either.partitionEithers (GHC.List.map arg0 arg1)
+mapMaybes	(a -> Maybe b) -> [a] -> Maybe b	9.90	\arg0 arg1 -> arg0 (GHC.List.last (GHC.List.init arg1))
+mergeEither	Either a (Either a b) -> Either a b	300.05	-
+mbToEither	Maybe a -> b -> Either a b	299.84	-
+cartProduct	[a] -> [b] -> [[(a,b)]]	299.96	-
+multiAppPair	(a -> b, a -> c) -> a -> (b, c)	11.74	\arg0 arg1 -> (((fst arg0) $ arg1) , ((snd arg0) $ arg1))
+map	(a->b)->[a]->[b]	4.82	\arg0 arg1 -> GHC.List.map arg0 arg1
+repl-funcs	(a->b)->Int->[a->b]	2.57	\arg0 arg1 -> GHC.List.replicate arg1 arg0
+mbAppFirst	b -> (a -> b) -> [a] -> b	8.84	\arg0 arg1 arg2 -> Data.Maybe.maybe arg0 arg1 (Data.Maybe.listToMaybe arg2)
+2partApp	(a->b)->(b->c)->[a]->[c]	12.14	\arg0 arg1 arg2 -> GHC.List.map arg1 (GHC.List.map arg0 arg2)
+resolveEither	Either a b -> (a->b) -> b	7.61	\arg0 arg1 -> Data.Either.either arg1 Data.Function.id arg0
+multiApp	(a -> b -> c) -> (a -> b) -> a -> c	9.32	\arg0 arg1 arg2 -> arg0 arg2 (arg1 arg2)
+singleList	a -> [a]	49.74	\arg0 -> arg0 : []
+head-last	[a] -> (a,a)	300.03	-
+head-rest	[a] -> (a, [a])	6.46	-
+pred-match	[a] -> (a -> Bool) -> Int	8.21	-
+splitStr	String -> Char -> [String]	7.43	\arg0 arg1 -> GHC.List.repeat (Text.Show.showChar arg1 arg0)
+splitAtFirst	a -> [a] -> ([a], [a])	300.06	-
+hoogle01	(a -> b) -> [a] -> b	8.39	\arg0 arg1 -> arg0 (GHC.List.head arg1)
+firstMatch	[a] -> (a -> Bool) -> a	12.59	\arg0 arg1 -> GHC.List.head (GHC.List.filter arg1 arg0)
+firstMaybe	[Maybe a] -> a	4.31	\arg0 -> GHC.List.head (Data.Maybe.catMaybes arg0)
+rights	[Either a b] -> Either a [b]	4.14	\arg0 -> Data.Either.Right (Data.Either.rights arg0)
+firstKey	[(a,b)] -> a	6.36	\arg0 -> Data.Tuple.fst (GHC.List.head arg0)
+firstRight	[Either a b] -> Either a b	7.27	\arg0 -> GHC.List.last (GHC.List.init arg0)
+maybe	Maybe a -> a -> Maybe a	3.94	\arg0 arg1 -> Data.Maybe.Just (Data.Maybe.fromMaybe arg1 arg0)
+app3	(a -> b -> c -> d) -> a -> c -> b -> d	4.80	\arg0 arg1 arg2 arg3 -> arg0 arg1 arg3 arg2
+appendN	Int -> [a] -> [a]	26.92	\arg0 arg1 -> GHC.List.concat (GHC.List.replicate arg0 arg1)
+zipWithResult	(a->b)->[a]->[(a,b)]	146.31	\arg0 arg1 -> GHC.List.zip arg1 (GHC.List.map arg0 arg1)
+applyNtimes	(a->a) -> a -> Int -> a	25.69	\arg0 arg1 arg2 -> (GHC.List.iterate arg0 arg1) !! arg2
+eitherTriple	Either a b -> Either a b -> Either a b	37.27	\arg0 arg1 -> Data.Bool.bool arg1 arg0 (Data.Either.isLeft arg0)
+pipe	[(a -> a)] -> (a -> a)	6.55	\arg0 arg1 -> GHC.List.foldr Data.Function.id arg1 arg0
+lookup	Eq a => [(a,b)] -> a -> b	4.52	\arg0 arg1 -> Data.Maybe.fromJust (GHC.List.lookup arg1 arg0)
+mbElem	Eq a => a -> [a] -> Maybe a	9.85	\arg0 arg1 -> Data.Maybe.listToMaybe (GHC.List.filter ((Data.Eq.==) arg0) arg1)
+areEq	Eq a => a -> a -> Maybe a	299.83	-
+applyPair	(a -> b, a) -> b	4.41	\arg0 -> (fst arg0) $ (snd arg0)
+flatten	[[[a]]] -> [a]	9.03	\arg0 -> GHC.List.concat (GHC.List.concat arg0)
+takeNdropM	Int -> Int -> [a] -> ([a], [a])	299.91	-
+indexesOf	([(a,Int)] -> [(a,Int)]) -> [a] -> [Int] -> [Int]	0.76	-

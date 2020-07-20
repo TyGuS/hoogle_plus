@@ -147,14 +147,10 @@ iterativeDeepening env messageChan searchParams examples goal = evalTopDownSolve
     
     -- wrapper for `check` function
     check' :: RProgram -> IO Bool
-    check' program = do
-      -- printf "omg we are checking this program: %s\n" (show program)
-      let blah = filterParams program
-      if blah
-        
-        then do
-          liftIO $ printf "program: %s\n" $ show program
-          
+    check' program
+      -- check if the program has all the arguments that it should have (avoids calling check)
+      | filterParams program = do
+          -- liftIO $ printf "program: %s\n" $ show program
           checkResult <- evalStateT (check env searchParams examples program goal messageChan) emptyFilterState
           case checkResult of
             Nothing  -> return False
@@ -162,9 +158,7 @@ iterativeDeepening env messageChan searchParams examples goal = evalTopDownSolve
               out <- toOutput env program exs
               printResult $ encodeWithPrefix out
               return True
-        else do
-          -- liftIO $ printf "\t\tthis doesn't have all the args: %s\n" $ show program
-          return False
+      | otherwise = return False
 
     -- determines if the result has all the appropriate arguments
     filterParams :: RProgram -> Bool
@@ -177,53 +171,16 @@ dfs :: Environment -> Chan Message -> Int -> SType -> TopDownSolver IO RProgram
 dfs env messageChan quota goalType
   | quota <= 0 = mzero
   | otherwise  = do
+
     -- collect all the component types (which we might use to fill the holes)
     component <- choices $ Map.toList (env ^. symbols)
-
-    -- guard (not $ "Data.Function.&" `isInfixOf` fst component)
-    -- -- \xs x -> Data.List.foldr ($) x xs
-    -- guard (not $ "Data.Function.$" `isInfixOf` fst component)
-    -- guard (not $ "Data.Function.." `isInfixOf` fst component)
-    -- guard (not $ "GHC.List.!!" `isInfixOf` fst component)
-    -- guard ("Data.Function.$" `isInfixOf` fst component 
-    --     || "Data.Tuple.fst" `isInfixOf` fst component 
-    --     || "Data.Tuple.snd" `isInfixOf` fst component 
-    --     || "arg" `isInfixOf` fst component 
-    --     || "Pair" `isInfixOf` fst component)
-
-    -- if goalType is an arrow type a->b, turn it into a Fun a b
-    -- let goalType' = goalType
-    -- let goalType' =
-    --       if (isFunctionType goalType)
-    --         then shape $ toFunType $ refineTop env goalType
-    --               -- TODO or we can call DFS to synthesize \x -> ...
-    --               -- see the cartProduct test
-    --         else goalType
-
-    -- dfsResults <- dfs ...
     
     -- stream of components that unify with goal type
-    (id, schema) <- getUnifiedComponents component :: TopDownSolver IO (Id, SType)
+    (id, schema) <- getUnifiedComponent component :: TopDownSolver IO (Id, SType)
     
-    -- newList <- dfsResults1, getUnifiedComponents1, dfsResults2, getUnifiedComponents2
-    
-    -- remove _n'ho' from higher order things
-    -- ("(Data.Eq./=)_0'ho'",<a> . (@@hplusTC@@Eq (a) -> (a -> Fun (a) (Bool))))
-    -- ("(Data.Eq./=)_1'ho'",<a> . (@@hplusTC@@Eq (a) -> Fun (a) ((Fun (a) (Bool)))))
-    -- ("(Data.Eq./=)_2'ho'",<a> . Fun ((@@hplusTC@@Eq (a))) ((Fun (a) ((Fun (a) (Bool))))))
-    --  TODO fix this later
-    let id' = if "'ho'" `isSuffixOf` id
-          then 
-            let noHO = reverse $ drop 4 $ reverse id in-- hack to remove 'ho'
-            -- function_1 !! 0
-            if '_' == (reverse noHO !! 1)
-              then reverse $ drop 2 $ reverse noHO
-              else noHO
-          else id
-
-    -- stream of solutions to the (id, schema) returned from getUnifiedComponents
+    -- stream of solutions to the (id, schema) returned from getUnifiedComponent
     if isGround schema
-      then return Program { content = PSymbol id', typeOf = refineTop env schema }
+      then return Program { content = PSymbol id, typeOf = refineTop env schema }
       else do
         -- collect all the argument types (the holes ?? we need to fill)
         let args = allArgTypes schema :: [SType]
@@ -240,7 +197,7 @@ dfs env messageChan quota goalType
 
         (_, argsFilled) <- foldM func (quota - 1, []) args :: TopDownSolver IO (Int, [RProgram])
 
-        return Program { content = PApp id' argsFilled, typeOf = refineTop env schema } 
+        return Program { content = PApp id argsFilled, typeOf = refineTop env schema } 
       
   where
     -- checks if a program is ground (has no more arguments to synthesize - aka function w/o args)
@@ -257,9 +214,11 @@ dfs env messageChan quota goalType
     sizeOf = length . words . show
 
     -- Given a component (id, schema) like ("length", <a>. [a] -> Int)
-    getUnifiedComponents :: (Id, RSchema) -> TopDownSolver IO (Id, SType)
-    getUnifiedComponents (id, schema) = do
+    --  returns updated schema w/ sub if unifies 
+    getUnifiedComponent :: (Id, RSchema) -> TopDownSolver IO (Id, SType)
+    getUnifiedComponent (id, schema) = do
       
+      -- replaces "a" with "tau1"
       freshVars <- freshType (env ^. boundTypeVars) schema
 
       let t1 = shape (lastType freshVars) :: SType
@@ -270,14 +229,6 @@ dfs env messageChan quota goalType
       
       let sub = st' ^. typeAssignment
       let checkResult = st' ^. isChecked
-      -- when (show goalType == "a") $ do
-      -- -- when (show goalType == "Fun (a) (b)") $ do
-      -- -- when (isInfixOf "Pair" id && ) $ do
-      -- -- when ((isInfixOf "Pair" id) || (isInfixOf "arg" id && (show goalType) == "b")) $ do
-      -- -- when True $ do
-      -- (liftIO $ printf "unifying (%s) with (%s, %s), " (show goalType) (show id) (show freshVars))
-      -- (liftIO $ printf "isChecked: %s, sub: %s\n" (show checkResult) (show sub))
-
-      -- if it unifies, add that particular unified compoenent to state's list of components
+      
       guard checkResult
       return (id, stypeSubstitute sub (shape freshVars))
