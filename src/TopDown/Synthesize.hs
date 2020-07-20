@@ -88,360 +88,29 @@ synthesize searchParams goal examples messageChan = do
     let hoCands = rawEnv ^. hoCandidates
     envWithHo <- do
     
-    --------------------------
-    -- HIGHER ORDER STUFF 
-    -- envWithHo <- if useHO -- add higher order query arguments
-    --     then do
-    --         let args = rawEnv ^. arguments
-    --         let hoArgs = Map.filter (isFunctionType . toMonotype) args
-    --         let hoFuns = map (\(k, v) -> (k ++ hoPostfix, withSchema toFunType v)) (Map.toList hoArgs)
-    --         return $ rawEnv { 
-    --             _symbols = rawSyms `Map.union` Map.fromList hoFuns, 
-    --             _hoCandidates = hoCands ++ map fst hoFuns
-    --             }
-    --     else do
-    --------------------------
-
      --------------------------
-      let args = rawEnv ^. arguments
-      let hoArgs = Map.filter (isFunctionType . toMonotype) args
-      let hoFuns = map (\(k, v) -> (k ++ hoPostfix, withSchema toFunType v)) (Map.toList hoArgs)
-      return $ rawEnv { 
-          _symbols = rawSyms `Map.union` Map.fromList hoFuns, 
-          _hoCandidates = hoCands ++ map fst hoFuns
-          }
-    --     else do
+      -- HIGHER ORDER STUFF 
+      -- let args = rawEnv ^. arguments
+      -- let hoArgs = Map.filter (isFunctionType . toMonotype) args
+      -- let hoFuns = map (\(k, v) -> (k ++ hoPostfix, withSchema toFunType v)) (Map.toList hoArgs)
+      -- return $ rawEnv { 
+      --     _symbols = rawSyms `Map.union` Map.fromList hoFuns, 
+      --     _hoCandidates = hoCands ++ map fst hoFuns
+      --     }
     --------------------------
 
-      -- let syms = Map.filter (not . isHigherOrder . toMonotype) rawSyms
-      -- return $ rawEnv {
-      --     _symbols = Map.withoutKeys syms $ Set.fromList hoCands, 
-      --     _hoCandidates = []
-      --     }
+      let syms = Map.filter (not . isHigherOrder . toMonotype) rawSyms
+      return $ rawEnv {
+          _symbols = Map.withoutKeys syms $ Set.fromList hoCands, 
+          _hoCandidates = []
+          }
 
-    -- start <- getCPUTime
-    -- liftIO $ mapM print $ Map.toList (envWithHo ^. symbols)
+    -- call dfs with iterativeDeepening
     iterativeDeepening envWithHo messageChan searchParams examples goalType
-    -- end <- getCPUTime
-
-    -- let diff = fromIntegral (end - start) / (10^12)
-    -- printf "Computation time: %0.3f sec\n" (diff :: Double)
 
     writeChan messageChan (MesgClose CSNormal)
     return ()
 
-
-
--- ("(Data.Bool.&&)",(Bool -> (Bool -> Bool)))
--- ("(Data.Bool.||)",(Bool -> (Bool -> Bool)))
--- ("(Data.Eq./=)",<a> . (@@hplusTC@@Eq (a) -> (a -> (a -> Bool))))
---  Eq a => a -> a -> Bool
--- ("(Data.Eq./=)_0'ho'",<a> . (@@hplusTC@@Eq (a) -> (a -> Fun (a) (Bool))))
---  Eq a => a -> (Fun a Bool)    a1000 ==> Fun a Bool
--- ("(Data.Eq./=)_1'ho'",<a> . (@@hplusTC@@Eq (a) -> Fun (a) ((Fun (a) (Bool)))))
---  Eq a => (Fun a (Fun a Bool))
--- ("(Data.Eq./=)_2'ho'",<a> . Fun ((@@hplusTC@@Eq (a))) ((Fun (a) ((Fun (a) (Bool))))))
---  Fun (Eq a) (Fun a (Fun a Bool))
--- ("(Data.Eq.==)",<a> . (@@hplusTC@@Eq (a) -> (a -> (a -> Bool))))
--- ("(Data.Eq.==)_0'ho'",<a> . (@@hplusTC@@Eq (a) -> (a -> Fun (a) (Bool))))
--- ("(Data.Eq.==)_1'ho'",<a> . (@@hplusTC@@Eq (a) -> Fun (a) ((Fun (a) (Bool)))))
--- ("(Data.Eq.==)_2'ho'",<a> . Fun ((@@hplusTC@@Eq (a))) ((Fun (a) ((Fun (a) (Bool))))))
--- ("(Data.Function.$)",<b> . <a> . (((a -> b)) -> (a -> b)))
--- ("(Data.Function.$)_0'ho'",<b> . <a> . (((a -> b)) -> Fun (a) (b)))
--- ("(Data.Function.$)_1'ho'",<b> . <a> . Fun ((Fun (a) (b))) ((Fun (a) (b))))
--- ("(Data.Function.&)",<b> . <a> . (a -> (((a -> b)) -> b)))
--- ("(Data.Function..)",<c> . <b> . <a> . (((b -> c)) -> (((a -> b)) -> (a -> c))))
--- ("(GHC.List.!!)",<a> . ([a] -> (Int -> a)))
--- ("(GHC.List.++)",<a> . ([a] -> ([a] -> [a])))
--- ("@@hplusTCInstance@@0EqBool",@@hplusTC@@Eq (Bool))
--- ("@@hplusTCInstance@@0EqChar",@@hplusTC@@Eq (Char))
--- ("@@hplusTCInstance@@0EqDouble",@@hplusTC@@Eq (Double))
--- ("@@hplusTCInstance@@0EqFloat",@@hplusTC@@Eq (Float))
--- ("@@hplusTCInstance@@0EqInt",@@hplusTC@@Eq (Int))
--- ("@@hplusTCInstance@@0EqUnit",@@hplusTC@@Eq (Unit))
--- ("@@hplusTCInstance@@0IsString",@@hplusTC@@IsString (Builder))
--- ("@@hplusTCInstance@@0NumDouble",@@hplusTC@@Num (Double))
--- ("@@hplusTCInstance@@0NumFloat",@@hplusTC@@Num (Float))
--- ("@@hplusTCInstance@@0NumInt",@@hplusTC@@Num (Int))
--- ("@@hplusTCInstance@@0OrdBool",@@hplusTC@@Ord (Bool))
--- ("@@hplusTCInstance@@0OrdChar",@@hplusTC@@Ord (Char))
--- ("@@hplusTCInstance@@0OrdDouble",@@hplusTC@@Ord (Double))
--- ("@@hplusTCInstance@@0OrdFloat",@@hplusTC@@Ord (Float))
--- ("@@hplusTCInstance@@0OrdInt",@@hplusTC@@Ord (Int))
--- ("@@hplusTCInstance@@0ShowBool",@@hplusTC@@Show (Bool))
--- ("@@hplusTCInstance@@0ShowChar",@@hplusTC@@Show (Char))
--- ("@@hplusTCInstance@@0ShowDouble",@@hplusTC@@Show (Double))
--- ("@@hplusTCInstance@@0ShowFloat",@@hplusTC@@Show (Float))
--- ("@@hplusTCInstance@@0ShowInt",@@hplusTC@@Show (Int))
--- ("@@hplusTCInstance@@0ShowUnit",@@hplusTC@@Show (Unit))
--- ("@@hplusTCInstance@@1Show",<b> . <a> . (@@hplusTC@@Show (a) -> (@@hplusTC@@Show (b) -> @@hplusTC@@Show ((Either (a) (b))))))
--- ("@@hplusTCInstance@@2Read",<b> . <a> . (@@hplusTC@@Read (a) -> (@@hplusTC@@Read (b) -> @@hplusTC@@Read ((Either (a) (b))))))
--- ("@@hplusTCInstance@@3Ord",<b> . <a> . (@@hplusTC@@Ord (a) -> (@@hplusTC@@Ord (b) -> @@hplusTC@@Ord ((Either (a) (b))))))
--- ("@@hplusTCInstance@@4Eq",<b> . <a> . (@@hplusTC@@Eq (a) -> (@@hplusTC@@Eq (b) -> @@hplusTC@@Eq ((Either (a) (b))))))
--- ("@@hplusTCInstance@@6Semigroup",<b> . <a> . @@hplusTC@@Semigroup ((Either (a) (b))))
--- ("@@hplusTCInstance@@9Eq",<a> . (@@hplusTC@@Eq (a) -> @@hplusTC@@Eq (([a]))))
--- ("Cons",<a> . (a -> ([a] -> {[a]|_v == (Cons x xs)})))
--- ("Data.Bool.False",Bool)
--- ("Data.Bool.True",Bool)
--- ("Data.Bool.bool",<a> . (a -> (a -> (Bool -> a))))
--- ("Data.Bool.not",(Bool -> Bool))
--- ("Data.Bool.otherwise",Bool)
--- ("Data.ByteString.Builder.byteString",(ByteString -> Builder))
--- ("Data.ByteString.Builder.byteStringHex",(ByteString -> Builder))
--- ("Data.ByteString.Builder.char7",(Char -> Builder))
--- ("Data.ByteString.Builder.char8",(Char -> Builder))
--- ("Data.ByteString.Builder.charUtf8",(Char -> Builder))
--- ("Data.ByteString.Builder.doubleBE",(Double -> Builder))
--- ("Data.ByteString.Builder.doubleDec",(Double -> Builder))
--- ("Data.ByteString.Builder.doubleHexFixed",(Double -> Builder))
--- ("Data.ByteString.Builder.doubleLE",(Double -> Builder))
--- ("Data.ByteString.Builder.floatBE",(Float -> Builder))
--- ("Data.ByteString.Builder.floatDec",(Float -> Builder))
--- ("Data.ByteString.Builder.floatHexFixed",(Float -> Builder))
--- ("Data.ByteString.Builder.floatLE",(Float -> Builder))
--- ("Data.ByteString.Builder.hPutBuilder",(Handle -> (Builder -> IO (Unit))))
--- ("Data.ByteString.Builder.int16BE",(Int16 -> Builder))
--- ("Data.ByteString.Builder.int16Dec",(Int16 -> Builder))
--- ("Data.ByteString.Builder.int16HexFixed",(Int16 -> Builder))
--- ("Data.ByteString.Builder.int16LE",(Int16 -> Builder))
--- ("Data.ByteString.Builder.int32BE",(Int32 -> Builder))
--- ("Data.ByteString.Builder.int32Dec",(Int32 -> Builder))
--- ("Data.ByteString.Builder.int32HexFixed",(Int32 -> Builder))
--- ("Data.ByteString.Builder.int32LE",(Int32 -> Builder))
--- ("Data.ByteString.Builder.int64BE",(Int64 -> Builder))
--- ("Data.ByteString.Builder.int64Dec",(Int64 -> Builder))
--- ("Data.ByteString.Builder.int64HexFixed",(Int64 -> Builder))
--- ("Data.ByteString.Builder.int64LE",(Int64 -> Builder))
--- ("Data.ByteString.Builder.int8",(Int8 -> Builder))
--- ("Data.ByteString.Builder.int8Dec",(Int8 -> Builder))
--- ("Data.ByteString.Builder.int8HexFixed",(Int8 -> Builder))
--- ("Data.ByteString.Builder.intDec",(Int -> Builder))
--- ("Data.ByteString.Builder.integerDec",(Integer -> Builder))
--- ("Data.ByteString.Builder.lazyByteString",(ByteString -> Builder))
--- ("Data.ByteString.Builder.lazyByteStringHex",(ByteString -> Builder))
--- ("Data.ByteString.Builder.shortByteString",(ShortByteString -> Builder))
--- ("Data.ByteString.Builder.string7",([Char] -> Builder))
--- ("Data.ByteString.Builder.string8",([Char] -> Builder))
--- ("Data.ByteString.Builder.stringUtf8",([Char] -> Builder))
--- ("Data.ByteString.Builder.toLazyByteString",(Builder -> ByteString))
--- ("Data.ByteString.Builder.word16BE",(Word16 -> Builder))
--- ("Data.ByteString.Builder.word16Dec",(Word16 -> Builder))
--- ("Data.ByteString.Builder.word16Hex",(Word16 -> Builder))
--- ("Data.ByteString.Builder.word16HexFixed",(Word16 -> Builder))
--- ("Data.ByteString.Builder.word16LE",(Word16 -> Builder))
--- ("Data.ByteString.Builder.word32BE",(Word32 -> Builder))
--- ("Data.ByteString.Builder.word32Dec",(Word32 -> Builder))
--- ("Data.ByteString.Builder.word32Hex",(Word32 -> Builder))
--- ("Data.ByteString.Builder.word32HexFixed",(Word32 -> Builder))
--- ("Data.ByteString.Builder.word32LE",(Word32 -> Builder))
--- ("Data.ByteString.Builder.word64BE",(Word64 -> Builder))
--- ("Data.ByteString.Builder.word64Dec",(Word64 -> Builder))
--- ("Data.ByteString.Builder.word64Hex",(Word64 -> Builder))
--- ("Data.ByteString.Builder.word64HexFixed",(Word64 -> Builder))
--- ("Data.ByteString.Builder.word64LE",(Word64 -> Builder))
--- ("Data.ByteString.Builder.word8",(Word8 -> Builder))
--- ("Data.ByteString.Builder.word8Dec",(Word8 -> Builder))
--- ("Data.ByteString.Builder.word8Hex",(Word8 -> Builder))
--- ("Data.ByteString.Builder.word8HexFixed",(Word8 -> Builder))
--- ("Data.ByteString.Builder.wordDec",(Word -> Builder))
--- ("Data.ByteString.Builder.wordHex",(Word -> Builder))
--- ("Data.ByteString.Lazy.all",(((Word8 -> Bool)) -> (ByteString -> Bool)))
--- ("Data.ByteString.Lazy.any",(((Word8 -> Bool)) -> (ByteString -> Bool)))
--- ("Data.ByteString.Lazy.append",(ByteString -> (ByteString -> ByteString)))
--- ("Data.ByteString.Lazy.appendFile",([Char] -> (ByteString -> IO (Unit))))
--- ("Data.ByteString.Lazy.break",(((Word8 -> Bool)) -> (ByteString -> (ByteString , ByteString))))
--- ("Data.ByteString.Lazy.concat",([ByteString] -> ByteString))
--- ("Data.ByteString.Lazy.concatMap",(((Word8 -> ByteString)) -> (ByteString -> ByteString)))
--- ("Data.ByteString.Lazy.cons",(Word8 -> (ByteString -> ByteString)))
--- ("Data.ByteString.Lazy.cons'",(Word8 -> (ByteString -> ByteString)))
--- ("Data.ByteString.Lazy.copy",(ByteString -> ByteString))
--- ("Data.ByteString.Lazy.count",(Word8 -> (ByteString -> Int64)))
--- ("Data.ByteString.Lazy.cycle",(ByteString -> ByteString))
--- ("Data.ByteString.Lazy.drop",(Int64 -> (ByteString -> ByteString)))
--- ("Data.ByteString.Lazy.dropWhile",(((Word8 -> Bool)) -> (ByteString -> ByteString)))
--- ("Data.ByteString.Lazy.elem",(Word8 -> (ByteString -> Bool)))
--- ("Data.ByteString.Lazy.elemIndex",(Word8 -> (ByteString -> Maybe (Int64))))
--- ("Data.ByteString.Lazy.elemIndexEnd",(Word8 -> (ByteString -> Maybe (Int64))))
--- ("Data.ByteString.Lazy.elemIndices",(Word8 -> (ByteString -> [Int64])))
--- ("Data.ByteString.Lazy.empty",ByteString)
--- ("Data.ByteString.Lazy.filter",(((Word8 -> Bool)) -> (ByteString -> ByteString)))
--- ("Data.ByteString.Lazy.find",(((Word8 -> Bool)) -> (ByteString -> Maybe (Word8))))
--- ("Data.ByteString.Lazy.findIndex",(((Word8 -> Bool)) -> (ByteString -> Maybe (Int64))))
--- ("Data.ByteString.Lazy.findIndices",(((Word8 -> Bool)) -> (ByteString -> [Int64])))
--- ("Data.ByteString.Lazy.foldl",<a> . (((a -> (Word8 -> a))) -> (a -> (ByteString -> a))))
--- ("Data.ByteString.Lazy.foldl'",<a> . (((a -> (Word8 -> a))) -> (a -> (ByteString -> a))))
--- ("Data.ByteString.Lazy.foldl1",(((Word8 -> (Word8 -> Word8))) -> (ByteString -> Word8)))
--- ("Data.ByteString.Lazy.foldl1'",(((Word8 -> (Word8 -> Word8))) -> (ByteString -> Word8)))
--- ("Data.ByteString.Lazy.foldlChunks",<a> . (((a -> (ByteString -> a))) -> (a -> (ByteString -> a))))
--- ("Data.ByteString.Lazy.foldr",<a> . (((Word8 -> (a -> a))) -> (a -> (ByteString -> a))))
--- ("Data.ByteString.Lazy.foldr1",(((Word8 -> (Word8 -> Word8))) -> (ByteString -> Word8)))
--- ("Data.ByteString.Lazy.foldrChunks",<a> . (((ByteString -> (a -> a))) -> (a -> (ByteString -> a))))
--- ("Data.ByteString.Lazy.fromChunks",([ByteString] -> ByteString))
--- ("Data.ByteString.Lazy.fromStrict",(ByteString -> ByteString))
--- ("Data.ByteString.Lazy.getContents",IO (ByteString))
--- ("Data.ByteString.Lazy.group",(ByteString -> [ByteString]))
--- ("Data.ByteString.Lazy.groupBy",(((Word8 -> (Word8 -> Bool))) -> (ByteString -> [ByteString])))
--- ("Data.ByteString.Lazy.hGet",(Handle -> (Int -> IO (ByteString))))
--- ("Data.ByteString.Lazy.hGetContents",(Handle -> IO (ByteString)))
--- ("Data.ByteString.Lazy.hGetNonBlocking",(Handle -> (Int -> IO (ByteString))))
--- ("Data.ByteString.Lazy.hPut",(Handle -> (ByteString -> IO (Unit))))
--- ("Data.ByteString.Lazy.hPutNonBlocking",(Handle -> (ByteString -> IO (ByteString))))
--- ("Data.ByteString.Lazy.hPutStr",(Handle -> (ByteString -> IO (Unit))))
--- ("Data.ByteString.Lazy.head",(ByteString -> Word8))
--- ("Data.ByteString.Lazy.index",(ByteString -> (Int64 -> Word8)))
--- ("Data.ByteString.Lazy.init",(ByteString -> ByteString))
--- ("Data.ByteString.Lazy.inits",(ByteString -> [ByteString]))
--- ("Data.ByteString.Lazy.interact",(((ByteString -> ByteString)) -> IO (Unit)))
--- ("Data.ByteString.Lazy.intercalate",(ByteString -> ([ByteString] -> ByteString)))
--- ("Data.ByteString.Lazy.intersperse",(Word8 -> (ByteString -> ByteString)))
--- ("Data.ByteString.Lazy.isPrefixOf",(ByteString -> (ByteString -> Bool)))
--- ("Data.ByteString.Lazy.isSuffixOf",(ByteString -> (ByteString -> Bool)))
--- ("Data.ByteString.Lazy.iterate",(((Word8 -> Word8)) -> (Word8 -> ByteString)))
--- ("Data.ByteString.Lazy.last",(ByteString -> Word8))
--- ("Data.ByteString.Lazy.length",(ByteString -> Int64))
--- ("Data.ByteString.Lazy.map",(((Word8 -> Word8)) -> (ByteString -> ByteString)))
--- ("Data.ByteString.Lazy.mapAccumL",<acc> . (((acc -> (Word8 -> (acc , Word8)))) -> (acc -> (ByteString -> (acc , ByteString)))))
--- ("Data.ByteString.Lazy.mapAccumR",<acc> . (((acc -> (Word8 -> (acc , Word8)))) -> (acc -> (ByteString -> (acc , ByteString)))))
--- ("Data.ByteString.Lazy.maximum",(ByteString -> Word8))
--- ("Data.ByteString.Lazy.minimum",(ByteString -> Word8))
--- ("Data.ByteString.Lazy.notElem",(Word8 -> (ByteString -> Bool)))
--- ("Data.ByteString.Lazy.null",(ByteString -> Bool))
--- ("Data.ByteString.Lazy.pack",([Word8] -> ByteString))
--- ("Data.ByteString.Lazy.partition",(((Word8 -> Bool)) -> (ByteString -> (ByteString , ByteString))))
--- ("Data.ByteString.Lazy.putStr",(ByteString -> IO (Unit)))
--- ("Data.ByteString.Lazy.putStrLn",(ByteString -> IO (Unit)))
--- ("Data.ByteString.Lazy.readFile",([Char] -> IO (ByteString)))
--- ("Data.ByteString.Lazy.repeat",(Word8 -> ByteString))
--- ("Data.ByteString.Lazy.replicate",(Int64 -> (Word8 -> ByteString)))
--- ("Data.ByteString.Lazy.reverse",(ByteString -> ByteString))
--- ("Data.ByteString.Lazy.scanl",(((Word8 -> (Word8 -> Word8))) -> (Word8 -> (ByteString -> ByteString))))
--- ("Data.ByteString.Lazy.singleton",(Word8 -> ByteString))
--- ("Data.ByteString.Lazy.snoc",(ByteString -> (Word8 -> ByteString)))
--- ("Data.ByteString.Lazy.span",(((Word8 -> Bool)) -> (ByteString -> (ByteString , ByteString))))
--- ("Data.ByteString.Lazy.split",(Word8 -> (ByteString -> [ByteString])))
--- ("Data.ByteString.Lazy.splitAt",(Int64 -> (ByteString -> (ByteString , ByteString))))
--- ("Data.ByteString.Lazy.splitWith",(((Word8 -> Bool)) -> (ByteString -> [ByteString])))
--- ("Data.ByteString.Lazy.stripPrefix",(ByteString -> (ByteString -> Maybe (ByteString))))
--- ("Data.ByteString.Lazy.stripSuffix",(ByteString -> (ByteString -> Maybe (ByteString))))
--- ("Data.ByteString.Lazy.tail",(ByteString -> ByteString))
--- ("Data.ByteString.Lazy.tails",(ByteString -> [ByteString]))
--- ("Data.ByteString.Lazy.take",(Int64 -> (ByteString -> ByteString)))
--- ("Data.ByteString.Lazy.takeWhile",(((Word8 -> Bool)) -> (ByteString -> ByteString)))
--- ("Data.ByteString.Lazy.toChunks",(ByteString -> [ByteString]))
--- ("Data.ByteString.Lazy.toStrict",(ByteString -> ByteString))
--- ("Data.ByteString.Lazy.transpose",([ByteString] -> [ByteString]))
--- ("Data.ByteString.Lazy.uncons",(ByteString -> Maybe (((Word8 , ByteString)))))
--- ("Data.ByteString.Lazy.unfoldr",<a> . (((a -> Maybe (((Word8 , a))))) -> (a -> ByteString)))
--- ("Data.ByteString.Lazy.unpack",(ByteString -> [Word8]))
--- ("Data.ByteString.Lazy.unsnoc",(ByteString -> Maybe (((ByteString , Word8)))))
--- ("Data.ByteString.Lazy.unzip",([(Word8 , Word8)] -> (ByteString , ByteString)))
--- ("Data.ByteString.Lazy.writeFile",([Char] -> (ByteString -> IO (Unit))))
--- ("Data.ByteString.Lazy.zip",(ByteString -> (ByteString -> [(Word8 , Word8)])))
--- ("Data.ByteString.Lazy.zipWith",<a> . (((Word8 -> (Word8 -> a))) -> (ByteString -> (ByteString -> [a]))))
--- ("Data.Either.Left",<b> . <a> . (a -> Either (a) (b)))
--- ("Data.Either.Right",<b> . <a> . (b -> Either (a) (b)))
--- ("Data.Either.either",<c> . <b> . <a> . (((a -> c)) -> (((b -> c)) -> (Either (a) (b) -> c))))
--- ("Data.Either.fromLeft",<b> . <a> . (a -> (Either (a) (b) -> a)))
--- ("Data.Either.fromRight",<b> . <a> . (b -> (Either (a) (b) -> b)))
--- ("Data.Either.isLeft",<b> . <a> . (Either (a) (b) -> Bool))
--- ("Data.Either.isRight",<b> . <a> . (Either (a) (b) -> Bool))
--- ("Data.Either.lefts",<b> . <a> . ([Either (a) (b)] -> [a]))
--- ("Data.Either.partitionEithers",<b> . <a> . ([Either (a) (b)] -> ([a] , [b])))
--- ("Data.Either.rights",<b> . <a> . ([Either (a) (b)] -> [b]))
--- ("Data.Function.const",<b> . <a> . (a -> (b -> a)))
--- ("Data.Function.fix",<a> . (((a -> a)) -> a))
--- ("Data.Function.flip",<c> . <b> . <a> . (((a -> (b -> c))) -> (b -> (a -> c))))
--- ("Data.Function.id",<a> . (a -> a))
--- ("Data.Function.id_0'ho'",<a> . Fun (a) (a))
--- ("Data.Function.on",<c> . <b> . <a> . (((b -> (b -> c))) -> (((a -> b)) -> (a -> (a -> c)))))
--- ("Data.List.group",<a> . (@@hplusTC@@Eq (a) -> ([a] -> [[a]])))
--- ("Data.Maybe.Just",<a> . (a -> Maybe (a)))
--- ("Data.Maybe.Nothing",<a> . Maybe (a))
--- ("Data.Maybe.catMaybes",<a> . ([Maybe (a)] -> [a]))
--- ("Data.Maybe.fromJust",<a> . (Maybe (a) -> a))
--- ("Data.Maybe.fromMaybe",<a> . (a -> (Maybe (a) -> a)))
--- ("Data.Maybe.isJust",<a> . (Maybe (a) -> Bool))
--- ("Data.Maybe.isNothing",<a> . (Maybe (a) -> Bool))
--- ("Data.Maybe.listToMaybe",<a> . ([a] -> Maybe (a)))
--- ("Data.Maybe.mapMaybe",<b> . <a> . (((a -> Maybe (b))) -> ([a] -> [b])))
--- ("Data.Maybe.maybe",<b> . <a> . (b -> (((a -> b)) -> (Maybe (a) -> b))))
--- ("Data.Maybe.maybeToList",<a> . (Maybe (a) -> [a]))
--- ("Data.Tuple.curry",<c> . <b> . <a> . ((((a , b) -> c)) -> (a -> (b -> c))))
--- ("Data.Tuple.fst",<b> . <a> . ((a , b) -> a))
--- ("Data.Tuple.snd",<b> . <a> . ((a , b) -> b))
--- ("Data.Tuple.swap",<b> . <a> . ((a , b) -> (b , a)))
--- ("Data.Tuple.uncurry",<c> . <b> . <a> . (((a -> (b -> c))) -> ((a , b) -> c)))
--- ("GHC.Char.chr",(Int -> Char))
--- ("GHC.Char.eqChar",(Char -> (Char -> Bool)))
--- ("GHC.Char.neChar",(Char -> (Char -> Bool)))
--- ("GHC.List.all",<a> . (((a -> Bool)) -> ([a] -> Bool)))
--- ("GHC.List.and",([Bool] -> Bool))
--- ("GHC.List.any",<a> . (((a -> Bool)) -> ([a] -> Bool)))
--- ("GHC.List.break",<a> . (((a -> Bool)) -> ([a] -> ([a] , [a]))))
--- ("GHC.List.concat",<a> . ([[a]] -> [a]))
--- ("GHC.List.concatMap",<b> . <a> . (((a -> [b])) -> ([a] -> [b])))
--- ("GHC.List.cycle",<a> . ([a] -> [a]))
--- ("GHC.List.drop",<a> . (Int -> ([a] -> [a])))
--- ("GHC.List.dropWhile",<a> . (((a -> Bool)) -> ([a] -> [a])))
--- ("GHC.List.elem",<a> . (@@hplusTC@@Eq (a) -> (a -> ([a] -> Bool))))
--- ("GHC.List.filter",<a> . (((a -> Bool)) -> ([a] -> [a])))
--- ("GHC.List.foldl",<b> . <a> . (((b -> (a -> b))) -> (b -> ([a] -> b))))
--- ("GHC.List.foldl'",<b> . <a> . (((b -> (a -> b))) -> (b -> ([a] -> b))))
--- ("GHC.List.foldl1",<a> . (((a -> (a -> a))) -> ([a] -> a)))
--- ("GHC.List.foldl1'",<a> . (((a -> (a -> a))) -> ([a] -> a)))
--- ("GHC.List.foldr",<b> . <a> . (((a -> (b -> b))) -> (b -> ([a] -> b))))
--- ("GHC.List.foldr1",<a> . (((a -> (a -> a))) -> ([a] -> a)))
--- ("GHC.List.head",<a> . ([a] -> a))
--- ("GHC.List.head_0'ho'",<a> . Fun (([a])) (a))
--- ("GHC.List.init",<a> . ([a] -> [a]))
--- ("GHC.List.iterate",<a> . (((a -> a)) -> (a -> [a])))
--- ("GHC.List.iterate'",<a> . (((a -> a)) -> (a -> [a])))
--- ("GHC.List.last",<a> . ([a] -> a))
--- ("GHC.List.length",<a> . ([a] -> Int))
--- ("GHC.List.lookup",<b> . <a> . (@@hplusTC@@Eq (a) -> (a -> ([(a , b)] -> Maybe (b)))))
--- ("GHC.List.map",<b> . <a> . (((a -> b)) -> ([a] -> [b])))
--- ("GHC.List.maximum",<a> . (@@hplusTC@@Ord (a) -> ([a] -> a)))
--- ("GHC.List.minimum",<a> . (@@hplusTC@@Ord (a) -> ([a] -> a)))
--- ("GHC.List.notElem",<a> . (@@hplusTC@@Eq (a) -> (a -> ([a] -> Bool))))
--- ("GHC.List.null",<a> . ([a] -> Bool))
--- ("GHC.List.or",([Bool] -> Bool))
--- ("GHC.List.product",<a> . (@@hplusTC@@Num (a) -> ([a] -> a)))
--- ("GHC.List.repeat",<a> . (a -> [a]))
--- ("GHC.List.replicate",<a> . (Int -> (a -> [a])))
--- ("GHC.List.reverse",<a> . ([a] -> [a]))
--- ("GHC.List.scanl",<b> . <a> . (((b -> (a -> b))) -> (b -> ([a] -> [b]))))
--- ("GHC.List.scanl'",<b> . <a> . (((b -> (a -> b))) -> (b -> ([a] -> [b]))))
--- ("GHC.List.scanl1",<a> . (((a -> (a -> a))) -> ([a] -> [a])))
--- ("GHC.List.scanr",<b> . <a> . (((a -> (b -> b))) -> (b -> ([a] -> [b]))))
--- ("GHC.List.scanr1",<a> . (((a -> (a -> a))) -> ([a] -> [a])))
--- ("GHC.List.span",<a> . (((a -> Bool)) -> ([a] -> ([a] , [a]))))
--- ("GHC.List.splitAt",<a> . (Int -> ([a] -> ([a] , [a]))))
--- ("GHC.List.sum",<a> . (@@hplusTC@@Num (a) -> ([a] -> a)))
--- ("GHC.List.tail",<a> . ([a] -> [a]))
--- ("GHC.List.take",<a> . (Int -> ([a] -> [a])))
--- ("GHC.List.takeWhile",<a> . (((a -> Bool)) -> ([a] -> [a])))
--- ("GHC.List.uncons",<a> . ([a] -> Maybe (((a , [a])))))
--- ("GHC.List.unzip",<b> . <a> . ([(a , b)] -> ([a] , [b])))
--- ("GHC.List.unzip3",<c> . <b> . <a> . ([((a , b) , c)] -> (([a] , [b]) , [c])))
--- ("GHC.List.zip",<b> . <a> . ([a] -> ([b] -> [(a , b)])))
--- ("GHC.List.zip3",<c> . <b> . <a> . ([a] -> ([b] -> ([c] -> [((a , b) , c)]))))
--- ("GHC.List.zipWith",<c> . <b> . <a> . (((a -> (b -> c))) -> ([a] -> ([b] -> [c]))))
--- ("GHC.List.zipWith3",<d> . <c> . <b> . <a> . (((a -> (b -> (c -> d)))) -> ([a] -> ([b] -> ([c] -> [d])))))
--- ("Nil",<a> . {[a]|_v == (Nil)})
--- ("Pair",<b> . <a> . (a -> (b -> {(a , b)|_v == (Pair x y)})))
--- ("Text.Show.show",<a> . (@@hplusTC@@Show (a) -> (a -> [Char])))
--- ("Text.Show.showChar",(Char -> ([Char] -> [Char])))
--- ("Text.Show.showList",<a> . (@@hplusTC@@Show (a) -> ([a] -> ([Char] -> [Char]))))
--- ("Text.Show.showListWith",<a> . (((a -> ([Char] -> [Char]))) -> ([a] -> ([Char] -> [Char]))))
--- ("Text.Show.showParen",(Bool -> ((([Char] -> [Char])) -> ([Char] -> [Char]))))
--- ("Text.Show.showString",([Char] -> ([Char] -> [Char])))
--- ("Text.Show.shows",<a> . (@@hplusTC@@Show (a) -> (a -> ([Char] -> [Char]))))
--- ("Text.Show.showsPrec",<a> . (@@hplusTC@@Show (a) -> (Int -> (a -> ([Char] -> [Char])))))
--- ("arg0",(a -> b))
--- ("arg0'ho'",Fun (a) (b))
--- ("arg1",c)
--- ("fst",<b> . <a> . ((a , b) -> a))
--- ("snd",<b> . <a> . ((a , b) -> b))
 
 type TopDownSolver m = StateT CheckerState (LogicT m)
 
@@ -454,6 +123,7 @@ evalTopDownSolverList messageChan m = do
 --
 iterativeDeepening :: Environment -> Chan Message -> SearchParams -> [Example] -> RSchema -> IO ()
 iterativeDeepening env messageChan searchParams examples goal = evalTopDownSolverList messageChan (map helper [1..]) >> return ()
+-- iterativeDeepening env messageChan searchParams examples goal = evalTopDownSolverList messageChan (map helper [5..]) >> return ()
   where
     -- filters out type classes (@@type_class@@) so that numArgs can be correct when used
     -- in filterParams
@@ -464,7 +134,7 @@ iterativeDeepening env messageChan searchParams examples goal = evalTopDownSolve
     -- calls dfs at a certain depth and checks to see if there is a solution
     helper :: Int -> TopDownSolver IO RProgram
     helper quota = do
-      liftIO $ printf "running dfs on %s at size %d\n" (show goal) quota
+      -- liftIO $ printf "running dfs on %s at size %d\n" (show goal) quota
 
       let goalType = shape $ lastType (toMonotype goal) :: SType
       solution <- dfs env messageChan quota goalType :: TopDownSolver IO RProgram
@@ -483,7 +153,7 @@ iterativeDeepening env messageChan searchParams examples goal = evalTopDownSolve
       if blah
         
         then do
-          -- liftIO $ printf "program: %s\n" $ show program
+          liftIO $ printf "program: %s\n" $ show program
           
           checkResult <- evalStateT (check env searchParams examples program goal messageChan) emptyFilterState
           case checkResult of
@@ -510,27 +180,45 @@ dfs env messageChan quota goalType
     -- collect all the component types (which we might use to fill the holes)
     component <- choices $ Map.toList (env ^. symbols)
 
+    -- guard (not $ "Data.Function.&" `isInfixOf` fst component)
+    -- -- \xs x -> Data.List.foldr ($) x xs
+    -- guard (not $ "Data.Function.$" `isInfixOf` fst component)
+    -- guard (not $ "Data.Function.." `isInfixOf` fst component)
+    -- guard (not $ "GHC.List.!!" `isInfixOf` fst component)
+    -- guard ("Data.Function.$" `isInfixOf` fst component 
+    --     || "Data.Tuple.fst" `isInfixOf` fst component 
+    --     || "Data.Tuple.snd" `isInfixOf` fst component 
+    --     || "arg" `isInfixOf` fst component 
+    --     || "Pair" `isInfixOf` fst component)
+
     -- if goalType is an arrow type a->b, turn it into a Fun a b
-    let goalType' =
-          if (isFunctionType goalType)
-            then shape $ toFunType $ refineTop env goalType
-                  -- TODO or we can call DFS to synthesize \x -> ...
-                  -- see the cartProduct test
-            else goalType
+    -- let goalType' = goalType
+    -- let goalType' =
+    --       if (isFunctionType goalType)
+    --         then shape $ toFunType $ refineTop env goalType
+    --               -- TODO or we can call DFS to synthesize \x -> ...
+    --               -- see the cartProduct test
+    --         else goalType
 
     -- dfsResults <- dfs ...
     
     -- stream of components that unify with goal type
-    (id, schema) <- getUnifiedComponents env messageChan component goalType' :: TopDownSolver IO (Id, SType)
+    (id, schema) <- getUnifiedComponents component :: TopDownSolver IO (Id, SType)
     
     -- newList <- dfsResults1, getUnifiedComponents1, dfsResults2, getUnifiedComponents2
     
-    -- remove 'ho' from higher order things
+    -- remove _n'ho' from higher order things
     -- ("(Data.Eq./=)_0'ho'",<a> . (@@hplusTC@@Eq (a) -> (a -> Fun (a) (Bool))))
     -- ("(Data.Eq./=)_1'ho'",<a> . (@@hplusTC@@Eq (a) -> Fun (a) ((Fun (a) (Bool)))))
     -- ("(Data.Eq./=)_2'ho'",<a> . Fun ((@@hplusTC@@Eq (a))) ((Fun (a) ((Fun (a) (Bool))))))
+    --  TODO fix this later
     let id' = if "'ho'" `isSuffixOf` id
-          then reverse $ drop 4 $ reverse id -- hack to remove 'ho' TODO fix this later
+          then 
+            let noHO = reverse $ drop 4 $ reverse id in-- hack to remove 'ho'
+            -- function_1 !! 0
+            if '_' == (reverse noHO !! 1)
+              then reverse $ drop 2 $ reverse noHO
+              else noHO
           else id
 
     -- stream of solutions to the (id, schema) returned from getUnifiedComponents
@@ -568,27 +256,28 @@ dfs env messageChan quota goalType
     sizeOf :: RProgram -> Int
     sizeOf = length . words . show
 
---
--- Given a component (id, schema) like ("length", <a>. [a] -> Int)
---
-getUnifiedComponents :: Environment -> Chan Message -> (Id, RSchema) -> SType -> TopDownSolver IO (Id, SType)
-getUnifiedComponents env messageChan (id, schema) goalType = do
+    -- Given a component (id, schema) like ("length", <a>. [a] -> Int)
+    getUnifiedComponents :: (Id, RSchema) -> TopDownSolver IO (Id, SType)
+    getUnifiedComponents (id, schema) = do
+      
+      freshVars <- freshType (env ^. boundTypeVars) schema
 
-    freshVars <- freshType (env ^. boundTypeVars) schema
+      let t1 = shape (lastType freshVars) :: SType
+      let t2 = goalType :: SType
 
-    let t1 = shape (lastType freshVars) :: SType
-    let t2 = goalType :: SType
+      solveTypeConstraint env t1 t2 :: TopDownSolver IO ()
+      st' <- get
+      
+      let sub = st' ^. typeAssignment
+      let checkResult = st' ^. isChecked
+      -- when (show goalType == "a") $ do
+      -- -- when (show goalType == "Fun (a) (b)") $ do
+      -- -- when (isInfixOf "Pair" id && ) $ do
+      -- -- when ((isInfixOf "Pair" id) || (isInfixOf "arg" id && (show goalType) == "b")) $ do
+      -- -- when True $ do
+      -- (liftIO $ printf "unifying (%s) with (%s, %s), " (show goalType) (show id) (show freshVars))
+      -- (liftIO $ printf "isChecked: %s, sub: %s\n" (show checkResult) (show sub))
 
-    solveTypeConstraint env t1 t2 :: TopDownSolver IO ()
-    st' <- get
-    
-    let sub = st' ^. typeAssignment
-    let checkResult = st' ^. isChecked
-    -- when (show goalType == "(a -> b)") $ do
-    --   (liftIO $ printf "unifying (%s) with (%s, %s), " (show goalType) (show id) (show schema))
-    --   (liftIO $ printf "isChecked: %s, sub: %s\n" (show checkResult) (show sub))
-
-    -- if it unifies, add that particular unified compoenent to state's list of components
-    if (checkResult)
-      then return (id, stypeSubstitute sub (shape freshVars))
-      else mzero
+      -- if it unifies, add that particular unified compoenent to state's list of components
+      guard checkResult
+      return (id, stypeSubstitute sub (shape freshVars))
