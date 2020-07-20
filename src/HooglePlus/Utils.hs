@@ -114,22 +114,7 @@ printSolution solution = do
     putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
     putStrLn "************************************************"
 
-collectExamples :: String -> FilterState -> AssociativeExamples
--- collectExamples solution (FilterState _ sols samples examples) =
---     map mkGroup $ groupBy (\x y -> fst x == fst y)
---                 $ sortOn fst
---                 $ examples ++ checkedExs
---     where
---         [(_, desc)] = filter ((== solution) . fst) samples
---         checkedExs = zip (repeat solution) (descToExample desc)
---         mkGroup xs = (fst (head xs), nubOrdOn IOFormat.inputs $ map snd xs)
-collectExamples = error "implement me"
-
-
-descToExample :: FuncTestDesc -> [Example]
-descToExample = error "implement me"
-
-printSolutionState solution fs = unlines ["****************", solution, show fs, "***********"]
+-- printSolutionState solution fs = unlines ["****************", solution, show fs, "***********"]
 -- printSolutionState solution (FilterState _ sols workingExamples diffExamples) = unlines [ios, diffs]
 --     where
 --         ios = let [(_, desc)] = filter ((== solution) . fst) workingExamples in show desc
@@ -138,6 +123,14 @@ printSolutionState solution fs = unlines ["****************", solution, show fs,
 --         showGroup :: [(String, Example)] -> String
 --         showGroup xs = unlines ((fst $ head xs) : (map (show . snd) xs))
 -- *todo: implement me
+printSolutionState solution (FilterState _ sols descs diffs) = unlines [ioExamples, diffExamples]
+    where
+        diffs'          = Map.toList diffs
+        ioExamples      = let [(_, desc)] = filter ((== solution) . fst) descs in show desc
+        diffExamples    = unlines $ concat $ map (\(s, exs) -> [s] ++ map show exs) diffs'
+
+        showGroup :: [(String, Example)] -> String
+        showGroup xs = unlines ((fst $ head xs) : (map (show . snd) xs))
 
 extractSolution :: Environment -> TypeSkeleton -> UProgram -> ([String], String, String, [(Id, SchemaSkeleton)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)
