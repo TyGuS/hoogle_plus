@@ -21,7 +21,7 @@ import Data.Maybe
 import Data.Typeable
 import Data.Either
 
-import HooglePlus.Utils (splitConsecutive, printSolutionState, collectExamples, extractSolution)
+import HooglePlus.Utils (splitConsecutive, printSolutionState, extractSolution)
 import Types.Environment
 import Types.Program
 import Types.Type hiding (typeOf)
@@ -87,7 +87,7 @@ buildFunctionWrapper functions solutionType params@(plain, typed, shows, unwrp) 
       printf "let executeWrapper %s = (Prelude.map (\\f -> f %s) [%s]) in" typed unwrp (intercalate ", " wrapperNames) :: String
 
 buildNotCrashProp :: String -> FunctionSignature -> String
-buildNotCrashProp solution funcSig = traceId $ formatNotCrashProp params wrapper
+buildNotCrashProp solution funcSig = formatNotCrashProp params wrapper
   where
     params@(plain, typed, shows, unwrp) = showParams (_argsType funcSig)
 
@@ -104,9 +104,7 @@ buildDupCheckProp (sol, otherSols) funcSig =
   map (\x -> buildDupCheckProp' (sol, [x]) funcSig) otherSols
 
 buildDupCheckProp' :: (String, [String]) -> FunctionSignature -> String
-buildDupCheckProp' (sol, otherSols) funcSig =
-
-  traceId $ unwords [wrapper, formatProp]
+buildDupCheckProp' (sol, otherSols) funcSig = unwords [wrapper, formatProp]
   where
     params@(plain, typed, shows, unwrp) = showParams (_argsType funcSig)
     solutionType = show funcSig
@@ -165,7 +163,7 @@ runChecks env goalType prog = do
   state <- get
   when result $ liftIO $ runPrints state
 
-  return $ if result then Just (collectExamples body state) else Nothing
+  return $ if result then Just (Map.toList $ differentiateExamples state) else Nothing
   where
     (modules, funcSigStr, body, _) = extractSolution env goalType prog
     checks = [ checkSolutionNotCrash
