@@ -14,11 +14,13 @@ repl-funcs	(a->b)->Int->[a->b]	2.57	\arg0 arg1 -> GHC.List.replicate arg1 arg0
 mbAppFirst	b -> (a -> b) -> [a] -> b	8.84	\arg0 arg1 arg2 -> Data.Maybe.maybe arg0 arg1 (Data.Maybe.listToMaybe arg2)
 2partApp	(a->b)->(b->c)->[a]->[c]	12.14	\arg0 arg1 arg2 -> GHC.List.map arg1 (GHC.List.map arg0 arg2)
 resolveEither	Either a b -> (a->b) -> b	7.61	\arg0 arg1 -> Data.Either.either arg1 Data.Function.id arg0
+dedupe	Eq a => [a] -> [a]	9.57	\arg0 -> GHC.List.map GHC.List.head (Data.List.group arg0)
+inverseMap	[a -> b] -> a -> [b]	10.33	\arg0 arg1 -> GHC.List.zipWith (Data.Function.$) arg0 (GHC.List.repeat arg1)
 multiApp	(a -> b -> c) -> (a -> b) -> a -> c	9.32	\arg0 arg1 arg2 -> arg0 arg2 (arg1 arg2)
 singleList	a -> [a]	49.74	\arg0 -> arg0 : []
 head-last	[a] -> (a,a)	300.03	-
-head-rest	[a] -> (a, [a])	6.46	-
-pred-match	[a] -> (a -> Bool) -> Int	8.21	-
+head-rest	[a] -> (a, [a])	2.07	\arg0 -> Data.Maybe.fromJust (GHC.List.uncons arg0)
+pred-match	[a] -> (a -> Bool) -> Int	9.57	\arg0 arg1 -> GHC.List.length (GHC.List.filter arg1 arg0)
 splitStr	String -> Char -> [String]	7.43	\arg0 arg1 -> GHC.List.repeat (Text.Show.showChar arg1 arg0)
 splitAtFirst	a -> [a] -> ([a], [a])	300.06	-
 hoogle01	(a -> b) -> [a] -> b	8.39	\arg0 arg1 -> arg0 (GHC.List.head arg1)
@@ -41,3 +43,4 @@ applyPair	(a -> b, a) -> b	4.41	\arg0 -> (fst arg0) $ (snd arg0)
 flatten	[[[a]]] -> [a]	9.03	\arg0 -> GHC.List.concat (GHC.List.concat arg0)
 takeNdropM	Int -> Int -> [a] -> ([a], [a])	299.91	-
 indexesOf	([(a,Int)] -> [(a,Int)]) -> [a] -> [Int] -> [Int]	0.76	-
+containsEdge	[Int] -> (Int,Int) -> Bool	299.82	-
