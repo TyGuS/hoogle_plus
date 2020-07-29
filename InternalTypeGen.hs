@@ -1,6 +1,5 @@
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, TypeFamilies, LambdaCase, FlexibleContexts #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE UndecidableInstances, FunctionalDependencies #-}
+{-# LANGUAGE FlexibleInstances, FlexibleContexts, MultiParamTypeClasses, TypeFamilies, DeriveDataTypeable #-}
+{-# LANGUAGE LambdaCase #-}
 module InternalTypeGen where
 
 import Data.List (isInfixOf, elemIndex, nub, drop, reverse, intersect)
@@ -8,14 +7,11 @@ import Data.Containers.ListUtils (nubOrd)
 import Control.DeepSeq (force)
 import Control.Exception (evaluate)
 
-import Control.Monad
-import Control.Monad.State
 import Control.Monad.Logic
 import Data.Data
 
 import Text.Printf
 import System.IO.Silently
-import Control.Lens
 import Debug.Trace
 
 import qualified Test.LeanCheck.Function.ShowFunction as SF
@@ -29,6 +25,7 @@ defaultMaxOutputLength = 10 :: CB.Nat
 defaultSeriesLimit = 5 :: Int
 defaultTimeoutMicro = 100 :: Int
 defaultTestArgs = QC.stdArgs {QC.chatty = False, QC.maxDiscardRatio = 1, QC.maxSuccess = 30} :: QC.Args
+defaultIntRange = [-2..2] :: [Int]
 
 instance Eq a => Eq (CB.Result a) where
   (CB.Value a) == (CB.Value b) = a == b
@@ -81,110 +78,25 @@ data Example = Example {
 } deriving(Eq, Show, Read)
 
 -- * Custom Datatype for Range Restriction
-data MyInt = MOne | Zero | One | Two | Other Int deriving (Eq)
+newtype  MyInt = MyIntValue Int deriving (Eq, Data)
+instance Show MyInt             where show (MyIntValue v) = show v
+instance SF.Listable MyInt      where list = map MyIntValue defaultIntRange
+instance SF.ShowFunction MyInt  where bindtiers (MyIntValue v) = SF.bindtiers v
+instance QC.Arbitrary MyInt     where arbitrary = QC.elements (map MyIntValue defaultIntRange)
+instance QC.CoArbitrary MyInt   where coarbitrary (MyIntValue v) = QC.coarbitraryIntegral v
 
-instance Show MyInt where
-  show = show . toInt
+newtype  MyFun a b = MyFun (a -> b)
+instance (QC.CoArbitrary a, QC.Arbitrary b)         => QC.Arbitrary (MyFun a b)     where arbitrary = liftM MyFun QC.arbitrary
+instance (QC.Arbitrary a, QC.CoArbitrary b)         => QC.CoArbitrary (MyFun a b)   where coarbitrary (MyFun f) = QC.coarbitrary f
+instance (Show a, SF.Listable a, SF.ShowFunction b) => Show (MyFun a b)             where show (MyFun f) = "(" ++ SF.showFunctionLine defaultShowFunctionDepth f ++ ")"
+instance (Show a, SF.Listable a, SF.ShowFunction b) => SF.ShowFunction (MyFun a b)  where bindtiers (MyFun f) = SF.bindtiers f
 
-toInt :: MyInt -> Int
-toInt MOne = -1
-toInt Zero = 0
-toInt One = 1
-toInt Two = 2
-toInt (Other n) = n
+-- * Custom Datatype Conversion
+class    Unwrappable a b                                                            where unwrap :: a -> b; wrap :: b -> a
+instance Unwrappable MyInt Int                                                      where unwrap (MyIntValue v) = v; wrap = MyIntValue
+instance (Unwrappable a c, Unwrappable b d)   => Unwrappable (MyFun a b) (c -> d)   where unwrap (MyFun f) = \x -> unwrap $ f $ wrap x; wrap f = MyFun $ \x -> wrap $ f $ unwrap x
 
-toMyInt :: Int -> MyInt
-toMyInt (-1) = MOne
-toMyInt 0 = Zero
-toMyInt 1 = One
-toMyInt 2 = Two
-toMyInt n = Other n
-
-instance SF.Listable MyInt where
-  tiers = SF.cons0 MOne SF.\/
-          SF.cons0 Zero SF.\/
-          SF.cons0 One SF.\/
-          SF.cons0 Two SF.\/
-          SF.cons1 Other
-
-instance Monad m => SS.Serial m MyInt where
-  series = SS.cons0 MOne SS.\/
-           SS.cons0 Zero SS.\/
-           SS.cons0 One SS.\/
-           SS.cons0 Two
-
-instance Monad m => SS.CoSerial m MyInt where
-  coseries r = let rs = SS.limit defaultSeriesLimit r
-                in SS.alts0 rs >>- \z1 ->
-                   SS.alts0 rs >>- \z2 ->
-                   SS.alts0 rs >>- \z3 ->
-                   SS.alts0 rs >>- \z4 ->
-                   return $ \x ->
-                       case x of
-                           MOne -> z1
-                           Zero -> z2
-                           One -> z3
-                           Two -> z4
-
-newtype MyFun a b = MyFun (a -> b)
-
-instance (QC.CoArbitrary a, QC.Arbitrary b) => QC.Arbitrary (MyFun a b) where
-  arbitrary = liftM MyFun QC.arbitrary
-
-instance (QC.Arbitrary a, QC.CoArbitrary b) => QC.CoArbitrary (MyFun a b) where
-  coarbitrary (MyFun f) = QC.coarbitrary f
-
-instance {-# OVERLAPPABLE #-} (SS.Serial m b, SS.CoSerial m a) => SS.Serial m (MyFun a b) where
-  series = SS.coseries SS.series >>-
-            \f -> return (MyFun f)
-
-instance {-# OVERLAPPING #-} Monad m => SS.Serial m (MyFun Int Int) where
-  series = (SS.generate $ \_ -> map MyFun [\x -> x + 1
-                                          ,\x -> x * x
-                                          ,\x -> x * 3]) SS.\/
-            SS.newtypeCons MyFun
-instance {-# OVERLAPPING #-} Monad m => SS.Serial m (MyFun MyInt Int) where
-  series = (SS.generate $ \_ -> map MyFun [\x -> toInt x + 1
-                                          ,\x -> toInt x * toInt x
-                                          ,\x -> toInt x * 3]) SS.\/
-            (SS.coseries SS.series >>- 
-                \f -> return (MyFun f))
-instance {-# OVERLAPPING #-} Monad m => SS.Serial m (MyFun [Int] [Int]) where
-  series = (SS.generate $ \_ -> map MyFun [\x -> x ++ x]) SS.\/
-            SS.newtypeCons MyFun
-instance (SS.CoSerial m a, SS.Serial m a, SS.Serial m b, SS.CoSerial m b) => SS.CoSerial m (MyFun a b) where
-  coseries rs = SS.newtypeAlts rs >>- \f ->
-                return $ \(MyFun x) -> f x
-
-instance {-# OVERLAPPABLE #-} (Show a, SF.Listable a, SF.ShowFunction b) => Show (MyFun a b) where
-  show (MyFun f) = "(" ++ SF.showFunctionLine defaultShowFunctionDepth f ++ ")"
-instance {-# OVERLAPPING #-} (SF.ShowFunction b) => Show (MyFun MyInt b) where
-  show (MyFun f) = "(" ++ SF.showFunctionLine defaultShowFunctionDepth (\x -> f (toMyInt x)) ++ ")"
-
-instance SF.ShowFunction MyInt where
-  bindtiers = SF.bindtiers . toInt
-instance (Show a, SF.Listable a, SF.ShowFunction b) => SF.ShowFunction (MyFun a b) where
-  bindtiers (MyFun f) = SF.bindtiers f
-
-class Unwrappable a b where
-  unwrap :: a -> b
-  wrap :: b -> a
-
-instance {-# OVERLAPPABLE #-} (a ~ b) => Unwrappable a b where
-  unwrap = id
-  wrap = id
-instance Unwrappable MyInt Int where
-  unwrap = toInt
-  wrap = toMyInt
-instance (Unwrappable a c, Unwrappable b d) => Unwrappable (MyFun a b) (c -> d) where
-  unwrap (MyFun f) = \x -> unwrap (f (wrap x))
-  wrap f = MyFun $ \x -> wrap (f (unwrap x))
-instance (Unwrappable a b) => Unwrappable [a] [b] where
-  unwrap = map unwrap
-  wrap = map wrap
-instance {-# OVERLAPPING #-} (Unwrappable a b) => Unwrappable (Maybe a) (Maybe b) where
-  unwrap = fmap unwrap
-  wrap = fmap wrap
-instance (Unwrappable a c, Unwrappable b d) => Unwrappable (a, b) (c, d) where
-  unwrap (x, y) = (unwrap x, unwrap y)
-  wrap (x, y) = (wrap x, wrap y)
+instance {-# OVERLAPPABLE #-} (a ~ b)         => Unwrappable a b                    where unwrap = id; wrap = id
+instance {-# OVERLAPPING #-} Unwrappable a b  => Unwrappable [a] [b]                where unwrap = fmap unwrap; wrap = fmap wrap
+instance {-# OVERLAPPING #-} Unwrappable a b  => Unwrappable (Maybe a) (Maybe b)    where unwrap = fmap unwrap; wrap = fmap wrap
+instance (Unwrappable a c, Unwrappable b d)   => Unwrappable (a, b) (c, d)          where unwrap (x, y) = (unwrap x, unwrap y); wrap (x, y) = (wrap x, wrap y)

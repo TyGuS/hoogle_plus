@@ -73,25 +73,26 @@ instantiateSignature (FunctionSignature _ argsType returnType) =
       instantiate (ArgTypeApp l r) = ArgTypeApp (instantiate l) (instantiate r)
       instantiate (ArgTypeFunc l r) = ArgTypeFunc (instantiate l) (instantiate r)
 
-buildFunctionWrapper :: [(String, String)] -> String -> (String, String, String, String) -> String
-buildFunctionWrapper functions solutionType params@(plain, typed, shows, unwrp) =
+buildFunctionWrapper :: [(String, String)] -> FunctionSignature -> (String, String, String, String) -> String
+buildFunctionWrapper functions solutionType@FunctionSignature{_returnType} params@(plain, typed, shows, unwrp) =
     unwords
-      (map (buildLetFunction solutionType) functions ++ [buildWrapper (map fst functions) params])
+      (map (buildLetFunction $ show solutionType) functions ++ [buildWrapper (map fst functions) params (show _returnType)])
   where
     buildLetFunction :: String -> (String, String) -> String
     buildLetFunction programType (wrapperName, program) =
       printf "let %s = ((%s) :: %s) in" wrapperName program programType :: String
 
-    buildWrapper :: [String] -> (String, String, String, String) -> String
-    buildWrapper wrapperNames (plain, typed, shows, unwrp) =
-      printf "let executeWrapper %s = (Prelude.map (\\f -> f %s) [%s]) in" typed unwrp (intercalate ", " wrapperNames) :: String
+    -- ! the wrapper magic (i.e. MyInt) only lives here (inside `typed`)
+    buildWrapper :: [String] -> (String, String, String, String) -> String -> String
+    buildWrapper wrapperNames (plain, typed, shows, unwrp) retType =
+      printf "let executeWrapper %s = (Prelude.map (\\f -> f %s :: %s) [%s]) in" typed unwrp retType (intercalate ", " wrapperNames) :: String
 
 buildNotCrashProp :: String -> FunctionSignature -> String
 buildNotCrashProp solution funcSig = formatNotCrashProp params wrapper
   where
     params@(plain, typed, shows, unwrp) = showParams (_argsType funcSig)
 
-    wrapper = buildFunctionWrapper [("wrappedSolution", solution)] (show funcSig) params
+    wrapper = buildFunctionWrapper [("wrappedSolution", solution)] funcSig params
     formatNotCrashProp = formatProp "prop_not_crash" "\\out -> (not $ isFailedResult $ Prelude.head out) ==> True"
 
     formatProp propName propBody (plain, typed, shows, unwrp) wrappedSolution = unwords
@@ -109,7 +110,7 @@ buildDupCheckProp' (sol, otherSols) funcSig = unwords [wrapper, formatProp]
     params@(plain, typed, shows, unwrp) = showParams (_argsType funcSig)
     solutionType = show funcSig
 
-    wrapper = buildFunctionWrapper solutions (show funcSig) params
+    wrapper = buildFunctionWrapper solutions funcSig params
     solutions = zip [printf "result_%d" x :: String | x <- [0..] :: [Int]] (sol:otherSols)
 
     formatProp = unwords
@@ -181,7 +182,7 @@ checkSolutionNotCrash :: MonadIO m => [String] -> FunctionSignature -> String ->
 checkSolutionNotCrash modules funcSig solution = do
     result <- liftIO executeCheck
     case result of
-      Left  _       -> return True
+      Left  err     -> liftIO $ print err >> return True
       Right result  -> do
         modify $ \s -> s {solutionDescriptions = (solution, result) : solutionDescriptions s }
         return $ isSuccess result
@@ -201,8 +202,6 @@ checkDuplicates modules funcSig solution = do
     _ -> do
       interpreterResult <- liftIO $ compareSolution modules solution solns_ funcSig
       examples          <- readInterpreterResult solns_ interpreterResult
-
-      -- liftIO $ print examples
 
       let isSucceed =   all isJust examples
       if  not isSucceed then return False else do
@@ -227,12 +226,12 @@ checkDuplicates modules funcSig solution = do
     readInterpreterResult prevSolutions =
       \case
         Left (NotAllowed _) -> return [trace "timeout" Nothing]
-        Left _              -> return $ []
+        Left err            -> return $ []
         Right results       -> return $ zipWith readResult prevSolutions results
 
 -- show parameters to some Haskell representation
 -- (plain variables, typed variables, list of show, unwrapped variables)
--- >> showParams ["Int"] => ("arg_0", "(arg_0 :: Inner Int)", "[show arg_0]", "(unwrap arg_0)")
+-- >> showParams ["Int"] => ("arg_0", "(arg_0 :: MyInt)", "[show arg_0]", "(unwrap arg_0)")
 showParams :: [ArgumentType] -> (String, String, String, String)
 showParams args = (plain, typed, shows, unwrp)
   where
@@ -248,6 +247,7 @@ showParams args = (plain, typed, shows, unwrp)
     replaceInner :: ArgumentType -> ArgumentType
     replaceInner x =
       let apply a b = ArgTypeApp (ArgTypeApp (Concrete "MyFun") a) b in case x of
+        Concrete "Int" -> Concrete "MyInt"
         Concrete _ -> x
         Polymorphic _ -> x
         ArgTypeList t -> ArgTypeList (replaceInner t)
