@@ -83,6 +83,7 @@ testDups =
     , ("Dup: First order passing test 2", [], "[a] -> a", ["\\x -> head x", "\\x -> last x"], True)
     , ("Dup: Higher order passing test", [], "Num a => (a -> a) -> (a -> a) -> a -> a", ["\\f g x -> (f . g) x", "\\f g x -> (g . f) x"], True)
     , ("Dup: Higher order failing test", [], "Num a => (a -> a) -> (a -> a) -> a -> a", ["\\f g x -> (f . g) x", "\\f g x -> f (g x)"], False)
+    , ("Dup: Complex structure passing test", [], "[[[a]]] -> [a]", ["\\arg0 -> head (concat arg0)", "\\arg0 -> last (concat arg0)"], True)
     ]
 
 tests :: TestTree
