@@ -1,6 +1,6 @@
 # Pull base image.
 FROM ubuntu:18.04
-ARG port=3000
+ARG port=5000
 EXPOSE ${port}
 
 # install locales
@@ -28,18 +28,17 @@ RUN apt-get install -y python3 python3-pip
 RUN pip3 install --user PyYAML numpy tabulate matplotlib argparse
 
 # Get HooglePlus
-RUN cd /home; git clone https://github.com/davidmrdavid/hoogle_plus.git
-RUN cd /home/hoogle_plus && git checkout origin/master
+RUN cd /home; git clone https://github.com/TyGuS/hoogle_plus.git
+RUN cd /home/hoogle_plus && git checkout origin/new_webapp_deploy
 RUN cd /home/hoogle_plus && stack build
 
 # Start with bash
 RUN cd /home/hoogle_plus && stack exec -- hplus generate --preset=partialfunctions
-RUN mkdir -p /var/log/hplus
 
+# CMD cd /home/hoogle_plus && stack run webapp -p ${port} >> /var/log/hplus/run.log
+CMD cd /home/hoogle_plus/web_server && pip3 install -r dependencies.txt && ./start_server.sh
 
-CMD cd /home/hoogle_plus && stack run webapp -p ${port} >> /var/log/hplus/run.log
-
-HEALTHCHECK CMD curl --fail http://localhost:${port}/ || exit 1
+# HEALTHCHECK CMD curl --fail http://localhost:${port}/ || exit 1
 
 # To start the image, please mount the source file directory to /home/hoogle_plus
 # docker run -v PATH_TO_HOOGLE_PLUS_SOURCE:/home/hoogle_plus -it hoogle_plus
