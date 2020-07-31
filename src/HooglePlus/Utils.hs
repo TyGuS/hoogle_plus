@@ -123,7 +123,7 @@ printFilter solution fs@FilterState{solutions, solutionDescriptions, differentia
         putStrLn "**********************************************\n"
     where
         diffExamples = unlines $ concat $ map (\(soln, examples) -> ["- " ++ soln] ++ map (('\t':) . show) examples) $ Map.toList differentiateExamples
-        ioExamples   = let [(_, desc)] = filter ((== solution) . fst) solutionDescriptions in show desc
+        ioExamples   = let (_, desc) = head $ filter ((== solution) . fst) solutionDescriptions in show desc
 
 extractSolution :: Environment -> TypeSkeleton -> UProgram -> ([String], String, String, [(Id, SchemaSkeleton)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)

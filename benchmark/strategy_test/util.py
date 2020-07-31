@@ -3,7 +3,7 @@ import signal
 import subprocess
 import re
 import enum
-from flask import json
+import json
 
 from os.path import join
 
@@ -11,7 +11,7 @@ HPLUS_CMD = 'stack exec -- hplus'.split()
 HPLUS_DIR = '../../'
 OPTIONS = []
 TIMEOUT_CMD = 'timeout'
-TIMEOUT = 120
+TIMEOUT = 360 
 TIMEOUT_KILL = 5
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 

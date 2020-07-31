@@ -10,7 +10,7 @@ from pathlib import Path
 from multiprocessing import Pool
 from os import path
 
-DEFAULT_QUERY_FILE="study.yml"
+DEFAULT_QUERY_FILE="../suites/working.yml"
 DEFAULT_OUTPUT_DIR="output"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -34,25 +34,31 @@ class Experiment():
         os.makedirs(self.path, exist_ok=True)
     
     def run(self):
-        for query in self.queries:
-            query_name = query['name']
-            query = query['query']
+        with Pool(processes=8) as pool:
+            for query in self.queries:
+                pool.apply_async(self.run_query, args=(query,), error_callback=lambda x: print(x))
+            pool.close()
+            pool.join()
+    
+    def run_query(self, query):
+        query_name = query['name']
+        query = query['query']
 
-            print("Running {} - {}: {}".format(self.name, query_name, query))
-            query_input = json.dumps({'query': query, 'inExamples': []})
-            process = run_hplus(["--json={}".format(query_input),
-                             "--search-type={}".format(QueryType.search_programs.value),
-                             "--cnt=10"] + self.options)
+        print("Running {} - {}: {}".format(self.name, query_name, query))
+        query_input = json.dumps({'query': query, 'inExamples': []})
+        process = run_hplus(["--json={}".format(query_input),
+                            "--search-type={}".format(QueryType.search_programs.value),
+                            "--cnt=20"] + self.options)
 
-            times = [time.time()]
-            results = []
-            for line in get_results(process, QueryType.search_programs):
-                times.append(time.time())
-                results.append(line)
-            times = compute_time_diff(times)
+        times = [time.time()]
+        results = []
+        for line in get_results(process, QueryType.search_programs):
+            times.append(time.time())
+            results.append(line)
+        times = compute_time_diff(times)
 
-            with open(path.join(self.path, "{}.json".format(query_name)), 'w') as f:
-                json.dump({'name': query_name, 'query': query, 'times': times, 'results': results}, f)
+        with open(path.join(self.path, "{}.json".format(query_name)), 'w') as f:
+            json.dump({'name': query_name, 'query': query, 'times': times, 'results': results}, f)
 
 
 def main():
@@ -60,16 +66,14 @@ def main():
 
     queries = load_queries(DEFAULT_QUERY_FILE)
 
-    experiments = [Experiment("filter-{}".format(x), queries, ["--disable-filter=False"]) for x in range(2)] + [Experiment("no-filter-{}".format(x), queries, ["--disable-filter=True"]) for x in range(2)]
+    experiments = [
+        Experiment("qc-all-filter", queries, ["--disable-filter=False"]), 
+        Experiment("all-no-filter", queries, ["--disable-filter=True"])
+    ]
 
     for expr in experiments:
         expr.create_dir()
-
-    with Pool(processes=12) as pool:
-        for expr in experiments:
-            pool.apply_async(expr.run, error_callback=lambda x: print(x))
-        pool.close()
-        pool.join()
+        expr.run()
 
 
 if __name__ == "__main__":

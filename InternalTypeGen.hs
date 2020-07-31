@@ -100,3 +100,7 @@ instance {-# OVERLAPPABLE #-} (a ~ b)         => Unwrappable a b                
 instance {-# OVERLAPPING #-} Unwrappable a b  => Unwrappable [a] [b]                where unwrap = fmap unwrap; wrap = fmap wrap
 instance {-# OVERLAPPING #-} Unwrappable a b  => Unwrappable (Maybe a) (Maybe b)    where unwrap = fmap unwrap; wrap = fmap wrap
 instance (Unwrappable a c, Unwrappable b d)   => Unwrappable (a, b) (c, d)          where unwrap (x, y) = (unwrap x, unwrap y); wrap (x, y) = (wrap x, wrap y)
+
+instance (Unwrappable a c, Unwrappable b d)   => Unwrappable (Either a b) (Either c d) where
+  wrap    = \case Left v -> Left $ wrap v;    Right v -> Right $ wrap v
+  unwrap  = \case Left v -> Left $ unwrap v;  Right v -> Right $ unwrap v
