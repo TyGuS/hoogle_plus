@@ -21,7 +21,7 @@ import Data.Maybe
 import Data.Typeable
 import Data.Either
 
-import HooglePlus.Utils (splitConsecutive, printSolutionState, extractSolution)
+import HooglePlus.Utils (splitConsecutive, extractSolution, printFilter)
 import Types.Environment
 import Types.Program
 import Types.Type hiding (typeOf)
@@ -162,7 +162,7 @@ runChecks env goalType prog = do
   result <- runChecks_
 
   state <- get
-  when result $ liftIO $ runPrints state
+  when result $ liftIO $ printFilter body state
 
   return $ if result then Just (Map.toList $ differentiateExamples state) else Nothing
   where
@@ -171,18 +171,15 @@ runChecks env goalType prog = do
              , checkDuplicates]
 
     funcSig = (instantiateSignature . parseTypeString) funcSigStr
-
     runChecks_ = and <$> mapM (\f -> f modules funcSig body) checks
-    runPrints state = do
-      putStrLn "\n*******************FILTER*********************"
-      putStrLn body
-      putStrLn (printSolutionState body state)
 
 checkSolutionNotCrash :: MonadIO m => [String] -> FunctionSignature -> String -> FilterTest m Bool
 checkSolutionNotCrash modules funcSig solution = do
     result <- liftIO executeCheck
     case result of
-      Left  err     -> liftIO $ print err >> return True
+      Left  err     -> do
+        modify $ \s -> s {solutionDescriptions = (solution, Unknown $ show err) : solutionDescriptions s }
+        return True
       Right result  -> do
         modify $ \s -> s {solutionDescriptions = (solution, result) : solutionDescriptions s }
         return $ isSuccess result
@@ -208,7 +205,7 @@ checkDuplicates modules funcSig solution = do
         let examples' = Map.unionsWith (++) $ map (Map.fromList . fromJust) examples
         modify $ \s -> s {
           solutions             = solution : solutions s,
-          differentiateExamples = Map.unionWith (++) examples' (differentiateExamples s)
+          differentiateExamples = Map.unionWith (++) (differentiateExamples s) examples'
         }
 
         return True
@@ -257,7 +254,7 @@ showParams args = (plain, typed, shows, unwrp)
 
 -- parse Example string from QC.label to Example
 parseExamples :: BackendResult -> [Example]
-parseExamples result = map (head . read . head) $ Map.keys $ QC.labels result
+parseExamples result = concat $ map (read . head) $ Map.keys $ QC.labels result
 
 -- ******** Example Generator ********
 

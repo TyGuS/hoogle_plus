@@ -12,7 +12,6 @@ import qualified Data.Map as Map
 import Types.IOFormat (Example)
 
 defaultInterpreterTimeoutMicro = 10 * 10^6 :: Int
-defaultMaxOutputLength = 10 :: Int 
 defaultGenerationTimeoutMicro = 30 * 10^6 :: Int
 
 -- todo: remove the constant as not used -- example checker

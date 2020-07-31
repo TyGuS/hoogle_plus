@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, NamedFieldPuns #-}
 
 module HooglePlus.Utils where
 
@@ -109,28 +109,21 @@ removeTypeclasses = removeEmptyParens . removeTypeclassArgs . removeTypeclassIns
     where
         removeEmptyParens = removeAll (mkRegex "\\(\\ +\\)")
 
+printSolution :: String -> IO ()
 printSolution solution = do
     putStrLn "*******************SOLUTION*********************"
     putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
     putStrLn "************************************************"
 
--- printSolutionState solution fs = unlines ["****************", solution, show fs, "***********"]
--- printSolutionState solution (FilterState _ sols workingExamples diffExamples) = unlines [ios, diffs]
---     where
---         ios = let [(_, desc)] = filter ((== solution) . fst) workingExamples in show desc
---         diffs = let examples = groupBy ((==) `on` fst) (sortOn fst diffExamples) in unlines (map showGroup examples)
-        
---         showGroup :: [(String, Example)] -> String
---         showGroup xs = unlines ((fst $ head xs) : (map (show . snd) xs))
--- *todo: implement me
-printSolutionState solution (FilterState _ sols descs diffs) = unlines [ioExamples, diffExamples]
+printFilter :: String -> FilterState -> IO ()
+printFilter solution fs@FilterState{solutions, solutionDescriptions, differentiateExamples} = do
+        putStrLn "\n*******************FILTER*********************"
+        putStrLn $ "SOLN: " ++ solution
+        putStrLn $ unlines [ioExamples, diffExamples]
+        putStrLn "**********************************************\n"
     where
-        diffs'          = Map.toList diffs
-        ioExamples      = let [(_, desc)] = filter ((== solution) . fst) descs in show desc
-        diffExamples    = unlines $ concat $ map (\(s, exs) -> [s] ++ map show exs) diffs'
-
-        showGroup :: [(String, Example)] -> String
-        showGroup xs = unlines ((fst $ head xs) : (map (show . snd) xs))
+        diffExamples = unlines $ concat $ map (\(soln, examples) -> ["- " ++ soln] ++ map (('\t':) . show) examples) $ Map.toList differentiateExamples
+        ioExamples   = let [(_, desc)] = filter ((== solution) . fst) solutionDescriptions in show desc
 
 extractSolution :: Environment -> TypeSkeleton -> UProgram -> ([String], String, String, [(Id, SchemaSkeleton)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)

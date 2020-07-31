@@ -23,7 +23,7 @@ import qualified Test.QuickCheck as QC
 defaultShowFunctionDepth  = 4         :: Int
 defaultMaxOutputLength    = 10        :: CB.Nat
 defaultSeriesLimit        = 5         :: Int
-defaultTimeoutMicro       = 100       :: Int
+defaultTimeoutMicro       = 200       :: Int
 defaultIntRange           = [-2..10]  :: [Int]
 defaultTestArgs           = QC.stdArgs {QC.chatty = False, QC.maxDiscardRatio = 1, QC.maxSuccess = 30, QC.maxSize = 7} :: QC.Args
 
