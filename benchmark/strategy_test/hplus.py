@@ -31,7 +31,6 @@ def dump_stderrs(proc):
 
 def read_results(proc):
     for line in io.TextIOWrapper(proc.stdout, encoding="utf-8"):
-        print(line)
         if line[:8] == 'RESULTS:':
             try:    yield json.loads(line[8:])['outCandidates']
             except: yield {'error': result}

@@ -37,7 +37,7 @@ class OptionExperiment():
         query_name  = query['name']
         query_type  = query['query']
         query_json  = build_option_query_program(query_type)
-        process     = run_hplus(self.options + query_json, timeout)
+        process     = run_hplus(self.options + query_json, self.timeout)
         
         times   = [time.time()]
         results = []
