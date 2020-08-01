@@ -165,7 +165,10 @@ runChecks env goalType prog = do
   state <- get
   when result $ liftIO $ printFilter body state
 
-  return $ if result then Just (Map.toList $ differentiateExamples state) else Nothing
+  -- add extra examples from solution descriptions
+  let extraExamples = fromMaybe Map.empty $ fmap (Map.fromList . (:[]) . toExample) $ find (((==) body) . fst) $ solutionDescriptions state
+  let assocExamples = Map.toList $ Map.unionWith (++) (differentiateExamples state) extraExamples
+  return $ if result then Just assocExamples else Nothing
   where
     (modules, funcSigStr, body, _) = extractSolution env goalType prog
     checks = [ checkSolutionNotCrash
@@ -173,6 +176,9 @@ runChecks env goalType prog = do
 
     funcSig = (instantiateSignature . parseTypeString) funcSigStr
     runChecks_ = andM $ map (\f -> f modules funcSig body) checks
+
+    toExample :: (String, FuncTestDesc) -> (String, [Example])
+    toExample (s, v) = ((,) s) $ take defaultNumExtraExamples $ case v of Total xs -> xs; Partial xs -> xs; _ -> []
 
 checkSolutionNotCrash :: MonadIO m => [String] -> FunctionSignature -> String -> FilterTest m Bool
 checkSolutionNotCrash modules funcSig solution = do

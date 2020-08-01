@@ -16,6 +16,7 @@ defaultGenerationTimeoutMicro = 30 * 10^6 :: Int
 
 -- todo: remove the constant as not used -- example checker
 defaultTimeoutMicro = 100 :: Int
+defaultNumExtraExamples = 2 :: Int
 
 frameworkModules =
   zip [ "Test.QuickCheck"
