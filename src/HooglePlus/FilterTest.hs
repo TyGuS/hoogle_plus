@@ -6,6 +6,7 @@ import qualified Test.QuickCheck as QC
 import qualified Data.Map as Map
 
 import Language.Haskell.Interpreter (InterpreterT, InterpreterError(..), Extension(..), OptionVal(..))
+import Control.Monad.Extra (andM)
 
 import Language.Haskell.Exts.Parser
 import Text.Printf
@@ -171,7 +172,7 @@ runChecks env goalType prog = do
              , checkDuplicates]
 
     funcSig = (instantiateSignature . parseTypeString) funcSigStr
-    runChecks_ = and <$> mapM (\f -> f modules funcSig body) checks
+    runChecks_ = andM $ map (\f -> f modules funcSig body) checks
 
 checkSolutionNotCrash :: MonadIO m => [String] -> FunctionSignature -> String -> FilterTest m Bool
 checkSolutionNotCrash modules funcSig solution = do
