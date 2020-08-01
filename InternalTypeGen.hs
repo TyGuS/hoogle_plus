@@ -2,6 +2,7 @@
 {-# LANGUAGE LambdaCase #-}
 module InternalTypeGen where
 
+import Data.Char (ord)
 import Data.List (isInfixOf, elemIndex, nub, drop, reverse, intersect)
 import Data.Containers.ListUtils (nubOrd)
 import Control.DeepSeq (force)
@@ -20,11 +21,12 @@ import qualified Test.ChasingBottoms as CB
 import qualified Test.SmallCheck.Series as SS
 import qualified Test.QuickCheck as QC
 
-defaultShowFunctionDepth  = 4         :: Int
-defaultMaxOutputLength    = 10        :: CB.Nat
-defaultSeriesLimit        = 5         :: Int
-defaultTimeoutMicro       = 200       :: Int
-defaultIntRange           = [-2..10]  :: [Int]
+defaultShowFunctionDepth  = 4           :: Int
+defaultMaxOutputLength    = 5           :: CB.Nat
+defaultSeriesLimit        = 5           :: Int
+defaultTimeoutMicro       = 200         :: Int
+defaultIntRange           = [-2..10]    :: [Int]
+defaultCharRange          = ['a'..'d']  :: [Char]
 defaultTestArgs           = QC.stdArgs {QC.chatty = False, QC.maxDiscardRatio = 1, QC.maxSuccess = 30, QC.maxSize = 7} :: QC.Args
 
 instance Eq a => Eq (CB.Result a) where
@@ -86,6 +88,14 @@ instance SF.ShowFunction  MyInt where bindtiers (MyIntValue v) = SF.bindtiers v
 instance QC.Arbitrary     MyInt where arbitrary = QC.elements (map MyIntValue defaultIntRange)
 instance QC.CoArbitrary   MyInt where coarbitrary (MyIntValue v) = QC.coarbitraryIntegral v
 
+newtype  MyChar = MyCharValue Char deriving (Eq, Data)
+instance Ord              MyChar where compare (MyCharValue l) (MyCharValue r) = compare l r
+instance Show             MyChar where show (MyCharValue v) = show v
+instance SF.Listable      MyChar where list = map MyCharValue defaultCharRange
+instance SF.ShowFunction  MyChar where bindtiers (MyCharValue v) = SF.bindtiers v
+instance QC.Arbitrary     MyChar where arbitrary = QC.elements (map MyCharValue defaultCharRange)
+instance QC.CoArbitrary   MyChar where coarbitrary (MyCharValue v) = QC.coarbitrary $ ord v
+
 newtype  MyFun a b = MyFun (a -> b)
 instance (QC.CoArbitrary a, QC.Arbitrary b)         => QC.Arbitrary (MyFun a b)     where arbitrary = liftM MyFun QC.arbitrary
 instance (QC.Arbitrary a, QC.CoArbitrary b)         => QC.CoArbitrary (MyFun a b)   where coarbitrary (MyFun f) = QC.coarbitrary f
@@ -95,6 +105,7 @@ instance (Show a, SF.Listable a, SF.ShowFunction b) => SF.ShowFunction (MyFun a 
 -- * Custom Datatype Conversion
 class    Unwrappable a b                                                            where unwrap :: a -> b; wrap :: b -> a
 instance Unwrappable MyInt Int                                                      where unwrap (MyIntValue v) = v; wrap = MyIntValue
+instance Unwrappable MyChar Char                                                    where unwrap (MyCharValue v) = v; wrap = MyCharValue
 instance (Unwrappable a c, Unwrappable b d)   => Unwrappable (MyFun a b) (c -> d)   where unwrap (MyFun f) = \x -> unwrap $ f $ wrap x; wrap f = MyFun $ \x -> wrap $ f $ unwrap x
 
 instance {-# OVERLAPPABLE #-} (a ~ b)         => Unwrappable a b                    where unwrap = id; wrap = id

@@ -245,6 +245,8 @@ showParams args = (plain, typed, shows, unwrp)
     replaceInner x =
       let apply a b = ArgTypeApp (ArgTypeApp (Concrete "MyFun") a) b in case x of
         Concrete "Int" -> Concrete "MyInt"
+        Concrete "Char" -> Concrete "MyChar"
+        Concrete "String" -> ArgTypeList $ Concrete "MyChar"
         Concrete _ -> x
         Polymorphic _ -> x
         ArgTypeList t -> ArgTypeList (replaceInner t)
