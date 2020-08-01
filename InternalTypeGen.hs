@@ -79,11 +79,12 @@ data Example = Example {
 
 -- * Custom Datatype for Range Restriction
 newtype  MyInt = MyIntValue Int deriving (Eq, Data)
-instance Show MyInt             where show (MyIntValue v) = show v
-instance SF.Listable MyInt      where list = map MyIntValue defaultIntRange
-instance SF.ShowFunction MyInt  where bindtiers (MyIntValue v) = SF.bindtiers v
-instance QC.Arbitrary MyInt     where arbitrary = QC.elements (map MyIntValue defaultIntRange)
-instance QC.CoArbitrary MyInt   where coarbitrary (MyIntValue v) = QC.coarbitraryIntegral v
+instance Ord              MyInt where compare (MyIntValue l) (MyIntValue r) = compare l r      
+instance Show             MyInt where show (MyIntValue v) = show v
+instance SF.Listable      MyInt where list = map MyIntValue defaultIntRange
+instance SF.ShowFunction  MyInt where bindtiers (MyIntValue v) = SF.bindtiers v
+instance QC.Arbitrary     MyInt where arbitrary = QC.elements (map MyIntValue defaultIntRange)
+instance QC.CoArbitrary   MyInt where coarbitrary (MyIntValue v) = QC.coarbitraryIntegral v
 
 newtype  MyFun a b = MyFun (a -> b)
 instance (QC.CoArbitrary a, QC.Arbitrary b)         => QC.Arbitrary (MyFun a b)     where arbitrary = liftM MyFun QC.arbitrary

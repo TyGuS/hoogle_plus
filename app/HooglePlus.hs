@@ -267,6 +267,9 @@ precomputeGraph opts = do
 -- | Parse and resolve file, then synthesize the specified goals
 executeSearch :: SynquidParams -> SearchParams -> String -> IO ()
 executeSearch synquidParams searchParams inStr = catch (do
+    -- benchmark/webapp script needs line-by-line stdout reading
+    hSetBuffering stdout LineBuffering
+
     let input = decodeInput (LB.pack inStr)
     let tquery = query input
     let exquery = inExamples input
