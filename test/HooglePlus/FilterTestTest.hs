@@ -16,12 +16,12 @@ modules = ["Prelude"]
 
 runNotCrashTest :: [String] -> String -> String -> IO Bool
 runNotCrashTest modules' funcSig body =
-    evalStateT (checkSolutionNotCrash (modules' ++ modules) funcSig' body) emptyFilterState
+    evalStateT (checkSolutionNotCrash (modules' ++ modules) (show funcSig') body) emptyFilterState
         where funcSig' = (instantiateSignature . parseTypeString) funcSig
 
 runDuplicateTest :: FilterState -> [String] -> String -> String -> IO (Bool, FilterState)
 runDuplicateTest st modules' funcSig body = 
-    runStateT (checkDuplicates (modules ++ modules') funcSig' body) st
+    runStateT (checkDuplicates (modules ++ modules') (show funcSig') body) st
         where funcSig' = (instantiateSignature . parseTypeString) funcSig
 
 itNotCrashCase :: (String, [String], String, String, Bool) -> TestTree

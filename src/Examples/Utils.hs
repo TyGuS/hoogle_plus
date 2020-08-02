@@ -35,7 +35,7 @@ import Types.TypeChecker
 import Types.InfConstraint
 import Database.Utils
 import Synquid.Type
-import HooglePlus.FilterTest (runInterpreterWithEnvTimeout)
+import HooglePlus.FilterTest 
 import HooglePlus.TypeChecker (solveTypeConstraint)
 import PetriNet.Utils
 
