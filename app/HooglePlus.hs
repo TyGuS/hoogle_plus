@@ -222,7 +222,7 @@ precomputeGraph opts = do
     env <- generateEnv opts
     writeEnv (Types.Generate.envPath opts) env
     writeSouffle env
-    writeFormulog env
+    -- writeFormulog env
 
 -- | Parse and resolve file, then synthesize the specified goals
 executeSearch :: SynquidParams -> SearchParams -> String -> IO ()

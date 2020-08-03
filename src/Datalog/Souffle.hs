@@ -74,8 +74,8 @@ writeSouffle env =
         mapM_ (hPutStrLn hdl . uncurry writeFunctionSouffle) (Map.toList $ env ^. groups)
 
 writeFunctionSouffle :: Id -> TypeSkeleton -> String
-writeFunctionSouffle = 
-    writeFunction "Program(%s, cat(cat(\"(\", cat(\"%s\", %s)), \")\"), %s)" 
-                  (foldr (printf "cat(\" \", cat(%s, %s))") "")
-                  SoufflePack
-
+writeFunctionSouffle name t =
+    let funcStr = writeFunction "Program(%s, cat(cat(\"(\", cat(\"%s\", %s)), \")\"), %s)"
+                                (foldr (printf "cat(\" \", cat(%s, %s))") "\"\"")
+                                SoufflePack name t
+     in printf "//%s :: %s\n%s" name (show t) funcStr

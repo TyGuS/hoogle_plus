@@ -12,4 +12,4 @@ newtype SoufflePack = SoufflePack TypeSkeleton
 newtype FormulogPack = FormulogPack TypeSkeleton
 
 class PrintType a where
-    writeType :: String -> a -> State Int String
+    writeType :: String -> a -> State Int (String, String)
