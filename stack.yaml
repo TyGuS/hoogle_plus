@@ -1,12 +1,13 @@
 packages:
   - .
-resolver: nightly-2020-07-12 # lts-16.2
+resolver: nightly-2020-07-12
 extra-deps:
   - z3-408.1
   - leancheck-0.9.3
   - hoogle-5.0.17.15
-  - souffle-haskell-0.2.3
-compiler: ghc-8.10.1 # ghc-8.8.3
+  - souffle-haskell-1.0.0
+  - megaparsec-7.0.5
+compiler: ghc-8.10.1
 allow-different-user: true
 ghc-options:
   souffle-haskell: -optcxx-std=c++17
