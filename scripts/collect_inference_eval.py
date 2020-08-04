@@ -8,11 +8,16 @@ TEST_LOG_FILE = 'inference.tsv'
 DEFAULT_INFERENCE_LOG = 'output/inference.tsv'
 
 class InferenceResult:
-    def __init__(self, benchmark, gen_examples, inf_types, correct_rank):
+    def __init__(self, benchmark, gen_examples, num_examples, num_vars, 
+                inf_types, correct_rank, prefilter_cnt, postfilter_cnt):
         self.benchmark = benchmark
         self.gen_examples = gen_examples
         self.inf_types = inf_types
         self.rank = correct_rank
+        self.num_examples = num_examples
+        self.num_vars = num_vars
+        self.prefilter_cnt = prefilter_cnt
+        self.postfilter_cnt = postfilter_cnt
 
     def add_example(self, example):
         self.gen_examples.append(example)
@@ -46,11 +51,34 @@ def parse_inference_results(benchmarks, file_path = DEFAULT_INFERENCE_LOG):
 
                 
                 benchmark = next(g.contains(name) for g in benchmarks.values() if g.contains(name))
+                # sanity check
                 assert benchmark, \
                     f'Benchmark name {name} does not match that in the log file, please check'
                 gen_examples = [row['gen_exs']]
+                num_examples = int(row['num_exs'])
+                num_vars = int(row['var_counts'])
                 inf_typs = [row['inf_typs']]
                 rank = int(row['rank']) if row['rank'] != 'NO ANSWER' else 11
-                curr_result = InferenceResult(benchmark, gen_examples, inf_typs, rank)
+                prefilter = int(row['prefilter_counts']) if row['prefilter_counts'] != '' else None
+                postfilter = int(row['postfilter_counts']) if row['postfilter_counts'] != '' else None
+                curr_result = InferenceResult(benchmark, gen_examples, num_examples, num_vars,
+                                              inf_typs, rank, prefilter, postfilter)
 
     return results
+
+def group_by_counts(inference_results):
+    group_by_var_count = {}
+    for r in inference_results:
+        if r.num_vars not in group_by_var_count:
+            group_by_var_count[r.num_vars] = {}
+        group_by_ex_num = group_by_var_count[r.num_vars]
+
+        if r.num_examples in group_by_ex_num:
+            group_by_ex_num[r.num_examples].append(r)
+        else:
+            group_by_ex_num[r.num_examples] = [r]
+
+    return group_by_var_count
+
+def get_grouped_ranks(benchmarks, result_groups):
+    return {}
