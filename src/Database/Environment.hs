@@ -19,7 +19,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Control.Monad.State (evalStateT)
+import Control.Monad.State (evalStateT, evalState)
 import System.Exit (exitFailure)
 import Text.Parsec.Pos (initialPos)
 import Text.Printf
@@ -45,42 +45,49 @@ import HooglePlus.Utils
 import qualified Debug.Trace as D
 
 writeFunction :: PrintType a
-              => String
-              -> ([String] -> String)
-              -> (TypeSkeleton -> a)
-              -> Id
-              -> TypeSkeleton
+              => String               -- ^. header clause template
+              -> ([String] -> String) -- ^. how to print program applications
+              -> (TypeSkeleton -> a)  -- ^. which datalog engine to be called
+              -> Id                   -- ^. function name
+              -> TypeSkeleton         -- ^. function type
               -> String
 writeFunction headerTempl printApp pkTyp f t =
     if null args
-       then printf "%s." (headClause "0")
-       else printf "%s :- D >= 0, D <= 5, %s, %s."
-               (headClause "D + 1")
-               (if null depthVars then "" else printf ", D = %s" (intercalate " + " depthVars))
-               (intercalate ", " (map argClause [1 .. argNum]))
+       then printf "%s :- %s." 
+                (headClause "0") 
+                (if retTypName /= "T0" then printf "%s = T0" retTypName else cleanRetStr)
+       else printf "%s :- D >= 0, D <= 5, %s, %s, %s, %s."
+                (headClause "D + 1")
+                (if null depthVars then "" else printf ", D = %s" (intercalate " + " depthVars))
+                (intercalate ", " (map argClause [1 .. argNum]))
+                (if retTypName /= "T0" then printf "%s = T0" retTypName else cleanRetStr)
+                (intercalate ", " argsStr)
     where
-        renamedTyp = typeSubstitute subst t
-        ret = lastType renamedTyp
-        retStr = evalStateT (writeType "T0" (pkTyp ret)) 0
-
-        headClause depth = printf headerTempl "T0" f (printApp progVars) depth :: String
-        args = allArgTypes renamedTyp
-
-        argClause i = foldr underscoreSingleton (printf "Program(T%d, P%d, D%d)" i i i) singletonVars
-        argsStr = zipWith (\t v -> evalStateT (writeType v (pkTyp t)) 0) args argTypVars
-
+        -- type transformations
         vars = Set.toList (typeVarsOf t)
-        dupVars = concatMap (Set.toList . typeVarsOf) (ret : args)
-        singletonVars = map head (filter ((<= 1) . length) (group (sort dupVars)))
-        underscoreSingleton v = replaceId v "_" 
-
-        -- rename the type variables to make sure all the variables are unique in one rule
+        typeVars = mkVarTo 'A' (length vars)
+        subst = Map.fromList $ zipWith (\v1 v2 -> (v1, TypeVarT v2)) vars typeVars
+        renamedTyp = typeSubstitute subst t
+        -- vars: rename the type variables to make sure all the variables are unique in one rule
         mkVarTo v i = map ((v:) . show) [1 .. i]
         argNum = arity t
         [progVars, depthVars, argTypVars] = map (`mkVarTo` argNum) ['P', 'D', 'T']
-
-        typeVars = mkVarTo 'A' (length vars)
-        subst = Map.fromList $ zipWith (\v1 v2 -> (v1, TypeVarT v2)) vars typeVars
+        -- program clauses
+        headClause depth = printf headerTempl "T0" f (printApp progVars) depth :: String
+        argClause i = sanitize (printf "Program(T%d, P%d, D%d)" i i i)
+        -- type clauses
+        ret = lastType renamedTyp
+        args = allArgTypes renamedTyp
+        (retTypName, retStr) = evalState (writeType "T0" (pkTyp ret)) 0
+        cleanRetStr = sanitize retStr
+        argsStr = zipWith (\t v -> 
+            sanitize $ snd $ evalState (writeType v (pkTyp t)) 0
+            ) args argTypVars
+        -- replace duplicate vars as wildcards
+        dupVars = concatMap (Set.toList . typeVarsOf) (ret : args)
+        singletonVars = map head (filter ((<= 1) . length) (group (sort dupVars)))
+        underscoreSingleton v = replaceId v "_" 
+        sanitize str = foldr underscoreSingleton str singletonVars
 
 writeEnv :: FilePath -> Environment -> IO ()
 writeEnv path env =
