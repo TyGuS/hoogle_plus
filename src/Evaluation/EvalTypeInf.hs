@@ -10,6 +10,7 @@ import Data.Aeson (encode)
 import Data.ByteString.Lazy.Char8 (unpack)
 import Data.Map (Map)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.List
 import Data.Maybe
 import System.Random
@@ -26,6 +27,8 @@ import Types.IOFormat
 import Types.Experiments (defaultSynquidParams)
 import Types.Generate (defaultEnvPath)
 import Types.Filtering (FunctionSignature(..), defaultInterpreterTimeoutMicro)
+import Types.InfConstraint (InfStats(..))
+import Types.Environment (Environment)
 import HooglePlus.IOFormat (searchTypes, readEnv, parseQueryType)
 import HooglePlus.FilterTest (showParams, runInterpreter', parseTypeString)
 import HooglePlus.Utils (removeTypeclasses, mkFunctionSigStr, replaceId)
@@ -52,7 +55,11 @@ data InferenceResult = InferenceResult {
     benchmark :: !Benchmark,
     genExamples :: ![Example],
     infTypes :: ![String],
-    correctIndex :: !String
+    correctIndex :: !String,
+    beforeFilterCount :: !Int,
+    afterFilterCount :: !Int,
+    varCount :: !Int,
+    argCount :: !Int
 } deriving (Show)
 
 runTest :: Int -> Benchmark -> IO [Example]
@@ -125,7 +132,7 @@ randomSubst :: [Id] -> Map Id SType -> IO (Map Id SType)
 randomSubst [] sofar = return sofar
 randomSubst (v:vars) sofar = do
     -- update the random generator by splitting the seed
-    newStdGen
+    -- newStdGen
     rndIdx <- getStdRandom (randomR (0, length typeCandidates - 1))
     randomSubst vars (Map.insert v (typeCandidates !! rndIdx) sofar)
 
@@ -136,41 +143,52 @@ runInference bm = do
     print exs
     mapM (\xs -> do
         let inStr = unpack (encode (QueryInput "??" xs))
-        ListOutput res _ <- searchTypes defaultSynquidParams inStr 10
-        checkRes <- getCorrectIndex (Evaluation.Benchmark.query bm) 1 res
-        return (InferenceResult bm xs res checkRes)
+        (ListOutput res _, stats) <- searchTypes defaultSynquidParams inStr 10
+        dt <- getMetadata res stats
+        return $ dt { genExamples = xs }
         ) (tail $ inits exs)
+
+    where
+        getMetadata res (InfStats prefilter postfilter) = do
+            env <- readEnv defaultEnvPath 
+            let query = Evaluation.Benchmark.query bm
+            let q = parseQueryType env query
+            checkRes <- getCorrectIndex env q 1 res
+            let argCnt = length (argsWithName (toMonotype q))
+            let varCnt = length (boundVarsOf q)
+            return (InferenceResult bm [] res checkRes prefilter postfilter varCnt argCnt)
 
 runTypeInferenceEval :: [Benchmark] -> IO ()
 runTypeInferenceEval bms = do
     results <- mapM runInference bms
     writeResultsTsv (concat results)
 
-getCorrectIndex :: String -> Int -> [String] -> IO String
-getCorrectIndex query _ [] = return "NO ANSWER"
-getCorrectIndex query idx (infer:xs) = do
-    env <- readEnv defaultEnvPath 
-    let q = parseQueryType env query
+getCorrectIndex :: Environment -> RSchema -> Int -> [String] -> IO String
+getCorrectIndex _ _ _ [] = return "NO ANSWER"
+getCorrectIndex env q idx (infer:xs) = do
     let t = parseQueryType env infer
     if eqType (toMonotype q) (toMonotype t)
         then return (show idx)
-        else getCorrectIndex query (idx + 1) xs
+        else getCorrectIndex env q(idx + 1) xs
 
 writeResultsTsv :: [InferenceResult] -> IO ()
 writeResultsTsv results = 
     withFile "inference.tsv" WriteMode $ \hdl -> do
-        hPutStrLn hdl "bm_name\tbm_query\tgen_exs\tinf_typs\trank"
-        let padEnd n xs = xs ++ replicate n ""
-        mapM_ (\(InferenceResult bm exs typs rank) -> do
+        hPutStrLn hdl "bm_name\tbm_query\tgen_exs\tinf_typs\tnum_exs\trank\tprefilter_counts\tpostfilter_counts\tvar_counts\targ_counts"
+        let padEnd n xs = xs ++ replicate n []
+        mapM_ (\(InferenceResult bm exs typs rank pre post vars args) -> do
             let len = max (length exs) (length typs)
+            let align x = padEnd (len - 1) [x]
             let exStrs = padEnd (len - length exs) (map show exs)
             let typStrs = padEnd (len - length typs) typs
-            let nameStrs = padEnd (len - 1) [Evaluation.Benchmark.name bm]
-            let queryStrs = padEnd (len - 1) [Evaluation.Benchmark.query bm]
-            let rankStrs = padEnd (len - 1) [rank]
-            mapM_ (\(n,q,e,t,r) -> do
-                let ln = printf "%s\t%s\t%s\t%s\t%s" n q e t r
+            let nameStrs = align (Evaluation.Benchmark.name bm)
+            let queryStrs = align (Evaluation.Benchmark.query bm)
+            let dataStrs = align [(length exs, rank, pre, post, vars, args)]
+            mapM_ (\(name,query,e,t,d) -> do
+                let ln = case (name, query, d) of -- there appear only in the first line
+                        ("", _, _) -> printf "\t\t%s\t%s\t\t\t\t\t\t" e t
+                        (n, q, [(ex, r, pre, post, v, a)]) -> printf "%s\t%s\t%s\t%s\t%d\t%s\t%d\t%d\t%d\t%d" n q e t ex r pre post v a
                 hPutStrLn hdl ln
-                ) (zip5 nameStrs queryStrs exStrs typStrs rankStrs)
+                ) (zip5 nameStrs queryStrs exStrs typStrs dataStrs)
             ) results
 
