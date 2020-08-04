@@ -30,7 +30,6 @@ defaultLibrary = concat [
   defaultTypeclassInstances
   ]
 
-{-
 defaultFuncs = [
     Pos (initialPos "fst") $ FuncDecl "fst" (Monotype $
       (FunctionT "p" (ScalarT (
@@ -45,8 +44,6 @@ defaultFuncs = [
           ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue) $
         (ScalarT (TypeVarT Map.empty "b") ftrue)))
   ]
--}
-defaultFuncs = []
 
 defaultDts = [
   defaultList, defaultPair, defaultUnit,
@@ -69,7 +66,7 @@ defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [] [
         (ScalarT (DatatypeT "Pair" [
           ScalarT (TypeVarT Map.empty "a") ftrue,
           ScalarT (TypeVarT Map.empty "b") ftrue] []) ftrue))
-    ]
+  ]
 
 
 defaultFun = [Pos (initialPos "Fun") $ DataDecl "Fun" ["a", "b"] [] []]
@@ -80,16 +77,14 @@ defaultFun = [Pos (initialPos "Fun") $ DataDecl "Fun" ["a", "b"] [] []]
 -- Eq, Ord, Show, Read, Enum, Bounded, Num, Real, Floating,
 -- Integral, RealFloat, Fractional, RealFrac
 defaultTypeclassInstances =
-    [ {-
-      mkInstance "Show" intType
+    [ mkInstance "Show" intType
     , mkInstance "Show" boolType
     , mkInstance "Show" charType
     , mkInstance "Show" intType
     , mkInstance "Show" floatType
     , mkInstance "Show" doubleType
     , mkInstance "Show" unitType
-    , -}
-      mkInstance "Eq" intType
+    , mkInstance "Eq" intType
     , mkInstance "Eq" boolType
     , mkInstance "Eq" charType
     , mkInstance "Eq" intType
@@ -105,32 +100,15 @@ defaultTypeclassInstances =
     , mkInstance "Num" intType
     , mkInstance "Num" floatType
     , mkInstance "Num" doubleType
-    , mkSupertype "Ord" "Eq"
-    , mkSupertype "Num" "Ord"
-    -- , mkSupertype "Num" "Eq"
     ]
 
 
--- mkInstance creates something like
--- @@hplusTCInstance@@0EqInt :: @@hplusTC@@Eq Int
 mkInstance :: String -> RType -> Declaration
 mkInstance tyclassName instanceType = let
     instanceName = scalarName instanceType
     in Pos (initialPos "tcBuiltin") $
         FuncDecl (printf "%s0%s%s" tyclassInstancePrefix tyclassName instanceName) $ Monotype $
           ScalarT (DatatypeT (tyclassPrefix ++ tyclassName) [instanceType] []) ftrue
-
-
--- create the function that converts from a subtype to a supertype
--- (e.g., Ord a => Eq a)
-mkSupertype :: String -> String -> Declaration
-mkSupertype subtype supertype = let
-  instanceType = mkTyVar "a"
-  in Pos (initialPos "tcBuiltin") $
-    FuncDecl (printf "%s0%s%s" tyclassInstancePrefix subtype supertype) $
-      Monotype (FunctionT "tc"
-        (ScalarT (DatatypeT (tyclassPrefix ++ subtype) [instanceType] []) ftrue)
-        (ScalarT (DatatypeT (tyclassPrefix ++ supertype) [instanceType] []) ftrue))
 
 listInstance :: String -> Declaration
 listInstance tyclassName = let
