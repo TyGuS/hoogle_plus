@@ -20,16 +20,26 @@ import Control.Monad.Logic
 type TyclassConstraints = Set Id
 type TyclassAssignment = Map Id TyclassConstraints
 
+data InfStats = InfStats {
+    _prefilterCounts :: Int,
+    _postfilterCounts :: Int
+} deriving(Eq, Show)
+
+makeLenses ''InfStats
+
 data TypeClassState = TypeClassState {
     _tyclassCache :: Map SType [Id],
-    _supportModules :: [String]
+    _supportModules :: [String],
+    -- stats
+    _infStats :: InfStats
 } deriving(Eq)
 
 makeLenses ''TypeClassState
 
 emptyTyclassState = TypeClassState {
     _tyclassCache = Map.empty,
-    _supportModules = []
+    _supportModules = [],
+    _infStats = InfStats 0 0
 }
 
 data AntiUnifState = AntiUnifState {
@@ -50,6 +60,7 @@ emptyAntiUnifState = AntiUnifState {
 
 data TypeNaming = TypeNaming {
     _substCounter :: Map SType (Id, Int),
+    _nameCounter :: Map Id Int,
     _prevTypeVars :: Set Id,
     _beginTypeVars :: Set Id
 } deriving(Eq)
@@ -62,6 +73,16 @@ type TypeGeneralizer m = StateT TypeNaming (LogicT (StateT TypeClassState m))
 instance Monad m => CheckMonad (AntiUnifier m) where
     getNameCounter = gets (view generalNames)
     setNameCounter nc = modify (set generalNames nc)
+    getNameMapping = getNameMapping
+    setNameMapping = setNameMapping
+    getIsChecked = getIsChecked
+    setIsChecked = setIsChecked
+    getMessageChan = getMessageChan
+    overStats = overStats
+
+instance Monad m => CheckMonad (TypeGeneralizer m) where
+    getNameCounter = gets (view nameCounter)
+    setNameCounter nc = modify (set nameCounter nc)
     getNameMapping = getNameMapping
     setNameMapping = setNameMapping
     getIsChecked = getIsChecked

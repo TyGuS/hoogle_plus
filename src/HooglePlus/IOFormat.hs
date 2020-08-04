@@ -14,6 +14,7 @@ module HooglePlus.IOFormat(
     ) where
 
 import Types.IOFormat
+import Types.InfConstraint (InfStats(..))
 import Types.Experiments
 import Types.Environment
 import Types.Type
@@ -107,7 +108,7 @@ parseQueryType env str = let
                           Left err -> error $ "resolve fails" ++ show err ++ " type " ++ show t
                           Right s -> s
 
-searchTypes :: SynquidParams -> String -> Int -> IO (ListOutput String)
+searchTypes :: SynquidParams -> String -> Int -> IO (ListOutput String, InfStats)
 searchTypes synquidParams inStr num = do
     let input = decodeInput (LB.pack inStr)
     let exquery = inExamples input
@@ -117,8 +118,8 @@ searchTypes synquidParams inStr num = do
     exTypes <- mapM (parseExample mdls . mkFun) exquery
     let (validSchemas, invalidTypes) = partitionEithers exTypes
     resultObj <- if null invalidTypes then possibleQueries env exquery validSchemas
-                                      else return $ ListOutput [] (unlines invalidTypes)
-    printResult $ encodeWithPrefix resultObj
+                                      else return $ (ListOutput [] (unlines invalidTypes), InfStats (-1) (-1))
+    printResult $ encodeWithPrefix $ fst resultObj
     return resultObj
     where
         renameVars t = 
@@ -129,9 +130,9 @@ searchTypes synquidParams inStr num = do
              in stypeSubstitute substMap t
 
         possibleQueries env exquery exTypes = do
-            generalTypes <- getExampleTypes env exTypes num
-            if null generalTypes then return $ ListOutput [] "Cannot find type for your query"
-                                 else return $ ListOutput generalTypes ""
+            (generalTypes, stats) <- getExampleTypes env exTypes num
+            if null generalTypes then return $ (ListOutput [] "Cannot find type for your query", InfStats 0 0)
+                                 else return $ (ListOutput generalTypes "", stats)
 
 prepareEnvFromInput :: SynquidParams -> String -> IO (TypeQuery, [String], String, Environment)
 prepareEnvFromInput synquidParams inStr = do
