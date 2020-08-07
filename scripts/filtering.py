@@ -4,13 +4,13 @@ import json
 import yaml
 import numpy as np
 import pandas as pd
-import matplotlib as mpl
+import matplotlib.pyplot as plt
 from glob import glob
 from matplotlib import cm
 from matplotlib.ticker import FuncFormatter
 from synthesis import run_synthesis
 
-FILE_TO_CLS = os.path.join(os.path.dirname(__file__), '../benchmark/suite/classification.yml')
+FILE_TO_CLS = os.path.join(os.path.dirname(__file__), '../benchmark/suites/classification.yml')
 MODULE_NAME_RE = re.compile(r"[\w+\.\w+]+\.([\S]+)(?<!\))")
 
 def remove_module_name(n):
@@ -35,7 +35,7 @@ def extract_result(result):
 
 def load_experiment_result(dir_name):
     '''Load the experiment result from a given directory.'''
-    files = glob(join(dir_name, "*.json"))
+    files = glob(os.path.join(dir_name, "*.json"))
 
     raw_results = []
     for file_name in files:
@@ -86,7 +86,6 @@ def compute_filter_stats(classifications, row):
     # compute other stats: all synthesized solution, invalids, duplicates, interesting solution
     # since sometimes 180-no-filter include garbage, we use 360-no-filter
 
-    universal_candidates = set(row["360-no-filter"])
     subset_candidates = set(row["180-no-filter"])
 
     universal_filtered_candidates = set(row["360-filter"])
@@ -99,7 +98,6 @@ def compute_filter_stats(classifications, row):
     num_all_candidates = len(set(subset_candidates))
     num_invalid_candidates = count_num_invalid(cls_invalid, subset_candidates)
     num_all_classes = count_num_class(cls_classes, cls_invalid, subset_candidates)
-    num_all_filtered_classes = len(subset_filtered_candidates)
     num_all_duplicates = num_all_candidates - num_invalid_candidates - num_all_classes
 
     num_timeout = len(universal_filtered_candidates.intersection(subset_candidates) - subset_filtered_candidates)
@@ -114,15 +112,17 @@ def compute_filter_stats(classifications, row):
 
     return row
 
-def plot_graph(value_df):
+def plot_graph(output_dir, value_df):
     # prepare the percentages
-    graph_df = value_df[['num_timeout', 'num_misclss', 'num_all_candidates', 'num_invalid_candidates', 'num_all_duplicates']]
-    graph_df['loss_timeout'] = graph_df['num_timeout'] / graph_df['num_all_candidates']
-    graph_df['loss_misclss'] = graph_df['num_misclss'] / graph_df['num_all_candidates']
-    graph_df['invalids'] = graph_df['num_all_duplicates'] / graph_df['num_all_candidates']
-    graph_df['useful'] = 1 - graph_df['invalids'] - graph_df['loss_misclss'] - graph_df['loss_timeout']
-    graph_df.sort_values(by=['useful'], inplace=True)
-    graph_df = graph_df.reset_index().set_index('name').drop(['containsEdge'], axis=0)
+    graph_df = value_df.loc[:,['num_timeout', 'num_misclss', 'num_all_candidates', 'num_invalid_candidates', 'num_all_duplicates']]
+    graph_df.loc[:,'loss_timeout'] = graph_df.loc[:,'num_timeout'] / graph_df.loc[:,'num_all_candidates']
+    graph_df.loc[:,'loss_misclss'] = graph_df.loc[:,'num_misclss'] / graph_df.loc[:,'num_all_candidates']
+    graph_df.loc[:,'invalids'] = graph_df.loc[:,'num_all_duplicates'] / graph_df.loc[:,'num_all_candidates']
+    graph_df.loc[:,'useful'] = 1 - graph_df.loc[:,'invalids'] - graph_df.loc[:,'loss_misclss'] - graph_df.loc[:,'loss_timeout']
+    graph_df = graph_df.sort_values(by=['useful'])
+    graph_df = graph_df.reset_index().set_index('name')
+    if 'containsEdge' in graph_df:
+        graph_df = graph_df.drop(['containsEdge'], axis=0)
 
     # plot the histogram
     bar_df_ = graph_df[['useful', 'loss_timeout', 'loss_misclss', 'invalids']]
@@ -137,7 +137,7 @@ def plot_graph(value_df):
                       'Loss by Misclassification',
                       'Duplicates and Crashings'], loc='upper left')
     ax.set_ylabel('Percents of all generated solutions')
-    plt.save_fig(os.path.join(output_dir, 'filtering.png'))
+    plt.savefig(os.path.join(output_dir, 'filtering.png'))
 
 def run_filtering(groups, output_dir):
     experiments = [('180-filter', ['--disable-filter=False', '--cnt=10'], 180),
@@ -147,25 +147,25 @@ def run_filtering(groups, output_dir):
 
     # run the experiment and store the returns
     dfs = []
-    for expr, options, t in experiments:
+    for exp, options, t in experiments:
         # create the directories if needed
-        exp_dir = os.path.join(output_dir, expr)
+        exp_dir = os.path.join(output_dir, exp)
         if not os.path.isdir(exp_dir):
             os.makedirs(exp_dir)
 
-        run_synthesis(groups, exp_dir, t, True)
+        # run_synthesis(groups, exp_dir, t, options, True)
 
         df = pd.DataFrame(load_experiment_result(exp_dir)).set_index(["name", "query"])
-        dfs.append(df[["candidate"]].rename({"candidate": name},
+        dfs.append(df[["candidate"]].rename({"candidate": exp},
                                             axis="columns"))
     exp_df = pd.concat(dfs, axis=1, sort=False)
 
     # load the manual classification from the file
-    with open(file_to_cls, 'r') as f:
+    with open(FILE_TO_CLS, 'r') as f:
         classifications = yaml.load(f, Loader=yaml.FullLoader)
     classifications = pd.DataFrame(classifications).set_index('name')
 
     value_df = exp_df.apply(lambda r: compute_filter_stats(classifications, r),
                              axis=1)
 
-    plot_graph(value_df)
+    plot_graph(output_dir, value_df)

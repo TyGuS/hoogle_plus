@@ -86,3 +86,4 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+output/

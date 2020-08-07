@@ -63,7 +63,7 @@ data InferenceResult = InferenceResult {
 } deriving (Show)
 
 runTest :: Int -> Benchmark -> IO [Example]
-runTest numOfExs bm@(Benchmark _ q sol _) = do
+runTest numOfExs bm@(Benchmark _ q sol _ _) = do
     env <- readEnv defaultEnvPath 
     let sch = parseQueryType env q
     -- generate @numOfExs@ examples
@@ -139,8 +139,8 @@ randomSubst (v:vars) sofar = do
 runInference :: Bool -> Benchmark -> IO [InferenceResult]
 runInference isStudy bm = do
     print bm
-    exs <- if isStudy then runTest 3 bm
-                      else return (Evaluation.Benchmark.examples bm)
+    exs <- if isStudy then return (Evaluation.Benchmark.examples bm)
+                      else runTest 3 bm
     mapM (\xs -> do
         let inStr = unpack (encode (QueryInput "??" xs))
         (ListOutput res _, stats) <- searchTypes defaultSynquidParams inStr 10

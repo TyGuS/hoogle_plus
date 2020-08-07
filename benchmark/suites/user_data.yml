@@ -1,54 +1,54 @@
-- aname: participant1
+- name: participant1
   query: 'Int -> [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '2'
     - '"abc"'
     output: '"abcabc"'
-- aname: participant2
+- name: participant2
   query: 'a -> [Maybe a] -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '0'
     - '[Nothing, Just 1]'
     output: '1'
-- aname: participant3
+- name: participant3
   query: 'Eq a => [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '"cccbbbaa"'
     output: '"cba"'
   - inputs:
     - '"aaabbab"'
     output: '"abab"'
-- aname: participant4
+- name: participant4
   query: '[a -> b] -> a -> [b]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
-    - '[(\\x -> x + 2), (\\x -> x * 2)]'
+    - '[(\x -> x + 2), (\x -> x * 2)]'
     - '5'
     output: ' [7, 10]'
-- aname: participant7
+- name: participant7
   query: 'Eq a => [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '"aaabbab"'
     output: '"abab"'
-- aname: participant8
+- name: participant8
   query: 'Eq a => [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '[]'
     output: '[]'
@@ -58,11 +58,11 @@
   - inputs:
     - '[1]'
     output: '[1]'
-- aname: participant9
+- name: participant9
   query: 'Eq a => [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '[]'
     output: '[]'
@@ -78,52 +78,52 @@
   - inputs:
     - '[2]'
     output: '[2]'
-- aname: participant10
+- name: participant10
   query: '[a -> b] -> a -> [b]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
-    - '[(\\x -> x + 2), (\\x -> x * 2)]'
+    - '[(\x -> x + 2), (\x -> x * 2)]'
     - '5'
     output: '[7, 10]'
   - inputs:
     - '[]'
     - '0'
     output: '[]'
-- aname: participant11
+- name: participant11
   query: 'Int -> [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '2'
     - '"1"'
     output: '"11"'
-- aname: participant12
+- name: participant12
   query: 'Int -> [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '4'
     - '"abc"'
     output: '"abcabcabcabc"'
-- aname: participant13
+- name: participant13
   query: '(a -> a) -> Int -> a -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - (\x -> x ++ x)
     - '3'
     - '"f-"'
     output: '"f-f-f-f-f-f-f-f-"'
-- aname: participant14
+- name: participant14
   query: 'Int -> [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '2'
     - '"abc"'
@@ -132,28 +132,28 @@
     - '0'
     - '[]'
     output: '[]'
-- aname: participant15
+- name: participant15
   query: 'Eq a => [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '[]'
     output: '[]'
-- aname: participant17
+- name: participant17
   query: 'Int -> [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '1'
     - '"abc"'
     output: '"abc"'
-- aname: participant19
+- name: participant19
   query: '(a -> a) -> Int -> a -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - \x -> x * 2
     - '3'
@@ -164,48 +164,48 @@
     - '3'
     - '"f-"'
     output: '"f-f-f-f-f-f-f-f-"'
-- aname: participant20
+- name: participant20
   query: 'Int -> [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '2'
     - '[1,2,3]'
     output: '[1,2,3,1,2,3]'
-- aname: participant21
+- name: participant21
   query: 'Int -> [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '2'
     - "abc"
     output: '"abcabc"'
-- aname: participant22
+- name: participant22
   query: '(a -> a) -> Int -> a -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
-    - ' (\\x -> x ++ x)'
+    - ' (\x -> x ++ x)'
     - '3'
     - '"f-"'
     output: '"f-f-f-f-f-f-f-f-"'
-- aname: participant23
+- name: participant23
   query: 'a -> [Maybe a] -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '0'
     - '[Nothing, Just 3]'
     output: '3'
-- aname: participant24
+- name: participant24
   query: 'a -> [Maybe a] -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '0'
     - '[Nothing, Just 3]'
@@ -214,11 +214,11 @@
     - '0'
     - '[Nothing]'
     output: '0'
-- aname: participant25
+- name: participant25
   query: 'a -> [Maybe a] -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '0'
     - '[Just 1, Just 2]'
@@ -231,11 +231,11 @@
     - '0'
     - '[Nothing]'
     output: '0'
-- aname: participant26
+- name: participant26
   query: 'a -> [Maybe a] -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '0'
     - '[Just 1, Just 2]'
@@ -248,11 +248,11 @@
     - '0'
     - '[Nothing]'
     output: '0'
-- aname: participant27
+- name: participant27
   query: '[Maybe a] -> a -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '[Just 3, Nothing, Just 4]'
     - '5'
@@ -265,11 +265,11 @@
     - '[Nothing, Just 2, Just 3]'
     - '4'
     output: '2'
-- aname: participant28
+- name: participant28
   query: '[Maybe a] -> a -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '[]'
     - '3'
@@ -286,11 +286,11 @@
     - '[Nothing, Just 2, Just 3]'
     - '4'
     output: '2'
-- aname: participant29
+- name: participant29
   query: '[Maybe a] -> a -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '[Nothing, Nothing]'
     - '2'
@@ -299,20 +299,20 @@
     - '[Nothing, Just 2, Just 3]'
     - '4'
     output: '2'
-- aname: participant30
+- name: participant30
   query: '(a -> a) -> Int -> a -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
-    - '(\\x -> x ++ x)'
+    - '(\x -> x ++ x)'
     - '3'
     output: '"f-"'
-- aname: participant31
+- name: participant31
   query: 'Int -> [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '2'
     - '[1,2,3]'
@@ -321,20 +321,20 @@
     - '0'
     - '[]'
     output: '[]'
-- aname: participant32
+- name: participant32
   query: '[Maybe a] -> a -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '[Nothing, Nothing, Just 7, Nothing]'
     - '5'
     output: '7'
-- aname: participant33
+- name: participant33
   query: '[Maybe a] -> a -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '[]'
     - '3'
@@ -347,30 +347,30 @@
     - '[Nothing, Nothing, Just 7, Nothing]'
     - '5'
     output: '7'
-- aname: participant34
+- name: participant34
   query: '(a -> a) -> Int -> a -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - (7:)
     - '3'
     - '[]'
     output: '[7,7,7]'
-- aname: participant35
+- name: participant35
   query: 'Int -> [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '2'
     - '"abc"'
     output: '"c"'
-- aname: participant36
+- name: participant36
   query: 'a -> [Maybe a] -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '10'
     - '[Nothing]'
@@ -379,11 +379,11 @@
     - '0'
     - '[Nothing, Just 1]'
     output: '1'
-- aname: participant37
+- name: participant37
   query: 'a -> [Maybe a] -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '5'
     - '[Nothing, Just 1, Nothing]'
@@ -396,11 +396,11 @@
     - '0'
     - '[Nothing, Just 1]'
     output: '1'
-- aname: participant38
+- name: participant38
   query: 'a -> [Maybe a] -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '5'
     - '[Nothing, Just 1, Nothing]'
@@ -413,11 +413,11 @@
     - '0'
     - '[Nothing, Just 1]'
     output: '1'
-- aname: participant39
+- name: participant39
   query: 'a -> [Maybe a] -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '4'
     - '[Nothing, Just1, Just2]'
@@ -434,11 +434,11 @@
     - '0'
     - '[Nothing, Just 1]'
     output: '1'
-- aname: participant40
+- name: participant40
   query: 'a -> [Maybe a] -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '4'
     - '[Nothing, Just 1, Just 2]'
@@ -455,11 +455,11 @@
     - '0'
     - '[Nothing, Just 1]'
     output: '1'
-- aname: participant41
+- name: participant41
   query: '[Maybe a] -> a -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '[Nothing, Just 11]'
     - '10'
@@ -468,11 +468,11 @@
     - '[Nothing]'
     - '10'
     output: '10'
-- aname: participant42
+- name: participant42
   query: '[Maybe a] -> a -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '[Nothing, Just 11, Nothing]'
     - '10'
@@ -485,11 +485,11 @@
     - '[Nothing]'
     - '10'
     output: '10'
-- aname: participant43
+- name: participant43
   query: 'Int -> [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '0'
     - '[0]'
@@ -498,29 +498,29 @@
     - '2'
     - '[0,0]'
     output: '[0,0,0,0]'
-- aname: participant46
+- name: participant46
   query: 'Int -> [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '6'
     - '[1,2,3,4]'
     output: '[]'
-- aname: participant47
+- name: participant47
   query: 'Int -> [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '3'
     - '"abc"'
     output: '"abcabcabc"'
-- aname: participant48
+- name: participant48
   query: 'Eq a => [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '"ccccccc"'
     output: '"c"'
@@ -530,13 +530,13 @@
   - inputs:
     - '"aabbab"'
     output: '"abab"'
-- aname: participant49
+- name: participant49
   query: '[a -> b] -> a -> [b]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
-    - '[(\\x -> x+2), (\\x->x*2)]'
+    - '[(\x -> x+2), (\x->x*2)]'
     - '5'
     output: '[7,10]'
   - inputs:
@@ -544,26 +544,26 @@
     - '0'
     output: '[]'
   - inputs:
-    - '[\\x -> x + 1]'
+    - '[\x -> x + 1]'
     - '1'
     output: '[2]'
   - inputs:
-    - '[\\x -> x + 1,\\x -> x + 1]'
+    - '[\x -> x + 1,\x -> x + 1]'
     - '2'
     output: '[3, 3]'
   - inputs:
-    - '[\\x -> x * x]'
+    - '[\x -> x * x]'
     - '-2'
     output: '[4]'
   - inputs:
-    - '[\\x -> x + 1,\\x -> x + 1,\\x -> x + 1]'
+    - '[\x -> x + 1,\x -> x + 1,\x -> x + 1]'
     - '3'
     output: '[4, 4, 4]'
-- aname: participant50
+- name: participant50
   query: 'a -> [Maybe a] -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '0'
     - '[Nothing, Just 1]'
@@ -572,11 +572,11 @@
     - '0'
     - '[Nothing]'
     output: '0'
-- aname: participant51
+- name: participant51
   query: 'a -> [Maybe a] -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '0'
     - '[]'
@@ -589,29 +589,29 @@
     - '0'
     - '[Nothing]'
     output: '0'
-- aname: participant54
+- name: participant54
   query: '[a -> b] -> a -> [b]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
-    - '[\\x -> x +2, \\x -> x * 2]'
+    - '[\x -> x +2, \x -> x * 2]'
     - '5'
     output: '[7,10]'
-- aname: participant55
+- name: participant55
   query: 'Int -> [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '2'
     - '["ha","ha"]'
     output: '["ha","ha","ha","ha"]'
-- aname: participant56
+- name: participant56
   query: 'Eq a => [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '"aabccc"'
     output: '"abc"'
@@ -621,11 +621,11 @@
   - inputs:
     - '"abc"'
     output: '"abc"'
-- aname: participant57
+- name: participant57
   query: 'Eq a => [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '"aabaa"'
     output: '"aba"'
@@ -638,102 +638,102 @@
   - inputs:
     - '"abc"'
     output: '"abc"'
-- aname: participant58
+- name: participant58
   query: '[a -> b] -> a -> [b]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
-    - '[(\\x -> x + 2), (\\x -> x * 2)]'
+    - '[(\x -> x + 2), (\x -> x * 2)]'
     - '5'
     output: '[7, 10]'
-- aname: participant59
+- name: participant59
   query: 'Eq a => [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '"aaabbcc"'
     output: '"abc"'
-- aname: participant60
+- name: participant60
   query: '[a -> b] -> a -> [b]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '[(+ 2), (* 3)]'
     - '5'
     output: '[7, 15]'
-- aname: participant61
+- name: participant61
   query: 'Int -> [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '0'
     - '[0,0]'
     output: '[]'
-- aname: participant62
+- name: participant62
   query: 'Int -> [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '2'
     - '"ab"'
     output: '"abab"'
-- aname: participant64
+- name: participant64
   query: 'Eq a => [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '"aaabbab" '
     output: '"abab"'
-- aname: participant66
+- name: participant66
   query: '[a -> b] -> a -> [b]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
-    - '[(\\a->"hi"),(\\a->"!")]'
+    - '[(\a->"hi"),(\a->"!")]'
     - '1'
     output: '["hi", "!"]'
   - inputs:
-    - '[(\\a->a),(\\a->1)]'
+    - '[(\a->a),(\a->1)]'
     - '2'
     output: '[2, 1]'
-- aname: participant67
+- name: participant67
   query: '[a -> b] -> a -> [b]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
-    - '[(\\a->a*10),(\\a->a+5)]'
+    - '[(\a->a*10),(\a->a+5)]'
     - '3'
     output: '[30, 8]'
   - inputs:
-    - '[(\\a->"hi"),(\\a->"!")]'
+    - '[(\a->"hi"),(\a->"!")]'
     - '1'
     output: '["hi", "!"]'
   - inputs:
-    - '[(\\a->a),(\\a->1)]'
+    - '[(\a->a),(\a->1)]'
     - '2'
     output: '[2, 1]'
-- aname: participant68
+- name: participant68
   query: 'Int -> [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '4'
     - '"abc"'
     output: '[]'
-- aname: participant69
+- name: participant69
   query: 'a -> [Maybe a] -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '0'
     - '[Just (-1),Nothing]'
@@ -742,11 +742,11 @@
     - '0'
     - '[Nothing]'
     output: '0'
-- aname: participant70
+- name: participant70
   query: 'a -> [Maybe a] -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '0'
     - '[Nothing, Nothing, Just 2]'
@@ -759,11 +759,11 @@
     - '0'
     - '[Nothing]'
     output: '0'
-- aname: participant71
+- name: participant71
   query: 'Int -> [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '3'
     - '"a"'
@@ -772,48 +772,48 @@
     - '2'
     - '"abc"'
     output: '"abcabc"'
-- aname: participant72
+- name: participant72
   query: 'Eq a => [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '"aaabbba"'
     output: '"aba"'
-- aname: participant73
+- name: participant73
   query: 'Eq a => [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '"abc"'
     output: '"abc"'
   - inputs:
     - '"aabb"'
     output: '"ab"'
-- aname: participant74
+- name: participant74
   query: '[a -> b] -> a -> [b]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
-    - '[(\\x -> x + 2), (\\x -> x * 2)] 5'
+    - '[(\x -> x + 2), (\x -> x * 2)] 5'
     - '5'
     output: '[7,10]'
-- aname: participant75
+- name: participant75
   query: '[a -> b] -> a -> [b]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
-    - '[(\\x -> x + 2), (\\x -> x * 2)]'
+    - '[(\x -> x + 2), (\x -> x * 2)]'
     - '5'
     output: '[7,10]'
-- aname: participant76
+- name: participant76
   query: 'Int -> [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '1'
     - '"xx"'
@@ -822,20 +822,20 @@
     - '0'
     - '[]'
     output: '[]'
-- aname: participant78
+- name: participant78
   query: '[a -> b] -> a -> [b]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
-    - '[\\x->x+1,\\x->x+2]'
+    - '[\x->x+1,\x->x+2]'
     - '4'
     output: '[5,6]'
-- aname: participant79
+- name: participant79
   query: 'Int -> [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '2'
     - '"abc"'
@@ -844,11 +844,11 @@
     - '2'
     - '[1]'
     output: '[1,1]'
-- aname: participant80
+- name: participant80
   query: 'Eq a => [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '[1,2,2,3]'
     output: '[1,2,3]'
@@ -858,11 +858,11 @@
   - inputs:
     - '[1,1]'
     output: '[1]'
-- aname: participant81
+- name: participant81
   query: 'Eq a => [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '[1,1,2]'
     output: '[1,2]'
@@ -875,31 +875,31 @@
   - inputs:
     - '[1,1]'
     output: '[1]'
-- aname: participant82
+- name: participant82
   query: '[a -> b] -> a -> [b]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '[(+1), (+2)]'
     - '2'
     output: '[3,4]'
-- aname: participant84
+- name: participant84
   query: '[Char] -> Int'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '"book"'
     output: '1'
   - inputs:
     - '"aabbcde"'
     output: '2'
-- aname: participant85
+- name: participant85
   query: '[Char] -> Int'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '"vscode"'
     output: '0'
@@ -909,22 +909,22 @@
   - inputs:
     - '"aabbcde"'
     output: '2'
-- aname: participant88
+- name: participant88
   query: '[a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '"Nadia Polikarpova"'
     output: '"N.P"'
   - inputs:
     - '"Kasra Ferdowsi Fard"'
     output: '"K.F.F"'
-- aname: participant89
+- name: participant89
   query: 'a -> [Maybe a] -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '0'
     - '[Nothing, Just 3, Just 4]'
@@ -937,11 +937,11 @@
     - '0'
     - '[Nothing, Just 1]'
     output: '1'
-- aname: participant90
+- name: participant90
   query: 'a -> [Maybe a] -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '1'
     - '[Just 5, Nothing]'
@@ -958,31 +958,31 @@
     - '0'
     - '[Nothing, Just 1]'
     output: '1'
-- aname: participant91
+- name: participant91
   query: '(a -> a) -> Int -> a -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - (\x -> x ++ x)
     - '3'
     - '"f-'
     output: '"f-f-f-f-f-f-f-f-"'
-- aname: participant92
+- name: participant92
   query: '(a -> a) -> a -> Int -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - (\x -> x + 1)
     - '3'
     - '0'
     output: '3'
-- aname: participant96
+- name: participant96
   query: 'Int -> [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '3'
     - '""'
@@ -991,11 +991,11 @@
     - '2'
     - '"abc"'
     output: '"abcabc"'
-- aname: participant97
+- name: participant97
   query: 'Int -> [a] -> [a]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '0'
     - '"a"'
@@ -1008,20 +1008,20 @@
     - '2'
     - '"abc"'
     output: '"abcabc"'
-- aname: participant98
+- name: participant98
   query: 'a -> [Maybe a] -> a'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
     - '0'
     - '[Nothing, Just 1, Just 2]'
     output: '1'
-- aname: participant99
+- name: participant99
   query: '[a -> b] -> a -> [b]'
   solution: ''
   source: study
-  zexamples:
+  examples:
   - inputs:
-    - '[(\\x -> x + 2), (\\x -> x * 2)]'
+    - '[(\x -> x + 2), (\x -> x * 2)]'
     output: ' [7, 10]'

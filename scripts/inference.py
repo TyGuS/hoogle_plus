@@ -1,6 +1,7 @@
 import subprocess
 import os
 import csv
+import time
 import statistics
 import numpy as np
 import matplotlib
@@ -8,9 +9,11 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from colorama import init, Fore, Back, Style
 from benchmark import *
+from synthesis import HPLUS_CMD, CMD_OPTS, FNULL
 
 INFERENCE_RESULT = 'inference.tsv'
 INFERENCE_CSV = 'inference_stats.csv'
+INFERENCE_GRAPH = 'inference_heatmap.png'
 
 class InferenceResult:
     def __init__(self, benchmark, gen_examples, num_examples, num_vars,
@@ -63,7 +66,7 @@ class TableEntry:
         self.prefilter_gens = prefilter
         self.postfilter_gens = postfilter
 
-def parse_inference_results(benchmarks, file_path = DEFAULT_INFERENCE_LOG):
+def parse_inference_results(benchmarks, file_path):
     results = []
     with open(file_path, 'r') as f:
         log_reader = csv.DictReader(f, delimiter='\t')
@@ -146,14 +149,14 @@ def format_number(value):
     return '{:,}'.format(value)
 
 def run_inference_each(logfile, suite, benchmark, use_study_data=False):
-    command = HPLUS_CMD + CMD_OPTS + ['evaluation', '--out-file', logfile,
-                                      '--benchmark', benchmark.name,
-                                      '--benchmark-suite', suite,
-                                      '--use-study-data', str(use_study_data)]
+    command = HPLUS_CMD + ['evaluation', '--out-file', logfile,
+                                         '--benchmark', benchmark.name,
+                                         '--benchmark-suite', suite,
+                                         '--use-study-data={}'.format(use_study_data)]
     # start the timer
     start = time.time()
     try:
-        return_code = subprocess.check_call(command, stderr=subprocess.STDOUT)
+        return_code = subprocess.check_call(command, stderr=FNULL)
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return_code = -1
     end = time.time()
@@ -168,9 +171,8 @@ def run_inference_each(logfile, suite, benchmark, use_study_data=False):
 def get_rank_details(result_groups):
     rank_map = {}
     for group in result_groups:
-        for k, r in group:
+        for k, r in group.items():
             ranks = list(map(lambda x: x.rank, r))
-            rank_median = -1
             rank_fst = ranks.count(1)
             rank_snd = ranks.count(2)
             rank_no_ans = ranks.count(11)
@@ -184,31 +186,32 @@ def get_rank_details(result_groups):
 
 def rank_to_percent(rank_map):
     percent_map = {}
-    for k, rs in rank_map:
-        ranks = np.array([])
+    for k, rs in rank_map.items():
+        ranks = None
         for r in rs:
             np_rank = np.array([r.fst_rank, r.snd_rank, r.other_rank, r.no_rank])
-            ranks = np.stack((ranks, np_rank))
+            ranks = np_rank if ranks is None else np.vstack((ranks, np_rank))
         percents = ranks / ranks.sum(axis=1)[:, None]
         percents = np.mean(percents, axis=0)
         percent_map[k] = percents
 
     return percent_map
 
-def plot_heatmap(results):
+def plot_heatmap(output_dir, results):
     # collect the data into a list
     ranks = get_rank_details(results)
     percent_map = rank_to_percent(ranks)
-    data = np.array([])
+    data = None
     # iterate var nums from small to large
     for vn in range(0, 5):
         # iterate ex nums from large to small
         for en in range(3, -1, -1):
             k = (vn, en)
             if k in percent_map:
-                data = np.stack((data, percent_map[(vn, en)]))
+                v = percent_map[k]
             else:
-                data = np.stack((data, np.zeros(4)))
+                v = np.zeros(4)
+            data = v if data is None else np.vstack((data, v))
 
     fig, ax = plt.subplots(figsize=(4, 9.25))
     im = ax.imshow(data, cmap='RdPu')
@@ -245,28 +248,33 @@ def plot_heatmap(results):
     ax2.tick_params(axis='y', length=6, which='minor')
 
     fig.tight_layout()
-    plt.savefig('inference-heatmap.png')
+    plt.savefig(os.path.join(output_dir, INFERENCE_GRAPH))
 
 def run_type_inference(suite, groups, output_dir, use_study_data=False):
     all_results = []
     # start the evaluation, run it five times
     times = 1 if use_study_data else 5
     for i in range(times):
+        print('Running type inference iteration {}/{}...'.format(i+1, times))
+        print('')
         # clear the result file and create the table header
-        logfile = os.path.join(output_dir, INFERENCE_RESULT + str(i))
+        logfile = os.path.join(output_dir, str(i) + '-' + INFERENCE_RESULT)
         with open(logfile, 'w') as f:
             print("bm_name\tbm_query\tgen_exs\tinf_typs\tnum_exs\trank\tprefilter_counts\tpostfilter_counts\tvar_counts\targ_counts",
                   file = f, end = '\n')
         # call the inference procedure
-        for group in groups:
+        for group in groups.values():
             for b in group.benchmarks:
                 print(str(b), end=' ')
                 run_inference_each(logfile, suite, b, use_study_data)
 
         results = parse_inference_results(groups, logfile)
-        result_group = group_by_counts(all_results)
-        all_results = all_results.append(result_group)
+        result_group = group_by_counts(results)
+        all_results.append(result_group)
+        print('')
 
+    print('Inference completed.')
+    print('Processing data for graph plotting...')
     # plot the heatmap
     if use_study_data:
         plot_histogram(all_results)
@@ -277,14 +285,18 @@ def run_type_inference(suite, groups, output_dir, use_study_data=False):
         with open(os.path.join(output_dir, INFERENCE_CSV), 'w+') as outfile:
             outfile.write('# vars\t# exs\tmedian rank\tpre-filter generalizations\t\tpost-filter generalizations\t\n')
             outfile.write('\t\t\tmin\tmax\tmin\tmax\n')
-            for entry in result_table:
+            for entry in result_table.values():
                 outfile.write(str(entry.num_vars) + '\t')
                 outfile.write(str(entry.num_exs) + '\t')
-                outfile.write(str(entry.ranks.median_rank) + '\t')
+                outfile.write(str(entry.rank) + '\t')
                 outfile.write(format_number(entry.prefilter_gens[0]) + '\t')
                 outfile.write(format_number(entry.prefilter_gens[1]) + '\t')
                 outfile.write(format_number(entry.postfilter_gens[0]) + '\t')
                 outfile.write(format_number(entry.postfilter_gens[1]) + '\n')
 
-        plot_heatmap(all_results)
+        print('Inference details are written into {}'.format(os.path.join(output_dir, INFERENCE_CSV)))
+
+        plot_heatmap(output_dir, all_results)
+        print('Heatmap is written into {}'.format(os.path.join(output_dir,
+                                                               INFERENCE_GRAPH)))
 

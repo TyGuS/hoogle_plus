@@ -61,12 +61,12 @@
   solution: "\\f xs -> Data.Maybe.listToMaybe (Data.Maybe.mapMaybe f xs)"
   source: "original"
   examples:
-    - inputs: ["\\x -> if x < 3 then Nothing else Just (x * x)", "[2,4,6]"]
+    - inputs: ["\\x -> if x < 3 then Nothing else Just (x * x)", "[2,4,8,6]"]
       output: Just 16
 
 - name: mergeEither
   query: "e: Either a (Either a b) -> Either a b"
-  solution: "\\arg0 -> Data.Either.either Left (Data.Either.either Left Right) arg0"
+  solution: "\\arg0 -> Data.Either.either Left id arg0"
   source: "original"
   examples:
     - inputs: ["Left 2"]
@@ -76,7 +76,7 @@
     - inputs: ["Right (Right 2.2)"]
       output: Right 2.2
 
-- name: multiApp
+- name: app2
   query: "f: (a -> b -> c) -> g: (a -> b) -> x: a -> c"
   solution: "\\f g x -> f x (g x)"
   source: "hoogle"
@@ -97,7 +97,7 @@
       output: "[\"abc\"]"
 
 - name: headLast
-  query: "xs: [a] -> (a,a)"
+  query: "xs: [a] -> (a, a)"
   solution: "\\arg1 -> (Data.List.head arg1, Data.List.last arg1)"
   source: "hoogle"
   examples:
@@ -147,7 +147,7 @@
       output: Right 2
 
 - name: cartProduct
-  query: "xs: [a] -> ys: [b] -> [[(a,b)]]"
+  query: "xs: [a] -> ys: [b] -> [[(a, b)]]"
   solution: "\\xs ys -> Data.List.map (\\x -> Data.List.map ((,) x) ys) xs"
   source: "original"
   examples:
@@ -225,7 +225,7 @@
   solution: "\\arg0 -> Right (Data.List.head (Data.Either.rights arg0))"
   source: "hoogle"
   examples:
-    - inputs: ["[Left 1, Left 2, Right 3, Right 4]"]
+    - inputs: ["[Left 1, Left 2, Right 3, Left 3, Right 4]"]
       output: "Right 3"
 
 - name: maybe
@@ -330,7 +330,7 @@
 
 - name: eitherTriple
   query: "e1: Either a b -> e2: Either a b -> Either a b"
-  solution: "\\x y -> Data.Either.either Left (const (Data.Either.either Left Right y)) x"
+  solution: "\\e1 e2 -> Data.Bool.bool e2 e1 (Data.Either.isLeft e1)"
   source: "hoogle"
   examples:
     - inputs: ["Left 1", "Left 2"]
@@ -357,32 +357,12 @@
       output: "[81, 64, 49]"
 
 - name: lookup
-  query: "Eq a => xs: [(a,b)] -> k: a -> b"
+  query: "Eq a => xs: [(a, b)] -> k: a -> b"
   solution: "\\xs k -> Data.Maybe.fromJust (Data.List.lookup k xs)"
   source: "hoogle"
   examples:
     - inputs: ["[(1,2), (2,3), (4,6)]", "2"]
       output: "3"
-
-- name: mbElem
-  query: "Eq a => x: a -> xs: [a] -> Maybe a"
-  solution: "\\x xs -> bool Nothing (Just x) (GHC.List.elem x xs)"
-  source: "hoogle"
-  examples:
-    - inputs: ["2", "[1,3,5,7,9]"]
-      output: "Nothing"
-    - inputs: ["3", "[1,3,5,7,9]"]
-      output: "Just 3"
-
-- name: areEq
-  query: "Eq a => x: a -> y: a -> Maybe a"
-  solution: "\\x y -> bool Nothing (Just x) ((==) x y)"
-  source: "hoogle"
-  examples:
-    - inputs: ["1", "2"]
-      output: "Nothing"
-    - inputs: ["1", "1"]
-      output: "Just 1"
 
 - name: containsEdge
   query: "vs: [Int] -> edge: (Int, Int) -> Bool"

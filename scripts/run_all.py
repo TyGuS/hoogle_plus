@@ -1,7 +1,3 @@
-#!/usr/bin/python3
-
-assert sys.version_info >= (3, 5)
-
 import os
 import re
 import sys
@@ -12,9 +8,10 @@ import subprocess
 from benchmark import *
 from colorama import init, Fore, Back, Style
 from inference import run_type_inference
-from synthesis import run_synthesis
 from filtering import run_filtering
+from synthesis import run_synthesis, LOGFILE
 
+assert sys.version_info >= (3, 5)
 DEFAULT_QUERY_FILE = "benchmark/suites/working.yml"
 
 def cmdline():
@@ -23,7 +20,7 @@ def cmdline():
     # options for choosing benchmark set
     a.add_argument('--small', action='store_true',
                    help='Run a small set of the default benchmarks')
-    a.add_argument('--full', action='store_true',
+    a.add_argument('--full', action='store_true', default=True,
                    help='Run a full set of the default benchmarks')
     # options for input and output paths
     a.add_argument('--benchmark-suite', action='store',
@@ -31,7 +28,7 @@ def cmdline():
                    help='Provide the file path of the benchmark suite')
     a.add_argument('--benchmarks', nargs='+', default=[],
                    help='Run selected benchmarks with provided names')
-    a.add_argument('--output-dir', action='store', default='.',
+    a.add_argument('--output-dir', action='store', default='./output',
                    help='Provide an output directory to put log files and results')
     # options for experiments
     a.add_argument('--type-inference', action='store_true',
@@ -70,6 +67,9 @@ if __name__ == '__main__':
         raise Exception('study data can only be used for type inference')
 
     # Run experiments
+    if cl_opts.small:
+        groups = {'study': groups['study']}
+
     if cl_opts.benchmarks:
         customized_group = BenchmarkGroup('customized', [])
         for b in cl_opts.benchmarks:

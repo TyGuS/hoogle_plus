@@ -32,6 +32,7 @@ import Examples.ExampleChecker
 import Types.Filtering
 import Evaluation.EvalTypeInf
 import Evaluation.ReadBenchmark
+import qualified Evaluation.Benchmark
 
 import Control.Exception
 import Control.Monad
@@ -148,10 +149,10 @@ main = do
                         , Types.Generate.hoPath = hoPath
                         }
             precomputeGraph generationOpts
-        Evaluation outFile fp benchmark -> do
+        Evaluation outFile fp benchmark isStudy -> do
             benchmarks <- readSuite fp
             let benchmarks' = filter (\b -> Evaluation.Benchmark.name b == benchmark) benchmarks
-            runTypeInferenceEval outFile benchmarks'
+            runTypeInferenceEval outFile isStudy (if benchmark == "" then benchmarks else benchmarks')
 
 {- Command line arguments -}
 
@@ -201,7 +202,8 @@ data CommandLineArgs
       | Evaluation {
         out_file :: FilePath,
         benchmark_suite :: String,
-        benchmark :: String
+        benchmark :: String,
+        use_study_data :: Bool
       }
   deriving (Data, Typeable, Show, Eq)
 
@@ -243,7 +245,8 @@ generate = Generate {
 evaluation = Evaluation {
   out_file             = "inference.tsv"                    &= help ("Path to the output file"),
   benchmark_suite      = "benchmark/suites/working.yml"     &= help ("Path to the benchmark file, in the format of YAML"),
-  benchmark            = ""                                 &= help ("Evaluate this single benchmark")
+  benchmark            = ""                                 &= help ("Evaluate this single benchmark"),
+  use_study_data       = False                              &= help ("Evaluate the type inference over data collected in user study")
 } &= help "Evaluate Hoogle+ modules"
 
 mode = cmdArgsMode $ modes [synt, generate, evaluation] &=
@@ -251,11 +254,8 @@ mode = cmdArgsMode $ modes [synt, generate, evaluation] &=
   program programName &=
   summary (programName ++ " v" ++ versionName ++ ", " ++ showGregorian releaseDate)
 
-
-
 precomputeGraph :: GenerationOpts -> IO ()
 precomputeGraph opts = generateEnv opts >>= writeEnv (Types.Generate.envPath opts)
-
 
 -- | Parse and resolve file, then synthesize the specified goals
 executeSearch :: SynquidParams -> SearchParams -> String -> IO ()
@@ -268,6 +268,7 @@ executeSearch synquidParams searchParams inStr = catch (do
   goal <- envToGoal env tquery
   solverChan <- newChan
   checkerChan <- newChan
+  hSetBuffering stdout LineBuffering
   forkIO $ synthesize searchParams goal exquery solverChan
   readChan solverChan >>= (handleMessages solverChan))
   (\(e :: SomeException) -> printResult $ encodeWithPrefix $ QueryOutput [] (show e) [])

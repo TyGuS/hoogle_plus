@@ -147,51 +147,53 @@
 
 
 - name: applyNtimes
-  query: 'f: (a -> a) -> x: a -> n: Int -> a'
+  query: 'f: (a -> a) -> n: Int -> x: a -> a'
   class:
-  - - \f x n -> (iterate f x) !! n
-    - \f x n -> (iterate' f x) !! n
-    - \f x n -> foldr id x (replicate n f)
-
-  - - \f x n -> f ((iterate f x) !! n)
-    - \f x n -> f ((iterate' f x) !! n)
+  - - \f n x -> (iterate f x) !! n
+    - \f n x -> (iterate' f x) !! n
   
-  - - \f x n -> f x
-    - \f x n -> f ((repeat x) !! n)
-    - \f x n -> f (head (drop n (repeat x)))
-    - \f x n -> (repeat (f x)) !! n
-    - \f x n -> f (head (take n (repeat x)))
+  - - \f n x -> foldr id x (replicate n f)
+    - \f n x -> foldr ($) x (replicate n f)
 
-  - - \f x n -> f (f x)
-    - \f x n -> f (f ((repeat x) !! n))
+  - - \f n x -> f ((iterate f x) !! n)
+    - \f n x -> f ((iterate' f x) !! n)
+  
+  - - \f n x -> f x
+    - \f n x -> f ((repeat x) !! n)
+    - \f n x -> f (head (drop n (repeat x)))
+    - \f n x -> (repeat (f x)) !! n
+    - \f n x -> f (head (take n (repeat x)))
 
-  - - '\f x n -> f ((x : []) !! n)'
+  - - \f n x -> f (f x)
+    - \f n x -> f (f ((repeat x) !! n))
 
-  - - \f x n -> f (head (replicate n x))
-    - \f x n -> f $ (head (replicate n x))
-    - \f x n -> f (head (reverse (replicate n x)))
-    - \f x n -> f (last (reverse (replicate n x)))
-    - \f x n -> head (replicate n (f x))
-    - \f x n -> last (replicate n (f x))
-    - \f x n -> f (fromJust (listToMaybe (replicate n x)))
+  - - '\f n x -> f ((x : []) !! n)'
 
-  - - \f x n -> f (head (init (replicate n x)))
-    - \f x n -> f (head (tail (replicate n x)))
-    - \f x n -> f (last (tail (replicate n x)))
-    - \f x n -> f (last (init (replicate n x)))
-    - \f x n -> f (last (init (replicate n x)))
+  - - \f n x -> f (head (replicate n x))
+    - \f n x -> f $ (head (replicate n x))
+    - \f n x -> f (head (reverse (replicate n x)))
+    - \f n x -> f (last (reverse (replicate n x)))
+    - \f n x -> head (replicate n (f x))
+    - \f n x -> last (replicate n (f x))
+    - \f n x -> f (fromJust (listToMaybe (replicate n x)))
 
-  - - \f x n -> f (last (replicate n x))
-    - \f x n -> f $ (last (replicate n x))
+  - - \f n x -> f (head (init (replicate n x)))
+    - \f n x -> f (head (tail (replicate n x)))
+    - \f n x -> f (last (tail (replicate n x)))
+    - \f n x -> f (last (init (replicate n x)))
+    - \f n x -> f (last (init (replicate n x)))
+
+  - - \f n x -> f (last (replicate n x))
+    - \f n x -> f $ (last (replicate n x))
 
   invalid:
-  - \f x n -> f (fromMaybe x ([] !! n))
-  - \f x n -> f (fromRight x ([] !! n))
-  - \f x n -> f (fromLeft x ([] !! n))
-  - \f x n -> maybe x f ([] !! n)
-  - \f x n -> f (last (drop n (repeat x)))
-  - \f x n -> f (last (take n (repeat x)))
-  - \f x n -> f (([] !! n) $ x)
+  - \f n x -> f (fromMaybe x ([] !! n))
+  - \f n x -> f (fromRight x ([] !! n))
+  - \f n x -> f (fromLeft x ([] !! n))
+  - \f n x -> maybe x f ([] !! n)
+  - \f n x -> f (last (drop n (repeat x)))
+  - \f n x -> f (last (take n (repeat x)))
+  - \f n x -> f (([] !! n) $ x)
 
 
 - name: applyPair
@@ -439,6 +441,7 @@
   - - \xs -> last (group (tail xs))
   - - \xs -> init (concat (group xs))
   - - \xs -> tail (concat (group xs))
+  - - \xs -> tail (head (group xs))
   invalid:
   - \xs -> fromLeft xs (Right (Right ))
   - \xs -> fromRight xs (Left (Right ))
@@ -910,6 +913,7 @@
   query: 'fs: [a -> b] -> x: a -> [b]'
   class:
   - - \fs x -> zipWith id fs (repeat x)
+    - \fs x -> zipWith ($) fs (repeat x)
 
   - - \fs x -> map (head fs) (repeat x)
     - \fs x -> repeat ((head fs) $ x)
