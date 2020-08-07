@@ -1,34 +1,38 @@
 # hoogle_plus
 Type-driven, component based synthesis, showcasing TYpe Guided Abstract Refinement (TYGAR).
+Try it at [https://hplus.programming.systems](https://hplus.programming.systems)
 
 # Using Evaluation Docker Image
 ## System Prerequisites:
 - Docker
-- Latex (for compiling completed evaluation results)
 
-## Evaluation Results
-H+ will rerun its evaluation to produce five files:
-- `table.tex` and `table_results.tex` These are the latex files to produce the table seen in the evaluation section of the paper.
-You will need use your system's latex installation `pdflatex table.tex` to combine them.
-- `major_variants.pdf` This is a plot of the 4 major search strategies (TYGARQ, TYGARQB10, TYGAR0, NOGAR)
-- `bounded_variants.pdf` This is a plot of the 4 bounded abstraction searches (TYGARQB5, 10, 15, 20)
-- `quality.csv` This is a CSV of the top 5 solutions for each benchmark produced within 120 seconds.
-It is easiest to view this file by importing it into a Google Sheets spreadsheet.
-
-There is also an executable you may interact with, `hplus`.
-
-## Re-running the evaluation
+## Kick-the-Tires Test
 First we must build a docker image:
-1. Build it with `docker build --tag hoogleplus_aec:latest .` (This can take between 40 minutes and 2 hours)
+1. Build it with `docker build --tag hoogleplus:latest .` (This can take between 40 minutes and 2 hours)
 2. Run the docker file interactively with a desired output directory.
 Hoogle+ will put the evaluation results into that directory.
 ```
-docker run -v /absolute/path/to/output/dir:/output -it hoogleplus_aec:latest /bin/bash
+docker run -p 3000:3000 -p 5000:5000 -v /absolute/path/to/output/dir:/home/hoogle_plus/output -it hoogleplus:latest /bin/bash
 ```
-3. Now navigate to the internal hoogle plus directory: `cd /home/hoogle_plus`
-4. Run the evaluation script: `./evaluation.sh` (This can take about 150 minutes). Don't feel like waiting that long? Use `./evaluation-short.sh`. This should take ~5 minutes. It relies on a smaller set of benchmarks, only 3. You may wish to modify `benchmark/suites/aec-short.yml` adding more in as you like from the master set, located at `benchmark/suites/working.yml`.
+3. Now navigate to the internal Hoogle+ directory: `cd /home/hoogle_plus`
+4. Run the short evaluation script: `python3 scripts/run_all.py --small`. (This takes about 10 minutes)
+If you don't encounter any error from using this script, you should be good to run the entire artifact.
 
-At this point, you should have 5 new files in your output directory.
+## Evaluation Results
+Hoogle+ will rerun its evaluation to produce three files corresponding to three
+figures in the submitted paper:
+- `inference-heatmap.png`: the heatmap graph in Fig 9 (Left)
+- `inference.tsv`: the table in Fig 9 (Right)
+- `filtering.png`: the histogram graph in Fig 10
+
+All of these files reside in `/home/hoogle_plus/output`.
+
+## Re-running the entire evaluation
+0. We assume you already have the docker container running
+1. Navigate to the root Hoogle+ directory: `cd /home/hoogle_plus`
+2. Run the evaluation script: `python3 scripts/run_all.py --all` (This can take about 150 minutes).
+
+At this point, you should have three new files in your output directory.
 These are the results of the evaluation.
 
 ## Usage
@@ -47,27 +51,43 @@ You may try searches with different variants with the following command line arg
 
 # Building from scratch, for the developers
 
-## build
+## Build
 To build this project, you need to have z3-4.7.1.
 
-## usage
+## Usage
 Execute in the `hoogle_plus` directory:
 ```
-stack exec -- hplus generate --preset totalfunctions
-stack exec -- hplus [DESIRED TYPE] [OPTIONAL ARGS]
+stack exec -- hplus generate --preset partialfunctions
+stack exec -- hplus --json='{"query": <DESIRED TYPE>, "inExamples": [<OPTIONAL EXAMPLES>]}' [OPTIONAL ARGS]
 ```
 
-## Example:
-`stack exec -- hplus generate -p base -m "Data.Maybe"` to generate the componenet set
-`stack exec -- hplus "Maybe a -> Pair a b -> Pair a b"`. Then you will get a solution:
+If you would like to provide examples for synthesis, examples are in the
+following json format:
+```
+{
+  "inputs": [str],
+  "output": str
+}
+```
 
-`SOLUTION: (,) (Data.Maybe.fromMaybe (fst arg0) arg1) (snd arg0)`
+## Example Usages:
+`stack exec -- hplus generate --preset partialfunctions` to generate the componenet set.
+Then run
+```
+stack exec -- hplus --json='{"query": "mb: Maybe a -> p: (a, b) -> (a, b)", \
+                             "inExamples": [{ \
+                                 "inputs": ["Just 1", "(2, 3)"], \
+                                 "output": "(1, 3)" \
+                             }]}'
+```
+Wait for several seconds, you will get a solution:
+`\mb p -> ((Data.Maybe.fromMaybe (fst p) mb), (snd p))`
 
 
 ## Artifacts
-You may run any of these with `stack exec -- <artifactname>`:
-- `hplus` : This is the CLI for running single queries
-- `webapp`: Hosts a simple web interface at localhost:3000
+- A CLI for running single queries. You may run it with `stack exec -- hplus`
+- A ReachJS web interface at `new_webapp`. You may run it with `yarn && REACT_DEVELOPMENT_ENV=hplusback.programming.system yarn start`,
+the web interface will be hosted at `localhost:3000`
 
 ## Sample genererate:
 You need to generate the component library that's used for synthesis.
@@ -84,21 +104,21 @@ stack exec -- hplus generate --preset totalfunctions
 ```
 
 
-If you have your own file(s) you want to use, you may specify them. You will then use all the modules within the files. At this time you may not filter within the file:
+If you have your own file(s) you want to use, you may specify them.
+You will then use all the modules within the files. At this time you may not filter within the file:
 ```
 stack exec -- hplus generate -f <your-file-here>
 ```
 
 Of course, you can specify the exact packages (from hackage) and modules you want to include:
 ```
-stack exec -- hplus generate -p base  -p bytestring -m "Data.Word" -m "Data.Int" -m "Data.Maybe" -m "Data.ByteString.Builder"       -m "Data.ByteString.Lazy" -m "Data.List" -m "Data.Tuple" -m "GHC.List" -m "GHC.Char" -m "Data.Bool"  -m "Text.Show"
+stack exec -- hplus generate -p base  -p bytestring -m "Data.Word" -m "Data.Int" -m "Data.Maybe" -m "Data.ByteString.Builder" -m "Data.ByteString.Lazy" -m "Data.List" -m "Data.Tuple" -m "GHC.List" -m "GHC.Char" -m "Data.Bool"  -m "Text.Show"
 ```
 
 ## Docker image:
-First run `docker pull aaron069/hoogle-plus:v5`
-Then go to your hoogle_plus repo, run `docker run -v ./:/home/hoogle-plus -it aaron069/hoogle-plus:v5`
-If you want to redirect port on localhost:3000, add this flag: `-p 3000:3000` on above command.
-
+We have a Dockerfile configuration in the root directory.
+First go to the hoogle_plus repo and run `docker build --tag hoogleplus:latest .` to build a docker image.
+After the building finished, run `docker run -p 3000:3000 -p 5000:5000 -it hoogle-plus:latest`.
 
 ## Developing inside a Container
 

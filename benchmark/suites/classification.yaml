@@ -1,0 +1,1666 @@
+- name: app2
+  query: 'f: (a -> b -> c) -> g: (a -> b) -> x: a -> c'
+  class:
+  - - \f g x -> f x (g x)
+    - \f g x -> f x (g $ x)
+  invalid:
+  - \f g x -> f (fromJust Nothing) (g x)
+  - \f g x -> f (head []) (g x)
+  - \f g x -> f (last []) (g x)
+  - \f g x -> f x (g (fromJust Nothing))
+  - \f g x -> f x (g (head []))
+  - \f g x -> f x (g (last []))
+  - \f g x -> f x (g (head $ []))
+  - \f g x -> f (head $ []) (g x)
+  - \f g x -> f (fromJust (fromJust Nothing)) (g x)
+  - \f g x -> f (fst (fromJust Nothing)) (g x)
+  - \f g x -> f (snd (fromJust Nothing)) (g x)
+  - \f g x -> f (head (fromJust Nothing)) (g x)
+  - \f g x -> f (last (fromJust Nothing)) (g x)
+  - \f g x -> f (head (maybeToList Nothing)) (g x)
+  - \f g x -> f (last (maybeToList Nothing)) (g x)
+  - \f g x -> f (head (lefts [])) (g x)
+  - \f g x -> f (last (lefts [])) (g x)
+  - \f g x -> f (head (rights [])) (g x)
+  - \f g x -> f (last (rights [])) (g x)
+  - \f g x -> f (head (catMaybes [])) (g x)
+  - \f g x -> f (last (catMaybes [])) (g x)
+  - \f g x -> f (fromJust (listToMaybe [])) (g x)
+  - \f g x -> f (head (concat [])) (g x)
+  - \f g x -> f (last (concat [])) (g x)
+  - \f g x -> f (fromJust (head [])) (g x)
+  - \f g x -> f (fst (head [])) (g x)
+  - \f g x -> f (snd (head [])) (g x)
+  - \f g x -> f (head (head [])) (g x)
+
+
+- name: app3
+  query: 'f: (a -> b -> c -> d) -> x: a -> y: c -> z: b -> d'
+  class:
+  - - \f x y z -> f x z y
+    - \f x y z -> f (fst (curry id x y)) z (snd (curry id x y))
+    - \f x y z -> f (head (repeat x)) z y
+    - \f x y z -> fromMaybe (f x z y) Nothing
+    - \f x y z -> f x (snd ((y , z))) (fst ((y , z)))
+    - \f x y z -> f (fst ((x , y))) z (snd ((x , y)))
+    - \f x y z -> f (snd ((z , x))) (fst ((z , x))) y
+    - \f x y z -> f (fst ((x , z))) (snd ((x , z))) y
+    - \f x y z -> f x (fst ((z , y))) (snd ((z , y)))
+    - \f x y z -> f (snd ((y , x))) z (fst ((y , x)))
+    - \f x y z -> f x (id $ z) y
+    - \f x y z -> f x z (id $ y)
+    - \f x y z -> f (id $ x) z y
+    - \f x y z -> f x (head (repeat z)) y
+    - \f x y z -> f x (fromJust (Just z)) y
+    - \f x y z -> f x z (fromJust (Just y))
+    - \f x y z -> f (fromMaybe x Nothing) z y
+    - \f x y z -> f x (fromMaybe z Nothing) y
+    - \f x y z -> f (fromJust (Just x)) z y
+    - \f x y z -> f x z (head (repeat y))
+    - \f x y z -> id $ (f x z y)
+    - \f x y z -> head (repeat (f x z y))
+    - \f x y z -> fromJust (Just (f x z y))
+    - \f x y z -> foldr id (f x z y) []
+    - \f x y z -> foldr head (f x z y) []
+    - \f x y z -> f (head (iterate id x)) z y
+  invalid:
+  - \f x y z -> f (last (repeat x)) z y
+  - \f x y z -> f x z (fromMaybe y Nothing)
+  - \f x y z -> f x (last (repeat z)) y
+  - \f x y z -> f x z (last (repeat y))
+  - \f x y z -> last (repeat (f x z y))
+
+
+- name: appBoth
+  query: 'f: (a -> b) -> g: (a -> c) -> x: a -> (b, c)'
+  class:
+  - - \f g x -> ((f x) , (g x))
+    - \f g x -> ((f x) , (g $ x))
+    - \f g x -> ((f $ x) , (g x))
+    - \f g x -> curry id (f x) (g x)
+    - \f g x -> swap (((g x) , (f x)))
+  invalid:
+  - \f g x -> ((f (fromJust Nothing)) , (g x))
+  - \f g x -> ((f (head [])) , (g x))
+  - \f g x -> ((f (last [])) , (g x))
+  - \f g x -> curry (last []) (f x) g
+  - \f g x -> curry (last []) (g x) f
+  - \f g x -> curry (last []) f (g x)
+  - \f g x -> curry (last []) g (f x)
+  - \f g x -> ((f x) , (g (fromJust Nothing)))
+  - \f g x -> ((f x) , (g (head [])))
+  - \f g x -> ((f x) , (g (last [])))
+
+
+# todo: verify correctness
+- name: appendN
+  query: 'n: Int -> xs: [a] -> [a]'
+  class:
+  - - \n xs -> drop n xs
+    - \n xs -> drop (head (repeat n)) xs
+    - \n xs -> drop (fromJust (Just n)) xs
+  - - \n xs -> take n xs
+    - \n xs -> take (head (repeat n)) xs
+    - \n xs -> take (fromJust (Just n)) xs
+  - - \n xs -> replicate n (head xs)
+  - - \n xs -> replicate n (last xs)
+  - - \n xs -> drop n (init xs)
+  - - \n xs -> take n (init xs)
+  - - \n xs -> drop n (reverse xs)
+  - - \n xs -> reverse (take n xs)
+  - - \n xs -> take n (reverse xs)
+  - - \n xs -> init (drop n xs)
+  - - \n xs -> init (take n xs)
+  - - \n xs -> tail (take n xs)
+  - - \n xs -> concat (replicate n xs)
+  - - \n xs -> (repeat xs) !! n
+  - - \n xs -> head (replicate n xs)
+    - \n xs -> last (replicate n xs)
+  - - \n xs -> tail (repeat (xs !! n))
+    - \n xs -> repeat (xs !! n)
+    - \n xs -> iterate' id (xs !! n)
+  - - '\n xs -> (xs !! n) : []'
+  - - \n xs -> init (replicate n (head xs))
+  - - \n xs -> init (replicate n (last xs))
+  - - \n xs -> drop n (repeat (head xs))
+  - - \n xs -> drop n (repeat (last xs))
+  - - \n xs -> replicate n (xs !! n)
+  - - \n xs -> replicate n (head (init xs))
+  - - \n xs -> replicate n (head (tail xs))
+  - - \n xs -> (drop n []) ++ xs
+    - \n xs -> (take n []) ++ xs
+    - \n xs -> xs
+  - - \n xs -> repeat (head (take n xs))
+  - - \n xs -> drop n (tail xs)
+  - - \n xs -> take n (tail xs)
+  - - \n xs -> reverse (drop n xs)
+  - - \n xs -> tail (drop n xs)
+  - - \n xs -> fst (splitAt n xs)
+  - - \n xs -> snd (splitAt n xs)
+  invalid:
+  - \n xs -> drop (last (repeat n)) xs
+  - \n xs -> drop (length (repeat n)) xs
+  - \n xs -> take (length (repeat n)) xs
+  - \n xs -> dropWhile ([] !! n) xs
+  - \n xs -> scanl1 ([] !! n) xs
+  - \n xs -> scanr1 ([] !! n) xs
+
+
+- name: applyNtimes
+  query: 'f: (a -> a) -> x: a -> n: Int -> a'
+  class:
+  - - \f x n -> (iterate f x) !! n
+    - \f x n -> (iterate' f x) !! n
+    - \f x n -> foldr id x (replicate n f)
+
+  - - \f x n -> f ((iterate f x) !! n)
+    - \f x n -> f ((iterate' f x) !! n)
+  
+  - - \f x n -> f x
+    - \f x n -> f ((repeat x) !! n)
+    - \f x n -> f (head (drop n (repeat x)))
+    - \f x n -> (repeat (f x)) !! n
+    - \f x n -> f (head (take n (repeat x)))
+
+  - - \f x n -> f (f x)
+    - \f x n -> f (f ((repeat x) !! n))
+
+  - - '\f x n -> f ((x : []) !! n)'
+
+  - - \f x n -> f (head (replicate n x))
+    - \f x n -> f $ (head (replicate n x))
+    - \f x n -> f (head (reverse (replicate n x)))
+    - \f x n -> f (last (reverse (replicate n x)))
+    - \f x n -> head (replicate n (f x))
+    - \f x n -> last (replicate n (f x))
+    - \f x n -> f (fromJust (listToMaybe (replicate n x)))
+
+  - - \f x n -> f (head (init (replicate n x)))
+    - \f x n -> f (head (tail (replicate n x)))
+    - \f x n -> f (last (tail (replicate n x)))
+    - \f x n -> f (last (init (replicate n x)))
+    - \f x n -> f (last (init (replicate n x)))
+
+  - - \f x n -> f (last (replicate n x))
+    - \f x n -> f $ (last (replicate n x))
+
+  invalid:
+  - \f x n -> f (fromMaybe x ([] !! n))
+  - \f x n -> f (fromRight x ([] !! n))
+  - \f x n -> f (fromLeft x ([] !! n))
+  - \f x n -> maybe x f ([] !! n)
+  - \f x n -> f (last (drop n (repeat x)))
+  - \f x n -> f (last (take n (repeat x)))
+  - \f x n -> f (([] !! n) $ x)
+
+
+- name: applyPair
+  query: 'p: (a -> b, a) -> b'
+  class:
+  - - \p -> uncurry id p
+    - \p -> (fst p) $ (snd p)
+    - \p -> (snd (swap p)) $ (fst (swap p))
+  invalid:
+  - \p -> uncurry (last []) p
+  - \p -> (last []) $ p
+
+
+- name: areEq
+  query: 'Eq a => x: a -> y: a -> Maybe a'
+  class:
+  # if x == y then STUCK else Just y
+  - - \x y -> listToMaybe (dropWhile ((/=) x) (repeat y))
+    - \x y -> listToMaybe (filter ((/=) x) (repeat y))
+
+  # if x == y then STUCK else Just x
+  - - \x y -> listToMaybe (filter ((/=) y) (repeat x))
+  
+  # if x == y then Nothing else Just y
+  - - \x y -> listToMaybe (takeWhile ((/=) x) (repeat y))
+
+  # if x == y then Nothing else Just x
+  - - \x y -> listToMaybe (takeWhile ((/=) y) (repeat x))
+
+  # if x == y then Just x else STUCK
+  - - \x y -> listToMaybe (dropWhile ((/=) y) (repeat x))
+
+  - - \x y -> Just x
+    - \x y -> Just (fromMaybe x (lookup y []))
+    - \x y -> fromMaybe (Just x) (lookup y [])
+    - \x y -> lookup y (zip (repeat y) (repeat x))
+
+  - - \x y -> Just y
+    - \x y -> Just (fromMaybe y (lookup x []))
+    - \x y -> fromMaybe (Just y) (lookup x [])
+    - \x y -> lookup x (zip (repeat x) (repeat y))
+
+
+  - - \x y -> lookup x (zip (repeat y) (repeat x))
+  - - \x y -> lookup x (zip (repeat y) (repeat y))
+  - - \x y -> lookup y (zip (repeat x) (repeat x))
+  - - \x y -> lookup y (zip (repeat x) (repeat y))
+
+  - - \x y -> Nothing
+    - \x y -> lookup x (zip (repeat y) [])
+    - \x y -> lookup y (zip (repeat x) [])
+
+  invalid:
+  - \x y -> (fromJust (lookup x [])) $ y
+  - \x y -> (fromJust (lookup y [])) $ x
+  - \x y -> curry (last []) ((/=) x) y
+  - \x y -> curry (last []) ((/=) y) x
+  - \x y -> curry (last []) x ((/=) y)
+  - \x y -> curry (last []) y ((/=) x)
+  - \x y -> curry (last []) x ((,) y)
+  - \x y -> curry (last []) y ((,) x)
+  - \x y -> (last []) $ (x /= y)
+  - \x y -> (last []) $ (y /= x)
+  - \x y -> (last []) $ (x == y)
+  - \x y -> (last []) $ (y == x)
+
+
+- name: both
+  query: 'f: (a -> b) -> p: (a, a) -> (b, b)'
+  class:
+  - - \f p -> ((f (fst p)) , (f (snd p)))
+    - \f p -> ((f $ (fst p)) , (f $ (snd p)))
+    - \f p -> ((f (snd (swap p))) , (f (fst (swap p))))
+    - \f p -> curry id (f (fst p)) (f (snd p))
+    - \f p -> swap (((f (snd p)) , (f (fst p))))
+
+  - - \f p -> ((f (snd p)) , (f (fst p)))
+    - \f p -> ((f $ (snd p)) , (f $ (fst p)))
+    - \f p -> ((f (fst (swap p))) , (f (snd (swap p))))
+    - \f p -> curry id (f (snd p)) (f (fst p))
+    - \f p -> swap (((f (fst p)) , (f (snd p))))
+  
+  invalid:
+  - \f p -> curry (last []) f p
+  - \f p -> curry (last []) p f
+
+
+- name: cartProduct
+  query: 'xs: [a] -> ys: [b] -> [[(a, b)]]'
+  class:
+  - - \xs ys -> repeat (zip xs ys)
+    - \xs ys -> init (repeat (zip xs ys))
+    - \xs ys -> iterate id (zip xs ys)
+    - \xs ys -> iterate' id (zip xs ys)
+    - \xs ys -> tail (repeat (zip xs ys))
+    - \xs ys -> lefts (repeat (Left (zip xs ys)))
+    - \xs ys -> rights (repeat (Right (zip xs ys)))
+
+  - - '\xs ys -> (zip xs ys) : []'
+    - \xs ys -> maybeToList (Just (zip xs ys))
+
+  - - \xs ys -> repeat (init (zip xs ys))
+  - - \xs ys -> repeat (reverse (zip xs ys))
+  - - \xs ys -> repeat (tail (zip xs ys))
+  - - \xs ys -> repeat (zip xs (init ys))
+  - - \xs ys -> repeat (zip xs (reverse ys))
+  - - \xs ys -> repeat (zip xs (tail ys))
+  - - \xs ys -> repeat (zip (init xs) ys)
+  - - \xs ys -> repeat (zip (tail xs) ys)
+
+  - - \xs ys -> []
+    - \xs ys -> lefts (map Right (zip ys xs))
+  
+  - - \xs ys -> repeat (zip (reverse xs) ys)
+
+  # fails if xs, ys are non-trivial
+  - - \xs ys -> zipWith (fromJust Nothing) ys xs
+    - \xs ys -> zipWith (head []) ys xs
+    - \xs ys -> zipWith (last []) ys xs
+  invalid:
+  - \xs ys -> curry (last []) ys xs
+  - \xs ys -> reverse (repeat (zip xs ys))
+  - \xs ys -> rights (repeat (Left (zip xs ys)))
+  - \xs ys -> lefts (repeat (Right (zip xs ys)))
+
+
+- name: containsEdge
+  query: 'vs: [Int] -> edge: (Int, Int) -> Bool'
+  class:
+  # === vs empty
+  - - \vs edge -> null (replicate (length vs) edge)
+    - \vs edge -> null (zip (repeat edge) vs)
+    - \vs edge -> null (zip vs (repeat edge))
+    - \vs edge -> isNothing (listToMaybe (zip vs (repeat edge)))
+    - \vs edge -> isNothing (uncons (zip vs (repeat edge)))
+    - \vs edge -> null (zip vs (repeat (Right edge)))
+    - \vs edge -> null (zip vs (repeat (Left edge)))
+
+  # === vs nonempty
+  - - \vs edge -> isJust (listToMaybe (zip vs (repeat edge)))
+    - \vs edge -> isJust (uncons (zip vs (repeat edge)))
+    - \vs edge -> not (null (zip vs (repeat edge)))
+    - \vs edge -> not (null (zip (repeat edge) vs))
+
+  - - \vs edge -> null (replicate (head vs) edge)
+  - - \vs edge -> null (replicate (last vs) edge)
+
+  - - \vs edge -> True
+    - \vs edge -> isJust (listToMaybe (repeat ((vs , edge))))
+    - \vs edge -> isJust (uncons (repeat ((vs , edge))))
+
+  - - \vs edge -> False
+    - \vs edge -> null (repeat (Right ((edge , vs))))
+    - \vs edge -> null (repeat (Left ((edge , vs))))
+    - \vs edge -> null (repeat (Right ((vs , edge))))
+    - \vs edge -> null (repeat (Left ((vs , edge))))
+    - \vs edge -> null (repeat (repeat ((vs , edge))))
+    - \vs edge -> null (repeat (((Just edge) , vs)))
+    - \vs edge -> null (repeat ((edge , vs)))
+    - \vs edge -> null (repeat ((vs , edge)))
+    - \vs edge -> null (init (repeat ((vs , edge))))
+    - \vs edge -> isNothing (listToMaybe (repeat ((vs , edge))))
+    - \vs edge -> null (tail (repeat ((vs , edge))))
+    - \vs edge -> isNothing (uncons (repeat ((vs , edge))))
+  invalid:
+  - \vs edge -> null (reverse (repeat ((vs , edge))))
+  - \vs edge -> curry (last []) edge vs
+  - \vs edge -> curry (last []) vs edge
+
+
+# todo: verify correctness
+- name: coundPredMatch
+  query: 'xs: [a] -> p: (a -> Bool) -> Int'
+  class:
+  - - \xs p -> length xs
+    - \xs p -> length (map p xs)
+    - \xs p -> length (replicate (length xs) p)
+    - \xs p -> length (zip xs (repeat p))
+    - \xs p -> length (zip (repeat p) xs)
+    - \xs p -> length (reverse (map p xs))
+
+  - - \xs p -> length (tail xs)
+    - \xs p -> length (tail (map p xs))
+    - \xs p -> length (init (map p xs))
+
+
+  - - \xs p -> length (dropWhile p xs)
+  - - \xs p -> length (filter p xs)
+
+  - - \xs p -> length (takeWhile p xs)
+    - \xs p -> length (fst (span p xs))
+
+  - - \xs p -> length (filter p (init xs))
+  - - \xs p -> length (dropWhile p (reverse xs))
+  - - \xs p -> length (takeWhile p (reverse xs))
+  - - \xs p -> length (dropWhile p (tail xs))
+  - - \xs p -> length (init (dropWhile p xs))
+  - - \xs p -> length (init (filter p xs))
+  - - \xs p -> length (filter p (tail xs))
+  - - \xs p -> length (fst (break p xs))
+  - - \xs p -> length (snd (break p xs))
+  - - \xs p -> length (snd (span p xs))
+  - - \xs p -> length (dropWhile p (init xs))
+  - - \xs p -> length (takeWhile p (init xs))
+  - - \xs p -> length (filter p (reverse xs))
+  - - \xs p -> length (takeWhile p (tail xs))
+  invalid:
+  - \xs p -> length (repeat (p (head xs)))
+  - \xs p -> length (repeat (p (last xs)))
+  - \xs p -> length (repeat (all p xs))
+  - \xs p -> length (repeat (any p xs))
+  - \xs p -> length (repeat (map p xs))
+  - \xs p -> length (repeat (break p xs))
+  - \xs p -> length (repeat (span p xs))
+
+
+# todo: correctness
+- name: dedupe
+  query: 'Eq a => xs: [a] -> [a]'
+  class:
+  - - \xs -> map head (group xs)
+
+  - - \xs -> reverse (concat (group xs))
+    - \xs -> concat (group (reverse xs))
+
+  - - \xs -> concat (group xs)
+    - \xs -> concatMap id (group xs)
+
+  - - \xs -> head (group xs)
+    - \xs -> head $ (group xs)
+    - \xs -> last (group (reverse xs))
+  - - \xs -> last (group xs)
+    - \xs -> head (group (reverse xs))
+
+  - - \xs -> concat (group (init xs))
+  - - \xs -> head (group (init xs))
+  - - \xs -> concat (group (tail xs))
+  - - \xs -> head (group (tail xs))
+  - - \xs -> init (head (group xs))
+  - - \xs -> head (tail (group xs))
+  - - \xs -> concat (init (group xs))
+  - - \xs -> head (init (group xs))
+  - - \xs -> concat (tail (group xs))
+  - - \xs -> last (group (init xs))
+  - - \xs -> last (group (tail xs))
+  - - \xs -> init (concat (group xs))
+  - - \xs -> tail (concat (group xs))
+  invalid:
+  - \xs -> fromLeft xs (Right (Right ))
+  - \xs -> fromRight xs (Left (Right ))
+  - \xs -> fromLeft xs (Right (Left ))
+  - \xs -> fromRight xs (Left (Left ))
+  - \xs -> fromLeft xs (Right (repeat ))
+  - \xs -> fromRight xs (Left (repeat ))
+  - \xs -> fromLeft xs (Right (Just ))
+  - \xs -> fromRight xs (Left (Just ))
+  - \xs -> fst ((xs , (Left )))
+  - \xs -> snd (((Left ) , xs))
+  - \xs -> snd (((Right ) , xs))
+  - \xs -> fst ((xs , (Right )))
+
+
+- name: eitherTriple
+  query: 'e1: Either a b -> e2: Either a b -> Either a b'
+  class:
+  - - \e1 e2 -> bool e1 e2 (isLeft e1)
+    - \e1 e2 -> bool e2 e1 (isRight e1)
+  - - \e1 e2 -> bool e1 e2 (isRight e1)
+    - \e1 e2 -> bool e2 e1 (isLeft e1)
+
+  - - \e1 e2 -> bool e1 e2 (isLeft e2)
+    - \e1 e2 -> bool e2 e1 (not (isLeft e2))
+    - \e1 e2 -> bool e2 e1 (isRight e2)
+  - - \e1 e2 -> bool e2 e1 (isLeft e2)
+    - \e1 e2 -> bool e1 e2 (isRight e2)
+
+  - - \e1 e2 -> bool (fromJust Nothing) e1 (isLeft e2)
+  - - \e1 e2 -> bool (fromJust Nothing) e1 (isRight e2)
+  - - \e1 e2 -> bool (fromJust Nothing) e2 (isLeft e1)
+  - - \e1 e2 -> bool (fromJust Nothing) e2 (isRight e1)
+  
+  - - \e1 e2 -> e1
+    - \e1 e2 -> bool e1 e1 (null (repeat e2))
+    - \e1 e2 -> fromMaybe e2 (listToMaybe (repeat e1))
+    - \e1 e2 -> bool e1 e1 (isLeft e2)
+    - \e1 e2 -> bool e1 e1 (isRight e2)
+
+  - - \e1 e2 -> e2
+    - \e1 e2 -> fromMaybe e1 (listToMaybe (repeat e2))
+    - \e1 e2 -> bool e2 e2 (isLeft e1)
+    - \e1 e2 -> bool e2 e2 (isRight e1)
+
+  - - \e1 e2 -> bool e1 e2 False
+    - \e1 e2 -> bool e1 e2 (any id [])
+    - \e1 e2 -> bool e2 e1 (all id [])
+
+  - - \e1 e2 -> bool e1 e2 True
+    - \e1 e2 -> bool e2 e1 (any id [])
+    - \e1 e2 -> bool e1 e2 (all id [])
+    - \e1 e2 -> bool e1 e2 (null (repeat e1))
+  invalid:
+  - \e1 e2 -> bool e1 e2 (or [])
+  - \e1 e2 -> bool e2 e1 (or [])
+  - \e1 e2 -> bool e1 e2 (and [])
+  - \e1 e2 -> bool e2 e1 (and [])
+  - \e1 e2 -> bool e1 e2 (last [])
+  - \e1 e2 -> bool e2 e1 (last [])
+  - \e1 e2 -> curry (last []) e1 e2
+  - \e1 e2 -> curry (last []) e2 e1
+  - '\e1 e2 -> last (e1 : (repeat e2))'
+  - '\e1 e2 -> last (e2 : (repeat e1))'
+
+
+- name: firstJust
+  query: 'x: a -> xs: [Maybe a] -> a'
+  class:
+  - - \x xs -> fromMaybe x (head xs)
+    - \x xs -> maybe x id (head xs)
+    - \x xs -> fromMaybe x (head $ xs)
+    - \x xs -> fromMaybe x (fromJust (listToMaybe xs))
+    - \x xs -> fromMaybe x (last (reverse xs))
+  - - \x xs -> fromMaybe x (last xs)
+    - \x xs -> maybe x id (last xs)
+    - \x xs -> fromMaybe x (head (reverse xs))
+
+  - - \x xs -> fromMaybe x (listToMaybe (catMaybes xs))
+    - \x xs -> fromMaybe x (listToMaybe (mapMaybe id xs))
+
+  - - \x xs -> fromMaybe x (head (init xs))
+  - - \x xs -> fromMaybe x (head (tail xs))
+  - - '\x xs -> last (x : (catMaybes xs))'
+  - - \x xs -> fromMaybe x (last (init xs))
+  - - \x xs -> fromMaybe x (last (tail xs))
+  
+  - - \x xs -> bool x x (null xs)
+    - \x xs -> (repeat x) !! (length xs)
+    - \x xs -> head (replicate (length xs) x)
+    - \x xs -> last (replicate (length xs) x)
+
+  # if xs empty then x else FAIL
+  - - \x xs -> foldl (head []) x xs
+    - \x xs -> foldl' (head []) x xs
+    - \x xs -> foldr (head []) x xs
+    - \x xs -> foldl (last []) x xs
+    - \x xs -> foldl' (last []) x xs
+    - \x xs -> foldr (last []) x xs
+    - \x xs -> foldl (fromJust Nothing) x xs
+    - \x xs -> foldl' (fromJust Nothing) x xs
+    - \x xs -> foldr (fromJust Nothing) x xs
+  invalid:
+  - \x xs -> curry (last []) x xs
+  - \x xs -> curry (last []) xs x
+
+
+- name: firstKey
+  query: 'xs: [(a, b)] -> a'
+  class:
+  - - \xs -> fst (head xs)
+    - \xs -> id $ (fst (head xs))
+    - \xs -> fst (head $ xs)
+    - \xs -> fst (fromJust (listToMaybe xs))
+    - \xs -> snd (swap (head xs))
+    - \xs -> fst (last (reverse xs))
+    - \xs -> snd (swap (fromJust (listToMaybe xs)))
+    - \xs -> head (fst (unzip xs))
+  
+  - - \xs -> fst (last xs)
+    - \xs -> id $ (fst (last xs))
+    - \xs -> snd (swap (last xs))
+    - \xs -> fst (head (reverse xs))
+    - \xs -> last (fst (unzip xs))
+  
+  - - \xs -> fst (head (init xs))
+  - - \xs -> fst (head (tail xs))
+  - - \xs -> fst (last (init xs))
+  - - \xs -> fst (last (tail xs))
+
+  invalid:
+  - \xs -> curry (last []) Right xs
+  - \xs -> curry (last []) xs Right
+  - \xs -> (last []) $ xs
+  - \xs -> [] !! (length xs)
+
+
+# todo: correctness
+- name: firstMatch
+  query: 'xs: [a] -> p: (a -> Bool) -> a'
+  class:
+  - - \xs p -> head (dropWhile p xs)
+  - - \xs p -> head (filter p xs)
+  - - \xs p -> last (filter p xs)
+  - - \xs p -> head (dropWhile p (init xs))
+  - - \xs p -> head (filter p (init xs))
+  - - \xs p -> last (dropWhile p (reverse xs))
+  - - \xs p -> last (takeWhile p (reverse xs))
+  - - \xs p -> head (dropWhile p (tail xs))
+  - - \xs p -> head (filter p (tail xs))
+  - - \xs p -> head (reverse (dropWhile p xs))
+  - - \xs p -> last (tail (dropWhile p xs))
+  - - \xs p -> last (init (takeWhile p xs))
+  - - \xs p -> last (reverse (takeWhile p xs))
+  - - \xs p -> last (fst (break p xs))
+  - - \xs p -> last (snd (break p xs))
+  - - \xs p -> last (dropWhile p xs)
+  - - \xs p -> head (takeWhile p xs)
+  - - \xs p -> last (takeWhile p xs)
+  - - \xs p -> last (dropWhile p (init xs))
+  - - \xs p -> head (dropWhile p (reverse xs))
+  - - \xs p -> head (filter p (reverse xs))
+  - - \xs p -> head (takeWhile p (reverse xs))
+  - - \xs p -> head (tail (dropWhile p xs))
+  - - \xs p -> head (init (filter p xs))
+  - - \xs p -> head (tail (filter p xs))
+  - - \xs p -> last (filter p (init xs))
+  - - \xs p -> head (takeWhile p (init xs))
+  - - \xs p -> last (takeWhile p (init xs))
+  - - \xs p -> last (filter p (reverse xs))
+  - - \xs p -> last (dropWhile p (tail xs))
+  - - \xs p -> last (filter p (tail xs))
+  - - \xs p -> head (takeWhile p (tail xs))
+  - - \xs p -> last (takeWhile p (tail xs))
+  - - \xs p -> head (init (dropWhile p xs))
+  - - \xs p -> last (init (dropWhile p xs))
+  - - \xs p -> last (reverse (dropWhile p xs))
+  invalid:
+  - fill here
+
+
+- name: firstMaybe
+  query: 'mbs: [Maybe a] -> a'
+  class:
+  - - \mbs -> fromJust (head mbs)
+    - \mbs -> fromJust (head $ mbs)
+    - \mbs -> fromJust (fromJust (listToMaybe mbs))
+    - \mbs -> fromJust (last (reverse mbs))
+
+  - - \mbs -> fromJust (last mbs)
+    - \mbs -> fromJust (head (reverse mbs))
+
+  - - \mbs -> head (mapMaybe id mbs)
+    - \mbs -> head $ (catMaybes mbs)
+    - \mbs -> head (catMaybes mbs)
+    - \mbs -> last (catMaybes (reverse mbs))
+    - \mbs -> fromJust (listToMaybe (catMaybes mbs))
+    - \mbs -> last (reverse (catMaybes mbs))
+  
+  - - \mbs -> last (catMaybes mbs)
+    - \mbs -> last (mapMaybe id mbs)
+    - \mbs -> head (catMaybes (reverse mbs))
+    - \mbs -> head (reverse (catMaybes mbs))
+
+  
+  - - \mbs -> head (catMaybes (init mbs))
+  - - \mbs -> last (catMaybes (init mbs))
+  - - \mbs -> head (catMaybes (tail mbs))
+  - - \mbs -> last (catMaybes (tail mbs))
+  - - \mbs -> head (tail (catMaybes mbs))
+  - - \mbs -> last (tail (catMaybes mbs))
+  - - \mbs -> head (init (catMaybes mbs))
+  - - \mbs -> last (init (catMaybes mbs))
+  - - \mbs -> fromJust (head (init mbs))
+  - - \mbs -> fromJust (last (init mbs))
+  - - \mbs -> fromJust (head (tail mbs))
+  - - \mbs -> fromJust (last (tail mbs))
+  invalid:
+  - \mbs -> (last []) $ mbs
+  - \mbs -> [] !! (length mbs)
+  - \mbs -> fromJust (foldl1 (fromJust Nothing) mbs)
+
+
+- name: firstRight
+  query: 'es: [Either a b] -> Either a b'
+  class:
+  - - \es -> head es
+    - \es -> head $ es
+    - \es -> id $ (head es)
+    - \es -> fromJust (listToMaybe es)
+    - \es -> head (repeat (head es))
+    - \es -> fromMaybe (head es) Nothing
+    - \es -> head (concat (repeat es))
+    - \es -> last (reverse es)
+    - \es -> head (reverse (reverse es))
+
+  - - \es -> last es
+    - \es -> id $ (last es)
+    - \es -> head (repeat (last es))
+    - \es -> fromMaybe (last es) Nothing
+    - \es -> head (reverse es)
+
+
+  - - \es -> head (init es)
+    - \es -> last (reverse (init es))
+  
+  - - \es -> last (init es)
+    - \es -> head (reverse (init es))
+  
+  - - \es -> head (tail es)
+
+  - - \es -> Right (head (rights es))
+  - - \es -> Right (last (rights es))
+  - - \es -> Left (head (lefts es))
+  - - \es -> Left (last (lefts es))
+  - - \es -> es !! (length es)
+  - - \es -> last (tail es)
+    - \es -> head (init (reverse es))
+  
+  - - \es -> head (init (init es))
+  - - \es -> last (init (init es))
+  - - \es -> last (tail (init es))
+  - - \es -> head (tail (init es))
+    - \es -> last (init (reverse es))
+  
+  - - \es -> foldl1 (head []) es
+    - \es -> foldl1 (fromJust Nothing) es
+  invalid:
+  - \es -> es !! (length [])
+  - \es -> es !! (last [])
+  - \es -> last (repeat (head es))
+  - \es -> last (repeat (last es))
+
+
+- name: flatten
+  query: 'xss: [[[a]]] -> [a]'
+  class:
+  - - \xss -> concat (concat xss)
+    - \xss -> concatMap id (concat xss)
+
+  - - \xss -> head (last xss)
+    - \xss -> concatMap id (concat xss)
+  
+
+  - - \xss -> head (concat xss)
+    - \xss -> head $ (concat xss)
+
+
+  - - \xss -> concat (head xss)
+    - \xss -> concat (fromJust (listToMaybe xss))
+
+  - - \xss -> last (concat xss)
+    - \xss -> concat (last xss)
+
+
+  - - \xss -> concatMap head xss
+    - \xss -> map head (concat xss)
+  
+  - - \xss -> map head (head xss)
+  - - \xss -> map head (last xss)
+  - - \xss -> concatMap head (init xss)
+  - - \xss -> concatMap head (reverse xss)
+  - - \xss -> concatMap head (tail xss)
+  - - \xss -> init (concatMap head xss)
+  - - \xss -> reverse (concatMap head xss)
+  - - \xss -> tail (concatMap head xss)
+  - - \xss -> concat (init (concat xss))
+  - - \xss -> head (init (concat xss))
+  - - \xss -> last (init (concat xss))
+  - - \xss -> concat (reverse (concat xss))
+  - - \xss -> concat (tail (concat xss))
+  - - \xss -> head (tail (concat xss))
+  - - \xss -> last (tail (concat xss))
+  - - \xss -> concat (init (head xss))
+  - - \xss -> last (init (head xss))
+  - - \xss -> last (last xss)
+  
+  
+  - - \xss -> head $ (head xss)
+    - \xss -> head (head xss)
+    - \xss -> head (fromJust (listToMaybe xss))
+
+  - - \xss -> last (fromJust (listToMaybe xss))
+    - \xss -> last (head xss)
+
+  - - \xss -> concatMap id (head xss)
+  - - \xss -> concatMap id (last xss)
+  
+  - - \xss -> []
+    - \xss -> drop (length xss) []
+    - \xss -> take (length xss) []
+
+  - - \xss -> mapMaybe (fromJust Nothing) xss
+    - \xss -> map (fromJust Nothing) xss
+    - \xss -> concatMap (fromJust Nothing) xss
+  invalid:
+  - \xss -> [] !! (length xss)
+  - \xss -> lefts (repeat (Right xss))
+  - \xss -> rights (repeat (Left xss))
+
+
+
+- name: headLast
+  query: 'xs: [a] -> (a, a)'
+  class:
+  - - \xs -> ((head xs) , (head xs))
+    - \xs -> head (zip xs xs)
+    - \xs -> head $ (zip xs xs)
+
+  - - \xs -> ((last xs) , (last xs))
+    - \xs -> last (zip xs xs)
+
+  invalid:
+  - \xs -> curry (last []) [] xs
+  - \xs -> ((head xs) , (head []))
+  - \xs -> ((head []) , (head xs))
+  - \xs -> (last []) $ (head xs)
+  - \xs -> ((head xs) , (last []))
+  - \xs -> ((last []) , (head xs))
+  - \xs -> ((last xs) , (head []))
+  - \xs -> ((head []) , (last xs))
+  - \xs -> (last []) $ (last xs)
+  - \xs -> ((last xs) , (last []))
+  - \xs -> ((last []) , (last xs))
+  - \xs -> (head []) !! (length xs)
+  - \xs -> [] !! (length xs)
+  - \xs -> head (zip [] xs)
+  - \xs -> last (zip [] xs)
+  - \xs -> head (zip xs [])
+  - \xs -> last (zip xs [])
+  - \xs -> (last []) $ xs
+  - \xs -> (concat []) !! (length xs)
+  - \xs -> (lefts []) !! (length xs)
+  - \xs -> (rights []) !! (length xs)
+  - \xs -> (catMaybes []) !! (length xs)
+  - \xs -> (init []) !! (length xs)
+  - \xs -> (reverse []) !! (length xs)
+  - \xs -> (tail []) !! (length xs)
+
+
+- name: headRest
+  query: 'xs: [a] -> (a, [a])'
+  class:
+  - - \xs -> fromJust (uncons (init xs))
+  - - \xs -> fromJust (uncons (reverse xs))
+  - - \xs -> fromJust (uncons (tail xs))
+  - - \xs -> ((head xs) , xs)
+  - - \xs -> ((last xs) , xs)
+  
+  # solution
+  - - \xs -> fromJust (uncons xs)
+    - \xs -> head (maybeToList (uncons xs))
+    - \xs -> last (maybeToList (uncons xs))
+    - \xs -> swap (swap (fromJust (uncons xs)))
+    - \xs -> fromJust (uncons (fromJust (Just xs)))
+    - \xs -> head $ (maybeToList (uncons xs))
+  
+  
+  - - \xs -> ((head xs) , (maybeToList Nothing))
+  - - \xs -> ((last xs) , (maybeToList Nothing))
+  invalid:
+  - \xs -> ((head xs) , [])
+  - \xs -> ((last xs) , [])
+  - \xs -> ((head []) , xs)
+  - \xs -> (last []) $ xs
+  - \xs -> ((last []) , xs)
+  - \xs -> [] !! (length xs)
+  - \xs -> head (zip xs [])
+  - \xs -> last (zip xs [])
+  - \xs -> head (drop (length xs) [])
+  - \xs -> last (drop (length xs) [])
+  - \xs -> head (take (length xs) [])
+  - \xs -> last (take (length xs) [])
+  - \xs -> ((fromJust Nothing) , xs)
+  - \xs -> head (rights (repeat (Left xs)))
+  - \xs -> last (rights (repeat (Left xs)))
+  - \xs -> head (lefts (repeat (Right xs)))
+  - \xs -> last (lefts (repeat (Right xs)))
+
+
+- name: hoogle01
+  query: 'f: (a -> b) -> xs: [a] -> b'
+  class:
+  - - \f xs -> f (head xs)
+    - \f xs -> f $ (head xs)
+    - \f xs -> f (head $ xs)
+    - \f xs -> f (last (reverse xs))
+    - \f xs -> f (fromMaybe (head xs) Nothing)
+    - \f xs -> f $ (fromJust (listToMaybe xs))
+    - \f xs -> f (fst (fromJust (uncons xs)))
+    - \f xs -> f (head (xs ++ xs))
+    - \f xs -> f (head (fromJust (Just xs)))
+    - \f xs -> f (fromJust (listToMaybe xs))
+    - \f xs -> f (head (concat (repeat xs)))
+    - \f xs -> fromMaybe (f (head xs)) Nothing
+    - \f xs -> head (map f xs)
+    - \f xs -> f (head (maybeToList (listToMaybe xs)))
+    - \f xs -> f (last (maybeToList (listToMaybe xs)))
+    - \f xs -> f (fromJust (Just (head xs)))
+
+  - - \f xs -> f (last xs)
+    - \f xs -> f $ (last xs)
+    - \f xs -> f (head (reverse xs))
+    - \f xs -> f (fromMaybe (last xs) Nothing)
+    - \f xs -> f (last (fromJust (Just xs)))
+    - \f xs -> f (last (xs ++ xs))
+    - \f xs -> fromMaybe (f (last xs)) Nothing
+    - \f xs -> last (map f xs)
+    - \f xs -> f (fromJust (Just (last xs)))
+
+  - - \f xs -> f (head (init xs))
+  - - \f xs -> f (head (tail xs))
+  - - \f xs -> f (last (init xs))
+  - - \f xs -> f (last (tail xs))
+  
+  - - \f xs -> f (foldl1 (fromJust Nothing) xs)
+    - \f xs -> f (foldr1 (fromJust Nothing) xs)
+  invalid: []
+
+- name: indexesOf
+  query: 'f: ([(a, Int)] -> [(a, Int)]) -> xs: [a] -> ys: [Int] -> [Int]'
+  class:
+  - - \f xs ys -> repeat (length (f (zip xs ys)))
+  - - \f xs ys -> snd (unzip (f (zip xs ys)))
+  invalid: []
+
+
+- name: inverseMap
+  query: 'fs: [a -> b] -> x: a -> [b]'
+  class:
+  - - \fs x -> zipWith id fs (repeat x)
+
+  - - \fs x -> map (head fs) (repeat x)
+    - \fs x -> repeat ((head fs) $ x)
+
+  - - \fs x -> map (last fs) (repeat x)
+    - \fs x -> repeat ((last fs) $ x)
+
+  invalid:
+  - \fs x -> curry (last []) fs x
+  - \fs x -> curry (last []) x fs
+  - \fs x -> curry (last []) (Left fs) x
+  - \fs x -> curry (last []) (Right fs) x
+  - \fs x -> ([] !! (length fs)) $ x
+  - \fs x -> lefts (repeat (curry Right x fs))
+  - \fs x -> lefts (repeat (curry Right fs x))
+  - \fs x -> rights (repeat (curry Left fs x))
+
+
+- name: lookup
+  query: 'Eq a => xs: [(a, b)] -> k: a -> b'
+  class:
+  - - \xs k -> fromJust (lookup k xs)
+    - \xs k -> fromJust (lookup k (id $ xs))
+    - \xs k -> fromJust (lookup k (xs ++ []))
+    - \xs k -> id $ (fromJust (lookup k xs))
+    - \xs k -> fromJust (head (repeat (lookup k xs)))
+    - \xs k -> head (maybeToList (lookup k xs))
+    - \xs k -> last (maybeToList (lookup k xs))
+    - \xs k -> fromJust (lookup (snd ((xs , k))) (fst ((xs , k))))
+    - \xs k -> fromJust (lookup (fst ((k , xs))) (snd ((k , xs))))
+
+  - - \xs k -> fromJust (lookup k (repeat (head xs)))
+  - - \xs k -> fromJust (lookup k (repeat (last xs)))
+  - - \xs k -> fromJust (lookup k (init xs))
+  - - \xs k -> fromJust (lookup k (reverse xs))
+  - - \xs k -> fromJust (lookup k (tail xs))
+
+  invalid:
+  - \xs k -> curry (last []) ((,) k ) xs
+  - \xs k -> curry (last []) ((,) xs) k
+  - \xs k -> curry (last []) ((,) xs ) k
+  - \xs k -> (fromJust (lookup k [])) $ xs
+  - \xs k -> fromJust (last (repeat (lookup k xs)))
+
+
+- name: map
+  query: 'f: (a -> b) -> xs: [a] -> [b]'
+  class:
+  - - \f xs -> map f xs
+    - \f xs -> fromMaybe (map f xs) Nothing
+    - \f xs -> map f (fromJust (Just xs))
+    - \f xs -> map f (id $ xs)
+    - \f xs -> [] ++ (map f xs)
+    - \f xs -> map f (map id xs)
+    - \f xs -> reverse (map f (reverse xs))
+    - \f xs -> map f (head (repeat xs))
+
+  - - \f xs -> map f (init xs)
+  - - \f xs -> map f (reverse xs)
+  - - \f xs -> map f (tail xs)
+
+  - - \f xs -> repeat (f (head xs))
+    - \f xs -> iterate' id (f (head xs))
+    - \f xs -> map f (repeat (head xs))
+
+  - - \f xs -> map f (concat (repeat xs))
+  
+  - - \f xs -> repeat (f (last xs))
+    - \f xs -> iterate' id (f (last xs))
+    - \f xs -> map f (repeat (last xs))
+
+
+  - - \f xs -> (map f xs) ++ (map f xs)
+  - - '\f xs -> (f (last xs)) : []'
+
+  - - \f xs -> map f (maybeToList (listToMaybe xs))
+    - '\f xs -> (f (head xs)) : []'
+
+  - - \f xs -> init (map f (init xs))
+  - - \f xs -> init (map f xs)
+  - - \f xs -> reverse (map f xs)
+  - - \f xs -> tail (map f xs)
+  - - \f xs -> reverse (map f (init xs))
+  - - \f xs -> tail (map f (init xs))
+  - - \f xs -> init (map f (reverse xs))
+  - - \f xs -> tail (map f (reverse xs))
+  - - \f xs -> init (map f (tail xs))
+  - - \f xs -> reverse (map f (tail xs))
+  - - \f xs -> tail (map f (tail xs))
+  invalid:
+  - \f xs -> map f (last (repeat xs))
+
+
+- name: mapEither
+  query: 'f: (a -> Either b c) -> xs: [a] -> ([b], [c])'
+  class:
+  - - \f xs -> partitionEithers (map f xs)
+
+  - - \f xs -> partitionEithers (init (map f xs))
+    - \f xs -> partitionEithers (map f (init xs))
+  - - \f xs -> partitionEithers (tail (map f xs))
+    - \f xs -> partitionEithers (map f (tail xs))
+  - - \f xs -> partitionEithers (reverse (map f xs))
+    - \f xs -> partitionEithers (map f (reverse xs))
+
+  - - \f xs -> partitionEithers (repeat (f (head xs)))
+  - - \f xs -> partitionEithers (repeat (f (last xs)))
+  invalid:
+  - \f xs -> curry (last []) f xs
+  - \f xs -> curry (last []) xs f
+
+
+- name: mapMaybes
+  query: 'f: (a -> Maybe b) -> xs: [a] -> Maybe b'
+  class:
+  - - \f xs -> f (head xs)
+    - \f xs -> f (head (concat (repeat xs)))
+    - \f xs -> f (last (maybeToList (listToMaybe xs)))
+    - \f xs -> maybe Nothing f (listToMaybe xs)
+    - \f xs -> f $ (head xs)
+    - \f xs -> f (head $ xs)
+    - \f xs -> Just (fromJust (f (head xs)))
+    - \f xs -> f (fromJust (listToMaybe xs))
+    - \f xs -> f (head (head (repeat xs)))
+    - \f xs -> f (head (repeat (head xs)))
+    - \f xs -> f (head (maybeToList (listToMaybe xs)))
+    - \f xs -> fromMaybe (f (head xs)) Nothing
+    - \f xs -> f (head (map id xs))
+    - \f xs -> head (map f xs)
+    - \f xs -> f (last (reverse xs))
+  
+  - - \f xs -> f (last xs)
+    - \f xs -> f $ (last xs)
+    - \f xs -> Just (fromJust (f (last xs)))
+    - \f xs -> f (last (head (repeat xs)))
+    - \f xs -> f (head (repeat (last xs)))
+    - \f xs -> fromMaybe (f (last xs)) Nothing
+    - \f xs -> f (last (map id xs))
+    - \f xs -> last (map f xs)
+    - \f xs -> f (head (reverse xs))
+  
+  - - \f xs -> listToMaybe (mapMaybe f xs)
+  
+  - - \f xs -> f (head (init xs))
+  - - \f xs -> f (head (tail xs))
+  - - \f xs -> f (last (init xs))
+  - - \f xs -> f (last (tail xs))
+  
+  invalid:
+  - \f xs -> f (foldl1 (head []) xs)
+  - \f xs -> f (head (last (repeat xs)))
+  - \f xs -> f (last (last (repeat xs)))
+  - \f xs -> f (last (repeat (head xs)))
+  - \f xs -> f (last (concat (repeat xs)))
+    
+
+- name: mapTwice
+  query: 'f: (a -> b) -> g: (b -> c) -> xs: [a] -> [c]'
+  class:
+  - - \f g xs -> map g (map f xs)
+
+  - - \f g xs -> repeat (g (f (head xs)))
+    - \f g xs -> repeat (g (f $ (head xs)))
+    - \f g xs -> repeat (g $ (f (head xs)))
+    - \f g xs -> map g (repeat (f (head xs)))
+    - \f g xs -> repeat (g (f (head $ xs)))
+
+  - - \f g xs -> repeat (g (f (last xs)))
+    - \f g xs -> repeat (g (f $ (last xs)))
+    - \f g xs -> map g (repeat (f (last xs)))
+    - \f g xs -> repeat (g $ (f (last xs)))
+
+  - - \f g xs -> map g (reverse (map f xs))
+    - \f g xs -> reverse (map g (map f xs))
+    - \f g xs -> map g (map f (reverse xs))
+
+  - - \f g xs -> map g (init (map f xs))
+  - - \f g xs -> map g (tail (map f xs))
+  - - \f g xs -> init (map g (map f xs))
+  - - \f g xs -> tail (map g (map f xs))
+  - - \f g xs -> map g (map f (init xs))
+  - - \f g xs -> map g (map f (tail xs))
+  invalid: []
+
+- name: maybe
+  query: 'mb: Maybe a -> x: a -> Maybe a'
+  class:
+  - - \mb x -> Just (fromMaybe x mb)
+    - \mb x -> listToMaybe (repeat (fromMaybe x mb))
+    - \mb x -> listToMaybe (replicate (length (maybeToList mb)) x)
+    - \mb x -> Just (maybe x id mb)
+    - \mb x -> listToMaybe (repeat (maybe x id mb))
+    - \mb x -> Just (fromMaybe (fromMaybe x mb) Nothing)
+    - \mb x -> Just (fromMaybe (fromMaybe x mb) mb)
+
+  - - \mb x -> bool (Just x) (Just x) (isJust mb)
+    - \mb x -> bool (Just x) (Just x) (isNothing mb)
+    - \mb x -> Just (bool x x (isJust mb))
+    - \mb x -> Just (bool x x (isNothing mb))
+
+  - - \mb x -> bool Nothing (Just x) (isNothing mb)
+  - - \mb x -> bool Nothing (Just x) (isJust mb)
+
+  # correct
+  - - \mb x -> bool (Just x) mb (isJust mb)
+    - \mb x -> bool mb (Just x) (isNothing mb)
+
+  - - \mb x -> bool mb (Just x) (isJust mb)
+    - \mb x -> bool (Just x) mb (isNothing mb)
+
+  
+  - - \mb x -> mb
+    - \mb x -> bool mb Nothing (null (repeat x))
+    - \mb x -> fromLeft mb (head (repeat (Right x)))
+  
+  - - \mb x -> Nothing
+    - \mb x -> bool Nothing mb False
+    - \mb x -> bool Nothing mb (null (repeat x))
+
+  - - \mb x -> listToMaybe (iterate id (fromMaybe x mb))
+    - \mb x -> listToMaybe (iterate' id (fromMaybe x mb))
+  invalid:
+  - \mb x -> fromLeft mb (last (repeat (Right x)))
+  - \mb x -> curry (last []) mb x
+  - \mb x -> curry (last []) x mb
+  - \mb x -> foldl (fromJust Nothing) mb (repeat x)
+  - \mb x -> foldl' (fromJust Nothing) mb (repeat x)
+  - \mb x -> foldr (fromJust Nothing) mb (repeat x)
+  - \mb x -> Just (maybe x (last []) mb)
+  - \mb x -> Just (maybe x (head []) mb)
+
+
+- name: mbAppFirst
+  query: 'x: b -> f: (a -> b) -> xs: [a] -> b'
+  class:
+  - - \x f xs -> maybe x f (listToMaybe xs)
+    - \x f xs -> fromMaybe x (listToMaybe (map f xs))
+
+  - - \x f xs -> maybe x f (listToMaybe (reverse xs))
+  - - '\x f xs -> last (x : (map f xs))'
+  - - \x f xs -> maybe x f (listToMaybe (init xs))
+  - - \x f xs -> maybe x f (listToMaybe (tail xs))
+  - - \x f xs -> f (xs !! (length (repeat x)))
+
+  invalid:
+  - \x f xs -> f (curry (last []) x xs)
+  - \x f xs -> f (curry (last []) xs x)
+
+
+- name: mbElem
+  query: 'Eq a => x: a -> xs: [a] -> Maybe a'
+  class:
+  - - \x xs -> listToMaybe (dropWhile ((/=) x) xs)
+  - - \x xs -> listToMaybe (filter ((/=) x) xs)
+  - - \x xs -> listToMaybe (takeWhile ((/=) x) xs)
+  - - \x xs -> lookup x (zip xs xs)
+
+  - - \x xs -> Nothing
+    - \x xs -> lookup x (zip [] xs)
+    - \x xs -> lookup x (zip xs [])
+  invalid: []
+
+
+- name: mbToEither
+  query: 'x: a -> mb: Maybe b -> Either a b'
+  class:
+  - - \x mb -> maybe (Left x) Right mb
+  
+  - - \x mb -> maybe (Left x) (fromJust Nothing) mb
+    - \x mb -> Left (maybe x (fromJust Nothing) mb)
+    - \x mb -> Left (maybe x (head []) mb)
+    - \x mb -> maybe (Left x) (head []) mb
+    - \x mb -> maybe (Left x) (last []) mb
+    - \x mb -> Left (maybe x (last []) mb)
+  
+  - - \x mb -> Left x
+    - \x mb -> Left (bool x x (isNothing mb))
+    - \x mb -> bool (Left x) (Left x) (isJust mb)
+    - \x mb -> Left (bool x x (isJust mb))
+    - \x mb -> bool (Left x) (Left x) (isNothing mb)
+
+  invalid:
+  - \x mb -> Left (curry (last []) mb x)
+  - \x mb -> Right (curry (last []) mb x)
+  - \x mb -> Right (curry (last []) x mb)
+  - \x mb -> Left (curry (last []) x mb)
+  - \x mb -> curry (last []) mb (Right x)
+  - \x mb -> curry (last []) mb (Left x)
+  - \x mb -> uncurry (last []) ((x , mb))
+  - \x mb -> (last []) $ ((x , mb))
+  - \x mb -> curry (last []) x mb
+  - \x mb -> curry (last []) mb x
+
+
+
+- name: mergeEither
+  query: 'e: Either a (Either a b) -> Either a b'
+  class:
+  - - \e -> either Left id e
+  
+  - - \e -> fromRight (fromJust Nothing) e
+    - \e -> fromRight (head []) e
+    - \e -> fromRight (last []) e
+    - \e -> either (head []) id e
+    - \e -> either (last []) id e
+    - \e -> fromRight (head $ []) e
+    - \e -> either (fromJust Nothing) id e
+    - \e -> fromRight (fromJust (listToMaybe [])) e
+    - \e -> fromRight (head (concat [])) e
+    - \e -> fromRight (last (concat [])) e
+    - \e -> fromRight (head (head [])) e
+    - \e -> fromRight (last (head [])) e
+    - \e -> fromRight (fst (head [])) e
+    - \e -> fromRight (snd (head [])) e
+    - \e -> fromRight (fromJust (head [])) e
+    - \e -> fromRight (Left (head [])) e
+    - \e -> fromRight (Right (head [])) e
+    - \e -> fromRight (head (init [])) e
+    - \e -> fromRight (last (init [])) e
+    - \e -> fromRight (head (last [])) e
+    - \e -> fromRight (last (last [])) e
+    - \e -> fromRight (fst (last [])) e
+    - \e -> fromRight (snd (last [])) e
+    - \e -> fromRight (fromJust (last [])) e
+    - \e -> fromRight (Left (last [])) e
+    - \e -> fromRight (Right (last [])) e
+  invalid:
+  - \e -> (last []) $ e
+  - \e -> last (rights (repeat e))
+  - \e -> head (rights (repeat e))
+
+
+
+
+
+- name: multiAppPair
+  query: 'tp: (a -> b, a -> c) -> x: a -> (b, c)'
+  class:
+  - - \tp x -> (((fst tp) $ x) , ((snd tp) $ x))
+
+  invalid:
+  - \tp x -> curry (last []) x tp
+  - \tp x -> curry (last []) tp x
+  - \tp x -> curry (last []) tp (Left x)
+  - \tp x -> curry (last []) tp (Right x)
+
+
+
+- name: pipe
+  query: 'fs: [(a -> a)] -> x: a -> a'
+  class:
+  - - \fs x -> foldr id x fs
+  
+  - - \fs x -> last (scanr id x fs)
+
+  - - \fs x -> (head fs) $ x
+    - \fs x -> (head $ fs) $ x
+    - \fs x -> (last (reverse fs)) $ x
+    - \fs x -> uncurry head ((fs , x))
+    - \fs x -> head (iterate' (head fs) x)
+
+
+  - - \fs x -> (last fs) $ x
+    - \fs x -> (head (reverse fs)) $ x
+    - \fs x -> head (scanr id x fs)
+
+  - - \fs x -> bool x x (null fs)
+    - \fs x -> (repeat x) !! (length fs)
+    - \fs x -> head (iterate (head fs) x)
+
+  - - \fs x -> foldr id x (init fs)
+  - - \fs x -> foldr id x (reverse fs)
+  - - \fs x -> foldr id x (tail fs)
+  - - \fs x -> (head (init fs)) $ x
+  - - \fs x -> (head (tail fs)) $ x
+  - - \fs x -> (last (init fs)) $ x
+  - - \fs x -> (last (tail fs)) $ x
+  
+  - - \fs x -> foldl (fromJust Nothing) x fs
+    - \fs x -> foldl' (fromJust Nothing) x fs
+    - \fs x -> foldr (fromJust Nothing) x fs
+    - \fs x -> foldl (head []) x fs
+    - \fs x -> foldl' (head []) x fs
+    - \fs x -> foldr (head []) x fs
+    - \fs x -> foldl (last []) x fs
+    - \fs x -> foldl' (last []) x fs
+    - \fs x -> foldr (last []) x fs
+  invalid:
+  - \fs x -> last (iterate (head fs) x)
+  - \fs x -> foldr head x (repeat fs)
+
+
+
+# todo
+- name: replFuncs
+  query: 'f: (a -> b) -> n: Int-> [a -> b]'
+  class:
+  - - \f n -> replicate n f
+  - - \f n -> init (replicate n f)
+  - - \f n -> init (init (replicate n f))
+  - - \f n -> tail (tail (replicate n f))
+  - - '\f n -> drop n (f : [])'
+  - - '\f n -> take n (f : [])'
+  - - \f n -> (replicate n f) ++ (replicate n f)
+  - - \f n -> replicate n (last (repeat f))
+  - - \f n -> drop n (replicate n f)
+  - - \f n -> replicate (id $ n) f
+  - - \f n -> concat (replicate n (repeat f))
+  - - \f n -> reverse (replicate n f)
+  - - \f n -> tail (replicate n f)
+  - - \f n -> drop n (repeat f)
+  - - \f n -> take n (repeat f)
+  - - '\f n -> f : (replicate n f)'
+  - - \f n -> replicate (length (repeat n)) f
+  - - \f n -> replicate (head (repeat n)) f
+  - - \f n -> replicate (last (repeat n)) f
+  - - \f n -> replicate (fromMaybe n Nothing) f
+  - - \f n -> repeat (head (replicate n f))
+  - - \f n -> repeat (last (replicate n f))
+  - - \f n -> reverse (init (replicate n f))
+  - - \f n -> tail (init (replicate n f))
+  - - \f n -> init (reverse (replicate n f))
+  - - \f n -> reverse (reverse (replicate n f))
+  - - \f n -> tail (reverse (replicate n f))
+  - - \f n -> init (tail (replicate n f))
+  - - \f n -> reverse (tail (replicate n f))
+  - - \f n -> replicate (fromJust (Just n)) f
+  - - \f n -> [] ++ (replicate n f)
+  - - \f n -> fromMaybe (replicate n f) Nothing
+  - - \f n -> (replicate n f) ++ []
+  - - \f n -> repeat ((repeat f) !! n)
+  - - \f n -> drop n (iterate id f)
+  invalid:
+  - fill here
+
+
+
+- name: resolveEither
+  query: 'e: Either a b -> f: (a -> b) -> b'
+  class:
+  - - \e f -> either f id e
+  - - \e f -> f (head (lefts (repeat e)))
+  
+  - - \e f -> either f (fromJust Nothing) e
+    - \e f -> fromRight (f (fromJust Nothing)) e
+    - \e f -> fromRight (f (head [])) e
+    - \e f -> fromRight (f (last [])) e
+    - \e f -> either f (head []) e
+    - \e f -> either f (last []) e
+  invalid:
+  - \e f -> f (fromLeft (fromJust Nothing) e)
+  - \e f -> f (fromLeft (head []) e)
+  - \e f -> f (fromLeft (last []) e)
+  - \e f -> f ((last []) $ e)
+  - \e f -> curry (last []) f e
+  - \e f -> curry (last []) e f
+  - \e f -> f (last (lefts (repeat e)))
+
+
+- name: rights
+  query: 'es: [Either a b] -> Either a [b]'
+  class:
+  - - \es -> Right (rights es)
+    - \es -> Right $ (rights es)
+
+  - - \es -> Right (drop (length es) [])
+    - \es -> Right (take (length es) [])
+  
+  - - \es -> Right (rights (reverse es))
+    - \es -> Right (reverse (rights es))
+
+  - - \es -> Right (snd (partitionEithers es))
+    - \es -> Right (fst (swap (partitionEithers es)))
+
+  - - \es -> Left (head (lefts es))
+    - \es -> Left (head $ (lefts es))
+
+  - - \es -> Left (last (lefts es))
+  - - \es -> Right (init (rights es))
+  - - \es -> Right (tail (rights es))
+  - - \es -> Right (rights (init es))
+  - - \es -> Right (maybeToList (listToMaybe (rights es)))
+  - - \es -> Right (rights (tail es))
+
+  - - \es -> fromLeft (Right (snd (partitionEithers es))) (Right (fst (partitionEithers
+      es)))
+
+  - - \es -> Right (init (snd (partitionEithers es)))
+  - - \es -> Right (reverse (snd (partitionEithers es)))
+  - - \es -> Right (tail (snd (partitionEithers es)))
+  - - \es -> Left (head (fst (partitionEithers es)))
+  - - \es -> Left (last (fst (partitionEithers es)))
+  invalid:
+  - \es -> (last []) $ es
+  - \es -> [] !! (length es)
+  - \es -> head (drop (length es) [])
+  - \es -> last (drop (length es) [])
+  - \es -> head (take (length es) [])
+  - \es -> last (take (length es) [])
+  - \es -> (last []) $ (partitionEithers es)
+  - \es -> uncurry (last []) (partitionEithers es)
+
+
+
+- name: singletonList
+  query: 'x: a -> [a]'
+  class:
+  - - \x -> repeat x
+    - \x -> id $ (repeat x)
+    - \x -> init (repeat x)
+    - \x -> (repeat x) ++ (repeat x)
+    - \x -> map id (repeat x)
+    - \x -> repeat (id $ x)
+    - \x -> tail (iterate id x)
+    - \x -> tail (repeat x)
+    - \x -> fromMaybe (repeat x) Nothing
+    - \x -> repeat (head (repeat x))
+    - \x -> repeat (last (repeat x))
+    - \x -> init (init (repeat x))
+    - \x -> tail (init (repeat x))
+    - \x -> init (tail (repeat x))
+    - \x -> tail (tail (repeat x))
+
+
+  - - '\x -> x : []'
+  - - \x -> scanr id x []
+
+  - - \x -> iterate id x
+    - \x -> iterate' id x
+
+  - - \x -> maybeToList (Just x)
+
+  - - \x -> init (iterate id x)
+    - \x -> init (iterate' id x)
+
+  - - \x -> tail (iterate' id x)
+  invalid:
+  - \x -> tail (reverse (repeat x))
+  - \x -> reverse (repeat x)
+  - \x -> reverse (iterate id x)
+  - \x -> reverse (iterate' id x)
+  - \x -> init (reverse (repeat x))
+  - \x -> reverse (reverse (repeat x))
+  - \x -> reverse (tail (repeat x))
+  - \x -> reverse (init (repeat x))
+  - \x -> replicate (length []) x
+    
+
+
+- name: splitAtFirst
+  query: 'x: a -> xs: [a] -> ([a], [a])'
+  class:
+  - - \x xs -> ((repeat x) , xs)
+    - \x xs -> ((init (repeat x)) , xs)
+  - - \x xs -> ((tail (repeat x)) , xs)
+
+  - - \x xs -> unzip (zip (repeat x) xs)
+  - - \x xs -> unzip (zip xs (repeat x))
+
+  - - \x xs -> (xs , (repeat x))
+    - \x xs -> (xs , (init (repeat x)))
+    - \x xs -> swap (((repeat x) , xs))
+  - - \x xs -> (xs , (tail (repeat x)))
+
+  - - \x xs -> ((init xs) , (repeat x))
+    - \x xs -> ((init xs) , (init (repeat x)))
+
+  - - \x xs -> ((repeat x) , (init xs))
+    - \x xs -> ((init (repeat x)) , (init xs))
+
+  - - \x xs -> ((repeat x) , (reverse xs))
+  - - \x xs -> ((reverse xs) , (repeat x))
+
+  - - \x xs -> ((repeat x) , (tail xs))
+    - \x xs -> ((tail (repeat x)) , (tail xs))
+
+  - - \x xs -> ((tail xs) , (repeat x))
+    - \x xs -> ((tail xs) , (tail (repeat x)))
+
+  - - \x xs -> splitAt (length xs) (repeat x)
+  - - '\x xs -> ((x : xs) , (x : xs))'
+  - - '\x xs -> ((x : xs) , xs)'
+  - - '\x xs -> (xs , (x : xs))'
+  - - '\x xs -> ((x : []) , xs)'
+  - - '\x xs -> (xs , (x : []))'
+  - - '\x xs -> ((x : xs) , [])'
+  - - '\x xs -> ([] , (x : xs))'
+  - - '\x xs -> splitAt (length xs) (x : [])'
+  - - '\x xs -> splitAt (length (x : xs)) xs'
+  - - '\x xs -> splitAt (length xs) (x : xs)'
+  - - \x xs -> ((iterate id x) , (init xs))
+  - - \x xs -> ((tail (iterate id x)) , (tail xs))
+  
+  - - \x xs -> (xs , (iterate id x))
+    - \x xs -> (xs , (iterate' id x))
+  
+  - - \x xs -> ((iterate id x) , xs)
+    - \x xs -> ((iterate' id x) , xs)
+  invalid:
+  - \x xs -> ((reverse (repeat x)) , xs)
+  - \x xs -> (xs , (reverse (repeat x)))
+  - \x xs -> splitAt (length (repeat x)) xs
+  - \x xs -> ((reverse xs) , (reverse (repeat x)))
+  - \x xs -> ((reverse (repeat x)) , (reverse xs))
+
+
+# todo
+- name: splitStr
+  query: 'str: String -> c: Char -> [String]'
+  class:
+  - - \str c -> repeat (showChar c str)
+  - - '\str c -> repeat (c : str)'
+  - - '\str c -> (repeat c) : (repeat str)'
+  - - \str c -> repeat (showString (repeat c) str)
+  - - \str c -> repeat (showString str (repeat c))
+  - - \str c -> repeat (showChar c (init str))
+  - - '\str c -> repeat (c : (init str))'
+  - - '\str c -> repeat (c : (reverse str))'
+  - - \str c -> repeat (showChar c (tail str))
+  - - \str c -> group (showChar c str)
+  - - '\str c -> (showChar c str) : []'
+  - - \str c -> repeat (init (showChar c str))
+  - - \str c -> repeat (reverse (showChar c str))
+  - - \str c -> replicate (length str) (repeat c)
+  - - \str c -> repeat (replicate (length str) c)
+  - - '\str c -> str : (repeat (repeat c))'
+  - - '\str c -> (showChar c []) : (repeat str)'
+  - - \str c -> repeat (init (replicate (length str) c))
+  - - \str c -> iterate id ((repeat c) ++ str)
+  - - \str c -> replicate (length (showChar c [])) str
+  - - \str c -> replicate (length str) (showChar c [])
+  - - '\str c -> (showChar c str) : (repeat str)'
+  - - '\str c -> (c : str) : (repeat str)'
+  - - '\str c -> (repeat c) : (str : [])'
+  - - '\str c -> (replicate (length str) c) : []'
+  - - \str c -> group (replicate (length str) c)
+  - - \str c -> repeat (showChar c (reverse str))
+  - - \str c -> repeat ((repeat c) ++ str)
+  - - \str c -> repeat (str ++ (repeat c))
+  - - '\str c -> repeat (c : (tail str))'
+  - - \str c -> iterate id (showChar c str)
+  - - \str c -> iterate' id (showChar c str)
+  - - '\str c -> iterate id (c : str)'
+  - - '\str c -> iterate'' id (c : str)'
+  - - '\str c -> group (c : str)'
+  - - '\str c -> (c : str) : []'
+  - - \str c -> init (repeat (showChar c str))
+  - - \str c -> reverse (repeat (showChar c str))
+  - - \str c -> tail (repeat (showChar c str))
+  - - '\str c -> init (repeat (c : str))'
+  - - '\str c -> reverse (repeat (c : str))'
+  - - '\str c -> tail (repeat (c : str))'
+  - - '\str c -> repeat (init (c : str))'
+  invalid:
+  - fill here
+- name: takeNdropM
+  query: 'n: Int -> m: Int -> xs: [a] -> ([a], [a])'
+  class:
+  - - \n m xs -> splitAt m (drop n xs)
+  - - \n m xs -> splitAt n (drop m xs)
+  - - \n m xs -> splitAt m (take n xs)
+  - - \n m xs -> splitAt n (take m xs)
+  - - \n m xs -> splitAt m (drop n (init xs))
+  - - \n m xs -> splitAt n (drop m (init xs))
+  - - \n m xs -> splitAt m (take n (init xs))
+  - - \n m xs -> splitAt n (take m (init xs))
+  - - \n m xs -> splitAt m (drop n (reverse xs))
+  - - \n m xs -> splitAt m (take n (reverse xs))
+  - - \n m xs -> splitAt n (take m (reverse xs))
+  - - \n m xs -> splitAt m (take n (tail xs))
+  - - \n m xs -> splitAt n (take m (tail xs))
+
+
+  - - \n m xs -> splitAt ((repeat m) !! n) xs
+    - \n m xs -> splitAt (length (replicate m n)) xs
+    - \n m xs -> splitAt (head (replicate n m)) xs
+
+  - - \n m xs -> splitAt ((repeat n) !! m) xs
+    - \n m xs -> splitAt (head (replicate m n)) xs
+
+
+  - - \n m xs -> splitAt m (init (drop n xs))
+  - - \n m xs -> splitAt n (init (drop m xs))
+  - - \n m xs -> splitAt n (reverse (drop m xs))
+  - - \n m xs -> splitAt n (tail (drop m xs))
+  - - \n m xs -> splitAt m (init (take n xs))
+  - - \n m xs -> splitAt n (init (take m xs))
+  - - \n m xs -> splitAt m (reverse (take n xs))
+  - - \n m xs -> splitAt m (tail (take n xs))
+  - - \n m xs -> splitAt n (tail (take m xs))
+  - - \n m xs -> swap (splitAt m (drop n xs))
+  - - \n m xs -> swap (splitAt n (drop m xs))
+  - - \n m xs -> swap (splitAt m (take n xs))
+  - - \n m xs -> splitAt n (drop m (reverse xs))
+  - - \n m xs -> splitAt m (drop n (tail xs))
+  - - \n m xs -> splitAt n (drop m (tail xs))
+  - - \n m xs -> splitAt m (reverse (drop n xs))
+  - - \n m xs -> splitAt m (tail (drop n xs))
+  - - \n m xs -> splitAt n (reverse (take m xs))
+  invalid: []
+
+- name: test
+  query: 'b: Bool -> x: a -> Maybe a'
+  class:
+  - - \b x -> Just x
+    - \b x -> bool (Just x) (Just x) b
+    - \b x -> Just (bool x x b)
+    - \b x -> bool (Just x) (Just x) (not b)
+    - \b x -> Just (bool x x (not b))
+
+  - - \b x -> bool Nothing (Just x) b
+    - \b x -> bool (Just x) Nothing (not b)
+    - \b x -> bool (listToMaybe []) (Just x) b
+
+  - - \b x -> bool (Just x) Nothing b
+    - \b x -> bool (Just x) (listToMaybe []) b
+    - \b x -> bool Nothing (Just x) (not b)
+
+  - - \b x -> bool (Just x) (fromJust Nothing) b
+    - \b x -> Just (bool x (fromJust Nothing) b)
+    - \b x -> bool (Just x) (head []) b
+    - \b x -> bool (Just x) (last []) b
+    - \b x -> Just (bool x (head []) b)
+    - \b x -> Just (bool x (last []) b)
+
+  - - \b x -> bool (fromJust Nothing) (Just x) b
+    - \b x -> Just (bool (fromJust Nothing) x b)
+    - \b x -> bool (head []) (Just x) b
+    - \b x -> Just (bool (head []) x b)
+    - \b x -> bool (last []) (Just x) b
+    - \b x -> Just (bool (last []) x b)
+  
+  invalid:
+  - \b x -> curry (last []) x b
+  - \b x -> curry (last []) b x
+  - \b x -> curry (fromJust (last [])) x b
+  - \b x -> curry (fromJust (last [])) b x
+  - \b x -> curry (fst (last [])) b x
+  - \b x -> curry (head (last [])) b x
+  - \b x -> curry (last (last [])) b x
+  - \b x -> curry (snd (last [])) b x
+
+
+- name: zipWithResult
+  query: 'f: (a -> b) -> xs: [a]-> [(a, b)]'
+  class:
+  - - \f xs -> zip xs (map f xs)
+
+  - - \f xs -> []
+    - \f xs -> zip xs (map f [])
+    - \f xs -> zip [] (map f xs)
+  invalid:
+  - \f xs -> curry (last []) f xs
+  - \f xs -> curry (last []) xs f

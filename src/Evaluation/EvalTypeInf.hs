@@ -136,11 +136,11 @@ randomSubst (v:vars) sofar = do
     rndIdx <- getStdRandom (randomR (0, length typeCandidates - 1))
     randomSubst vars (Map.insert v (typeCandidates !! rndIdx) sofar)
 
-runInference :: Benchmark -> IO [InferenceResult]
-runInference bm = do
+runInference :: Bool -> Benchmark -> IO [InferenceResult]
+runInference isStudy bm = do
     print bm
-    exs <- runTest 3 bm
-    print exs
+    exs <- if isStudy then runTest 3 bm
+                      else return (Evaluation.Benchmark.examples bm)
     mapM (\xs -> do
         let inStr = unpack (encode (QueryInput "??" xs))
         (ListOutput res _, stats) <- searchTypes defaultSynquidParams inStr 10
@@ -158,10 +158,10 @@ runInference bm = do
             let varCnt = length (boundVarsOf q)
             return (InferenceResult bm [] res checkRes prefilter postfilter varCnt argCnt)
 
-runTypeInferenceEval :: [Benchmark] -> IO ()
-runTypeInferenceEval bms = do
-    results <- mapM runInference bms
-    writeResultsTsv (concat results)
+runTypeInferenceEval :: FilePath -> Bool -> [Benchmark] -> IO ()
+runTypeInferenceEval fp isStudy bms = do
+    results <- mapM (runInference isStudy) bms
+    writeResultsTsv fp (concat results)
 
 getCorrectIndex :: Environment -> RSchema -> Int -> [String] -> IO String
 getCorrectIndex _ _ _ [] = return "NO ANSWER"
@@ -169,12 +169,11 @@ getCorrectIndex env q idx (infer:xs) = do
     let t = parseQueryType env infer
     if eqType (toMonotype q) (toMonotype t)
         then return (show idx)
-        else getCorrectIndex env q(idx + 1) xs
+        else getCorrectIndex env q (idx + 1) xs
 
-writeResultsTsv :: [InferenceResult] -> IO ()
-writeResultsTsv results = 
-    withFile "inference.tsv" WriteMode $ \hdl -> do
-        hPutStrLn hdl "bm_name\tbm_query\tgen_exs\tinf_typs\tnum_exs\trank\tprefilter_counts\tpostfilter_counts\tvar_counts\targ_counts"
+writeResultsTsv :: FilePath -> [InferenceResult] -> IO ()
+writeResultsTsv fp results = 
+    withFile fp AppendMode $ \hdl -> do
         let padEnd n xs = xs ++ replicate n []
         mapM_ (\(InferenceResult bm exs typs rank pre post vars args) -> do
             let len = max (length exs) (length typs)

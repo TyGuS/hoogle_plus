@@ -60,3 +60,7 @@ def load_queries(query_file):
             group = group_map[group_name]
             group.add_benchmark(Benchmark(q['name'], q['query'], ''))
     return group_map
+
+def find_benchmark_in_groups(name, benchmarks):
+    benchmark = next(g.contains(name) for g in benchmarks.values() if g.contains(name))
+    return benchmark

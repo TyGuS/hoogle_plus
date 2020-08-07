@@ -148,8 +148,10 @@ main = do
                         , Types.Generate.hoPath = hoPath
                         }
             precomputeGraph generationOpts
-        Evaluation benchmark fp -> do
-            readSuite fp >>= runTypeInferenceEval
+        Evaluation outFile fp benchmark -> do
+            benchmarks <- readSuite fp
+            let benchmarks' = filter (\b -> Evaluation.Benchmark.name b == benchmark) benchmarks
+            runTypeInferenceEval outFile benchmarks'
 
 {- Command line arguments -}
 
@@ -197,8 +199,9 @@ data CommandLineArgs
         ho_path :: String
       }
       | Evaluation {
-        benchmark :: String,
-        file_path :: String
+        out_file :: FilePath,
+        benchmark_suite :: String,
+        benchmark :: String
       }
   deriving (Data, Typeable, Show, Eq)
 
@@ -238,8 +241,9 @@ generate = Generate {
 } &= help "Generate the type conversion database for synthesis"
 
 evaluation = Evaluation {
-  benchmark            = ""              &= help ("Evaluate this single benchmark"),
-  file_path            = ""              &= help ("Path to the benchmark file, in the format of YAML")
+  out_file             = "inference.tsv"                    &= help ("Path to the output file"),
+  benchmark_suite      = "benchmark/suites/working.yml"     &= help ("Path to the benchmark file, in the format of YAML"),
+  benchmark            = ""                                 &= help ("Evaluate this single benchmark")
 } &= help "Evaluate Hoogle+ modules"
 
 mode = cmdArgsMode $ modes [synt, generate, evaluation] &=
