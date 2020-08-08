@@ -24,10 +24,6 @@ RUN apt-get install -y libtinfo-dev zlib1g-dev haskell-stack
 RUN stack upgrade
 ENV PATH="/root/.local/bin:${PATH}"
 
-# Get tools for the evaluation
-RUN apt-get install -y python3 python3-pip
-RUN pip3 install --user PyYAML numpy tabulate matplotlib argparse
-
 # install curl
 RUN apt-get install -y build-essential curl git
 
@@ -44,6 +40,10 @@ RUN cd /home/hoogle_plus/new_webapp && yarn install
 
 # Generate the database
 RUN cd /home/hoogle_plus && stack exec -- hplus generate --preset=partialfunctions
+
+# Get tools for the evaluation
+RUN apt-get install -y python3 python3-pip
+RUN pip3 install --user PyYAML numpy tabulate matplotlib argparse colorama pandas
 
 # Start with bash
 CMD /bin/bash

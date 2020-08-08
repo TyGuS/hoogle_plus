@@ -36,7 +36,7 @@
 - name: firstJust
   query: "x: a -> xs: [Maybe a] -> a"
   solution: "\\x xs -> Data.Maybe.fromMaybe x (Data.Maybe.listToMaybe (Data.Maybe.catMaybes xs))"
-  source: "original"
+  source: "study"
   examples:
     - inputs: ["3", "[Nothing, Just 2, Nothing]"]
       output: "2"
@@ -249,7 +249,7 @@
 - name: appendN
   query: "n: Int -> xs: [a] -> [a]"
   solution: "\\n xs -> Data.List.concat (Data.List.replicate n xs)"
-  source: "hoogle"
+  source: "study"
   examples:
     - inputs: ["2", "[1,2,3]"]
       output: "[1,2,3,1,2,3]"
@@ -323,7 +323,7 @@
 - name: applyNtimes
   query: "f: (a -> a) -> x: a -> n: Int -> a"
   solution: "\\f x n -> Data.List.foldr ($) x (Data.List.replicate n f)"
-  source: "hoogle"
+  source: "study"
   examples:
     - inputs: ["\\x -> x ++ x", "\"f-\"", "3"]
       output: "\"f-f-f-f-f-f-f-f-\""
@@ -400,7 +400,7 @@
 - name: dedupe
   query: "Eq a => xs: [a] -> [a]"
   solution: "\\xs -> Data.List.map Data.List.head (Data.List.group xs)"
-  source: "original"
+  source: "study"
   examples:
     - inputs: ["\"aaabbbccc\""]
       output: "\"abc\""
@@ -408,7 +408,7 @@
 - name: inverseMap
   query: "fs: [a -> b] -> x: a -> [b]"
   solution: "\\fs x -> Data.List.map ($ x) fs"
-  source: "original"
+  source: "study"
   examples:
     - inputs: ["[\\x -> x + 3, \\x -> x * x]", "4"]
       output: "[7, 16]"
