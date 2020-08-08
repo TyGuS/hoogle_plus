@@ -37,7 +37,7 @@ def load_experiment_result(groups, dir_name):
     '''Load the experiment result from a given directory.'''
     files = []
     for g in groups.values():
-        for b in g.benchmarks():
+        for b in g.benchmarks:
             files.append(os.path.join(dir_name, '{}.json'.format(b.name)))
 
     raw_results = []
