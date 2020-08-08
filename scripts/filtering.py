@@ -33,9 +33,12 @@ def extract_result(result):
         'examples': []
     }
 
-def load_experiment_result(dir_name):
+def load_experiment_result(groups, dir_name):
     '''Load the experiment result from a given directory.'''
-    files = glob(os.path.join(dir_name, "*.json"))
+    files = []
+    for g in groups.values():
+        for b in g.benchmarks():
+            files.append(os.path.join(dir_name, '{}.json'.format(b.name)))
 
     raw_results = []
     for file_name in files:

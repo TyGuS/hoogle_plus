@@ -96,7 +96,7 @@ def write_csv(output_dir, groups, results):
 
 def run_synthesis(groups, output_dir, timeout=TIMEOUT, options=[], is_filtering=False):
     results = {}
-    with Pool(processes=12) as pool:
+    with Pool(processes=8) as pool:
         for group in groups.values():
             for b in group.benchmarks:
                 if b.name in results:

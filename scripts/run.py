@@ -85,3 +85,6 @@ if __name__ == '__main__':
 
     if cl_opts.filtering or cl_opts.oopsla or cl_opts.all:
         run_filtering(groups, cl_opts.output_dir)
+
+    if cl_opts.oopsla or cl_opts.all:
+        run_type_inference(cl_opts.benchmark_suite, groups, cl_opts.output_dir, cl_opts.use_study_data)
