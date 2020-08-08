@@ -15,6 +15,7 @@ import Data.List
 import Data.Maybe
 import System.Random
 import System.IO
+import System.IO.Silently
 import Text.Printf
 import Language.Haskell.Interpreter hiding (Id)
 import Control.Monad.IO.Class
@@ -141,12 +142,13 @@ runInference isStudy bm = do
     print bm
     exs <- if isStudy then return (Evaluation.Benchmark.examples bm)
                       else runTest 3 bm
-    mapM (\xs -> do
+    let combinations = if isStudy then [exs] else tail (inits exs)
+    mapM (\xs -> silence $ do
         let inStr = unpack (encode (QueryInput "??" xs))
         (ListOutput res _, stats) <- searchTypes defaultSynquidParams inStr 10
         dt <- getMetadata res stats
         return $ dt { genExamples = xs }
-        ) (tail $ inits exs)
+        ) combinations
 
     where
         getMetadata res (InfStats prefilter postfilter) = do

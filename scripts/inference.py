@@ -12,8 +12,9 @@ from benchmark import *
 from synthesis import HPLUS_CMD, CMD_OPTS, FNULL
 
 INFERENCE_RESULT = 'inference.tsv'
-INFERENCE_CSV = 'inference_stats.csv'
-INFERENCE_GRAPH = 'inference_heatmap.png'
+INFERENCE_CSV = 'inference-stats.tsv'
+INFERENCE_GRAPH = 'inference-heatmap.png'
+INFERENCE_USER_GRAPH = 'inference-user.png'
 
 class InferenceResult:
     def __init__(self, benchmark, gen_examples, num_examples, num_vars,
@@ -132,7 +133,7 @@ def create_table_entry(result_groups):
     result_map = {}
     for k in result_groups[0].keys():
         sorted_ranks = sorted(rank_map[k])
-        rank = statistics.median(sorted_ranks)
+        rank = int(statistics.median(sorted_ranks))
         prefilters = prefilter_map[k]
         prefilter_gens = (min(prefilters), max(prefilters))
         postfilters = postfilter_map[k]
@@ -192,6 +193,7 @@ def rank_to_percent(rank_map):
             np_rank = np.array([r.fst_rank, r.snd_rank, r.other_rank, r.no_rank])
             ranks = np_rank if ranks is None else np.vstack((ranks, np_rank))
         percents = ranks / ranks.sum(axis=1)[:, None]
+        # percents = ranks / ranks.sum()
         percents = np.mean(percents, axis=0)
         percent_map[k] = percents
 
@@ -205,7 +207,7 @@ def plot_heatmap(output_dir, results):
     # iterate var nums from small to large
     for vn in range(0, 5):
         # iterate ex nums from large to small
-        for en in range(3, -1, -1):
+        for en in range(3, 0, -1):
             k = (vn, en)
             if k in percent_map:
                 v = percent_map[k]
@@ -233,11 +235,11 @@ def plot_heatmap(output_dir, results):
     ax2.spines['right'].set_visible(True)
     # set major ticks
     ax2.yaxis.set_major_locator(ticker.FixedLocator([0.1, 0.3, 0.5, 0.7, 0.9]))
-    ax2.yaxis.set_major_formatter(ticker.FixedFormatter(['0 type var',
-                                                         '1 type var',
-                                                         '2 type vars',
+    ax2.yaxis.set_major_formatter(ticker.FixedFormatter(['4 type vars',
                                                          '3 type vars',
-                                                         '4 type vars']))
+                                                         '2 type vars',
+                                                         '1 type var',
+                                                         '0 type var']))
     ax2.tick_params(axis='y', length=2, which='major', direction='out',
                     labelleft=True, labelright=False, labelrotation=90, pad=40)
     for tick in ax2.yaxis.get_major_ticks():
@@ -247,8 +249,30 @@ def plot_heatmap(output_dir, results):
     ax2.yaxis.set_minor_formatter(ticker.NullFormatter())
     ax2.tick_params(axis='y', length=6, which='minor')
 
+    ycoords = [0.2, 0.4, 0.6, 0.8]
+    for yc in ycoords:
+        plt.axhline(y=yc, color='k', linewidth=1)
+
     fig.tight_layout()
     plt.savefig(os.path.join(output_dir, INFERENCE_GRAPH))
+
+def plot_histogram(output_dir, results):
+    values = [0] * 11
+    for _, rs in results.items():
+        for r in rs:
+            idx = r.rank - 1
+            values[idx] = values[idx] + 1
+
+    x_labels = list(map(str, range(1, 11))) + ['No Answer']
+    x = np.arange(len(x_labels))
+    _, ax = plt.subplots()
+    ax.set_xticks(x)
+    ax.set_xticklabels(x_labels)
+    ax.bar(x, values)
+    plt.savefig(os.path.join(output_dir, INFERENCE_USER_GRAPH))
+
+def format_width(w, s):
+    return '%*s' % (w, s)
 
 def run_type_inference(suite, groups, output_dir, use_study_data=False):
     all_results = []
@@ -277,22 +301,37 @@ def run_type_inference(suite, groups, output_dir, use_study_data=False):
     print('Processing data for graph plotting...')
     # plot the heatmap
     if use_study_data:
-        plot_histogram(all_results)
+        plot_histogram(output_dir, all_results[0])
     else:
         result_table = create_table_entry(all_results)
 
         # write results into csv
         with open(os.path.join(output_dir, INFERENCE_CSV), 'w+') as outfile:
-            outfile.write('# vars\t# exs\tmedian rank\tpre-filter generalizations\t\tpost-filter generalizations\t\n')
-            outfile.write('\t\t\tmin\tmax\tmin\tmax\n')
-            for entry in result_table.values():
-                outfile.write(str(entry.num_vars) + '\t')
-                outfile.write(str(entry.num_exs) + '\t')
-                outfile.write(str(entry.rank) + '\t')
-                outfile.write(format_number(entry.prefilter_gens[0]) + '\t')
-                outfile.write(format_number(entry.prefilter_gens[1]) + '\t')
-                outfile.write(format_number(entry.postfilter_gens[0]) + '\t')
-                outfile.write(format_number(entry.postfilter_gens[1]) + '\n')
+            # first line of the header
+            outfile.write(format_width(15, '# vars'))
+            outfile.write(format_width(15, '# exs'))
+            outfile.write(format_width(15, 'median rank'))
+            outfile.write(format_width(30, 'pre-filter generalizations '))
+            outfile.write(format_width(15, ''))
+            outfile.write(format_width(30, 'post-filter generalizations\n'))
+            # second line of the header
+            outfile.write(format_width(15, ''))
+            outfile.write(format_width(15, ''))
+            outfile.write(format_width(15, ''))
+            outfile.write(format_width(15, 'min'))
+            outfile.write(format_width(15, 'max'))
+            outfile.write(format_width(15, 'min'))
+            outfile.write(format_width(15, 'max\n'))
+            # table contents
+            entries = sorted(result_table.values(), key = lambda e: (e.num_vars, -e.num_exs))
+            for entry in entries:
+                outfile.write(format_width(15, entry.num_vars))
+                outfile.write(format_width(15, entry.num_exs))
+                outfile.write(format_width(15, entry.rank if entry.rank is not 11 else '-'))
+                outfile.write(format_width(15, format_number(entry.prefilter_gens[0])))
+                outfile.write(format_width(15, format_number(entry.prefilter_gens[1])))
+                outfile.write(format_width(15, format_number(entry.postfilter_gens[0])))
+                outfile.write(format_width(15, format_number(entry.postfilter_gens[1])) + '\n')
 
         print('Inference details are written into {}'.format(os.path.join(output_dir, INFERENCE_CSV)))
 

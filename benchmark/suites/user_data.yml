@@ -173,15 +173,6 @@
     - '2'
     - '[1,2,3]'
     output: '[1,2,3,1,2,3]'
-- name: participant21
-  query: 'Int -> [a] -> [a]'
-  solution: ''
-  source: study
-  examples:
-  - inputs:
-    - '2'
-    - "abc"
-    output: '"abcabc"'
 - name: participant22
   query: '(a -> a) -> Int -> a -> a'
   solution: ''
@@ -299,15 +290,6 @@
     - '[Nothing, Just 2, Just 3]'
     - '4'
     output: '2'
-- name: participant30
-  query: '(a -> a) -> Int -> a -> a'
-  solution: ''
-  source: study
-  examples:
-  - inputs:
-    - '(\x -> x ++ x)'
-    - '3'
-    output: '"f-"'
 - name: participant31
   query: 'Int -> [a] -> [a]'
   solution: ''
@@ -420,7 +402,7 @@
   examples:
   - inputs:
     - '4'
-    - '[Nothing, Just1, Just2]'
+    - '[Nothing, Just 1, Just 2]'
     output: '1'
   - inputs:
     - '5'
@@ -791,15 +773,6 @@
   - inputs:
     - '"aabb"'
     output: '"ab"'
-- name: participant74
-  query: '[a -> b] -> a -> [b]'
-  solution: ''
-  source: study
-  examples:
-  - inputs:
-    - '[(\x -> x + 2), (\x -> x * 2)] 5'
-    - '5'
-    output: '[7,10]'
 - name: participant75
   query: '[a -> b] -> a -> [b]'
   solution: ''
@@ -958,16 +931,6 @@
     - '0'
     - '[Nothing, Just 1]'
     output: '1'
-- name: participant91
-  query: '(a -> a) -> Int -> a -> a'
-  solution: ''
-  source: study
-  examples:
-  - inputs:
-    - (\x -> x ++ x)
-    - '3'
-    - '"f-'
-    output: '"f-f-f-f-f-f-f-f-"'
 - name: participant92
   query: '(a -> a) -> a -> Int -> a'
   solution: ''
@@ -1017,11 +980,3 @@
     - '0'
     - '[Nothing, Just 1, Just 2]'
     output: '1'
-- name: participant99
-  query: '[a -> b] -> a -> [b]'
-  solution: ''
-  source: study
-  examples:
-  - inputs:
-    - '[(\x -> x + 2), (\x -> x * 2)]'
-    output: ' [7, 10]'

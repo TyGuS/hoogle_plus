@@ -1,10 +1,11 @@
 import yaml
 
 class Benchmark:
-    def __init__(self, name, query, description, options=[]):
+    def __init__(self, name, query, description, examples=[], options=[]):
         self.name = name                # Id
         self.query = query              # Query signature
         self.description = description  # Description
+        self.examples = examples
         self.options = options          # Command-line options to use for this benchmark when running in individual context
 
     def __str__(self):
@@ -58,7 +59,7 @@ def load_queries(query_file):
             if group_name not in group_map:
                 group_map[group_name] = BenchmarkGroup(group_name, [])
             group = group_map[group_name]
-            group.add_benchmark(Benchmark(q['name'], q['query'], ''))
+            group.add_benchmark(Benchmark(q['name'], q['query'], '', q['examples']))
     return group_map
 
 def find_benchmark_in_groups(name, benchmarks):

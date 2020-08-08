@@ -2,6 +2,7 @@
 FROM ubuntu:18.04
 ARG port=3000
 EXPOSE ${port}
+EXPOSE 5000
 
 # install locales
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y locales
@@ -27,26 +28,22 @@ ENV PATH="/root/.local/bin:${PATH}"
 RUN apt-get install -y python3 python3-pip
 RUN pip3 install --user PyYAML numpy tabulate matplotlib argparse
 
+# install curl
+RUN apt-get install -y build-essential curl git
+
+# install yarn
+RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add -
+RUN echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list
+RUN apt update && apt install -y yarn
+
 # Get HooglePlus
-RUN cd /home; git clone https://github.com/davidmrdavid/hoogle_plus.git
-RUN cd /home/hoogle_plus && git checkout origin/master
+RUN cd /home; git clone https://github.com/TyGuS/hoogle_plus.git
+RUN cd /home/hoogle_plus && git checkout origin/oopsla20_artifact
 RUN cd /home/hoogle_plus && stack build
+RUN cd /home/hoogle_plus/new_webapp && yarn install
+
+# Generate the database
+RUN cd /home/hoogle_plus && stack exec -- hplus generate --preset=partialfunctions
 
 # Start with bash
-RUN cd /home/hoogle_plus && stack exec -- hplus generate --preset=partialfunctions
-RUN mkdir -p /var/log/hplus
-
-
-CMD cd /home/hoogle_plus && stack run webapp -p ${port} >> /var/log/hplus/run.log
-
-HEALTHCHECK CMD curl --fail http://localhost:${port}/ || exit 1
-
-# To start the image, please mount the source file directory to /home/hoogle_plus
-# docker run -v PATH_TO_HOOGLE_PLUS_SOURCE:/home/hoogle_plus -it hoogle_plus
-# After the docker image is started
-# run `cd /home/hoogle_plus; stack build`
-
-#
-# REMEMBER TO TAG CHANGES WITH LATEST.
-# LATEST TAG IS NOT UPDATED AUTOMATICALLY
-#
+CMD /bin/bash

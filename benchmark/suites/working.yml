@@ -30,13 +30,13 @@
   examples:
     - inputs: ["\\x -> x + 1", "(43, 25)"]
       output: (44, 26)
-    - inputs: ["\\x -> GHC.List.length x", "([1,2,3,4],[2,3,4])"]
+    - inputs: ["\\x -> Data.List.length x", "([1,2,3,4],[2,3,4])"]
       output: (4, 3)
 
 - name: firstJust
   query: "x: a -> xs: [Maybe a] -> a"
   solution: "\\x xs -> Data.Maybe.fromMaybe x (Data.Maybe.listToMaybe (Data.Maybe.catMaybes xs))"
-  source: "study"
+  source: "original"
   examples:
     - inputs: ["3", "[Nothing, Just 2, Nothing]"]
       output: "2"
@@ -83,7 +83,7 @@
   examples:
     - inputs: ["\\x y -> x + y", "\\x -> x * x", "3"]
       output: "12"
-    - inputs: ["\\x y -> GHC.List.length x * GHC.List.length y", "\\x -> x ++ x", "[1,2,3]"]
+    - inputs: ["\\x y -> Data.List.length x * Data.List.length y", "\\x -> x ++ x", "[1,2,3]"]
       output: "18"
 
 - name: singletonList
@@ -119,7 +119,7 @@
   examples:
     - inputs: ["[1,2,3,4,5]", "\\x -> x `mod` 2 == 0"]
       output: "2"
-    - inputs: ["[[1,2,3], [2,3,4,5], [3,4,5,6,7]]", "\\xs -> 2 `GHC.List.elem` xs"]
+    - inputs: ["[[1,2,3], [2,3,4,5], [3,4,5,6,7]]", "\\xs -> 2 `Data.List.elem` xs"]
       output: "2"
 
 - name: splitStr
@@ -168,7 +168,7 @@
   solution: "\\f xs -> f (Data.List.head xs)"
   source: "hoogle"
   examples:
-    - inputs: ["\\xs -> GHC.List.length xs", "[[1,2,3], [1,2,3,4,5,6,7]]"]
+    - inputs: ["\\xs -> Data.List.length xs", "[[1,2,3], [1,2,3,4,5,6,7]]"]
       output: "3"
     - inputs: ["\\x -> [x, x]", "[6,5,4]"]
       output: "[6, 6]"
@@ -180,7 +180,7 @@
   examples:
     - inputs: ["[1,2,3,4,5]", "\\x -> x `mod` 2 == 0"]
       output: "2"
-    - inputs: ["[[1,2,3], [2,3,4,5], [3,4,5,6,7]]", "\\xs -> 2 `GHC.List.elem` xs"]
+    - inputs: ["[[1,2,3], [2,3,4,5], [3,4,5,6,7]]", "\\xs -> 2 `Data.List.elem` xs"]
       output: "[1,2,3]"
 
 - name: firstMaybe
@@ -249,7 +249,7 @@
 - name: appendN
   query: "n: Int -> xs: [a] -> [a]"
   solution: "\\n xs -> Data.List.concat (Data.List.replicate n xs)"
-  source: "study"
+  source: "hoogle"
   examples:
     - inputs: ["2", "[1,2,3]"]
       output: "[1,2,3,1,2,3]"
@@ -299,7 +299,7 @@
   solution: "\\f g xs -> Data.List.map g (Data.List.map f xs)"
   source: "original"
   examples:
-    - inputs: ["GHC.List.length", "\\x -> x * x", "[[1,2,3], [1,2,3,4], [1,2,3,4,5]]"]
+    - inputs: ["Data.List.length", "\\x -> x * x", "[[1,2,3], [1,2,3,4], [1,2,3,4,5]]"]
       output: "[9, 16, 25]"
 
 - name: zipWithResult
@@ -323,7 +323,7 @@
 - name: applyNtimes
   query: "f: (a -> a) -> x: a -> n: Int -> a"
   solution: "\\f x n -> Data.List.foldr ($) x (Data.List.replicate n f)"
-  source: "study"
+  source: "hoogle"
   examples:
     - inputs: ["\\x -> x ++ x", "\"f-\"", "3"]
       output: "\"f-f-f-f-f-f-f-f-\""
@@ -364,6 +364,29 @@
     - inputs: ["[(1,2), (2,3), (4,6)]", "2"]
       output: "3"
 
+- name: mbElem
+  query: "Eq a => x: a -> xs: [a] -> Maybe a"
+  solution: "\\x xs -> bool Nothing (Just x) (Data.List.elem x xs)"
+  source: "hoogle"
+  examples:
+    - inputs: ["2", "[1,3,5,7,9]"]
+      output: "Nothing"
+    - inputs: ["3", "[1,3,5,7,9]"]
+      output: "Just 3"
+
+# - name: convert
+#   query: Int -> Int -> Float
+
+- name: areEq
+  query: "Eq a => x: a -> y: a -> Maybe a"
+  solution: "\\x y -> bool Nothing (Just x) ((==) x y)"
+  source: "hoogle"
+  examples:
+    - inputs: ["1", "2"]
+      output: "Nothing"
+    - inputs: ["1", "1"]
+      output: "Just 1"
+
 - name: containsEdge
   query: "vs: [Int] -> edge: (Int, Int) -> Bool"
   solution: "\\vs edge -> (fst edge `Data.List.elem` vs) && (snd edge `Data.List.elem` vs)"
@@ -377,7 +400,7 @@
 - name: dedupe
   query: "Eq a => xs: [a] -> [a]"
   solution: "\\xs -> Data.List.map Data.List.head (Data.List.group xs)"
-  source: "study"
+  source: "original"
   examples:
     - inputs: ["\"aaabbbccc\""]
       output: "\"abc\""
@@ -385,7 +408,7 @@
 - name: inverseMap
   query: "fs: [a -> b] -> x: a -> [b]"
   solution: "\\fs x -> Data.List.map ($ x) fs"
-  source: "study"
+  source: "original"
   examples:
     - inputs: ["[\\x -> x + 3, \\x -> x * x]", "4"]
       output: "[7, 16]"

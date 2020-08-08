@@ -182,28 +182,53 @@ findWithDefaultAntiVariable t1 t2 = do
                 return (isChecked && notBothVars)) (Map.toList tass)
             return $ concat $ snd $ unzip results
 
+-- antiUnification' :: SType -> SType -> AntiUnifier IO SType
+-- antiUnification' t1 t2 | t1 == t2 = return t1
+-- antiUnification' AnyT t = return t
+-- antiUnification' t AnyT = return t
+-- antiUnification' t1@(ScalarT (TypeVarT _ id1) _) t2@(ScalarT (TypeVarT _ id2) _)
+--   | univTypeVarPrefix == head id1 = do
+--     tass <- gets $ view typeAssignment2
+--     if t2 `Map.member` tass
+--         then return $ vart_ (head $ tass Map.! t2)
+--         else return $ vart_ id2
+--   | univTypeVarPrefix == head id2 = do
+--     tass <- gets $ view typeAssignment1
+--     if t1 `Map.member` tass
+--         then return $ vart_ (head $ tass Map.! t1)
+--         else return $ vart_ id1
+--   -- | otherwise = findWithDefaultAntiVariable t1 t2
+-- antiUnification' t1@(ScalarT (TypeVarT _ id) _) t
+--   | univTypeVarPrefix == head id = do
+--     tass <- gets $ view typeAssignment2
+--     if t `Map.member` tass
+--         then return $ vart_ (head $ tass Map.! t)
+--         else return t
+-- antiUnification' t tv@(ScalarT (TypeVarT {}) _) = do
+--     swapAssignments
+--     result <- antiUnification' tv t
+--     swapAssignments
+--     return result
+-- antiUnification' t1@(ScalarT (DatatypeT dt1 args1 _) _) t2@(ScalarT (DatatypeT dt2 args2 _) _)
+--   | dt1 == dt2 = do
+--       args' <- mapM (uncurry antiUnification') (zip args1 args2)
+--       return $ ScalarT (DatatypeT dt1 args' []) ()
+-- antiUnification' (FunctionT x1 tArg1 tRes1) (FunctionT x2 tArg2 tRes2) = do
+--     tArg <- antiUnification' tArg1 tArg2
+--     tRes <- antiUnification' tRes1 tRes2
+--     return $ FunctionT x1 tArg tRes
+-- antiUnification' t1 t2 = findWithDefaultAntiVariable t1 t2
 antiUnification' :: SType -> SType -> AntiUnifier IO SType
 antiUnification' t1 t2 | t1 == t2 = return t1
 antiUnification' AnyT t = return t
 antiUnification' t AnyT = return t
 antiUnification' t1@(ScalarT (TypeVarT _ id1) _) t2@(ScalarT (TypeVarT _ id2) _)
-  | univTypeVarPrefix == head id1 = do
-    tass <- gets $ view typeAssignment2
-    if t2 `Map.member` tass
-        then return $ vart_ (head $ tass Map.! t2)
-        else return $ vart_ id2
-  | univTypeVarPrefix == head id2 = do
-    tass <- gets $ view typeAssignment1
-    if t1 `Map.member` tass
-        then return $ vart_ (head $ tass Map.! t1)
-        else return $ vart_ id1
+  | univTypeVarPrefix == head id1 = return $ vart_ id2
+  | univTypeVarPrefix == head id2 = return $ vart_ id1
   -- | otherwise = findWithDefaultAntiVariable t1 t2
 antiUnification' t1@(ScalarT (TypeVarT _ id) _) t
-  | univTypeVarPrefix == head id = do
-    tass <- gets $ view typeAssignment2
-    if t `Map.member` tass
-        then return $ vart_ (head $ tass Map.! t)
-        else return t
+  | univTypeVarPrefix == head id = return t
+  -- | otherwise = findWithDefaultAntiVariable t1 t
 antiUnification' t tv@(ScalarT (TypeVarT {}) _) = do
     swapAssignments
     result <- antiUnification' tv t
@@ -266,34 +291,51 @@ generalizeType exTyps tcass t = do
                                   else printf "(%s) => %s" tyclasses (show t)
 
 generalizeSType :: TyclassAssignment -> SType -> TypeGeneralizer IO (TyclassAssignment, SType)
-generalizeSType tcass t@(ScalarT (TypeVarT _ id) _) =
-        enumTyclasses `mplus` enumDupVars
-    where
-        enumTyclasses = do
-            -- either add type class or not 
-            let tc = maybe [] Set.toList (Map.lookup id tcass)
-            let mkResult t tc = {- guard (checkImplies tcs) >> -} return (Map.singleton id (Set.singleton tc), t)
-            prevVars <- gets $ view prevTypeVars
-            if id `Set.member` prevVars -- either enumerate type classes or create a new one
-               then do
-                   return (Map.empty, t)
-               else do
-                   modify $ over prevTypeVars (Set.insert id)
-                   if null tc then return (Map.empty, t)
-                              else (msum $ map (mkResult t) tc) `mplus` return (Map.empty, t)
-        enumDupVars = do
-            beginVars <- gets $ view beginTypeVars
-            prevVars <- gets $ view prevTypeVars
-            if id `Set.member` prevVars
-                then do
-                    -- or replace the variable with previous names
-                    -- type classes constraints lost
-                    let vars = Set.toList beginVars ++ Set.toList prevVars
-                    v <- freshId vars "t"
-                    modify $ over prevTypeVars (Set.insert v)
-                    let prevVars' = delete id (Set.toList beginVars)
-                    msum $ map (return . (Map.empty,) . vart_) (v:prevVars')
-                else mzero
+-- generalizeSType tcass t@(ScalarT (TypeVarT _ id) _) =
+--         enumTyclasses `mplus` enumDupVars
+--     where
+--         enumTyclasses = do
+--             -- either add type class or not 
+--             let tc = maybe [] Set.toList (Map.lookup id tcass)
+--             let mkResult t tc = {- guard (checkImplies tcs) >> -} return (Map.singleton id (Set.singleton tc), t)
+--             prevVars <- gets $ view prevTypeVars
+--             if id `Set.member` prevVars -- either enumerate type classes or create a new one
+--                then do
+--                    return (Map.empty, t)
+--                else do
+--                    modify $ over prevTypeVars (Set.insert id)
+--                    if null tc then return (Map.empty, t)
+--                               else (msum $ map (mkResult t) tc) `mplus` return (Map.empty, t)
+--         enumDupVars = do
+--             beginVars <- gets $ view beginTypeVars
+--             prevVars <- gets $ view prevTypeVars
+--             -- if id `Set.member` prevVars
+--             --     then do
+--                     -- or replace the variable with previous names
+--                     -- type classes constraints lost
+--                     let vars = Set.toList beginVars ++ Set.toList prevVars
+--                     v <- freshId vars "t"
+--                     modify $ over prevTypeVars (Set.insert v)
+--                     let prevVars' = delete id (Set.toList beginVars)
+--                     msum $ map (return . (Map.empty,) . vart_) (v:prevVars')
+--                 -- else mzero
+generalizeSType tcass t@(ScalarT (TypeVarT _ id) _) = (do
+    -- either add type class or not 
+    let tc = maybe [] Set.toList (Map.lookup id tcass)
+    let mkResult tc = {- guard (checkImplies tcs) >> -} return (Map.singleton id (Set.singleton tc), t)
+    prevVars <- gets $ view prevTypeVars
+    if id `Set.member` prevVars
+       then return (Map.empty, t)
+       else do
+            modify $ over prevTypeVars (Set.insert id)
+            (msum $ map mkResult tc) `mplus` return (Map.empty, t)
+    ) `mplus` (do
+        -- or replace the variable with previous names
+        -- type classes constraints lost
+        prevVars <- gets $ view beginTypeVars
+        let prevVars' = Set.delete id prevVars
+        msum $ map (return . (Map.empty,) . vart_) (Set.toList prevVars')
+        )
 generalizeSType tcass t@(FunctionT x tArg tRes) = do
     (argTyclass, tArg') <- generalizeSType tcass tArg
     (resTyclass, tRes') <- generalizeSType tcass tRes

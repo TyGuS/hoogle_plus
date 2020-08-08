@@ -57,7 +57,8 @@ def run_benchmark(output_dir, results, name, query, examples, default_opts,
         # print(line)
         if line[:8] == b'RESULTS:':
             candidates = json.loads(line[8:])['outCandidates']
-            solution.append(candidates)
+            if candidates:
+                solution.append(candidates)
 
     # store synthesis results into json files
     if is_filtering:
@@ -104,7 +105,7 @@ def run_synthesis(groups, output_dir, timeout=TIMEOUT, options=[], is_filtering=
                 else:
                     print('Running', str(b))
                     pool.apply_async(run_benchmark,
-                                     args=(output_dir, results, b.name, b.query, b.options,
+                                     args=(output_dir, results, b.name, b.query, [],
                                            group.default_options + options, timeout, is_filtering),
                                      error_callback=lambda x: print(x))
         pool.close()

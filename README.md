@@ -8,7 +8,7 @@ Try it at [https://hplus.programming.systems](https://hplus.programming.systems)
 
 ## Kick-the-Tires Test
 First we must build a docker image:
-1. Build it with `docker build --tag hoogleplus:latest .` (This can take between 40 minutes and 2 hours)
+1. Build it with `docker build --tag=hoogleplus:latest .` (This can take between 40 minutes and 2 hours)
 2. Run the docker file interactively with a desired output directory.
 Hoogle+ will put the evaluation results into that directory.
 ```
@@ -22,32 +22,37 @@ If you don't encounter any error from using this script, you should be good to r
 Hoogle+ will rerun its evaluation to produce three files corresponding to three
 figures in the submitted paper:
 - `inference-heatmap.png`: the heatmap graph in Fig 9 (Left)
-- `inference.tsv`: the table in Fig 9 (Right)
+- `inference-stats.tsv`: the table in Fig 9 (Right)
 - `filtering.png`: the histogram graph in Fig 10
+- `inference-user.png`: the histogram corresponding to front part of Section 5.1
 
-All of these files reside in `/home/hoogle_plus/output`.
+All these files reside in `/home/hoogle_plus/output`.
 
 ## Re-running the entire evaluation
 0. We assume you already have the docker container running
 1. Navigate to the root Hoogle+ directory: `cd /home/hoogle_plus`
-2. Run the evaluation script: `python3 scripts/run_all.py --all` (This can take about 150 minutes).
+2. Run the evaluation script: `python3 scripts/run.py --oopsla --full` (This can take about 2-3 hours).
 
-At this point, you should have three new files in your output directory.
+At this point, you should have four new files in your output directory. 
 These are the results of the evaluation.
+
+3. You may also run the evaluations separately:
+- To run the evaluation for type inference on user-provided data, use `python3 scripts/run.py --type-inference --use-study-data`
+- To run the evaluation for type inference on randomly generated data, use `python3 scripts/run.py --type-inference --full`
+- To run the evaluation for candidate elimination, use `python3 scripts/run.py --filtering --full`
 
 ## Usage
 ```
-stack exec -- hplus "Maybe a -> [a] -> a"
+stack exec -- hplus --json='{"query": "Eq a => [a] -> [a]", \
+                             "inExamples": [{ "inputs": ["\"aaabbbab\""], "output": "\"abab\""}]}'
 ```
 Replace the type query with whatever your heart fancies.
-The default search mode is `TYGARAQ` as described in the paper: unbounded abstraction refinement.
 
-You may try searches with different variants with the following command line args:
-- TYGARQ: Unbounded abstraction refinement. This is the default mode. The initial abstract cover are the types in the query.
-- TYGARQ0: Unbounded abstraction refinmenet. The initial abstract cover is empty. Use `stack exec -- hplus --use-refine=tygar0 "<query>"`
-- NOGAR: No refinement. Use `stack exec -- hplus --use-refine=nogar "<query>"`
-- TYGARQB: Bounded abstraction refinement. Use `stack exec -- hplus --stop-refine=True --stop-threshold=10 "<query>"`. Replace `10` with any number. This is the maximum refinements HooglePlus will make.
-
+You may try different searche modes with the following command line args:
+- Search by type only: you may leave the `inExamples` field an empty list in the input json file.
+- Search by both type and examples: when you provide `inExamples`, they will be used to filter the generated candidates.
+- Search by examples only: you may leave the `query` field empty and use `stack exec -- hplus --json='{"query": "Eq a => [a] -> [a]", "inExamples": [{ "inputs": ["\"aaabbbab\""], "output": "\"abab\""}]}' --search-type=searchtypes`. The results for this command will be a json string with the top 10 inferred types from your provided examples.
+- Search with candidate elimination: use `stack exec -- hplus --json='YOUR JSON STR' --disable-filtering=False --cnt=5`. This will try to find the top 5 solutions that will not crash and none of them have the same behavior as others.
 
 # Building from scratch, for the developers
 

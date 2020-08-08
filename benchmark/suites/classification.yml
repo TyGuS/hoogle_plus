@@ -194,6 +194,9 @@
   - \f n x -> f (last (drop n (repeat x)))
   - \f n x -> f (last (take n (repeat x)))
   - \f n x -> f (([] !! n) $ x)
+  - \f n x -> fromRight (f x) ([] !! n)
+  - \f n x -> fromMaybe (f x) ([] !! n)
+  - \f n x -> fromLeft (f x) ([] !! n)
 
 
 - name: applyPair
@@ -442,6 +445,9 @@
   - - \xs -> init (concat (group xs))
   - - \xs -> tail (concat (group xs))
   - - \xs -> tail (head (group xs))
+  # - - \xs -> tail (last (group xs))
+  # - - \xs -> last (init (group xs))
+  # - - \xs -> init (last (group xs))
   invalid:
   - \xs -> fromLeft xs (Right (Right ))
   - \xs -> fromRight xs (Left (Right ))
