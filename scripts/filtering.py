@@ -201,7 +201,8 @@ def plot_graph(output_dir, value_df):
     bar_df['bad'] = 1 - bar_df['sum']
     graph_df = bar_df.sort_values(by=['sum', 'useful'])
     graph_df = graph_df.reset_index().set_index('name')
-    graph_df = graph_df.drop(['indexesOf'])
+    if 'indexesOf' in graph_df:
+        graph_df = graph_df.drop(['indexesOf'])
 
     # plot the histogram
     # bar_df_ = graph_df[['useful', 'loss_timeout', 'loss_misclss', 'invalids']]
