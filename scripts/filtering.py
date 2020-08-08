@@ -235,7 +235,7 @@ def run_filtering(groups, output_dir):
 
         run_synthesis(groups, exp_dir, t, options, True)
 
-        df = pd.DataFrame(load_experiment_result(exp_dir)).set_index(["name", "query"])
+        df = pd.DataFrame(load_experiment_result(groups, exp_dir)).set_index(["name", "query"])
         dfs.append(df[["candidate"]].rename({"candidate": exp},
                                             axis="columns"))
     exp_df = pd.concat(dfs, axis=1, sort=False)
