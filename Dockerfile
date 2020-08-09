@@ -44,7 +44,7 @@ RUN cd /home/hoogle_plus && stack exec -- hplus generate --preset=partialfunctio
 
 # Get tools for the evaluation
 RUN apt-get install -y python3 python3-pip
-RUN pip3 install --user PyYAML numpy tabulate matplotlib argparse colorama pandas
+RUN pip3 install --user PyYAML numpy tabulate matplotlib argparse colorama pandas==1.0.1
 
 # Start with bash
 CMD /bin/bash
