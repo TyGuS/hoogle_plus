@@ -36,6 +36,7 @@ RUN apt update && apt install -y yarn
 RUN cd /home; git clone https://github.com/TyGuS/hoogle_plus.git
 RUN cd /home/hoogle_plus && git checkout origin/oopsla20_artifact
 RUN cd /home/hoogle_plus && stack build
+RUN cd /home/hoogle_plus && stack install hoogle && hoogle generate
 RUN cd /home/hoogle_plus/new_webapp && yarn install
 
 # Generate the database

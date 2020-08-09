@@ -12,7 +12,8 @@ from filtering import run_filtering
 from synthesis import run_synthesis, LOGFILE
 
 assert sys.version_info >= (3, 5)
-DEFAULT_QUERY_FILE = "benchmark/suites/working.yml"
+DEFAULT_QUERY_FILE = 'benchmark/suites/working.yml'
+USER_QUERY_FILE = 'benchmark/suites/user-data.yml'
 
 def cmdline():
     import argparse
@@ -57,7 +58,7 @@ if __name__ == '__main__':
 
     # load benchmarks
     if cl_opts.use_study_data:
-        cl_opts.benchmark_suite = 'benchmark/suites/user_data.yml'
+        cl_opts.benchmark_suite = USER_QUERY_FILE
     groups = load_queries(cl_opts.benchmark_suite)
 
     # sanity check
@@ -87,4 +88,5 @@ if __name__ == '__main__':
         run_filtering(groups, cl_opts.output_dir)
 
     if cl_opts.oopsla or cl_opts.all:
-        run_type_inference(cl_opts.benchmark_suite, groups, cl_opts.output_dir, cl_opts.use_study_data)
+        groups = load_queries(USER_QUERY_FILE)
+        run_type_inference(USER_QUERY_FILE, groups, cl_opts.output_dir, True)
