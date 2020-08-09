@@ -15,7 +15,7 @@ Hoogle+ will put the evaluation results into that directory.
 docker run -p 3000:3000 -p 5000:5000 -v /absolute/path/to/output/dir:/home/hoogle_plus/output -it hoogleplus:latest /bin/bash
 ```
 3. Now navigate to the internal Hoogle+ directory: `cd /home/hoogle_plus`
-4. Run the short evaluation script: `python3 scripts/run_all.py --small`. (This takes about 10 minutes)
+4. Run the short evaluation script: `python3 scripts/run.py --small`. (This takes about 10 minutes)
 If you don't encounter any error from using this script, you should be good to run the entire artifact.
 
 ## Evaluation Results
