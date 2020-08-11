@@ -4,8 +4,10 @@ from experiment import *
 
 QUERY_FILE = "../suites/working.yml"
 EXPERIMENT = [
-    # OptionExperiment("360-no-filter",   ["--disable-filter=True",   "--cnt=30"], 360),
+    OptionExperiment("360-no-filter",   ["--disable-filter=True",   "--cnt=30"], 360),
     OptionExperiment("360-filter",      ["--disable-filter=False",  "--cnt=30"], 360),
+    OptionExperiment("180-no-filter",   ["--disable-filter=True",   "--cnt=10"], 180),
+    OptionExperiment("180-filter",      ["--disable-filter=False",  "--cnt=10"], 180),
 ]
 
 def main():

@@ -53,6 +53,8 @@ import Var hiding (Id)
 import Data.UUID.V4
 import Debug.Trace
 import qualified Language.Haskell.Interpreter as LHI
+import qualified Data.Aeson as A
+import qualified Data.ByteString.Lazy.Char8 as LB
 
 -- Converts the list of param types into a haskell function signature.
 -- Moves typeclass-looking things to the front in a context.
@@ -115,7 +117,7 @@ printSolution solution = do
     putStrLn "************************************************"
 
 collectExamples :: String -> FilterState -> AssociativeExamples
-collectExamples solution (FilterState _ sols samples examples) =
+collectExamples solution (FilterState _ sols samples examples _) =
     map mkGroup $ groupBy (\x y -> fst x == fst y)
                 $ sortOn fst
                 $ examples ++ checkedExs
@@ -133,13 +135,16 @@ descToExample _ = []
 
 
 -- printSolutionState solution fs = unlines ["****************", solution, show fs, "***********"]
-printSolutionState solution (FilterState _ sols workingExamples diffExamples) = unlines [ios, diffs]
+printSolutionState solution (FilterState _ sols workingExamples diffExamples discards) = unlines [ios, diffs, exprs]
     where
         ios = let [(_, desc)] = filter ((== solution) . fst) workingExamples in show desc
         diffs = let examples = groupBy ((==) `on` fst) (sortOn fst diffExamples) in unlines (map showGroup examples)
+        exprs = LB.unpack $ encodeWithPrefix discards
         
         showGroup :: [(String, Example)] -> String
         showGroup xs = unlines ((fst $ head xs) : (map (show . snd) xs))
+
+        encodeWithPrefix obj = LB.append (LB.pack "EXPRMTS:") (A.encode obj)
 
 extractSolution :: Environment -> TypeSkeleton -> UProgram -> ([String], String, String, [(Id, SchemaSkeleton)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)
@@ -222,9 +227,11 @@ matchNiceFunctions prog | '\\' `elem` prog && "->" `isInfixOf` prog = do
 matchNiceFunctions prog = return prog
 
 niceInputs :: Example -> IO Example
-niceInputs (Example ins out) = do
-    ins' <- evalStateT (mapM matchNiceFunctions ins) []
-    return (Example ins' out)
+-- niceInputs (Example ins out) = do
+--     ins' <- evalStateT (mapM matchNiceFunctions ins) []
+--     return (Example ins' out)
+-- todo: fix me later; we don't have any nice functions now
+niceInputs = return
 
 -- >>> splitConsecutive [1..6]
 -- ([1,3,5],[2,4,6])

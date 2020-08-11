@@ -198,7 +198,9 @@ runChecks env goalType prog = do
   result <- runChecks_
 
   state <- get
-  when result $ liftIO $ runPrints state
+  if result
+    then liftIO $ runPrints state 
+    else modify $ \s -> s {discardedSolutions = body : discardedSolutions s}
 
   return $ if result then Just (collectExamples body state) else Nothing
   where
@@ -214,7 +216,7 @@ runChecks env goalType prog = do
 
 checkSolutionNotCrash :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
 checkSolutionNotCrash modules sigStr body = do
-  fs@(FilterState _ _ examples _) <- get
+  fs@(FilterState _ _ examples _ _) <- get
   result <- liftIO executeCheck
 
   let pass = case result of
@@ -233,7 +235,7 @@ checkSolutionNotCrash modules sigStr body = do
 
 checkDuplicates :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
 checkDuplicates modules sigStr solution = do
-  fs@(FilterState is solns _ examples) <- get
+  fs@(FilterState is solns _ examples _) <- get
   case solns of
 
     -- no solution yet; skip the check
@@ -246,7 +248,7 @@ checkDuplicates modules sigStr solution = do
       results <- liftIO $ compareSolution modules solution solns funcSig defaultTimeoutMicro
       passTest <- and <$> zipWithM processResult results solns
 
-      fs'@(FilterState is solns _ examples) <- get
+      fs'@(FilterState is solns _ examples _) <- get
       if passTest
         then (put fs' {solutions = solution : solns})
         else (put fs)
@@ -264,7 +266,7 @@ checkDuplicates modules sigStr solution = do
     filterSuccess _ = False
 
     processResult result otherSolution = do
-      state@(FilterState is solns _ examples) <- get
+      state@(FilterState is solns _ examples _) <- get
       case result of
         -- bypass the check on any timeout or error
         Left (UnknownError "timeout") -> return False -- no example -> reject

@@ -39,13 +39,14 @@ class OptionExperiment():
         query_json  = build_option_query_program(query_type)
         process     = run_hplus(self.options + query_json, self.timeout)
         
-        times   = [time.time()]
-        results = []
+        times       = [time.time()]
+        results     = []
+        expr_data   = []
 
-        for result in read_results(process):
+        for (result, expr_data) in read_results(process):
             times.append(time.time())
             results.append(result)
         times = compute_time_diff(times)
 
         with open(join(self.result_dir, f"{query_name}.json"), 'w') as file:
-            json.dump({'name': query_name, 'query': query_type, 'time': times, 'result': results}, file)
+            json.dump({'name': query_name, 'query': query_type, 'time': times, 'result': results, 'expr_data': expr_data}, file)

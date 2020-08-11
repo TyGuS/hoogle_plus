@@ -88,14 +88,16 @@ data FilterState = FilterState {
   inputs :: [[String]],
   solutions :: [String],
   solutionExamples :: [(String, FunctionCrashDesc)],
-  differentiateExamples :: [(String, Example)]
+  differentiateExamples :: [(String, Example)],
+  discardedSolutions :: [String]
 } deriving (Eq, Show)
 
 emptyFilterState = FilterState {
   inputs = [],
   solutions = [],
   solutionExamples = [],
-  differentiateExamples = []
+  differentiateExamples = [],
+  discardedSolutions = []
 }
 
 type FilterTest m = StateT FilterState m

@@ -30,10 +30,16 @@ def dump_stderrs(proc):
         print(line)
 
 def read_results(proc):
+    latest_experiment_data = []
     for line in io.TextIOWrapper(proc.stdout, encoding="utf-8"):
-        if line[:8] == 'RESULTS:':
-            try:    yield json.loads(line[8:])['outCandidates']
-            except: yield {'error': result}
+        prefix = line[:8]
+        suffix = line[8:]
+        if prefix == 'RESULTS:':
+            try:    yield (json.loads(suffix)['outCandidates'], latest_experiment_data)
+            except: yield ({'error': '???'}, latest_experiment_data)
+        elif prefix == 'EXPRMTS:':
+            try:    latest_experiment_data = json.loads(suffix)
+            except: continue
 
 def build_option_query_program(signature):
     query_json = json.dumps({"query": signature, "inExamples": []})
