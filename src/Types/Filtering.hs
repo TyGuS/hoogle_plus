@@ -92,14 +92,16 @@ data FilterState = FilterState {
   inputs :: [[String]],
   solutions :: [String],
   solutionDescriptions :: [(String, FuncTestDesc)],
-  differentiateExamples :: Map.Map String [Example]
+  differentiateExamples :: Map.Map String [Example],
+  discardedSolutions :: [String]
 } deriving (Eq, Show)
 
 emptyFilterState = FilterState {
   inputs = [],
   solutions = [],
   solutionDescriptions = [],
-  differentiateExamples = Map.empty
+  differentiateExamples = Map.empty,
+  discardedSolutions = []
 }
 
 type FilterTest m = StateT FilterState m

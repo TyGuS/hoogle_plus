@@ -164,6 +164,9 @@ runChecks env goalType prog = do
 
   state <- get
   when result $ liftIO $ printFilter body state
+  if result
+    then liftIO $ printFilter body state
+    else modify $ \s -> s {discardedSolutions = body : discardedSolutions s}
 
   -- add extra examples from solution descriptions
   let extraExamples = fromMaybe Map.empty $ fmap (Map.fromList . (:[]) . toExample) $ find (((==) body) . fst) $ solutionDescriptions state
@@ -197,7 +200,7 @@ checkSolutionNotCrash modules funcSig solution = do
 
 checkDuplicates :: MonadIO m => [String] -> FunctionSignature -> String -> FilterTest m Bool
 checkDuplicates modules funcSig solution = do
-  FilterState _ solns_ _ _ <- get
+  FilterState _ solns_ _ _ _ <- get
   case solns_ of
     -- base case: skip the check for the first solution
     [] -> modify (\s -> s {solutions = [solution]}) >> return True
