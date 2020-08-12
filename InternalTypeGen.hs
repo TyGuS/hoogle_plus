@@ -21,8 +21,8 @@ import qualified Test.ChasingBottoms as CB
 import qualified Test.SmallCheck.Series as SS
 import qualified Test.QuickCheck as QC
 
-defaultShowFunctionDepth  = 4           :: Int
-defaultMaxOutputLength    = 5           :: CB.Nat
+defaultShowFunctionDepth  = 2           :: Int
+defaultMaxOutputLength    = 100         :: CB.Nat
 defaultSeriesLimit        = 5           :: Int
 defaultTimeoutMicro       = 200         :: Int
 defaultIntRange           = [-2..10]    :: [Int]
