@@ -26,24 +26,32 @@ runDuplicateTest st modules' funcSig body =
 
 itNotCrashCase :: (String, [String], String, String, Bool) -> TestTree
 itNotCrashCase (desc, modules, funcSig, body, expectedRetVal) =
-    testCase desc $ do
+    testCase ("NotCrash: " ++ desc) $ do
         result <- runNotCrashTest modules funcSig body
         result @?= expectedRetVal
 
 itDupCase :: (String, [String], String, [String], Bool) -> TestTree
-itDupCase (desc, modules, tipe, main : rest, shouldPass) =
-    testCase desc $ do
+itDupCase (desc, modules, tipe, solutions, shouldPass) =
+    testCase ("Duplicate: " ++ desc) $ do
         (ret, st) <- runDuplicateTest emptyFilterState modules tipe main
         -- base case: pass
         ret @?= True
         -- inductive case on new solutions
-        mapM_ (f ret st tipe) rest
+        f st tipe rest
     where
-        f ret st tipe impl = do
-            (ret', st') <- runDuplicateTest st [] tipe impl
+        f st _ [] = return ()
+        f st tipe [s] = do
+            (ret', st') <- runDuplicateTest st modules tipe s
+            ret' @?= shouldPass
 
-            if shouldPass then (ret' @?= True) >> assertBool "state not unique" (st' /= st)
-                          else (ret' @?= False) >> (st' @?= st)
+            if shouldPass
+                then assertBool "state not unique" (st' /= st)
+                else st' @?= st
+        f st tipe (s : solns) = do
+            (ret', st') <- runDuplicateTest st modules tipe s
+            f st' tipe solns
+
+        (main : rest) = reverse solutions
 
 testNotCrashCases :: [(String, [String], String, String, Bool)]
 testNotCrashCases =
@@ -78,12 +86,24 @@ testNotCrashNonTerms =
 
 testDups :: [(String, [String], String, [String], Bool)]
 testDups =
-    [ ("Dup: First order passing test", [], "Num a => a -> a", ["\\x -> x + 1", "\\x -> x + 2", "\\x -> x - 5"], True)
-    , ("Dup: First order failing test", [], "Num a => a -> a", ["\\x -> x + 1", "\\x -> 1 + x"], False)
-    , ("Dup: First order passing test 2", [], "[a] -> a", ["\\x -> head x", "\\x -> last x"], True)
-    , ("Dup: Higher order passing test", [], "Num a => (a -> a) -> (a -> a) -> a -> a", ["\\f g x -> (f . g) x", "\\f g x -> (g . f) x"], True)
-    , ("Dup: Higher order failing test", [], "Num a => (a -> a) -> (a -> a) -> a -> a", ["\\f g x -> (f . g) x", "\\f g x -> f (g x)"], False)
-    , ("Dup: Complex structure passing test", [], "[[[a]]] -> [a]", ["\\arg0 -> head (concat arg0)", "\\arg0 -> last (concat arg0)"], True)
+    [ ("First order passing test", [], "Num a => a -> a", ["\\x -> x + 1", "\\x -> x + 2", "\\x -> x - 5"], True)
+    , ("First order passing test 2", [], "[a] -> a", ["\\x -> head x", "\\x -> last x"], True)
+    , ("First order failing test", [], "Num a => a -> a", ["\\x -> x + 1", "\\x -> 1 + x"], False)
+    , ("HOF passing test", [], "Num a => (a -> a) -> (a -> a) -> a -> a", ["\\f g x -> (f . g) x", "\\f g x -> (g . f) x"], True)
+    , ("HOF failing test", [], "Num a => (a -> a) -> (a -> a) -> a -> a", ["\\f g x -> (f . g) x", "\\f g x -> f (g x)"], False)
+    ]
+
+dupCheckTests :: [(String, [String], String, [String], Bool)]
+dupCheckTests =
+    [ ("Works for smaller examples 1", [], "[a] -> a", ["\\xs -> last $ init xs", "\\xs -> last xs"], True)
+    , ("Works for bigger examples", [], "[[[a]]] -> [a]", ["\\xs -> head (concat xs)", "\\xs -> last (concat xs)"], True)
+    , ("Larger approx needed 1", [], "[Int] -> (Int, Int) -> Bool", ["\\vs edge -> null (replicate (head vs) edge)", "\\vs edge -> null (replicate (last vs) edge)"], True)
+    , ("Larger approx needed 2", ["Data.Maybe"], "a -> [Maybe a] -> a", ["\\x xs -> fromMaybe x (head (init xs))", "\\x xs -> fromMaybe x (last (init xs))"], True)
+    , ("Larger approx needed 3", ["Data.Maybe"], "a -> [Maybe a] -> a", ["\\x xs -> fromMaybe x (head (tail xs))", "\\x xs -> fromMaybe x (last (tail xs))"], True)
+    , ("Larger approx needed 4 (HOF)", [], "(a -> b) -> Int -> [a -> b]", ["\\f n -> replicate n f", "\\f n -> f : (replicate n f)"], True)
+    , ("Strange Case 1", ["Data.Maybe", "Data.Either"], "a -> Maybe b -> Either a b", ["\\x mb -> maybe (Left x) Right mb", "\\x mb -> bool (Left x) (Left x) (isJust mb)"], True)
+    , ("Strange Case 2", [], "Int -> [a] -> [a]", ["\\n xs -> repeat (xs !! n)", "\\n xs -> replicate n (last xs)", "\\n xs -> replicate n (head xs)", "\\n xs -> take n xs", "\\n xs -> drop n xs"], True)
+    , ("Strange Case 3", [], "Eq a => [a] -> [a]", ["\\xs -> map head (group xs)", "\\xs -> concat (group xs)", "\\xs -> head (group xs)", "\\xs -> last (group xs)", "\\xs -> concat (group (init xs))", "\\xs -> head (group (init xs))", "\\xs -> concat (group (reverse xs))", "\\xs -> concat (group (tail xs))", "\\xs -> head (group (tail xs))", "\\xs -> init (head (group xs))", "\\xs -> concat (tail (group xs))"], True)
     ]
 
 tests :: TestTree
@@ -91,4 +111,5 @@ tests = testGroup "Filter" $
     map itNotCrashCase testNotCrashHOFs ++
     map itNotCrashCase testNotCrashCases ++
     map itNotCrashCase testNotCrashNonTerms ++
-    map itDupCase testDups
+    map itDupCase testDups ++
+    map itDupCase dupCheckTests
