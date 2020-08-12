@@ -22,9 +22,9 @@ import qualified Test.SmallCheck.Series as SS
 import qualified Test.QuickCheck as QC
 
 defaultShowFunctionDepth  = 2           :: Int
-defaultMaxOutputLength    = 100         :: CB.Nat
+defaultMaxOutputLength    = 200         :: CB.Nat
 defaultSeriesLimit        = 5           :: Int
-defaultTimeoutMicro       = 200         :: Int
+defaultTimeoutMicro       = 400         :: Int
 defaultIntRange           = [-2..10]    :: [Int]
 defaultCharRange          = ['a'..'d']  :: [Char]
 defaultTestArgs           = QC.stdArgs {QC.chatty = False, QC.maxDiscardRatio = 1, QC.maxSuccess = 30, QC.maxSize = 7} :: QC.Args
