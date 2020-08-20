@@ -67,8 +67,6 @@ listToMaybe :: [a] -> Maybe a
 maybeToList :: Maybe a -> [a]
 catMaybes :: [Maybe a] -> [a]
 mapMaybe :: (a -> Maybe b) -> [a] -> [b]
--- temporary customize
-instance Control.Monad.Monad Data.Maybe.Maybe
 module GHC.List
 map :: (a -> b) -> [a] -> [b]
 (++) :: [a] -> [a] -> [a]
@@ -3640,9 +3638,9 @@ when :: Applicative f => Bool -> f () -> f ()
 unless :: Applicative f => Bool -> f () -> f ()
 liftM :: Monad m => (a1 -> r) -> m a1 -> m r
 liftM2 :: Monad m => (a1 -> a2 -> r) -> m a1 -> m a2 -> m r
--- liftM3 :: Monad m => (a1 -> a2 -> a3 -> r) -> m a1 -> m a2 -> m a3 -> m r
--- liftM4 :: Monad m => (a1 -> a2 -> a3 -> a4 -> r) -> m a1 -> m a2 -> m a3 -> m a4 -> m r
--- liftM5 :: Monad m => (a1 -> a2 -> a3 -> a4 -> a5 -> r) -> m a1 -> m a2 -> m a3 -> m a4 -> m a5 -> m r
+liftM3 :: Monad m => (a1 -> a2 -> a3 -> r) -> m a1 -> m a2 -> m a3 -> m r
+liftM4 :: Monad m => (a1 -> a2 -> a3 -> a4 -> r) -> m a1 -> m a2 -> m a3 -> m a4 -> m r
+liftM5 :: Monad m => (a1 -> a2 -> a3 -> a4 -> a5 -> r) -> m a1 -> m a2 -> m a3 -> m a4 -> m a5 -> m r
 ap :: Monad m => m (a -> b) -> m a -> m b
 (<$!>) :: Monad m => (a -> b) -> m a -> m b
 infixl 4 <$!>
