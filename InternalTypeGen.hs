@@ -27,7 +27,7 @@ defaultSeriesLimit        = 5           :: Int
 defaultTimeoutMicro       = 400         :: Int
 defaultIntRange           = [-2..10]    :: [Int]
 defaultCharRange          = ['a'..'d']  :: [Char]
-defaultTestArgs           = QC.stdArgs {QC.chatty = False, QC.maxDiscardRatio = 1, QC.maxSuccess = 30, QC.maxSize = 7} :: QC.Args
+defaultTestArgs           = QC.stdArgs {QC.chatty = False, QC.maxDiscardRatio = 1, QC.maxSuccess = 100, QC.maxSize = 7} :: QC.Args
 
 instance Eq a => Eq (CB.Result a) where
   (CB.Value a) == (CB.Value b) = a == b
