@@ -103,17 +103,8 @@ data     MyFun a b = Generated (a -> b) | Expression String (a -> b)
 instance (QC.Arbitrary a, QC.CoArbitrary b)         => QC.CoArbitrary (MyFun a b)   where coarbitrary = \case Generated f -> QC.coarbitrary f; Expression _ f -> QC.coarbitrary f
 instance (Show a, SF.Listable a, SF.ShowFunction b) => Show (MyFun a b)             where show = \case Expression str _ -> str; Generated f -> "(" ++ SF.showFunctionLine defaultShowFunctionDepth f ++ ")"
 instance (Show a, SF.Listable a, SF.ShowFunction b) => SF.ShowFunction (MyFun a b)  where bindtiers = \case Generated f -> SF.bindtiers f; Expression _ f -> SF.bindtiers f
-instance (QC.CoArbitrary a, QC.Arbitrary b, Typeable a, Typeable b) => QC.Arbitrary (MyFun a b) where
-  arbitrary = QC.sized $ \n -> 
-    if n > defaultFuncSpecialSize
-      then liftM Generated QC.arbitrary
-      else do
-        x <- QC.arbitrary
+instance (QC.CoArbitrary a, QC.Arbitrary b)         => QC.Arbitrary (MyFun a b)     where arbitrary = liftM Generated QC.arbitrary
         
-        let typeString = show $ typeOf x
-        QC.elements [Expression typeString (x)]
-        
-
 -- * Custom Datatype Conversion
 class    Unwrappable a b                                                            where unwrap :: a -> b; wrap :: b -> a
 instance Unwrappable MyInt Int                                                      where unwrap (MyIntValue v) = v; wrap = MyIntValue
@@ -130,7 +121,3 @@ instance (Unwrappable a c, Unwrappable b d)   => Unwrappable (a, b) (c, d)      
 instance (Unwrappable a c, Unwrappable b d)   => Unwrappable (Either a b) (Either c d) where
   wrap    = \case Left v -> Left $ wrap v;    Right v -> Right $ wrap v
   unwrap  = \case Left v -> Left $ unwrap v;  Right v -> Right $ unwrap v
-
-hoogleIt sym = do
-            dbPath <- Hoogle.defaultDatabaseLocation
-            Hoogle.withDatabase dbPath (\db -> return $ take 3 $ Hoogle.searchDatabase db sym)
