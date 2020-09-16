@@ -1,35 +1,42 @@
 {-# LANGUAGE FlexibleContexts, LambdaCase, NamedFieldPuns #-}
 module HooglePlus.FilterTest where
 
+import qualified Data.Map as Map
+import qualified Hoogle as Hoogle
 import qualified Language.Haskell.Interpreter as LHI
 import qualified Test.QuickCheck as QC
-import qualified Data.Map as Map
 
 import Language.Haskell.Interpreter (InterpreterT, InterpreterError(..), Extension(..), OptionVal(..))
 import Control.Monad.Extra (andM)
 
-import Language.Haskell.Exts.Parser
-import Text.Printf
 import Control.Exception
-import Data.List
-import Language.Haskell.Exts.SrcLoc
-import Language.Haskell.Exts.Syntax
-import Language.Haskell.Exts.Pretty
-import System.Timeout
 import Control.Monad
 import Control.Monad.State
+import Data.Either
+import Data.List
 import Data.Maybe
 import Data.Typeable
-import Data.Either
+import Language.Haskell.Exts.Parser
+import Language.Haskell.Exts.Pretty
+import Language.Haskell.Exts.SrcLoc
+import Language.Haskell.Exts.Syntax
+import System.Timeout
+import Text.Printf
+import Data.Containers.ListUtils (nubOrd)
+import Data.List.Extra (splitOn)
+import Data.UUID.V4 (nextRandom)
 
 import HooglePlus.Utils (splitConsecutive, extractSolution, printFilter)
+import Paths_HooglePlus
+import Synquid.Type
 import Types.Environment
-import Types.Program
-import Types.Type hiding (typeOf)
 import Types.Filtering
 import Types.IOFormat (Example(Example))
-import Synquid.Type
-import Paths_HooglePlus
+import Types.Program
+import Types.Type hiding (typeOf)
+import PetriNet.Utils (unHTML)
+import Synquid.Utils (getTmpDir)
+
 
 import Debug.Trace
 
@@ -120,17 +127,28 @@ buildDupCheckProp' (sol, otherSols) funcSig = unwords [wrapper, formatProp]
 
 runInterpreterWithEnvTimeout :: Int -> InterpreterT IO a -> IO (Either InterpreterError a)
 runInterpreterWithEnvTimeout timeInMicro executeInterpreter =
-    mergeTimeout <$> timeout timeInMicro (getDataFileName "InternalTypeGen.hs" >>= runInterpreter)
+    runInterpreterWithEnvTimeoutPrepareModule timeInMicro (sequence ioList) executeInterpreter
+  where ioList = [getDataFileName "InternalTypeGen.hs"]
+
+runInterpreterWithEnvTimeoutHOF :: Int -> FunctionSignature -> InterpreterT IO a -> IO (Either InterpreterError a)
+runInterpreterWithEnvTimeoutHOF timeInMicro funcSig executeInterpreter =
+    runInterpreterWithEnvTimeoutPrepareModule timeInMicro (sequence ioList) executeInterpreter
+  where ioList = [getDataFileName "InternalTypeGen.hs", prepareEnvironment funcSig]
+
+runInterpreterWithEnvTimeoutPrepareModule :: Int -> IO [String] -> InterpreterT IO a -> IO (Either InterpreterError a)
+runInterpreterWithEnvTimeoutPrepareModule timeInMicro prepareModule executeInterpreter =
+  mergeTimeout <$> timeout timeInMicro (prepareModule >>= runInterpreter)
   where
-    runInterpreter scriptFile = LHI.runInterpreter $ do
+    runInterpreter moduleFiles = LHI.runInterpreter $ do
       LHI.set [LHI.languageExtensions := [ExtendedDefaultRules, ScopedTypeVariables]]
-      LHI.loadModules [scriptFile]
-      LHI.setTopLevelModules ["InternalTypeGen"]
+      LHI.loadModules moduleFiles
+      LHI.getLoadedModules >>= LHI.setTopLevelModules
       executeInterpreter
 
     mergeTimeout = \case
       Just v  -> v
       Nothing -> Left $ NotAllowed "timeout"
+
 
 evaluateProperties :: [String] -> [String] -> IO (Either InterpreterError [BackendResult])
 evaluateProperties modules properties =
@@ -268,7 +286,64 @@ showParams args = (plain, typed, shows, unwrp)
 parseExamples :: BackendResult -> [Example]
 parseExamples result = concat $ map (read . head) $ Map.keys $ QC.labels result
 
--- ******** Example Generator ********
+extractHigherOrderQuery :: FunctionSignature -> [String]
+extractHigherOrderQuery FunctionSignature{_constraints, _argsType, _returnType} = map show $ concatMap (`extract` []) _argsType
+  where
+    extract :: ArgumentType -> [ArgumentType] -> [ArgumentType]
+    extract argType xs = case argType of
+      ArgTypeFunc   l r   -> argType : xs
+      ArgTypeTuple  types -> ((concatMap (`extract` []) types) ++ xs)
+      ArgTypeList   sub   -> (extract sub []) ++ xs
+      ArgTypeApp    l r   -> ((extract l []) ++ (extract r []) ++ xs)
+      _                   -> xs
 
+queryHoogle :: [String] -> IO [[String]]
+queryHoogle types = Hoogle.defaultDatabaseLocation >>= (`Hoogle.withDatabase` invokeQuery)
+  where invokeQuery db = do
+              let functions = map ( take 3 .
+                                  nubOrd .
+                                  map ( head .
+                                        splitOn " ::" .
+                                        unHTML .
+                                        Hoogle.targetItem
+                                      ) .
+                                  Hoogle.searchDatabase db
+                                ) types
+              return functions
+
+queryHooglePlus :: [String] -> IO [String]
+queryHooglePlus types = undefined
+
+
+-- >>> (prepareEnvironment $ parseTypeString "a -> (a -> a) -> a") >>= putStrLn
+prepareEnvironment :: FunctionSignature -> IO String
+prepareEnvironment funcSig = do
+    let higherOrderTypes = extractHigherOrderQuery funcSig
+    hoogleResults <- queryHoogle higherOrderTypes
+
+    let content = "todo: fill this"
+
+    tmpDir <- liftIO getTmpDir
+    baseName <- liftIO nextRandom
+    let baseNameStr = show baseName ++ ".hs"
+    let fileName = tmpDir ++ "/" ++ baseNameStr
+    liftIO $ writeFile fileName content
+
+    return fileName
+  where
+    prelude = [ "{-# LANGUAGE FlexibleInstances #-}"
+              , "module HigherOrderParamsEnv where"
+              , "import Control.Monad"
+              , "import Test.QuickCheck"
+              , "import InternalTypeGen"
+              ]
+
+    postlude = "instance Arbitrary (MyFun %s %s) where arbitrary = sized $ \\n -> if n < 10 then elements instanceFunctions else liftM Generated arbitrary"
+    buildInstanceFunction expr = printf "(Expression \"%s\" (%s))" expr expr :: String
+    buildInstanceFunctions exprs = "[" ++ (intercalate ", " $ map buildInstanceFunction exprs) ++ "]"
+
+    buildEnvFileContent exprs tipe = undefined :: String
+
+-- ******** Example Generator ********
 generateIOPairs :: [String] -> String -> FunctionSignature -> Int -> Int -> Int -> [String] -> [[String]] -> IO (Either InterpreterError GeneratorResult)
 generateIOPairs modules solution funcSig numPairs timeInMicro interpreterTimeInMicro existingResults existingInputs = error "not implemented"

@@ -13,7 +13,6 @@ import Data.Typeable (typeOf, Typeable)
 import System.IO.Silently (silence)
 import Text.Printf (printf)
 
-import qualified Hoogle as Hoogle
 import qualified Test.ChasingBottoms as CB
 import qualified Test.LeanCheck.Core as SF
 import qualified Test.LeanCheck.Function.ShowFunction as SF
