@@ -131,8 +131,11 @@ runInterpreterWithEnvTimeout timeInMicro executeInterpreter =
   where ioList = [getDataFileName "InternalTypeGen.hs"]
 
 runInterpreterWithEnvTimeoutHOF :: Int -> FunctionSignature -> InterpreterT IO a -> IO (Either InterpreterError a)
-runInterpreterWithEnvTimeoutHOF timeInMicro funcSig executeInterpreter =
-    runInterpreterWithEnvTimeoutPrepareModule timeInMicro (sequence ioList) executeInterpreter
+runInterpreterWithEnvTimeoutHOF timeInMicro funcSig executeInterpreter = do
+    result <- runInterpreterWithEnvTimeoutPrepareModule timeInMicro (sequence ioList) executeInterpreter
+    case result of
+      Left (WontCompile e)  -> liftIO $ print e >> runInterpreterWithEnvTimeout timeInMicro executeInterpreter
+      _                     -> return result
   where ioList = [getDataFileName "InternalTypeGen.hs", prepareEnvironment funcSig]
 
 runInterpreterWithEnvTimeoutPrepareModule :: Int -> IO [String] -> InterpreterT IO a -> IO (Either InterpreterError a)
@@ -150,15 +153,15 @@ runInterpreterWithEnvTimeoutPrepareModule timeInMicro prepareModule executeInter
       Nothing -> Left $ NotAllowed "timeout"
 
 
-evaluateProperties :: [String] -> [String] -> IO (Either InterpreterError [BackendResult])
-evaluateProperties modules properties =
-  runInterpreterWithEnvTimeout defaultInterpreterTimeoutMicro $ do
+evaluateProperties :: [String] -> FunctionSignature -> [String] -> IO (Either InterpreterError [BackendResult])
+evaluateProperties modules funcSig properties =
+  runInterpreterWithEnvTimeoutHOF defaultInterpreterTimeoutMicro funcSig $ do
     LHI.setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
     mapM (\prop -> LHI.interpret prop (LHI.as :: IO BackendResult) >>= liftIO) properties
 
 validateSolution :: [String] -> String -> FunctionSignature -> IO (Either InterpreterError FuncTestDesc)
 validateSolution modules solution funcSig = do
-    result <- evaluateProperties modules [prop]
+    result <- evaluateProperties modules funcSig [prop]
     case result of
       Left  (NotAllowed _)            -> return $ Right $ Unknown (traceId "timeout")
       Left  error                     -> return $ Right $ Unknown (traceId $ show error)
@@ -173,7 +176,7 @@ validateSolution modules solution funcSig = do
     readResult r@QC.Success{} = Total $ parseExamples r
 
 compareSolution :: [String] -> String -> [String] -> FunctionSignature -> IO (Either InterpreterError [BackendResult])
-compareSolution modules solution otherSolutions funcSig = evaluateProperties modules props
+compareSolution modules solution otherSolutions funcSig = evaluateProperties modules funcSig props
   where props = buildDupCheckProp (solution, otherSolutions) funcSig
 
 runChecks :: MonadIO m => Environment -> TypeSkeleton -> UProgram -> FilterTest m (Maybe AssociativeExamples)
@@ -287,7 +290,7 @@ parseExamples :: BackendResult -> [Example]
 parseExamples result = concat $ map (read . head) $ Map.keys $ QC.labels result
 
 extractHigherOrderQuery :: FunctionSignature -> [ArgumentType]
-extractHigherOrderQuery FunctionSignature{_constraints, _argsType, _returnType} = concatMap (`extract` []) _argsType
+extractHigherOrderQuery FunctionSignature{_constraints, _argsType, _returnType} = nub $ concatMap (`extract` []) _argsType
   where
     extract :: ArgumentType -> [ArgumentType] -> [ArgumentType]
     extract argType xs = case argType of
@@ -303,16 +306,17 @@ queryHoogle types = Hoogle.defaultDatabaseLocation >>= (`Hoogle.withDatabase` in
               let functions = map ( take 5 .
                                   nubOrd .
                                   map ( head .
-                                        splitOn " ::" .
+                                        splitOn " :: " .
                                         unHTML .
                                         Hoogle.targetItem
                                       ) .
                                   filter isInModuleList .
                                   filter doesNotHaveTypeClass .
-                                  Hoogle.searchDatabase db
+                                  Hoogle.searchDatabase db .
+                                  (++) ":: "
                                 ) types
               return functions
-        isInModuleList x = let Just (name, _) = Hoogle.targetModule x in name `elem` ["Prelude", "Data.List"]
+        isInModuleList x = let Just (name, _) = Hoogle.targetModule x in name `elem` hoogleQueryModuleList
         doesNotHaveTypeClass Hoogle.Target{Hoogle.targetItem} = not ("=&gt;" `isInfixOf` targetItem)
 
 queryHooglePlus :: [String] -> IO [String]
@@ -325,13 +329,15 @@ prepareEnvironment funcSig = do
     let higherOrderTypes = extractHigherOrderQuery funcSig
     hoogleResults <- queryHoogle $ map show higherOrderTypes
 
-    let content = buildEnvFileContent higherOrderTypes hoogleResults
-
-    tmpDir <- liftIO getTmpDir
-    baseName <- liftIO nextRandom
+    tmpDir <- getTmpDir
+    baseName <- nextRandom
     let baseNameStr = show baseName ++ ".hs"
     let fileName = tmpDir ++ "/" ++ baseNameStr
-    liftIO $ writeFile fileName content
+
+    let sourceCode = buildEnvFileContent higherOrderTypes hoogleResults
+    if null hoogleResults || all null hoogleResults
+      then writeFile fileName ""
+      else putStrLn sourceCode >> writeFile fileName sourceCode
 
     return fileName
   where
@@ -340,23 +346,30 @@ prepareEnvironment funcSig = do
               , "import Control.Monad"
               , "import Test.QuickCheck"
               , "import InternalTypeGen"
-              ]
+              ] ++ map ((++) "import ") hoogleQueryModuleList
 
-    postlude = "instance Arbitrary (%s) where arbitrary = sized $ \\n -> if n < 10 then elements insFunc_%d else liftM Generated arbitrary"
-    buildInstanceFunction expr = printf "(Expression \"%s\" (%s))" expr expr :: String
-    buildInstanceFunctions exprs = "[" ++ (intercalate ", " $ map buildInstanceFunction exprs) ++ "]"
+    postlude = "instance Arbitrary (%s) where arbitrary = sized $ \\n -> if n < %d then elements insFunc_%d else liftM Generated arbitrary"
+    buildInstanceFunction tipe expr = printf "(Expression \"%s\" (%s))" expr (buildExpression tipe expr) :: String
+    buildInstanceFunctions tipe exprs = "[" ++ (intercalate ", " $ map (buildInstanceFunction tipe) exprs) ++ "]"
 
     buildEnvFileContent types exprGroups = unlines $ prelude ++ (concat $ zipWith3 buildStep [(1 :: Int)..] types exprGroups)
       where
         buildStep _ tipe []    = ["-- no Hoogle result available; bypassed building " ++ show tipe ]
-        buildStep i tipe exprs = [ printf "insFunc_%d = %s" i (buildInstanceFunctions exprs)
-                                 , printf postlude (buildAppType $ tipe) i
+        buildStep i tipe exprs = [ printf "insFunc_%d = %s" i (buildInstanceFunctions tipe exprs)
+                                 , printf postlude (buildAppType $ tipe) higherOrderGenMaxSize i
                                  ] :: [String]
 
     buildAppType :: ArgumentType -> String
     buildAppType = \case
             ArgTypeFunc l r -> printf "MyFun (%s) (%s)" (buildAppType l) (buildAppType r)
             otherType -> show otherType
+
+    buildExpression :: ArgumentType -> String -> String
+    buildExpression tipe expr = let depth = getDepth 0 tipe in if depth == 1 then expr else
+                                  unwords (["\\arg1 ->"] ++ [printf "wrap $ \\arg%d ->" x| x <- [2..depth] :: [Int]] ++ [expr] ++ [unwords ["arg" ++ show x | x <- [1..depth] :: [Int]]])
+      where getDepth i = \case
+                            ArgTypeFunc _ r -> 1 + getDepth i r
+                            _ -> 0
 
 -- ******** Example Generator ********
 generateIOPairs :: [String] -> String -> FunctionSignature -> Int -> Int -> Int -> [String] -> [[String]] -> IO (Either InterpreterError GeneratorResult)

@@ -18,6 +18,10 @@ defaultGenerationTimeoutMicro = 30 * 10^6 :: Int
 defaultTimeoutMicro = 100 :: Int
 defaultNumExtraExamples = 2 :: Int
 
+hoogleQueryModuleList = ["Prelude", "Data.List", "Data.Maybe", "Data.Either"]
+hoogleQueryTypeclassList = ["Eq", "Ord"]
+higherOrderGenMaxSize = 5 :: Int
+
 frameworkModules =
   zip [ "Test.QuickCheck"
   , "Test.QuickCheck.Monadic"

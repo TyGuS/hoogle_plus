@@ -101,9 +101,9 @@ dupCheckTests =
     , ("Larger approx needed 2", ["Data.Maybe"], "a -> [Maybe a] -> a", ["\\x xs -> fromMaybe x (head (init xs))", "\\x xs -> fromMaybe x (last (init xs))"], True)
     , ("Larger approx needed 3", ["Data.Maybe"], "a -> [Maybe a] -> a", ["\\x xs -> fromMaybe x (head (tail xs))", "\\x xs -> fromMaybe x (last (tail xs))"], True)
     , ("Larger approx needed 4 (HOF)", [], "(a -> b) -> Int -> [a -> b]", ["\\f n -> replicate n f", "\\f n -> f : (replicate n f)"], True)
-    , ("Strange Case 1", ["Data.Maybe", "Data.Either"], "a -> Maybe b -> Either a b", ["\\x mb -> maybe (Left x) Right mb", "\\x mb -> bool (Left x) (Left x) (isJust mb)"], True)
+    , ("Strange Case 1", ["Data.Maybe", "Data.Either", "Data.Bool"], "a -> Maybe b -> Either a b", ["\\x mb -> maybe (Left x) Right mb", "\\x mb -> bool (Left x) (Left x) (isJust mb)"], True)
     , ("Strange Case 2", [], "Int -> [a] -> [a]", ["\\n xs -> repeat (xs !! n)", "\\n xs -> replicate n (last xs)", "\\n xs -> replicate n (head xs)", "\\n xs -> take n xs", "\\n xs -> drop n xs"], True)
-    , ("Strange Case 3", [], "Eq a => [a] -> [a]", ["\\xs -> map head (group xs)", "\\xs -> concat (group xs)", "\\xs -> head (group xs)", "\\xs -> last (group xs)", "\\xs -> concat (group (init xs))", "\\xs -> head (group (init xs))", "\\xs -> concat (group (reverse xs))", "\\xs -> concat (group (tail xs))", "\\xs -> head (group (tail xs))", "\\xs -> init (head (group xs))", "\\xs -> concat (tail (group xs))"], True)
+    , ("Strange Case 3", ["Data.List"], "Eq a => [a] -> [a]", ["\\xs -> map head (group xs)", "\\xs -> concat (group xs)", "\\xs -> head (group xs)", "\\xs -> last (group xs)", "\\xs -> concat (group (init xs))", "\\xs -> head (group (init xs))", "\\xs -> concat (group (reverse xs))", "\\xs -> concat (group (tail xs))", "\\xs -> head (group (tail xs))", "\\xs -> init (head (group xs))", "\\xs -> concat (tail (group xs))"], True)
     ]
 
 tests :: TestTree
