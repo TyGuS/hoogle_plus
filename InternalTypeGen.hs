@@ -2,26 +2,23 @@
 {-# LANGUAGE LambdaCase #-}
 module InternalTypeGen where
 
-import Data.Char (ord)
-import Data.List (isInfixOf, elemIndex, nub, drop, reverse, intersect)
-import Data.Containers.ListUtils (nubOrd)
-import Data.Typeable (typeOf, Typeable)
 import Control.DeepSeq (force)
 import Control.Exception (evaluate)
+import Control.Monad.Logic (liftM)
+import Data.Char (ord)
+import Data.Containers.ListUtils (nubOrd)
+import Data.Data (Data(..))
+import Data.List (isInfixOf, elemIndex, nub, drop, reverse, intersect)
+import Data.Typeable (typeOf, Typeable)
+import System.IO.Silently (silence)
+import Text.Printf (printf)
 
-import Control.Monad.Logic
-import Data.Data
-
-import Text.Printf
-import System.IO.Silently
-import Debug.Trace
-
-import qualified Test.LeanCheck.Function.ShowFunction as SF
-import qualified Test.LeanCheck.Core as SF
-import qualified Test.ChasingBottoms as CB
-import qualified Test.SmallCheck.Series as SS
-import qualified Test.QuickCheck as QC
 import qualified Hoogle as Hoogle
+import qualified Test.ChasingBottoms as CB
+import qualified Test.LeanCheck.Core as SF
+import qualified Test.LeanCheck.Function.ShowFunction as SF
+import qualified Test.QuickCheck as QC
+import qualified Test.SmallCheck.Series as SS
 
 defaultShowFunctionDepth  = 2           :: Int
 defaultMaxOutputLength    = 200         :: CB.Nat
@@ -100,10 +97,10 @@ instance QC.Arbitrary     MyChar where arbitrary = QC.elements (map MyCharValue 
 instance QC.CoArbitrary   MyChar where coarbitrary (MyCharValue v) = QC.coarbitrary $ ord v
 
 data     MyFun a b = Generated (a -> b) | Expression String (a -> b)
-instance (QC.Arbitrary a, QC.CoArbitrary b)         => QC.CoArbitrary (MyFun a b)   where coarbitrary = \case Generated f -> QC.coarbitrary f; Expression _ f -> QC.coarbitrary f
-instance (Show a, SF.Listable a, SF.ShowFunction b) => Show (MyFun a b)             where show = \case Expression str _ -> str; Generated f -> "(" ++ SF.showFunctionLine defaultShowFunctionDepth f ++ ")"
-instance (Show a, SF.Listable a, SF.ShowFunction b) => SF.ShowFunction (MyFun a b)  where bindtiers = \case Generated f -> SF.bindtiers f; Expression _ f -> SF.bindtiers f
-instance (QC.CoArbitrary a, QC.Arbitrary b)         => QC.Arbitrary (MyFun a b)     where arbitrary = liftM Generated QC.arbitrary
+instance (QC.Arbitrary a, QC.CoArbitrary b)                       => QC.CoArbitrary (MyFun a b)   where coarbitrary = \case Generated f -> QC.coarbitrary f; Expression _ f -> QC.coarbitrary f
+instance (Show a, SF.Listable a, SF.ShowFunction b)               => Show (MyFun a b)             where show = \case Expression str _ -> str; Generated f -> "(" ++ SF.showFunctionLine defaultShowFunctionDepth f ++ ")"
+instance (Show a, SF.Listable a, SF.ShowFunction b)               => SF.ShowFunction (MyFun a b)  where bindtiers = \case Generated f -> SF.bindtiers f; Expression _ f -> SF.bindtiers f
+instance {-# OVERLAPPABLE #-} (QC.CoArbitrary a, QC.Arbitrary b)  => QC.Arbitrary (MyFun a b)     where arbitrary = liftM Generated QC.arbitrary
         
 -- * Custom Datatype Conversion
 class    Unwrappable a b                                                            where unwrap :: a -> b; wrap :: b -> a

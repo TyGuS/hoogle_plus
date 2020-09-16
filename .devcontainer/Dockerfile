@@ -1,4 +1,4 @@
-FROM mistzzt/haskell-ide-engine:latest
+FROM mistzzt/haskell-language-server:0.4.0
 
 # Avoid warnings by switching to noninteractive
 ENV DEBIAN_FRONTEND=noninteractive
