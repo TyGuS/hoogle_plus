@@ -286,8 +286,8 @@ showParams args = (plain, typed, shows, unwrp)
 parseExamples :: BackendResult -> [Example]
 parseExamples result = concat $ map (read . head) $ Map.keys $ QC.labels result
 
-extractHigherOrderQuery :: FunctionSignature -> [String]
-extractHigherOrderQuery FunctionSignature{_constraints, _argsType, _returnType} = map show $ concatMap (`extract` []) _argsType
+extractHigherOrderQuery :: FunctionSignature -> [ArgumentType]
+extractHigherOrderQuery FunctionSignature{_constraints, _argsType, _returnType} = concatMap (`extract` []) _argsType
   where
     extract :: ArgumentType -> [ArgumentType] -> [ArgumentType]
     extract argType xs = case argType of
@@ -300,28 +300,32 @@ extractHigherOrderQuery FunctionSignature{_constraints, _argsType, _returnType} 
 queryHoogle :: [String] -> IO [[String]]
 queryHoogle types = Hoogle.defaultDatabaseLocation >>= (`Hoogle.withDatabase` invokeQuery)
   where invokeQuery db = do
-              let functions = map ( take 3 .
+              let functions = map ( take 5 .
                                   nubOrd .
                                   map ( head .
                                         splitOn " ::" .
                                         unHTML .
                                         Hoogle.targetItem
                                       ) .
+                                  filter isInModuleList .
+                                  filter doesNotHaveTypeClass .
                                   Hoogle.searchDatabase db
                                 ) types
               return functions
+        isInModuleList x = let Just (name, _) = Hoogle.targetModule x in name `elem` ["Prelude", "Data.List"]
+        doesNotHaveTypeClass Hoogle.Target{Hoogle.targetItem} = not ("=&gt;" `isInfixOf` targetItem)
 
 queryHooglePlus :: [String] -> IO [String]
 queryHooglePlus types = undefined
 
-
--- >>> (prepareEnvironment $ parseTypeString "a -> (a -> a) -> a") >>= putStrLn
+-- >>> prepareEnvironment $ parseTypeString "a -> ([Int] -> Int) -> (a -> [a]) -> a"
+-- >>> runInterpreterWithEnvTimeoutHOF (10^8) (parseTypeString "a -> (Int -> [Int]) -> a") (return "114514")
 prepareEnvironment :: FunctionSignature -> IO String
 prepareEnvironment funcSig = do
     let higherOrderTypes = extractHigherOrderQuery funcSig
-    hoogleResults <- queryHoogle higherOrderTypes
+    hoogleResults <- queryHoogle $ map show higherOrderTypes
 
-    let content = "todo: fill this"
+    let content = buildEnvFileContent higherOrderTypes hoogleResults
 
     tmpDir <- liftIO getTmpDir
     baseName <- liftIO nextRandom
@@ -338,11 +342,21 @@ prepareEnvironment funcSig = do
               , "import InternalTypeGen"
               ]
 
-    postlude = "instance Arbitrary (MyFun %s %s) where arbitrary = sized $ \\n -> if n < 10 then elements instanceFunctions else liftM Generated arbitrary"
+    postlude = "instance Arbitrary (%s) where arbitrary = sized $ \\n -> if n < 10 then elements insFunc_%d else liftM Generated arbitrary"
     buildInstanceFunction expr = printf "(Expression \"%s\" (%s))" expr expr :: String
     buildInstanceFunctions exprs = "[" ++ (intercalate ", " $ map buildInstanceFunction exprs) ++ "]"
 
-    buildEnvFileContent exprs tipe = undefined :: String
+    buildEnvFileContent types exprGroups = unlines $ prelude ++ (concat $ zipWith3 buildStep [(1 :: Int)..] types exprGroups)
+      where
+        buildStep _ tipe []    = ["-- no Hoogle result available; bypassed building " ++ show tipe ]
+        buildStep i tipe exprs = [ printf "insFunc_%d = %s" i (buildInstanceFunctions exprs)
+                                 , printf postlude (buildAppType $ tipe) i
+                                 ] :: [String]
+
+    buildAppType :: ArgumentType -> String
+    buildAppType = \case
+            ArgTypeFunc l r -> printf "MyFun (%s) (%s)" (buildAppType l) (buildAppType r)
+            otherType -> show otherType
 
 -- ******** Example Generator ********
 generateIOPairs :: [String] -> String -> FunctionSignature -> Int -> Int -> Int -> [String] -> [[String]] -> IO (Either InterpreterError GeneratorResult)
