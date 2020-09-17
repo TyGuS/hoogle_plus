@@ -263,7 +263,7 @@ checkDuplicates modules funcSig solution = do
 showParams :: [ArgumentType] -> (String, String, String, String)
 showParams args = (plain, typed, shows, unwrp)
   where
-    args' = zip [1..] $ map replaceInner args
+    args' = zip [1..] $ map replaceMyType args
 
     plain = unwords $ formatIdx "(arg_%d)"
     unwrp = unwords $ formatIdx "(unwrap arg_%d)"
@@ -272,18 +272,18 @@ showParams args = (plain, typed, shows, unwrp)
     shows = "[" ++ intercalate ", " (formatIdx "(show arg_%d)") ++ "]"
     formatIdx format = map ((printf format :: Int -> String) . fst) args'
 
-    replaceInner :: ArgumentType -> ArgumentType
-    replaceInner x =
-      let apply a b = ArgTypeApp (ArgTypeApp (Concrete "MyFun") a) b in case x of
-        Concrete "Int" -> Concrete "MyInt"
-        Concrete "Char" -> Concrete "MyChar"
-        Concrete "String" -> ArgTypeList $ Concrete "MyChar"
-        Concrete _ -> x
-        Polymorphic _ -> x
-        ArgTypeList t -> ArgTypeList (replaceInner t)
-        ArgTypeTuple ts -> ArgTypeTuple (map replaceInner ts)
-        ArgTypeApp f a -> ArgTypeApp (replaceInner f) (replaceInner a)
-        ArgTypeFunc arg res -> apply (replaceInner arg) (replaceInner res)
+replaceMyType :: ArgumentType -> ArgumentType
+replaceMyType x =
+  let apply a b = ArgTypeApp (ArgTypeApp (Concrete "MyFun") a) b in case x of
+    Concrete      "Int"     -> Concrete "MyInt"
+    Concrete      "Char"    -> Concrete "MyChar"
+    Concrete      "String"  -> ArgTypeList $ Concrete "MyChar"
+    Concrete      _         -> x
+    Polymorphic   _         -> x
+    ArgTypeList   t         -> ArgTypeList (replaceMyType t)
+    ArgTypeTuple  ts        -> ArgTypeTuple (map replaceMyType ts)
+    ArgTypeApp    f a       -> ArgTypeApp (replaceMyType f) (replaceMyType a)
+    ArgTypeFunc   arg res   -> apply (replaceMyType arg) (replaceMyType res)
 
 -- parse Example string from QC.label to Example
 parseExamples :: BackendResult -> [Example]
@@ -337,7 +337,7 @@ prepareEnvironment funcSig = do
     let sourceCode = buildEnvFileContent higherOrderTypes hoogleResults
     if null hoogleResults || all null hoogleResults
       then writeFile fileName ""
-      else putStrLn sourceCode >> writeFile fileName sourceCode
+      else writeFile fileName sourceCode
 
     return fileName
   where
@@ -356,20 +356,21 @@ prepareEnvironment funcSig = do
       where
         buildStep _ tipe []    = ["-- no Hoogle result available; bypassed building " ++ show tipe ]
         buildStep i tipe exprs = [ printf "insFunc_%d = %s" i (buildInstanceFunctions tipe exprs)
-                                 , printf postlude (buildAppType $ tipe) higherOrderGenMaxSize i
+                                 , printf postlude (buildAppType $ replaceMyType tipe) higherOrderGenMaxSize i
                                  ] :: [String]
 
     buildAppType :: ArgumentType -> String
     buildAppType = \case
-            ArgTypeFunc l r -> printf "MyFun (%s) (%s)" (buildAppType l) (buildAppType r)
-            otherType -> show otherType
+            ArgTypeFunc l r   -> printf "MyFun (%s) (%s)" (buildAppType l) (buildAppType r) 
+            otherType         -> show otherType
 
     buildExpression :: ArgumentType -> String -> String
-    buildExpression tipe expr = let depth = getDepth 0 tipe in if depth == 1 then expr else
-                                  unwords (["\\arg1 ->"] ++ [printf "wrap $ \\arg%d ->" x| x <- [2..depth] :: [Int]] ++ [expr] ++ [unwords ["arg" ++ show x | x <- [1..depth] :: [Int]]])
-      where getDepth i = \case
-                            ArgTypeFunc _ r -> 1 + getDepth i r
-                            _ -> 0
+    buildExpression tipe expr = unwords (["\\arg1 ->"] ++ [printf "wrap $ \\arg%d ->" x | x <- [2..depth] :: [Int]] ++ [expr, unwords [printf "(unwrap arg%d)" x | x <- [1..depth] :: [Int]]])
+      where
+        depth = getDepth 0 tipe
+        getDepth i = \case
+                        ArgTypeFunc _ r -> 1 + getDepth i r
+                        _ -> 0
 
 -- ******** Example Generator ********
 generateIOPairs :: [String] -> String -> FunctionSignature -> Int -> Int -> Int -> [String] -> [[String]] -> IO (Either InterpreterError GeneratorResult)
