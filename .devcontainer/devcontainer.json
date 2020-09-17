@@ -1,6 +1,6 @@
 {
-    "name": "H+ Dev (GHC 8.8.3, HLS 0.4.0)",
-    "image": "mistzzt/hoogle_plus_dev:ghc883_hls040",
+    "name": "H+ Dev (GHC 8.8.3)",
+    "image": "mistzzt/hoogle_plus_dev:ghc_8.3.3",
 
     "extensions": [
         "eamodio.gitlens",
