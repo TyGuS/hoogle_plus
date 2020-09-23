@@ -97,7 +97,8 @@ data FilterState = FilterState {
   solutions :: [String],
   solutionDescriptions :: [(String, FuncTestDesc)],
   differentiateExamples :: Map.Map String [Example],
-  discardedSolutions :: [String]
+  discardedSolutions :: [String],
+  higherOrderArgumentCache :: Map.Map String [String]
 } deriving (Eq, Show)
 
 emptyFilterState = FilterState {
@@ -105,7 +106,8 @@ emptyFilterState = FilterState {
   solutions = [],
   solutionDescriptions = [],
   differentiateExamples = Map.empty,
-  discardedSolutions = []
+  discardedSolutions = [],
+  higherOrderArgumentCache = Map.empty
 }
 
 type FilterTest m = StateT FilterState m

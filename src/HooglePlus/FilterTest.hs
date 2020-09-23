@@ -130,13 +130,15 @@ runInterpreterWithEnvTimeout timeInMicro executeInterpreter =
     runInterpreterWithEnvTimeoutPrepareModule timeInMicro (sequence ioList) executeInterpreter
   where ioList = [getDataFileName "InternalTypeGen.hs"]
 
-runInterpreterWithEnvTimeoutHOF :: Int -> FunctionSignature -> InterpreterT IO a -> IO (Either InterpreterError a)
+runInterpreterWithEnvTimeoutHOF :: MonadIO m => Int -> FunctionSignature -> InterpreterT IO a -> FilterTest m (Either InterpreterError a)
 runInterpreterWithEnvTimeoutHOF timeInMicro funcSig executeInterpreter = do
-    result <- runInterpreterWithEnvTimeoutPrepareModule timeInMicro (sequence ioList) executeInterpreter
+    fileName <- prepareEnvironment funcSig
+
+    let ioList = [getDataFileName "InternalTypeGen.hs", pure fileName]
+    result <- liftIO $ runInterpreterWithEnvTimeoutPrepareModule timeInMicro (sequence ioList) executeInterpreter
     case result of
       Left (WontCompile e)  -> liftIO $ print e >> runInterpreterWithEnvTimeout timeInMicro executeInterpreter
       _                     -> return result
-  where ioList = [getDataFileName "InternalTypeGen.hs", prepareEnvironment funcSig]
 
 runInterpreterWithEnvTimeoutPrepareModule :: Int -> IO [String] -> InterpreterT IO a -> IO (Either InterpreterError a)
 runInterpreterWithEnvTimeoutPrepareModule timeInMicro prepareModule executeInterpreter =
@@ -153,13 +155,13 @@ runInterpreterWithEnvTimeoutPrepareModule timeInMicro prepareModule executeInter
       Nothing -> Left $ NotAllowed "timeout"
 
 
-evaluateProperties :: [String] -> FunctionSignature -> [String] -> IO (Either InterpreterError [BackendResult])
+evaluateProperties :: MonadIO m => [String] -> FunctionSignature -> [String] -> FilterTest m (Either InterpreterError [BackendResult])
 evaluateProperties modules funcSig properties =
   runInterpreterWithEnvTimeoutHOF defaultInterpreterTimeoutMicro funcSig $ do
     LHI.setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
     mapM (\prop -> LHI.interpret prop (LHI.as :: IO BackendResult) >>= liftIO) properties
 
-validateSolution :: [String] -> String -> FunctionSignature -> IO (Either InterpreterError FuncTestDesc)
+validateSolution :: MonadIO m => [String] -> String -> FunctionSignature -> FilterTest m (Either InterpreterError FuncTestDesc)
 validateSolution modules solution funcSig = do
     result <- evaluateProperties modules funcSig [prop]
     case result of
@@ -175,7 +177,7 @@ validateSolution modules solution funcSig = do
               | otherwise     = Partial $ parseExamples r
     readResult r@QC.Success{} = Total $ parseExamples r
 
-compareSolution :: [String] -> String -> [String] -> FunctionSignature -> IO (Either InterpreterError [BackendResult])
+compareSolution :: MonadIO m => [String] -> String -> [String] -> FunctionSignature -> FilterTest m (Either InterpreterError [BackendResult])
 compareSolution modules solution otherSolutions funcSig = evaluateProperties modules funcSig props
   where props = buildDupCheckProp (solution, otherSolutions) funcSig
 
@@ -206,29 +208,26 @@ runChecks env goalType prog = do
 
 checkSolutionNotCrash :: MonadIO m => [String] -> FunctionSignature -> String -> FilterTest m Bool
 checkSolutionNotCrash modules funcSig solution = do
-    result <- liftIO executeCheck
-    case result of
-      Left  err     -> do
-        modify $ \s -> s {solutionDescriptions = (solution, Unknown $ show err) : solutionDescriptions s }
-        return True
-      Right result  -> do
-        modify $ \s -> s {solutionDescriptions = (solution, result) : solutionDescriptions s }
-        return $ isSuccess result
-  where
-    handleNotSupported = (`catch` ((\ex -> return (Left (UnknownError $ show ex))) :: NotSupportedException -> IO (Either InterpreterError FuncTestDesc)))
-    executeCheck = handleNotSupported $ validateSolution modules solution funcSig
+  result <- validateSolution modules solution funcSig
+  case result of
+    Left  err     -> do
+      modify $ \s -> s {solutionDescriptions = (solution, Unknown $ show err) : solutionDescriptions s }
+      return True
+    Right result  -> do
+      modify $ \s -> s {solutionDescriptions = (solution, result) : solutionDescriptions s }
+      return $ isSuccess result
 
 
 checkDuplicates :: MonadIO m => [String] -> FunctionSignature -> String -> FilterTest m Bool
 checkDuplicates modules funcSig solution = do
-  FilterState _ solns_ _ _ _ <- get
+  FilterState _ solns_ _ _ _ _ <- get
   case solns_ of
     -- base case: skip the check for the first solution
     [] -> modify (\s -> s {solutions = [solution]}) >> return True
 
     -- inductive: find an input i such that all synthesized results can be differentiated semantically
     _ -> do
-      interpreterResult <- liftIO $ compareSolution modules solution solns_ funcSig
+      interpreterResult <- compareSolution modules solution solns_ funcSig
       examples          <- readInterpreterResult solns_ interpreterResult
 
       let isSucceed =   all isJust examples
@@ -319,25 +318,48 @@ queryHoogle types = Hoogle.defaultDatabaseLocation >>= (`Hoogle.withDatabase` in
         isInModuleList x = let Just (name, _) = Hoogle.targetModule x in name `elem` hoogleQueryModuleList
         doesNotHaveTypeClass Hoogle.Target{Hoogle.targetItem} = not ("=&gt;" `isInfixOf` targetItem)
 
-queryHooglePlus :: [String] -> IO [String]
-queryHooglePlus types = undefined
+queryHooglePlus :: [String] -> IO [[String]]
+queryHooglePlus types = print types >> print "called" >> return []
+
+queryHigherOrderArgument :: MonadIO m => [String] -> FilterTest m [[String]]
+queryHigherOrderArgument queries = do
+    FilterState _ _ _ _ _ cache <- get
+    let cachedResults = zip queries $ map (`Map.lookup` cache) queries
+
+    let nextQueries = map fst $ filter needsQuery cachedResults
+    if null nextQueries
+      then return $ map (fromJust . snd) $ cachedResults
+      else do
+            nextQueryResults <- Map.unionsWith (++) <$> mapM (\f -> Map.fromList <$> zip nextQueries <$> (liftIO $ f nextQueries)) searchFunctions
+
+            let cachedResultMap = Map.fromList $ map (\(q, r) -> (q, fromJust r)) $ filter (not . needsQuery) cachedResults
+            let result = Map.union cachedResultMap nextQueryResults
+
+            modify (\state -> state { higherOrderArgumentCache = Map.union (higherOrderArgumentCache state) result })
+            return (map snd $ Map.toList result)
+  where
+    needsQuery (_, Nothing) = True
+    needsQuery _            = False
+
+    searchFunctions = [queryHoogle, queryHooglePlus]
+
 
 -- >>> prepareEnvironment $ parseTypeString "a -> ([Int] -> Int) -> (a -> [a]) -> a"
 -- >>> runInterpreterWithEnvTimeoutHOF (10^8) (parseTypeString "a -> (Int -> [Int]) -> a") (return "114514")
-prepareEnvironment :: FunctionSignature -> IO String
+prepareEnvironment :: MonadIO m => FunctionSignature -> FilterTest m String
 prepareEnvironment funcSig = do
     let higherOrderTypes = extractHigherOrderQuery funcSig
-    hoogleResults <- queryHoogle $ map show higherOrderTypes
+    queryResults <- queryHigherOrderArgument $ map show higherOrderTypes
 
-    tmpDir <- getTmpDir
-    baseName <- nextRandom
+    tmpDir <- liftIO $ getTmpDir
+    baseName <- liftIO $ nextRandom
     let baseNameStr = show baseName ++ ".hs"
     let fileName = tmpDir ++ "/" ++ baseNameStr
 
-    let sourceCode = buildEnvFileContent higherOrderTypes hoogleResults
-    if null hoogleResults || all null hoogleResults
-      then writeFile fileName ""
-      else writeFile fileName sourceCode
+    let sourceCode = buildEnvFileContent higherOrderTypes queryResults
+    if null queryResults || all null queryResults
+      then liftIO $ writeFile fileName ""
+      else liftIO $ writeFile fileName sourceCode
 
     return fileName
   where

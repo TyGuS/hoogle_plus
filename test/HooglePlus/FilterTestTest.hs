@@ -44,9 +44,11 @@ itDupCase (desc, modules, tipe, solutions, shouldPass) =
             (ret', st') <- runDuplicateTest st modules tipe s
             ret' @?= shouldPass
 
+            let st'' = st' {higherOrderArgumentCache = Map.empty}
+
             if shouldPass
-                then assertBool "state not unique" (st' /= st)
-                else st' @?= st
+                then assertBool "state not unique" (st'' /= st)
+                else st'' @?= st
         f st tipe (s : solns) = do
             (ret', st') <- runDuplicateTest st modules tipe s
             f st' tipe solns

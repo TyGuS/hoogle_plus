@@ -97,7 +97,7 @@ instance QC.CoArbitrary   MyChar where coarbitrary (MyCharValue v) = QC.coarbitr
 
 data     MyFun a b = Generated (a -> b) | Expression String (a -> b)
 instance (QC.Arbitrary a, QC.CoArbitrary b)                       => QC.CoArbitrary (MyFun a b)   where coarbitrary = \case Generated f -> QC.coarbitrary f; Expression _ f -> QC.coarbitrary f
-instance (Show a, SF.Listable a, SF.ShowFunction b)               => Show (MyFun a b)             where show = \case Expression str _ -> str; Generated f -> "(" ++ SF.showFunctionLine defaultShowFunctionDepth f ++ ")"
+instance (Show a, SF.Listable a, SF.ShowFunction b)               => Show (MyFun a b)             where show = \case Expression str _ -> str; Generated f -> "<Generated>"-- "(" ++ SF.showFunctionLine defaultShowFunctionDepth f ++ ")"
 instance (Show a, SF.Listable a, SF.ShowFunction b)               => SF.ShowFunction (MyFun a b)  where bindtiers = \case Generated f -> SF.bindtiers f; Expression _ f -> SF.bindtiers f
 instance {-# OVERLAPPABLE #-} (QC.CoArbitrary a, QC.Arbitrary b)  => QC.Arbitrary (MyFun a b)     where arbitrary = liftM Generated QC.arbitrary
         
