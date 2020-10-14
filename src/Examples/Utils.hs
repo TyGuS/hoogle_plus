@@ -14,6 +14,7 @@ import Debugger
 import qualified Language.Haskell.Interpreter as LHI
 import System.Timeout
 import Text.Printf
+import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Exception
@@ -109,21 +110,18 @@ wrapParens = printf "(%s)"
 supportedTyclasses :: [String]
 supportedTyclasses = ["Num", "Ord", "Eq"]
 
-checkTypes :: Environment -> Chan Message -> RSchema -> RSchema -> IO (Bool, SType)
-checkTypes env checkerChan s1 s2 = do
-    let initChecker = emptyChecker { _checkerChan = checkerChan }
-    let bound = env ^. boundTypeVars
-    (t, state) <- runStateT (do
+checkTypes :: Environment -> CheckerState -> [Id] -> RSchema -> RSchema -> IO (Bool, Map Id SType)
+checkTypes env initChecker tmpBound s1 s2 = do
+    let bound = tmpBound ++ env ^. boundTypeVars
+    state <- execStateT (do
         r1 <- freshType bound s1
         r2 <- freshType bound s2
         let t1 = skipTyclass r1
         let t2 = skipTyclass r2
-        solveTypeConstraint env (shape t1) (shape t2)
-        tass <- gets $ view typeAssignment
-        return $ stypeSubstitute tass $ shape r2) initChecker
-    return (state ^. isChecked, t)
+        solveTypeConstraint env (shape t1) (shape t2)) initChecker
+    return (state ^. isChecked, state ^. Types.TypeChecker.typeAssignment)
 
 mkPolyType :: TypeSkeleton r -> SchemaSkeleton r
 mkPolyType t = let tvars = Set.toList $ typeVarsOf t
-                   freeVars = filter ((==) univTypeVarPrefix . head) tvars
+                   freeVars = filter ((==) wildcardPrefix . head) tvars
                 in foldr ForallT (Monotype t) freeVars

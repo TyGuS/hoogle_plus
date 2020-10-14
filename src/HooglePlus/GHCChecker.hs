@@ -67,9 +67,10 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just lib
     let moduleImports = concatMap toModuleImportStr modules
     let sourceCode = printf "module Temp where\n%s\n%s :: %s\n%s = %s\n" moduleImports ourFunctionName typeExpr ourFunctionName lambdaExpr
     baseName <- liftIO nextRandom
-    let baseNameStr = show baseName ++ ".hs"
+    let baseNameStr = show baseName
     let fileName = tmpDir ++ "/" ++ baseNameStr
-    liftIO $ writeFile fileName sourceCode
+    let fileNameHs = fileName ++ ".hs"
+    liftIO $ writeFile fileNameHs sourceCode
 
     -- Establishing GHC session
     env <- getSession
@@ -78,7 +79,7 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just lib
     setSessionDynFlags dflags'
 
     -- Compile to core
-    target <- guessTarget fileName Nothing
+    target <- guessTarget fileNameHs Nothing
     setTargets [target]
     load LoadAllTargets
     modSum <- getModSummary $ mkModuleName "Temp"
@@ -93,7 +94,9 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules = GHC.runGhc (Just lib
     core' <- liftIO $ core2core env core
     prog <- liftIO $ dmdAnalProgram dflags emptyFamInstEnvs $ mg_binds core'
     let decl = findOurBinding (prog :: [CoreBind]) -- only one method
-    liftIO $ removeFile fileName
+    liftIO $ removeFile fileNameHs
+    liftIO $ removeFile (fileName ++ ".hi")
+    liftIO $ removeFile (fileName ++ ".o")
     -- liftIO $ printf "whole program: %s\n" $ showSDocUnsafe $ ppr $ prog
     -- TODO: I'm thinking of simply checking for the presence of `L` (lazy) or `A` (absent)
     -- on the singatures. That would be enough to show that the relevancy requirement is not met.

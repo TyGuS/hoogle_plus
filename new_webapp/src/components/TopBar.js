@@ -2,7 +2,7 @@ import React from "react";
 import { log } from "../utilities/logger";
 
 export const TopBar = () => (
-    <div>
+    <div className="container">
         <div style={dlStyle}><small><a href="#" onClick={dlClick}>download log</a></small></div>
         <h1 className="hplus_font">
             <a href="." className="nav-link" id="home">Hoogle+</a>

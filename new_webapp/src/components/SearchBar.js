@@ -2,7 +2,8 @@ import _ from "underscore";
 import React, {Component } from "react";
 import {connect} from "react-redux";
 import OutsideClickHandler from "react-outside-click-handler";
-import {setSearchType, getTypesFromExamples, doSearch, setExamples, doStop, setExampleEditingRow, refineSearch, markClean} from "../actions/index";
+import {setSearchType, getTypesFromExamples, doSearch, setExamples, doStop, 
+    setExampleEditingRow, setExampleEditingCol, refineSearch, markClean} from "../actions/index";
 import ExampleTable from "./ExampleTable";
 import { TypeSelection } from "./TypeSelection";
 import { Button, InputGroup, FormControl, Form, Tooltip, Overlay, OverlayTrigger, Alert } from "react-bootstrap";
@@ -14,8 +15,10 @@ const mapDispatchToProps = (dispatch) => {
         setSearchType: ({query}) => dispatch(setSearchType({query})),
         doSearch: ({query, examples}) => dispatch(doSearch({query, examples})),
         getTypesFromExamples: usages => dispatch(getTypesFromExamples(usages)),
-        clearExamples: _ => dispatch(setExamples([])),
-        unfocusEditingRow: _ => dispatch(setExampleEditingRow(undefined)),
+        unfocusEditingRow: _ => {
+            dispatch(setExampleEditingRow(null));
+            dispatch(setExampleEditingCol(null));
+        },
         doStop: ({id}) => dispatch(doStop({id})),
         refineSearch: ({query, examples}) => dispatch(refineSearch({query, examples})),
         markClean: _ => dispatch(markClean()),
@@ -38,7 +41,7 @@ const mapStateToProps = (state) => {
 
 const connectedSearchBar = (props) => {
     const { searchType, exampleRows, searchStatus, errorMessage, isEditing, queryId } = props;
-    const { setSearchType, doSearch, getTypesFromExamples, clearExamples, doStop, unfocusEditingRow } = props;
+    const { setSearchType, doSearch, getTypesFromExamples, doStop, unfocusEditingRow } = props;
     const {search} = getDefaultFeatures();
 
     const filteredUsages = _.filter(exampleRows, row => !_.any(row.inputs, _.isUndefined) && !_.isUndefined(row.output));
@@ -111,29 +114,34 @@ const connectedSearchBar = (props) => {
     }
 
     return (
-        <div>
+        <div className="container">
             <TypeSelection hidden={!search.permitTypeCandidates} />
             <div className="container">
                 <Form onSubmit={handleSubmit}>
-                <div className="row justify-content-center">
-                <InputGroup className="mb-3 col-8">
-                    <FormControl
-                    aria-label="Default"
-                    aria-describedby="inputGroup-sizing-default"
-                    placeholder="Search by type here"
-                    className="text-center"
-                    value={searchType}
-                    onChange={handleChange}
-                    />
-                </InputGroup>
+                <div className="mb-3">
+                    <div className="text-left mb-3 font-weight-bold">
+                        Type Query
+                    </div>
+                    <div>
+                        <InputGroup className="mb-0">
+                            <FormControl
+                            aria-label="Default"
+                            aria-describedby="inputGroup-sizing-default"
+                            placeholder="Search by type here"
+                            className="text-center"
+                            value={searchType}
+                            onChange={handleChange}
+                            />
+                        </InputGroup>
+                    </div>
                 </div>
                 <div
-                    className="row justify-content-center"
+                    className="justify-content-center"
                     hidden={!search.permitExamples}>
-                    <div className="col">
-                        <div>
-                            Example Specifications:
-                        </div>
+                    <div className="text-left mb-3 font-weight-bold">
+                        Example Specifications
+                    </div>
+                    <div className="px-0">
                         <OutsideClickHandler
                             onOutsideClick={() => isEditing ? unfocusEditingRow() : undefined}>
                             <ExampleTable/>
@@ -143,14 +151,6 @@ const connectedSearchBar = (props) => {
 
                 <div className="row justify-content-center">
                     <div className="col-10">
-                        {hasAnExample ? (
-                            <Button
-                                className="float-right"
-                                variant="link"
-                                onClick={clearExamples}
-                            >
-                                Clear Examples
-                            </Button>):<></>}
                         <Button
                             className="mr-2"
                             disabled={!canSubmit()}

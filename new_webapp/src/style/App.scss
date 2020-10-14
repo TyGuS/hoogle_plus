@@ -88,3 +88,7 @@ td > pre {
   border: 0;
   text-align: left;
 }
+
+.table thead th {
+  vertical-align: middle !important;
+}

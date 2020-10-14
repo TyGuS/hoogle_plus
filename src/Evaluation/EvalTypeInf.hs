@@ -93,7 +93,7 @@ runTest numOfExs bm@(Benchmark _ q sol _ _) = do
             Left err -> print err >> return Nothing
             Right (Example ins out) -> do
                 let correctedCode = map correctFun ins
-                if "***Exception" `isInfixOf` out || any ("Infinity" `isInfixOf`) ins || "[]" `isInfixOf` out
+                if "***Exception" `isInfixOf` out || any ("Infinity" `isInfixOf`) ins -- || "[]" `isInfixOf` out
                     then return Nothing
                     else return $ Just $ Example correctedCode (correctFun out)
             ) (\(e :: SomeException) -> print e >> return Nothing)

@@ -8,15 +8,12 @@ function App() {
   return (
     <div className="App container">
       <TopBar/>
-      <div className="row justify-content-center">
-        <div className="col-12">
+      <div className="container">
+        <div className=" card py-3">
           <SearchBar />
-          <br/>
-          <hr/>
-          <br/>
-          <CandidateList className="left" />
         </div>
       </div>
+      <CandidateList className="left" />
     </div>
   );
 }

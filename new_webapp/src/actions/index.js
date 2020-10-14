@@ -1,7 +1,7 @@
 import * as Consts from "../constants/action-types";
 import _ from "underscore";
-import { Search, ghciUsage, hooglePlusExampleSearch, hooglePlusMoreExamples } from "../gateways";
-import { getArgCount } from "../utilities/args";
+import { Search, ghciUsage, hooglePlusMoreExamples } from "../gateways";
+import { getArgInfo } from "../utilities/args";
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 import { log } from "../utilities/logger";
 import { v4 } from "uuid";
@@ -33,6 +33,7 @@ const clearResultsInternal = makeActionCreator(Consts.CLEAR_RESULTS);
 export const markClean = makeActionCreator(Consts.MARK_CLEAN);
 
 export const setExampleEditingRow = makeActionCreator(Consts.SET_EXAMPLE_EDITING_ROW, "payload");
+export const setExampleEditingCol = makeActionCreator(Consts.SET_EXAMPLE_EDITING_COL, "payload");
 export const setExamples = makeActionCreator(Consts.SET_EXAMPLES, "payload");
 export const updateCandidateUsageTable = makeActionCreator(Consts.UPDATE_CANDIDATE_USAGE, "payload");
 export const addCandidateUsageInternal = makeActionCreator(Consts.ADD_CANDIDATE_USAGE, "payload");
@@ -40,6 +41,7 @@ export const fetchMoreCandidateUsages = makeActionCreator(Consts.FETCH_MORE_CAND
 export const showMoreCandidateUsages = makeActionCreator(Consts.SHOW_MORE_USAGES, "payload");
 
 const setSearchTypeInternal = makeActionCreator(Consts.SET_SEARCH_TYPE, "payload");
+const setParsedTypeInternal = makeActionCreator(Consts.SET_PARSED_TYPE, "payload");
 export const setSearchStatus = makeActionCreator(Consts.SET_SEARCH_STATUS, "payload");
 export const stopSearch = makeActionCreator(Consts.STOP_SEARCH, "payload");
 export const setSearchPromise = makeActionCreator(Consts.SET_SEARCH_PROMISE, "payload");
@@ -51,6 +53,7 @@ export const setTypeOptions = makeActionCreator(Consts.SET_TYPE_OPTIONS, "payloa
 export const decreaseArgs = makeActionCreator(Consts.DECREASE_ARGS);
 export const increaseArgs = makeActionCreator(Consts.INCREASE_ARGS);
 export const setArgNum = makeActionCreator(Consts.SET_ARG_NUM, "payload");
+export const setArgNames = makeActionCreator(Consts.SET_ARG_NAMES, "payload");
 
 // When a new candidate's usage changes, go and get new outputs for each
 // usage across all current candidates.
@@ -112,9 +115,18 @@ export const setSearchType = ({query}) => (dispatch, getState) => {
     const {spec, candidates} = getState();
     const hasNoExamples = spec.rows.length === 0;
     dispatch(doStop({id: candidates.id}));
-    const mbArgCount = getArgCount(query);
-    if (!_.isNull(mbArgCount) && (spec.numArgs !== mbArgCount) && hasNoExamples) {
-        dispatch(setArgNum(mbArgCount));
+    const mbArgInfo = getArgInfo(query);
+    if(!_.isNull(mbArgInfo)) {
+        const mbArgCount = mbArgInfo.argNum;
+        if (!_.isNull(mbArgCount) && (spec.numArgs !== mbArgCount) && hasNoExamples) {
+            dispatch(setArgNum(mbArgCount));
+        }
+        if(spec.argNames !== mbArgInfo.argNames) {
+            dispatch(setArgNames(mbArgInfo.argNames));
+        }
+        if(spec.parsedType !== mbArgInfo.parsedType) {
+            dispatch(setParsedTypeInternal(mbArgInfo.parsedType));
+        }
     }
     dispatch(setSearchTypeInternal({query}));
 };

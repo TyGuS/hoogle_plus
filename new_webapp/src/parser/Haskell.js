@@ -1,4 +1,5 @@
 import Parsimmon from "parsimmon";
+import { parseResultToStr } from "../utilities/args";
 
 const P = Parsimmon;
 
@@ -34,7 +35,7 @@ export const typeParser = Parsimmon.createLanguage({
     },
     Type: (r) => {
         const argName = r.ArgName.trim(Parsimmon.optWhitespace)
-        const argTy = r.BType.trim(Parsimmon.optWhitespace)
+        const argTy = r.AType.trim(Parsimmon.optWhitespace)
         const res = P.string("->")
             .trim(Parsimmon.optWhitespace)
             .then(r.Type)
@@ -45,7 +46,7 @@ export const typeParser = Parsimmon.createLanguage({
             ["argTy", argTy],
             ["result", res]
         );
-        const constant = r.BType.map(x => {return {argTy: x}});
+        const constant = r.AType.map(x => {return {argTy: x}});
         return P.alt(func, constant);
     },
     ArgName: (r) => {
@@ -54,9 +55,14 @@ export const typeParser = Parsimmon.createLanguage({
             .skip(P.string(":"))
             .times(0, 1);
     },
-    BType: (r) => {
+    AType: (r) => {
         return P.alt(
             r.TyCon,
+            r.BType
+        );
+    },
+    BType: (r) => {
+        return P.alt(
             r.VarId,
             r.Tuple,
             r.ListTy,
@@ -69,21 +75,32 @@ export const typeParser = Parsimmon.createLanguage({
         )
     },
     TyCon: (r) => {
-        return r.VarId
-            .skip(P.whitespace)
-            .then(r.BType);
+        return P.seqMap(
+            r.VarId,
+            P.seqMap(P.whitespace, r.BType, (sp, t) => t).many(),
+            (dt, rest) => {return {
+                datatype: dt,
+                arguments: rest
+            }});
     },
     Tuple: (r) => {
         return P.string("(")
             .trim(Parsimmon.optWhitespace)
-            .then(r.Type)
-            .then(
+            .then(P.seqMap(
+                r.Type,
                 P.string(",")
                 .trim(Parsimmon.optWhitespace)
                 .then(r.Type)
-                .many()
-            )
+                .atLeast(1),
+                (first, rest) => [first].concat(rest)
+            ))
             .skip(P.string(")"))
+            .map((xs) => {
+                return {
+                    datatype: "Pair",
+                    arguments: xs
+                };
+            })
     },
     VarId: () => {return P.regex(/[a-zA-Z0-9]+/)},
     Unit: () => P.string("()"),
@@ -91,7 +108,13 @@ export const typeParser = Parsimmon.createLanguage({
         return P.string("[")
             .trim(Parsimmon.optWhitespace)
             .then(r.Type)
-            .skip(P.string("]"));
+            .skip(P.string("]"))
+            .map((t) => {
+                return {
+                    datatype: "List",
+                    arguments: [t]
+                };
+            });
     },
     _: () => {return Parsimmon.optWhitespace;},
 });

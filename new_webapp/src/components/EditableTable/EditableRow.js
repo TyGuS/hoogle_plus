@@ -1,9 +1,10 @@
 import React from 'react';
 
-import { Button } from 'react-bootstrap';
-import Highlight from 'react-highlight.js';
-import OutsideClickHandler from 'react-outside-click-handler';
+import { Button, OverlayTrigger, Tooltip } from 'react-bootstrap';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faTrashAlt, faPlusCircle, faMinusCircle } from '@fortawesome/free-solid-svg-icons';
 
+import { EditableCell } from './EditableCell';
 
 /**
  * Editable Row:
@@ -16,16 +17,16 @@ import OutsideClickHandler from 'react-outside-click-handler';
  *   - onClickRemove : (id) -> ()
  *   - onClickSave : (row) -> ()
  */
-export const EditableRow = ({row, columns, editingRowId,
-    onUpdateCell, onClickEdit, onClickSave, onClickRemove}) => {
-    const rowWithOrder = columns.map(col => {return {value: row[col.name], colName:col.title}});
-    const rowCells = rowWithOrder.map(({value:r}, k) => {
-      return (
-        <td key={k}>
-          <Highlight language="haskell">
-            {r}
-          </Highlight>
-        </td>)
+export const EditableRow = ({row, columns, editingRowId, editingColId,
+    onUpdateCell, onClickEdit, onClickSave, onClickRemove,
+    increaseArgs, decreaseArgs}) => {
+    const rowWithOrder = columns.map((col, idx) => {
+      const colName = col.title;
+      if (colName !== "output") {
+        return {value:row[idx], colName: idx, rowId: row.id};
+      } else {
+        return {value:row[colName], colName, rowId: row.id};
+      }
     });
 
     const onKeyPress = (event) => {
@@ -34,58 +35,72 @@ export const EditableRow = ({row, columns, editingRowId,
       }
     };
 
-    if (row.id === editingRowId) {
-      const editableRowCells = rowWithOrder.map((cell, k) => {
-        return (<td key={cell.colName}>
-          <input
-            autoFocus={k === 0}
-            key={cell.colName}
+    const rowCells = rowWithOrder.map((cell, k) => {
+        let colName = k;
+        if (cell.colName === "output") {
+          colName = cell.colName;
+        }
+        return (<EditableCell
+            key={colName}
             type="text"
-            className="form-control"
-            onChange={onUpdateCell(cell, row)}
+            cell={cell}
             value={cell.value}
+            className="form-control"
+            editingRowId={editingRowId}
+            editingColId={editingColId}
             onKeyPress={onKeyPress}
-          />
-        </td>);
-      });
-      return (
-        <tr>
-          <td className="row_controls">
-            <Button
-              variant="link"
-              onClick={() => onClickSave(row)}
-            >
-              Save
-            </Button>
-            <Button
-              variant="link"
-              onClick={() => onClickRemove(row.id)}
-            >
-              Cancel
-            </Button>
-          </td>
-          {editableRowCells}
-        </tr>
-      );
+            onUpdateCell={onUpdateCell}
+            onClickEdit={onClickEdit}
+            onClickSave={onClickSave}
+            />);
+    });
+
+    if(row.id === "argRow") {
+        return (
+            <tr>
+                {rowCells}
+                <th className="row_controls">
+                    
+                    <OverlayTrigger
+                        placement="top"
+                        overlay={<Tooltip>Remove the last argument</Tooltip>}
+                    >
+                        <Button
+                            variant="link"
+                            onClick={decreaseArgs}
+                            disabled={columns.length < 3}
+                        >
+                            <FontAwesomeIcon icon={ faMinusCircle } />
+                        </Button>
+                    </OverlayTrigger>
+                    <OverlayTrigger
+                        placement="top"
+                        overlay={<Tooltip>Add another argument</Tooltip>}
+                    >
+                        <Button
+                            variant="link"
+                            onClick={increaseArgs}
+                        >
+                            <FontAwesomeIcon icon={ faPlusCircle } />
+                        </Button>
+                    </OverlayTrigger>
+                </th>
+            </tr>
+        );
+    } else {
+        return (
+            <tr>
+                {rowCells}
+                <td className="row_controls">
+                    <Button
+                        variant="link"
+                        onClick={() => onClickRemove(row.id)}
+                    >
+                        <FontAwesomeIcon icon={ faTrashAlt } />
+                    </Button>
+                </td>
+            </tr>
+        );
     }
 
-    return (
-      <tr>
-        <td className="row_controls">
-          <Button
-            variant="link"
-            onClick={() => onClickEdit(row.id)}
-          >
-            Edit
-          </Button>
-          <Button
-            variant="link"
-            onClick={() => onClickRemove(row.id)}
-          >
-            Remove
-          </Button>
-        </td>
-       {rowCells}
-      </tr>
-    );
   };

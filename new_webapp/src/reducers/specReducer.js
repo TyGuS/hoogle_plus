@@ -1,16 +1,19 @@
 import * as Consts from "../constants/action-types";
 import _ from "underscore";
-import { namedArgsToExample } from "../utilities/args";
+import { namedArgsToExample, getArgNames } from "../utilities/args";
 import { DONE, LOADING, ERROR } from "../constants/fetch-states";
 
 export const initialSpecState = {
     editingExampleRow: null, // id-str
+    editingExampleCol: null,
     rows: [],
     // rows: [{inputs:[str], output:str, id}]
     numArgs: 2,
+    argNames: ['x', 'y'],
     errorMessage: null,
     searchStatus: DONE,
     searchType: "",
+    parsedType: null,
     searchTypeOptions: [],
     searchPromise: null, // {abort: () -> (), ready: Promise}
 };
@@ -86,16 +89,29 @@ export function specReducer(state = initialSpecState, action) {
             }
         case Consts.INCREASE_ARGS:
             var newNumArgs = state.numArgs + 1;
+            var argNames = getArgNames(newNumArgs);
+            var nextArgName = argNames[newNumArgs - 1];
+            // in case the selected name is already provided by the user
+            // add a suffix number to "x" in that case
+            var cnt = 1;
+            while(nextArgName in state.argNames) {
+                nextArgName = "x" + cnt;
+                cnt = cnt + 1;
+            }
+            var newArgNames = state.argNames.concat(nextArgName);
             return {
                 ...clearErrors(state),
                 numArgs: newNumArgs,
+                argNames: newArgNames,
                 rows: updateRows(state.rows, newNumArgs),
             };
         case Consts.DECREASE_ARGS:
             var newNumArgs = Math.max(state.numArgs - 1, 1);
+            var newArgNames = state.argNames.slice(0, -1);
             return {
                 ...clearErrors(state),
                 numArgs: newNumArgs,
+                argNames: newArgNames,
                 rows: updateRows(state.rows, newNumArgs),
             };
         case Consts.SET_ARG_NUM:
@@ -103,6 +119,11 @@ export function specReducer(state = initialSpecState, action) {
                 ...clearErrors(state),
                 numArgs: action.payload,
                 rows: updateRows(state.rows, action.payload),
+            };
+        case Consts.SET_ARG_NAMES:
+            return {
+                ...clearErrors(state),
+                argNames: action.payload,
             };
         case Consts.ADD_EXAMPLE:
             return {
@@ -119,22 +140,32 @@ export function specReducer(state = initialSpecState, action) {
                 ...state,
                 editingExampleRow: action.payload,
             };
+        case Consts.SET_EXAMPLE_EDITING_COL:
+            return {
+                ...state,
+                editingExampleCol: action.payload,
+            };
         case Consts.SET_SEARCH_TYPE:
             return {
                 ...clearErrors(state),
                 searchType: action.payload.query,
-            }
+            };
         case Consts.SET_TYPE_OPTIONS:
             return {
                 ...clearErrors(state),
                 searchTypeOptions: action.payload,
-            }
+            };
         case Consts.SET_SEARCH_PROMISE:
             return {
                 ...state,
                 searchPromise: action.payload,
-            }
+            };
+        case Consts.SET_PARSED_TYPE:
+            return {
+                ...state,
+                parsedType: action.payload,
+            };
         default:
-            return state
+            return state;
     }
 }

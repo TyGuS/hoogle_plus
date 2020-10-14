@@ -53,7 +53,9 @@ checkExample env typ ex checkerChan = do
       Left exTyp -> do
         let err = printf "%s does not have type %s" (show ex) (show typ) :: String
         let tcErr = printf "%s does not satisfy type class constraint in %s" (show ex) (show typ) :: String
-        (res, substedTyp) <- checkTypes env checkerChan exTyp typ
+        let initChecker = emptyChecker { _checkerChan = checkerChan }
+        (res, tass) <- checkTypes env initChecker [] exTyp typ
+        let substedTyp = stypeSubstitute tass (shape (toMonotype typ))
         let (tyclasses, strippedTyp) = unprefixTc substedTyp
         let tyclassesPrenex = intercalate ", " $ map show tyclasses
         let breakTypes = map show $ breakdown strippedTyp

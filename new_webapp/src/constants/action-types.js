@@ -15,6 +15,7 @@ export const SET_SEARCH_TYPE = "SET_SEARCH_TYPE";
 export const SET_SEARCH_STATUS = "SET_SEARCH_STATUS";
 export const STOP_SEARCH = "STOP_SEARCH";
 export const SET_SEARCH_PROMISE = "SET_SEARCH_PROMISE";
+export const SET_PARSED_TYPE = "SET_PARSED_TYPE";
 
 // Modal Operations
 export const MODAL_OPEN = "MODAL_OPEN";
@@ -25,5 +26,7 @@ export const SET_TYPE_OPTIONS = "SET_TYPE_OPTIONS";
 export const ADD_EXAMPLE = "ADD_EXAMPLE";
 export const SET_EXAMPLES = "SET_EXAMPLES";
 export const SET_EXAMPLE_EDITING_ROW = "SET_EDITING_ROW";
+export const SET_EXAMPLE_EDITING_COL = "SET_EDITING_COL";
 export const INCREASE_ARGS = "INCREASE_ARGS";
 export const DECREASE_ARGS = "DECREASE_ARGS";
+export const SET_ARG_NAMES = "SET_ARG_NAMES";

@@ -30,6 +30,7 @@ makeLenses ''InfStats
 data TypeClassState = TypeClassState {
     _tyclassCache :: Map SType [Id],
     _supportModules :: [String],
+    _generalNames :: Map Id Int,
     -- stats
     _infStats :: InfStats
 } deriving(Eq)
@@ -39,23 +40,33 @@ makeLenses ''TypeClassState
 emptyTyclassState = TypeClassState {
     _tyclassCache = Map.empty,
     _supportModules = [],
+    _generalNames = Map.empty,
     _infStats = InfStats 0 0
 }
 
+type AntiPair = (SType, SType)
+data AntiUnifConstraint = 
+    UnifConstraint SType SType
+  | DisunifConstraint SType SType
+  deriving(Eq)
+
 data AntiUnifState = AntiUnifState {
-    _generalNames :: Map Id Int,
-    _typeAssignment1 :: Map SType [Id],
-    _typeAssignment2 :: Map SType [Id],
-    _tyclassAssignment :: TyclassAssignment
+    _typeAssignment :: Map AntiPair Id,
+    _tyclassAssignment :: TyclassAssignment,
+    -- temporary constraints to be satisfied during anti-unification
+    _unifConstraints :: [AntiUnifConstraint],
+    _disunifConstraints :: [AntiUnifConstraint],
+    _tmpAssignment :: Map Id SType
 } deriving(Eq)
 
 makeLenses ''AntiUnifState
 
 emptyAntiUnifState = AntiUnifState {
-    _generalNames = Map.empty,
-    _typeAssignment1 = Map.empty,
-    _typeAssignment2 = Map.empty,
-    _tyclassAssignment = Map.empty
+    _typeAssignment = Map.empty,
+    _tyclassAssignment = Map.empty,
+    _unifConstraints = [],
+    _disunifConstraints = [],
+    _tmpAssignment = Map.empty
 }
 
 data TypeNaming = TypeNaming {
@@ -67,12 +78,22 @@ data TypeNaming = TypeNaming {
 
 makeLenses ''TypeNaming
 
-type AntiUnifier m = StateT AntiUnifState (StateT TypeClassState m)
+type AntiUnifier m = StateT AntiUnifState (LogicT (StateT TypeClassState m))
 type TypeGeneralizer m = StateT TypeNaming (LogicT (StateT TypeClassState m))
 
 instance Monad m => CheckMonad (AntiUnifier m) where
-    getNameCounter = gets (view generalNames)
-    setNameCounter nc = modify (set generalNames nc)
+    getNameCounter = lift $ lift $ gets (view generalNames)
+    setNameCounter nc = lift $ lift $ modify (set generalNames nc)
+    getNameMapping = getNameMapping
+    setNameMapping = setNameMapping
+    getIsChecked = getIsChecked
+    setIsChecked = setIsChecked
+    getMessageChan = getMessageChan
+    overStats = overStats
+
+instance Monad m => CheckMonad (LogicT (StateT TypeClassState m)) where
+    getNameCounter = lift $ gets (view generalNames)
+    setNameCounter nc = lift $ modify (set generalNames nc)
     getNameMapping = getNameMapping
     setNameMapping = setNameMapping
     getIsChecked = getIsChecked
@@ -90,4 +111,4 @@ instance Monad m => CheckMonad (TypeGeneralizer m) where
     getMessageChan = getMessageChan
     overStats = overStats
 
-univTypeVarPrefix = '?'
+wildcardPrefix = '?'

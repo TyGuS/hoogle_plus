@@ -14,6 +14,8 @@ import Types.Type
 import Types.IOFormat
 import Types.InfConstraint
 import Types.Environment
+import Types.CheckMonad
+import qualified Types.TypeChecker
 import Examples.Utils
 import Synquid.Type
 import PetriNet.Util
@@ -54,31 +56,48 @@ parseExample mdls mkFun = catch (do
 
 getExampleTypes :: Environment -> [RSchema] -> Int -> IO ([String], InfStats)
 getExampleTypes env validSchemas num = do
-    let validTypes = map (shape . toMonotype) validSchemas
     let mdls = env ^. included_modules
     let initTyclassState = emptyTyclassState { _supportModules = Set.toList mdls }
     -- remove magic number later
     (typs, st) <- runStateT (do
-        (mbFreeVar, st) <- if not (null validTypes)
-                then foldM stepAntiUnification (head validTypes, emptyAntiUnifState) (tail validTypes)
-                else error "get example types error"
-        -- let t = defaultTypeVar mbFreeVar
-        let t = mbFreeVar
-        let tvars = typeVarsOf t
-        let tcass = st ^. tyclassAssignment
-        generalizeType validSchemas tcass t
+        mbFreeVars <- observeAllT go 
+        mapM (\(t, st) -> zip (repeat t) <$> getGeneralizations t st) mbFreeVars
         ) initTyclassState
-    return (take num typs, st ^. infStats)
+    let sortedTyps = sortOn (\(t, (tc, gt)) -> scoreSignature t tc gt) (concat typs)
+    let tcTyps = map (addTyclasses . snd) sortedTyps
+    return (take num tcTyps, st ^. infStats)
     where
         stepAntiUnification (t1, st) t2 = antiUnification t1 t2 st
+        go = do
+            -- liftIO $ print validSchemas
+            freshTypes <- mapM (freshType []) validSchemas
+            let validTypes = map shape freshTypes
+            foldM stepAntiUnification (head validTypes, emptyAntiUnifState) (tail validTypes)
         forall t = let vars = typeVarsOf t
                     in foldr ForallT (Monotype $ addTrue t) vars
+        getGeneralizations t st = do
+            let tvars = typeVarsOf t
+            let tcass = st ^. tyclassAssignment
+            -- either contains wildcards or is inhabited
+            if hasWildcard t || isInhabited tcass t
+               then generalizeType validSchemas tcass t
+               else return []
+        toConstraint (id, s) = intercalate ", " $ map (unwords . (:[id])) (Set.toList s)
+        addTyclasses (constraints, t) =
+            let tyclasses = intercalate ", " $
+                            filter (not . null) $
+                            map toConstraint $
+                            Map.toList constraints
+             in if null tyclasses then show t
+                                  else printf "(%s) => %s" tyclasses (show t)
+        padding t xs = zip (repeat (fst t)) xs
+        flattenResult (antiUnifs, generals) = zipWith padding antiUnifs generals
 
 -- turn a GHC type into Hoogle+ type
 resolveType :: LHsType GhcPs -> RSchema
 resolveType (L _ (HsForAllTy bs t)) = foldr ForallT (resolveType t) vs
     where
-        vs = map vname bs
+        vs = map ((wildcardPrefix:) . vname) bs
         vname (L _ (UserTyVar (L _ id))) = showSDocUnsafe (ppr id)
         vname (L _ (KindedTyVar (L _ id) _)) = showSDocUnsafe (ppr id)
 resolveType t@(L _ (HsAppTy fun arg)) =
@@ -105,7 +124,7 @@ resolveType' (L _ (HsFunTy f r)) = FunctionT "" (resolveType' f) (resolveType' r
 resolveType' (L _ (HsQualTy _ t)) = resolveType' t
 resolveType' (L _ (HsTyVar _ (L _ v))) =
     if isLower (head name)
-       then ScalarT (TypeVarT Map.empty (univTypeVarPrefix:name)) ftrue
+       then ScalarT (TypeVarT Map.empty (wildcardPrefix:name)) ftrue
        else ScalarT (DatatypeT name [] []) ftrue
     where
         name = showSDocUnsafe $ ppr v
@@ -144,198 +163,115 @@ antiSubstitute pat name (FunctionT x tArg tRes) = FunctionT x tArg' tRes'
         tRes' = antiSubstitute pat name tRes
 antiSubstitute _ _ t = t
 
-antiUnification :: SType -> SType -> AntiUnifState -> StateT TypeClassState IO (SType, AntiUnifState)
-antiUnification t1 t2 st = runStateT (antiUnification' t1 t2) st
+antiUnification :: MonadIO m => SType -> SType -> AntiUnifState -> LogicT (StateT TypeClassState m) (SType, AntiUnifState)
+antiUnification t1 t2 st = do
+    -- liftIO $ print (t1, t2)
+    (t, st) <- runStateT (antiUnification' t1 t2) st
+    -- liftIO $ print t
+    return (t, st)
 
-newAntiVariable :: SType -> SType -> Maybe TyclassConstraints -> AntiUnifier IO SType
+newAntiVariable :: MonadIO m => SType -> SType -> Maybe TyclassConstraints -> AntiUnifier m SType
 newAntiVariable t1 t2 mbCons = do
+    -- liftIO $ print "newAntiVariable start"
+    -- liftIO $ print (t1, t2)
+    -- liftIO $ print "newAntiVariable end"
+    -- check whether the disunification is satisfiable
+    -- liftIO $ print $ "Adding disunification constraint " ++ show (t1, t2)
+    modify $ over disunifConstraints (DisunifConstraint t1 t2 :)
+    checkConstraints
+    -- if the disunification is satisfied, assign a new binding
     v <- freshId [] "t"
-    modify $ over typeAssignment1 (Map.insertWith (++) t1 [v])
-    modify $ over typeAssignment2 (Map.insertWith (++) t2 [v])
+    modify $ over typeAssignment (Map.insert (t1, t2) v)
     when (isJust mbCons) (
         modify $ over tyclassAssignment (Map.insertWith Set.union v (fromJust mbCons))
         )
     return $ vart_ v
 
-findWithDefaultAntiVariable :: SType -> SType -> AntiUnifier IO SType
+-- there are two cases for create anti-unification variables
+-- 1) consider reuse an existing binding if the sub unifies, add unification constraints
+-- 2) consider create a new binding, add non-unification constraints
+findWithDefaultAntiVariable :: MonadIO m => SType -> SType -> AntiUnifier m SType
 findWithDefaultAntiVariable t1 t2 = do
-    tass1 <- gets $ view typeAssignment1
-    tass2 <- gets $ view typeAssignment2
-    vs1 <- liftIO $ unifiableVars tass1 t1
-    vs2 <- liftIO $ unifiableVars tass2 t2
-    let overlap = vs1 `intersect` vs2
-    if not (null overlap)
-       then return $ vart_ (head overlap)
-       else checkTyclass t1 t2
+    tass <- gets $ view typeAssignment
+    -- liftIO $ print $ "current anti unification assignment " ++ show tass
+    msum (map (unifiableVar (t1, t2)) (Map.toList tass)) `mplus` -- reuse type variables
+        (checkTyclass t1 t2 >>= newAntiVariable t1 t2) -- create new variables
     where
-        unifiableVars tass t = do
-            messageChan <- newChan
-            results <- filterM (\(k, vs) -> do
-                let vars = Set.toList $ typeVarsOf k `Set.union` typeVarsOf t
-                -- let boundVars = filter (not . (==) univTypeVarPrefix . head) vars
-                let env = emptyEnv -- { _boundTypeVars = boundVars }
-                (isChecked, newt) <- checkTypes env messageChan (mkPolyType $ addTrue t) (mkPolyType $ addTrue k)
-                let notBothVars = case (t, newt) of
-                                (ScalarT (TypeVarT _ id1) _, ScalarT (TypeVarT _ id2) _)
-                                    | id1 /= id2 -> head id1 == 't' && head id2 == 't'
-                                _ -> True
-                return (isChecked && notBothVars)) (Map.toList tass)
-            return $ concat $ snd $ unzip results
+        -- we only allow unification between wildcards, not for anti-unification variables
+        unifyAndCheck t1 t2 = do
+            checkUnification t1 t2
+            -- liftIO $ print $ "Adding unification constraint " ++ show (t1, t2)
+            modify $ over unifConstraints (UnifConstraint t1 t2 :)
+            checkConstraints
+        unifiableVar (t1, t2) ((k1, k2), v) = do
+            unifyAndCheck t1 k1
+            unifyAndCheck t2 k2
+            return (vart_ v)
 
--- antiUnification' :: SType -> SType -> AntiUnifier IO SType
--- antiUnification' t1 t2 | t1 == t2 = return t1
--- antiUnification' AnyT t = return t
--- antiUnification' t AnyT = return t
--- antiUnification' t1@(ScalarT (TypeVarT _ id1) _) t2@(ScalarT (TypeVarT _ id2) _)
---   | univTypeVarPrefix == head id1 = do
---     tass <- gets $ view typeAssignment2
---     if t2 `Map.member` tass
---         then return $ vart_ (head $ tass Map.! t2)
---         else return $ vart_ id2
---   | univTypeVarPrefix == head id2 = do
---     tass <- gets $ view typeAssignment1
---     if t1 `Map.member` tass
---         then return $ vart_ (head $ tass Map.! t1)
---         else return $ vart_ id1
---   -- | otherwise = findWithDefaultAntiVariable t1 t2
--- antiUnification' t1@(ScalarT (TypeVarT _ id) _) t
---   | univTypeVarPrefix == head id = do
---     tass <- gets $ view typeAssignment2
---     if t `Map.member` tass
---         then return $ vart_ (head $ tass Map.! t)
---         else return t
--- antiUnification' t tv@(ScalarT (TypeVarT {}) _) = do
---     swapAssignments
---     result <- antiUnification' tv t
---     swapAssignments
---     return result
--- antiUnification' t1@(ScalarT (DatatypeT dt1 args1 _) _) t2@(ScalarT (DatatypeT dt2 args2 _) _)
---   | dt1 == dt2 = do
---       args' <- mapM (uncurry antiUnification') (zip args1 args2)
---       return $ ScalarT (DatatypeT dt1 args' []) ()
--- antiUnification' (FunctionT x1 tArg1 tRes1) (FunctionT x2 tArg2 tRes2) = do
---     tArg <- antiUnification' tArg1 tArg2
---     tRes <- antiUnification' tRes1 tRes2
---     return $ FunctionT x1 tArg tRes
--- antiUnification' t1 t2 = findWithDefaultAntiVariable t1 t2
-antiUnification' :: SType -> SType -> AntiUnifier IO SType
+-- there are two cases for antiUnification
+-- 1) one of the type is a wildcard, return the other type
+-- 2) either find an existing binding or create a new one
+antiUnification' :: MonadIO m => SType -> SType -> AntiUnifier m SType
 antiUnification' t1 t2 | t1 == t2 = return t1
 antiUnification' AnyT t = return t
 antiUnification' t AnyT = return t
 antiUnification' t1@(ScalarT (TypeVarT _ id1) _) t2@(ScalarT (TypeVarT _ id2) _)
-  | univTypeVarPrefix == head id1 = return $ vart_ id2
-  | univTypeVarPrefix == head id2 = return $ vart_ id1
-  -- | otherwise = findWithDefaultAntiVariable t1 t2
+  | wildcardPrefix == head id1 = return (vart_ id2) `mplus` findWithDefaultAntiVariable t1 t2
+  | wildcardPrefix == head id2 = return (vart_ id1) `mplus` findWithDefaultAntiVariable t1 t2
 antiUnification' t1@(ScalarT (TypeVarT _ id) _) t
-  | univTypeVarPrefix == head id = return t
-  -- | otherwise = findWithDefaultAntiVariable t1 t
-antiUnification' t tv@(ScalarT (TypeVarT {}) _) = do
-    swapAssignments
-    result <- antiUnification' tv t
-    swapAssignments
-    return result
+  | wildcardPrefix == head id = return t `mplus` findWithDefaultAntiVariable t1 t
+antiUnification' t tv@(ScalarT (TypeVarT _ id) _)
+  | wildcardPrefix == head id = return t `mplus` findWithDefaultAntiVariable t tv
 antiUnification' t1@(ScalarT (DatatypeT dt1 args1 _) _) t2@(ScalarT (DatatypeT dt2 args2 _) _)
   | dt1 == dt2 = do
+      -- liftIO $ print "*************************************************"
+      -- liftIO $ print (args1, args2)
       args' <- mapM (uncurry antiUnification') (zip args1 args2)
-      return $ ScalarT (DatatypeT dt1 args' []) ()
+      return (ScalarT (DatatypeT dt1 args' []) ())
 antiUnification' (FunctionT x1 tArg1 tRes1) (FunctionT x2 tArg2 tRes2) = do
     tArg <- antiUnification' tArg1 tArg2
     tRes <- antiUnification' tRes1 tRes2
     return $ FunctionT x1 tArg tRes
 antiUnification' t1 t2 = findWithDefaultAntiVariable t1 t2
 
-generalizeType :: [RSchema] -> TyclassAssignment -> SType -> StateT TypeClassState IO [String]
+generalizeType :: MonadIO m => [RSchema] -> TyclassAssignment -> SType -> StateT TypeClassState m [(TyclassAssignment, SType)]
 generalizeType exTyps tcass t = do
     -- do the filtering inside observeAll
     liftIO $ print t
-    liftIO $ print tcass
+    -- liftIO $ print tcass
     -- collect stats
     typs <- observeAllT (do
-        let (_, vars) = partition ((==) univTypeVarPrefix . head) $ Set.toList $ typeVarsOf t
+        let (_, vars) = partition ((==) wildcardPrefix . head) $ Set.toList $ typeVarsOf t
         (ass, gt) <- evalStateT (generalizeSType tcass t) (TypeNaming Map.empty Map.empty Set.empty (Set.fromList vars))
-        -- liftIO $ print (ass, gt)
-        let (freeVars, vars) = partition ((==) univTypeVarPrefix . head) $ Set.toList $ typeVarsOf gt
+        let (freeVars, vars) = partition ((==) wildcardPrefix . head) $ Set.toList $ typeVarsOf gt
         -- simplify computation here
         let mkSubst t = Map.fromList $ map (,t) freeVars
         if null vars && null freeVars
            then lift (modify $ over (infStats . prefilterCounts) (+ 1)) >>
                 lift (modify $ over (infStats . postfilterCounts) (+ 1)) >>
-                -- liftIO (print (ass, gt)) >>
                 return (ass, gt)
            else msum $ map (\v -> do
                 let t = stypeSubstitute (mkSubst (vart_ v)) gt
                 lift $ modify $ over (infStats . prefilterCounts) (+ 1)
-                -- liftIO (checkUnify t) >>= guard
-                -- liftIO $ print (ass, t)
+                -- liftIO $ print $ "Generalize into " ++ show t
                 guard (isInhabited ass t)
+                -- liftIO $ print "this is accepted"
                 lift $ modify $ over (infStats . postfilterCounts) (+ 1)
-                return $ (ass, t)) vars
+                return (ass, t)) vars
         )
-    return $ map addTyclasses $
-             sortOn (uncurry $ scoreSignature t) $
-             nubOrdBy dedupArgs typs
-    where
-        checkUnify typ = do
-            let vars = typeVarsOf typ
-            let sch = foldr ForallT (Monotype (addTrue typ)) vars
-            messageChan <- newChan
-            checkResults <- mapM (\s -> checkTypes emptyEnv messageChan s sch) exTyps
-            return $ all fst checkResults
-        toConstraint (id, s) = intercalate ", " $ map (unwords . (:[id])) (Set.toList s)
-        addTyclasses (constraints, t) =
-            let tyclasses = intercalate ", " $
-                            filter (not . null) $
-                            map toConstraint $
-                            Map.toList constraints
-             in if null tyclasses then show t
-                                  else printf "(%s) => %s" tyclasses (show t)
+    return $ nubOrdBy dedupArgs typs
 
-generalizeSType :: TyclassAssignment -> SType -> TypeGeneralizer IO (TyclassAssignment, SType)
--- generalizeSType tcass t@(ScalarT (TypeVarT _ id) _) =
---         enumTyclasses `mplus` enumDupVars
---     where
---         enumTyclasses = do
---             -- either add type class or not 
---             let tc = maybe [] Set.toList (Map.lookup id tcass)
---             let mkResult t tc = {- guard (checkImplies tcs) >> -} return (Map.singleton id (Set.singleton tc), t)
---             prevVars <- gets $ view prevTypeVars
---             if id `Set.member` prevVars -- either enumerate type classes or create a new one
---                then do
---                    return (Map.empty, t)
---                else do
---                    modify $ over prevTypeVars (Set.insert id)
---                    if null tc then return (Map.empty, t)
---                               else (msum $ map (mkResult t) tc) `mplus` return (Map.empty, t)
---         enumDupVars = do
---             beginVars <- gets $ view beginTypeVars
---             prevVars <- gets $ view prevTypeVars
---             -- if id `Set.member` prevVars
---             --     then do
---                     -- or replace the variable with previous names
---                     -- type classes constraints lost
---                     let vars = Set.toList beginVars ++ Set.toList prevVars
---                     v <- freshId vars "t"
---                     modify $ over prevTypeVars (Set.insert v)
---                     let prevVars' = delete id (Set.toList beginVars)
---                     msum $ map (return . (Map.empty,) . vart_) (v:prevVars')
---                 -- else mzero
-generalizeSType tcass t@(ScalarT (TypeVarT _ id) _) = (do
+generalizeSType :: MonadIO m => TyclassAssignment -> SType -> TypeGeneralizer m (TyclassAssignment, SType)
+generalizeSType tcass t@(ScalarT (TypeVarT _ id) _) = do
     -- either add type class or not 
     let tc = maybe [] Set.toList (Map.lookup id tcass)
-    let mkResult tc = {- guard (checkImplies tcs) >> -} return (Map.singleton id (Set.singleton tc), t)
+    let mkResult tc = return (Map.singleton id (Set.singleton tc), t)
     prevVars <- gets $ view prevTypeVars
     if id `Set.member` prevVars
        then return (Map.empty, t)
        else do
             modify $ over prevTypeVars (Set.insert id)
             (msum $ map mkResult tc) `mplus` return (Map.empty, t)
-    ) `mplus` (do
-        -- or replace the variable with previous names
-        -- type classes constraints lost
-        prevVars <- gets $ view beginTypeVars
-        let prevVars' = Set.delete id prevVars
-        msum $ map (return . (Map.empty,) . vart_) (Set.toList prevVars')
-        )
 generalizeSType tcass t@(FunctionT x tArg tRes) = do
     (argTyclass, tArg') <- generalizeSType tcass tArg
     (resTyclass, tRes') <- generalizeSType tcass tRes
@@ -350,7 +286,7 @@ generalizeSType tcass t@(ScalarT (DatatypeT name args _) _) = (do
     if (null args) || (show t == "[Char]") then datatypeToVar tcass t else mzero
 generalizeSType _ t = error $ "unsupported type " ++ show t
 
-datatypeToVar :: TyclassAssignment -> SType -> TypeGeneralizer IO (TyclassAssignment, SType)
+datatypeToVar :: MonadIO m => TyclassAssignment -> SType -> TypeGeneralizer m (TyclassAssignment, SType)
 datatypeToVar tcass t = do
     -- generalize the data type into a fresh type variable
     -- or reuse previous variables if tyclass checks
@@ -389,24 +325,16 @@ datatypeToVar tcass t = do
                     (msum $ map (\tc -> return (Map.singleton varName (Set.singleton tc), vart_ varName)) dtclasses)
             else mzero
 
-swapAssignments :: AntiUnifier IO ()
-swapAssignments = do
-    tass1 <- gets $ view typeAssignment1
-    tass2 <- gets $ view typeAssignment2
-    modify $ set typeAssignment1 tass2
-    modify $ set typeAssignment2 tass1
-
 -- check the type class constraints for @t1@ and @t2@
 -- return a new type variable with the calculated type classes
-checkTyclass :: SType -> SType -> AntiUnifier IO SType
+checkTyclass :: MonadIO m => SType -> SType -> AntiUnifier m (Maybe (Set Id))
 checkTyclass t1@(ScalarT (TypeVarT _ id1) _) t2@(ScalarT (TypeVarT _ id2) _) = do
     -- assume both type variables cannot be freely unified
     tcass <- gets $ view tyclassAssignment
     let tc1 = Map.findWithDefault Set.empty id1 tcass
     let tc2 = Map.findWithDefault Set.empty id2 tcass
     let tc = tc1 `Set.intersection` tc2
-    let mbTyclass = if Set.null tc then Nothing else Just tc
-    newAntiVariable t1 t2 mbTyclass
+    return (if Set.null tc then Nothing else Just tc)
 checkTyclass t1@(ScalarT (TypeVarT _ id) _) t2 = do
     -- check the type class for the data type
     tcass <- gets $ view tyclassAssignment
@@ -415,32 +343,26 @@ checkTyclass t1@(ScalarT (TypeVarT _ id) _) t2 = do
     tc <- case Map.lookup t2 tccache of
         Just tc2 -> return $ tc1 `Set.intersection` Set.fromList tc2
         Nothing -> do
-            tc2 <- lift $ getDtTyclasses tcass t2
+            tc2 <- lift . lift $ getDtTyclasses tcass t2
             return $ tc1 `Set.intersection` tc2
-    let mbTyclass = if Set.null tc then Nothing else Just tc
-    newAntiVariable t1 t2 mbTyclass
-checkTyclass t1 t2@(ScalarT (TypeVarT {}) _) = do
-    swapAssignments
-    result <- checkTyclass t2 t1
-    swapAssignments
-    return result
+    return (if Set.null tc then Nothing else Just tc)
+checkTyclass t1 t2@(ScalarT (TypeVarT {}) _) = checkTyclass t2 t1
 checkTyclass t1 t2 = do
     tccache <- lift $ gets $ view tyclassCache
     tcass <- gets $ view tyclassAssignment
-    tc1 <- maybe (lift $ getDtTyclasses tcass t1) (return . Set.fromList) (Map.lookup t1 tccache)
-    tc2 <- maybe (lift $ getDtTyclasses tcass t2) (return . Set.fromList) (Map.lookup t2 tccache)
+    tc1 <- maybe (lift . lift $ getDtTyclasses tcass t1) (return . Set.fromList) (Map.lookup t1 tccache)
+    tc2 <- maybe (lift . lift $ getDtTyclasses tcass t2) (return . Set.fromList) (Map.lookup t2 tccache)
     let tc = tc1 `Set.intersection` tc2
-    let mbTyclass = if Set.null tc then Nothing else Just tc
-    newAntiVariable t1 t2 mbTyclass
+    return (if Set.null tc then Nothing else Just tc)
 
-getDtTyclasses :: TyclassAssignment -> SType -> StateT TypeClassState IO TyclassConstraints
+getDtTyclasses :: MonadIO m => TyclassAssignment -> SType -> StateT TypeClassState m TyclassConstraints
 getDtTyclasses tcass typ = do
     mbCandidates <- mapM (mkTyclassQuery tcass typ) supportedTyclasses
     let tc = map fromJust $ filter isJust mbCandidates
     modify $ over tyclassCache (Map.insert typ tc)
     return $ Set.fromList tc
 
-mkTyclassQuery :: TyclassAssignment -> SType -> String -> StateT TypeClassState IO (Maybe String)
+mkTyclassQuery :: MonadIO m => TyclassAssignment -> SType -> String -> StateT TypeClassState m (Maybe String)
 mkTyclassQuery tcass typ tyclass = do
     mdls <- gets $ view supportModules
     let vars = Set.toList $ typeVarsOf typ
@@ -456,7 +378,7 @@ mkTyclassQuery tcass typ tyclass = do
               (\(e :: SomeException) -> liftIO (print e) >> return Nothing)
 
 defaultTypeVar :: SType -> SType -> SType
-defaultTypeVar to (ScalarT (TypeVarT _ v) _) | univTypeVarPrefix == head v = to
+defaultTypeVar to (ScalarT (TypeVarT _ v) _) | wildcardPrefix == head v = to
 defaultTypeVar to (ScalarT (DatatypeT name args _) _) =
     let args' = map (defaultTypeVar to) args
      in ScalarT (DatatypeT name args' []) ()
@@ -549,3 +471,78 @@ scoreSignature auType tyclass t =
         substCount k s = Set.size s
      in fromIntegral (Map.foldrWithKey (\k v -> (+) $ substCount k v) 0 subst) + -- penalty for more than one non-identity subst
          tcCount - 0.1 * fromIntegral varsCount
+
+checkConstraints :: MonadIO m => AntiUnifier m ()
+checkConstraints = do
+    -- first call type checker for unification constraints
+    -- liftIO $ print "start unification"
+    unifs <- gets $ view unifConstraints
+    mapM_ checkConstraint unifs
+    -- then call type checker for disunification constraints, with the previous unifier
+    -- liftIO $ print "start disunification"
+    disunifs <- gets $ view disunifConstraints
+    mapM_ checkConstraint disunifs
+
+checkConstraint :: MonadIO m => AntiUnifConstraint -> AntiUnifier m ()
+checkConstraint (UnifConstraint t1 t2) = do
+    -- liftIO (print "checkUnif")
+    -- liftIO (print (t1, t2))
+    checkUnification t1 t2
+checkConstraint (DisunifConstraint t1 t2) = do
+    -- liftIO $ print "checkDisunif"
+    tass <- gets $ view tmpAssignment
+    -- liftIO $ print tass
+    let t1' = stypeSubstitute tass t1
+    let t2' = stypeSubstitute tass t2
+    -- liftIO $ print (t1', t2')
+    checkDisunification t1' t2'
+    -- liftIO $ print "end checkConstraint"
+
+checkUnification :: MonadIO m => SType -> SType -> AntiUnifier m ()
+checkUnification t1 t2 = do
+    -- liftIO $ print "checkUnification"
+    -- liftIO $ print (t1, t2)
+    let vars = Set.toList $ typeVarsOf t1 `Set.union` typeVarsOf t2
+    let boundVars = filter ((/=) wildcardPrefix . head) vars
+    let env = emptyEnv { _boundTypeVars = boundVars }
+    let p1 = Monotype (addTrue t1)
+    let p2 = Monotype (addTrue t2)
+    tmpAss <- gets $ view tmpAssignment
+    names <- getNameCounter
+    -- liftIO $ print tmpAss
+    -- liftIO $ print (p1, p2)
+    (isChecked, tass) <- liftIO $ do
+        messageChan <- newChan
+        let initChecker = Types.TypeChecker.emptyChecker { 
+                            Types.TypeChecker._checkerChan = messageChan
+                          , Types.TypeChecker._typeAssignment = tmpAss
+                          , Types.TypeChecker._nameCounter = names
+                          }
+        checkTypes env initChecker vars p1 p2
+    guard isChecked
+    modify $ set tmpAssignment tass
+    -- liftIO $ print "checkUnification end"
+
+checkDisunification :: MonadIO m => SType -> SType -> AntiUnifier m ()
+checkDisunification t1 t2 | t1 == t2 = mzero
+checkDisunification (ScalarT (TypeVarT _ id) _) _ | wildcardPrefix == head id = return ()
+checkDisunification _ (ScalarT (TypeVarT _ id) _) | wildcardPrefix == head id = return ()
+checkDisunification (ScalarT (DatatypeT dt1 args1 _) _) (ScalarT (DatatypeT dt2 args2 _) _)
+  | dt1 /= dt2 = return ()
+  | dt1 == dt2 && null args1 && null args2 = mzero
+  | otherwise = checkArgs args1 args2
+  where
+      checkArgs [] [] = mzero
+      checkArgs (arg1:args1) (arg2:args2) = ifte (checkDisunification arg1 arg2) 
+                                                 (const (return ()))
+                                                 (checkArgs args1 args2)
+checkDisunification (FunctionT _ tArg1 tRes1) (FunctionT _ tArg2 tRes2) = do
+    checkDisunification tArg1 tArg2
+    checkDisunification tRes1 tRes2
+checkDisunification _ _ = return ()
+
+hasWildcard :: SType -> Bool
+hasWildcard (ScalarT (DatatypeT _ args _) _) = any hasWildcard args
+hasWildcard (ScalarT (TypeVarT _ name) _) = wildcardPrefix == head name
+hasWildcard (FunctionT _ tArg tRes) = hasWildcard tArg || hasWildcard tRes
+hasWildcard _ = False

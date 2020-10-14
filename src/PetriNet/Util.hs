@@ -13,6 +13,7 @@ import Types.IOFormat
 import Types.Filtering (AssociativeExamples)
 import Types.CheckMonad
 import Types.TypeChecker (Checker)
+import Types.InfConstraint (wildcardPrefix)
 import qualified Types.TypeChecker as Checker
 import Synquid.Program
 import Synquid.Logic hiding (varName)
@@ -95,7 +96,8 @@ freshType bounds t = freshType' Map.empty [] t
   where
     freshType' subst constraints (ForallT a sch) = do
         a' <- freshId bounds "tau"
-        freshType' (Map.insert a (vart a' ftrue) subst) (a':constraints) sch
+        let v = if head a == wildcardPrefix then wildcardPrefix:a' else a'
+        freshType' (Map.insert a (vart v ftrue) subst) (v:constraints) sch
     freshType' subst constraints (Monotype t) = return (typeSubstitute subst t)
 
 findSymbol :: (CheckMonad (t m), MonadIO (t m), MonadIO m) => Environment -> Id -> t m RType
