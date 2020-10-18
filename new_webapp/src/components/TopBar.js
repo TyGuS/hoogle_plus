@@ -2,14 +2,16 @@ import React from "react";
 import { log } from "../utilities/logger";
 
 export const TopBar = () => (
-    <div className="container">
+    <div className="container mb-5">
         <div style={dlStyle}><small><a href="#" onClick={dlClick}>download log</a></small></div>
         <h1 className="hplus_font">
             <a href="." className="nav-link" id="home">Hoogle+</a>
             <br></br>
         </h1>
-        <h5 className="title"> Welcome to the Hoogle+ Demo </h5>
-        <p className="description"> {flavorText} </p>
+        <div className="container px-4">
+            <h5 className="title"> Welcome to the Hoogle+ Demo </h5>
+            <p className="description"> {flavorText} </p>
+        </div>
     </div>
 );
 

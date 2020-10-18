@@ -14,7 +14,7 @@ const mapDispatchToProps = (dispatch) => {
     return {
         setSearchType: ({query}) => dispatch(setSearchType({query})),
         doSearch: ({query, examples}) => dispatch(doSearch({query, examples})),
-        getTypesFromExamples: usages => dispatch(getTypesFromExamples(usages)),
+        getTypesFromExamples: (usages, argNames) => dispatch(getTypesFromExamples(usages, argNames)),
         unfocusEditingRow: _ => {
             dispatch(setExampleEditingRow(null));
             dispatch(setExampleEditingCol(null));
@@ -33,6 +33,7 @@ const mapStateToProps = (state) => {
         errorMessage: state.spec.errorMessage,
         searchStatus: state.spec.searchStatus,
         isEditing: !!state.spec.editingExampleRow,
+        argNames: state.spec.argNames,
         queryId: state.candidates.queryId,
         canStop: !!state.spec.searchPromise,
         hasResults: state.candidates.results.length > 0,
@@ -40,7 +41,7 @@ const mapStateToProps = (state) => {
 };
 
 const connectedSearchBar = (props) => {
-    const { searchType, exampleRows, searchStatus, errorMessage, isEditing, queryId } = props;
+    const { searchType, exampleRows, searchStatus, errorMessage, isEditing, queryId, argNames } = props;
     const { setSearchType, doSearch, getTypesFromExamples, doStop, unfocusEditingRow } = props;
     const {search} = getDefaultFeatures();
 
@@ -56,7 +57,7 @@ const connectedSearchBar = (props) => {
     const handleSubmit = (event) => {
         event.preventDefault();
         if (isMissingType(searchType)) {
-            getTypesFromExamples(filteredUsages);
+            getTypesFromExamples(filteredUsages, argNames);
             return;
         }
         props.markClean();
@@ -114,9 +115,9 @@ const connectedSearchBar = (props) => {
     }
 
     return (
-        <div className="container">
+        <div className="container px-4 py-3">
             <TypeSelection hidden={!search.permitTypeCandidates} />
-            <div className="container">
+            <div>
                 <Form onSubmit={handleSubmit}>
                 <div className="mb-3">
                     <div className="text-left mb-3 font-weight-bold">
@@ -149,7 +150,7 @@ const connectedSearchBar = (props) => {
                     </div>
                 </div>
 
-                <div className="row justify-content-center">
+                <div className="row justify-content-center mt-5">
                     <div className="col-10">
                         <Button
                             className="mr-2"

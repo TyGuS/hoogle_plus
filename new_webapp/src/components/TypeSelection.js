@@ -1,7 +1,7 @@
 import React from "react";
 import { connect } from "react-redux";
 import Highlight from "react-highlight.js";
-import { Modal, Button, ButtonGroup} from "react-bootstrap";
+import { Modal, Button, ButtonGroup, ListGroup} from "react-bootstrap";
 import { setModalClosed, selectTypeFromOptions } from "../actions";
 
 const mapStateToProps = (state) => {
@@ -35,23 +35,26 @@ const TypeSelectionBase = (props) => {
         </Modal.Header>
         <Modal.Body>
         <div className="container">
-            <div className="row">
+            <div>
             To help us give you the best results,
             help us narrow down the type signature.
             Please select one of the following:
             </div>
             <br/>
-            <div className="row justify-content-center">
-            <div className="col-12">
-                {typeOptions.map((typeStr, idx) => {
-                    return (<div className="row pb-2" key={idx}>
-                        <Button
-                            onClick={() => mkSelection(typeStr)}>
-                                {idx + 1}
-                        </Button>
-                        <div className="col-10"><Highlight language="haskell">{typeStr}</Highlight></div>
-                    </div>);
-                })}
+            <div className="justify-content-center">
+            <div>
+                <ListGroup>
+                    {typeOptions.map((typeStr, idx) => {
+                        return (
+                            <ListGroup.Item action
+                                onClick={() => mkSelection(typeStr)}>
+                                    <Highlight language="haskell">
+                                        {typeStr}
+                                    </Highlight>
+                                    {/* {idx + 1} */}
+                            </ListGroup.Item>);
+                    })}
+                </ListGroup>
             </div>
             </div>
         </div>

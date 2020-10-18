@@ -8,7 +8,7 @@ function App() {
   return (
     <div className="App container">
       <TopBar/>
-      <div className="container">
+      <div className="container mb-5">
         <div className=" card py-3">
           <SearchBar />
         </div>

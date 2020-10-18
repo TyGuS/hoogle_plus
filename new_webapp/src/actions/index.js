@@ -214,10 +214,10 @@ export const doSearch = ({query, examples}) => (dispatch) => {
 // A user gave us some examples. We need to get some possible query options
 // and present them.
 // [{inputs:[str], output:str}]
-export const getTypesFromExamples = (examples) => (dispatch) => {
+export const getTypesFromExamples = (examples, argNames) => (dispatch) => {
     dispatch(setSearchStatus({status:LOADING}));
     dispatch(filterResults({examples}));
-    const {abort, ready} = Search.getTypeCandidates({examples});
+    const {abort, ready} = Search.getTypeCandidates({examples, argNames});
     const readyPromise = ready
         .then(value => {
             if (value["typeCandidates"]) {

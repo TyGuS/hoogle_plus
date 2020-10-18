@@ -43,20 +43,20 @@ const mapDispatchToProps = (dispatch) => {
 };
 
 const UsageTableBase = ({
-  candidateId, code, examplesShown,
+  candidateId, code, examplesShown, argNames,
   numColumns, rows:stateRows,
   keepUsage, updateUsage, addCandidateUsage}) => {
 
     const internalRows = generateRows(_.take(stateRows, examplesShown));
-    const argNames = getArgNames(numColumns - 1);
+    // const argNames = getArgNames(numColumns - 1);
 
     let cols = [];
     let colExtensions = [];
     const width = Math.floor(1 / (numColumns + 1) * 100) + "%";
     for (let index = 0; index < numColumns - 1; index++) {
-      cols = cols.concat({name: "arg" + index, title: "arg" + index});
+      cols = cols.concat({name: index, title: argNames[index]});
       colExtensions = colExtensions.concat({
-        columnName: "arg" + index,
+        columnName: argNames[index],
         width: width,
       })
     };
@@ -80,7 +80,7 @@ const UsageTableBase = ({
           .map(row => ({ ...row, ...changed[row.id]}));
         // changedRows = internalRows.map(row => (changed[row.id] ? { ...row, ...changed[row.id] } : row));
         modifiedRows.forEach(modifiedRow => {
-          const inputs = argNames.map(name => modifiedRow[name]);
+          const inputs = argNames.map((name, idx) => modifiedRow[idx]);
           updateUsage({
             candidateId, code, inputs,
             usageId: modifiedRow.id,

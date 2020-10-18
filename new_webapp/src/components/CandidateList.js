@@ -4,17 +4,18 @@ import { Button, Card, Badge, OverlayTrigger, Tooltip } from "react-bootstrap";
 import Collapsible from "react-collapsible";
 import { connect } from "react-redux";
 import { BounceLoader } from "react-spinners";
-import Highlight from "react-highlight.js";
 import UsageTable from "./UsageTable";
 import { getMoreExamples } from "../actions";
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 import { getDefaultFeatures } from "../utilities/featureManager";
+import Highlight from "react-highlight.js";
 
 const mapStateToProps = state => {
     return {
         candidates: state.candidates.results,
         isFetching: state.candidates.isFetching,
         numArgs: state.spec.numArgs,
+        argNames: state.spec.argNames,
     };
 }
 
@@ -25,7 +26,7 @@ const mapDispatchToProps = dispatch => {
 };
 
 const ConnectedCandidateList = (props) => {
-    const {candidates, numArgs, isFetching, getMoreExamples} = props;
+    const {candidates, numArgs, argNames, isFetching, getMoreExamples} = props;
     const {results: resultsFeatures} = getDefaultFeatures();
 
     // code: str; docs: [{doc, name, signature}]
@@ -35,46 +36,49 @@ const ConnectedCandidateList = (props) => {
             docLookup[doc.name] = doc;
         });
         const wordLike = code.split(/\b/);
-        return wordLike.map((word, idx) => {
+        const codeSnippet = wordLike.map((word, idx) => {
             const wordSpan = (<span key={idx}>{word}</span>);
             if (! (word in docLookup)) {
-                return wordSpan
+                return wordSpan;
             }
             const docLine = docLookup[word].doc.split("\n").map((line, idx) => (
                 <div key={idx} className="doc-line">{line}</div>));
             const toolTip = (
                 <Tooltip>
-                    <h6>{word} :: {docLookup[word].signature}</h6>
+                    {word} :: {docLookup[word].signature}
                     {docLine}
                 </Tooltip>
             );
             return (
                 <OverlayTrigger
                     key={idx}
-                    placement="top"
+                    placement="auto-start"
                     delay={{ show: 150, hide: 200 }}
                     overlay={toolTip}
                 >
-                {wordSpan}
+                    {wordSpan}
                 </OverlayTrigger>
             );
         });
+        return (
+            codeSnippet
+        );
     }
 
     return (
-        <div>
+        <div className="container">
             {candidates.map((result, idx) => {
                 const {code, examplesStatus, candidateId, errorMessage, docs} = result;
                 const examples = result.examples || [];
                 const header = (
                     <Card.Header className="candidate-header">
-                        <h4>
+                        <h5>
                             <Badge variant="secondary"
                                 className="badge"
                             >
                                 {idx + 1}
                             </Badge>
-                        </h4>
+                        </h5>
                         {addDocs(code, docs)}
                     </Card.Header>
                 );
@@ -98,6 +102,7 @@ const ConnectedCandidateList = (props) => {
                                     (<UsageTable
                                         numColumns={numArgs + 1}
                                         rows={examples}
+                                        argNames={argNames}
                                         {...result}
                                     />) : (<></>)}
                                     </div>

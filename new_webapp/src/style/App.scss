@@ -78,7 +78,7 @@
 }
 
 // HighlightJS in a table adds too much space
-td > pre {
+pre {
   margin: 0
 }
 
@@ -91,4 +91,8 @@ td > pre {
 
 .table thead th {
   vertical-align: middle !important;
+}
+
+button:hover {
+  cursor: pointer;
 }

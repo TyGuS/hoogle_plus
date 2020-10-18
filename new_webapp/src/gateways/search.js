@@ -1,10 +1,11 @@
 import {baseRoute, handleFetch, abortableFetch} from "../utilities/fetches";
 
-const getTypeCandidates = ({id, examples}, cb) => {
+const getTypeCandidates = ({id, examples, argNames}, cb) => {
     const ROUTE = baseRoute + "search/example";
 
     let data = {
-        facts: examples || []
+        facts: examples || [],
+        argNames,
     };
 
     const fetchOpts = {
