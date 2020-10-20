@@ -144,7 +144,8 @@ runInference isStudy bm = do
                       else runTest 3 bm
     let combinations = if isStudy then [exs] else tail (inits exs)
     mapM (\xs -> silence $ do
-        let inStr = unpack (encode (QueryInput "??" xs))
+        let names = map (\i -> "arg" ++ show i) [0..(length (inputs (head xs)) - 1)]
+        let inStr = unpack (encode (QueryInput "??" xs names))
         (ListOutput res _, stats) <- searchTypes defaultSynquidParams inStr 10
         dt <- getMetadata res stats
         return $ dt { genExamples = xs }

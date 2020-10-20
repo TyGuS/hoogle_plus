@@ -7,6 +7,7 @@ module Synquid.Pretty (
   renderPretty,
   putDoc,
   prettyShow,
+  prettySTypeWithName,
   -- * Basic documents
   empty,
   isEmpty,
@@ -302,6 +303,13 @@ instance Pretty RType where
 
 instance Show RType where
  show = show . plain . pretty
+
+prettySTypeWithName :: SType -> Doc
+prettySTypeWithName (ScalarT base _) = pretty base
+prettySTypeWithName (FunctionT x t1 t2)
+  | isFunctionType t1 = text x <+> operator ":" <+> hlParens (pretty t1) <+> operator "->" <+> pretty t2
+  | otherwise = text x <+> operator ":" <+> pretty t1 <+> operator "->" <+> pretty t2
+prettySTypeWithName AnyT = text "_"
 
 prettySchema :: Pretty (TypeSkeleton r) => SchemaSkeleton r -> Doc
 prettySchema sch = case sch of

@@ -54,8 +54,8 @@ parseExample mdls mkFun = catch (do
         toInt (ForallT x t) = ForallT x (toInt t)
         toInt (Monotype t) = Monotype (integerToInt t)
 
-getExampleTypes :: Environment -> [RSchema] -> Int -> IO ([String], InfStats)
-getExampleTypes env validSchemas num = do
+getExampleTypes :: Environment -> [Id] -> [RSchema] -> Int -> IO ([String], InfStats)
+getExampleTypes env argNames validSchemas num = do
     let mdls = env ^. included_modules
     let initTyclassState = emptyTyclassState { _supportModules = Set.toList mdls }
     -- remove magic number later
@@ -64,7 +64,7 @@ getExampleTypes env validSchemas num = do
         mapM (\(t, st) -> zip (repeat t) <$> getGeneralizations t st) mbFreeVars
         ) initTyclassState
     let sortedTyps = sortOn (\(t, (tc, gt)) -> scoreSignature t tc gt) (concat typs)
-    let tcTyps = map (addTyclasses . snd) sortedTyps
+    let tcTyps = map (addTyclasses . over _2 (addArgNames argNames) . snd) sortedTyps
     return (take num tcTyps, st ^. infStats)
     where
         stepAntiUnification (t1, st) t2 = antiUnification t1 t2 st
@@ -88,8 +88,15 @@ getExampleTypes env validSchemas num = do
                             filter (not . null) $
                             map toConstraint $
                             Map.toList constraints
-             in if null tyclasses then show t
-                                  else printf "(%s) => %s" tyclasses (show t)
+                strTyp = show $ prettySTypeWithName t
+             in if null tyclasses then strTyp
+                                  else printf "(%s) => %s" tyclasses strTyp
+
+        addArgNames [] t = t
+        addArgNames (arg:args) (FunctionT _ tArg tRes) = 
+            FunctionT arg tArg (addArgNames args tRes)
+        addArgNames _ _ = error "unmatched number of arguments between argNames and query type"
+
         padding t xs = zip (repeat (fst t)) xs
         flattenResult (antiUnifs, generals) = zipWith padding antiUnifs generals
 

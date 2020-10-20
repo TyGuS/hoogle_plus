@@ -20,12 +20,13 @@ const getTypeCandidates = ({id, examples, argNames}, cb) => {
     };
 }
 
-const getCodeCandidates = ({query, examples}, cb) => {
+const getCodeCandidates = ({query, examples, argNames}, cb) => {
     const ROUTE = baseRoute + "search/type";
 
     let data = {
         typeSignature: query,
-        facts: examples || []
+        facts: examples || [],
+        argNames
     };
 
     const fetchOpts = {

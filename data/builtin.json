@@ -14,7 +14,8 @@
              "inputs": ["\\x -> x", "100", "100"],
              "output": "??"
         }
-    ]
+    ],
+    "inArgNames": ["f", "x", "n"]
 },
 {
     "query": "f: ([Int] -> [Int]) -> x: [Int] -> n: Int -> [Int]",
@@ -27,7 +28,8 @@
              "inputs": ["\\x -> 0:x", "[1,2,3]", "3"],
              "output": "??"
         }
-    ]
+    ],
+    "inArgNames": ["f", "x", "n"]
 },
 {
     "query": "f: ([Char] -> [Char]) -> x: [Char] -> n: Int -> [Char]",
@@ -36,6 +38,7 @@
              "inputs": ["\\x -> x ++ x", "\"f-\"", "3"],
              "output": "??"
         }
-    ]
+    ],
+    "inArgNames": ["f", "x", "n"]
 }
 ]

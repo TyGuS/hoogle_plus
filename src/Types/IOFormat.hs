@@ -38,7 +38,8 @@ type TypeQuery = String
 
 data QueryInput = QueryInput {
     query :: TypeQuery,
-    inExamples :: [Example]
+    inExamples :: [Example],
+    inArgNames :: [String]
 } deriving(Eq, Show, Generic)
 
 instance FromJSON QueryInput

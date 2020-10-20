@@ -41,7 +41,8 @@ def create_app(test_config=None):
         obj = json.loads(request.data)
         query = {
                  'query': obj['typeSignature'],
-                 'inExamples': obj['facts']
+                 'inExamples': obj['facts'],
+                 'inArgNames': obj['argNames']
                 }
         qid = uuid.uuid1()
         proc = run_hplus([f'--json={json.dumps(query)}',
@@ -60,7 +61,8 @@ def create_app(test_config=None):
         # print(obj)
         query = {
                  'query': '??',
-                 'inExamples': obj['facts']
+                 'inExamples': obj['facts'],
+                 'inArgNames': obj['argNames']
                 }
         proc = run_hplus([f'--json={json.dumps(query)}',
                           f'--search-type={QueryType.search_types.value}'])

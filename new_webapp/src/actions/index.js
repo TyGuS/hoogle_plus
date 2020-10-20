@@ -173,10 +173,10 @@ export const refineSearch = ({query, examples}) => (dispatch, getState) => {
 
 // This is where a request needs to be sent to the server
 // query: str; examples: [{inputs:[str], output:str}]
-export const doSearch = ({query, examples}) => (dispatch) => {
+export const doSearch = ({query, examples, argNames}) => (dispatch) => {
     dispatch(setSearchStatus({status:LOADING, searchType: query, examples}));
 
-    const {abort, ready} = Search.getCodeCandidates({query, examples}, (candidates => {
+    const {abort, ready} = Search.getCodeCandidates({query, examples, argNames}, (candidates => {
             if (!candidates.error) {
                 dispatch(addCandidates(candidates));
             }

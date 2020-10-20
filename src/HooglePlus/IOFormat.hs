@@ -94,7 +94,7 @@ readBuiltinData synquidParams env = do
             return $ env {_queryCandidates = candMap}
         Nothing -> error "Invalid format of builtin queries, should be in json format"
     where
-        transformObj (QueryInput q exs) = (parseQueryType env q, exs)
+        transformObj (QueryInput q exs _) = (parseQueryType env q, exs)
 
 parseQueryType :: Environment -> String -> RSchema
 parseQueryType env str = let
@@ -117,7 +117,8 @@ searchTypes synquidParams inStr num = do
     let mkFun ex = printf "(%s)" (intercalate ", " $ inputs ex ++ [output ex])
     exTypes <- mapM (parseExample mdls . mkFun) exquery
     let (validSchemas, invalidTypes) = partitionEithers exTypes
-    resultObj <- if null invalidTypes then possibleQueries env exquery validSchemas
+    let argNames = inArgNames input
+    resultObj <- if null invalidTypes then possibleQueries env argNames exquery validSchemas
                                       else return $ (ListOutput [] (unlines invalidTypes), InfStats (-1) (-1))
     printResult $ encodeWithPrefix $ fst resultObj
     return resultObj
@@ -129,8 +130,8 @@ searchTypes synquidParams inStr num = do
                 substMap = Map.fromList $ zip substVars $ map vart_ validVars
              in stypeSubstitute substMap t
 
-        possibleQueries env exquery exTypes = do
-            (generalTypes, stats) <- getExampleTypes env exTypes num
+        possibleQueries env argNames exquery exTypes = do
+            (generalTypes, stats) <- getExampleTypes env argNames exTypes num
             if null generalTypes then return $ (ListOutput [] "Cannot find type for your query", InfStats 0 0)
                                  else return $ (ListOutput generalTypes "", stats)
 
@@ -159,12 +160,16 @@ searchExamples synquidParams inStr num = do
     let prog = exampleProgram input
     -- TODO: maybe we need to do a type checking before execution
     -- but it will also be shown in the results
-    let strQuery = exampleQuery input
+    let namedQuery = exampleQuery input
+    
     env <- readEnv $ envPath synquidParams
     env' <- readBuiltinData synquidParams env
     let mdls = Set.toList $ env' ^. included_modules
     let candMap = env' ^. queryCandidates
-    let funcSig = parseTypeString strQuery
+
+    let goalTyp = parseQueryType env' namedQuery
+    let unnamedQuery = show (toMonotype goalTyp)
+    let funcSig = parseTypeString unnamedQuery
     -- remove magic numbers later
     -- we not only need to know existing results, since this should come from
     -- the diverse stream, we also need to pass all the current solutions into
@@ -198,7 +203,10 @@ searchResults :: SynquidParams -> String -> IO ()
 searchResults synquidParams inStr = do
     (tquery, args, prog, env) <- prepareEnvFromInput synquidParams inStr
     let mdls = Set.toList $ env ^. included_modules
-    execResult <- catch (execExample mdls env tquery prog (Example args "??"))
+    -- first parse type query and get rid of the arg names from the signature
+    let goalTyp = parseQueryType env tquery
+    let goalTypStr = show (toMonotype goalTyp)
+    execResult <- catch (execExample mdls env goalTypStr prog (Example args "??"))
                         (\(e :: SomeException) -> return $ Left (show e))
     let execJson = case execResult of
                         Left err -> ExecOutput err ""
