@@ -334,29 +334,13 @@ prettyProgram (Program p typ) = case p of
     PSymbol s -> case asInteger s of
                   Nothing -> if s == valueVarName then special s else text s
                   Just n -> intLiteral n
-    PApp f x -> let
+    PApp pFun pArg -> let
       optParens p = case p of
         Program (PSymbol _) _ -> prettyProgram p
         Program PHole _ -> prettyProgram p
         _ -> hlParens (prettyProgram p)
-      funName = case f of
-                  "Cons" -> "(:)"
-                  "Pair" -> "(,)"
-                  _      -> f
-      mbPair f = if f == "(,)" then hlParens else id
-      isTcArg p = case p of
-                    Program (PSymbol n) _ -> tyclassArgBase `isPrefixOf` n || tyclassInstancePrefix `isPrefixOf` n
-                    Program (PApp n _) _ -> tyclassPrefix `isPrefixOf` n || tyclassInstancePrefix `isPrefixOf` n
-                    _ -> False
-      countArgs = filter (not . isTcArg) x
-      prefix = if '(' == head funName && length countArgs == 2 -- infix operators
-                  then let funName' = drop 1 funName
-                           lastPart = reverse $ takeWhile ((/=) '.') $ tail $ reverse funName'
-                        in hang tab $ mbPair funName $ optParens (head countArgs) <+> text lastPart <+> optParens (countArgs !! 1)
-                  else hang tab $ text funName <+> hsep (map optParens x)
-      in if f `elem` Map.elems unOpTokens
-            then hang tab $ operator f <+> hsep (map optParens x)
-            else prefix
+      in optParens pFun <+> optParens pArg
+    PInfix pFst op pSnd -> prettyProgram pFst <+> operator op <+> prettyProgram pSnd
     PFun x e -> nest 2 $ operator "\\" <> text x <+> operator "->" </> prettyProgram e
     PIf c t e -> linebreak <> (hang tab $ keyword "if" <+> prettyProgram c $+$ (hang tab (keyword "then" </> prettyProgram t)) $+$ (hang tab (keyword "else" </> prettyProgram e)))
     PMatch l cases -> linebreak <> (hang tab $ keyword "match" <+> prettyProgram l <+> keyword "with" $+$ vsep (map prettyCase cases))
@@ -489,7 +473,7 @@ typeNodeCount (FunctionT _ tArg tRes) = typeNodeCount tArg + typeNodeCount tRes
 programNodeCount :: RProgram -> Int
 programNodeCount (Program p _) = case p of
   PSymbol _ -> 1
-  PApp e1 e2 -> 1 + sum (map programNodeCount e2)
+  PApp e1 e2 -> 1 + programNodeCount e1 + programNodeCount e2
   PFun _ e -> 1 + programNodeCount e
   PIf c e1 e2 -> 1 + programNodeCount c + programNodeCount e1 + programNodeCount e2
   PMatch e cases -> 1 + programNodeCount e + sum (map (\(Case _ _ e) -> programNodeCount e) cases)

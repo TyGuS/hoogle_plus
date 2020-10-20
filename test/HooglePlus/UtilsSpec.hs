@@ -20,8 +20,6 @@ import Data.Either
 
 doParseType tyStr = flip evalState (initialPos "goal") $ runIndentParserT parseTypeMbTypeclasses () "" tyStr
 
-anyTy program = Program{typeOf=AnyT, content=program}
-
 -- separateFunctions :: String -> ([RType], RType)
 separateFunctions query = let
     res = either (\left -> error $ show left) id $ doParseType query
@@ -51,28 +49,26 @@ spec = do
 
     describe "mkLambdaStr" $ do
         it "outputs the body of simple function" $ do
-            let inputProgram = Program {
-                typeOf=AnyT,
-                content=PApp "arg0" [anyTy $ PSymbol "0"]
-            }
+            let inputProgram = untyped (
+                PApp (untyped $ PSymbol "arg0") (untyped $ PSymbol "0")
+            )
             let result = mkLambdaStr ["arg0"] inputProgram
             let expected = "(\\arg0 -> arg0 0)"
             result `shouldBe` expected
 
         it "handles non-arg named arguments" $ do
-            let inputProgram = Program {
-                typeOf=AnyT,
-                content=PApp "k" [anyTy $ PSymbol "0"]
-            }
+            let inputProgram = untyped (
+                PApp (untyped $ PSymbol "k") (untyped $ PSymbol "0")
+            )
             let result = mkLambdaStr ["k"] inputProgram
             let expected = "(\\k -> k 0)"
             result `shouldBe` expected
 
         it "upgrades a typeclass used as a param" $ do
-            let tcFunc = "show"
-            let inputProgram = anyTy (PApp tcFunc [
-                    anyTy (PSymbol "tcarg0"),
-                    anyTy (PSymbol "arg0")
+            let tcFunc = untyped $ PSymbol "show"
+            let inputProgram = untyped (PApp tcFunc [
+                    untyped (PSymbol "tcarg0"),
+                    untyped (PSymbol "arg0")
                     ])
             let result = mkLambdaStr ["tcarg0", "arg0"] inputProgram
             let expected = "(\\arg0 -> show arg0)"

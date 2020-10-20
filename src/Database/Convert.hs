@@ -34,6 +34,7 @@ import Synquid.Error
 import Synquid.Logic hiding (Var)
 import Synquid.Type
 import Synquid.Util
+import Synquid.Program (untyped)
 import Types.Common
 import Types.Generate
 import Types.Environment
@@ -542,18 +543,16 @@ definedDtsIn decls = map dtNameOf $ filter isDataDecl decls
 
 toSynquidProgram :: Exp SrcSpanInfo -> UProgram
 toSynquidProgram (Lambda _ pats body) =
-    foldr (\(PVar _ name) p -> Program (PFun (nameStr name) p) AnyT) (toSynquidProgram body) pats
-toSynquidProgram (Var _ qname) = Program (PSymbol (qnameStr qname)) AnyT
-toSynquidProgram (App _ fun arg) =
-    let synFun = toSynquidProgram fun
-     in case content synFun of
-          PSymbol f -> Program (PApp f [toSynquidProgram arg]) AnyT
-          PApp f args -> Program (PApp f (args ++ [toSynquidProgram arg])) AnyT
-          _ -> error "unrecognized function type"
+    foldr (\(PVar _ name) p -> untyped (PFun (nameStr name) p)) (toSynquidProgram body) pats
+toSynquidProgram (Var _ qname) = untyped (PSymbol (qnameStr qname))
+toSynquidProgram (App _ fun arg) = untyped (PApp fun' arg')
+    where
+        fun' = toSynquidProgram fun
+        arg' = toSynquidProgram arg
 toSynquidProgram (Paren _ e) = toSynquidProgram e
-toSynquidProgram (Con _ qname) = Program (PSymbol (qnameStr qname)) AnyT
+toSynquidProgram (Con _ qname) = untyped (PSymbol (qnameStr qname))
 toSynquidProgram (List _ elmts) = let
     args = map toSynquidProgram elmts
-    mkCons e acc = Program (PApp "Cons" [e, acc]) AnyT
-    in foldr mkCons (Program (PSymbol "Nil") AnyT) args
+    mkCons e acc = untyped (PApp (untyped (PApp (untyped (PSymbol "Cons")) e)) acc)
+    in foldr mkCons (untyped (PSymbol "Nil")) args
 toSynquidProgram e = error $ show e

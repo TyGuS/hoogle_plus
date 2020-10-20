@@ -75,24 +75,22 @@ propagate env p@(Program (PSymbol sym) t) upstream = do
 -- | starter case, when we start from a bottom type
 -- find the most general abstraction that unifies with the concrete types
 -- of the arguments, but not unify with the function args of its signature
-propagate env p@(Program (PApp f args) _) upstream = do
-    unless (isBot upstream) (propagate env (Program (PSymbol "x") AnyT) upstream)
+propagate env p@(Program (PApp fun arg) _) upstream = do
+    unless (isBot upstream) (propagate env (untyped (PSymbol "err")) upstream)
     writeLog 2 "propagate" $ text "propagate" <+> pretty upstream <+> text "into" <+> pretty p
-    t <- findSymbol env (removeLast '_' f)
-    let closedArgs = map (shape . typeOf) args
-    let argConcs = map toAbstractType closedArgs
-    let absFun = toAbstractType $ shape t
-    abstractArgs <- observeT $ mostGeneral argConcs absFun
-    mapM_ (uncurry $ propagate env) (zip args abstractArgs)
+    let absFun = toAbstractType (shape (typeOf fun))
+    let absArg = toAbstractType (shape (typeOf arg))
+    generalizedArg <- observeT $ mostGeneral absArg absFun
+    propagate env arg generalizedArg
   where
-    mostGeneral cArgs t = do
+    mostGeneral tArg tFun = do
         let bound = env ^. boundTypeVars
-        absArgs <- mapM (generalize bound) cArgs
-        lift $ writeLog 3 "propagate" $ text "get generalized types" <+> pretty absArgs <+> text "from" <+> pretty cArgs
-        res <- lift $ applySemantic bound t absArgs
-        lift $ writeLog 3 "propagate" $ text "apply" <+> pretty absArgs <+> text "to" <+> pretty t <+> text "gets" <+> pretty res
+        generalizedArg <- generalize bound tArg
+        lift $ writeLog 3 "propagate" $ text "get generalized type" <+> pretty generalizedArg <+> text "from" <+> pretty tArg
+        res <- lift $ applySemantic bound tFun generalizedArg
+        lift $ writeLog 3 "propagate" $ text "apply" <+> pretty generalizedArg <+> text "to" <+> pretty tFun <+> text "gets" <+> pretty res
         guard (isSubtypeOf bound res upstream)
-        return $ map compactAbstractType absArgs
+        return $ compactAbstractType generalizedArg
 -- | case for lambda functions
 propagate env (Program (PFun x body) (FunctionT _ tArg tRet))
               (AFunctionT atArg atRet) =

@@ -446,12 +446,15 @@ parseIf = do
 
 parseETerm = buildExpressionParser (exprTable mkUnary mkBinary False) (choice [parseAppTerm, parseAtomTerm]) <?> "elimination term"
   where
-    mkUnary op p = untyped $ PApp (unOpTokens Map.! op) [p]
-    mkBinary op p1 p2 = untyped $ PApp (binOpTokens Map.! op) [p1, p2]
+    mkUnary op = untyped . PApp (untyped $ PSymbol (unOpTokens Map.! op))
+    mkBinary op p1 p2 = untyped $ PApp (untyped $ PApp (untyped $ PSymbol (binOpTokens Map.! op)) p1) p2
     parseAppTerm = do
-      f <- parseIdentifier
+      fun <- parseAtomTerm
       args <- many (sameOrIndented >> (try parseAtomTerm <|> parens parseImpl))
-      return $ untyped $ PApp f args
+      case fun of
+        Program (PSymbol n) _ | '(' == head n && length args == 2 ->
+          return $ untyped $ PInfix (head args) n (last args)
+        _ -> return $ foldl (\e1 e2 -> untyped $ PApp e1 e2) fun args
     parseAtomTerm = choice [
         parens (withOptionalType parseImpl)
       , parseHole
@@ -469,8 +472,8 @@ parseList = do
   elems <- brackets (commaSep parseImpl)
   return $ foldr cons nil elems
   where
-    cons x xs = untyped $ PApp "Cons" [x, xs]
-    nil = untyped $ PSymbol "Nil"
+    cons x xs = untyped $ PInfix x ":" xs
+    nil = untyped $ PSymbol "[]"
 
 withOptionalType p = do
   (Program content _) <- p

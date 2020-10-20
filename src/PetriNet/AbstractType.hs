@@ -231,22 +231,35 @@ currentAbst tvs cover at = do
                        else Just paren
     currentAbst' at paren = Nothing
 
-applySemantic :: MonadIO m => [Id] -> AbstractSkeleton -> [AbstractSkeleton] -> PNSolver m AbstractSkeleton
-applySemantic tvs fun args = do
-    let cargs = init (decompose fun)
-    let ret = last (decompose fun)
-    let args' = map compactAbstractType args
-    constraints <- zipWithM (typeConstraints tvs) cargs args'
+applySemantic :: MonadIO m => [Id] -> AbstractSkeleton -> AbstractSkeleton -> PNSolver m AbstractSkeleton
+applySemantic tvs (AFunctionT tArg tRes) arg = do
+    constraints <- typeConstraints tvs tArg arg
     writeLog 3 "applySemantic" $ text "solving constraints" <+> pretty constraints
-    let unifier = getUnifier tvs (concat constraints)
+    let unifier = getUnifier tvs constraints
     case unifier of
         Nothing -> return ABottom
         Just m -> do
             writeLog 3 "applySemantic" $ text "get unifier" <+> pretty (Map.toList m)
             cover <- gets $ view (refineState . abstractionCover)
-            let substRes = abstractSubstitute m ret
+            let substRes = abstractSubstitute m tRes
             writeLog 3 "applySemantic" $ text "current cover" <+> text (show cover)
             currentAbst tvs cover substRes
+
+applySemanticSeq :: MonadIO m
+                 => [Id]  -- bounded type variables
+                 -> (AbstractSkeleton -> [AbstractSkeleton]) -- argument generator
+                 -> AbstractSkeleton -- the function to be applied
+                 -> PNSolver m [AbstractSkeleton] -- application results
+applySemanticSeq tvs argGenerator t | isBot t = return []
+applySemanticSeq tvs argGenerator tFun@(AFunctionT tArg tRes) = do
+    let args = argGenerator tArg
+    rets <- mapM (applySemantic tvs tFun) args
+    allRes <- mapM (applySemanticSeq tvs argGenerator) rets
+    return $ concat $ zipWith (map . AFunctionT) args allRes
+applySemanticSeq tvs _ t = do
+    cover <- gets $ view (refineState . abstractionCover)
+    t' <- currentAbst tvs cover t
+    return [t']
 
 compareAbstract :: [Id] -> AbstractSkeleton -> AbstractSkeleton -> Ordering
 compareAbstract tvs t1 t2 | isSubtypeOf tvs t1 t2 && isSubtypeOf tvs t2 t1 = EQ

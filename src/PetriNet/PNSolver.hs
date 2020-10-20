@@ -96,33 +96,27 @@ instantiateWith :: MonadIO m => Environment -> [AbstractSkeleton] -> Id -> RType
 instantiateWith env typs id t | id == "snd" = return []
 instantiateWith env typs id t = do
     instMap <- gets $ view (refineState . instanceMapping)
-    let bound = env ^. boundTypeVars
+    let tvs = env ^. boundTypeVars
     if id == "fst"
        then do -- this is hack, hope to get rid of it sometime
-           first <- freshType bound (Monotype t)
+           first <- freshType tvs (Monotype t)
            secod <- findSymbol env "snd"
-           fstSigs <- enumSigs $ toAbstractType $ shape first
-           sndSigs <- enumSigs $ toAbstractType $ shape secod
+           let absFst = toAbstractType $ shape first
+           let absSnd = toAbstractType $ shape secod
+           fstSigs <- applySemanticSeq tvs (const typs) absFst
+           sndSigs <- applySemanticSeq tvs (const typs) absSnd
            -- assertion, check they have same elements
            when (length fstSigs /= length sndSigs)
                 (error "fst and snd have different number of instantiations")
            let matches = zipWith assemblePair fstSigs sndSigs
-           let matches' = filter (\t -> noneInst instMap pairProj t || diffInst bound instMap pairProj t) matches
+           let matches' = filter (\t -> noneInst instMap pairProj t || diffInst tvs instMap pairProj t) matches
            mapM (mkNewSig pairProj) matches'
        else do
-           ft <- freshType bound (Monotype t)
+           ft <- freshType tvs (Monotype t)
            let t' = toAbstractType (shape ft)
-           rawSigs <- enumSigs t'
-           let sigs = filter (\t -> noneInst instMap id t || diffInst bound instMap id t) rawSigs
+           rawSigs <- applySemanticSeq tvs (const typs) t'
+           let sigs = filter (\t -> noneInst instMap id t || diffInst tvs instMap id t) rawSigs
            mapM (mkNewSig id) sigs
-  where
-    enumSigs typ = do
-        let bound = env ^. boundTypeVars
-        let argNum = length (decompose typ) - 1
-        let allArgCombs = multiPermutation argNum typs
-        applyRes <- mapM (applySemantic bound typ) allArgCombs
-        let resSigs = filter (not . isBot . fst) (zip applyRes allArgCombs)
-        return $ map (uncurry $ foldr AFunctionT) resSigs
 
 mkNewSig :: MonadIO m => Id -> AbstractSkeleton -> PNSolver m (Id, AbstractSkeleton)
 mkNewSig id ty = do
@@ -142,63 +136,45 @@ splitTransition :: MonadIO m => Environment -> AbstractSkeleton -> Id -> PNSolve
 splitTransition env newAt fid = do
     rep <- head <$> getGroupRep fid
     sigs <- gets $ view (searchState . currentSigs)
+    cover <- gets $ view (refineState . abstractionCover)
     let ty = lookupWithError "currentSigs" rep sigs
     writeLog 3 "splitTransition" $ text "split transtion" <+> text fid <+> text "::" <+> pretty ty
-    allSubsts ty
+    let tvs = env ^. boundTypeVars
+    -- get parent types of the new added one
+    let parents = HashMap.keys $ HashMap.filter (Set.member newAt) cover
+    let argGenerator = \t -> t : (if t `elem` parents then [newAt] else [])
+    addSubstedSigs tvs argGenerator ty
   where
-    allSubsts ty = allSubsts' (lastAbstract ty) (absFunArgs fid ty)
+    getOldTransition fixedFunId = do
+        -- get the concrete function type
+        funType <- findSymbol env fixedFunId
+        writeLog 3 "splitTransition" $ text fixedFunId <+> text "::" <+> pretty funType
+        return $ toAbstractType (shape funType)
 
-    allSubsts' ret args | pairProj `isPrefixOf` fid = do
-        cover <- gets $ view (refineState . abstractionCover)
-        nameMap <- gets $ view (typeChecker . nameMapping)
-        instMap <- gets $ view (refineState . instanceMapping)
-        let parents = HashMap.keys $ HashMap.filter (Set.member newAt) cover
-        let args' = enumArgs parents (take 1 args)
-        let fstRet = args !! 1
-        let sndRet = ret
-        fstType <- findSymbol env "fst"
-        sndType <- findSymbol env "snd"
-        let first = toAbstractType $ shape fstType
-        let secod = toAbstractType $ shape sndType
-        let tvs = env ^. boundTypeVars
-        fstRets <- mapM (applySemantic tvs first) args'
-        sndRets <- mapM (applySemantic tvs secod) args'
-        let sameFunc ([a], (fret, sret)) = equalAbstract tvs fret fstRet
-                                         && equalAbstract tvs sret sndRet
-                                         && a == head args
-        let validFunc (a, (fret, sret)) = not (sameFunc (a, (fret, sret)))
-                                      && not (isBot fret)
-                                      && not (isBot sret)
-        let funcs = filter validFunc (zip args' (zip fstRets sndRets))
-        let sigs = map (\([a], (ft, st)) -> assemblePair (AFunctionT a ft) (AFunctionT a st)) funcs
-        let sigs' = filter (\t -> noneInst instMap pairProj t || diffInst tvs instMap pairProj t) sigs
-        mapM (mkNewSig pairProj) sigs'
-    allSubsts' ret args = do
-        cover <- gets $ view (refineState . abstractionCover)
-        nameMap <- gets $ view (typeChecker . nameMapping)
-        splits <- gets $ view (refineState . splitTypes)
-        instMap <- gets $ view (refineState . instanceMapping)
-        let parents = HashMap.keys $ HashMap.filter (Set.member newAt) cover
-        let args' = enumArgs parents args
-        writeLog 3 "allSubsts'" $ pretty args'
-        funType <- findSymbol env fid
-        writeLog 3 "allSubsts'" $ text fid <+> text "::" <+> pretty funType
-        let absFunType = toAbstractType (shape funType)
-        let tvs = env ^. boundTypeVars
-        rets <- mapM (applySemantic tvs absFunType) args'
-        writeLog 3 "allSubsts'" $ text fid <+> text "returns" <+> pretty rets
-        let validFunc (a, r) = not (equalAbstract tvs ret r && a == args) && not (isBot r)
-        let funcs = filter validFunc (zip args' rets)
-        let sigs = map (\f -> foldr AFunctionT (snd f) (fst f)) funcs
-        let funId = lookupWithError "nameMapping" fid nameMap
-        let sigs' = filter (\t -> noneInst instMap funId t || diffInst tvs instMap funId t) sigs
-        mapM (mkNewSig funId) sigs'
-
-    enumArgs parents [] = [[]]
-    enumArgs parents (arg:args)
-      | arg `elem` parents = let args' = enumArgs parents args
-                              in [a:as | a <- [arg, newAt], as <- args']
-      | otherwise = map (arg:) (enumArgs parents args)
+    addSubstedSigs tvs argGenerator ty
+        | pairProj `isPrefixOf` fid = do
+            nameMap <- gets $ view (typeChecker . nameMapping)
+            instMap <- gets $ view (refineState . instanceMapping)
+            absFstType <- getOldTransition "fst"
+            absSndType <- getOldTransition "snd"
+            fstFuncs <- applySemanticSeq tvs argGenerator absFstType
+            sndFuncs <- applySemanticSeq tvs argGenerator absSndType
+            let isNewTrans (f, g) = not (equalAbstract tvs f absFstType) &&
+                                    not (equalAbstract tvs g absSndType)
+            let funcs = filter isNewTrans (zip fstFuncs sndFuncs)
+            let sigs = map (uncurry assemblePair) funcs
+            let sigs' = filter (\t -> noneInst instMap pairProj t || diffInst tvs instMap pairProj t) sigs
+            mapM (mkNewSig pairProj) sigs'
+        | otherwise = do
+            nameMap <- gets $ view (typeChecker . nameMapping)
+            instMap <- gets $ view (refineState . instanceMapping)
+            absFunType <- getOldTransition fid
+            funcs <- applySemanticSeq tvs argGenerator absFunType
+            let isNewTrans f = not (equalAbstract tvs f absFunType)
+            let sigs = filter isNewTrans funcs
+            let funId = lookupWithError "nameMapping" fid nameMap
+            let sigs' = filter (\t -> noneInst instMap funId t || diffInst tvs instMap funId t) sigs
+            mapM (mkNewSig funId) sigs'
 
 addSignatures :: MonadIO m => Environment -> PNSolver m (Map Id AbstractSkeleton)
 addSignatures env = do
@@ -778,12 +754,10 @@ recoverNames mapping (Program (PSymbol sym) t) =
     case Map.lookup sym mapping of
       Nothing -> Program (PSymbol (stripSuffix sym)) t
       Just name -> Program (PSymbol (stripSuffix name)) t
-recoverNames mapping (Program (PApp fun pArg) t) = Program (PApp fun' pArg') t
+recoverNames mapping (Program (PApp pFun pArg) t) = Program (PApp pFun' pArg') t
   where
-    fun' = case Map.lookup fun mapping of
-                Nothing -> stripSuffix fun
-                Just name -> stripSuffix name
-    pArg' = map (recoverNames mapping) pArg
+    pFun' = recoverNames mapping pFun
+    pArg' = recoverNames mapping pArg
 recoverNames mapping (Program (PFun x body) t) = Program (PFun x body') t
   where
     body' = recoverNames mapping body

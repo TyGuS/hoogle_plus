@@ -45,11 +45,11 @@ eraseTypes = fmap (const AnyT)
 
 symbolName (Program (PSymbol name) _) = name
 symbolList (Program (PSymbol name) _) = [name]
-symbolList (Program (PApp f arg) _) = f : concatMap symbolList arg
+symbolList (Program (PApp pFun pArg) _) = symbolList pFun ++ symbolList pArg
 
 symbolsOf (Program p _) = case p of
   PSymbol name -> Set.singleton name
-  PApp fun arg -> fun `Set.insert` (Set.unions $ map symbolsOf arg)
+  PApp pFun pArg -> symbolsOf pFun `Set.union` symbolsOf pArg
   PFun x body -> symbolsOf body
   PIf cond thn els -> symbolsOf cond `Set.union` symbolsOf thn `Set.union` symbolsOf els
   PMatch scr cases -> symbolsOf scr `Set.union` Set.unions (map (symbolsOf . expr) cases)
@@ -58,7 +58,7 @@ symbolsOf (Program p _) = case p of
   _ -> Set.empty
 
 hasHole (Program p _) = case p of
-  PApp fun arg -> or (map hasHole arg)
+  PApp fun arg -> hasHole fun || hasHole arg
   PHole -> True
   _ -> False
 
@@ -73,7 +73,7 @@ programSubstituteSymbol name subterm (Program p t) = Program (programSubstituteS
     pss = programSubstituteSymbol name subterm
 
     programSubstituteSymbol' (PSymbol x) = if x == name then content subterm else p
-    programSubstituteSymbol' (PApp fun arg) = PApp fun (map pss arg)
+    programSubstituteSymbol' (PApp fun arg) = PApp (pss fun) (pss arg)
     programSubstituteSymbol' (PFun name pBody) = PFun name (pss pBody)
     programSubstituteSymbol' (PIf c p1 p2) = PIf (pss c) (pss p1) (pss p2)
     programSubstituteSymbol' (PMatch scr cases) = PMatch (pss scr) (map (\(Case ctr args pBody) -> Case ctr args (pss pBody)) cases)
@@ -88,8 +88,8 @@ fmlToProgram (Var s x) = Program (PSymbol x) (addRefinement (fromSort s) (varRef
 fmlToProgram fml@(Unary op e) = let
     s = sortOf fml
     p = fmlToProgram e
-    fun = unOpTokens Map.! op
-  in Program (PApp fun [p]) (addRefinement (fromSort s) (Var s valueVarName |=| fml))
+    fun = Program (PSymbol $ unOpTokens Map.! op) (FunctionT "x" (typeOf p) opRes)
+  in Program (PApp fun p) (addRefinement (fromSort s) (Var s valueVarName |=| fml))
   where
     opRes
       | op == Not = bool $ valBool |=| fnot (intVar "x")
@@ -98,8 +98,9 @@ fmlToProgram fml@(Binary op e1 e2) = let
     s = sortOf fml
     p1 = fmlToProgram e1
     p2 = fmlToProgram e2
-    fun = binOpTokens Map.! op
-  in Program (PApp fun [p1, p2]) (addRefinement (fromSort s) (Var s valueVarName |=| fml))
+    fun1 = Program (PSymbol $ binOpTokens Map.! op) (FunctionT "x" (typeOf p1) (FunctionT "y" (typeOf p2) opRes))
+    fun2 = Program (PApp fun1 p1) (FunctionT "y" (typeOf p2) opRes)
+  in Program (PApp fun2 p2) (addRefinement (fromSort s) (Var s valueVarName |=| fml))
   where
     opRes
       | op == Times || op == Times || op == Times = int $ valInt |=| Binary op (intVar "x") (intVar "y")
