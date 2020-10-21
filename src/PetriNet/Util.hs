@@ -185,7 +185,7 @@ toOutput env soln exs = do
     let argDocs = map (\(n, ty) -> FunctionDoc n (show ty) "") args
     let symbolsWoArgs = symbols \\ argNames
     docs <- liftIO $ hoogleIt symbolsWoArgs
-    entries <- mapM (\(sol, ex) -> ResultEntry (toHaskellSolution sol) <$> mapM niceInputs ex) exs
+    entries <- mapM (\(sol, ex) -> ResultEntry (toHaskellSolution $ show sol) <$> mapM niceInputs ex) exs
     return $ QueryOutput entries "" (docs ++ argDocs)
     where
         hoogleIt syms = do

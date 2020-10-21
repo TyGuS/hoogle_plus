@@ -154,12 +154,12 @@ runGhcChecks :: MonadIO m
 runGhcChecks params env goalType examples prog = let
     -- constructs program and its type signature as strings
     tyclassCount = length $ Prelude.filter (\(id, _) -> tyclassArgBase `isPrefixOf` id) argList
-    expr = printf "(%s) :: %s" body funcSig
+    expr = printf "(%s) :: %s" (show body) funcSig
     disableDemand = _disableDemand params
     disableFilter = _disableFilter params
     in do
         typeCheckResult <- liftIO $ runInterpreter $ checkType expr modules
-        strictCheckResult <- if disableDemand then return True else liftIO $ checkStrictness tyclassCount body funcSig modules
+        strictCheckResult <- if disableDemand then return True else liftIO $ checkStrictness tyclassCount (show body) funcSig modules
         exampleCheckResult <- if not strictCheckResult then return Nothing else liftIO $ fmap ((:[]) . (body,)) <$> checkOutputs prog examples
         filterCheckResult <- if disableFilter || isNothing exampleCheckResult
                                 then return exampleCheckResult

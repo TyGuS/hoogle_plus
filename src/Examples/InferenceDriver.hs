@@ -83,12 +83,19 @@ getExampleTypes env argNames validSchemas num = do
                then generalizeType validSchemas tcass t
                else return []
         toConstraint (id, s) = intercalate ", " $ map (unwords . (:[id])) (Set.toList s)
+        
         addTyclasses (constraints, t) =
             let tyclasses = intercalate ", " $
                             filter (not . null) $
-                            map toConstraint $
-                            Map.toList constraints
-                strTyp = show $ prettySTypeWithName t
+                            map toConstraint renamedConstraints
+                vars = Set.toList (typeVarsOf t)
+                letters = map (:[]) ['a'..'z']
+                varCandidates = filter (`notElem` vars) letters
+                varSubst = Map.fromList (filter (uncurry (/=)) $ zip vars varCandidates)
+                renamedTyp = stypeSubstitute (Map.map vart_ varSubst) t
+                substInConstraint = \(id, s) -> (Map.findWithDefault id id varSubst, s)
+                renamedConstraints = map substInConstraint (Map.toList constraints)
+                strTyp = showSTypeWithName renamedTyp
              in if null tyclasses then strTyp
                                   else printf "(%s) => %s" tyclasses strTyp
 

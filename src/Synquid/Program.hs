@@ -4,6 +4,7 @@
 -- | Executable programs
 module Synquid.Program where
 
+import Database.Util
 import Synquid.Logic
 import Synquid.Type
 import Synquid.Error
@@ -21,6 +22,7 @@ import Data.Hashable
 import Data.Maybe
 import Data.Either
 import Data.List
+import Data.List.Extra
 import qualified Data.Set as Set
 import Data.Set (Set)
 import qualified Data.Map as Map
@@ -245,3 +247,24 @@ isSynthesisGoal _ = False
 unresolvedType env ident = (env ^. unresolvedConstants) Map.! ident
 -- unresolvedSpec goal = unresolvedType (gEnvironment goal) (gName goal)
 unresolvedSpec goal = gSpec goal
+
+unqualifyFunc :: RProgram -> RProgram
+unqualifyFunc (Program (PSymbol f) t) = Program (PSymbol f') t
+    where
+        f' = last (splitOn "." f)
+unqualifyFunc (Program (PApp f args) t) = Program (PApp f' args') t
+    where
+        f' = last (splitOn "." f)
+        args' = map unqualifyFunc args
+unqualifyFunc (Program (PFun x body) t) = Program (PFun x body') t
+    where
+        body' = unqualifyFunc body
+unqualifyFunc p = p
+
+untypeclass :: UProgram -> UProgram
+untypeclass (Program (PSymbol f) t) 
+    | tyclassArgBase `isInfixOf` f || tyclassInstancePrefix `isPrefixOf` f = Program (PSymbol "") t
+untypeclass (Program (PApp f args) t)
+    | tyclassArgBase `isInfixOf` f || tyclassInstancePrefix `isPrefixOf` f = Program (PSymbol "") t
+    | otherwise = Program (PApp f (map untypeclass args)) t
+untypeclass p = p

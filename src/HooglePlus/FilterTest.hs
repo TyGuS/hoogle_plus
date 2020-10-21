@@ -189,7 +189,7 @@ validateSolution modules solution funcSig time = evaluateResult' <$> evaluatePro
 
 compareSolution :: [String] -> String -> [String] -> FunctionSignature -> Int -> IO [Either InterpreterError SmallCheckResult]
 compareSolution modules solution otherSolutions funcSig time = mapM (evaluateProperty modules) props
-  where props = buildDupCheckProp (solution, otherSolutions) funcSig time defaultDepth
+  where props = buildDupCheckProp (show solution, map show otherSolutions) funcSig time defaultDepth
 
 runChecks :: MonadIO m => Environment -> RType -> UProgram -> FilterTest m (Maybe AssociativeExamples)
 runChecks env goalType prog = do
@@ -207,10 +207,10 @@ runChecks env goalType prog = do
     runChecks_ = and <$> mapM (\f -> f modules funcSig body) checks
     runPrints state = do
       putStrLn "\n*******************FILTER*********************"
-      putStrLn body
+      putStrLn (show body)
       putStrLn (printSolutionState body state)
 
-checkSolutionNotCrash :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
+checkSolutionNotCrash :: MonadIO m => [String] -> String -> UProgram -> FilterTest m Bool
 checkSolutionNotCrash modules sigStr body = do
   fs@(FilterState _ _ examples _) <- get
   result <- liftIO executeCheck
@@ -226,10 +226,10 @@ checkSolutionNotCrash modules sigStr body = do
   where
     handleNotSupported = (`catch` ((\ex -> return (Left (UnknownError $ show ex))) :: NotSupportedException -> IO (Either InterpreterError FunctionCrashDesc)))
     funcSig = (instantiateSignature . parseTypeString) sigStr
-    executeCheck = handleNotSupported $ validateSolution modules body funcSig defaultTimeoutMicro
+    executeCheck = handleNotSupported $ validateSolution modules (show body) funcSig defaultTimeoutMicro
 
 
-checkDuplicates :: MonadIO m => [String] -> String -> String -> FilterTest m Bool
+checkDuplicates :: MonadIO m => [String] -> String -> UProgram -> FilterTest m Bool
 checkDuplicates modules sigStr solution = do
   fs@(FilterState is solns _ examples) <- get
   case solns of
@@ -241,7 +241,7 @@ checkDuplicates modules sigStr solution = do
 
     -- find an input i such that all synthesized results can be differentiated semantically
     _ -> do
-      results <- liftIO $ compareSolution modules solution solns funcSig defaultTimeoutMicro
+      results <- liftIO $ compareSolution modules (show solution) (map show solns) funcSig defaultTimeoutMicro
       passTest <- and <$> zipWithM processResult results solns
 
       fs'@(FilterState is solns _ examples) <- get

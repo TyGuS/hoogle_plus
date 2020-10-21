@@ -7,7 +7,7 @@ module Synquid.Pretty (
   renderPretty,
   putDoc,
   prettyShow,
-  prettySTypeWithName,
+  showSTypeWithName,
   -- * Basic documents
   empty,
   isEmpty,
@@ -307,9 +307,12 @@ instance Show RType where
 prettySTypeWithName :: SType -> Doc
 prettySTypeWithName (ScalarT base _) = pretty base
 prettySTypeWithName (FunctionT x t1 t2)
-  | isFunctionType t1 = text x <+> operator ":" <+> hlParens (pretty t1) <+> operator "->" <+> pretty t2
-  | otherwise = text x <+> operator ":" <+> pretty t1 <+> operator "->" <+> pretty t2
+  | isFunctionType t1 = text x <> operator ":" <> hlParens (pretty t1) <+> operator "->" <+> prettySTypeWithName t2
+  | otherwise = text x <> operator ":" <> pretty t1 <+> operator "->" <+> prettySTypeWithName t2
 prettySTypeWithName AnyT = text "_"
+
+showSTypeWithName :: SType -> String
+showSTypeWithName = show . plain . prettySTypeWithName
 
 prettySchema :: Pretty (TypeSkeleton r) => SchemaSkeleton r -> Doc
 prettySchema sch = case sch of
@@ -365,7 +368,8 @@ prettyProgram (Program p typ) = case p of
       in if f `elem` Map.elems unOpTokens
             then hang tab $ operator f <+> hsep (map optParens x)
             else prefix
-    PFun x e -> nest 2 $ operator "\\" <> text x <+> operator "->" </> prettyProgram e
+    PFun x e -> let (args, e') = mergeLambdas (Program p typ)
+                 in nest 2 $ operator "\\" <> hsep (map text args) <+> operator "->" <+> prettyProgram e'
     PIf c t e -> linebreak <> (hang tab $ keyword "if" <+> prettyProgram c $+$ (hang tab (keyword "then" </> prettyProgram t)) $+$ (hang tab (keyword "else" </> prettyProgram e)))
     PMatch l cases -> linebreak <> (hang tab $ keyword "match" <+> prettyProgram l <+> keyword "with" $+$ vsep (map prettyCase cases))
     PFix fs e -> prettyProgram e
@@ -374,6 +378,9 @@ prettyProgram (Program p typ) = case p of
     PErr -> keyword "error"
   where
     withType doc t = doc -- <> text ":" <+> pretty t
+    mergeLambdas (Program (PFun x e) _) = let (args, e') = mergeLambdas e
+                                           in (x:args, e')
+    mergeLambdas p = ([], p)
 
 instance (Pretty t) => Pretty (Program t) where
   pretty = prettyProgram

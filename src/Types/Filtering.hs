@@ -6,6 +6,7 @@ import Data.Typeable
 import Text.Printf
 import Data.List (intercalate)
 import Types.IOFormat (Example)
+import Types.Program
 
 import Test.SmallCheck.Drivers
 
@@ -31,7 +32,7 @@ frameworkModules =
 type SmallCheckResult = (Maybe PropertyFailure, [Example])
 type GeneratorResult = [Example]
 
-type AssociativeExamples = [(String, [Example])]
+type AssociativeExamples = [(UProgram, [Example])]
 
 data FunctionCrashDesc = 
     AlwaysSucceed Example
@@ -89,10 +90,10 @@ instance Show FunctionSignature where
 
 data FilterState = FilterState {
   inputs :: [[String]],
-  solutions :: [String],
-  solutionExamples :: [(String, FunctionCrashDesc)],
-  differentiateExamples :: [(String, Example)]
-} deriving (Eq, Show)
+  solutions :: [UProgram],
+  solutionExamples :: [(UProgram, FunctionCrashDesc)],
+  differentiateExamples :: [(UProgram, Example)]
+} deriving (Eq)
 
 emptyFilterState = FilterState {
   inputs = [],

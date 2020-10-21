@@ -42,7 +42,7 @@ def create_app(test_config=None):
         query = {
                  'query': obj['typeSignature'],
                  'inExamples': obj['facts'],
-                 'inArgNames': obj['argNames']
+                 'inArgNames': []
                 }
         qid = uuid.uuid1()
         proc = run_hplus([f'--json={json.dumps(query)}',

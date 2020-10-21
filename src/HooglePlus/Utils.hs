@@ -87,6 +87,12 @@ mkLambdaStr args body =
         unTypeclassed = toHaskellSolution (show body)
      in printf "\\%s -> %s" argStr unTypeclassed
 
+mkLambda :: [String] -> UProgram -> UProgram
+mkLambda args body =
+    let nontcArgs = filter (not . (tyclassArgBase `isPrefixOf`)) args
+        unTypeclassed = untypeclass body
+     in foldr (\x p -> untyped (PFun x p)) unTypeclassed nontcArgs
+
 toHaskellSolution :: String -> String
 toHaskellSolution bodyStr = let
     oneLineBody = unwords $ lines bodyStr
@@ -117,7 +123,7 @@ printSolution solution = do
     putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
     putStrLn "************************************************"
 
-collectExamples :: String -> FilterState -> AssociativeExamples
+collectExamples :: UProgram -> FilterState -> AssociativeExamples
 collectExamples solution (FilterState _ sols samples examples) =
     map mkGroup $ groupBy (\x y -> fst x == fst y)
                 $ sortOn fst
@@ -141,10 +147,10 @@ printSolutionState solution (FilterState _ sols workingExamples diffExamples) = 
         ios = let [(_, desc)] = filter ((== solution) . fst) workingExamples in show desc
         diffs = let examples = groupBy ((==) `on` fst) (sortOn fst diffExamples) in unlines (map showGroup examples)
         
-        showGroup :: [(String, Example)] -> String
-        showGroup xs = unlines ((fst $ head xs) : (map (show . snd) xs))
+        showGroup :: [(UProgram, Example)] -> String
+        showGroup xs = unlines ((show $ fst $ head xs) : (map (show . snd) xs))
 
-extractSolution :: Environment -> RType -> UProgram -> ([String], String, String, [(Id, RSchema)])
+extractSolution :: Environment -> RType -> UProgram -> ([String], String, UProgram, [(Id, RSchema)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)
     where
         args = _arguments env
@@ -154,7 +160,7 @@ extractSolution env goalType prog = (modules, funcSig, body, argList)
         argTypes = map snd argList
         monoGoals = map toMonotype argTypes
         funcSig = mkFunctionSigStr (monoGoals ++ [goalType])
-        body = mkLambdaStr argNames prog
+        body = mkLambda argNames prog
 
 updateEnvWithBoundTyVars :: RSchema -> Environment -> (Environment, RType)
 updateEnvWithBoundTyVars (Monotype ty) env = (env, ty)

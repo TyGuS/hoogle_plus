@@ -124,6 +124,7 @@ export function specReducer(state = initialSpecState, action) {
             return {
                 ...clearErrors(state),
                 argNames: action.payload,
+                numArgs: action.payload.length,
             };
         case Consts.ADD_EXAMPLE:
             return {
