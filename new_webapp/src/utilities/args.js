@@ -54,9 +54,18 @@ export const inputsToId = (inputs) => {
 
 export const getArgInfo = (queryStr) => {
   try {
-    const result = typeParser.TypeDecl.tryParse(queryStr);
+    var result = typeParser.TypeDecl.tryParse(queryStr);
+    const argNames = argNamesOf(result);
+    const argNum = depth(result);
+    console.log("argNum", argNum);
+    console.log("argNames", argNames);
+    if(argNames.length !== argNum) {
+      result = freshArgName(argNames, result);
+      console.log("inside",result);
+    }
+    console.log("outside",result);
     return {
-      argNum: depth(result),
+      argNum,
       argNames: argNamesOf(result),
       parsedType: result,
     };
@@ -74,7 +83,7 @@ const depth = (xs) => {
 }
 
 export const argNamesOf = (xs) => {
-  if(!xs.argName || !xs.result || xs.result.length === 0) {
+  if(!xs.result || xs.result.length === 0) {
     return [];
   }
   return xs.argName.concat(argNamesOf(xs.result[0]));
@@ -134,5 +143,31 @@ export const replaceArgName = (obj, oldArgName, newArgName) => {
   return {
     ...obj,
     result: [child],
+  };
+}
+
+export const freshArgName = (currArgNames, parsedResult) => {
+  // debugger;
+  if(!parsedResult.result || parsedResult.result.length === 0) {
+    return parsedResult;
+  }
+  if(!parsedResult.argName || parsedResult.argName.length === 0) {
+    var idx = 1;
+    var varName = getArgNames(idx).slice(-1)[0];
+    while(currArgNames.includes(varName)) {
+      idx = idx + 1;
+      varName = getArgNames(idx).slice(-1)[0];
+    }
+    return {
+      ...parsedResult,
+      argName: [varName],
+      result: parsedResult.result.map(r => 
+        freshArgName(currArgNames.concat(varName), r)),
+    };
+  }
+  const newResult = parsedResult.result.map(r => freshArgName(currArgNames, r));
+  return {
+    ...parsedResult,
+    result: newResult,
   };
 }

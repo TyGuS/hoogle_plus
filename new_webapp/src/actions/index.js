@@ -1,7 +1,7 @@
 import * as Consts from "../constants/action-types";
 import _ from "underscore";
 import { Search, ghciUsage, hooglePlusMoreExamples } from "../gateways";
-import { getArgInfo } from "../utilities/args";
+import { getArgInfo, parseResultToStr } from "../utilities/args";
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 import { log } from "../utilities/logger";
 import { v4 } from "uuid";
