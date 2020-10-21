@@ -170,13 +170,14 @@ searchExamples synquidParams inStr num = do
     let goalTyp = parseQueryType env' namedQuery
     let unnamedQuery = show (toMonotype goalTyp)
     let funcSig = parseTypeString unnamedQuery
+    let argNames = words (getArgNames prog)
     -- remove magic numbers later
     -- we not only need to know existing results, since this should come from
     -- the diverse stream, we also need to pass all the current solutions into
     -- this query
     let prevResults = map output $ exampleExisting input
     let prevInputs = map (map toNormalFunctions . inputs) $ exampleExisting input
-    result <- generateIOPairs mdls prog funcSig num defaultTimeoutMicro defaultGenerationTimeoutMicro defaultGenerationDepth prevResults prevInputs
+    result <- generateIOPairs mdls prog funcSig argNames num defaultTimeoutMicro defaultGenerationTimeoutMicro defaultGenerationDepth prevResults prevInputs
     resultObj <- case result of
           Left err -> return $ ListOutput [] (show err)
           Right genRes | null genRes -> return $ ListOutput [] "No more examples"
@@ -185,6 +186,11 @@ searchExamples synquidParams inStr num = do
                             return $ ListOutput niceExamples ""
     printResult $ encodeWithPrefix resultObj
     where
+        getArgNames str = getArgNames' "" str
+        getArgNames' _ ('\\':str) = getArgNames' "" str
+        getArgNames' acc (c:'-':'>':_) = reverse (c:acc)
+        getArgNames' acc (c:str) = getArgNames' (c:acc) str
+
         toNormalFunctions "" = ""
         toNormalFunctions f | "const " `isPrefixOf` f =
             let n = drop 6 f

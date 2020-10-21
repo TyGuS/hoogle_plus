@@ -43,7 +43,7 @@ const mapDispatchToProps = (dispatch) => {
 };
 
 const UsageTableBase = ({
-  candidateId, code, examplesShown, argNames,
+  candidateId, qualCode, examplesShown, argNames,
   numColumns, rows:stateRows,
   keepUsage, updateUsage, addCandidateUsage}) => {
 
@@ -71,7 +71,7 @@ const UsageTableBase = ({
     const commitChanges = ({ added, changed, deleted }) => {
       if (added) {
         const examples = namedArgsToExample(added, numColumns - 1);
-        addCandidateUsage({inputs: examples[0].inputs, candidateId, code});
+        addCandidateUsage({inputs: examples[0].inputs, candidateId, code: qualCode});
       }
       if (changed) {
         const changedIds = new Set(Object.keys(changed));
@@ -82,7 +82,7 @@ const UsageTableBase = ({
         modifiedRows.forEach(modifiedRow => {
           const inputs = argNames.map((name, idx) => modifiedRow[idx]);
           updateUsage({
-            candidateId, code, inputs,
+            candidateId, code: qualCode, inputs,
             usageId: modifiedRow.id,
           })
         });

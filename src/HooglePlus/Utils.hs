@@ -123,7 +123,7 @@ printSolution solution = do
     putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
     putStrLn "************************************************"
 
-collectExamples :: UProgram -> FilterState -> AssociativeExamples
+collectExamples :: SolutionPair -> FilterState -> AssociativeExamples
 collectExamples solution (FilterState _ sols samples examples) =
     map mkGroup $ groupBy (\x y -> fst x == fst y)
                 $ sortOn fst
@@ -147,7 +147,7 @@ printSolutionState solution (FilterState _ sols workingExamples diffExamples) = 
         ios = let [(_, desc)] = filter ((== solution) . fst) workingExamples in show desc
         diffs = let examples = groupBy ((==) `on` fst) (sortOn fst diffExamples) in unlines (map showGroup examples)
         
-        showGroup :: [(UProgram, Example)] -> String
+        showGroup :: [(SolutionPair, Example)] -> String
         showGroup xs = unlines ((show $ fst $ head xs) : (map (show . snd) xs))
 
 extractSolution :: Environment -> RType -> UProgram -> ([String], String, UProgram, [(Id, RSchema)])

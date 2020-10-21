@@ -31,6 +31,7 @@ import Types.Type hiding (typeOf)
 import Types.Filtering
 import Types.IOFormat (Example(Example))
 import Synquid.Type
+import Synquid.Program
 import Paths_HooglePlus
 
 import Debug.Trace
@@ -45,6 +46,7 @@ parseTypeString input = FunctionSignature constraints argsType returnType
       where constraints' = constraints ++ extractConstraints constraints ctx
     buildSig constraints argList (TyFun _ typeArg typeRet) = buildSig constraints argList' typeRet
       where argList' = argList ++ [extractType typeArg]
+    buildSig constraints argList (TyParen _ t) = buildSig constraints argList t
     buildSig constraints argList typeRet = (constraints, argList, extractType typeRet)
 
     extractType (TyVar _ (Ident _ name)) = Polymorphic name
@@ -91,10 +93,10 @@ buildFunctionWrapper functions solutionType params@(plain, typed, shows, unwrp) 
     buildTimeoutWrapper wrapperNames (plain, typed, shows, unwrp) timeInMicro =
       printf "let timeoutWrapper = \\%s -> (evaluateIO %d %s (Prelude.map (\\f -> f %s) [%s])) in" typed timeInMicro shows unwrp (intercalate ", " wrapperNames) :: String
 
-buildNotCrashProp :: String -> FunctionSignature -> String
-buildNotCrashProp solution funcSig = formatAlwaysFailProp params wrapper
+buildNotCrashProp :: [String] -> String -> FunctionSignature -> String
+buildNotCrashProp argNames solution funcSig = formatAlwaysFailProp params wrapper
   where
-    params@(plain, typed, shows, unwrp) = showParams (_argsType funcSig)
+    params@(plain, typed, shows, unwrp) = showParams argNames (_argsType funcSig)
 
     wrapper = buildFunctionWrapper [("wrappedSolution", solution)] (show funcSig) params defaultTimeoutMicro
 
@@ -106,16 +108,16 @@ buildNotCrashProp solution funcSig = formatAlwaysFailProp params wrapper
       , printf "let %s %s = monadic (%s <$> Prelude.head <$> timeoutWrapper %s) in" propName plain body plain
       , printf "runStateT (smallCheckM %d (%s)) []" defaultDepth propName] :: String
 
-buildDupCheckProp :: (String, [String]) -> FunctionSignature -> Int -> Depth -> [String]
-buildDupCheckProp (sol, otherSols) funcSig timeInMicro depth =
-  map (\x -> buildDupCheckProp' (sol, [x]) funcSig timeInMicro depth) otherSols
+buildDupCheckProp :: [String] -> (String, [String]) -> FunctionSignature -> Int -> Depth -> [String]
+buildDupCheckProp argNames (sol, otherSols) funcSig timeInMicro depth =
+  map (\x -> buildDupCheckProp' argNames (sol, [x]) funcSig timeInMicro depth) otherSols
 
-buildDupCheckProp' :: (String, [String]) -> FunctionSignature -> Int -> Depth -> String
-buildDupCheckProp' (sol, otherSols) funcSig timeInMicro depth =
+buildDupCheckProp' :: [String] -> (String, [String]) -> FunctionSignature -> Int -> Depth -> String
+buildDupCheckProp' argNames (sol, otherSols) funcSig timeInMicro depth =
 
   unwords [wrapper, formatProp]
   where
-    params@(plain, typed, shows, unwrp) = showParams (_argsType funcSig)
+    params@(plain, typed, shows, unwrp) = showParams argNames (_argsType funcSig)
     solutionType = show funcSig
 
     wrapper = buildFunctionWrapper solutions (show funcSig) params defaultTimeoutMicro
@@ -152,10 +154,10 @@ evaluateProperty modules property =
     setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
     interpret property (as :: IO SmallCheckResult) >>= liftIO
 
-validateSolution :: [String] -> String -> FunctionSignature -> Int -> IO (Either InterpreterError FunctionCrashDesc)
-validateSolution modules solution funcSig time = evaluateResult' <$> evaluateProperty modules alwaysFailProp
+validateSolution :: [String] -> [String] -> String -> FunctionSignature -> Int -> IO (Either InterpreterError FunctionCrashDesc)
+validateSolution modules argNames solution funcSig time = evaluateResult' <$> evaluateProperty modules alwaysFailProp
   where
-    alwaysFailProp = buildNotCrashProp solution funcSig
+    alwaysFailProp = buildNotCrashProp argNames solution funcSig
 
     evaluateSmallCheckResult ::
       Either InterpreterError SmallCheckResult -> Either InterpreterError SmallCheckResult
@@ -187,9 +189,9 @@ validateSolution modules solution funcSig time = evaluateResult' <$> evaluatePro
         ios = nub $ filter ([] /=) $ lines output
         selectedLine = filter (isInfixOf input) ios
 
-compareSolution :: [String] -> String -> [String] -> FunctionSignature -> Int -> IO [Either InterpreterError SmallCheckResult]
-compareSolution modules solution otherSolutions funcSig time = mapM (evaluateProperty modules) props
-  where props = buildDupCheckProp (show solution, map show otherSolutions) funcSig time defaultDepth
+compareSolution :: [String] -> [String] -> String -> [String] -> FunctionSignature -> Int -> IO [Either InterpreterError SmallCheckResult]
+compareSolution modules argNames solution otherSolutions funcSig time = mapM (evaluateProperty modules) props
+  where props = buildDupCheckProp argNames (solution, otherSolutions) funcSig time defaultDepth
 
 runChecks :: MonadIO m => Environment -> RType -> UProgram -> FilterTest m (Maybe AssociativeExamples)
 runChecks env goalType prog = do
@@ -198,20 +200,22 @@ runChecks env goalType prog = do
   state <- get
   when result $ liftIO $ runPrints state
 
-  return $ if result then Just (collectExamples body state) else Nothing
+  return $ if result then Just (collectExamples (unqualifyFunc body, body) state) 
+                     else Nothing
   where
-    (modules, funcSig, body, _) = extractSolution env goalType prog
+    (modules, funcSig, body, argList) = extractSolution env goalType prog
+    argNames = map fst argList
     checks = [ checkSolutionNotCrash
              , checkDuplicates]
 
-    runChecks_ = and <$> mapM (\f -> f modules funcSig body) checks
+    runChecks_ = and <$> mapM (\f -> f modules argNames funcSig body) checks
     runPrints state = do
       putStrLn "\n*******************FILTER*********************"
-      putStrLn (show body)
-      putStrLn (printSolutionState body state)
+      putStrLn (show $ unqualifyFunc body)
+      putStrLn (printSolutionState (unqualifyFunc body, body) state)
 
-checkSolutionNotCrash :: MonadIO m => [String] -> String -> UProgram -> FilterTest m Bool
-checkSolutionNotCrash modules sigStr body = do
+checkSolutionNotCrash :: MonadIO m => [String] -> [String] -> String -> UProgram -> FilterTest m Bool
+checkSolutionNotCrash modules argNames sigStr body = do
   fs@(FilterState _ _ examples _) <- get
   result <- liftIO executeCheck
 
@@ -220,17 +224,17 @@ checkSolutionNotCrash modules sigStr body = do
                _ -> True
 
   let Right desc = result
-  put $ fs {solutionExamples = (body, desc) : examples}
+  put $ fs {solutionExamples = ((unqualifyFunc body, body), desc) : examples}
   return pass
 
   where
     handleNotSupported = (`catch` ((\ex -> return (Left (UnknownError $ show ex))) :: NotSupportedException -> IO (Either InterpreterError FunctionCrashDesc)))
     funcSig = (instantiateSignature . parseTypeString) sigStr
-    executeCheck = handleNotSupported $ validateSolution modules (show body) funcSig defaultTimeoutMicro
+    executeCheck = handleNotSupported $ validateSolution modules argNames (show body) funcSig defaultTimeoutMicro
 
 
-checkDuplicates :: MonadIO m => [String] -> String -> UProgram -> FilterTest m Bool
-checkDuplicates modules sigStr solution = do
+checkDuplicates :: MonadIO m => [String] -> [String] -> String -> UProgram -> FilterTest m Bool
+checkDuplicates modules argNames sigStr solution = do
   fs@(FilterState is solns _ examples) <- get
   case solns of
 
@@ -241,7 +245,7 @@ checkDuplicates modules sigStr solution = do
 
     -- find an input i such that all synthesized results can be differentiated semantically
     _ -> do
-      results <- liftIO $ compareSolution modules (show solution) (map show solns) funcSig defaultTimeoutMicro
+      results <- liftIO $ compareSolution modules argNames (show solution) (map show solns) funcSig defaultTimeoutMicro
       passTest <- and <$> zipWithM processResult results solns
 
       fs'@(FilterState is solns _ examples) <- get
@@ -275,9 +279,12 @@ checkDuplicates modules sigStr solution = do
         -- the trick to make SC to generate two inputs
         Right (r@(Just AtLeastTwo {}), newExamples) -> do
           let [i1, i2] = caseToInput r
+          let sols = [ (unqualifyFunc solution, solution)
+                     , (unqualifyFunc otherSolution, otherSolution)
+                     ]
           put $ state {
             inputs = [i1, i2] ++ is,
-            differentiateExamples = (zip [solution, otherSolution] (filter (filterRelated i1 i2) newExamples)) ++ examples
+            differentiateExamples = (zip sols (filter (filterRelated i1 i2) newExamples)) ++ examples
           }
           return True
         _ -> return False
@@ -285,17 +292,17 @@ checkDuplicates modules sigStr solution = do
 -- show parameters to some Haskell representation
 -- (plain variables, typed variables, list of show, unwrapped variables)
 -- >> showParams ["Int"] => ("arg_0", "(arg_0 :: Inner Int)", "[show arg_0]", "(unwrap arg_0)")
-showParams :: [ArgumentType] -> (String, String, String, String)
-showParams args = (plain, typed, shows, unwrp)
+showParams :: [String] -> [ArgumentType] -> (String, String, String, String)
+showParams argNames args = (plain, typed, shows, unwrp)
   where
-    args' = zip [1..] $ map replaceInner args
+    args' = zip argNames $ map replaceInner args
 
-    plain = unwords $ formatIdx "(arg_%d)"
-    unwrp = unwords $ formatIdx "(unwrap arg_%d)"
-    typed = unwords $ map (\(idx, tipe) -> printf "(arg_%d :: %s)" idx (show tipe) :: String) args'
+    plain = unwords $ formatIdx "(%s)"
+    unwrp = unwords $ formatIdx "(unwrap %s)"
+    typed = unwords $ map (\(idx, tipe) -> printf "(%s :: %s)" idx (show tipe) :: String) args'
 
-    shows = "[" ++ intercalate ", " (formatIdx "(show arg_%d)") ++ "]"
-    formatIdx format = map ((printf format :: Int -> String) . fst) args'
+    shows = "[" ++ intercalate ", " (formatIdx "(show %s)") ++ "]"
+    formatIdx format = map ((printf format :: String -> String) . fst) args'
     
     replaceInner :: ArgumentType -> ArgumentType
     replaceInner x =
@@ -309,8 +316,8 @@ showParams args = (plain, typed, shows, unwrp)
 
 -- ******** Example Generator ********
 
-generateIOPairs :: [String] -> String -> FunctionSignature -> Int -> Int -> Int -> Depth -> [String] -> [[String]] -> IO (Either InterpreterError GeneratorResult)
-generateIOPairs modules solution funcSig numPairs timeInMicro interpreterTimeInMicro depth existingResults existingInputs =
+generateIOPairs :: [String] -> String -> FunctionSignature -> [String] -> Int -> Int -> Int -> Depth -> [String] -> [[String]] -> IO (Either InterpreterError GeneratorResult)
+generateIOPairs modules solution funcSig argNames numPairs timeInMicro interpreterTimeInMicro depth existingResults existingInputs =
   runInterpreter' interpreterTimeInMicro $ do
     setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
     interpret property (as :: IO GeneratorResult) >>= liftIO
@@ -318,7 +325,7 @@ generateIOPairs modules solution funcSig numPairs timeInMicro interpreterTimeInM
   where
     funcSig' = instantiateSignature funcSig
     typeStr = show funcSig'
-    params = showParams (_argsType funcSig')
+    params = showParams argNames (_argsType funcSig')
     property = buildProp solution funcSig'
 
     buildProp :: String -> FunctionSignature -> String

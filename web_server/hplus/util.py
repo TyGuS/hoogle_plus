@@ -26,7 +26,8 @@ def to_fe_doc(doc):
 
 def to_fe_entry(e):
     obj = {}
-    obj['code'] = e['solution']
+    obj['code'] = e['unqualSolution']
+    obj['qualCode'] = e['qualSolution']
     obj['examples'] = e['outExamples']
     return obj
 

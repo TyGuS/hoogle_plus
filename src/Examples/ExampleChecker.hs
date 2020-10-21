@@ -94,7 +94,9 @@ execExample mdls env typ prog ex = do
         else printf "let f = (\\%s -> %s) :: %s in" prependArg prog typ
     let parensedInputs = map wrapParens $ inputs ex
     let progCall = printf "Test.ChasingBottoms.approxShow 100 (f %s)" (unwords parensedInputs)
-    runStmt mdls $ unwords [progBody, progCall]
+    result <- runStmt mdls $ unwords [progBody, progCall]
+    let prettyShow a = if "_|_" `isInfixOf` a then "bottom" else a
+    return (result >>= Right . prettyShow)
 
 augmentTestSet :: Environment -> RSchema -> IO [Example]
 augmentTestSet env goal = do

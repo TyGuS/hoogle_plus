@@ -740,16 +740,19 @@ checkSolution env goal examples code = do
     msgChan <- gets $ view messageChan
     fState <- gets $ view filterState
     let code' = recoverNames mapping code
-    (checkResult, fState') <- withTime TypeCheckTime $ 
-        liftIO $ runStateT (check env params examples code' goal msgChan) fState
-    modify $ set filterState fState'
-    if (code' `elem` solutions) || isNothing checkResult
+    if (code' `elem` solutions)
         then mzero
         else do
-            let exs = fromJust checkResult
-            out <- liftIO $ toOutput env code' exs
-            lift $ writeSolution out
-            return $ Found (code', exs)
+            (checkResult, fState') <- withTime TypeCheckTime $ 
+                liftIO $ runStateT (check env params examples code' goal msgChan) fState
+            modify $ set filterState fState'
+            if  isNothing checkResult
+                then mzero
+                else do
+                    let exs = fromJust checkResult
+                    out <- liftIO $ toOutput env code' exs
+                    lift $ writeSolution out
+                    return $ Found (code', exs)
 
 runPNSolver :: MonadIO m => Environment -> RSchema -> [Example] -> PNSolver m ()
 runPNSolver env goal examples = do

@@ -64,7 +64,7 @@ export const updateCandidateUsages = ({usageId, inputs}) => (dispatch, getState)
         candidates.results.map(candidate => {
             return dispatch(updateCandidateUsage({
                 candidateId: candidate.candidateId,
-                code: candidate.code,
+                code: candidate.qualCode,
                 usageId,
                 inputs,
                 typeSignature,
@@ -143,7 +143,7 @@ export const refineSearch = ({query, examples}) => (dispatch, getState) => {
     dispatch(setSearchStatus({status: LOADING}));
     candidates.results.map(candidate => {
         const allExamplesForCandidate = examples.map(example => {
-            return ghciUsage({typeSignature: query, code: candidate.code, inputs: example.inputs})
+            return ghciUsage({typeSignature: query, code: candidate.qualCode, inputs: example.inputs})
                 .then(({result}) => {
                     return (result === example.output)
                 })

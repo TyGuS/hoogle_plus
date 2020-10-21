@@ -14,6 +14,7 @@ import Types.IOFormat
 import Synquid.Type
 import Synquid.Util hiding (fromRight)
 import Synquid.Pretty as Pretty
+import Synquid.Program
 import Database.Util
 import HooglePlus.Utils
 import HooglePlus.FilterTest (runChecks)
@@ -160,7 +161,7 @@ runGhcChecks params env goalType examples prog = let
     in do
         typeCheckResult <- liftIO $ runInterpreter $ checkType expr modules
         strictCheckResult <- if disableDemand then return True else liftIO $ checkStrictness tyclassCount (show body) funcSig modules
-        exampleCheckResult <- if not strictCheckResult then return Nothing else liftIO $ fmap ((:[]) . (body,)) <$> checkOutputs prog examples
+        exampleCheckResult <- if not strictCheckResult then return Nothing else liftIO $ fmap ((:[]) . ((unqualifyFunc body, body),)) <$> checkOutputs prog examples
         filterCheckResult <- if disableFilter || isNothing exampleCheckResult
                                 then return exampleCheckResult
                                 else do

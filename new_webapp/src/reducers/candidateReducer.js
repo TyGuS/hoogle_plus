@@ -125,6 +125,7 @@ export function candidateReducer(state = initialCandidateState, action){
                 const newResult = {
                     candidateId: v4(),
                     code: candidate.code,
+                    qualCode: candidate.qualCode,
                     docs: action.payload.docs,
                     examplesStatus: DONE,
                     examplesShown: defaultExamplesShown,

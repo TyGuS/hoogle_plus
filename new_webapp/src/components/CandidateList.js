@@ -68,7 +68,7 @@ const ConnectedCandidateList = (props) => {
     return (
         <div className="container">
             {candidates.map((result, idx) => {
-                const {code, examplesStatus, candidateId, errorMessage, docs} = result;
+                const {code, qualCode, examplesStatus, candidateId, errorMessage, docs} = result;
                 const examples = result.examples || [];
                 const header = (
                     <Card.Header className="candidate-header">
@@ -82,7 +82,7 @@ const ConnectedCandidateList = (props) => {
                         {addDocs(code, docs)}
                     </Card.Header>
                 );
-                const handleClick = () => getMoreExamples({candidateId, code, examples});
+                const handleClick = () => getMoreExamples({candidateId, code: qualCode, examples});
                 const isOpen = examples.length > 0 && resultsFeatures.permitExamples;
                 const isLoading = examplesStatus === LOADING;
                 const buttonVariant = examplesStatus === ERROR ? "outline-danger" : "outline-primary"
