@@ -43,16 +43,21 @@ bottomUpCheck env (Program (PApp fun arg) typ) = do
         -- check function signature against the provided argument
         let checkedArgTy = shape (typeOf checkedArg)
         writeLog 3 "bottomUpCheck" $ text "Bottom up checking get arg type" <+> pretty checkedArgTy
-        let FunctionT _ tArg tRes = shape (typeOf fun)
-        solveTypeConstraint env checkedArgTy tArg
-        -- we eagerly substitute the assignments into the return type of t
-        tass <- gets (view typeAssignment)
-        let ret = addTrue $ stypeSubstitute tass tRes
-        -- if any of these checks returned false, this function application
-        -- would produce a bottom type
+        checkedFun <- bottomUpCheck env fun
         ifM (gets $ view isChecked)
-            (return $ Program (PApp fun checkedArg) ret)
-            (return $ Program (PApp fun checkedArg) BotT)
+            (do
+                let FunctionT _ tArg tRes = shape (typeOf checkedFun)
+                solveTypeConstraint env checkedArgTy tArg
+                -- we eagerly substitute the assignments into the return type of t
+                tass <- gets (view typeAssignment)
+                let ret = addTrue $ stypeSubstitute tass tRes
+                -- if any of these checks returned false, this function application
+                -- would produce a bottom type
+                ifM (gets $ view isChecked)
+                    (return $ Program (PApp checkedFun checkedArg) ret)
+                    (return $ Program (PApp checkedFun checkedArg) BotT)
+            )
+            (return checkedFun)
       )
       (return checkedArg)
 bottomUpCheck env p@(Program (PFun x body) (FunctionT _ tArg tRet)) = do
@@ -99,8 +104,8 @@ solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ 
             then checkAssignment env id' tv
             else unify env id tv'
 solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t | isBound env id = modify $ set isChecked False
-solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) (ScalarT (DatatypeT dt _ _) _)
-  | tyclassPrefix `isPrefixOf` dt = modify $ set isChecked False -- type class cannot unify with a type variable
+-- solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) (ScalarT (DatatypeT dt _ _) _)
+--   | tyclassPrefix `isPrefixOf` dt = modify $ set isChecked False -- type class cannot unify with a type variable
 solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t = do
     tass <- gets (view typeAssignment)
     writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tv <+> text "==" <+> pretty t

@@ -103,18 +103,18 @@ instantiateWith env typs id t = do
            secod <- findSymbol env "snd"
            let absFst = toAbstractType $ shape first
            let absSnd = toAbstractType $ shape secod
-           fstSigs <- applySemanticSeq tvs (const typs) absFst
-           sndSigs <- applySemanticSeq tvs (const typs) absSnd
+           fstSigs <- applySemanticSeq tvs (const typs) ABottom absFst
+           sndSigs <- applySemanticSeq tvs (const typs) ABottom absSnd
            -- assertion, check they have same elements
            when (length fstSigs /= length sndSigs)
                 (error "fst and snd have different number of instantiations")
-           let matches = zipWith assemblePair fstSigs sndSigs
+           let matches = zipWith (assemblePair tvs) fstSigs sndSigs
            let matches' = filter (\t -> noneInst instMap pairProj t || diffInst tvs instMap pairProj t) matches
            mapM (mkNewSig pairProj) matches'
        else do
            ft <- freshType tvs (Monotype t)
            let t' = toAbstractType (shape ft)
-           rawSigs <- applySemanticSeq tvs (const typs) t'
+           rawSigs <- applySemanticSeq tvs (const typs) ABottom t'
            let sigs = filter (\t -> noneInst instMap id t || diffInst tvs instMap id t) rawSigs
            mapM (mkNewSig id) sigs
 
@@ -145,7 +145,7 @@ splitTransition env newAt fid = do
     let argGenerator = \t -> t : (if t `elem` parents then [newAt] else [])
     addSubstedSigs tvs argGenerator ty
   where
-    getOldTransition fixedFunId = do
+    getConcreteTransition fixedFunId = do
         -- get the concrete function type
         funType <- findSymbol env fixedFunId
         writeLog 3 "splitTransition" $ text fixedFunId <+> text "::" <+> pretty funType
@@ -155,21 +155,26 @@ splitTransition env newAt fid = do
         | pairProj `isPrefixOf` fid = do
             nameMap <- gets $ view (typeChecker . nameMapping)
             instMap <- gets $ view (refineState . instanceMapping)
-            absFstType <- getOldTransition "fst"
-            absSndType <- getOldTransition "snd"
-            fstFuncs <- applySemanticSeq tvs argGenerator absFstType
-            sndFuncs <- applySemanticSeq tvs argGenerator absSndType
+            absFstType <- getConcreteTransition "fst"
+            absSndType <- getConcreteTransition "snd"
+            writeLog 3 "splitTransition" $ text "pair_match ::" <+> text (show ty)
+            -- split ty into two abstract functions
+            let AFunctionT p (AFunctionT f s) = ty
+            let oldFst = AFunctionT p f
+            let oldSnd = AFunctionT p s
+            fstFuncs <- applySemanticSeq tvs argGenerator oldFst absFstType
+            sndFuncs <- applySemanticSeq tvs argGenerator oldSnd absSndType
             let isNewTrans (f, g) = not (equalAbstract tvs f absFstType) &&
                                     not (equalAbstract tvs g absSndType)
             let funcs = filter isNewTrans (zip fstFuncs sndFuncs)
-            let sigs = map (uncurry assemblePair) funcs
+            let sigs = map (uncurry $ assemblePair tvs) funcs
             let sigs' = filter (\t -> noneInst instMap pairProj t || diffInst tvs instMap pairProj t) sigs
             mapM (mkNewSig pairProj) sigs'
         | otherwise = do
             nameMap <- gets $ view (typeChecker . nameMapping)
             instMap <- gets $ view (refineState . instanceMapping)
-            absFunType <- getOldTransition fid
-            funcs <- applySemanticSeq tvs argGenerator absFunType
+            absFunType <- getConcreteTransition fid
+            funcs <- applySemanticSeq tvs argGenerator ty absFunType
             let isNewTrans f = not (equalAbstract tvs f absFunType)
             let sigs = filter isNewTrans funcs
             let funId = lookupWithError "nameMapping" fid nameMap
@@ -681,6 +686,7 @@ nextSolution env goal examples cnt = do
     -- corresponds to that path, so we may safely block this path anyway
     blockCurrent
     hasPass <- gets $ view (refineState . passOneOrMore)
+    writeLog 1 "nextSolution" $ pretty hasPass
     if hasPass -- block the previous path and then search
        then findProgram env goal examples cnt
        else do -- refine and then search
@@ -846,14 +852,13 @@ getGroupRep name = do
     writeLog 3 "getGroupRep" $ pretty argGps <+> text "has representative" <+> pretty argRp
     if null argRp then error ("cannot find group rep for " ++ name) else return argRp
 
-assemblePair :: AbstractSkeleton
+assemblePair :: [Id]
             -> AbstractSkeleton
             -> AbstractSkeleton
-assemblePair first secod | absFunArgs "fst" first == absFunArgs "snd" secod =
-    let AFunctionT p f = first
-        AFunctionT _ s = secod
-     in AFunctionT p (AFunctionT f s)
-assemblePair first second = error "fst and snd have different arguments"
+            -> AbstractSkeleton
+assemblePair tvs (AFunctionT p f) (AFunctionT p' s) 
+    | equalAbstract tvs p p' = AFunctionT p (AFunctionT f s)
+    | otherwise = error $ "fst and snd have different arguments " ++ show (p, p')
 
 findFunction :: HashMap Id FunctionCode -> Id -> FunctionCode
 findFunction fm name = fromMaybe (error $ "cannot find function name " ++ name)

@@ -339,7 +339,7 @@ prettyProgram (Program p typ) = case p of
         Program (PSymbol _) _ -> prettyProgram p
         Program PHole _ -> prettyProgram p
         _ -> hlParens (prettyProgram p)
-      in optParens pFun <+> optParens pArg
+      in prettyProgram pFun <+> optParens pArg
     PInfix pFst op pSnd -> prettyProgram pFst <+> operator op <+> prettyProgram pSnd
     PFun x e -> nest 2 $ operator "\\" <> text x <+> operator "->" </> prettyProgram e
     PIf c t e -> linebreak <> (hang tab $ keyword "if" <+> prettyProgram c $+$ (hang tab (keyword "then" </> prettyProgram t)) $+$ (hang tab (keyword "else" </> prettyProgram e)))

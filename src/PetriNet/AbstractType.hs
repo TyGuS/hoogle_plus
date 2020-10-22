@@ -243,20 +243,27 @@ applySemantic tvs (AFunctionT tArg tRes) arg = do
             cover <- gets $ view (refineState . abstractionCover)
             let substRes = abstractSubstitute m tRes
             writeLog 3 "applySemantic" $ text "current cover" <+> text (show cover)
-            currentAbst tvs cover substRes
+            writeLog 3 "applySemantic" $ text "apply result" <+> text (show substRes)
+            if isAFunctionT substRes then return substRes
+                                     else currentAbst tvs cover substRes
+applySemantic tvs t1 t2 = error $ show t1 ++ " cannot be applied on " ++ show t2
 
 applySemanticSeq :: MonadIO m
                  => [Id]  -- bounded type variables
                  -> (AbstractSkeleton -> [AbstractSkeleton]) -- argument generator
+                 -> AbstractSkeleton -- the old transition
                  -> AbstractSkeleton -- the function to be applied
                  -> PNSolver m [AbstractSkeleton] -- application results
-applySemanticSeq tvs argGenerator t | isBot t = return []
-applySemanticSeq tvs argGenerator tFun@(AFunctionT tArg tRes) = do
-    let args = argGenerator tArg
+applySemanticSeq tvs argGenerator _ t | isBot t = return []
+applySemanticSeq tvs argGenerator oldFun tFun@(AFunctionT tArg tRes) = do
+    let (oldArg, oldRes) = case oldFun of
+                              AFunctionT oldArg oldRes -> (oldArg, oldRes)
+                              _ -> (ABottom, ABottom)
+    let args = argGenerator oldArg
     rets <- mapM (applySemantic tvs tFun) args
-    allRes <- mapM (applySemanticSeq tvs argGenerator) rets
+    allRes <- mapM (applySemanticSeq tvs argGenerator oldRes) rets
     return $ concat $ zipWith (map . AFunctionT) args allRes
-applySemanticSeq tvs _ t = do
+applySemanticSeq tvs _ _ t = do
     cover <- gets $ view (refineState . abstractionCover)
     t' <- currentAbst tvs cover t
     return [t']

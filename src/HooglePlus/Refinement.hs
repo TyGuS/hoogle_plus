@@ -76,7 +76,8 @@ propagate env p@(Program (PSymbol sym) t) upstream = do
 -- find the most general abstraction that unifies with the concrete types
 -- of the arguments, but not unify with the function args of its signature
 propagate env p@(Program (PApp fun arg) _) upstream = do
-    unless (isBot upstream) (propagate env (untyped (PSymbol "err")) upstream)
+    -- add the upstream into the abstract cover if it is not bottom
+    unless (isBot upstream) (propagate env (untyped (PSymbol "x")) upstream)
     writeLog 2 "propagate" $ text "propagate" <+> pretty upstream <+> text "into" <+> pretty p
     let absFun = toAbstractType (shape (typeOf fun))
     let absArg = toAbstractType (shape (typeOf arg))
@@ -89,7 +90,8 @@ propagate env p@(Program (PApp fun arg) _) upstream = do
         lift $ writeLog 3 "propagate" $ text "get generalized type" <+> pretty generalizedArg <+> text "from" <+> pretty tArg
         res <- lift $ applySemantic bound tFun generalizedArg
         lift $ writeLog 3 "propagate" $ text "apply" <+> pretty generalizedArg <+> text "to" <+> pretty tFun <+> text "gets" <+> pretty res
-        guard (isSubtypeOf bound res upstream)
+        guard (isSubtypeOf bound res upstream || 
+                isSubtypeOf bound (compactAbstractType res) upstream)
         return $ compactAbstractType generalizedArg
 -- | case for lambda functions
 propagate env (Program (PFun x body) (FunctionT _ tArg tRet))
@@ -115,9 +117,13 @@ generalize bound t@(AScalar (ATypeVarT id))
 -- (1) v
 -- (2) datatype with all fresh type variables
 -- (3) datatype with incrementally generalized inner types
+generalize bound t@(AScalar (ADatatypeT id args)) | tyclassPrefix `isPrefixOf` id =
+    subsetTyps bound t
 generalize bound t@(AScalar (ADatatypeT id args)) = do
     v <- lift $ freshId bound "T"
-    return (AScalar (ATypeVarT v)) `mplus` freshVars `mplus` subsetTyps -- interleave
+    return (AScalar (ATypeVarT v)) `mplus` 
+        freshVars `mplus` 
+        subsetTyps bound t -- interleave
   where
     -- this search may explode when we have a large number of datatype parameters
     patternOfLen n
@@ -139,17 +145,17 @@ generalize bound t@(AScalar (ADatatypeT id args)) = do
         lift $ writeLog 3 "generalize" $ text "generalize" <+> pretty t <+> text "into" <+> pretty absTy
         return absTy
 
-    subsets [] = return []
-    subsets (arg:args) = do
-        args' <- subsets args
-        arg' <- generalize bound arg
-        return (arg':args')
-
-    subsetTyps = do
-        args' <- subsets args
-        return (AScalar (ADatatypeT id args'))
-
 generalize bound (AFunctionT tArg tRes) = do
     tArg' <- generalize bound tArg
     tRes' <- generalize bound tRes
     return (AFunctionT tArg' tRes')
+
+subsetTyps bound (AScalar (ADatatypeT id args)) = do
+    args' <- subsets args
+    return (AScalar (ADatatypeT id args'))
+    where
+        subsets [] = return []
+        subsets (arg:args) = do
+            args' <- subsets args
+            arg' <- generalize bound arg
+            return (arg':args')
