@@ -53,7 +53,7 @@ bottomUpCheck env (Program (PApp f args) typ) = do
       mapM_ (uncurry $ solveTypeConstraint env) (zip checkedArgTys argVars)
       -- we eagerly substitute the assignments into the return type of t
       tass <- gets (view typeAssignment)
-      let ret = addTrue $ stypeSubstitute tass (shape $ partialReturn checkedArgs t)
+      let ret = addTrue $ (partialReturn checkedArgs $ stypeSubstitute tass $ shape t)
       -- if any of these checks returned false, this function application
       -- would produce a bottom type
       ifM (gets $ view isChecked)

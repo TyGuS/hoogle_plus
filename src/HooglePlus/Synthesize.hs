@@ -22,6 +22,7 @@ import Types.Type
 import Types.IOFormat
 import HooglePlus.Utils
 import HooglePlus.IOFormat
+-- import HooglePlus.TypeChecker
 import Examples.ExampleChecker
 
 import Control.Applicative ((<$>))
@@ -109,7 +110,12 @@ synthesize searchParams goal examples messageChan = catch (do
                 , _messageChan = messageChan
                 , _typeChecker = emptyChecker { _checkerChan = messageChan }
                 }
-
+    -- let tmp = untyped (PApp "Data.Maybe.fromJust" [untyped (PApp "Data.Maybe.Just" [untyped $ PSymbol "Data.Maybe.fromJust"]), untyped (PSymbol "Data.Maybe.Nothing")])
+    -- (btm, checkerState) <- runStateT (bottomUpCheck envWithHo tmp) (emptyChecker {_checkerChan = messageChan})
+    -- print btm
+    -- print (checkerState ^. isChecked)
+    -- print (checkerState ^. typeAssignment)
+    -- error "stop"
     -- before synthesis, first check that user has provided valid examples
     let exWithOutputs = filter ((/=) "??" . output) examples
     checkResult <- checkExamples envWithHo goalType exWithOutputs messageChan
