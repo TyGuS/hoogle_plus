@@ -96,3 +96,7 @@ pre {
 button:hover {
   cursor: pointer;
 }
+
+.no-cursor {
+  cursor: default !important;
+}

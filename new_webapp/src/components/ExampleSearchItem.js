@@ -3,7 +3,7 @@ import _ from "underscore";
 import { Button } from "react-bootstrap";
 import { exampleToNamedArgs } from "../utilities/args";
 
-const ExampleSearchItem = ({description, queryStr, examples, argNames,
+const ExampleSearchItem = ({name, description, queryStr, examples, argNames,
     setSearchType, setExamples, setArgNames, doSearch, getTypesFromExamples }) => {
         // click the search button
         const handleClick = () => {
@@ -21,10 +21,14 @@ const ExampleSearchItem = ({description, queryStr, examples, argNames,
         };
 
         return (
-            <Button 
-                variant="link" 
-                onClick={handleClick}>{description}
-            </Button>
+            <span>
+                <span className="btn text no-cursor">{name}:</span>
+                <Button
+                    variant="link"
+                    onClick={handleClick}>
+                        <code>{description}</code>
+                </Button>
+            </span>
         );
 };
 

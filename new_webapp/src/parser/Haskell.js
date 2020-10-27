@@ -7,16 +7,21 @@ const P = Parsimmon;
 // Parser combinator for a Haskell-with-named-arguments type description language.
 export const typeParser = Parsimmon.createLanguage({
     TypeDecl: (r) => {
-        return r.TypeCtx
-            .skip(P.string("=>"))
-            .times(0,1)
+        const typeBody = P.string("=>")
             .trim(P.optWhitespace)
-            .then(r.Type)
+            .then(r.Type);
+        const withTyclass = P.seqObj(
+            ["typeClasses", r.TypeCtx],
+            ["typeBody", typeBody]
+        );
+        return P.alt(
+            withTyclass,
+            r.Type
+        )
     },
     TypeCtx: (r) => {
         return P.alt(
-                r.TyCon,
-                r.VarId,
+                r.Type,
                 r.CtxTuple
             )
             .trim(P.optWhitespace)
@@ -24,13 +29,13 @@ export const typeParser = Parsimmon.createLanguage({
     CtxTuple: (r) => {
         return P.string("(")
             .trim(Parsimmon.optWhitespace)
-            .then(P.alt(r.TyCon, r.VarId))
-            .then(
+            .then(P.seqMap(
+                r.Type,
                 P.string(",")
                 .trim(Parsimmon.optWhitespace)
-                .then(P.alt(r.TyCon, r.VarId))
-                .many()
-            )
+                .then(r.Type)
+                .many(),
+                (first, rest) => [first].concat(rest)))
             .skip(P.string(")"))
     },
     Type: (r) => {

@@ -3,7 +3,7 @@ import _ from "underscore";
 import { connect } from 'react-redux';
 import { setExamples, setExampleEditingRow, setExampleEditingCol, increaseArgs, 
     decreaseArgs, setArgNames, setSearchType } from '../actions';
-import { exampleToNamedArgs, replaceArgName, parseResultToStr, argNamesOf } from '../utilities/args';
+import { exampleToNamedArgs, replaceIthArgName, parseResultToStr, argNamesOf } from '../utilities/args';
 import { Button, Table } from 'react-bootstrap';
 import { EditableRow } from './EditableTable/EditableRow';
 import { v4 } from 'uuid';
@@ -95,7 +95,7 @@ const ExampleTableBase = ({
         // if the user didn't change the argument number, 
         // we update the query according to users' changes in the argument names
         if(parsedType && argNamesOf(parsedType).length === newArgs.length) {
-            const newParseResult = replaceArgName(parsedType, argNames[colName], newArgName);
+            const newParseResult = replaceIthArgName(parsedType, parseInt(colName), newArgName);
             // if the arg name is updated, otherwise do not update the query
             if(!_.isEqual(newParseResult, parsedType)) {
                 console.log("two parse results are different, set a new search type");

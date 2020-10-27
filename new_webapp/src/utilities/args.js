@@ -57,13 +57,9 @@ export const getArgInfo = (queryStr) => {
     var result = typeParser.TypeDecl.tryParse(queryStr);
     const argNames = argNamesOf(result);
     const argNum = depth(result);
-    console.log("argNum", argNum);
-    console.log("argNames", argNames);
     if(argNames.length !== argNum) {
       result = freshArgName(argNames, result);
-      console.log("inside",result);
     }
-    console.log("outside",result);
     return {
       argNum,
       argNames: argNamesOf(result),
@@ -76,6 +72,10 @@ export const getArgInfo = (queryStr) => {
 }
 
 const depth = (xs) => {
+  if(xs.typeClasses) {
+    return depth(xs.typeBody);
+  }
+
   if(!xs || !xs.result || xs.result.length === 0) {
     return 0;
   }
@@ -83,6 +83,10 @@ const depth = (xs) => {
 }
 
 export const argNamesOf = (xs) => {
+  if(xs.typeClasses) {
+    return argNamesOf(xs.typeBody);
+  }
+
   if(!xs.result || xs.result.length === 0) {
     return [];
   }
@@ -90,6 +94,20 @@ export const argNamesOf = (xs) => {
 }
 
 export const parseResultToStr = (obj) => {
+  if(!obj) {
+    return "";
+  }
+
+  if(obj.typeClasses) {
+    const tybody = parseResultToStr(obj.typeBody);
+    if(obj.typeClasses.length && obj.typeClasses.length !== 0) {
+      const tyclasses = obj.typeClasses.map(parseResultToStr).join(", ");
+      return "(" + tyclasses + ") => " + tybody;
+    }
+    const tyclasses = parseResultToStr(obj.typeClasses);
+    return tyclasses + " => " + tybody;
+  }
+
   if(!obj.result || obj.result.length === 0) {
     // pretty print the datatypes
     if(obj.datatype) {
@@ -114,32 +132,43 @@ export const parseResultToStr = (obj) => {
     // pretty print the argument types
     if(obj.argTy) {
       const argTyp = obj.argTy;
-      return parseResultToStr(argTyp);
+      const argStr = parseResultToStr(argTyp);
+      if(obj.argName && obj.argName.length !== 0) {
+        return obj.argName[0] + ":" + argStr;
+      }
+      return argStr;
     }
 
     return obj;
   }
 
   if(obj.argName.length !== 0) {
-    return obj.argName[0] + ": " + parseResultToStr(obj.argTy) + " -> " + parseResultToStr(obj.result[0]);
+    return obj.argName[0] + ":" + parseResultToStr(obj.argTy) + " -> " + parseResultToStr(obj.result[0]);
   }
 
   return parseResultToStr(obj.argTy) + " -> " + parseResultToStr(obj.result[0]);
 }
 
-export const replaceArgName = (obj, oldArgName, newArgName) => {
+export const replaceIthArgName = (obj, i, newArgName) => {
+  if(obj.typeClasses) {
+    return {
+      ...obj,
+      typeBody: replaceIthArgName(obj.typeBody, i, newArgName)
+    };
+  }
+
   if(!obj.result || obj.result.length === 0) {
     return obj;
   }
 
-  if(obj.argName[0] === oldArgName) {
+  if(i === 0) {
     return {
       ...obj,
       argName: [newArgName]
     };
   }
 
-  const child = replaceArgName(obj.result[0], oldArgName, newArgName);
+  const child = replaceIthArgName(obj.result[0], i - 1, newArgName);
   return {
     ...obj,
     result: [child],
@@ -148,9 +177,17 @@ export const replaceArgName = (obj, oldArgName, newArgName) => {
 
 export const freshArgName = (currArgNames, parsedResult) => {
   // debugger;
+  if(parsedResult.typeClasses) {
+    return {
+      ...parsedResult,
+      typeBody: freshArgName(currArgNames, parsedResult.typeBody),
+    };
+  }
+
   if(!parsedResult.result || parsedResult.result.length === 0) {
     return parsedResult;
   }
+  
   if(!parsedResult.argName || parsedResult.argName.length === 0) {
     var idx = 1;
     var varName = getArgNames(idx).slice(-1)[0];

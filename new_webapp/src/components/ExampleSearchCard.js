@@ -29,8 +29,9 @@ const ConnectedExampleSearchCard = (props) => {
 
     const searchByTypeOnly = (
         <ExampleSearchItem
-            description = "Search by type only"
-            queryStr = "d: a -> xs: [Maybe a] -> a"
+            name = "firstJust"
+            description = "d:a -> xs:[Maybe a] -> a"
+            queryStr = "d:a -> xs:[Maybe a] -> a"
             examples = {[]}
             argNames = {argNames}
             setSearchType = {setSearchType}
@@ -43,21 +44,22 @@ const ConnectedExampleSearchCard = (props) => {
 
     const searchByExampleOnly = (
         <ExampleSearchItem
-            description = "Search by examples only"
+            name = "dedupe"
+            description = '"aaaabbbab" -> "abab"; [1,1,1,2,2,3] -> [1,2,3]'
             queryStr = ""
             examples = {
                 [{
                     id: "ex-1",
-                    inputs: ["1", "[Nothing, Nothing]"],
-                    output: "1"
+                    inputs: ["\"aaaabbbab\""],
+                    output: "\"abab\""
                 },
                 {
                     id: "ex-2",
-                    inputs: ["1", "[Nothing, Just (-1), Nothing]"],
-                    output: "-1"
+                    inputs: ["[1,1,1,2,2,3]"],
+                    output: "[1,2,3]"
                 }]
             }
-            argNames = {["d", "xs"]}
+            argNames = {["xs"]}
             setSearchType = {setSearchType}
             setExamples = {setExamples}
             setArgNames = {setArgNames}
@@ -68,18 +70,19 @@ const ConnectedExampleSearchCard = (props) => {
 
     const searchByTypeAndExamples = (
         <ExampleSearchItem
-            description = "Search by both type and examples"
-            queryStr = "d: a -> xs: [Maybe a] -> a"
+            name = "concatNTimes"
+            description = 'xs:[a] -> n:Int -> [a]; [1,2,3] -> 2 -> [1,2,3,1,2,3]; "abc" -> 3 -> "abcabcabc"'
+            queryStr = 'xs:[a] -> n:Int -> [a]'
             examples = {
                 [{
                     id: "ex-1",
-                    inputs: ["1", "[Nothing, Nothing]"],
-                    output: "1"
+                    inputs: ["[1,2,3]", "2"],
+                    output: "[1,2,3,1,2,3]"
                 },
                 {
                     id: "ex-2",
-                    inputs: ["1", "[Nothing, Just (-1), Nothing]"],
-                    output: "-1"
+                    inputs: ["\"abc\"", "3"],
+                    output: "\"abcabcabc\""
                 }]
             }
             argNames = {argNames}
@@ -98,16 +101,10 @@ const ConnectedExampleSearchCard = (props) => {
         return (
             <Card className="mb-5 text-left">
                 <div className="container py-3 px-4">
+                    <h6 className="font-weight-bold">
+                        Example Searches
+                    </h6>
                     <div>
-                        <h5 className="mb-3">{title}</h5>
-                        <p>
-                            <span className="font-weight-bold">
-                                Task Description: 
-                            </span> Function <code>firstJust</code> takes two arguments: a list of <code>Maybe a</code>'s and a default value. It returns the first element from the list that is a <code>Just</code> or the default, if no such element exists.
-                        </p>
-                    </div>
-                    <div>
-                        <h6 className="font-weight-bold">Different Search Modes</h6>
                         <ul>
                             <li>{searchByTypeOnly}</li>
                             <li>{searchByExampleOnly}</li>

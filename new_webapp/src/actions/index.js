@@ -1,11 +1,12 @@
 import * as Consts from "../constants/action-types";
 import _ from "underscore";
 import { Search, ghciUsage, hooglePlusMoreExamples } from "../gateways";
-import { getArgInfo, parseResultToStr } from "../utilities/args";
+import { getArgInfo, parseResultToStr, argNamesOf } from "../utilities/args";
 import { LOADING, DONE, ERROR } from "../constants/fetch-states";
 import { log } from "../utilities/logger";
 import { v4 } from "uuid";
 import { defaultExamplesShownIncrement } from "../utilities/featureManager";
+import { parse } from "@fortawesome/fontawesome-svg-core";
 
 function makeActionCreator(type, ...argNames) {
     return function (...args) {
@@ -115,20 +116,37 @@ export const setSearchType = ({query}) => (dispatch, getState) => {
     const {spec, candidates} = getState();
     const hasNoExamples = spec.rows.length === 0;
     dispatch(doStop({id: candidates.id}));
+    
     const mbArgInfo = getArgInfo(query);
+    var namedQuery = query;
     if(!_.isNull(mbArgInfo)) {
         const mbArgCount = mbArgInfo.argNum;
         if (!_.isNull(mbArgCount) && (spec.numArgs !== mbArgCount) && hasNoExamples) {
             dispatch(setArgNum(mbArgCount));
         }
-        if(spec.argNames !== mbArgInfo.argNames) {
+
+        const oldArgNames = JSON.stringify(spec.argNames);
+        const correctedArgNames = JSON.stringify(mbArgInfo.argNames);
+        if(oldArgNames !== correctedArgNames) {
+            console.log('different arg names', spec.argNames, mbArgInfo.argNames);
             dispatch(setArgNames(mbArgInfo.argNames));
         }
-        if(spec.parsedType !== mbArgInfo.parsedType) {
+
+        // compare the query strings
+        const currQuery = parseResultToStr(spec.parsedType);
+        const correctedQuery = parseResultToStr(mbArgInfo.parsedType);
+        if(currQuery !== correctedQuery) {
+            console.log('different parsedType', currQuery, correctedQuery);
             dispatch(setParsedTypeInternal(mbArgInfo.parsedType));
         }
+
+        // compare the arg names to see whether we have automatically assigned names
+        const inputArgNames = JSON.stringify(argNamesOf(query));
+        if(inputArgNames !== correctedArgNames) {
+            namedQuery = parseResultToStr(mbArgInfo.parsedType);
+        }
     }
-    dispatch(setSearchTypeInternal({query}));
+    dispatch(setSearchTypeInternal({query: namedQuery}));
 };
 
 export const refineSearch = ({query, examples}) => (dispatch, getState) => {
