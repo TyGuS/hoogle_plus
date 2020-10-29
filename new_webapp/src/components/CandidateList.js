@@ -38,14 +38,15 @@ const ConnectedCandidateList = (props) => {
         const wordLike = code.split(/\b/);
         const codeSnippet = wordLike.map((word, idx) => {
             const wordSpan = (<span key={idx}>{word}</span>);
-            if (! (word in docLookup)) {
+            const wordKey = word.trim();
+            if (! (wordKey in docLookup)) {
                 return wordSpan;
             }
-            const docLine = docLookup[word].doc.split("\n").map((line, idx) => (
+            const docLine = docLookup[wordKey].doc.split("\n").map((line, idx) => (
                 <div key={idx} className="doc-line">{line}</div>));
             const toolTip = (
                 <Tooltip>
-                    {word} :: {docLookup[word].signature}
+                    <h6>{word} :: {docLookup[wordKey].signature}</h6>
                     {docLine}
                 </Tooltip>
             );

@@ -80,8 +80,8 @@ synthesize searchParams goal examples messageChan = catch (do
     envWithHo <- if useHO -- add higher order query arguments
         then do
             let args = rawEnv ^. arguments
-            let hoArgs = Map.filter (isFunctionType . toMonotype) args
-            let hoFuns = map (\(k, v) -> (k ++ hoPostfix, withSchema toFunType v)) (Map.toList hoArgs)
+            let hoArgs = filter (isFunctionType . toMonotype . snd) args
+            let hoFuns = map (\(k, v) -> (k ++ hoPostfix, withSchema toFunType v)) hoArgs
             return $ rawEnv { 
                 _symbols = rawSyms `Map.union` Map.fromList hoFuns, 
                 _hoCandidates = hoCands ++ map fst hoFuns
@@ -93,7 +93,7 @@ synthesize searchParams goal examples messageChan = catch (do
                 _hoCandidates = []
                 }
     -- putStrLn $ "Component number: " ++ show (Map.size $ allSymbols env)
-    let args = Monotype destinationType : Map.elems (envWithHo ^. arguments)
+    let args = Monotype destinationType : map snd (envWithHo ^. arguments)
   -- start with all the datatypes defined in the components, first level abstraction
     let rs = _refineStrategy searchParams
     let initCover = case rs of
@@ -116,8 +116,8 @@ synthesize searchParams goal examples messageChan = catch (do
     -- preseedExamples <- augmentTestSet envWithHo goalType
     let augmentedExamples = examples -- nubOrdOn inputs $ examples ++ preseedExamples
     case checkResult of
-      Right errs -> error (unlines ("examples does not type check" : errs))
-      Left _ -> evalStateT (runPNSolver envWithHo goalType augmentedExamples) is)
+      Left errs -> error (unlines ("Examples does not type check" : errs))
+      Right _ -> evalStateT (runPNSolver envWithHo goalType augmentedExamples) is)
     (\e ->
          writeChan messageChan (MesgLog 0 "error" (show e)) >>
          writeChan messageChan (MesgClose (CSError e)) >>

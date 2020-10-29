@@ -110,12 +110,13 @@ wrapParens = printf "(%s)"
 supportedTyclasses :: [String]
 supportedTyclasses = ["Num", "Ord", "Eq"]
 
-checkTypes :: Environment -> CheckerState -> [Id] -> RSchema -> RSchema -> IO (Bool, Map Id SType)
-checkTypes env initChecker tmpBound s1 s2 = do
+-- assume the types passed into the method already have fresh variable names
+checkTypes :: Environment -> CheckerState -> [Id] -> RType -> RType -> IO (Bool, Map Id SType)
+checkTypes env initChecker tmpBound r1 r2 = do
     let bound = tmpBound ++ env ^. boundTypeVars
     state <- execStateT (do
-        r1 <- freshType bound s1
-        r2 <- freshType bound s2
+        -- r1 <- freshType bound s1
+        -- r2 <- freshType bound s2
         let t1 = skipTyclass r1
         let t2 = skipTyclass r2
         solveTypeConstraint env (shape t1) (shape t2)) initChecker

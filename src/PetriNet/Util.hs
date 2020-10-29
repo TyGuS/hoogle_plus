@@ -53,7 +53,7 @@ writeLog :: (CheckMonad (t m), MonadIO (t m), MonadIO m) => Int -> String -> Doc
 writeLog level tag msg = do
     mesgChan <- getMessageChan
     liftIO $ writeChan mesgChan (MesgLog level tag $ show $ plain msg)
-    -- if level <= 3 then trace (printf "[%s]: %s\n" tag (show $ plain msg)) $ return () else return ()
+    -- if level <= 1 then trace (printf "[%s]: %s\n" tag (show $ plain msg)) $ return () else return ()
 
 multiPermutation len elmts | len == 0 = [[]]
 multiPermutation len elmts | len == 1 = [[e] | e <- elmts]
@@ -180,8 +180,8 @@ unHTML = unescapeHTML . innerTextHTML
 toOutput :: Environment -> RProgram -> AssociativeExamples -> IO QueryOutput
 toOutput env soln exs = do
     let symbols = Set.toList $ symbolsOf soln
-    let argNames = Map.keys $ env ^. arguments
-    let args = Map.toList $ env ^. arguments
+    let argNames = map fst (env ^. arguments)
+    let args = env ^. arguments
     let argDocs = map (\(n, ty) -> FunctionDoc n (show ty) "") args
     let symbolsWoArgs = symbols \\ argNames
     docs <- liftIO $ hoogleIt symbolsWoArgs

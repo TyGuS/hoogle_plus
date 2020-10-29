@@ -45,26 +45,34 @@ import Data.List
 import Text.Printf
 import Debug.Trace
 
-checkExample :: Environment -> RSchema -> Example -> Chan Message -> IO (Either RSchema ErrorMessage)
+checkExample :: Environment -> RSchema -> Example -> Chan Message -> IO (Either ErrorMessage RSchema)
 checkExample env typ ex checkerChan = do
     let mdls = Set.toList $ env ^. included_modules
     eitherTyp <- parseExample mdls mkFun
     case eitherTyp of
-      Left exTyp -> do
+      Right exTyp -> do
         let err = printf "%s does not have type %s" (show ex) (show typ) :: String
         let tcErr = printf "%s does not satisfy type class constraint in %s" (show ex) (show typ) :: String
         let initChecker = emptyChecker { _checkerChan = checkerChan }
-        (res, tass) <- checkTypes env initChecker [] exTyp typ
-        let substedTyp = stypeSubstitute tass (shape (toMonotype typ))
-        let (tyclasses, strippedTyp) = unprefixTc substedTyp
+        -- refresh the type variables names in the two
+        ((exTyp', typ'), checker') <- runStateT (do
+            t1 <- freshType (env ^. boundTypeVars) exTyp
+            t2 <- freshType (env ^. boundTypeVars) typ
+            return (t1, t2)
+            ) initChecker
+        (checked, tass) <- checkTypes env checker' [] exTyp' typ'
+        let substedTyp = traceShow tass $ stypeSubstitute tass (shape typ')
+        let (tyclasses, strippedTyp) = traceShow substedTyp $ unprefixTc substedTyp
         let tyclassesPrenex = intercalate ", " $ map show tyclasses
         let breakTypes = map show $ breakdown strippedTyp
         let mkTyclass = printf "%s :: (%s) => (%s)" mkFun tyclassesPrenex (intercalate ", " breakTypes)
-        eitherTyclass <- if null tyclasses then return (Left (Monotype AnyT)) else parseExample mdls mkTyclass
-        if res then if isLeft eitherTyclass then return $ Left exTyp
-                                            else return $ Right tcErr
-               else return $ Right err
-      Right e -> return $ Right e
+        eitherTyclass <- parseExample mdls mkTyclass
+        if checked 
+            then if null tyclasses || isRight eitherTyclass 
+                then return $ Right exTyp
+                else return $ Left tcErr
+            else return $ Left err
+      Left e -> return $ Left e
     where
         mkFun = printf "(%s)" (intercalate ", " $ inputs ex ++ [output ex])
 
@@ -77,19 +85,19 @@ checkExample env typ ex checkerChan = do
               _ -> ([], FunctionT x tArg tRes)
         unprefixTc t = ([], t)
 
-checkExamples :: Environment -> RSchema -> [Example] -> Chan Message -> IO (Either [RSchema] [ErrorMessage])
+checkExamples :: Environment -> RSchema -> [Example] -> Chan Message -> IO (Either [ErrorMessage] [RSchema] )
 checkExamples env typ exs checkerChan = do
     outExs <- mapM (\ex -> checkExample env typ ex checkerChan) exs
-    let (validResults, errs) = partitionEithers outExs
-    if null errs then return $ Left validResults
-                 else return $ Right errs
+    let (errs, validResults) = partitionEithers outExs
+    if null errs then return $ Right validResults
+                 else return $ Left errs
 
 execExample :: [String] -> Environment -> TypeQuery -> String -> Example -> IO (Either ErrorMessage String)
 execExample mdls env typ prog ex = do
-    let args = Map.keys $ env ^. arguments
+    let args = map fst (env ^. arguments)
     let nontcArgs = filter (not . (tyclassArgBase `isPrefixOf`)) args
     let prependArg = unwords nontcArgs
-    let progBody = if Map.null (env ^. arguments) -- if this is a request from front end
+    let progBody = if null (env ^. arguments) -- if this is a request from front end
         then printf "let f = (%s) :: %s in" prog typ
         else printf "let f = (\\%s -> %s) :: %s in" prependArg prog typ
     let parensedInputs = map wrapParens $ inputs ex
@@ -140,11 +148,11 @@ checkExampleOutput mdls env typ prog exs = do
         compareResults currOutput ex
           | output ex == "??" = return $ Just (ex { output = either id id currOutput })
           | otherwise = case currOutput of
-                          Left e -> return Nothing
+                          Left e -> print e >> return Nothing
                           Right o -> do
                               expectedOutput <- runStmt mdls (printf "Test.ChasingBottoms.approxShow 100 (%s)" $ output ex)
                               case expectedOutput of
-                                  Left err -> return Nothing
+                                  Left err -> print err >> return Nothing
                                   Right out | o == out -> return (Just ex)
                                             | otherwise -> return Nothing
 

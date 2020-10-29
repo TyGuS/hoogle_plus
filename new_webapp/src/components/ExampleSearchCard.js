@@ -33,7 +33,7 @@ const ConnectedExampleSearchCard = (props) => {
             description = "d:a -> xs:[Maybe a] -> a"
             queryStr = "d:a -> xs:[Maybe a] -> a"
             examples = {[]}
-            argNames = {argNames}
+            argNames = {["d", "xs"]}
             setSearchType = {setSearchType}
             setExamples = {setExamples}
             setArgNames = {setArgNames}
@@ -85,7 +85,7 @@ const ConnectedExampleSearchCard = (props) => {
                     output: "\"abcabcabc\""
                 }]
             }
-            argNames = {argNames}
+            argNames = {["xs", "n"]}
             setSearchType = {setSearchType}
             setExamples = {setExamples}
             setArgNames = {setArgNames}
@@ -102,7 +102,7 @@ const ConnectedExampleSearchCard = (props) => {
             <Card className="mb-5 text-left">
                 <div className="container py-3 px-4">
                     <h6 className="font-weight-bold">
-                        Example Searches
+                        {title}
                     </h6>
                     <div>
                         <ul>

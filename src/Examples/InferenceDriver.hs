@@ -43,13 +43,13 @@ import Outputable
 import Text.Printf
 
 -- pre: the mkFun is a tuple of arguments and return types
-parseExample :: [String] -> String -> IO (Either RSchema ErrorMessage)
+parseExample :: [String] -> String -> IO (Either ErrorMessage RSchema)
 parseExample mdls mkFun = catch (do
     typ <- askGhc mdls $ exprType TM_Default mkFun
     let hsType = typeToLHsType typ
     let hpType = toInt $ resolveType hsType
-    return (Left hpType))
-    (\(e :: SomeException) -> return (Right $ show e))
+    return (Right hpType))
+    (\(e :: SomeException) -> return (Left $ show e))
     where
         toInt (ForallT x t) = ForallT x (toInt t)
         toInt (Monotype t) = Monotype (integerToInt t)
@@ -70,6 +70,7 @@ getExampleTypes env argNames validSchemas num = do
         stepAntiUnification (t1, st) t2 = antiUnification t1 t2 st
         go = do
             -- liftIO $ print validSchemas
+            -- create types with all fresh type variables
             freshTypes <- mapM (freshType []) validSchemas
             let validTypes = map shape freshTypes
             foldM stepAntiUnification (head validTypes, emptyAntiUnifState) (tail validTypes)
@@ -519,8 +520,8 @@ checkUnification t1 t2 = do
     let vars = Set.toList $ typeVarsOf t1 `Set.union` typeVarsOf t2
     let boundVars = filter ((/=) wildcardPrefix . head) vars
     let env = emptyEnv { _boundTypeVars = boundVars }
-    let p1 = Monotype (addTrue t1)
-    let p2 = Monotype (addTrue t2)
+    let p1 = addTrue t1
+    let p2 = addTrue t2
     tmpAss <- gets $ view tmpAssignment
     names <- getNameCounter
     -- liftIO $ print tmpAss

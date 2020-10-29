@@ -131,8 +131,11 @@ export const parseResultToStr = (obj) => {
 
     // pretty print the argument types
     if(obj.argTy) {
-      const argTyp = obj.argTy;
-      const argStr = parseResultToStr(argTyp);
+      var argStr = parseResultToStr(obj.argTy);
+      // higher-order args
+      if(argStr.includes("->")) {
+        argStr = "(" + argStr + ")";
+      }
       if(obj.argName && obj.argName.length !== 0) {
         return obj.argName[0] + ":" + argStr;
       }
@@ -142,11 +145,18 @@ export const parseResultToStr = (obj) => {
     return obj;
   }
 
-  if(obj.argName.length !== 0) {
-    return obj.argName[0] + ":" + parseResultToStr(obj.argTy) + " -> " + parseResultToStr(obj.result[0]);
+  var argStr = parseResultToStr(obj.argTy);
+  // higher-order args
+  if(argStr.includes("->") && argStr[0] !== '(' && argStr[0] !== '[') {
+    argStr = "(" + argStr + ")";
   }
 
-  return parseResultToStr(obj.argTy) + " -> " + parseResultToStr(obj.result[0]);
+  if(obj.argName.length !== 0) {
+    
+    return obj.argName[0] + ":" + argStr + " -> " + parseResultToStr(obj.result[0]);
+  }
+
+  return argStr + " -> " + parseResultToStr(obj.result[0]);
 }
 
 export const replaceIthArgName = (obj, i, newArgName) => {

@@ -116,7 +116,7 @@ searchTypes synquidParams inStr num = do
     let mdls = Set.toList $ env ^. included_modules
     let mkFun ex = printf "(%s)" (intercalate ", " $ inputs ex ++ [output ex])
     exTypes <- mapM (parseExample mdls . mkFun) exquery
-    let (validSchemas, invalidTypes) = partitionEithers exTypes
+    let (invalidTypes, validSchemas) = partitionEithers exTypes
     let argNames = inArgNames input
     resultObj <- if null invalidTypes then possibleQueries env argNames exquery validSchemas
                                       else return $ (ListOutput [] (unlines invalidTypes), InfStats (-1) (-1))

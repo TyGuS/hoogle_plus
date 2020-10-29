@@ -27,7 +27,7 @@ makeLenses ''DatatypeDef
 -- | Typing environment
 data Environment = Environment {
   _symbols :: Map Id RSchema,          -- ^ Variables and constants (with their refinement types), indexed by arity
-  _arguments :: Map Id RSchema,            -- ^ Function arguments, required in all the solutions
+  _arguments :: [(Id, RSchema)],            -- ^ Function arguments, required in all the solutions
   _typeClasses :: Map Id (Set Id),         -- ^ Type class instances
   _boundTypeVars :: [Id],                  -- ^ Bound type variables
   -- | Constant part:
@@ -55,7 +55,7 @@ instance Ord Environment where
 -- | Empty environment
 emptyEnv = Environment {
   _symbols = Map.empty,
-  _arguments = Map.empty,
+  _arguments = [],
   _typeClasses = Map.empty,
   _boundTypeVars = [],
   _constants = Set.empty,

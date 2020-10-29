@@ -167,7 +167,7 @@ isBound :: Environment -> Id -> Bool
 isBound env tv = tv `elem` env ^. boundTypeVars
 
 addArgument :: Id -> RType -> Environment -> Environment
-addArgument name t = (arguments %~ Map.insert name (Monotype t))
+addArgument name t = arguments %~ ((name, Monotype t):)
 
 addVariable :: Id -> RType -> Environment -> Environment
 addVariable name t = addPolyVariable name (Monotype t)
@@ -248,13 +248,17 @@ unresolvedType env ident = (env ^. unresolvedConstants) Map.! ident
 -- unresolvedSpec goal = unresolvedType (gEnvironment goal) (gName goal)
 unresolvedSpec goal = gSpec goal
 
+unqualifiedName :: Id -> Id
+unqualifiedName "" = ""
+unqualifiedName f = if last name == ')' then '(':name else name
+  where
+    name = last (splitOn "." f)
+
 unqualifyFunc :: RProgram -> RProgram
-unqualifyFunc (Program (PSymbol f) t) = Program (PSymbol f') t
-    where
-        f' = last (splitOn "." f)
+unqualifyFunc (Program (PSymbol f) t) = Program (PSymbol $ unqualifiedName f) t
 unqualifyFunc (Program (PApp f args) t) = Program (PApp f' args') t
     where
-        f' = last (splitOn "." f)
+        f' = unqualifiedName f
         args' = map unqualifyFunc args
 unqualifyFunc (Program (PFun x body) t) = Program (PFun x body') t
     where

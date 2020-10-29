@@ -91,7 +91,7 @@ buildFunctionWrapper functions solutionType params@(plain, typed, shows, unwrp) 
 
     buildTimeoutWrapper :: [String] -> (String, String, String, String) -> Int -> String
     buildTimeoutWrapper wrapperNames (plain, typed, shows, unwrp) timeInMicro =
-      printf "let timeoutWrapper = \\%s -> (evaluateIO %d %s (Prelude.map (\\f -> f %s) [%s])) in" typed timeInMicro shows unwrp (intercalate ", " wrapperNames) :: String
+      printf "let timeoutWrapper = \\%s -> (evaluateIO %d %s (Prelude.map (\\internal__f -> internal__f %s) [%s])) in" typed timeInMicro shows unwrp (intercalate ", " wrapperNames) :: String
 
 buildNotCrashProp :: [String] -> String -> FunctionSignature -> String
 buildNotCrashProp argNames solution funcSig = formatAlwaysFailProp params wrapper

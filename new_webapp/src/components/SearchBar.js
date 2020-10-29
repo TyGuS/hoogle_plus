@@ -105,9 +105,15 @@ const connectedSearchBar = (props) => {
 
     const alert = () => {
         if (searchStatus === ERROR) {
+            const errors = errorMessage.split('\n');
+            const beautifulError = (
+                <div className="text-left">
+                    {errors.map(e => (<p>{e}</p>))}
+                </div>
+            );
             return (
                 <Alert variant="danger" className="mt-3">
-                    {errorMessage || "Unknown Error"}
+                    {beautifulError || "Unknown Error"}
                 </Alert>
             )
         }

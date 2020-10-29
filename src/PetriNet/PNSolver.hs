@@ -202,12 +202,12 @@ splitTransition env newAt fid = do
 
 addSignatures :: MonadIO m => Environment -> PNSolver m (Map Id AbstractSkeleton)
 addSignatures env = do
-    let foArgs = Map.keys $ foArgsOf env
+    let foArgs = map fst $ foArgsOf env
     -- first abstraction all the symbols with fresh type variables and then instantiate them
     let envSymbols = allSymbols env
     let usefulPipe k _ = k `notElem` foArgs
     let usefulSymbols = Map.filterWithKey usefulPipe envSymbols
-    let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+    let hoArgs = filter (isFunctionType . toMonotype . snd) (env ^. arguments)
     let binds = env ^. boundTypeVars
     -- cands <- getExperiment hoCandidates
     envSigs <- instantiate env usefulSymbols
@@ -228,7 +228,7 @@ mkGroups env sigs = do
     (t2g, sigGroups) <- groupSignatures encodedSigs
     -- Do I want to take the sigs here?
     nameMap <- gets $ view (typeChecker . nameMapping)
-    let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+    let hoArgs = map fst $ filter (isFunctionType . toMonotype . snd) (env ^. arguments)
     let hoAlias = Map.keysSet $ Map.filter (`elem` hoArgs) nameMap
     representatives <- Map.fromList <$> mapM (selectOurRep hoAlias) (Map.toList sigGroups)
     let sigs' = Map.restrictKeys sigs (Set.fromList $ Map.elems representatives)
@@ -302,8 +302,8 @@ refineSemantic env prog at = do
     cloneNames <- if noClone then return []
                              else mapM addCloneFunction $ Set.toList splits
     -- update the higer order query arguments
-    let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    mapM_ addMusters (Map.keys hoArgs)
+    let hoArgs = filter (isFunctionType . toMonotype . snd) (env ^. arguments)
+    mapM_ addMusters (map fst hoArgs)
     -- call the refined encoder on these signatures and disabled signatures
     return SplitInfo { newPlaces = Set.toList splits
                      , removedTrans = removables
@@ -322,7 +322,7 @@ refineSemantic env prog at = do
         let gids = Map.keys $ Map.filter (`Set.member` pids) gr
         let fids = concatMap (\gid -> Set.toList $ Map.findWithDefault Set.empty gid gm) gids
         sigs <- mapM (splitTransition env at) fids
-        let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+        let hoArgs = filter (isFunctionType . toMonotype . snd) (env ^. arguments)
         let tvs = env ^. boundTypeVars
         let envSigs = Map.fromList (concat sigs)
         let allSigs = concat sigs
@@ -395,7 +395,7 @@ refineSemantic env prog at = do
                     if not (null currentGroup)
                       then do
                         -- We need to elect a new leader for the group!
-                        let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+                        let hoArgs = map fst $ filter (isFunctionType . toMonotype . snd) (env ^. arguments)
                         let hoAlias = Map.keysSet $ Map.filter (`elem` hoArgs) nameMap
                         newRep <- selectRepresentative hoAlias gid currentGroup
                         let abstractType = lookupWithError "currentSigs" rep sigs
@@ -430,8 +430,8 @@ initNet env = withTime ConstructionTime $ do
         let allTy = HashMap.keys ty2tr
         mapM_ addCloneFunction allTy
     -- add higher order query arguments
-    let hoArgs = Map.filter (isFunctionType . toMonotype) (env ^. arguments)
-    mapM_ addMusters (Map.keys hoArgs)
+    let hoArgs = filter (isFunctionType . toMonotype . snd) (env ^. arguments)
+    mapM_ addMusters (map fst hoArgs)
   where
     abstractSymbol id sch = do
         let bound = env ^. boundTypeVars
@@ -568,7 +568,7 @@ checkPath env goal examples path = do
     -- ensure the usage of all the higher order arguments
     disrel <- getExperiment disableRelevancy
     nameMap <- gets $ view (typeChecker . nameMapping)
-    let hoArgs = Map.keys $ Map.filter (isFunctionType . toMonotype) (env ^. arguments)
+    let hoArgs = map fst $ filter (isFunctionType . toMonotype . snd) (env ^. arguments)
     let getRealName x = replaceId hoPostfix "" $ lookupWithError "nameMapping" x nameMap
     let filterPaths p = disrel || all (`elem` map getRealName p) hoArgs
     guard (filterPaths path)
@@ -653,7 +653,7 @@ fillSketch env firedTrans = do
     nameMap <- gets $ view (typeChecker . nameMapping)
     repLists <- lift $ mapM getGroupRep firedTrans
     fm <- gets $ view (searchState . functionMap)
-    let args = Map.keys $ foArgsOf env
+    let args = map fst $ foArgsOf env
     writeLog 1 "fillSketch" $ text "found path" <+> pretty firedTrans
     mapM_ (\f -> do
          let name = lookupWithError "nameMapping" f nameMap
@@ -743,6 +743,7 @@ checkSolution env goal examples code = do
     if (code' `elem` solutions)
         then mzero
         else do
+            writeLog 1 "checkSolution" $ text "Checking solution" <+> pretty code'
             (checkResult, fState') <- withTime TypeCheckTime $ 
                 liftIO $ runStateT (check env params examples code' goal msgChan) fState
             modify $ set filterState fState'
@@ -826,11 +827,11 @@ updateSrcTgt env dst = do
     tgt <- currentAbst binds abstraction (toAbstractType (shape dst))
     modify $ set (refineState . targetType) tgt
 
-    let foArgs = Map.filter (not . isFunctionType . toMonotype) (env ^. arguments)
+    let foArgs = filter (not . isFunctionType . toMonotype . snd) (env ^. arguments)
     srcTypes <- mapM ( currentAbst binds abstraction
                      . toAbstractType
                      . shape
-                     . toMonotype) $ Map.elems foArgs
+                     . toMonotype) (map snd foArgs)
     modify $ set (refineState . sourceTypes) srcTypes
     return (srcTypes, tgt)
 
@@ -850,8 +851,8 @@ prepEncoderArgs env tgt = do
     let sigs = HashMap.elems funcs
     return (loc, rets, sigs)
 
-foArgsOf :: Environment -> Map Id RSchema
-foArgsOf = Map.filter (not . isFunctionType . toMonotype) . _arguments
+foArgsOf :: Environment -> [(Id, RSchema)]
+foArgsOf = filter (not . isFunctionType . toMonotype . snd) . _arguments
 
 noneInst instMap id t = not (HashMap.member (id, absFunArgs id t) instMap)
 

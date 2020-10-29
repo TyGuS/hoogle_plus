@@ -140,7 +140,7 @@ check :: MonadIO m
        -> RSchema -- goal type to be checked against
        -> Chan Message -- message channel for logging
        -> FilterTest m (Maybe AssociativeExamples) -- return Nothing is check fails, otherwise return a list of updated examples
-check env searchParams examples program goalType solverChan =
+check env searchParams examples program goalType solverChan = do
     runGhcChecks searchParams env (lastType $ toMonotype goalType) examples program
 
 -- validate type signiture, run demand analysis, and run filter test
@@ -159,16 +159,25 @@ runGhcChecks params env goalType examples prog = let
     disableDemand = _disableDemand params
     disableFilter = _disableFilter params
     in do
+        liftIO $ print goalType
+        liftIO $ print funcSig
         typeCheckResult <- liftIO $ runInterpreter $ checkType expr modules
-        strictCheckResult <- if disableDemand then return True else liftIO $ checkStrictness tyclassCount (show body) funcSig modules
-        exampleCheckResult <- if not strictCheckResult then return Nothing else liftIO $ fmap ((:[]) . ((unqualifyFunc body, body),)) <$> checkOutputs prog examples
+        strictCheckResult <- if disableDemand 
+            then return True 
+            else liftIO $ checkStrictness tyclassCount (show body) funcSig modules
+        liftIO $ print strictCheckResult
+        exampleCheckResult <- if not strictCheckResult 
+            then return Nothing 
+            else liftIO $ fmap ((:[]) . ((unqualifyFunc body, body),)) <$> checkOutputs prog examples
+        liftIO $ print exampleCheckResult
         filterCheckResult <- if disableFilter || isNothing exampleCheckResult
-                                then return exampleCheckResult
-                                else do
-                                    filterResult <- runChecks env goalType prog
-                                    if isNothing filterResult
-                                       then return filterResult
-                                       else return $ Just (fromJust exampleCheckResult ++ fromJust filterResult)
+            then return exampleCheckResult
+            else do
+                filterResult <- runChecks env goalType prog
+                if isNothing filterResult
+                    then return filterResult
+                    else return $ Just (fromJust exampleCheckResult ++ fromJust filterResult)
+        liftIO $ print filterCheckResult
         case typeCheckResult of
             Left err -> liftIO $ putStrLn (displayException err) >> return Nothing
             Right False -> liftIO $ putStrLn "Program does not typecheck" >> return Nothing

@@ -153,9 +153,8 @@ printSolutionState solution (FilterState _ sols workingExamples diffExamples) = 
 extractSolution :: Environment -> RType -> UProgram -> ([String], String, UProgram, [(Id, RSchema)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)
     where
-        args = _arguments env
+        argList = _arguments env
         modules = "Prelude" : Set.toList (_included_modules env)
-        argList = Map.toList args
         argNames = map fst argList
         argTypes = map snd argList
         monoGoals = map toMonotype argTypes
@@ -167,8 +166,10 @@ updateEnvWithBoundTyVars (Monotype ty) env = (env, ty)
 updateEnvWithBoundTyVars (ForallT x ty) env = updateEnvWithBoundTyVars ty (addTypeVar x env)
 
 updateEnvWithSpecArgs :: RType -> Environment -> (Environment, RType)
-updateEnvWithSpecArgs ty@(ScalarT _ _) env = (env, ty)
-updateEnvWithSpecArgs (FunctionT x tArg tRes) env = updateEnvWithSpecArgs tRes $ addVariable x tArg $ addArgument x tArg env
+updateEnvWithSpecArgs (FunctionT x tArg tRes) env = (addVariable x tArg $ addArgument x tArg env', ret)
+    where
+        (env', ret) = updateEnvWithSpecArgs tRes env
+updateEnvWithSpecArgs ty env = (env, ty)
 
 preprocessEnvFromGoal :: Goal -> (Environment, RType)
 preprocessEnvFromGoal goal = updateEnvWithSpecArgs monospec env''

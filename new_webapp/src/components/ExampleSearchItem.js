@@ -10,9 +10,9 @@ const ExampleSearchItem = ({name, description, queryStr, examples, argNames,
             console.log(queryStr, examples, argNames);
             // set the field on the UI
             setSearchType({query: queryStr});
+            setArgNames(argNames);
             setExamples(exampleToNamedArgs(examples));
-            if(!queryStr || queryStr.trim() === "") {
-                setArgNames(argNames);
+            if(!queryStr || !queryStr.trim()) {    
                 getTypesFromExamples(examples, argNames);
                 return;
             }
