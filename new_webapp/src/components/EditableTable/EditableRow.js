@@ -69,6 +69,7 @@ export const EditableRow = ({row, columns, editingRowId, editingColId,
                             variant="link"
                             onClick={decreaseArgs}
                             disabled={columns.length < 3}
+                            style={columns.length < 3 ? { pointerEvents: 'none' } : {}}
                         >
                             <FontAwesomeIcon icon={ faMinusCircle } />
                         </Button>
