@@ -256,6 +256,7 @@ precomputeGraph opts = generateEnv opts >>= writeEnv (Types.Generate.envPath opt
 -- | Parse and resolve file, then synthesize the specified goals
 executeSearch :: SynquidParams -> SearchParams -> String -> IO ()
 executeSearch synquidParams searchParams inStr = catch (do
+  hSetBuffering stdout LineBuffering
   let input = decodeInput (LB.pack inStr)
   let tquery = query input
   let exquery = inExamples input
