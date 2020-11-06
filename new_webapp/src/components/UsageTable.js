@@ -130,8 +130,8 @@ const UsageTableBase = ({
             showDeleteCommand={resultsFeatures.permitKeepUsage}
             showEditCommand={resultsFeatures.permitEditExamples}
             messages={{
-              deleteCommand: "Keep usage",
-              addCommand: "New usage",
+              deleteCommand: "Keep example",
+              addCommand: "New example",
             }}
           />
         </Grid>

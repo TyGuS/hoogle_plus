@@ -146,7 +146,7 @@ const connectedSearchBar = (props) => {
                     className="justify-content-center"
                     hidden={!search.permitExamples}>
                     <div className="text-left mb-3 font-weight-bold">
-                        Example Specifications
+                        Tests
                     </div>
                     <div className="px-0">
                         <OutsideClickHandler

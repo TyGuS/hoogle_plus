@@ -44,7 +44,7 @@ const ConnectedExampleSearchCard = (props) => {
 
     const searchByExampleOnly = (
         <ExampleSearchItem
-            name = "dedupe"
+            name = "dedup"
             description = '"aaaabbbab" -> "abab"; [1,1,1,2,2,3] -> [1,2,3]'
             queryStr = ""
             examples = {

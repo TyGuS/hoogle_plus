@@ -98,11 +98,11 @@ execExample mdls env typ prog ex = do
     let nontcArgs = filter (not . (tyclassArgBase `isPrefixOf`)) args
     let prependArg = unwords nontcArgs
     let progBody = if null (env ^. arguments) -- if this is a request from front end
-        then printf "let f = (%s) :: %s in" prog typ
-        else printf "let f = (\\%s -> %s) :: %s in" prependArg prog typ
+        then printf "let internal__f = (%s) :: %s in" prog typ
+        else printf "let internal__f = (\\%s -> %s) :: %s in" prependArg prog typ
     let parensedInputs = map wrapParens $ inputs ex
-    let progCall = printf "Test.ChasingBottoms.approxShow 100 (f %s)" (unwords parensedInputs)
-    result <- runStmt mdls $ unwords [progBody, progCall]
+    let progCall = printf "internal__f %s" (unwords parensedInputs)
+    result <- handleApproxShowFailure mdls progBody progCall
     let prettyShow a = if "_|_" `isInfixOf` a then "bottom" else a
     return (result >>= Right . prettyShow)
 
@@ -150,9 +150,16 @@ checkExampleOutput mdls env typ prog exs = do
           | otherwise = case currOutput of
                           Left e -> print e >> return Nothing
                           Right o -> do
-                              expectedOutput <- runStmt mdls (printf "Test.ChasingBottoms.approxShow 100 (%s)" $ output ex)
+                              expectedOutput <- handleApproxShowFailure mdls "" (output ex)
                               case expectedOutput of
                                   Left err -> print err >> return Nothing
                                   Right out | o == out -> return (Just ex)
                                             | otherwise -> return Nothing
 
+handleApproxShowFailure :: [String] -> String -> String -> IO (Either ErrorMessage String)
+handleApproxShowFailure mdls progBody progCall = do
+    let withApproxCall = printf "Test.ChasingBottoms.approxShow 100 (%s)" progCall
+    result <- runStmt mdls $ unwords [progBody, withApproxCall]
+    case result of
+        Left err -> runStmt mdls $ unwords [progBody, progCall]
+        Right r -> return result

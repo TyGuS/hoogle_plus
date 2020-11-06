@@ -27,7 +27,7 @@ import Examples.ExampleChecker
 import Examples.InferenceDriver
 import Examples.Utils
 import HooglePlus.FilterTest (generateIOPairs, parseTypeString)
-import HooglePlus.Utils (niceInputs)
+import HooglePlus.Utils (niceInputs, mkFunctionSigStr)
 
 import Control.Concurrent.Chan
 import Control.Monad
@@ -211,7 +211,7 @@ searchResults synquidParams inStr = do
     let mdls = Set.toList $ env ^. included_modules
     -- first parse type query and get rid of the arg names from the signature
     let goalTyp = parseQueryType env tquery
-    let goalTypStr = show (toMonotype goalTyp)
+    let goalTypStr = mkFunctionSigStr (breakdown (toMonotype goalTyp))
     execResult <- catch (execExample mdls env goalTypStr prog (Example args "??"))
                         (\(e :: SomeException) -> return $ Left (show e))
     let execJson = case execResult of

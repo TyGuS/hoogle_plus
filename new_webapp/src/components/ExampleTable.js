@@ -138,7 +138,7 @@ const ExampleTableBase = ({
                             disabled={hasNewExample}
                             >
                             {/* <FontAwesomeIcon icon={ faPlusSquare } /> */}
-                            Add Example
+                            Add Test
                         </Button>{' '}
                         <Button
                             variant="primary"
@@ -147,7 +147,7 @@ const ExampleTableBase = ({
                             disabled={!hasAnExample}
                             >
                             {/* <FontAwesomeIcon icon={ faEraser } /> */}
-                            Clear Examples
+                            Clear Tests
                         </Button>{' '}
                     </div>
                 </div>
