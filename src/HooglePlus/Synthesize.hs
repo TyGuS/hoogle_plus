@@ -22,6 +22,8 @@ import Types.Type
 import Types.IOFormat
 import HooglePlus.Utils
 import HooglePlus.IOFormat
+-- for debug
+import HooglePlus.TypeChecker
 import Examples.ExampleChecker
 
 import Control.Applicative ((<$>))
@@ -109,7 +111,13 @@ synthesize searchParams goal examples messageChan = catch (do
                 , _messageChan = messageChan
                 , _typeChecker = emptyChecker { _checkerChan = messageChan }
                 }
-
+    -- for debug
+    -- let tmp = untyped (PApp "GHC.List.map" [untyped (PFun "x" (untyped (PApp "x" [untyped $ PSymbol "arg1"]))), untyped (PSymbol "arg0")])
+    -- (btm, checkerState) <- runStateT (bottomUpCheck envWithHo tmp) (emptyChecker {_checkerChan = messageChan})
+    -- print btm
+    -- print (checkerState ^. isChecked)
+    -- print (checkerState ^. typeAssignment)
+    -- error "stop"
     -- before synthesis, first check that user has provided valid examples
     let exWithOutputs = filter ((/=) "??" . output) examples
     checkResult <- checkExamples envWithHo goalType exWithOutputs messageChan

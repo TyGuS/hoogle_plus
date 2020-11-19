@@ -36,33 +36,20 @@ bottomUpCheck env p@(Program (PSymbol sym) typ) = do
     t <- findSymbol env name
     return (Program (PSymbol sym) t)
 bottomUpCheck env (Program (PApp f args) typ) = do
-  argResult <- checkArgs args
-  case argResult of
-    Left err -> return err
-    Right checkedArgs -> do
-      -- find the real name of a function
-      nameMap <- gets (view nameMapping)
-      let name = stripSuffix $ fromMaybe f (Map.lookup f nameMap)
-      t <- findSymbol env name 
-      writeLog 3 "bottomUpCheck" $ text "Bottom up checking function" <+> pretty f
-                                 <+> text "get type" <+> pretty t
-      -- check function signature against each argument provided
-      let argVars = map shape (allArgTypes t)
-      let checkedArgTys = map (shape . typeOf) checkedArgs
-      writeLog 3 "bottomUpCheck" $ text "Bottom up checking get arg types" <+> pretty checkedArgTys
-      mapM_ (uncurry $ solveTypeConstraint env) (zip checkedArgTys argVars)
-      -- we eagerly substitute the assignments into the return type of t
-      tass <- gets (view typeAssignment)
-      let ret = addTrue $ stypeSubstitute tass (shape $ partialReturn checkedArgs t)
-      -- if any of these checks returned false, this function application
-      -- would produce a bottom type
-      ifM (gets $ view isChecked)
-          (return $ Program (PApp f checkedArgs) ret)
-          (return $ Program (PApp f checkedArgs) BotT)
+    argResult <- checkArgs args
+    case argResult of
+        Left err -> return err
+        Right checkedArgs -> do
+            -- find the real name of a function
+            nameMap <- gets (view nameMapping)
+            let name = stripSuffix $ fromMaybe f (Map.lookup f nameMap)
+            t <- findSymbol env name 
+            writeLog 3 "bottomUpCheck" $ text "Bottom up checking function"
+                                      <+> pretty f
+                                      <+> text "get type" <+> pretty t
+            tRes <- foldM checkFun (shape t) checkedArgs
+            return $ Program (PApp f checkedArgs) (addTrue tRes)
   where
-    partialReturn (_:args) (FunctionT _ _ tRes) = partialReturn args tRes
-    partialReturn [] t = t
-
     checkArgs [] = return $ Right []
     checkArgs (arg:args) = do
         checkedArg <- bottomUpCheck env arg
@@ -74,6 +61,29 @@ bottomUpCheck env (Program (PApp f args) typ) = do
                  Right args' -> return $ Right (checkedArg:args')
             )
             (return $ Left checkedArg)
+
+    checkFun BotT _ = return BotT
+    checkFun tFun arg = do
+        -- if the argument type is tArg, we unify the function type with tArg -> AnyT
+        let tArg = shape (typeOf arg)
+        -- create a fresh type variable for the return type
+        resId <- freshId (env ^. boundTypeVars) "A"
+        let tRes = vart_ resId
+        let expectedFun = FunctionT "" tArg tRes
+        writeLog 3 "bottomUpCheck" $ text "Bottom up checking function type" 
+                                  <+> pretty tFun 
+                                  <+> text "against" 
+                                  <+> pretty expectedFun
+        solveTypeConstraint env tFun expectedFun
+        ifM (gets $ view isChecked)
+            (do
+                tass <- gets (view typeAssignment)
+                return $ stypeSubstitute tass tRes
+            )
+            -- if any of these checks returned false, this function application
+            -- would produce a bottom type
+            (return BotT)
+
 bottomUpCheck env p@(Program (PFun x body) (FunctionT _ tArg tRet)) = do
     writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
     body' <- bottomUpCheck (addVariable x (addTrue tArg) env) body

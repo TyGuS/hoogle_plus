@@ -218,6 +218,7 @@ addTrue (ScalarT BoolT _) = ScalarT BoolT ftrue
 addTrue (ScalarT (TypeVarT vSubst a) _) = ScalarT (TypeVarT vSubst a) ftrue
 addTrue (FunctionT x tArg tFun) = FunctionT x (addTrue tArg) (addTrue tFun)
 addTrue AnyT = AnyT
+addTrue BotT = BotT
 
 toSynquidRType :: (MonadIO m) => Type () -> StateT Int m RType
 toSynquidRType typ = do
