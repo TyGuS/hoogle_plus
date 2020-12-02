@@ -1,4 +1,0 @@
-/             HomeR GET
-/search       SearchR POST
-/stop         StopR POST
-/assets       AssetR Static getStatic

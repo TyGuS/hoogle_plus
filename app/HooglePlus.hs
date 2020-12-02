@@ -1,17 +1,27 @@
-{-# LANGUAGE DeriveDataTypeable, StandaloneDeriving, NamedFieldPuns #-}
+{-# LANGUAGE DeriveDataTypeable, NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Main (main) where
 
-import Synquid.Logic
-import Synquid.Type
-import Synquid.Program
-import Synquid.Error
-import Synquid.Pretty
-import Types.Generate hiding (files)
+-- generate databases
+import Database.Environment
+import Database.Presets
+-- encoders
+import Datalog.Formulog
+import Datalog.Souffle
+import Encoder.Z3SMTEnc ()
+import Encoder.EncoderTypes (Z3SMTState, PrologState, Z3SATState)
+import Encoder.PrologEnc ()
+import Encoder.Z3SATEnc ()
+-- evaluation
+import Evaluation.EvalTypeInf
+import Evaluation.ReadBenchmark
+-- synthesis with examples
+import HooglePlus.IOFormat
+import HooglePlus.Synthesize
 import Types.Experiments
+import Types.Generate hiding (files)
 import Types.IOFormat
-import Types.Environment
 import Types.Program
 import Types.Solver
 import Types.Type
@@ -20,11 +30,9 @@ import Database.Environment
 import Database.Convert
 import Database.Generate
 import Database.Download
-import Database.Util
-import Synquid.Util (showme)
+import Database.Utils
 import HooglePlus.Synthesize
 import HooglePlus.Stats
-import Types.Encoder
 import HooglePlus.GHCChecker
 import HooglePlus.Utils
 import HooglePlus.IOFormat
@@ -35,49 +43,23 @@ import Evaluation.ReadBenchmark
 import qualified Evaluation.Benchmark
 
 import Control.Exception
-import Control.Monad
 import Control.Lens ((^.))
-import System.Exit
-import System.Console.CmdArgs hiding (Normal)
-import System.Console.ANSI
-import System.FilePath
-import Text.Parsec.Pos
-import Text.Printf
-import Text.Pretty.Simple
-import Control.Monad.State (runState, evalStateT, execStateT, evalState)
-import Control.Concurrent
-import Control.Concurrent.Chan
-import qualified Data.Aeson as Aeson
-import Data.Char
-import Data.List
-import Data.Maybe
-import Data.Foldable
+import Control.Monad.Logic (observeT)
 import Data.Time.Calendar
-import qualified Data.HashMap.Strict as HashMap
-import Data.HashMap.Strict (HashMap)
-import Language.Haskell.Exts (Decl(TypeSig))
-import Data.Map ((!))
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import Data.Maybe (mapMaybe, fromJust)
-import Distribution.PackDeps
-import Text.Parsec hiding (State)
-import Text.Parsec.Indent
-import System.Directory
-import System.IO
-import qualified Data.ByteString as B
+import System.Console.CmdArgs hiding (Normal)
 import qualified Data.ByteString.Lazy.Char8 as LB
 
-import qualified Text.PrettyPrint.ANSI.Leijen as PP
-import Text.PrettyPrint.ANSI.Leijen (fill, column)
-
-import Data.List.Split
-
+programName :: String
 programName = "hoogleplus"
-versionName = "0.1"
+
+versionName :: String
+versionName = "0.2"
+
+releaseDate :: Day
 releaseDate = fromGregorian 2019 3 10
 
 -- | Type-check and synthesize a program, according to command-line arguments
+main :: IO ()
 main = do
     res <- cmdArgsRun $ mode
     case res of
@@ -102,6 +84,7 @@ main = do
                   , disable_copy_trans
                   , disable_blacklist
                   , disable_filter
+                  , solver_name
                   } -> do
             let searchParams =
                     defaultSearchParams
@@ -120,6 +103,7 @@ main = do
                         , _disableCopy = disable_copy_trans
                         , _disableBlack = disable_blacklist
                         , _disableFilter = disable_filter
+                        , _solver = solver_name
                         }
             let synquidParams =
                     defaultSynquidParams {Types.Experiments.envPath = env_file_path_in}
@@ -128,12 +112,11 @@ main = do
                                    ("", json) -> executeSearch synquidParams searchParams json
                                    (f, _) -> readFile f >>= executeSearch synquidParams searchParams
             case search_type of
-              SearchPrograms -> searchPrograms
-              SearchTypes -> searchTypes synquidParams json get_n_types >> return ()
-              SearchResults -> searchResults synquidParams json
-              SearchExamples -> searchExamples synquidParams json get_n_examples
-        Generate {preset = (Just preset)} -> do
-            precomputeGraph (getOptsFromPreset preset)
+                SearchPrograms -> searchPrograms
+                SearchTypes -> searchTypes synquidParams json get_n_types >> return ()
+                SearchResults -> searchResults synquidParams json
+                SearchExamples -> searchExamples synquidParams json get_n_examples
+        Generate {preset = (Just preset)} -> precomputeGraph (getOptsFromPreset preset)
         Generate Nothing files pkgs mdls d ho pathToEnv hoPath -> do
             let fetchOpts =
                     if (length files > 0)
@@ -158,7 +141,6 @@ main = do
 
 {-# ANN module "HLint: ignore Use camelCase" #-}
 {-# ANN module "HLint: ignore Redundant bracket" #-}
-{-# ANN module "HLint: ignore" #-}
 
 data CommandLineArgs
     = Synthesis {
@@ -186,7 +168,8 @@ data CommandLineArgs
         disable_relevancy :: Bool,
         disable_copy_trans :: Bool,
         disable_blacklist :: Bool,
-        disable_filter :: Bool
+        disable_filter :: Bool,
+        solver_name :: SolverName
       }
       | Generate {
         -- | Input
@@ -207,6 +190,7 @@ data CommandLineArgs
       }
   deriving (Data, Typeable, Show, Eq)
 
+synt :: CommandLineArgs
 synt = Synthesis {
   file                = ""              &= typFile &= help ("Input query from the specified file path, file should be in json format"),
   json                = ""              &= help ("Input query from a json string"),
@@ -228,9 +212,11 @@ synt = Synthesis {
   disable_relevancy   = False           &= help ("Disable the relevancy requirement for argument types (default: False)"),
   disable_copy_trans  = False           &= help ("Disable the copy transitions and allow more than one token in initial state instead (default: False)"),
   disable_blacklist   = False           &= help ("Disable blacklisting functions in the solution (default: False)"),
-  disable_filter      = True            &= help ("Disable filter-based test")
+  disable_filter      = True            &= help ("Disable filter-based test"),
+  solver_name         = Z3SMT           &= help ("Constraint solver used in petri net search")
   } &= auto &= help "Synthesize goals specified in the input file"
 
+generate :: CommandLineArgs
 generate = Generate {
   preset               = Nothing         &= help ("Environment preset to use"),
   files                = []              &= help ("Files to use to generate from. Exclusive with packages and modules. Takes precedence"),
@@ -242,6 +228,7 @@ generate = Generate {
   ho_path              = "ho.txt"        &= typFile &= help ("Filename of components to be used as higher order arguments")
 } &= help "Generate the type conversion database for synthesis"
 
+evaluation :: CommandLineArgs
 evaluation = Evaluation {
   out_file             = "inference.tsv"                    &= help ("Path to the output file"),
   benchmark_suite      = "benchmark/suites/working.yml"     &= help ("Path to the benchmark file, in the format of YAML"),
@@ -260,33 +247,17 @@ precomputeGraph opts = generateEnv opts >>= writeEnv (Types.Generate.envPath opt
 -- | Parse and resolve file, then synthesize the specified goals
 executeSearch :: SynquidParams -> SearchParams -> String -> IO ()
 executeSearch synquidParams searchParams inStr = catch (do
-  let input = decodeInput (LB.pack inStr)
-  let tquery = query input
-  let exquery = inExamples input
-  env' <- readEnv $ Types.Experiments.envPath synquidParams
-  env <- readBuiltinData synquidParams env'
-  goal <- envToGoal env tquery
-  solverChan <- newChan
-  checkerChan <- newChan
-  hSetBuffering stdout LineBuffering
-  forkIO $ synthesize searchParams goal exquery solverChan
-  readChan solverChan >>= (handleMessages solverChan))
-  (\(e :: SomeException) -> printResult $ encodeWithPrefix $ QueryOutput [] (show e) [])
-  where
-    logLevel = searchParams ^. explorerLogLevel
-
-    handleMessages ch (MesgClose _) = when (logLevel > 0) (putStrLn "Search complete") >> return ()
-    handleMessages ch (MesgP (out, stats, _)) = do
-      when (logLevel > 0) $ printf "[writeStats]: %s\n" (show stats)
-      -- printSolution program
-      printResult $ encodeWithPrefix out
-      hFlush stdout
-      readChan ch >>= (handleMessages ch)
-    handleMessages ch (MesgS debug) = do
-      when (logLevel > 1) $ printf "[writeStats]: %s\n" (show debug)
-      readChan ch >>= (handleMessages ch)
-    handleMessages ch (MesgLog level tag msg) = do
-      when (level <= logLevel) (do
-        mapM (printf "[%s]: %s\n" tag) (lines msg)
-        hFlush stdout)
-      readChan ch >>= (handleMessages ch)
+    let input = decodeInput (LB.pack inStr)
+    let tquery = query input
+    let exquery = inExamples input
+    env' <- readEnv $ Types.Experiments.envPath synquidParams
+    env <- readBuiltinData synquidParams env'
+    goal <- envToGoal env tquery
+    case searchParams ^. solver of
+        Z3SMT -> synthesize searchParams goal exquery (emptySolverState :: SolverState Z3SMTState)
+        Z3SAT -> synthesize searchParams goal exquery (emptySolverState :: SolverState Z3SATState)
+        Prolog -> synthesize searchParams goal exquery (emptySolverState :: SolverState PrologState)
+        Souffle -> observeT $ runSouffle searchParams (gEnvironment goal) (gSpec goal) exquery 0
+        _ -> error "not implemented"
+    )
+    (\(e :: SomeException) -> printResult $ encodeWithPrefix $ QueryOutput [] (show e) [])

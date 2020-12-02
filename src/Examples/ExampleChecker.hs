@@ -1,7 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE ScopedTypeVariables #-} 
-{-# LANGUAGE TemplateHaskell #-} 
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Examples.ExampleChecker(
     execExample,
@@ -21,20 +19,17 @@ import Types.Filtering (defaultTimeoutMicro, defaultDepth, defaultInterpreterTim
 import Synquid.Type
 import Synquid.Pretty
 import Synquid.Program
-import Synquid.Logic
 import HooglePlus.TypeChecker
 import HooglePlus.Utils
-import PetriNet.Util
-import Synquid.Util (permuteBy)
-import Database.Convert (addTrue)
-import Database.Util
+import PetriNet.Utils
+import Synquid.Utils (permuteBy)
+import Database.Utils
 import Examples.Utils
 import Examples.InferenceDriver
 
 import Control.Exception
 import Control.Monad.State
 import Control.Lens
-import Control.Concurrent.Chan
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
@@ -45,15 +40,15 @@ import Data.List
 import Text.Printf
 import Debug.Trace
 
-checkExample :: Environment -> RSchema -> Example -> Chan Message -> IO (Either ErrorMessage RSchema)
-checkExample env typ ex checkerChan = do
+checkExample :: Environment -> SchemaSkeleton -> Example -> IO (Either ErrorMessage SchemaSkeleton)
+checkExample env typ ex = do
     let mdls = Set.toList $ env ^. included_modules
     eitherTyp <- parseExample mdls mkFun
     case eitherTyp of
       Right exTyp -> do
         let err = printf "%s does not have type %s" (show ex) (show typ) :: String
         let tcErr = printf "%s does not satisfy type class constraint in %s" (show ex) (show typ) :: String
-        let initChecker = emptyChecker { _checkerChan = checkerChan }
+        let initChecker = emptyChecker
         -- refresh the type variables names in the two
         ((exTyp', typ'), checker') <- runStateT (do
             t1 <- freshType (env ^. boundTypeVars) exTyp
@@ -61,7 +56,7 @@ checkExample env typ ex checkerChan = do
             return (t1, t2)
             ) initChecker
         (checked, tass) <- checkTypes env checker' [] exTyp' typ'
-        let substedTyp = traceShow tass $ stypeSubstitute tass (shape typ')
+        let substedTyp = typeSubstitute tass typ'
         let (tyclasses, strippedTyp) = traceShow substedTyp $ unprefixTc substedTyp
         let tyclassesPrenex = intercalate ", " $ map show tyclasses
         let breakTypes = map show $ breakdown strippedTyp
@@ -76,18 +71,20 @@ checkExample env typ ex checkerChan = do
     where
         mkFun = printf "(%s)" (intercalate ", " $ inputs ex ++ [output ex])
 
-        unprefixTc (FunctionT x tArg tRes) =
-            case tArg of
-              ScalarT (DatatypeT name args rs) r | tyclassPrefix `isPrefixOf` name ->
-                  let (tcs, t) = unprefixTc tRes
-                      currTc = ScalarT (DatatypeT (drop (length tyclassPrefix) name) args rs) r
-                   in (currTc:tcs, t)
-              _ -> ([], FunctionT x tArg tRes)
+        unprefixTc (FunctionT x t@(TyAppT {}) tRes) | tyclassPrefix `isPrefixOf` name = (currTc : tcs, tRes')
+            where
+                (name, args) = collectArgs t
+                (tcs, tRes') = unprefixTc tRes
+                currTc = foldl' TyAppT (DatatypeT (drop (length tyclassPrefix) name)) args
+        unprefixTc (FunctionT x tArg tRes) = (argTcs ++ resTcs, FunctionT x tArg' tRes')
+            where
+                (argTcs, tArg') = unprefixTc tArg
+                (resTcs, tRes') = unprefixTc tRes
         unprefixTc t = ([], t)
 
-checkExamples :: Environment -> RSchema -> [Example] -> Chan Message -> IO (Either [ErrorMessage] [RSchema] )
-checkExamples env typ exs checkerChan = do
-    outExs <- mapM (\ex -> checkExample env typ ex checkerChan) exs
+checkExamples :: Environment -> SchemaSkeleton -> [Example] -> IO (Either [ErrorMessage] [SchemaSkeleton])
+checkExamples env typ exs = do
+    outExs <- mapM (\ex -> checkExample env typ ex) exs
     let (errs, validResults) = partitionEithers outExs
     if null errs then return $ Right validResults
                  else return $ Left errs
@@ -106,7 +103,7 @@ execExample mdls env typ prog ex = do
     let prettyShow a = if "_|_" `isInfixOf` a then "bottom" else a
     return (result >>= Right . prettyShow)
 
-augmentTestSet :: Environment -> RSchema -> IO [Example]
+augmentTestSet :: Environment -> SchemaSkeleton -> IO [Example]
 augmentTestSet env goal = do
     let candidates = env ^. queryCandidates
     let permutedCands = concatMap permuteMap (Map.toList candidates)
@@ -125,24 +122,22 @@ augmentTestSet env goal = do
                                in zip typesList examplesList
 
         generalThan s1 s2 = do
-            msgChan <- newChan
-            let initChecker = emptyChecker { _checkerChan = msgChan }
             let bound = env ^. boundTypeVars
             state <- execStateT (do
                 s1' <- freshType bound s1
                 s2' <- freshType bound s2
                 let vars = typeVarsOf s2'
                 let env' = foldr addTypeVar env vars
-                solveTypeConstraint env' (shape s1') (shape s2')) initChecker
+                state $ runState $ solveTypeConstraint env' s1' s2') emptyChecker
             return $ state ^. isChecked
 
 checkExampleOutput :: [String] -> Environment -> TypeQuery -> String -> [Example] -> IO (Maybe [Example])
 checkExampleOutput mdls env typ prog exs = do
     let progWithoutTc = removeTypeclasses prog
     currOutputs <- mapM (execExample mdls env typ progWithoutTc) exs
-    cmpResults <- mapM (uncurry compareResults) (zip currOutputs exs)
+    cmpResults <- zipWithM compareResults currOutputs exs
     let justResults = catMaybes cmpResults
-    if length justResults == length exs then return $ Just justResults 
+    if length justResults == length exs then return $ Just justResults
                                         else return Nothing
     where
         compareResults currOutput ex

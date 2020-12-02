@@ -5,13 +5,14 @@ module HooglePlus.Stats where
 import Types.Experiments
 import Types.Solver
 import Types.CheckMonad
+import Encoder.ConstraintEncoder
+import Synquid.Utils
 
-import Synquid.Util
 import Control.Monad.State
 import System.CPUTime
 import Text.Printf
 import Control.Lens
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import Text.Pretty.Simple
 
 -- | wrap some action with time measuring and print out the execution time
@@ -33,7 +34,7 @@ withTime desc f = do
         )
     return res
 
-resetTiming :: Monad m => PNSolver m ()
+resetTiming :: (ConstraintEncoder enc, Monad m) => PNSolver enc m ()
 resetTiming =
   modify $ over (statistics . solverStats) (\s ->
     s { _encodingTime=0,
@@ -44,7 +45,7 @@ resetTiming =
         _totalTime=0
       })
 
-printStats :: MonadIO m => PNSolver m ()
+printStats :: (ConstraintEncoder enc, MonadIO m) => PNSolver enc m ()
 printStats = do
     stats <- gets $ view (statistics . solverStats)
     depth <- gets $ view (searchState . currentLoc)
@@ -61,7 +62,3 @@ printStats = do
     liftIO $ putStrLn ("Number of transitions: " ++ show (map snd (Map.toAscList (_numOfTransitions stats))))
     liftIO $ putStrLn ("Solution Depth: " ++ show depth)
     liftIO $ putStrLn "********************END STATISTICS****************************"
-
-
-printTime :: TimeStatistics -> IO ()
-printTime = pPrint

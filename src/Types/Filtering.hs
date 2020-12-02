@@ -10,9 +10,9 @@ import Types.Program
 
 import Test.SmallCheck.Drivers
 
-defaultTimeoutMicro = 1 * 10^6 :: Int
+defaultTimeoutMicro = 3 * 10^6 :: Int
 defaultDepth = 3 :: Int
-defaultInterpreterTimeoutMicro = 4 * 10^6 :: Int
+defaultInterpreterTimeoutMicro = 5 * 10^6 :: Int
 defaultMaxOutputLength = 10 :: Int 
 defaultGenerationTimeoutMicro = 30 * 10^6 :: Int
 defaultGenerationDepth = 4 :: Int
@@ -70,10 +70,7 @@ newtype NotSupportedException = NotSupportedException String
 
 instance Exception NotSupportedException
 
-data TypeConstraint = TypeConstraint String String
-
-instance Show TypeConstraint where
-  show (TypeConstraint name constraint) = printf "%s %s" constraint name
+type TypeConstraint = ArgumentType
 
 data FunctionSignature =
   FunctionSignature { _constraints :: [TypeConstraint]

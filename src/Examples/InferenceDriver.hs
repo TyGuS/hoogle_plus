@@ -7,8 +7,7 @@ module Examples.InferenceDriver(
     getExampleTypes
     ) where
 
-import Database.Convert (addTrue)
-import Database.Util
+import Database.Utils
 import Types.Common
 import Types.Type
 import Types.IOFormat
@@ -18,11 +17,10 @@ import Types.CheckMonad
 import qualified Types.TypeChecker
 import Examples.Utils
 import Synquid.Type
-import PetriNet.Util
+import PetriNet.Utils
 import Synquid.Pretty
-import Synquid.Logic (ftrue)
+import Synquid.Program
 
-import Control.Concurrent.Chan
 import Control.Exception
 import Control.Monad.State
 import Control.Monad.Logic
@@ -43,7 +41,7 @@ import Outputable
 import Text.Printf
 
 -- pre: the mkFun is a tuple of arguments and return types
-parseExample :: [String] -> String -> IO (Either ErrorMessage RSchema)
+parseExample :: [String] -> String -> IO (Either ErrorMessage SchemaSkeleton)
 parseExample mdls mkFun = catch (do
     typ <- askGhc mdls $ exprType TM_Default mkFun
     let hsType = typeToLHsType typ
@@ -54,7 +52,7 @@ parseExample mdls mkFun = catch (do
         toInt (ForallT x t) = ForallT x (toInt t)
         toInt (Monotype t) = Monotype (integerToInt t)
 
-getExampleTypes :: Environment -> [Id] -> [RSchema] -> Int -> IO ([String], InfStats)
+getExampleTypes :: Environment -> [Id] -> [SchemaSkeleton] -> Int -> IO ([String], InfStats)
 getExampleTypes env argNames validSchemas num = do
     let mdls = env ^. included_modules
     let initTyclassState = emptyTyclassState { _supportModules = Set.toList mdls }
@@ -72,10 +70,9 @@ getExampleTypes env argNames validSchemas num = do
             -- liftIO $ print validSchemas
             -- create types with all fresh type variables
             freshTypes <- mapM (freshType []) validSchemas
-            let validTypes = map shape freshTypes
-            foldM stepAntiUnification (head validTypes, emptyAntiUnifState) (tail validTypes)
+            foldM stepAntiUnification (head freshTypes, emptyAntiUnifState) (tail freshTypes)
         forall t = let vars = typeVarsOf t
-                    in foldr ForallT (Monotype $ addTrue t) vars
+                    in foldr ForallT (Monotype t) vars
         getGeneralizations t st = do
             let tvars = typeVarsOf t
             let tcass = st ^. tyclassAssignment
@@ -93,10 +90,10 @@ getExampleTypes env argNames validSchemas num = do
                 letters = map (:[]) ['a'..'z']
                 varCandidates = filter (`notElem` vars) letters
                 varSubst = Map.fromList (filter (uncurry (/=)) $ zip vars varCandidates)
-                renamedTyp = stypeSubstitute (Map.map vart_ varSubst) t
+                renamedTyp = typeSubstitute (Map.map vart_ varSubst) t
                 substInConstraint = \(id, s) -> (Map.findWithDefault id id varSubst, s)
                 renamedConstraints = map substInConstraint (Map.toList constraints)
-                strTyp = showSTypeWithName renamedTyp
+                strTyp = showTypeWithName renamedTyp
              in if null tyclasses then strTyp
                                   else printf "(%s) => %s" tyclasses strTyp
 
@@ -109,83 +106,74 @@ getExampleTypes env argNames validSchemas num = do
         flattenResult (antiUnifs, generals) = zipWith padding antiUnifs generals
 
 -- turn a GHC type into Hoogle+ type
-resolveType :: LHsType GhcPs -> RSchema
-resolveType (L _ (HsForAllTy bs t)) = foldr ForallT (resolveType t) vs
+resolveType :: LHsType GhcPs -> SchemaSkeleton
+resolveType (L _ (HsForAllTy _ _ bs t)) = foldr ForallT (resolveType t) vs
     where
         vs = map ((wildcardPrefix:) . vname) bs
-        vname (L _ (UserTyVar (L _ id))) = showSDocUnsafe (ppr id)
-        vname (L _ (KindedTyVar (L _ id) _)) = showSDocUnsafe (ppr id)
-resolveType t@(L _ (HsAppTy fun arg)) =
+        vname (L _ (UserTyVar _ (L _ id))) = showSDocUnsafe (ppr id)
+        vname (L _ (KindedTyVar _ (L _ id) _)) = showSDocUnsafe (ppr id)
+resolveType t@(L _ (HsAppTy _ fun arg)) =
     let typs = tail $ map resolveType' $ breakApp t
         (args, [res]) = splitAt (length typs - 1) typs
      in Monotype $ foldr (FunctionT "") res args
     where
-        breakApp (L _ (HsAppTy fun arg)) = breakApp fun ++ [arg]
+        breakApp (L _ (HsAppTy _ fun arg)) = breakApp fun ++ [arg]
         breakApp t = [t]
-resolveType (L _ (HsQualTy ctx body)) = Monotype bodyWithTcArgs
+resolveType (L _ (HsQualTy _ ctx body)) = Monotype bodyWithTcArgs
     where
         unlocatedCtx = let L _ c = ctx in c
         tyConstraints = map (prefixTyclass . resolveType') unlocatedCtx
 
-        prefixTyclass tc@(ScalarT (DatatypeT name args rs) r) =
-            ScalarT (DatatypeT (tyclassPrefix ++ name) args rs) r
+        prefixTyclass (DatatypeT name) = DatatypeT (tyclassPrefix ++ name)
         prefixTyclass tc = error $ "Unsupported type class " ++ show tc
 
         bodyWithTcArgs = foldr (FunctionT "") (toMonotype $ resolveType body) tyConstraints
 resolveType t = Monotype $ resolveType' t
 
-resolveType' :: LHsType GhcPs -> RType
-resolveType' (L _ (HsFunTy f r)) = FunctionT "" (resolveType' f) (resolveType' r)
-resolveType' (L _ (HsQualTy _ t)) = resolveType' t
-resolveType' (L _ (HsTyVar _ (L _ v))) =
+resolveType' :: LHsType GhcPs -> TypeSkeleton
+resolveType' (L _ (HsFunTy _ f r)) = FunctionT "" (resolveType' f) (resolveType' r)
+resolveType' (L _ (HsQualTy _ _ t)) = resolveType' t
+resolveType' (L _ (HsTyVar _ _ (L _ v))) =
     if isLower (head name)
-       then ScalarT (TypeVarT Map.empty (wildcardPrefix:name)) ftrue
-       else ScalarT (DatatypeT name [] []) ftrue
+       then TypeVarT (wildcardPrefix:name)
+       else DatatypeT name
     where
         name = showSDocUnsafe $ ppr v
-resolveType' t@(L _ HsAppTy{}) = ScalarT (DatatypeT dtName dtArgs []) ftrue
+resolveType' (L _ (HsAppTy _ f a)) = TyAppT dt a'
     where
-        dtName = case datatypeOf t of
-                   "[]" -> "List"
-                   "(,)" -> "Pair"
-                   n -> n
-        dtArgs = datatypeArgs t
-
-        datatypeOf (L _ (HsAppTy f _)) = datatypeOf f
-        datatypeOf (L _ (HsTyVar _ (L _ v))) = showSDocUnsafe (ppr v)
-
-        datatypeArgs (L _ (HsAppTy (L _ HsTyVar {}) a)) = [resolveType' a]
-        datatypeArgs (L _ (HsAppTy f a)) = datatypeArgs f ++ datatypeArgs a
-        datatypeArgs t = [resolveType' t]
-
-resolveType' (L _ (HsListTy t)) = ScalarT (DatatypeT "List" [resolveType' t] []) ftrue
-resolveType' (L _ (HsTupleTy _ ts)) = foldr mkPair basePair otherTyps
+        f' = resolveType' f
+        a' = resolveType' a
+        dt = case f' of
+                DatatypeT "[]" -> DatatypeT "List"
+                DatatypeT "(,)" -> DatatypeT "Pair"
+                _ -> f'
+resolveType' (L _ (HsListTy _ t)) = TyAppT (DatatypeT "List") (resolveType' t)
+resolveType' (L _ (HsTupleTy _ _ ts)) = foldr TyAppT (DatatypeT "Pair") ts'
     where
-        mkPair acc t = ScalarT (DatatypeT "Pair" [acc, t] []) ftrue
-        resolveTyps = map resolveType' ts
-        (baseTyps, otherTyps) = splitAt (length ts - 2) resolveTyps
-        basePair = ScalarT (DatatypeT "Pair" baseTyps []) ftrue
-resolveType' (L _ (HsParTy t)) = resolveType' t
+        ts' = map resolveType' ts
+resolveType' (L _ (HsParTy _ t)) = resolveType' t
 resolveType' t = error $ showSDocUnsafe (ppr t)
 
-antiSubstitute :: SType -> Id -> SType -> SType
-antiSubstitute pat name t | t == pat = vart_ name
-antiSubstitute pat name (ScalarT (DatatypeT dt args _) _) =
-    ScalarT (DatatypeT dt (map (antiSubstitute pat name) args) []) ()
+antiSubstitute :: TypeSkeleton -> Id -> TypeSkeleton -> TypeSkeleton
+antiSubstitute pat name t | t == pat = TypeVarT name
+antiSubstitute pat name (TyAppT tFun tArg) = TyAppT tFun' tArg'
+    where
+        tFun' = antiSubstitute pat name tFun
+        tArg' = antiSubstitute pat name tArg
+antiSubstitute pat name (TyFunT tArg tRes) = TyFunT tArg' tRes'
+    where
+        tArg' = antiSubstitute pat name tArg
+        tRes' = antiSubstitute pat name tRes
 antiSubstitute pat name (FunctionT x tArg tRes) = FunctionT x tArg' tRes'
     where
         tArg' = antiSubstitute pat name tArg
         tRes' = antiSubstitute pat name tRes
 antiSubstitute _ _ t = t
 
-antiUnification :: MonadIO m => SType -> SType -> AntiUnifState -> LogicT (StateT TypeClassState m) (SType, AntiUnifState)
-antiUnification t1 t2 st = do
-    -- liftIO $ print (t1, t2)
-    (t, st) <- runStateT (antiUnification' t1 t2) st
-    -- liftIO $ print t
-    return (t, st)
+antiUnification :: MonadIO m => TypeSkeleton -> TypeSkeleton -> AntiUnifState -> LogicT (StateT TypeClassState m) (TypeSkeleton, AntiUnifState)
+antiUnification t1 t2 = runStateT (antiUnification' t1 t2)
 
-newAntiVariable :: MonadIO m => SType -> SType -> Maybe TyclassConstraints -> AntiUnifier m SType
+newAntiVariable :: MonadIO m => TypeSkeleton -> TypeSkeleton -> Maybe TyclassConstraints -> AntiUnifier m TypeSkeleton
 newAntiVariable t1 t2 mbCons = do
     -- liftIO $ print "newAntiVariable start"
     -- liftIO $ print (t1, t2)
@@ -200,12 +188,12 @@ newAntiVariable t1 t2 mbCons = do
     when (isJust mbCons) (
         modify $ over tyclassAssignment (Map.insertWith Set.union v (fromJust mbCons))
         )
-    return $ vart_ v
+    return $ TypeVarT v
 
 -- there are two cases for create anti-unification variables
 -- 1) consider reuse an existing binding if the sub unifies, add unification constraints
 -- 2) consider create a new binding, add non-unification constraints
-findWithDefaultAntiVariable :: MonadIO m => SType -> SType -> AntiUnifier m SType
+findWithDefaultAntiVariable :: MonadIO m => TypeSkeleton -> TypeSkeleton -> AntiUnifier m TypeSkeleton
 findWithDefaultAntiVariable t1 t2 = do
     tass <- gets $ view typeAssignment
     -- liftIO $ print $ "current anti unification assignment " ++ show tass
@@ -226,30 +214,35 @@ findWithDefaultAntiVariable t1 t2 = do
 -- there are two cases for antiUnification
 -- 1) one of the type is a wildcard, return the other type
 -- 2) either find an existing binding or create a new one
-antiUnification' :: MonadIO m => SType -> SType -> AntiUnifier m SType
+antiUnification' :: MonadIO m => TypeSkeleton -> TypeSkeleton -> AntiUnifier m TypeSkeleton
 antiUnification' t1 t2 | t1 == t2 = return t1
 antiUnification' AnyT t = return t
 antiUnification' t AnyT = return t
-antiUnification' t1@(ScalarT (TypeVarT _ id1) _) t2@(ScalarT (TypeVarT _ id2) _)
+antiUnification' t1@(TypeVarT id1) t2@(TypeVarT id2)
   | wildcardPrefix == head id1 = return (vart_ id2) `mplus` findWithDefaultAntiVariable t1 t2
   | wildcardPrefix == head id2 = return (vart_ id1) `mplus` findWithDefaultAntiVariable t1 t2
-antiUnification' t1@(ScalarT (TypeVarT _ id) _) t
+antiUnification' t1@(TypeVarT id) t
   | wildcardPrefix == head id = return t `mplus` findWithDefaultAntiVariable t1 t
-antiUnification' t tv@(ScalarT (TypeVarT _ id) _)
+antiUnification' t tv@(TypeVarT id)
   | wildcardPrefix == head id = return t `mplus` findWithDefaultAntiVariable t tv
-antiUnification' t1@(ScalarT (DatatypeT dt1 args1 _) _) t2@(ScalarT (DatatypeT dt2 args2 _) _)
-  | dt1 == dt2 = do
-      -- liftIO $ print "*************************************************"
-      -- liftIO $ print (args1, args2)
-      args' <- mapM (uncurry antiUnification') (zip args1 args2)
-      return (ScalarT (DatatypeT dt1 args' []) ())
+antiUnification' t1@(TyAppT tFun1 tArg1) t2@(TyAppT tFun2 tArg2) = do
+    let (dt1, args1) = collectArgs t1
+    let (dt2, args2) = collectArgs t2
+    if dt1 == dt2
+        then do args' <- zipWithM antiUnification' args1 args2
+                return $ foldl' TyAppT (DatatypeT dt1) args'
+        else findWithDefaultAntiVariable t1 t2
+antiUnification' t1@(TyFunT tArg1 tRes1) t2@(TyFunT tArg2 tRes2) = do
+    tArg <- antiUnification' tArg1 tArg2
+    tRes <- antiUnification' tRes1 tRes2
+    return (TyFunT tArg tRes)
 antiUnification' (FunctionT x1 tArg1 tRes1) (FunctionT x2 tArg2 tRes2) = do
     tArg <- antiUnification' tArg1 tArg2
     tRes <- antiUnification' tRes1 tRes2
     return $ FunctionT x1 tArg tRes
 antiUnification' t1 t2 = findWithDefaultAntiVariable t1 t2
 
-generalizeType :: MonadIO m => [RSchema] -> TyclassAssignment -> SType -> StateT TypeClassState m [(TyclassAssignment, SType)]
+generalizeType :: MonadIO m => [SchemaSkeleton] -> TyclassAssignment -> TypeSkeleton -> StateT TypeClassState m [(TyclassAssignment, TypeSkeleton)]
 generalizeType exTyps tcass t = do
     -- do the filtering inside observeAll
     liftIO $ print t
@@ -266,7 +259,7 @@ generalizeType exTyps tcass t = do
                 lift (modify $ over (infStats . postfilterCounts) (+ 1)) >>
                 return (ass, gt)
            else msum $ map (\v -> do
-                let t = stypeSubstitute (mkSubst (vart_ v)) gt
+                let t = typeSubstitute (mkSubst (vart_ v)) gt
                 lift $ modify $ over (infStats . prefilterCounts) (+ 1)
                 -- liftIO $ print $ "Generalize into " ++ show t
                 guard (isInhabited ass t)
@@ -276,8 +269,8 @@ generalizeType exTyps tcass t = do
         )
     return $ nubOrdBy dedupArgs typs
 
-generalizeSType :: MonadIO m => TyclassAssignment -> SType -> TypeGeneralizer m (TyclassAssignment, SType)
-generalizeSType tcass t@(ScalarT (TypeVarT _ id) _) = do
+generalizeSType :: MonadIO m => TyclassAssignment -> TypeSkeleton -> TypeGeneralizer m (TyclassAssignment, TypeSkeleton)
+generalizeSType tcass t@(TypeVarT id) = do
     -- either add type class or not 
     let tc = maybe [] Set.toList (Map.lookup id tcass)
     let mkResult tc = return (Map.singleton id (Set.singleton tc), t)
@@ -292,16 +285,23 @@ generalizeSType tcass t@(FunctionT x tArg tRes) = do
     (resTyclass, tRes') <- generalizeSType tcass tRes
     let tyclassAssignment = Map.foldrWithKey (Map.insertWith Set.union) resTyclass argTyclass
     return (tyclassAssignment, FunctionT x tArg' tRes')
-generalizeSType tcass t@(ScalarT (DatatypeT name args _) _) = (do
-    generalizedArgs <- mapM (generalizeSType tcass) args
-    let (tyclassMaps, args') = unzip generalizedArgs
-    let argTyclasses = foldr (Map.foldrWithKey (Map.insertWith Set.union)) Map.empty tyclassMaps
-    return (argTyclasses, ScalarT (DatatypeT name args' []) ())
+generalizeSType tcass t@(TyFunT tArg tRes) = do
+    (argTyclass, tArg') <- generalizeSType tcass tArg
+    (resTyclass, tRes') <- generalizeSType tcass tRes
+    let tyclassAssignment = Map.foldrWithKey (Map.insertWith Set.union) resTyclass argTyclass
+    return (tyclassAssignment, TyFunT tArg' tRes')
+generalizeSType tcass t@(DatatypeT _) = datatypeToVar tcass t `mplus` return (tcass, t)
+generalizeSType tcass t@(TyAppT tFun tArg) = (do
+        let (dt, args) = collectArgs t
+        generalizedArgs <- mapM (generalizeSType tcass) args
+        let (tyclassMaps, args') = unzip generalizedArgs
+        let argTyclasses = foldr (Map.foldrWithKey (Map.insertWith Set.union)) Map.empty tyclassMaps
+        return (argTyclasses, foldl' TyAppT (DatatypeT dt) args')
     ) `mplus`
-    if (null args) || (show t == "[Char]") then datatypeToVar tcass t else mzero
+    if (show t == "[Char]") then datatypeToVar tcass t else mzero
 generalizeSType _ t = error $ "unsupported type " ++ show t
 
-datatypeToVar :: MonadIO m => TyclassAssignment -> SType -> TypeGeneralizer m (TyclassAssignment, SType)
+datatypeToVar :: MonadIO m => TyclassAssignment -> TypeSkeleton -> TypeGeneralizer m (TyclassAssignment, TypeSkeleton)
 datatypeToVar tcass t = do
     -- generalize the data type into a fresh type variable
     -- or reuse previous variables if tyclass checks
@@ -342,15 +342,15 @@ datatypeToVar tcass t = do
 
 -- check the type class constraints for @t1@ and @t2@
 -- return a new type variable with the calculated type classes
-checkTyclass :: MonadIO m => SType -> SType -> AntiUnifier m (Maybe (Set Id))
-checkTyclass t1@(ScalarT (TypeVarT _ id1) _) t2@(ScalarT (TypeVarT _ id2) _) = do
+checkTyclass :: MonadIO m => TypeSkeleton -> TypeSkeleton -> AntiUnifier m (Maybe (Set Id))
+checkTyclass t1@(TypeVarT id1) t2@(TypeVarT id2) = do
     -- assume both type variables cannot be freely unified
     tcass <- gets $ view tyclassAssignment
     let tc1 = Map.findWithDefault Set.empty id1 tcass
     let tc2 = Map.findWithDefault Set.empty id2 tcass
     let tc = tc1 `Set.intersection` tc2
     return (if Set.null tc then Nothing else Just tc)
-checkTyclass t1@(ScalarT (TypeVarT _ id) _) t2 = do
+checkTyclass t1@(TypeVarT id) t2 = do
     -- check the type class for the data type
     tcass <- gets $ view tyclassAssignment
     tccache <- lift $ gets $ view tyclassCache
@@ -361,7 +361,7 @@ checkTyclass t1@(ScalarT (TypeVarT _ id) _) t2 = do
             tc2 <- lift . lift $ getDtTyclasses tcass t2
             return $ tc1 `Set.intersection` tc2
     return (if Set.null tc then Nothing else Just tc)
-checkTyclass t1 t2@(ScalarT (TypeVarT {}) _) = checkTyclass t2 t1
+checkTyclass t1 t2@(TypeVarT {}) = checkTyclass t2 t1
 checkTyclass t1 t2 = do
     tccache <- lift $ gets $ view tyclassCache
     tcass <- gets $ view tyclassAssignment
@@ -370,14 +370,14 @@ checkTyclass t1 t2 = do
     let tc = tc1 `Set.intersection` tc2
     return (if Set.null tc then Nothing else Just tc)
 
-getDtTyclasses :: MonadIO m => TyclassAssignment -> SType -> StateT TypeClassState m TyclassConstraints
+getDtTyclasses :: MonadIO m => TyclassAssignment -> TypeSkeleton -> StateT TypeClassState m TyclassConstraints
 getDtTyclasses tcass typ = do
     mbCandidates <- mapM (mkTyclassQuery tcass typ) supportedTyclasses
     let tc = map fromJust $ filter isJust mbCandidates
     modify $ over tyclassCache (Map.insert typ tc)
     return $ Set.fromList tc
 
-mkTyclassQuery :: MonadIO m => TyclassAssignment -> SType -> String -> StateT TypeClassState m (Maybe String)
+mkTyclassQuery :: MonadIO m => TyclassAssignment -> TypeSkeleton -> String -> StateT TypeClassState m (Maybe String)
 mkTyclassQuery tcass typ tyclass = do
     mdls <- gets $ view supportModules
     let vars = Set.toList $ typeVarsOf typ
@@ -392,55 +392,65 @@ mkTyclassQuery tcass typ tyclass = do
         catch (askGhc mdls (exprType TM_Default query) >> return (Just tyclass))
               (\(e :: SomeException) -> liftIO (print e) >> return Nothing)
 
-defaultTypeVar :: SType -> SType -> SType
-defaultTypeVar to (ScalarT (TypeVarT _ v) _) | wildcardPrefix == head v = to
-defaultTypeVar to (ScalarT (DatatypeT name args _) _) =
-    let args' = map (defaultTypeVar to) args
-     in ScalarT (DatatypeT name args' []) ()
-defaultTypeVar to (FunctionT x tArg tRes) =
-    let tArg' = defaultTypeVar to tArg
+defaultTypeVar :: TypeSkeleton -> TypeSkeleton -> TypeSkeleton
+defaultTypeVar to (TypeVarT v) | wildcardPrefix == head v = to
+defaultTypeVar to (TyAppT tFun tArg) = TyAppT tFun' tArg'
+    where
+        tFun' = defaultTypeVar to tFun
+        tArg' = defaultTypeVar to tArg
+defaultTypeVar to (TyFunT tArg tRes) = TyAppT tArg' tRes'
+    where
+        tArg' = defaultTypeVar to tArg
         tRes' = defaultTypeVar to tRes
-     in FunctionT x tArg' tRes'
+defaultTypeVar to (FunctionT x tArg tRes) = FunctionT x tArg' tRes'
+    where
+        tArg' = defaultTypeVar to tArg
+        tRes' = defaultTypeVar to tRes
 defaultTypeVar _ t = t
 
 -- partition all the type variables in the given type
 -- into negative set and positive set
 reversePolarity reversed t = if isFunctionType t then not reversed else reversed
 
-typeVarPolarity :: Bool -> SType -> (Set Id, Set Id)
-typeVarPolarity reversed (ScalarT (TypeVarT _ v) _) =
+typeVarPolarity :: Bool -> TypeSkeleton -> (Set Id, Set Id)
+typeVarPolarity reversed (TypeVarT v) =
     if reversed then (Set.empty, Set.singleton v)
                 else (Set.singleton v, Set.empty)
-typeVarPolarity reversed (ScalarT (DatatypeT _ args _) _) =
-    let argPolarities = map (\t -> typeVarPolarity (reversePolarity reversed t) t) args
-        (neg, pos) = unzip argPolarities
-     in (Set.unions neg, Set.unions pos)
-typeVarPolarity reversed (FunctionT x tArg tRes) =
-    let (neg, pos) = typeVarPolarity (reversePolarity reversed tArg) tArg
+typeVarPolarity reversed (DatatypeT _) = (Set.empty, Set.empty)
+typeVarPolarity reversed (TyAppT tFun tArg) = (neg `Set.union` neg', pos `Set.union` pos')
+    where
+        (neg, pos) = typeVarPolarity (reversePolarity reversed tFun) tFun
+        (neg', pos') = typeVarPolarity (reversePolarity reversed tArg) tArg
+typeVarPolarity reversed (TyFunT tArg tRes) = (neg `Set.union` neg', pos `Set.union` pos')
+    where
+        (neg, pos) = typeVarPolarity (reversePolarity reversed tArg) tArg
+        (neg', pos') = typeVarPolarity (reversePolarity reversed tRes) tRes
+typeVarPolarity reversed (FunctionT x tArg tRes) = (neg `Set.union` neg', pos `Set.union` pos')
+    where
+        (neg, pos) = typeVarPolarity (reversePolarity reversed tArg) tArg
         (neg', pos') = typeVarPolarity (not $ reversePolarity reversed tRes) tRes
-     in (neg `Set.union` neg', pos `Set.union` pos')
 
-notOnlyPositive :: SType -> Bool
+notOnlyPositive :: TypeSkeleton -> Bool
 notOnlyPositive t = let (neg, pos) = typeVarPolarity False t
                      in Set.null (pos `Set.difference` neg)
 
-isInhabited :: TyclassAssignment -> SType -> Bool
+isInhabited :: TyclassAssignment -> TypeSkeleton -> Bool
 isInhabited tyclass t =
     let tcArgs = concatMap tyclassesToArgs $ Map.toList tyclass
-        args = snd $ unzip $ argsWithName t
+        args = map snd (argsWithName t)
         res = lastType t
      in isReachable args res && all (isRelevant (tcArgs ++ args) res) args
     where
         tyclassToArg v tc
-            | tc == "Eq" || tc == "Ord" = FunctionT "" (vart_ v) (FunctionT "" (vart_ v) (ScalarT (DatatypeT "Bool" [] []) ()))
-            | tc == "Num" = FunctionT "" (vart_ v) (FunctionT "" (vart_ v) (vart_ v))
+            | tc == "Eq" || tc == "Ord" = FunctionT "" (TypeVarT v) (FunctionT "" (TypeVarT v) (DatatypeT "Bool"))
+            | tc == "Num" = FunctionT "" (TypeVarT v) (FunctionT "" (TypeVarT v) (TypeVarT v))
         tyclassesToArgs (v, tcs) = map (uncurry tyclassToArg . (v,)) $ Set.toList tcs
 
-isReachable :: [SType] -> SType -> Bool
+isReachable :: [TypeSkeleton] -> TypeSkeleton -> Bool
 isReachable args res = typeVarsOf res `Set.isSubsetOf` Set.unions (map typeVarsOf args)
 
-isRelevant :: [SType] -> SType -> SType -> Bool
-isRelevant args res (ScalarT (TypeVarT _ id) _) = (id `Set.member` typeVarsOf res) || usedInHigherOrder
+isRelevant :: [TypeSkeleton] -> TypeSkeleton -> TypeSkeleton -> Bool
+isRelevant args res (TypeVarT id) = (id `Set.member` (typeVarsOf res)) || usedInHigherOrder
     where
         hoArgs = filter isFunctionType args ++ concatMap hoArgsOf args
         usedInHigherOrder = any relevantToHigherOrder hoArgs
@@ -458,32 +468,40 @@ isRelevant args res t@FunctionT {} =
 isRelevant _ _ _ = True
 
 checkImplies :: [Id] -> Bool
-checkImplies tcs = "Ord" `notElem` tcs || "Eq" `notElem` tcs
+checkImplies tcs = "Ord" `notElem`tcs || "Eq" `notElem` tcs
 
-dedupArgs :: (TyclassAssignment, SType) -> (TyclassAssignment, SType) -> Ordering
+dedupArgs :: (TyclassAssignment, TypeSkeleton) -> (TyclassAssignment, TypeSkeleton) -> Ordering
 dedupArgs (tc1, t1) (tc2, t2) = let args1 = map snd (argsWithName t1)
                                     args2 = map snd (argsWithName t2)
                                     ret1 = lastType t1
                                     ret2 = lastType t2
                                  in compare (sort args1, ret1, tc1) (sort args2, ret2, tc2)
 
-reverseSubstitution :: SType -> SType -> Map SType (Set SType) -> Map SType (Set SType)
-reverseSubstitution t1@(ScalarT (TypeVarT {}) _) t2 tass = Map.insertWith Set.union t1 (Set.singleton t2) tass
-reverseSubstitution t1 t2@(ScalarT (TypeVarT {}) _) tass = Map.insertWith Set.union t1 (Set.singleton t2) tass
-reverseSubstitution t1@(ScalarT (DatatypeT name1 args1 _) _) t2@(ScalarT (DatatypeT name2 args2 _) _) tass
-  | null args1 && null args2 = Map.insertWith Set.union t1 (Set.singleton t2) tass
-  | name1 == name2 = foldr (uncurry reverseSubstitution) tass (zip args1 args2)
-  | name1 /= name2 = error "datatype was lost during generalization"
+reverseSubstitution :: TypeSkeleton -> TypeSkeleton -> Map TypeSkeleton (Set TypeSkeleton) -> Map TypeSkeleton (Set TypeSkeleton)
+reverseSubstitution t1@(TypeVarT _) t2 tass = Map.insertWith Set.union t1 (Set.singleton t2) tass
+reverseSubstitution t1 t2@(TypeVarT _) tass = Map.insertWith Set.union t1 (Set.singleton t2) tass
+reverseSubstitution t1@(TyAppT tFun1 tArg1) t2@(TyAppT tFun2 tArg2) tass
+    | null args1 && null args2 = Map.insertWith Set.union t1 (Set.singleton t2) tass
+    | dt1 == dt2 = foldr (uncurry reverseSubstitution) tass (zip args1 args2)
+    | dt1 /= dt2 = error "datatype was lost during generalization"
+    where
+        (dt1, args1) = collectArgs t1
+        (dt2, args2) = collectArgs t2
+reverseSubstitution t1@(TyFunT tArg1 tRes1) t2@(TyFunT tArg2 tRes2) tass =
+    reverseSubstitution tRes1 tRes2 tass'
+    where
+        tass' = reverseSubstitution tArg1 tArg2 tass
 reverseSubstitution (FunctionT _ tArg1 tRes1) (FunctionT _ tArg2 tRes2) tass =
-    let tass' = reverseSubstitution tArg1 tArg2 tass
-     in reverseSubstitution tRes1 tRes2 tass'
+    reverseSubstitution tRes1 tRes2 tass'
+    where
+        tass' = reverseSubstitution tArg1 tArg2 tass
 
-scoreSignature :: SType -> TyclassAssignment -> SType -> Double
+scoreSignature :: TypeSkeleton -> TyclassAssignment -> TypeSkeleton -> Double
 scoreSignature auType tyclass t =
     let subst = reverseSubstitution auType t Map.empty
         tcCount = 0.5 * fromIntegral (Map.foldr ((+) . Set.size) 0 tyclass)
         varsCount = Set.size $ typeVarsOf t
-        substCount k s = Set.size s
+        substCount k = Set.size
      in fromIntegral (Map.foldrWithKey (\k v -> (+) $ substCount k v) 0 subst) + -- penalty for more than one non-identity subst
          tcCount - 0.1 * fromIntegral varsCount
 
@@ -507,57 +525,57 @@ checkConstraint (DisunifConstraint t1 t2) = do
     -- liftIO $ print "checkDisunif"
     tass <- gets $ view tmpAssignment
     -- liftIO $ print tass
-    let t1' = stypeSubstitute tass t1
-    let t2' = stypeSubstitute tass t2
+    let t1' = typeSubstitute tass t1
+    let t2' = typeSubstitute tass t2
     -- liftIO $ print (t1', t2')
     checkDisunification t1' t2'
     -- liftIO $ print "end checkConstraint"
 
-checkUnification :: MonadIO m => SType -> SType -> AntiUnifier m ()
+checkUnification :: MonadIO m => TypeSkeleton -> TypeSkeleton -> AntiUnifier m ()
 checkUnification t1 t2 = do
     -- liftIO $ print "checkUnification"
     -- liftIO $ print (t1, t2)
     let vars = Set.toList $ typeVarsOf t1 `Set.union` typeVarsOf t2
     let boundVars = filter ((/=) wildcardPrefix . head) vars
     let env = emptyEnv { _boundTypeVars = boundVars }
-    let p1 = addTrue t1
-    let p2 = addTrue t2
     tmpAss <- gets $ view tmpAssignment
     names <- getNameCounter
     -- liftIO $ print tmpAss
     -- liftIO $ print (p1, p2)
     (isChecked, tass) <- liftIO $ do
-        messageChan <- newChan
-        let initChecker = Types.TypeChecker.emptyChecker { 
-                            Types.TypeChecker._checkerChan = messageChan
-                          , Types.TypeChecker._typeAssignment = tmpAss
+        let initChecker = Types.TypeChecker.emptyChecker {
+                            Types.TypeChecker._typeAssignment = tmpAss
                           , Types.TypeChecker._nameCounter = names
                           }
-        checkTypes env initChecker vars p1 p2
+        checkTypes env initChecker vars t1 t2
     guard isChecked
     modify $ set tmpAssignment tass
     -- liftIO $ print "checkUnification end"
 
-checkDisunification :: MonadIO m => SType -> SType -> AntiUnifier m ()
+-- whether there exists a substitution such that 
+-- the two types does not unify with each other
+checkDisunification :: MonadIO m => TypeSkeleton -> TypeSkeleton -> AntiUnifier m ()
 checkDisunification t1 t2 | t1 == t2 = mzero
-checkDisunification (ScalarT (TypeVarT _ id) _) _ | wildcardPrefix == head id = return ()
-checkDisunification _ (ScalarT (TypeVarT _ id) _) | wildcardPrefix == head id = return ()
-checkDisunification (ScalarT (DatatypeT dt1 args1 _) _) (ScalarT (DatatypeT dt2 args2 _) _)
-  | dt1 /= dt2 = return ()
-  | dt1 == dt2 && null args1 && null args2 = mzero
-  | otherwise = checkArgs args1 args2
-  where
-      checkArgs [] [] = mzero
-      checkArgs (arg1:args1) (arg2:args2) = ifte (checkDisunification arg1 arg2) 
-                                                 (const (return ()))
-                                                 (checkArgs args1 args2)
+checkDisunification (TypeVarT id) _ | wildcardPrefix == head id = return ()
+checkDisunification _ (TypeVarT id) | wildcardPrefix == head id = return ()
+checkDisunification (TyAppT tFun1 tArg1) (TyAppT tFun2 tArg2) = do
+    -- we cannot answer "NO" when only looking at the "fun" part
+    ifte (checkDisunification tFun1 tFun2)
+         (const (return ()))
+         (checkDisunification tArg1 tArg2)
+checkDisunification (TyFunT tArg1 tRes1) (TyFunT tArg2 tRes2) = do
+    ifte (checkDisunification tArg1 tArg2)
+         (const (return ()))
+         (checkDisunification tRes1 tRes2)
 checkDisunification (FunctionT _ tArg1 tRes1) (FunctionT _ tArg2 tRes2) = do
-    checkDisunification tArg1 tArg2
-    checkDisunification tRes1 tRes2
+    ifte (checkDisunification tArg1 tArg2)
+         (const (return ()))
+         (checkDisunification tRes1 tRes2)
 checkDisunification _ _ = return ()
 
-hasWildcard :: SType -> Bool
-hasWildcard (ScalarT (DatatypeT _ args _) _) = any hasWildcard args
-hasWildcard (ScalarT (TypeVarT _ name) _) = wildcardPrefix == head name
+hasWildcard :: TypeSkeleton -> Bool
+hasWildcard (TypeVarT v) = wildcardPrefix == head v
+hasWildcard (TyAppT tFun tArg) = hasWildcard tFun || hasWildcard tArg
+hasWildcard (TyFunT tArg tRes) = hasWildcard tArg || hasWildcard tRes
 hasWildcard (FunctionT _ tArg tRes) = hasWildcard tArg || hasWildcard tRes
 hasWildcard _ = False

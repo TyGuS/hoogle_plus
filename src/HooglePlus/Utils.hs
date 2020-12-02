@@ -13,10 +13,10 @@ import Types.Filtering
 import Types.IOFormat (Example(Example))
 import qualified Types.IOFormat as IOFormat
 import Synquid.Type
-import Synquid.Util hiding (fromRight)
+import Synquid.Utils
 import Synquid.Pretty as Pretty
 import Synquid.Program
-import Database.Util
+import Database.Utils
 
 import Control.Exception
 import Control.Monad.Trans
@@ -32,7 +32,6 @@ import Data.List.Split (splitOn)
 import Data.Maybe
 import Data.Typeable
 import Data.Function (on)
-import qualified Data.Text as Text
 import Demand
 import DmdAnal
 import DynFlags
@@ -43,7 +42,7 @@ import HscTypes
 import IdInfo
 import Outputable hiding (text, (<+>))
 import qualified CoreSyn as Syn
-import qualified Data.Map as Map hiding (map, foldr)
+import qualified Data.Map.Strict as Map hiding (map, foldr)
 import qualified Data.Set as Set hiding (map)
 import qualified Data.Text as Text
 import SimplCore (core2core)
@@ -57,7 +56,7 @@ import qualified Language.Haskell.Interpreter as LHI
 
 -- Converts the list of param types into a haskell function signature.
 -- Moves typeclass-looking things to the front in a context.
-mkFunctionSigStr :: Show (TypeSkeleton r) => [TypeSkeleton r] -> String
+mkFunctionSigStr :: [TypeSkeleton] -> String
 mkFunctionSigStr args = addConstraints $ Prelude.foldr accumConstraints ([],[]) args
     where
         showSigs = intercalate " -> "
@@ -65,15 +64,13 @@ mkFunctionSigStr args = addConstraints $ Prelude.foldr accumConstraints ([],[]) 
         addConstraints ([], baseSigs) = showSigs baseSigs
         addConstraints (constraints, baseSigs) = "(" ++ (intercalate ", " constraints) ++ ") => " ++ showSigs baseSigs
 
-        accumConstraints :: Show (TypeSkeleton r) => TypeSkeleton r -> ([String], [String]) -> ([String], [String])
-        accumConstraints (ScalarT (DatatypeT id [ScalarT (TypeVarT _ tyvarName) _] _) _) (constraints, baseSigs)
+        accumConstraints :: TypeSkeleton -> ([String], [String]) -> ([String], [String])
+        accumConstraints (TyAppT (DatatypeT id) (TypeVarT tyvarName)) (constraints, baseSigs)
             | tyclassPrefix `isPrefixOf` id = let
                 classNameRegex = mkRegex $ tyclassPrefix ++ "([a-zA-Z]*)"
                 className = subRegex classNameRegex id "\\1"
                 constraint = className ++ " " ++ tyvarName
-                -- \(@@hplusTC@@([a-zA-Z]*) \(([a-z]*)\)\)
-                in
-                    (constraint:constraints, baseSigs)
+                in (constraint:constraints, baseSigs)
         accumConstraints otherTy (constraints, baseSigs) = let
             otherStr = if isFunctionType otherTy then wrapParen (show otherTy) else show otherTy
             in (constraints, otherStr:baseSigs)
@@ -150,7 +147,7 @@ printSolutionState solution (FilterState _ sols workingExamples diffExamples) = 
         showGroup :: [(SolutionPair, Example)] -> String
         showGroup xs = unlines ((show $ fst $ head xs) : (map (show . snd) xs))
 
-extractSolution :: Environment -> RType -> UProgram -> ([String], String, UProgram, [(Id, RSchema)])
+extractSolution :: Environment -> TypeSkeleton -> UProgram -> ([String], String, UProgram, [(Id, SchemaSkeleton)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)
     where
         argList = _arguments env
@@ -161,17 +158,17 @@ extractSolution env goalType prog = (modules, funcSig, body, argList)
         funcSig = mkFunctionSigStr (monoGoals ++ [goalType])
         body = mkLambda argNames prog
 
-updateEnvWithBoundTyVars :: RSchema -> Environment -> (Environment, RType)
+updateEnvWithBoundTyVars :: SchemaSkeleton -> Environment -> (Environment, TypeSkeleton)
 updateEnvWithBoundTyVars (Monotype ty) env = (env, ty)
 updateEnvWithBoundTyVars (ForallT x ty) env = updateEnvWithBoundTyVars ty (addTypeVar x env)
 
-updateEnvWithSpecArgs :: RType -> Environment -> (Environment, RType)
+updateEnvWithSpecArgs :: TypeSkeleton -> Environment -> (Environment, TypeSkeleton)
 updateEnvWithSpecArgs (FunctionT x tArg tRes) env = (addVariable x tArg $ addArgument x tArg env', ret)
     where
         (env', ret) = updateEnvWithSpecArgs tRes env
 updateEnvWithSpecArgs ty env = (env, ty)
 
-preprocessEnvFromGoal :: Goal -> (Environment, RType)
+preprocessEnvFromGoal :: Goal -> (Environment, TypeSkeleton)
 preprocessEnvFromGoal goal = updateEnvWithSpecArgs monospec env''
     where
         env''' = gEnvironment goal

@@ -59,13 +59,12 @@ parseTypeString input = FunctionSignature constraints argsType returnType
     extractType (TyFun _ src dst) = ArgTypeFunc (extractType src) (extractType dst)
     extractType other = throw $ NotSupportedException ("Not able to handle " ++ show other)
 
-    extractQualified (ClassA _ (UnQual _ (Ident _ name)) var) =
-      map (\x -> TypeConstraint (show $ extractType x) name) var
+    extractQualified (TypeA _ t) = extractType t
     extractQualified (ParenA _ qual) = extractQualified qual
     extractQualified other = throw $ NotSupportedException ("Not able to extract " ++ show other)
 
-    extractConstraints constraints (CxSingle _ item) = constraints ++ extractQualified item
-    extractConstraints constraints (CxTuple _ list) = foldr ((++) . extractQualified) constraints list
+    extractConstraints constraints (CxSingle _ item) = constraints ++ [extractQualified item]
+    extractConstraints constraints (CxTuple _ list) = foldr ((++) . (:[]) . extractQualified) constraints list
 
 -- instantiate polymorphic types in function signature with `Int`
 instantiateSignature :: FunctionSignature -> FunctionSignature
@@ -193,7 +192,7 @@ compareSolution :: [String] -> [String] -> String -> [String] -> FunctionSignatu
 compareSolution modules argNames solution otherSolutions funcSig time = mapM (evaluateProperty modules) props
   where props = buildDupCheckProp argNames (solution, otherSolutions) funcSig time defaultDepth
 
-runChecks :: MonadIO m => Environment -> RType -> UProgram -> FilterTest m (Maybe AssociativeExamples)
+runChecks :: MonadIO m => Environment -> TypeSkeleton -> UProgram -> FilterTest m (Maybe AssociativeExamples)
 runChecks env goalType prog = do
   result <- runChecks_
 

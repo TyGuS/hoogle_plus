@@ -87,3 +87,4 @@ dist/
 build/
 *.egg-info/
 output/
+*.z3

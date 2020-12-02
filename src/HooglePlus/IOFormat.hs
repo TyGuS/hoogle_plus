@@ -66,7 +66,7 @@ decodeInput bs = case mbInput of
 -- includes: solutions, each solution is an ast
 -- accompanied with several examples
 encodeOutput :: QueryOutput -> ByteString
-encodeOutput out = A.encode out
+encodeOutput = A.encode
 
 instance Show QueryOutput where
     show = show . encodeOutput 
@@ -74,7 +74,7 @@ instance Show QueryOutput where
 readEnv :: FilePath -> IO Environment
 readEnv envPathIn = do
     doesExist <- doesFileExist envPathIn
-    when (not doesExist) (error ("Please run `stack exec -- hplus generate -p [PACKAGES]` to generate database first"))
+    unless doesExist (error "Please run `stack exec -- hplus generate -p [PACKAGES]` to generate database first")
     envRes <- S.decode <$> B.readFile envPathIn
     case envRes of
         Left err -> error err
@@ -84,7 +84,7 @@ readBuiltinData :: SynquidParams -> Environment -> IO Environment
 readBuiltinData synquidParams env = do
     let jsonPathIn = jsonPath synquidParams
     doesExist <- doesFileExist jsonPathIn
-    when (not doesExist) (error "cannot find builtin json file")
+    unless doesExist (error "cannot find builtin json file")
     json <- readFile jsonPathIn
     let mbBuildObjs = A.decode (LB.pack json) :: Maybe [QueryInput]
     case mbBuildObjs of
@@ -96,7 +96,7 @@ readBuiltinData synquidParams env = do
     where
         transformObj (QueryInput q exs _) = (parseQueryType env q, exs)
 
-parseQueryType :: Environment -> String -> RSchema
+parseQueryType :: Environment -> String -> SchemaSkeleton
 parseQueryType env str = let
     parseResult = flip evalState (initialPos "type") $ 
                   runIndentParserT parseSchema () "" str
@@ -127,8 +127,8 @@ searchTypes synquidParams inStr num = do
             let freeVars = Set.toList $ typeVarsOf t
                 validVars = foldr delete seqChars freeVars
                 substVars = foldr delete freeVars seqChars
-                substMap = Map.fromList $ zip substVars $ map vart_ validVars
-             in stypeSubstitute substMap t
+                substMap = Map.fromList $ zip substVars $ map TypeVarT validVars
+             in typeSubstitute substMap t
 
         possibleQueries env argNames exquery exTypes = do
             (generalTypes, stats) <- getExampleTypes env argNames exTypes num

@@ -6,10 +6,10 @@ module HooglePlus.CodeFormer(
     , CodePieces
     ) where
 
+import Encoder.ConstraintEncoder (FunctionCode(..))
 import Types.Common
-import Types.Encoder
-import Types.Abstract
-import Synquid.Util
+import Types.Type
+import Synquid.Utils
 
 import Control.Monad.State
 import Data.Set (Set)

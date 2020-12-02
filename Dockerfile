@@ -1,6 +1,6 @@
 # Pull base image.
 FROM ubuntu:18.04
-ARG port=3000
+ARG port=5000
 EXPOSE ${port}
 EXPOSE 5000
 

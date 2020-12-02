@@ -26,6 +26,7 @@ myModules = [
   -- base
   "Data.Int",
   "Data.Bool",
+  "Data.Int",
   "Data.Maybe",
   "Data.Either",
   "Data.Tuple",
