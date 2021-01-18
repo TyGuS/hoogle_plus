@@ -120,7 +120,10 @@ printFilter :: String -> FilterState -> IO ()
 printFilter solution fs@FilterState{discardedSolutions, solutionDescriptions, differentiateExamples} = do
         putStrLn "\n*******************FILTER*********************"
         putStrLn $ "SOLN: " ++ solution
-        putStrLn $ unlines [ioExamples, diffExamples]
+        putStrLn "***IO Examples***"
+        putStrLn ioExamples
+        putStrLn "***Diff Examples***"
+        putStrLn diffExamples
         putStrLn $ LB.unpack $ encodeWithPrefix discardedSolutions
         putStrLn "**********************************************\n"
     where

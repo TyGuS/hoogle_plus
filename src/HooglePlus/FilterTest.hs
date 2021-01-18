@@ -2,7 +2,7 @@
 module HooglePlus.FilterTest where
 
 import qualified Data.Map as Map
-import qualified Hoogle as Hoogle
+import qualified Hoogle
 import qualified Language.Haskell.Interpreter as LHI
 import qualified Test.QuickCheck as QC
 
@@ -12,6 +12,7 @@ import Control.Monad.Extra (andM)
 import Control.Exception
 import Control.Monad
 import Control.Monad.State
+import Data.Bifunctor (second)
 import Data.Either
 import Data.List
 import Data.Maybe
@@ -40,6 +41,9 @@ import Synquid.Utils (getTmpDir)
 
 import Debug.Trace
 
+-- | Parse a string to an internal representation of type signatures.
+-- >>> parseTypeString "(Eq a, Ord b) => a -> b"
+-- (((Eq) (a)), ((Ord) (b))) => a -> b
 parseTypeString :: String -> FunctionSignature
 parseTypeString input = FunctionSignature constraints argsType returnType
   where
@@ -60,16 +64,18 @@ parseTypeString input = FunctionSignature constraints argsType returnType
     extractType (TyApp _ l r) = ArgTypeApp (extractType l) (extractType r)
     extractType (TyTuple _ _ types) = ArgTypeTuple (map extractType types)
     extractType (TyFun _ src dst) = ArgTypeFunc (extractType src) (extractType dst)
-    extractType other = throw $ NotSupportedException ("Not able to handle " ++ show other)
+    extractType other = throw $ NotSupportedException ("Type Parser: unsupported " ++ show other)
 
     extractQualified (TypeA _ t) = extractType t
     extractQualified (ParenA _ qual) = extractQualified qual
-    extractQualified other = throw $ NotSupportedException ("Not able to extract " ++ show other)
+    extractQualified other = throw $ NotSupportedException ("Type Parser: unsupported " ++ show other)
 
     extractConstraints constraints (CxSingle _ item) = constraints ++ [extractQualified item]
     extractConstraints constraints (CxTuple _ list) = foldr ((++) . (:[]) . extractQualified) constraints list
 
--- instantiate polymorphic types in function signature with `Int`
+-- | instantiate polymorphic types in function signature with `Int`
+-- >>> instantiateSignature (parseTypeString "[a] -> a")
+-- () => [Int] -> Int
 instantiateSignature :: FunctionSignature -> FunctionSignature
 instantiateSignature (FunctionSignature _ argsType returnType) =
   FunctionSignature [] (map instantiate argsType) (instantiate returnType)
@@ -125,11 +131,12 @@ buildDupCheckProp' (sol, otherSols) funcSig = unwords [wrapper, formatProp]
       [ printf "let prop_duplicate %s = monadicIO $ run $ labelEvaluation (%s) (executeWrapper %s) (\\out -> (not $ anyDuplicate out) ==> True) in" plain shows plain
       , printf "quickCheckWithResult defaultTestArgs prop_duplicate" ] :: String
 
+-- | Run Hint with the default script loaded.
 runInterpreterWithEnvTimeout :: Int -> InterpreterT IO a -> IO (Either InterpreterError a)
-runInterpreterWithEnvTimeout timeInMicro executeInterpreter =
-    runInterpreterWithEnvTimeoutPrepareModule timeInMicro (sequence ioList) executeInterpreter
+runInterpreterWithEnvTimeout timeInMicro = runInterpreterWithEnvTimeoutPrepareModule timeInMicro (sequence ioList)
   where ioList = [getDataFileName "InternalTypeGen.hs"]
 
+-- | Run Hint with the default script loaded, but also prepare arguments for HOFs.
 runInterpreterWithEnvTimeoutHOF :: MonadIO m => Int -> FunctionSignature -> InterpreterT IO a -> FilterTest m (Either InterpreterError a)
 runInterpreterWithEnvTimeoutHOF timeInMicro funcSig executeInterpreter = do
     fileName <- prepareEnvironment funcSig
@@ -140,6 +147,7 @@ runInterpreterWithEnvTimeoutHOF timeInMicro funcSig executeInterpreter = do
       Left (WontCompile e)  -> liftIO $ print e >> runInterpreterWithEnvTimeout timeInMicro executeInterpreter
       _                     -> return result
 
+-- | Prepare all scripts, get the paths of scripts, and run Hint.
 runInterpreterWithEnvTimeoutPrepareModule :: Int -> IO [String] -> InterpreterT IO a -> IO (Either InterpreterError a)
 runInterpreterWithEnvTimeoutPrepareModule timeInMicro prepareModule executeInterpreter =
   mergeTimeout <$> timeout timeInMicro (prepareModule >>= runInterpreter)
@@ -153,46 +161,77 @@ runInterpreterWithEnvTimeoutPrepareModule timeInMicro prepareModule executeInter
     mergeTimeout = \case
       Just v  -> v
       Nothing -> Left $ NotAllowed "timeout"
+      -- Hint only throws NotAllowed when setting a non-existing top-level module.
+      -- We never had such cases and can safely steal NotAllowed to represent timeout. 
 
-
+-- | Initiate an interpreter with context, evaluate the given property, and return the backend result. 
+-- todo: refactor 'funcSig' out
 evaluateProperties :: MonadIO m => [String] -> FunctionSignature -> [String] -> FilterTest m (Either InterpreterError [BackendResult])
 evaluateProperties modules funcSig properties =
   runInterpreterWithEnvTimeoutHOF defaultInterpreterTimeoutMicro funcSig $ do
     LHI.setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
     mapM (\prop -> LHI.interpret prop (LHI.as :: IO BackendResult) >>= liftIO) properties
 
-validateSolution :: MonadIO m => [String] -> String -> FunctionSignature -> FilterTest m (Either InterpreterError FuncTestDesc)
-validateSolution modules solution funcSig = do
+validateCandidate :: MonadIO m => [String] -> Candidate -> FunctionSignature -> FilterTest m CandidateValidDesc
+validateCandidate modules solution funcSig = do
     result <- evaluateProperties modules funcSig [prop]
     case result of
-      Left  (NotAllowed _)            -> return $ Right $ Unknown (traceId "timeout")
-      Left  error                     -> return $ Right $ Unknown (traceId $ show error)
-      Right [result]                  -> return $ Right $ readResult result
+      Left  (NotAllowed _)            -> return $ Unknown "timeout"
+      Left  error                     -> return $ Unknown $ show error
+      Right [result]                  -> return $ readResult result
   where
     prop = buildNotCrashProp solution funcSig
 
-    readResult :: BackendResult -> FuncTestDesc
+    readResult :: BackendResult -> CandidateValidDesc
     readResult r@QC.GaveUp{QC.numTests}
               | numTests == 0 = Invalid
               | otherwise     = Partial $ parseExamples r
     readResult r@QC.Success{} = Total $ parseExamples r
 
-compareSolution :: MonadIO m => [String] -> String -> [String] -> FunctionSignature -> FilterTest m (Either InterpreterError [BackendResult])
-compareSolution modules solution otherSolutions funcSig = evaluateProperties modules funcSig props
-  where props = buildDupCheckProp (solution, otherSolutions) funcSig
+classifyCandidate :: MonadIO m => [String] -> Candidate -> FunctionSignature -> [Candidate] -> FilterTest m CandidateDuplicateDesc
+classifyCandidate modules candidate funcSig previousCandidates = if null previousCandidates then return (New []) else do
+    let properties    =   buildDupCheckProp (candidate, previousCandidates) funcSig
+    interpreterResult <-  evaluateProperties modules funcSig properties
+
+    let examples      = readInterpreterResult candidate previousCandidates interpreterResult
+    
+    if all isJust examples
+      then return $ New         (mergeExamples $ map fromJust examples)
+      else return $ DuplicateOf (fst $ head $ filter snd $ zip previousCandidates $ map isJust examples)
+  where
+    readResult :: Candidate -> Candidate -> BackendResult -> Maybe AssociativeExamples
+    readResult candidate previousCandidate result = case result of
+        QC.Failure {}                           -> Nothing
+        QC.GaveUp {QC.numTests} | numTests == 0 -> Nothing
+        QC.GaveUp {}                            -> assocs
+        QC.Success {}                           -> assocs
+      where
+        (examples, examplesForPrev) = splitConsecutive $ parseExamples result
+        assocs = Just [(candidate, examples), (candidate, examplesForPrev)]
+
+    readInterpreterResult :: Candidate -> [Candidate] -> Either InterpreterError [BackendResult] -> [Maybe AssociativeExamples]
+    readInterpreterResult candidate previousCandidates =
+      \case
+        Left (NotAllowed _) -> [Nothing]
+        Left err            -> []
+        Right results       -> zipWith (readResult candidate) previousCandidates results
+
+    mergeExamples :: [AssociativeExamples] -> AssociativeExamples
+    mergeExamples rawExamples = 
+      let exampleMaps = map (Map.fromList . map (second (take 2))) rawExamples in
+        Map.toList $ Map.unionsWith (++) exampleMaps
 
 runChecks :: MonadIO m => Environment -> TypeSkeleton -> UProgram -> FilterTest m (Maybe AssociativeExamples)
 runChecks env goalType prog = do
-  result <- runChecks_
+  result <- andM $ map (\f -> f modules funcSig body) checks
 
   state <- get
-  when result $ liftIO $ printFilter body state
   if result
     then liftIO $ printFilter body state
     else modify $ \s -> s {discardedSolutions = body : discardedSolutions s}
 
   -- add extra examples from solution descriptions
-  let extraExamples = fromMaybe Map.empty $ fmap (Map.fromList . (:[]) . toExample) $ find (((==) body) . fst) $ solutionDescriptions state
+  let extraExamples = maybe Map.empty (Map.fromList . (:[]) . toExample) $ find ((==) body . fst) $ solutionDescriptions state
   let assocExamples = Map.toList $ Map.unionWith (++) (differentiateExamples state) extraExamples
   return $ if result then Just assocExamples else Nothing
   where
@@ -201,60 +240,55 @@ runChecks env goalType prog = do
              , checkDuplicates]
 
     funcSig = (instantiateSignature . parseTypeString) funcSigStr
-    runChecks_ = andM $ map (\f -> f modules funcSig body) checks
 
-    toExample :: (String, FuncTestDesc) -> (String, [Example])
+    toExample :: (String, CandidateValidDesc) -> (String, [Example])
     toExample (s, v) = ((,) s) $ take defaultNumExtraExamples $ case v of Total xs -> xs; Partial xs -> xs; _ -> []
 
 checkSolutionNotCrash :: MonadIO m => [String] -> FunctionSignature -> String -> FilterTest m Bool
 checkSolutionNotCrash modules funcSig solution = do
-  result <- validateSolution modules solution funcSig
-  case result of
-    Left  err     -> do
-      modify $ \s -> s {solutionDescriptions = (solution, Unknown $ show err) : solutionDescriptions s }
-      return True
-    Right result  -> do
-      modify $ \s -> s {solutionDescriptions = (solution, result) : solutionDescriptions s }
-      return $ isSuccess result
+  result <- validateCandidate modules solution funcSig
+  modify $ \s -> s {solutionDescriptions = (solution, result) : solutionDescriptions s }
+  return $ isSuccess result
+      
 
 
 checkDuplicates :: MonadIO m => [String] -> FunctionSignature -> String -> FilterTest m Bool
-checkDuplicates modules funcSig solution = do
-  FilterState _ solns_ _ _ _ _ <- get
-  case solns_ of
-    -- base case: skip the check for the first solution
-    [] -> modify (\s -> s {solutions = [solution]}) >> return True
+checkDuplicates modules funcSig candidate = do
+  FilterState _ previousCandidates _ _ _ _ <- get
+  result <- classifyCandidate modules candidate funcSig previousCandidates
 
-    -- inductive: find an input i such that all synthesized results can be differentiated semantically
-    _ -> do
-      interpreterResult <- compareSolution modules solution solns_ funcSig
-      examples          <- readInterpreterResult solns_ interpreterResult
+  case result of
+    DuplicateOf _ -> return False
+    New assocExamples -> do
+      modify $ \s -> s {
+        solutions             = candidate : solutions s,
+        differentiateExamples = Map.unionWith (++) (differentiateExamples s) (Map.fromList assocExamples)
+      }
 
-      let isSucceed =   all isJust examples
-      if  not isSucceed then return False else do
-        let examples' = Map.unionsWith (++) $ map (Map.fromList . fromJust) examples
-        modify $ \s -> s {
-          solutions             = solution : solutions s,
-          differentiateExamples = Map.unionWith (++) (differentiateExamples s) examples'
-        }
+      return True
 
-        return True
-  where
-    readResult prevSolution result = case result of
-        QC.Failure {}                           -> Nothing
-        QC.GaveUp {QC.numTests} | numTests == 0 -> Nothing
-        QC.GaveUp {}                            -> assocs
-        QC.Success {}                           -> assocs
-      where
-        (examples, examplesForPrev) = splitConsecutive $ parseExamples result
-        assocs = Just [(solution, examples), (prevSolution, examplesForPrev)]
 
-    readInterpreterResult :: MonadIO m => [String] -> Either InterpreterError [BackendResult] -> FilterTest m [Maybe AssociativeExamples]
-    readInterpreterResult prevSolutions =
-      \case
-        Left (NotAllowed _) -> return [trace "timeout" Nothing]
-        Left err            -> return $ []
-        Right results       -> return $ zipWith readResult prevSolutions results
+  -- case solns_ of
+  --   -- base case: skip the check for the first solution
+  --   [] -> modify (\s -> s {solutions = [solution]}) >> return True
+
+  --   -- inductive: find an input i such that all synthesized results can be differentiated semantically
+  --   _ -> do
+
+  --     checkResult <- classifyCandidate modules solution 
+      
+  --     -- interpreterResult <- compareSolution modules solution solns_ funcSig
+  --     -- examples          <- readInterpreterResult solns_ interpreterResult
+
+  --     -- let isSucceed =   all isJust examples
+  --     -- if  not isSucceed then return False else do
+  --     --   let examples' = Map.unionsWith (++) $ map (Map.fromList . fromJust) examples
+  --     --   modify $ \s -> s {
+  --     --     solutions             = solution : solutions s,
+  --     --     differentiateExamples = Map.unionWith (++) (differentiateExamples s) examples'
+  --     --   }
+
+  --       return True
 
 -- show parameters to some Haskell representation
 -- (plain variables, typed variables, list of show, unwrapped variables)
@@ -300,6 +334,7 @@ extractHigherOrderQuery FunctionSignature{_constraints, _argsType, _returnType} 
       _                   -> xs
 
 queryHoogle :: [String] -> IO [[String]]
+-- queryHoogle types = return []
 queryHoogle types = Hoogle.defaultDatabaseLocation >>= (`Hoogle.withDatabase` invokeQuery)
   where invokeQuery db = do
               let functions = map ( take 5 .

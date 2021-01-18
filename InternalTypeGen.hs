@@ -1,5 +1,4 @@
-{-# LANGUAGE FlexibleInstances, FlexibleContexts, MultiParamTypeClasses, TypeFamilies, DeriveDataTypeable #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE FlexibleInstances, FlexibleContexts, MultiParamTypeClasses, TypeFamilies, DeriveDataTypeable, LambdaCase #-}
 module InternalTypeGen where
 
 import Control.DeepSeq (force)
@@ -10,16 +9,10 @@ import Data.Containers.ListUtils (nubOrd)
 import Data.Data (Data(..))
 import Data.List (isInfixOf, elemIndex, nub, drop, reverse, intersect)
 import Data.Typeable (typeOf, Typeable)
-import System.IO.Silently (silence)
 import Text.Printf (printf)
-
 import qualified Test.ChasingBottoms as CB
-import qualified Test.LeanCheck.Core as SF
-import qualified Test.LeanCheck.Function.ShowFunction as SF
 import qualified Test.QuickCheck as QC
-import qualified Test.SmallCheck.Series as SS
 
-defaultShowFunctionDepth  = 2           :: Int
 defaultMaxOutputLength    = 200         :: CB.Nat
 defaultSeriesLimit        = 5           :: Int
 defaultTimeoutMicro       = 400         :: Int
@@ -82,23 +75,18 @@ data Example = Example {
 newtype  MyInt = MyIntValue Int deriving (Eq, Data)
 instance Ord              MyInt where compare (MyIntValue l) (MyIntValue r) = compare l r      
 instance Show             MyInt where show (MyIntValue v) = show v
-instance SF.Listable      MyInt where list = map MyIntValue defaultIntRange
-instance SF.ShowFunction  MyInt where bindtiers (MyIntValue v) = SF.bindtiers v
 instance QC.Arbitrary     MyInt where arbitrary = QC.elements (map MyIntValue defaultIntRange)
 instance QC.CoArbitrary   MyInt where coarbitrary (MyIntValue v) = QC.coarbitraryIntegral v
 
 newtype  MyChar = MyCharValue Char deriving (Eq, Data)
 instance Ord              MyChar where compare (MyCharValue l) (MyCharValue r) = compare l r
 instance Show             MyChar where show (MyCharValue v) = show v
-instance SF.Listable      MyChar where list = map MyCharValue defaultCharRange
-instance SF.ShowFunction  MyChar where bindtiers (MyCharValue v) = SF.bindtiers v
 instance QC.Arbitrary     MyChar where arbitrary = QC.elements (map MyCharValue defaultCharRange)
 instance QC.CoArbitrary   MyChar where coarbitrary (MyCharValue v) = QC.coarbitrary $ ord v
 
 data     MyFun a b = Generated (a -> b) | Expression String (a -> b)
 instance (QC.Arbitrary a, QC.CoArbitrary b)                       => QC.CoArbitrary (MyFun a b)   where coarbitrary = \case Generated f -> QC.coarbitrary f; Expression _ f -> QC.coarbitrary f
-instance (Show a, SF.Listable a, SF.ShowFunction b)               => Show (MyFun a b)             where show = \case Expression str _ -> str; Generated f -> "<Generated>"-- "(" ++ SF.showFunctionLine defaultShowFunctionDepth f ++ ")"
-instance (Show a, SF.Listable a, SF.ShowFunction b)               => SF.ShowFunction (MyFun a b)  where bindtiers = \case Generated f -> SF.bindtiers f; Expression _ f -> SF.bindtiers f
+instance Show a                                                   => Show (MyFun a b)             where show = \case Expression str _ -> str; Generated f -> "<Generated>"
 instance {-# OVERLAPPABLE #-} (QC.CoArbitrary a, QC.Arbitrary b)  => QC.Arbitrary (MyFun a b)     where arbitrary = liftM Generated QC.arbitrary
         
 -- * Custom Datatype Conversion

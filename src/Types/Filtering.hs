@@ -26,26 +26,30 @@ frameworkModules =
   zip [ "Test.QuickCheck"
   , "Test.QuickCheck.Monadic"
   , "Test.QuickCheck.Function"
-  , "System.IO.Silently"
   , "Control.Exception"
   , "Control.Monad"
   ] (repeat Nothing)
 
   ++ [("Test.ChasingBottoms", Just "CB")]
 
+type Candidate = String
 type BackendResult = Result
 type GeneratorResult = [Example]
 
-type AssociativeExamples = [(String, [Example])]
+type AssociativeExamples = [(Candidate, [Example])]
 
-data FuncTestDesc = 
+data CandidateValidDesc =
     Total   [Example]
   | Partial [Example]
   | Invalid
   | Unknown String
   deriving (Eq)
 
-instance Show FuncTestDesc where
+data CandidateDuplicateDesc =
+    New         AssociativeExamples
+  | DuplicateOf Candidate
+
+instance Show CandidateValidDesc where
   show = \case
       Total   examples -> showExamples examples
       Partial examples -> showExamples examples
@@ -72,9 +76,7 @@ instance Show ArgumentType where
     (printf "(%s)" . intercalate ", " . map show) types
   show (ArgTypeFunc src dst) = printf "((%s) -> (%s))" (show src) (show dst)
 
-newtype NotSupportedException = NotSupportedException String
-  deriving (Show, Typeable)
-
+newtype NotSupportedException = NotSupportedException String deriving (Show, Typeable)
 instance Exception NotSupportedException
 
 type TypeConstraint = ArgumentType
@@ -95,7 +97,7 @@ instance Show FunctionSignature where
 data FilterState = FilterState {
   inputs :: [[String]],
   solutions :: [String],
-  solutionDescriptions :: [(String, FuncTestDesc)],
+  solutionDescriptions :: [(String, CandidateValidDesc)],
   differentiateExamples :: Map.Map String [Example],
   discardedSolutions :: [String],
   higherOrderArgumentCache :: Map.Map String [String]
@@ -113,7 +115,12 @@ emptyFilterState = FilterState {
 type FilterTest m = StateT FilterState m
 
 class TestPassable a where isSuccess :: a -> Bool
-instance TestPassable FuncTestDesc where
+instance TestPassable CandidateValidDesc where
   isSuccess = \case
     Invalid -> False
     _       -> True
+
+instance TestPassable CandidateDuplicateDesc where
+  isSuccess = \case
+    New _ -> True
+    _   -> False
