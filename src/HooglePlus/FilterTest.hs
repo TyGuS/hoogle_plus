@@ -12,6 +12,7 @@ import Control.Monad.Extra (andM)
 import Control.Exception
 import Control.Monad
 import Control.Monad.State
+import Data.Functor ((<&>))
 import Data.Bifunctor (second)
 import Data.Either
 import Data.List
@@ -188,13 +189,14 @@ validateCandidate modules solution funcSig = do
               | otherwise     = Partial $ parseExamples r
     readResult r@QC.Success{} = Total $ parseExamples r
 
+-- >>> (evalStateT (classifyCandidate ["Data.Either", "GHC.List", "Data.Maybe", "Data.Function"] "\\e f -> Data.Either.either f (GHC.List.head []) e" (instantiateSignature $ parseTypeString "Either a b -> (a -> b) -> b") ["\\e f -> Data.Either.fromRight (f (Data.Maybe.fromJust Data.Maybe.Nothing)) e", "\\e f -> Data.Either.either f Data.Function.id e"]) emptyFilterState) :: IO CandidateDuplicateDesc
 classifyCandidate :: MonadIO m => [String] -> Candidate -> FunctionSignature -> [Candidate] -> FilterTest m CandidateDuplicateDesc
 classifyCandidate modules candidate funcSig previousCandidates = if null previousCandidates then return (New []) else do
     let properties    =   buildDupCheckProp (candidate, previousCandidates) funcSig
     interpreterResult <-  evaluateProperties modules funcSig properties
 
-    let examples      = readInterpreterResult candidate previousCandidates interpreterResult
-    
+    let examples      =   readInterpreterResult candidate previousCandidates interpreterResult
+
     if all isJust examples
       then return $ New         (mergeExamples $ map fromJust examples)
       else return $ DuplicateOf (fst $ head $ filter snd $ zip previousCandidates $ map isJust examples)
@@ -207,7 +209,7 @@ classifyCandidate modules candidate funcSig previousCandidates = if null previou
         QC.Success {}                           -> assocs
       where
         (examples, examplesForPrev) = splitConsecutive $ parseExamples result
-        assocs = Just [(candidate, examples), (candidate, examplesForPrev)]
+        assocs = Just [(candidate, examples), (previousCandidate, examplesForPrev)]
 
     readInterpreterResult :: Candidate -> [Candidate] -> Either InterpreterError [BackendResult] -> [Maybe AssociativeExamples]
     readInterpreterResult candidate previousCandidates =
@@ -223,26 +225,19 @@ classifyCandidate modules candidate funcSig previousCandidates = if null previou
 
 runChecks :: MonadIO m => Environment -> TypeSkeleton -> UProgram -> FilterTest m (Maybe AssociativeExamples)
 runChecks env goalType prog = do
-  result <- andM $ map (\f -> f modules funcSig body) checks
+    let (modules, funcSigStr, candidate, _) =   extractSolution env goalType prog
+    let funcSig                             =   instantiateSignature $ parseTypeString funcSigStr
+    result                                  <-  andM $ map (\f -> f modules funcSig candidate) checks
 
-  state <- get
-  if result
-    then liftIO $ printFilter body state
-    else modify $ \s -> s {discardedSolutions = body : discardedSolutions s}
+    if result
+      then get    >>=   \s -> liftIO $ printFilter candidate s
+      else modify $     \s -> s {discardedSolutions = candidate : discardedSolutions s}
 
-  -- add extra examples from solution descriptions
-  let extraExamples = maybe Map.empty (Map.fromList . (:[]) . toExample) $ find ((==) body . fst) $ solutionDescriptions state
-  let assocExamples = Map.toList $ Map.unionWith (++) (differentiateExamples state) extraExamples
-  return $ if result then Just assocExamples else Nothing
+    if result
+      then get <&> (Just . Map.toList . differentiateExamples)
+      else return Nothing
   where
-    (modules, funcSigStr, body, _) = extractSolution env goalType prog
-    checks = [ checkSolutionNotCrash
-             , checkDuplicates]
-
-    funcSig = (instantiateSignature . parseTypeString) funcSigStr
-
-    toExample :: (String, CandidateValidDesc) -> (String, [Example])
-    toExample (s, v) = ((,) s) $ take defaultNumExtraExamples $ case v of Total xs -> xs; Partial xs -> xs; _ -> []
+    checks = [ checkSolutionNotCrash, checkDuplicates]
 
 checkSolutionNotCrash :: MonadIO m => [String] -> FunctionSignature -> String -> FilterTest m Bool
 checkSolutionNotCrash modules funcSig solution = do
@@ -250,8 +245,6 @@ checkSolutionNotCrash modules funcSig solution = do
   modify $ \s -> s {solutionDescriptions = (solution, result) : solutionDescriptions s }
   return $ isSuccess result
       
-
-
 checkDuplicates :: MonadIO m => [String] -> FunctionSignature -> String -> FilterTest m Bool
 checkDuplicates modules funcSig candidate = do
   FilterState _ previousCandidates _ _ _ _ <- get
@@ -267,32 +260,10 @@ checkDuplicates modules funcSig candidate = do
 
       return True
 
-
-  -- case solns_ of
-  --   -- base case: skip the check for the first solution
-  --   [] -> modify (\s -> s {solutions = [solution]}) >> return True
-
-  --   -- inductive: find an input i such that all synthesized results can be differentiated semantically
-  --   _ -> do
-
-  --     checkResult <- classifyCandidate modules solution 
-      
-  --     -- interpreterResult <- compareSolution modules solution solns_ funcSig
-  --     -- examples          <- readInterpreterResult solns_ interpreterResult
-
-  --     -- let isSucceed =   all isJust examples
-  --     -- if  not isSucceed then return False else do
-  --     --   let examples' = Map.unionsWith (++) $ map (Map.fromList . fromJust) examples
-  --     --   modify $ \s -> s {
-  --     --     solutions             = solution : solutions s,
-  --     --     differentiateExamples = Map.unionWith (++) (differentiateExamples s) examples'
-  --     --   }
-
-  --       return True
-
--- show parameters to some Haskell representation
+-- | Format the placeholder for parameters to some Haskell representation.
 -- (plain variables, typed variables, list of show, unwrapped variables)
--- >> showParams ["Int"] => ("arg_0", "(arg_0 :: MyInt)", "[show arg_0]", "(unwrap arg_0)")
+-- >>> showParams [Concrete "Int", Concrete "String"]
+-- ("(arg_1) (arg_2)","(arg_1 :: MyInt) (arg_2 :: [MyChar])","[(show arg_1), (show arg_2)]","(unwrap arg_1) (unwrap arg_2)")
 showParams :: [ArgumentType] -> (String, String, String, String)
 showParams args = (plain, typed, shows, unwrp)
   where
@@ -318,23 +289,28 @@ replaceMyType x =
     ArgTypeApp    f a       -> ArgTypeApp (replaceMyType f) (replaceMyType a)
     ArgTypeFunc   arg res   -> apply (replaceMyType arg) (replaceMyType res)
 
--- parse Example string from QC.label to Example
+-- | Parse Example string from QC.label to Example
 parseExamples :: BackendResult -> [Example]
-parseExamples result = concat $ map (read . head) $ Map.keys $ QC.labels result
+parseExamples result = concatMap (read . head) $ Map.keys $ QC.labels result
 
+-- | Extract higher-order arguments from a type signature.
+-- >>> extractHigherOrderQuery $ parseTypeString "a -> (a -> b) -> [(a -> b -> c)] -> b"
+-- [((a) -> (b)),((a) -> (((b) -> (c))))]
 extractHigherOrderQuery :: FunctionSignature -> [ArgumentType]
 extractHigherOrderQuery FunctionSignature{_constraints, _argsType, _returnType} = nub $ concatMap (`extract` []) _argsType
   where
     extract :: ArgumentType -> [ArgumentType] -> [ArgumentType]
     extract argType xs = case argType of
       ArgTypeFunc   l r   -> argType : xs
-      ArgTypeTuple  types -> ((concatMap (`extract` []) types) ++ xs)
-      ArgTypeList   sub   -> (extract sub []) ++ xs
-      ArgTypeApp    l r   -> ((extract l []) ++ (extract r []) ++ xs)
+      ArgTypeTuple  types -> concatMap (`extract` []) types ++ xs
+      ArgTypeList   sub   -> extract sub [] ++ xs
+      ArgTypeApp    l r   -> extract l [] ++ extract r [] ++ xs
       _                   -> xs
 
+-- | Given type queries, query Hoogle for components.
+-- >>> queryHoogle ["a -> a", "a -> a -> a"]
+-- [["id"],["asTypeOf","const","seq"]]
 queryHoogle :: [String] -> IO [[String]]
--- queryHoogle types = return []
 queryHoogle types = Hoogle.defaultDatabaseLocation >>= (`Hoogle.withDatabase` invokeQuery)
   where invokeQuery db = do
               let functions = map ( take 5 .
@@ -358,17 +334,17 @@ queryHooglePlus types = print types >> print "called" >> return []
 
 queryHigherOrderArgument :: MonadIO m => [String] -> FilterTest m [[String]]
 queryHigherOrderArgument queries = do
-    FilterState _ _ _ _ _ cache <- get
-    let cachedResults = zip queries $ map (`Map.lookup` cache) queries
+    FilterState _ _ _ _ _ cache <-  get
+    let cachedResults           =   zip queries $ map (`Map.lookup` cache) queries
 
-    let nextQueries = map fst $ filter needsQuery cachedResults
+    let nextQueries             =   map fst $ filter needsQuery cachedResults
     if null nextQueries
-      then return $ map (fromJust . snd) $ cachedResults
+      then return $ map (fromJust . snd) cachedResults
       else do
-            nextQueryResults <- Map.unionsWith (++) <$> mapM (\f -> Map.fromList <$> zip nextQueries <$> (liftIO $ f nextQueries)) searchFunctions
+            nextQueryResults    <-  Map.unionsWith (++) <$> mapM (\f -> Map.fromList . zip nextQueries <$> liftIO (f nextQueries)) searchFunctions
 
-            let cachedResultMap = Map.fromList $ map (\(q, r) -> (q, fromJust r)) $ filter (not . needsQuery) cachedResults
-            let result = Map.union cachedResultMap nextQueryResults
+            let cachedResultMap =   Map.fromList $ map (second fromJust) $ filter (not . needsQuery) cachedResults
+            let result          =   Map.union cachedResultMap nextQueryResults
 
             modify (\state -> state { higherOrderArgumentCache = Map.union (higherOrderArgumentCache state) result })
             return (map snd $ Map.toList result)
@@ -379,15 +355,15 @@ queryHigherOrderArgument queries = do
     searchFunctions = [queryHoogle, queryHooglePlus]
 
 
--- >>> prepareEnvironment $ parseTypeString "a -> ([Int] -> Int) -> (a -> [a]) -> a"
+-- >>> prepareEnvironment $ parseTypeString "a -> (Int -> Int -> Int) -> a"
 -- >>> runInterpreterWithEnvTimeoutHOF (10^8) (parseTypeString "a -> (Int -> [Int]) -> a") (return "114514")
 prepareEnvironment :: MonadIO m => FunctionSignature -> FilterTest m String
 prepareEnvironment funcSig = do
     let higherOrderTypes = extractHigherOrderQuery funcSig
     queryResults <- queryHigherOrderArgument $ map show higherOrderTypes
 
-    tmpDir <- liftIO $ getTmpDir
-    baseName <- liftIO $ nextRandom
+    tmpDir <- liftIO getTmpDir
+    baseName <- liftIO nextRandom
     let baseNameStr = show baseName ++ ".hs"
     let fileName = tmpDir ++ "/" ++ baseNameStr
 
@@ -396,6 +372,8 @@ prepareEnvironment funcSig = do
       then liftIO $ writeFile fileName ""
       else liftIO $ writeFile fileName sourceCode
 
+    -- liftIO $ putStrLn sourceCode
+
     return fileName
   where
     prelude = [ "{-# LANGUAGE FlexibleInstances #-}"
@@ -403,18 +381,21 @@ prepareEnvironment funcSig = do
               , "import Control.Monad"
               , "import Test.QuickCheck"
               , "import InternalTypeGen"
-              ] ++ map ((++) "import ") hoogleQueryModuleList
+              ] ++ map ("import " ++) hoogleQueryModuleList
 
     postlude = "instance Arbitrary (%s) where arbitrary = sized $ \\n -> if n < %d then elements insFunc_%d else liftM Generated arbitrary"
-    buildInstanceFunction tipe expr = printf "(Expression \"%s\" (%s))" expr (buildExpression tipe expr) :: String
-    buildInstanceFunctions tipe exprs = "[" ++ (intercalate ", " $ map (buildInstanceFunction tipe) exprs) ++ "]"
+    buildInstanceFunction tipe expr = printf "(Expression %s (%s))" (show expr) (buildExpression tipe expr) :: String
+    buildInstanceFunctions tipe exprs = "[" ++ intercalate ", " (map (buildInstanceFunction tipe) exprs) ++ "]"
 
-    buildEnvFileContent types exprGroups = unlines $ prelude ++ (concat $ zipWith3 buildStep [(1 :: Int)..] types exprGroups)
+    buildEnvFileContent types exprGroups = unlines $ prelude ++ concat (zipWith3 buildStep [(1 :: Int)..] types exprGroups)
       where
         buildStep _ tipe []    = ["-- no Hoogle result available; bypassed building " ++ show tipe ]
-        buildStep i tipe exprs = [ printf "insFunc_%d = %s" i (buildInstanceFunctions tipe exprs)
-                                 , printf postlude (buildAppType $ replaceMyType tipe) higherOrderGenMaxSize i
-                                 ] :: [String]
+        buildStep i tipe exprs = 
+          let functionType = (buildAppType $ replaceMyType tipe) in
+            [ printf "insFunc_%d :: [%s]" i functionType
+            , printf "insFunc_%d = %s" i (buildInstanceFunctions tipe exprs)
+            , printf postlude functionType higherOrderGenMaxSize i
+            ] :: [String]
 
     buildAppType :: ArgumentType -> String
     buildAppType = \case
@@ -422,13 +403,4 @@ prepareEnvironment funcSig = do
             otherType         -> show otherType
 
     buildExpression :: ArgumentType -> String -> String
-    buildExpression tipe expr = unwords (["\\arg1 ->"] ++ [printf "wrap $ \\arg%d ->" x | x <- [2..depth] :: [Int]] ++ [expr, unwords [printf "(unwrap arg%d)" x | x <- [1..depth] :: [Int]]])
-      where
-        depth = getDepth 0 tipe
-        getDepth i = \case
-                        ArgTypeFunc _ r -> 1 + getDepth i r
-                        _ -> 0
-
--- ******** Example Generator ********
-generateIOPairs :: [String] -> String -> FunctionSignature -> Int -> Int -> Int -> [String] -> [[String]] -> IO (Either InterpreterError GeneratorResult)
-generateIOPairs modules solution funcSig numPairs timeInMicro interpreterTimeInMicro existingResults existingInputs = error "not implemented"
+    buildExpression tipe expr = printf "wrap ((%s) :: %s)" expr (show tipe)

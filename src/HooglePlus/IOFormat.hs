@@ -25,7 +25,7 @@ import Synquid.Pretty
 import Examples.ExampleChecker
 import Examples.InferenceDriver
 import Examples.Utils
-import HooglePlus.FilterTest (generateIOPairs, parseTypeString)
+import HooglePlus.FilterTest (parseTypeString)
 import HooglePlus.Utils (niceInputs)
 
 import Control.Concurrent.Chan
@@ -170,14 +170,15 @@ searchExamples synquidParams inStr num = do
     -- this query
     let prevResults = map output $ exampleExisting input
     let prevInputs = map (map toNormalFunctions . inputs) $ exampleExisting input
-    result <- generateIOPairs mdls prog funcSig num defaultTimeoutMicro defaultGenerationTimeoutMicro prevResults prevInputs
-    resultObj <- case result of
-          Left err -> return $ ListOutput [] (show err)
-          Right genRes | null genRes -> return $ ListOutput [] "No more examples"
-                       | otherwise -> do
-                            niceExamples <- mapM niceInputs genRes
-                            return $ ListOutput niceExamples ""
-    printResult $ encodeWithPrefix resultObj
+    -- result <- generateIOPairs mdls prog funcSig num defaultTimeoutMicro defaultGenerationTimeoutMicro prevResults prevInputs
+    -- resultObj <- case result of
+    --       Left err -> return $ ListOutput [] (show err)
+    --       Right genRes | null genRes -> return $ ListOutput [] "No more examples"
+    --                    | otherwise -> do
+    --                         niceExamples <- mapM niceInputs genRes
+    --                         return $ ListOutput niceExamples ""
+    -- todo: fix search example later
+    printResult $ encodeWithPrefix (ListOutput [""] "No more examples")
     where
         toNormalFunctions "" = ""
         toNormalFunctions f | "const " `isPrefixOf` f =

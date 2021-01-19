@@ -48,6 +48,7 @@ data CandidateValidDesc =
 data CandidateDuplicateDesc =
     New         AssociativeExamples
   | DuplicateOf Candidate
+  deriving (Show, Eq)
 
 instance Show CandidateValidDesc where
   show = \case
@@ -56,7 +57,7 @@ instance Show CandidateValidDesc where
       Invalid          -> "<bottom>"
       Unknown ex       -> "<exception> " ++ ex
     where
-      showExamples examples = unlines $ map show examples
+      showExamples examples = unlines $ map show $ take 3 examples
 
 data ArgumentType =
     Concrete    String
@@ -109,7 +110,11 @@ emptyFilterState = FilterState {
   solutionDescriptions = [],
   differentiateExamples = Map.empty,
   discardedSolutions = [],
-  higherOrderArgumentCache = Map.empty
+  higherOrderArgumentCache = Map.fromList [
+    ("Int -> Int", ["const 5", "\\x -> x * x", "\\x -> x + 7", "\\x -> x * 3", "id"]),
+    ("((Int) -> (Int))", ["const 5", "\\x -> x * x", "\\x -> x + 7", "\\x -> x * 3", "id"]),
+    ("[Int] -> Int", ["head", "last", "length", "(head . tail)", "head . drop 2"])
+  ]
 }
 
 type FilterTest m = StateT FilterState m

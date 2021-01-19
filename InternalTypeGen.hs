@@ -86,16 +86,15 @@ instance QC.CoArbitrary   MyChar where coarbitrary (MyCharValue v) = QC.coarbitr
 
 data     MyFun a b = Generated (a -> b) | Expression String (a -> b)
 instance (QC.Arbitrary a, QC.CoArbitrary b)                       => QC.CoArbitrary (MyFun a b)   where coarbitrary = \case Generated f -> QC.coarbitrary f; Expression _ f -> QC.coarbitrary f
-instance Show a                                                   => Show (MyFun a b)             where show = \case Expression str _ -> str; Generated f -> "<Generated>"
+instance Show a                                                   => Show (MyFun a b)             where show = \case Expression str _ -> "(" ++ str ++ ")"; Generated f -> "<Generated>"
 instance {-# OVERLAPPABLE #-} (QC.CoArbitrary a, QC.Arbitrary b)  => QC.Arbitrary (MyFun a b)     where arbitrary = liftM Generated QC.arbitrary
         
 -- * Custom Datatype Conversion
 class    Unwrappable a b                                                            where unwrap :: a -> b; wrap :: b -> a
 instance Unwrappable MyInt Int                                                      where unwrap (MyIntValue v) = v; wrap = MyIntValue
 instance Unwrappable MyChar Char                                                    where unwrap (MyCharValue v) = v; wrap = MyCharValue
-instance (Unwrappable a c, Unwrappable b d)   => Unwrappable (MyFun a b) (c -> d)   where 
-  unwrap = \case Generated f -> \x -> unwrap $ f $ wrap x; Expression _ f -> \x -> unwrap $ f $ wrap x
-  wrap f = Generated $ \x -> wrap $ f $ unwrap x
+instance (Unwrappable a c, Unwrappable b d)   => Unwrappable (a -> b)    (c -> d)   where unwrap f = \x -> unwrap $ f $ wrap x; wrap f = \x -> wrap $ f $ unwrap x
+instance (Unwrappable a c, Unwrappable b d)   => Unwrappable (MyFun a b) (c -> d)   where unwrap (Generated f) = unwrap f; unwrap (Expression _ f) = unwrap f; wrap f = Generated (wrap f)
 
 instance {-# OVERLAPPABLE #-} (a ~ b)         => Unwrappable a b                    where unwrap = id; wrap = id
 instance {-# OVERLAPPING #-} Unwrappable a b  => Unwrappable [a] [b]                where unwrap = fmap unwrap; wrap = fmap wrap
