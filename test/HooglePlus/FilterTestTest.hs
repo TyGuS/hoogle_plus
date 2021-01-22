@@ -61,7 +61,7 @@ testNotCrashCases =
     , ("Succeed on polymorphic function w/o type constrains 2", [], "(a, b) -> b", "\\(x, y) -> y", True)
     , ("Succeed on polymorphic function w/o type constrains 3", [], "(a, Either Int Int) -> Int", "\\(_, t) -> either id id t", True)
     , ("Succeed on infinite structures", ["GHC.List"], "a -> [a]", "\\x -> repeat x", True)
-    , ("Succeed on result with explicit module names", ["GHC.List"], "[a] -> [b] -> [[(a,b)]]", "\\arg0 arg1 -> GHC.List.repeat (GHC.List.zip arg1 arg0)", True)
+    , ("Succeed on result with explicit module names", ["GHC.List"], "[a] -> [b] -> [[(a,b)]]", "\\arg0 arg1 -> GHC.List.repeat (GHC.List.zip arg0 arg1)", True)
     , ("Fail on invalid function 1", ["Data.Maybe"], "a -> a", "\\x -> fromJust Nothing", False)
     , ("Fail on invalid function 2", ["Data.List"], "a -> a", "\\x -> head []", False)
     , ("Fail on invalid function 3", ["Data.List"], "a -> (a, a)", "\\x -> (head [x], last [])", False)

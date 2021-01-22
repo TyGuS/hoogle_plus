@@ -75,18 +75,34 @@ parseTypeString input = FunctionSignature constraints argsType returnType
     extractConstraints constraints (CxTuple _ list) = foldr ((++) . (:[]) . extractQualified) constraints list
 
 -- | instantiate polymorphic types in function signature with `Int`
--- >>> instantiateSignature (parseTypeString "[a] -> a")
--- () => [Int] -> Int
+-- >>> instantiateSignature (parseTypeString "[a] -> [b] -> (a -> b -> c) -> (c, Maybe c)")
+-- () => Int -> String -> ((Int) -> (((String) -> (Bool)))) -> (Bool, ((Maybe) (Bool)))
 instantiateSignature :: FunctionSignature -> FunctionSignature
 instantiateSignature (FunctionSignature _ argsType returnType) =
-  FunctionSignature [] (map instantiate argsType) (instantiate returnType)
-    where
-      instantiate sig@(Concrete name) = sig
-      instantiate (Polymorphic name) = Concrete "Int"
-      instantiate (ArgTypeList sub) = ArgTypeList $ instantiate sub
-      instantiate (ArgTypeTuple types) = ArgTypeTuple (map instantiate types)
-      instantiate (ArgTypeApp l r) = ArgTypeApp (instantiate l) (instantiate r)
-      instantiate (ArgTypeFunc l r) = ArgTypeFunc (instantiate l) (instantiate r)
+    let mappings = buildMappings (returnType:argsType) in
+    let instantiate = instantPolymorphic mappings in
+      FunctionSignature [] (map instantiate argsType) (instantiate returnType)
+  where
+    buildMappings xs = zip (sort $ nubOrd $ concatMap capturePolymorphic xs) types
+      where types = ["Int", "String", "Bool"]
+
+    capturePolymorphic = \case
+      Polymorphic   x   -> [x];
+      ArgTypeList   x   -> capturePolymorphic x
+      ArgTypeTuple  xs  -> concatMap capturePolymorphic xs
+      ArgTypeApp    l r -> concatMap capturePolymorphic [l, r]
+      ArgTypeFunc   l r -> concatMap capturePolymorphic [l, r]
+      _                 -> []
+        
+    instantPolymorphic mappings = f
+      where f = \case 
+                  Polymorphic   x   -> Concrete $ maybe "Int" snd (find ((== x) . fst) mappings)
+                  ArgTypeList   x   -> ArgTypeList $ f x
+                  ArgTypeTuple  xs  -> ArgTypeTuple $ map f xs
+                  ArgTypeApp    l r -> ArgTypeApp (f l) (f r)
+                  ArgTypeFunc   l r -> ArgTypeFunc (f l) (f r)
+                  other             -> other
+
 
 buildFunctionWrapper :: [(String, String)] -> FunctionSignature -> (String, String, String, String) -> String
 buildFunctionWrapper functions solutionType@FunctionSignature{_returnType} params@(plain, typed, shows, unwrp) =

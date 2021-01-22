@@ -111,9 +111,9 @@ emptyFilterState = FilterState {
   differentiateExamples = Map.empty,
   discardedSolutions = [],
   higherOrderArgumentCache = Map.fromList [
-    ("Int -> Int", ["const 5", "\\x -> x * x", "\\x -> x + 7", "\\x -> x * 3", "id"]),
-    ("((Int) -> (Int))", ["const 5", "\\x -> x * x", "\\x -> x + 7", "\\x -> x * 3", "id"]),
-    ("[Int] -> Int", ["head", "last", "length", "(head . tail)", "head . drop 2"])
+    ("((Int) -> (Int))", ["const 5", "\\x -> x * x", "id"]),
+    ("[Int] -> Int", ["head", "last", "length", "\\xs -> xs !! 1"]),
+    ("((Int) -> (Bool))", ["\\x -> x < 0", "\\x -> x > 0"])
   ]
 }
 
