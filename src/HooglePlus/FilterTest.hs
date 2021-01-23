@@ -33,7 +33,6 @@ import Paths_HooglePlus
 import Synquid.Type
 import Types.Environment
 import Types.Filtering
-import Types.IOFormat (Example(Example))
 import Types.Program
 import Types.Type hiding (typeOf)
 import PetriNet.Utils (unHTML)
@@ -136,7 +135,7 @@ buildDupCheckProp (sol, otherSols) funcSig =
   map (\x -> buildDupCheckProp' (sol, [x]) funcSig) otherSols
 
 buildDupCheckProp' :: (String, [String]) -> FunctionSignature -> String
-buildDupCheckProp' (sol, otherSols) funcSig = traceId $ unwords [wrapper, formatProp]
+buildDupCheckProp' (sol, otherSols) funcSig = unwords [wrapper, formatProp]
   where
     params@(plain, typed, shows, unwrp) = showParams (_argsType funcSig)
     solutionType = show funcSig
@@ -217,7 +216,7 @@ classifyCandidate modules candidate funcSig previousCandidates = if null previou
       then return $ New         (mergeExamples $ map fromJust examples)
       else return $ DuplicateOf (fst $ head $ filter snd $ zip previousCandidates $ map isJust examples)
   where
-    readResult :: Candidate -> Candidate -> BackendResult -> Maybe AssociativeExamples
+    readResult :: Candidate -> Candidate -> BackendResult -> Maybe AssociativeInternalExamples
     readResult candidate previousCandidate result = case result of
         QC.Failure {}                           -> Nothing
         QC.GaveUp {QC.numTests} | numTests == 0 -> Nothing
@@ -227,14 +226,14 @@ classifyCandidate modules candidate funcSig previousCandidates = if null previou
         (examples, examplesForPrev) = splitConsecutive $ parseExamples result
         assocs = Just [(candidate, examples), (previousCandidate, examplesForPrev)]
 
-    readInterpreterResult :: Candidate -> [Candidate] -> Either InterpreterError [BackendResult] -> [Maybe AssociativeExamples]
+    readInterpreterResult :: Candidate -> [Candidate] -> Either InterpreterError [BackendResult] -> [Maybe AssociativeInternalExamples]
     readInterpreterResult candidate previousCandidates =
       \case
         Left (NotAllowed _) -> [Nothing]
         Left err            -> []
         Right results       -> zipWith (readResult candidate) previousCandidates results
 
-    mergeExamples :: [AssociativeExamples] -> AssociativeExamples
+    mergeExamples :: [AssociativeInternalExamples] -> AssociativeInternalExamples
     mergeExamples rawExamples = 
       let exampleMaps = map (Map.fromList . map (second (take 2))) rawExamples in
         Map.toList $ Map.unionsWith (++) exampleMaps
@@ -250,7 +249,7 @@ runChecks env goalType prog = do
       else modify $     \s -> s {discardedSolutions = candidate : discardedSolutions s}
 
     if result
-      then get <&> (Just . Map.toList . differentiateExamples)
+      then get <&> (Just . map (second (map toExample)) . Map.toList . differentiateExamples)
       else return Nothing
   where
     checks = [ checkSolutionNotCrash, checkDuplicates]
@@ -263,7 +262,7 @@ checkSolutionNotCrash modules funcSig solution = do
       
 checkDuplicates :: MonadIO m => [String] -> FunctionSignature -> String -> FilterTest m Bool
 checkDuplicates modules funcSig candidate = do
-  FilterState _ previousCandidates _ _ _ _ <- get
+  FilterState previousCandidates _ _ _ _ <- get
   result <- classifyCandidate modules candidate funcSig previousCandidates
 
   case result of
@@ -306,7 +305,7 @@ replaceMyType x =
     ArgTypeFunc   arg res   -> apply (replaceMyType arg) (replaceMyType res)
 
 -- | Parse Example string from QC.label to Example
-parseExamples :: BackendResult -> [Example]
+parseExamples :: BackendResult -> [InternalExample]
 parseExamples result = concatMap (read . head) $ Map.keys $ QC.labels result
 
 -- | Extract higher-order arguments from a type signature.
@@ -350,7 +349,7 @@ queryHooglePlus types = print types >> print "called" >> return []
 
 queryHigherOrderArgument :: MonadIO m => [String] -> FilterTest m [[String]]
 queryHigherOrderArgument queries = do
-    FilterState _ _ _ _ _ cache <-  get
+    FilterState _ _ _ _ cache <-  get
     let cachedResults           =   zip queries $ map (`Map.lookup` cache) queries
 
     let nextQueries             =   map fst $ filter needsQuery cachedResults

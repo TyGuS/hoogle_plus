@@ -1,15 +1,15 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, DeriveDataTypeable #-}
 module Types.Filtering where
 
 import Control.Exception
 import Control.Monad.State
+import Data.List (groupBy, intercalate)
 import Data.Typeable
 import Text.Printf
-import Data.List (intercalate)
 import Test.QuickCheck (Result)
 import qualified Data.Map as Map
 
-import Types.IOFormat (Example)
+import Types.IOFormat (Example(Example))
 
 defaultInterpreterTimeoutMicro = 10 * 10^6 :: Int
 defaultGenerationTimeoutMicro = 30 * 10^6 :: Int
@@ -36,17 +36,30 @@ type Candidate = String
 type BackendResult = Result
 type GeneratorResult = [Example]
 
+type AssociativeInternalExamples = [(Candidate, [InternalExample])]
 type AssociativeExamples = [(Candidate, [Example])]
 
+data InternalExample = InternalExample {
+    inputs :: [String],
+    output :: String,
+    outputConstr :: String
+} deriving(Eq, Read)
+
+instance Show InternalExample where
+    show e = unwords [unwords (inputs e), "==>", output e]
+
+toExample :: InternalExample -> Example
+toExample (InternalExample i o _) = Example i o
+
 data CandidateValidDesc =
-    Total   [Example]
-  | Partial [Example]
+    Total   [InternalExample]
+  | Partial [InternalExample]
   | Invalid
   | Unknown String
   deriving (Eq)
 
 data CandidateDuplicateDesc =
-    New         AssociativeExamples
+    New         AssociativeInternalExamples
   | DuplicateOf Candidate
   deriving (Show, Eq)
 
@@ -57,7 +70,16 @@ instance Show CandidateValidDesc where
       Invalid          -> "<bottom>"
       Unknown ex       -> "<exception> " ++ ex
     where
-      showExamples examples = unlines $ map show $ take 3 examples
+      showExamples :: [InternalExample] -> String
+      showExamples examples = unlines $ map show $ take 10 $ concatMap (take 2 . reverse) $ groupOn outputConstr examples
+        where
+          groupOn :: (Ord b) => (a -> b) -> [a] -> [[a]]
+          groupOn f =
+            let unpack = fmap snd . Map.toList
+                fld m a = case Map.lookup (f a) m of
+                  Nothing -> Map.insert (f a) [a] m
+                  Just as -> Map.insert (f a) (a:as) m
+            in unpack . foldl fld Map.empty
 
 data ArgumentType =
     Concrete    String
@@ -96,16 +118,14 @@ instance Show FunctionSignature where
         argsExpr = (intercalate " -> " . map show) (argsType ++ [returnType])
 
 data FilterState = FilterState {
-  inputs :: [[String]],
   solutions :: [String],
   solutionDescriptions :: [(String, CandidateValidDesc)],
-  differentiateExamples :: Map.Map String [Example],
+  differentiateExamples :: Map.Map String [InternalExample],
   discardedSolutions :: [String],
   higherOrderArgumentCache :: Map.Map String [String]
 } deriving (Eq, Show)
 
 emptyFilterState = FilterState {
-  inputs = [],
   solutions = [],
   solutionDescriptions = [],
   differentiateExamples = Map.empty,

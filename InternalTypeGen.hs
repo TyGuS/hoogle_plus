@@ -60,7 +60,7 @@ labelEvaluation :: (Data a, QC.Testable prop) => [String] -> [a] -> ([CB.Result 
 labelEvaluation inputs values prop = do
     outputs <- map splitResult <$> mapM (evaluateValue defaultTimeoutMicro) values
     
-    let examples = map (\(a, b) -> Example inputs (showCBResult a) (showCBResult b)) outputs
+    let examples = map (\(a, b) -> InternalExample inputs (showCBResult a) (showCBResult b)) outputs
     return $ QC.label (show examples) (prop $ map fst outputs)
   where
     evaluateValue :: Data a => Int -> a -> IO (CB.Result (String, String))
@@ -75,7 +75,7 @@ labelEvaluation inputs values prop = do
       CB.NonTermination -> (CB.NonTermination, CB.NonTermination)
       CB.Exception ex -> (CB.Exception ex, CB.Exception ex)
 
-data Example = Example {
+data InternalExample = InternalExample {
     inputs :: [String],
     output :: String,
     outputConstr :: String
