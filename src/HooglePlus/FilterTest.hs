@@ -136,7 +136,7 @@ buildDupCheckProp (sol, otherSols) funcSig =
   map (\x -> buildDupCheckProp' (sol, [x]) funcSig) otherSols
 
 buildDupCheckProp' :: (String, [String]) -> FunctionSignature -> String
-buildDupCheckProp' (sol, otherSols) funcSig = unwords [wrapper, formatProp]
+buildDupCheckProp' (sol, otherSols) funcSig = traceId $ unwords [wrapper, formatProp]
   where
     params@(plain, typed, shows, unwrp) = showParams (_argsType funcSig)
     solutionType = show funcSig
@@ -368,7 +368,7 @@ queryHigherOrderArgument queries = do
     needsQuery (_, Nothing) = True
     needsQuery _            = False
 
-    searchFunctions = [queryHoogle, queryHooglePlus]
+    searchFunctions = [queryHooglePlus]
 
 
 -- >>> prepareEnvironment $ parseTypeString "a -> (Int -> Int -> Int) -> a"

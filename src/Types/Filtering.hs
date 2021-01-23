@@ -113,7 +113,8 @@ emptyFilterState = FilterState {
   higherOrderArgumentCache = Map.fromList [
     ("((Int) -> (Int))", ["const 5", "\\x -> x * x", "id"]),
     ("[Int] -> Int", ["head", "last", "length", "\\xs -> xs !! 1"]),
-    ("((Int) -> (Bool))", ["\\x -> x < 0", "\\x -> x > 0"])
+    ("((Int) -> (Bool))", ["\\x -> x < 0", "\\x -> x > 0"]),
+    ("((Int) -> (String))", ["show"])
   ]
 }
 

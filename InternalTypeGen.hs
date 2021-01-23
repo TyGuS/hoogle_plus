@@ -3,8 +3,10 @@ module InternalTypeGen where
 
 import Control.DeepSeq (force)
 import Control.Exception (evaluate)
+import Control.Monad (liftM2)
 import Control.Monad.Logic (liftM)
 import Data.Char (ord)
+import Data.Data (toConstr)
 import Data.Containers.ListUtils (nubOrd)
 import Data.Data (Data(..))
 import Data.List (isInfixOf, elemIndex, nub, drop, reverse, intersect)
@@ -50,26 +52,34 @@ showCBResult = \case
                   CB.Value a -> a
                   CB.NonTermination -> "diverge"
                   CB.Exception ex -> show ex
-
 anyDuplicate :: Ord a => [a] -> Bool
 anyDuplicate [x, y] = x == y
 anyDuplicate xs = length (nubOrd xs) /= length xs
 
 labelEvaluation :: (Data a, QC.Testable prop) => [String] -> [a] -> ([CB.Result String] -> prop) -> IO QC.Property
 labelEvaluation inputs values prop = do
-    outputs <- mapM (evaluateValue defaultTimeoutMicro) values
+    outputs <- map splitResult <$> mapM (evaluateValue defaultTimeoutMicro) values
     
-    let examples = map (Example inputs . showCBResult) outputs
-    return $ QC.label (show examples) (prop outputs)
+    let examples = map (\(a, b) -> Example inputs (showCBResult a) (showCBResult b)) outputs
+    return $ QC.label (show examples) (prop $ map fst outputs)
   where
-    evaluateValue :: Data a => Int -> a -> IO (CB.Result String)
-    evaluateValue timeInMicro = (CB.timeOutMicro timeInMicro . evaluate . force . CB.approxShow defaultMaxOutputLength)
+    evaluateValue :: Data a => Int -> a -> IO (CB.Result (String, String))
+    evaluateValue timeInMicro x = CB.timeOutMicro timeInMicro $ liftM2 (,) (t x) (s x)
+      where
+        t = evaluate . force . CB.approxShow defaultMaxOutputLength
+        s = evaluate . show . toConstr
 
--- * instance defined in `Types.IOFormat`
+    splitResult :: CB.Result (String, String) -> (CB.Result String, CB.Result String)
+    splitResult = \case
+      CB.Value (a, b) -> (CB.Value a, CB.Value b)
+      CB.NonTermination -> (CB.NonTermination, CB.NonTermination)
+      CB.Exception ex -> (CB.Exception ex, CB.Exception ex)
+
 data Example = Example {
     inputs :: [String],
-    output :: String
-} deriving(Eq, Show, Read)
+    output :: String,
+    outputConstr :: String
+} deriving(Eq, Show)
 
 -- * Custom Datatype for Range Restriction
 newtype  MyInt = MyIntValue Int deriving (Eq, Data)
