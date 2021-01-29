@@ -41,6 +41,7 @@ type AssociativeExamples = [(Candidate, [Example])]
 
 data InternalExample = InternalExample {
     inputs :: [String],
+    inputConstrs :: [String],
     output :: String,
     outputConstr :: String
 } deriving(Eq, Read)
@@ -49,7 +50,7 @@ instance Show InternalExample where
     show e = unwords [unwords (inputs e), "==>", output e]
 
 toExample :: InternalExample -> Example
-toExample (InternalExample i o _) = Example i o
+toExample (InternalExample i _ o _) = Example i o
 
 data CandidateValidDesc =
     Total   [InternalExample]
@@ -71,8 +72,15 @@ instance Show CandidateValidDesc where
       Unknown ex       -> "<exception> " ++ ex
     where
       showExamples :: [InternalExample] -> String
-      showExamples examples = unlines $ map show $ take 10 $ concatMap (take 2 . reverse) $ groupOn outputConstr examples
+      showExamples examples =
+          let examplesGroupedByOutput = groupOn outputConstr (filter noGenerated examples) in
+          let examplesGroupedByInput  = map (map last . groupOn inputConstrs) examplesGroupedByOutput in
+            unlines $ map show $ concatMap (take 5 . reverse) examplesGroupedByInput
+            
         where
+          noGenerated :: InternalExample -> Bool
+          noGenerated ex = "<Generated>" `notElem` inputs ex
+
           groupOn :: (Ord b) => (a -> b) -> [a] -> [[a]]
           groupOn f =
             let unpack = fmap snd . Map.toList

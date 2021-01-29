@@ -6,11 +6,9 @@ import Control.Exception (evaluate)
 import Control.Monad (liftM2)
 import Control.Monad.Logic (liftM)
 import Data.Char (ord)
-import Data.Data (toConstr)
 import Data.Containers.ListUtils (nubOrd)
 import Data.Data (Data(..))
-import Data.List (isInfixOf, elemIndex, nub, drop, reverse, intersect)
-import Data.Typeable (typeOf, Typeable)
+import Data.List (isInfixOf, elemIndex, nub, drop, reverse, intersect, intercalate)
 import Text.Printf (printf)
 import qualified Test.ChasingBottoms as CB
 import qualified Test.QuickCheck as QC
@@ -56,18 +54,18 @@ anyDuplicate :: Ord a => [a] -> Bool
 anyDuplicate [x, y] = x == y
 anyDuplicate xs = length (nubOrd xs) /= length xs
 
-labelEvaluation :: (Data a, QC.Testable prop) => [String] -> [a] -> ([CB.Result String] -> prop) -> IO QC.Property
+labelEvaluation :: (Data a, ShowConstr a, QC.Testable prop) => [String] -> [a] -> ([CB.Result String] -> prop) -> IO QC.Property
 labelEvaluation inputs values prop = do
     outputs <- map splitResult <$> mapM (evaluateValue defaultTimeoutMicro) values
     
-    let examples = map (\(a, b) -> InternalExample inputs (showCBResult a) (showCBResult b)) outputs
+    let examples = map (\(a, b) -> InternalExample inputs (map showConstr inputs) (showCBResult a) (showCBResult b)) outputs
     return $ QC.label (show examples) (prop $ map fst outputs)
   where
-    evaluateValue :: Data a => Int -> a -> IO (CB.Result (String, String))
+    evaluateValue :: (Data a, ShowConstr a) => Int -> a -> IO (CB.Result (String, String))
     evaluateValue timeInMicro x = CB.timeOutMicro timeInMicro $ liftM2 (,) (t x) (s x)
       where
         t = evaluate . force . CB.approxShow defaultMaxOutputLength
-        s = evaluate . show . toConstr
+        s = evaluate . CB.approxShow defaultMaxOutputLength . showConstr
 
     splitResult :: CB.Result (String, String) -> (CB.Result String, CB.Result String)
     splitResult = \case
@@ -77,6 +75,7 @@ labelEvaluation inputs values prop = do
 
 data InternalExample = InternalExample {
     inputs :: [String],
+    inputConstrs :: [String],
     output :: String,
     outputConstr :: String
 } deriving(Eq, Show)
@@ -114,3 +113,13 @@ instance (Unwrappable a c, Unwrappable b d)   => Unwrappable (a, b) (c, d)      
 instance (Unwrappable a c, Unwrappable b d)   => Unwrappable (Either a b) (Either c d) where
   wrap    = \case Left v -> Left $ wrap v;    Right v -> Right $ wrap v
   unwrap  = \case Left v -> Left $ unwrap v;  Right v -> Right $ unwrap v
+
+class                                       ShowConstr a            where showConstr :: a -> String
+instance                                    ShowConstr Int          where showConstr x = show $ x `compare` 0
+instance                                    ShowConstr Bool         where showConstr = show
+instance                                    ShowConstr Char         where showConstr = const "_"
+instance                                    ShowConstr (a -> b)     where showConstr = const "<func>"
+instance  ShowConstr a                  =>  ShowConstr (Maybe a)    where showConstr = \case Just x -> "Just$" ++ showConstr x; Nothing -> "Nothing"
+instance  (ShowConstr a, ShowConstr b)  =>  ShowConstr (a, b)       where showConstr (x, y) = printf "(%s,%s)" (showConstr x) (showConstr y)
+instance  (ShowConstr a)                =>  ShowConstr [a]          where showConstr xs = intercalate "," $ map showConstr xs
+instance  (ShowConstr a, ShowConstr b)  =>  ShowConstr (Either a b) where showConstr = \case Left x -> "Left$" ++ showConstr x; Right y -> "Right$" ++ showConstr y
