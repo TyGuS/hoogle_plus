@@ -12,6 +12,15 @@ data-files:
 
 description: Please see the README
 
+ghc-options:
+- -O2
+- -j
+- -dynamic
+- +RTS
+- -A128m
+- -n2m
+- -RTS
+
 dependencies:
 - aeson
 - ansi-terminal

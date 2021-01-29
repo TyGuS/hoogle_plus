@@ -91,7 +91,8 @@ execExample mdls env typ prog ex = do
         then printf "let f = (%s) :: %s in" prog typ
         else printf "let f = (\\%s -> %s) :: %s in" prependArg prog typ
     let parensedInputs = map wrapParens $ inputs ex
-    let progCall = printf "Test.ChasingBottoms.approxShow 100 (f %s)" (unwords parensedInputs)
+    -- let progCall = printf "Test.ChasingBottoms.approxShow 100 (f %s)" (unwords parensedInputs)
+    let progCall = printf "(f %s)" (unwords parensedInputs)
     runStmt mdls $ unwords [progBody, progCall]
 
 augmentTestSet :: Environment -> RSchema -> IO [Example]
@@ -126,6 +127,7 @@ augmentTestSet env goal = do
 
 checkExampleOutput :: [String] -> Environment -> TypeQuery -> String -> [Example] -> IO (Maybe [Example])
 checkExampleOutput mdls env typ prog exs = do
+    
     let progWithoutTc = removeTypeclasses prog
     currOutputs <- mapM (execExample mdls env typ progWithoutTc) exs
     cmpResults <- mapM (uncurry compareResults) (zip currOutputs exs)
@@ -138,7 +140,8 @@ checkExampleOutput mdls env typ prog exs = do
           | otherwise = case currOutput of
                           Left e -> return Nothing
                           Right o -> do
-                              expectedOutput <- runStmt mdls (printf "Test.ChasingBottoms.approxShow 100 (%s)" $ output ex)
+                              expectedOutput <- runStmt mdls (printf "(%s)" $ output ex)
+                              --   expectedOutput <- runStmt mdls (printf "Test.ChasingBottoms.approxShow 100 (%s)" $ output ex)
                               case expectedOutput of
                                   Left err -> return Nothing
                                   Right out | o == out -> return (Just ex)

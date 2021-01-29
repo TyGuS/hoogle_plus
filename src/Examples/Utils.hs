@@ -83,7 +83,8 @@ runStmt mdls prog = do
                 Just (AnId aid) -> do
                     t <- gtry $ obtainTermFromId maxBound True aid
                     case t of
-                        Right term -> showTerm term >>= return . Right . dropEnd 1 . drop 1 . showSDocUnsafe
+                        Right term -> (Right . showSDocUnsafe) <$> showTerm term
+                        -- Right term -> showTerm term >>= return . Right . dropEnd 1 . drop 1 . showSDocUnsafe
                         Left (exn :: SomeException) -> return (Left $ show exn)
                 _ -> return (Left "Unknown error")
         getExecValue [] = return (Left "Empty result list")
