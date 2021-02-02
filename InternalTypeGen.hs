@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, FlexibleContexts, MultiParamTypeClasses, TypeFamilies, DeriveDataTypeable, LambdaCase #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, DeriveDataTypeable, LambdaCase #-}
 module InternalTypeGen where
 
 import Control.DeepSeq (force)
@@ -50,6 +50,7 @@ showCBResult = \case
                   CB.Value a -> a
                   CB.NonTermination -> "diverge"
                   CB.Exception ex -> show ex
+
 anyDuplicate :: Ord a => [a] -> Bool
 anyDuplicate [x, y] = x == y
 anyDuplicate xs = length (nubOrd xs) /= length xs
@@ -97,15 +98,24 @@ data     MyFun a b = Generated (a -> b) | Expression String (a -> b)
 instance (QC.Arbitrary a, QC.CoArbitrary b)                       => QC.CoArbitrary (MyFun a b)   where coarbitrary = \case Generated f -> QC.coarbitrary f; Expression _ f -> QC.coarbitrary f
 instance Show a                                                   => Show (MyFun a b)             where show = \case Expression str _ -> "(" ++ str ++ ")"; Generated f -> "<Generated>"
 instance {-# OVERLAPPABLE #-} (QC.CoArbitrary a, QC.Arbitrary b)  => QC.Arbitrary (MyFun a b)     where arbitrary = liftM Generated QC.arbitrary
+
+newtype  Box a            =   BoxValue a              deriving (Eq, Data)
+instance Ord a            =>  Ord (Box a)             where compare (BoxValue l) (BoxValue r) = compare l r
+instance Show a           =>  Show (Box a)            where show (BoxValue v) = show v
+instance QC.Arbitrary a   =>  QC.Arbitrary (Box a)    where arbitrary = fmap BoxValue QC.arbitrary
+instance QC.CoArbitrary a =>  QC.CoArbitrary (Box a)  where coarbitrary (BoxValue v) = QC.coarbitrary v
+unbox :: Box a -> a;          unbox (BoxValue v) = v
         
 -- * Custom Datatype Conversion
 class    Unwrappable a b                                                            where unwrap :: a -> b; wrap :: b -> a
+instance Unwrappable (Box a) a                                                      where unwrap = unbox; wrap = BoxValue
+instance Unwrappable a b => Unwrappable (Box a) b                                   where unwrap = unwrap . unbox; wrap = BoxValue . wrap
 instance Unwrappable MyInt Int                                                      where unwrap (MyIntValue v) = v; wrap = MyIntValue
 instance Unwrappable MyChar Char                                                    where unwrap (MyCharValue v) = v; wrap = MyCharValue
 instance (Unwrappable a c, Unwrappable b d)   => Unwrappable (a -> b)    (c -> d)   where unwrap f = \x -> unwrap $ f $ wrap x; wrap f = \x -> wrap $ f $ unwrap x
 instance (Unwrappable a c, Unwrappable b d)   => Unwrappable (MyFun a b) (c -> d)   where unwrap (Generated f) = unwrap f; unwrap (Expression _ f) = unwrap f; wrap f = Generated (wrap f)
 
-instance {-# OVERLAPPABLE #-} (a ~ b)         => Unwrappable a b                    where unwrap = id; wrap = id
+instance                                         Unwrappable a a                    where unwrap = id; wrap = id
 instance {-# OVERLAPPING #-} Unwrappable a b  => Unwrappable [a] [b]                where unwrap = fmap unwrap; wrap = fmap wrap
 instance {-# OVERLAPPING #-} Unwrappable a b  => Unwrappable (Maybe a) (Maybe b)    where unwrap = fmap unwrap; wrap = fmap wrap
 instance (Unwrappable a c, Unwrappable b d)   => Unwrappable (a, b) (c, d)          where unwrap (x, y) = (unwrap x, unwrap y); wrap (x, y) = (wrap x, wrap y)
@@ -118,6 +128,7 @@ class                                       ShowConstr a            where showCo
 instance                                    ShowConstr Int          where showConstr x = show $ x `compare` 0
 instance                                    ShowConstr Bool         where showConstr = show
 instance                                    ShowConstr Char         where showConstr = const "_"
+instance                                    ShowConstr (Box a)      where showConstr = const "_"
 instance                                    ShowConstr (a -> b)     where showConstr = const "<func>"
 instance  ShowConstr a                  =>  ShowConstr (Maybe a)    where showConstr = \case Just x -> "Just$" ++ showConstr x; Nothing -> "Nothing"
 instance  (ShowConstr a, ShowConstr b)  =>  ShowConstr (a, b)       where showConstr (x, y) = printf "(%s,%s)" (showConstr x) (showConstr y)

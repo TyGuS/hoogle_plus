@@ -90,17 +90,19 @@ instance Show CandidateValidDesc where
             in unpack . foldl fld Map.empty
 
 data ArgumentType =
-    Concrete    String
-  | Polymorphic String
-  | ArgTypeList ArgumentType
-  | ArgTypeTuple [ArgumentType]
-  | ArgTypeApp  ArgumentType ArgumentType
-  | ArgTypeFunc ArgumentType ArgumentType
+    Concrete      String
+  | Polymorphic   String
+  | Instantiated  String
+  | ArgTypeList   ArgumentType
+  | ArgTypeTuple  [ArgumentType]
+  | ArgTypeApp    ArgumentType ArgumentType
+  | ArgTypeFunc   ArgumentType ArgumentType
   deriving (Eq)
 
 instance Show ArgumentType where
   show (Concrete    name) = name
   show (Polymorphic name) = name
+  show (Instantiated name) = name
   show (ArgTypeList sub)  = printf "[%s]" (show sub)
   show (ArgTypeApp  l r)  = printf "((%s) (%s))"  (show l) (show r)
   show (ArgTypeTuple types) =

@@ -95,12 +95,30 @@ instantiateSignature (FunctionSignature _ argsType returnType) =
         
     instantPolymorphic mappings = f
       where f = \case 
-                  Polymorphic   x   -> Concrete $ maybe "Int" snd (find ((== x) . fst) mappings)
+                  Polymorphic   x   -> Instantiated $ maybe "Int" snd (find ((== x) . fst) mappings)
                   ArgTypeList   x   -> ArgTypeList $ f x
                   ArgTypeTuple  xs  -> ArgTypeTuple $ map f xs
                   ArgTypeApp    l r -> ArgTypeApp (f l) (f r)
                   ArgTypeFunc   l r -> ArgTypeFunc (f l) (f r)
                   other             -> other
+
+replaceMyType :: ArgumentType -> ArgumentType
+replaceMyType x =
+  let
+    apply a b = ArgTypeApp (ArgTypeApp (Concrete "MyFun") a) b
+    applyConcrete t = case t of
+                      "Int"     -> "MyInt"
+                      "Char"    -> "MyChar"
+                      "String"  -> "[MyChar]"
+                      _         -> t
+  in case x of
+    Concrete      n         -> Concrete $ applyConcrete n
+    Polymorphic   _         -> x
+    Instantiated  n         -> ArgTypeApp (Concrete "Box") (Concrete $ applyConcrete n)
+    ArgTypeList   t         -> ArgTypeList (replaceMyType t)
+    ArgTypeTuple  ts        -> ArgTypeTuple (map replaceMyType ts)
+    ArgTypeApp    f a       -> ArgTypeApp (replaceMyType f) (replaceMyType a)
+    ArgTypeFunc   arg res   -> apply (replaceMyType arg) (replaceMyType res)
 
 
 buildFunctionWrapper :: [(String, String)] -> FunctionSignature -> (String, String, String, String) -> String
@@ -291,19 +309,6 @@ showParams args = (plain, typed, shows, unwrp)
     shows = "[" ++ intercalate ", " (formatIdx "(show arg_%d)") ++ "]"
     formatIdx format = map ((printf format :: Int -> String) . fst) args'
 
-replaceMyType :: ArgumentType -> ArgumentType
-replaceMyType x =
-  let apply a b = ArgTypeApp (ArgTypeApp (Concrete "MyFun") a) b in case x of
-    Concrete      "Int"     -> Concrete "MyInt"
-    Concrete      "Char"    -> Concrete "MyChar"
-    Concrete      "String"  -> ArgTypeList $ Concrete "MyChar"
-    Concrete      _         -> x
-    Polymorphic   _         -> x
-    ArgTypeList   t         -> ArgTypeList (replaceMyType t)
-    ArgTypeTuple  ts        -> ArgTypeTuple (map replaceMyType ts)
-    ArgTypeApp    f a       -> ArgTypeApp (replaceMyType f) (replaceMyType a)
-    ArgTypeFunc   arg res   -> apply (replaceMyType arg) (replaceMyType res)
-
 -- | Parse Example string from QC.label to Example
 parseExamples :: BackendResult -> [InternalExample]
 parseExamples result = concatMap (read . head) $ Map.keys $ QC.labels result
@@ -387,8 +392,6 @@ prepareEnvironment funcSig = do
       then liftIO $ writeFile fileName ""
       else liftIO $ writeFile fileName sourceCode
 
-    -- liftIO $ putStrLn sourceCode
-
     return fileName
   where
     prelude = [ "{-# LANGUAGE FlexibleInstances #-}"
@@ -419,3 +422,4 @@ prepareEnvironment funcSig = do
 
     buildExpression :: ArgumentType -> String -> String
     buildExpression tipe expr = printf "wrap ((%s) :: %s)" expr (show tipe)
+    
