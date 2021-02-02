@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, NamedFieldPuns #-}
 
 module HooglePlus.Utils where
 
@@ -32,7 +32,6 @@ import Data.List.Split (splitOn)
 import Data.Maybe
 import Data.Typeable
 import Data.Function (on)
-import qualified Data.Text as Text
 import Demand
 import DmdAnal
 import DynFlags
@@ -54,6 +53,8 @@ import Var hiding (Id)
 import Data.UUID.V4
 import Debug.Trace
 import qualified Language.Haskell.Interpreter as LHI
+import qualified Data.Aeson as A
+import qualified Data.ByteString.Lazy.Char8 as LB
 
 -- Converts the list of param types into a haskell function signature.
 -- Moves typeclass-looking things to the front in a context.
@@ -123,32 +124,21 @@ printSolution solution = do
     putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
     putStrLn "************************************************"
 
-collectExamples :: SolutionPair -> FilterState -> AssociativeExamples
-collectExamples solution (FilterState _ sols samples examples) =
-    map mkGroup $ groupBy (\x y -> fst x == fst y)
-                $ sortOn fst
-                $ examples ++ checkedExs
+printFilter :: String -> FilterState -> IO ()
+printFilter solution fs@FilterState{discardedSolutions, solutionDescriptions, differentiateExamples} = do
+        putStrLn "\n*******************FILTER*********************"
+        putStrLn $ "SOLN: " ++ solution
+        putStrLn "***IO Examples***"
+        putStrLn ioExamples
+        putStrLn "***Diff Examples***"
+        putStrLn diffExamples
+        putStrLn $ LB.unpack $ encodeWithPrefix discardedSolutions
+        putStrLn "**********************************************\n"
     where
-        [(_, desc)] = filter ((== solution) . fst) samples
-        checkedExs = zip (repeat solution) (descToExample desc)
-        mkGroup xs = (fst (head xs), nubOrdOn IOFormat.inputs $ map snd xs)
+        diffExamples = unlines $ concat $ map (\(soln, examples) -> ["- " ++ soln] ++ map (('\t':) . show) examples) $ Map.toList differentiateExamples
+        ioExamples   = let (_, desc) = head $ filter ((== solution) . fst) solutionDescriptions in show desc
 
-
-descToExample :: FunctionCrashDesc -> [Example]
-descToExample (AlwaysSucceed ex) = [ex]
-descToExample (AlwaysFail ex) = [ex]
-descToExample (PartialFunction exs) = exs
-descToExample _ = []
-
-
--- printSolutionState solution fs = unlines ["****************", solution, show fs, "***********"]
-printSolutionState solution (FilterState _ sols workingExamples diffExamples) = unlines [ios, diffs]
-    where
-        ios = let [(_, desc)] = filter ((== solution) . fst) workingExamples in show desc
-        diffs = let examples = groupBy ((==) `on` fst) (sortOn fst diffExamples) in unlines (map showGroup examples)
-        
-        showGroup :: [(SolutionPair, Example)] -> String
-        showGroup xs = unlines ((show $ fst $ head xs) : (map (show . snd) xs))
+        encodeWithPrefix obj = LB.append (LB.pack "EXPRMTS:") (A.encode obj)
 
 extractSolution :: Environment -> RType -> UProgram -> ([String], String, UProgram, [(Id, RSchema)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)
@@ -234,3 +224,8 @@ niceInputs :: Example -> IO Example
 niceInputs (Example ins out) = do
     ins' <- evalStateT (mapM matchNiceFunctions ins) []
     return (Example ins' out)
+
+-- >>> splitConsecutive [1..6]
+-- ([1,3,5],[2,4,6])
+splitConsecutive :: [a] -> ([a],[a])
+splitConsecutive = foldr (\x ~(y2,y1) -> (x:y1, y2)) ([],[])

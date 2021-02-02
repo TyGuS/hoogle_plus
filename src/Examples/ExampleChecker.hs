@@ -17,7 +17,7 @@ import Types.Experiments
 import Types.IOFormat
 import Types.TypeChecker
 import Types.Common
-import Types.Filtering (defaultTimeoutMicro, defaultDepth, defaultInterpreterTimeoutMicro, frameworkModules)
+import Types.Filtering (defaultTimeoutMicro, defaultInterpreterTimeoutMicro, frameworkModules)
 import Synquid.Type
 import Synquid.Pretty
 import Synquid.Program

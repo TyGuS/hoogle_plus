@@ -110,19 +110,19 @@ getExampleTypes env argNames validSchemas num = do
 
 -- turn a GHC type into Hoogle+ type
 resolveType :: LHsType GhcPs -> RSchema
-resolveType (L _ (HsForAllTy bs t)) = foldr ForallT (resolveType t) vs
+resolveType (L _ (HsForAllTy _ _ bs t)) = foldr ForallT (resolveType t) vs
     where
         vs = map ((wildcardPrefix:) . vname) bs
-        vname (L _ (UserTyVar (L _ id))) = showSDocUnsafe (ppr id)
-        vname (L _ (KindedTyVar (L _ id) _)) = showSDocUnsafe (ppr id)
-resolveType t@(L _ (HsAppTy fun arg)) =
+        vname (L _ (UserTyVar _ (L _ id))) = showSDocUnsafe (ppr id)
+        vname (L _ (KindedTyVar _ (L _ id) _)) = showSDocUnsafe (ppr id)
+resolveType t@(L _ (HsAppTy _ fun arg)) =
     let typs = tail $ map resolveType' $ breakApp t
         (args, [res]) = splitAt (length typs - 1) typs
      in Monotype $ foldr (FunctionT "") res args
     where
-        breakApp (L _ (HsAppTy fun arg)) = breakApp fun ++ [arg]
+        breakApp (L _ (HsAppTy _ fun arg)) = breakApp fun ++ [arg]
         breakApp t = [t]
-resolveType (L _ (HsQualTy ctx body)) = Monotype bodyWithTcArgs
+resolveType (L _ (HsQualTy _ ctx body)) = Monotype bodyWithTcArgs
     where
         unlocatedCtx = let L _ c = ctx in c
         tyConstraints = map (prefixTyclass . resolveType') unlocatedCtx
@@ -135,9 +135,9 @@ resolveType (L _ (HsQualTy ctx body)) = Monotype bodyWithTcArgs
 resolveType t = Monotype $ resolveType' t
 
 resolveType' :: LHsType GhcPs -> RType
-resolveType' (L _ (HsFunTy f r)) = FunctionT "" (resolveType' f) (resolveType' r)
-resolveType' (L _ (HsQualTy _ t)) = resolveType' t
-resolveType' (L _ (HsTyVar _ (L _ v))) =
+resolveType' (L _ (HsFunTy _ f r)) = FunctionT "" (resolveType' f) (resolveType' r)
+resolveType' (L _ (HsQualTy _ _ t)) = resolveType' t
+resolveType' (L _ (HsTyVar _ _ (L _ v))) =
     if isLower (head name)
        then ScalarT (TypeVarT Map.empty (wildcardPrefix:name)) ftrue
        else ScalarT (DatatypeT name [] []) ftrue
@@ -151,21 +151,21 @@ resolveType' t@(L _ HsAppTy{}) = ScalarT (DatatypeT dtName dtArgs []) ftrue
                    n -> n
         dtArgs = datatypeArgs t
 
-        datatypeOf (L _ (HsAppTy f _)) = datatypeOf f
-        datatypeOf (L _ (HsTyVar _ (L _ v))) = showSDocUnsafe (ppr v)
+        datatypeOf (L _ (HsAppTy _ f _)) = datatypeOf f
+        datatypeOf (L _ (HsTyVar _ _ (L _ v))) = showSDocUnsafe (ppr v)
 
-        datatypeArgs (L _ (HsAppTy (L _ HsTyVar {}) a)) = [resolveType' a]
-        datatypeArgs (L _ (HsAppTy f a)) = datatypeArgs f ++ datatypeArgs a
+        datatypeArgs (L _ (HsAppTy _ (L _ HsTyVar {}) a)) = [resolveType' a]
+        datatypeArgs (L _ (HsAppTy _ f a)) = datatypeArgs f ++ datatypeArgs a
         datatypeArgs t = [resolveType' t]
 
-resolveType' (L _ (HsListTy t)) = ScalarT (DatatypeT "List" [resolveType' t] []) ftrue
-resolveType' (L _ (HsTupleTy _ ts)) = foldr mkPair basePair otherTyps
+resolveType' (L _ (HsListTy _ t)) = ScalarT (DatatypeT "List" [resolveType' t] []) ftrue
+resolveType' (L _ (HsTupleTy _ _ ts)) = foldr mkPair basePair otherTyps
     where
         mkPair acc t = ScalarT (DatatypeT "Pair" [acc, t] []) ftrue
         resolveTyps = map resolveType' ts
         (baseTyps, otherTyps) = splitAt (length ts - 2) resolveTyps
         basePair = ScalarT (DatatypeT "Pair" baseTyps []) ftrue
-resolveType' (L _ (HsParTy t)) = resolveType' t
+resolveType' (L _ (HsParTy _ t)) = resolveType' t
 resolveType' t = error $ showSDocUnsafe (ppr t)
 
 antiSubstitute :: SType -> Id -> SType -> SType

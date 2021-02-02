@@ -6,8 +6,6 @@ import GHC hiding (Id)
 import GHC.Paths
 import qualified EnumSet as ES
 import GHC.LanguageExtensions.Type
-import HsUtils
-import HsTypes
 import TcRnDriver
 import Exception
 import Debugger
@@ -26,7 +24,7 @@ import Control.Monad.State
 import Control.Lens
 import Control.Concurrent.Chan
 
-import Types.Filtering (defaultTimeoutMicro, defaultDepth, defaultInterpreterTimeoutMicro, frameworkModules)
+import Types.Filtering (defaultTimeoutMicro, defaultInterpreterTimeoutMicro, frameworkModules)
 import Types.IOFormat
 import Types.Type
 import Types.Common
@@ -37,7 +35,6 @@ import Types.InfConstraint
 import Database.Util
 import Synquid.Logic
 import Synquid.Type
-import HooglePlus.FilterTest (runInterpreter')
 import HooglePlus.TypeChecker (solveTypeConstraint)
 import PetriNet.Util
 

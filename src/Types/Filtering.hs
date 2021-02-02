@@ -1,51 +1,93 @@
+{-# LANGUAGE LambdaCase, DeriveDataTypeable #-}
 module Types.Filtering where
 
 import Control.Exception
 import Control.Monad.State
+import Data.List (groupBy, intercalate)
 import Data.Typeable
 import Text.Printf
-import Data.List (intercalate)
-import Types.IOFormat (Example)
-import Types.Program
+import Test.QuickCheck (Result)
+import qualified Data.Map as Map
 
-import Test.SmallCheck.Drivers
+import Types.IOFormat (Example(Example))
 
-defaultTimeoutMicro = 1 * 10^6 :: Int
-defaultDepth = 3 :: Int
-defaultInterpreterTimeoutMicro = 4 * 10^6 :: Int
-defaultMaxOutputLength = 10 :: Int 
+defaultInterpreterTimeoutMicro = 10 * 10^6 :: Int
 defaultGenerationTimeoutMicro = 30 * 10^6 :: Int
-defaultGenerationDepth = 4 :: Int
+
+-- todo: remove the constant as not used -- example checker
+defaultTimeoutMicro = 100 :: Int
+defaultNumExtraExamples = 2 :: Int
+
+hoogleQueryModuleList = ["Prelude", "Data.List", "Data.Maybe", "Data.Either"]
+hoogleQueryTypeclassList = ["Eq", "Ord"]
+higherOrderGenMaxSize = 5 :: Int
 
 frameworkModules =
-  zip [ "Test.SmallCheck"
-  , "Test.SmallCheck.Drivers"
-  , "Test.LeanCheck.Function.ShowFunction"
-  , "System.IO.Silently"
+  zip [ "Test.QuickCheck"
+  , "Test.QuickCheck.Monadic"
+  , "Test.QuickCheck.Function"
   , "Control.Exception"
   , "Control.Monad"
-  , "Control.Monad.State"
   ] (repeat Nothing)
 
   ++ [("Test.ChasingBottoms", Just "CB")]
 
-type SmallCheckResult = (Maybe PropertyFailure, [Example])
+type Candidate = String
+type BackendResult = Result
 type GeneratorResult = [Example]
-type SolutionPair = (UProgram, UProgram) -- qualified and unqualified
-type AssociativeExamples = [(SolutionPair, [Example])]
 
-data FunctionCrashDesc = 
-    AlwaysSucceed Example
-  | AlwaysFail Example
-  | PartialFunction [Example]
-  | UnableToCheck String
+type AssociativeInternalExamples = [(Candidate, [InternalExample])]
+type AssociativeExamples = [(Candidate, [Example])]
+
+data InternalExample = InternalExample {
+    inputs :: [String],
+    inputConstrs :: [String],
+    output :: String,
+    outputConstr :: String
+} deriving(Eq, Read)
+
+instance Show InternalExample where
+    show e = unwords [unwords (inputs e), "==>", output e]
+
+toExample :: InternalExample -> Example
+toExample (InternalExample i _ o _) = Example i o
+
+data CandidateValidDesc =
+    Total   [InternalExample]
+  | Partial [InternalExample]
+  | Invalid
+  | Unknown String
   deriving (Eq)
 
-instance Show FunctionCrashDesc where
-  show (AlwaysSucceed i) = show i
-  show (AlwaysFail i) = show i
-  show (PartialFunction xs) = unlines (map show xs)
-  show (UnableToCheck ex) = "Exception: " ++ show ex
+data CandidateDuplicateDesc =
+    New         AssociativeInternalExamples
+  | DuplicateOf Candidate
+  deriving (Show, Eq)
+
+instance Show CandidateValidDesc where
+  show = \case
+      Total   examples -> showExamples examples
+      Partial examples -> showExamples examples
+      Invalid          -> "<bottom>"
+      Unknown ex       -> "<exception> " ++ ex
+    where
+      showExamples :: [InternalExample] -> String
+      showExamples examples =
+          let examplesGroupedByOutput = groupOn outputConstr (filter noGenerated examples) in
+          let examplesGroupedByInput  = map (map last . groupOn inputConstrs) examplesGroupedByOutput in
+            unlines $ map show $ concatMap (take 5 . reverse) examplesGroupedByInput
+            
+        where
+          noGenerated :: InternalExample -> Bool
+          noGenerated ex = "<Generated>" `notElem` inputs ex
+
+          groupOn :: (Ord b) => (a -> b) -> [a] -> [[a]]
+          groupOn f =
+            let unpack = fmap snd . Map.toList
+                fld m a = case Map.lookup (f a) m of
+                  Nothing -> Map.insert (f a) [a] m
+                  Just as -> Map.insert (f a) (a:as) m
+            in unpack . foldl fld Map.empty
 
 data ArgumentType =
     Concrete    String
@@ -65,15 +107,10 @@ instance Show ArgumentType where
     (printf "(%s)" . intercalate ", " . map show) types
   show (ArgTypeFunc src dst) = printf "((%s) -> (%s))" (show src) (show dst)
 
-newtype NotSupportedException = NotSupportedException String
-  deriving (Show, Typeable)
-
+newtype NotSupportedException = NotSupportedException String deriving (Show, Typeable)
 instance Exception NotSupportedException
 
-data TypeConstraint = TypeConstraint String String
-
-instance Show TypeConstraint where
-  show (TypeConstraint name constraint) = printf "%s %s" constraint name
+type TypeConstraint = ArgumentType
 
 data FunctionSignature =
   FunctionSignature { _constraints :: [TypeConstraint]
@@ -89,17 +126,35 @@ instance Show FunctionSignature where
         argsExpr = (intercalate " -> " . map show) (argsType ++ [returnType])
 
 data FilterState = FilterState {
-  inputs :: [[String]],
-  solutions :: [UProgram],
-  solutionExamples :: [(SolutionPair, FunctionCrashDesc)],
-  differentiateExamples :: [(SolutionPair, Example)]
-} deriving (Eq)
+  solutions :: [String],
+  solutionDescriptions :: [(String, CandidateValidDesc)],
+  differentiateExamples :: Map.Map String [InternalExample],
+  discardedSolutions :: [String],
+  higherOrderArgumentCache :: Map.Map String [String]
+} deriving (Eq, Show)
 
 emptyFilterState = FilterState {
-  inputs = [],
   solutions = [],
-  solutionExamples = [],
-  differentiateExamples = []
+  solutionDescriptions = [],
+  differentiateExamples = Map.empty,
+  discardedSolutions = [],
+  higherOrderArgumentCache = Map.fromList [
+    ("((Int) -> (Int))", ["const 5", "\\x -> x * x", "id"]),
+    ("[Int] -> Int", ["head", "last", "length", "\\xs -> xs !! 1"]),
+    ("((Int) -> (Bool))", ["\\x -> x < 0", "\\x -> x > 0"]),
+    ("((Int) -> (String))", ["show"])
+  ]
 }
 
 type FilterTest m = StateT FilterState m
+
+class TestPassable a where isSuccess :: a -> Bool
+instance TestPassable CandidateValidDesc where
+  isSuccess = \case
+    Invalid -> False
+    _       -> True
+
+instance TestPassable CandidateDuplicateDesc where
+  isSuccess = \case
+    New _ -> True
+    _   -> False

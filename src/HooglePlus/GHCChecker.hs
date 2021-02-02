@@ -143,7 +143,7 @@ check :: MonadIO m
 check env searchParams examples program goalType solverChan = do
     runGhcChecks searchParams env (lastType $ toMonotype goalType) examples program
 
--- validate type signiture, run demand analysis, and run filter test
+-- validate type signature, run demand analysis, and run filter test
 -- checks the end result type checks; all arguments are used; and that the program will not immediately fail
 runGhcChecks :: MonadIO m 
              => SearchParams 
@@ -170,14 +170,8 @@ runGhcChecks params env goalType examples prog = let
             then return Nothing 
             else liftIO $ fmap ((:[]) . ((unqualifyFunc body, body),)) <$> checkOutputs prog examples
         liftIO $ print exampleCheckResult
-        filterCheckResult <- if disableFilter || isNothing exampleCheckResult
-            then return exampleCheckResult
-            else do
-                filterResult <- runChecks env goalType prog
-                if isNothing filterResult
-                    then return filterResult
-                    else return $ Just (fromJust exampleCheckResult ++ fromJust filterResult)
-        liftIO $ print filterCheckResult
+        filterCheckResult <- runChecks env goalType prog
+        -- todo: lts
         case typeCheckResult of
             Left err -> liftIO $ putStrLn (displayException err) >> return Nothing
             Right False -> liftIO $ putStrLn "Program does not typecheck" >> return Nothing

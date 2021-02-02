@@ -54,8 +54,7 @@ data FunctionDoc = FunctionDoc {
 instance ToJSON FunctionDoc
 
 data ResultEntry = ResultEntry {
-    qualSolution :: String,
-    unqualSolution :: String,
+    solution :: String,
     outExamples :: [Example]
 } deriving(Eq, Generic)
 

@@ -184,15 +184,10 @@ toOutput env soln exs = do
     let args = env ^. arguments
     let argDocs = map (\(n, ty) -> FunctionDoc n (show ty) "") args
     let symbolsWoArgs = symbols \\ argNames
+    let entries = map (\(sol, ex) -> ResultEntry (toHaskellSolution sol) ex) exs
     docs <- liftIO $ hoogleIt symbolsWoArgs
-    entries <- mapM mkEntry exs
     return $ QueryOutput entries "" (docs ++ argDocs)
     where
-        mkEntry ((unqualSol, qualSol), ex) = do
-            ex' <- mapM niceInputs ex
-            let qualSol' = toHaskellSolution $ show qualSol
-            let unqualSol' = toHaskellSolution $ show unqualSol
-            return (ResultEntry qualSol' unqualSol' ex')
         hoogleIt syms = do
             dbPath <- Hoogle.defaultDatabaseLocation
             Hoogle.withDatabase dbPath (\db -> do

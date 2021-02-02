@@ -18,7 +18,7 @@ import Types.InfConstraint (InfStats(..))
 import Types.Experiments
 import Types.Environment
 import Types.Type
-import Types.Filtering (defaultTimeoutMicro, defaultGenerationDepth, defaultInterpreterTimeoutMicro, defaultGenerationTimeoutMicro)
+import Types.Filtering (defaultTimeoutMicro, defaultInterpreterTimeoutMicro, defaultGenerationTimeoutMicro)
 import Synquid.Parser (parseSchema, parseProgram)
 import Synquid.Resolver (ResolverState(..), initResolverState, resolveSchema)
 import Synquid.Type
@@ -26,7 +26,7 @@ import Synquid.Pretty
 import Examples.ExampleChecker
 import Examples.InferenceDriver
 import Examples.Utils
-import HooglePlus.FilterTest (generateIOPairs, parseTypeString)
+import HooglePlus.FilterTest (parseTypeString)
 import HooglePlus.Utils (niceInputs, mkFunctionSigStr)
 
 import Control.Concurrent.Chan
@@ -177,7 +177,7 @@ searchExamples synquidParams inStr num = do
     -- this query
     let prevResults = map output $ exampleExisting input
     let prevInputs = map (map toNormalFunctions . inputs) $ exampleExisting input
-    result <- generateIOPairs mdls prog funcSig argNames num defaultTimeoutMicro defaultGenerationTimeoutMicro defaultGenerationDepth prevResults prevInputs
+    result <- return $ Left "Not supported"
     resultObj <- case result of
           Left err -> return $ ListOutput [] (show err)
           Right genRes | null genRes -> return $ ListOutput [] "No more examples"

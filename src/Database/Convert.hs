@@ -130,11 +130,12 @@ resolveContext (CxTuple _ assts) = groupTuples . concat <$> mapM resolveAsst ass
 resolveContext (CxEmpty _)       = return []
 
 resolveAsst :: (MonadIO m) => Asst () -> StateT Int m [(Id, [Id])]
-resolveAsst a@(ClassA _ qname typs) = if Set.null tyVars then return [] else return [(Set.findMin tyVars, [qnameStr qname])]
-  where
-    tyVars = Set.unions $ map allTypeVars typs
-resolveAsst (ParenA _ asst) = resolveAsst asst
-resolveAsst a = error $ "Unknown " ++ show a
+-- resolveAsst a@(TypeA _ qname typs) = if Set.null tyVars then return [] else return [(Set.findMin tyVars, [qnameStr qname])]
+--   where
+--     tyVars = Set.unions $ map allTypeVars typs
+-- resolveAsst (ParenA _ asst) = resolveAsst asst
+-- resolveAsst a = error $ "Unknown " ++ show a
+resolveAsst = error "not implemented" -- todo: lts
 
 toSynquidSchema :: (MonadIO m) => Type () -> StateT Int m (Maybe SSchema)
 toSynquidSchema (TyForall _ _ (Just ctx) typ) = do -- if this type has some context
@@ -356,14 +357,16 @@ breakLast :: String -> (String, String)
 breakLast str = (reverse (drop 1 y), reverse x) where (x, y) = break (== '.') $ reverse str
 
 toTCDictName :: Asst l -> String
-toTCDictName (ClassA _ declName _) = fixTCName (qnameStr declName)
-toTCDictName (ParenA _ asst) = toTCDictName asst
-toTCDictName _ = error "toTCDictName: Unhandled case"
+toTCDictName = error "not implemented" -- todo: lts
+-- toTCDictName (TypeA _ declName _) = fixTCName (qnameStr declName)
+-- toTCDictName (ParenA _ asst) = toTCDictName asst
+-- toTCDictName _ = error "toTCDictName: Unhandled case"
 
 getTypeVars :: (MonadIO m) => Asst () -> StateT Int m [SType]
-getTypeVars (ClassA _ _ typeVars) = mapM (\x -> Data.List.head . fromJust <$> toSynquidSkeleton x) typeVars
-getTypeVars (ParenA _ asst) = getTypeVars asst
-getTypeVars _ = error "getTypeVars: Unhandled case"
+-- getTypeVars (TypeA _ _ typeVars) = mapM (\x -> Data.List.head . fromJust <$> toSynquidSkeleton x) typeVars
+-- getTypeVars (ParenA _ asst) = getTypeVars asst
+-- getTypeVars _ = error "getTypeVars: Unhandled case"
+getTypeVars = error "not implemented" -- todo: lts
 
 getInstanceRule :: Entry -> InstRule ()
 getInstanceRule (EDecl (InstDecl x1 x2 (IParen _ instanceRule) x3)) = getInstanceRule (EDecl (InstDecl x1 x2 instanceRule x3))
@@ -434,7 +437,7 @@ packageDependencies pkg toDownload = do
                     (return $ fname:existDps)
                     (return existDps)) [] dps
   where
-    dependentPkg (Dependency name _) = unPackageName name
+    dependentPkg (Dependency name _ _) = unPackageName name
 
 declMap :: [Entry] -> Map Id Entry
 declMap decls = foldr (\d -> Map.insert (getDeclName d) d) Map.empty $ filter isDataDecl decls

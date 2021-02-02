@@ -1,6 +1,6 @@
 name: HooglePlus
 version: 0.1.0.0
-github: "davidmrdavid/hoogle_plus"
+github: "TyGuS/hoogle_plus"
 license: BSD3
 author: "Zheng Guo"
 maintainer: "zhg069@ucsd.edu"
@@ -102,11 +102,9 @@ executables:
 
 tests:
   spec:
-    main: Spec.hs
-    source-dirs:
-      - test
+    main: Test.hs
+    source-dirs: test
     dependencies:
       - HooglePlus
-      - hspec
-      - hspec-discover
-    build-tools: hspec-discover
+      - tasty
+      - tasty-hunit

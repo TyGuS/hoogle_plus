@@ -1,41 +1,49 @@
--- module HooglePlus.FilterTest (runChecks, checkSolutionNotCrash, checkDuplicates) where
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, LambdaCase, NamedFieldPuns #-}
 module HooglePlus.FilterTest where
 
-import Language.Haskell.Interpreter hiding (get, set)
-import qualified Language.Haskell.Interpreter as LHI
-import Language.Haskell.Exts.Parser
-import Text.Printf
-import Control.Exception
-import Data.List
-import Language.Haskell.Exts.SrcLoc
-import Language.Haskell.Exts.Syntax
-import Language.Haskell.Exts.Pretty
 import qualified Data.Map as Map
-import qualified Data.Set as Set hiding (map)
-import System.Timeout
+import qualified Hoogle
+import qualified Language.Haskell.Interpreter as LHI
+import qualified Test.QuickCheck as QC
+
+import Language.Haskell.Interpreter (InterpreterT, InterpreterError(..), Extension(..), OptionVal(..))
+import Control.Monad.Extra (andM)
+
+import Control.Exception
 import Control.Monad
 import Control.Monad.State
+import Data.Functor ((<&>))
+import Data.Bifunctor (second)
+import Data.Either
+import Data.List
 import Data.Maybe
 import Data.Typeable
-import Data.Map (Map)
-import Data.Either
+import Language.Haskell.Exts.Parser
+import Language.Haskell.Exts.Pretty
+import Language.Haskell.Exts.SrcLoc
+import Language.Haskell.Exts.Syntax
+import System.Timeout
+import Text.Printf
+import Data.Containers.ListUtils (nubOrd)
+import Data.List.Extra (splitOn)
+import Data.UUID.V4 (nextRandom)
 
-import Test.SmallCheck (Depth)
-import Test.SmallCheck.Drivers
-
-import HooglePlus.Utils
+import HooglePlus.Utils (splitConsecutive, extractSolution, printFilter)
+import Paths_HooglePlus
+import Synquid.Type
 import Types.Environment
+import Types.Filtering
 import Types.Program
 import Types.Type hiding (typeOf)
-import Types.Filtering
-import Types.IOFormat (Example(Example))
-import Synquid.Type
-import Synquid.Program
-import Paths_HooglePlus
+import PetriNet.Util (unHTML)
+import Synquid.Util (getTmpDir)
+
 
 import Debug.Trace
 
+-- | Parse a string to an internal representation of type signatures.
+-- >>> parseTypeString "(Eq a, Ord b) => a -> b"
+-- (((Eq) (a)), ((Ord) (b))) => a -> b
 parseTypeString :: String -> FunctionSignature
 parseTypeString input = FunctionSignature constraints argsType returnType
   where
@@ -46,7 +54,6 @@ parseTypeString input = FunctionSignature constraints argsType returnType
       where constraints' = constraints ++ extractConstraints constraints ctx
     buildSig constraints argList (TyFun _ typeArg typeRet) = buildSig constraints argList' typeRet
       where argList' = argList ++ [extractType typeArg]
-    buildSig constraints argList (TyParen _ t) = buildSig constraints argList t
     buildSig constraints argList typeRet = (constraints, argList, extractType typeRet)
 
     extractType (TyVar _ (Ident _ name)) = Polymorphic name
@@ -57,300 +64,359 @@ parseTypeString input = FunctionSignature constraints argsType returnType
     extractType (TyApp _ l r) = ArgTypeApp (extractType l) (extractType r)
     extractType (TyTuple _ _ types) = ArgTypeTuple (map extractType types)
     extractType (TyFun _ src dst) = ArgTypeFunc (extractType src) (extractType dst)
-    extractType other = throw $ NotSupportedException ("Not able to handle " ++ show other)
+    extractType other = throw $ NotSupportedException ("Type Parser: unsupported " ++ show other)
 
-    extractQualified (ClassA _ (UnQual _ (Ident _ name)) var) =
-      map (\x -> TypeConstraint (show $ extractType x) name) var
+    extractQualified (TypeA _ t) = extractType t
     extractQualified (ParenA _ qual) = extractQualified qual
-    extractQualified other = throw $ NotSupportedException ("Not able to extract " ++ show other)
+    extractQualified other = throw $ NotSupportedException ("Type Parser: unsupported " ++ show other)
 
-    extractConstraints constraints (CxSingle _ item) = constraints ++ extractQualified item
-    extractConstraints constraints (CxTuple _ list) = foldr ((++) . extractQualified) constraints list
+    extractConstraints constraints (CxSingle _ item) = constraints ++ [extractQualified item]
+    extractConstraints constraints (CxTuple _ list) = foldr ((++) . (:[]) . extractQualified) constraints list
 
--- instantiate polymorphic types in function signature with `Int`
+-- | instantiate polymorphic types in function signature with `Int`
+-- >>> instantiateSignature (parseTypeString "[a] -> [b] -> (a -> b -> c) -> (c, Maybe c)")
+-- () => Int -> String -> ((Int) -> (((String) -> (Bool)))) -> (Bool, ((Maybe) (Bool)))
 instantiateSignature :: FunctionSignature -> FunctionSignature
 instantiateSignature (FunctionSignature _ argsType returnType) =
-  FunctionSignature [] (map instantiate argsType) (instantiate returnType)
-    where
-      instantiate sig@(Concrete name) = sig
-      instantiate (Polymorphic name) = Concrete "Int"
-      instantiate (ArgTypeList sub) = ArgTypeList $ instantiate sub
-      instantiate (ArgTypeTuple types) = ArgTypeTuple (map instantiate types)
-      instantiate (ArgTypeApp l r) = ArgTypeApp (instantiate l) (instantiate r)
-      instantiate (ArgTypeFunc (Polymorphic name) r) = ArgTypeFunc (Concrete "MyInt") (instantiate r)
-      instantiate (ArgTypeFunc l r) = ArgTypeFunc (instantiate l) (instantiate r)
+    let mappings = buildMappings (returnType:argsType) in
+    let instantiate = instantPolymorphic mappings in
+      FunctionSignature [] (map instantiate argsType) (instantiate returnType)
+  where
+    buildMappings xs = zip (sort $ nubOrd $ concatMap capturePolymorphic xs) types
+      where types = ["Int", "String", "Bool"]
 
-buildFunctionWrapper :: [(String, String)] -> String -> (String, String, String, String) -> Int -> String
-buildFunctionWrapper functions solutionType params@(plain, typed, shows, unwrp) timeInMicro =
+    capturePolymorphic = \case
+      Polymorphic   x   -> [x];
+      ArgTypeList   x   -> capturePolymorphic x
+      ArgTypeTuple  xs  -> concatMap capturePolymorphic xs
+      ArgTypeApp    l r -> concatMap capturePolymorphic [l, r]
+      ArgTypeFunc   l r -> concatMap capturePolymorphic [l, r]
+      _                 -> []
+        
+    instantPolymorphic mappings = f
+      where f = \case 
+                  Polymorphic   x   -> Concrete $ maybe "Int" snd (find ((== x) . fst) mappings)
+                  ArgTypeList   x   -> ArgTypeList $ f x
+                  ArgTypeTuple  xs  -> ArgTypeTuple $ map f xs
+                  ArgTypeApp    l r -> ArgTypeApp (f l) (f r)
+                  ArgTypeFunc   l r -> ArgTypeFunc (f l) (f r)
+                  other             -> other
+
+
+buildFunctionWrapper :: [(String, String)] -> FunctionSignature -> (String, String, String, String) -> String
+buildFunctionWrapper functions solutionType@FunctionSignature{_returnType} params@(plain, typed, shows, unwrp) =
     unwords
-      (map (`buildLetFunction` solutionType) functions ++ [buildTimeoutWrapper (map fst functions) params timeInMicro])
+      (map (buildLetFunction $ show solutionType) functions ++ [buildWrapper (map fst functions) params (show _returnType)])
   where
-    buildLetFunction :: (String, String) -> String -> String
-    buildLetFunction (wrapperName, solution) solutionType =
-      printf "let %s = ((%s) :: %s) in" wrapperName solution (replaceId "MyInt" "Int" solutionType) :: String
+    buildLetFunction :: String -> (String, String) -> String
+    buildLetFunction programType (wrapperName, program) =
+      printf "let %s = ((%s) :: %s) in" wrapperName program programType :: String
 
-    buildTimeoutWrapper :: [String] -> (String, String, String, String) -> Int -> String
-    buildTimeoutWrapper wrapperNames (plain, typed, shows, unwrp) timeInMicro =
-      printf "let timeoutWrapper = \\%s -> (evaluateIO %d %s (Prelude.map (\\internal__f -> internal__f %s) [%s])) in" typed timeInMicro shows unwrp (intercalate ", " wrapperNames) :: String
+    -- ! the wrapper magic (i.e. MyInt) only lives here (inside `typed`)
+    buildWrapper :: [String] -> (String, String, String, String) -> String -> String
+    buildWrapper wrapperNames (plain, typed, shows, unwrp) retType =
+      printf "let executeWrapper %s = (Prelude.map (\\f -> f %s :: %s) [%s]) in" typed unwrp retType (intercalate ", " wrapperNames) :: String
 
-buildNotCrashProp :: [String] -> String -> FunctionSignature -> String
-buildNotCrashProp argNames solution funcSig = formatAlwaysFailProp params wrapper
+buildNotCrashProp :: String -> FunctionSignature -> String
+buildNotCrashProp solution funcSig = formatNotCrashProp params wrapper
   where
-    params@(plain, typed, shows, unwrp) = showParams argNames (_argsType funcSig)
+    params@(plain, typed, shows, unwrp) = showParams (_argsType funcSig)
 
-    wrapper = buildFunctionWrapper [("wrappedSolution", solution)] (show funcSig) params defaultTimeoutMicro
+    wrapper = buildFunctionWrapper [("wrappedSolution", solution)] funcSig params
+    formatNotCrashProp = formatProp "prop_not_crash" "\\out -> (not $ isFailedResult $ Prelude.head out) ==> True"
 
-    formatAlwaysFailProp = formatProp "propAlwaysFail" "isFailedResult"
-    -- formatNeverFailProp = formatProp "propNeverFail" "not <$> isFailedResult"
-
-    formatProp propName body (plain, typed, shows, unwrp) wrappedSolution = unwords
+    formatProp propName propBody (plain, typed, shows, unwrp) wrappedSolution = unwords
       [ wrappedSolution
-      , printf "let %s %s = monadic (%s <$> Prelude.head <$> timeoutWrapper %s) in" propName plain body plain
-      , printf "runStateT (smallCheckM %d (%s)) []" defaultDepth propName] :: String
+      , printf "let %s %s = monadicIO $ run $ labelEvaluation (%s) (executeWrapper %s) (%s) in" propName plain shows plain propBody
+      , printf "quickCheckWithResult defaultTestArgs %s" propName ] :: String
 
-buildDupCheckProp :: [String] -> (String, [String]) -> FunctionSignature -> Int -> Depth -> [String]
-buildDupCheckProp argNames (sol, otherSols) funcSig timeInMicro depth =
-  map (\x -> buildDupCheckProp' argNames (sol, [x]) funcSig timeInMicro depth) otherSols
+buildDupCheckProp :: (String, [String]) -> FunctionSignature -> [String]
+buildDupCheckProp (sol, otherSols) funcSig =
+  map (\x -> buildDupCheckProp' (sol, [x]) funcSig) otherSols
 
-buildDupCheckProp' :: [String] -> (String, [String]) -> FunctionSignature -> Int -> Depth -> String
-buildDupCheckProp' argNames (sol, otherSols) funcSig timeInMicro depth =
-
-  unwords [wrapper, formatProp]
+buildDupCheckProp' :: (String, [String]) -> FunctionSignature -> String
+buildDupCheckProp' (sol, otherSols) funcSig = unwords [wrapper, formatProp]
   where
-    params@(plain, typed, shows, unwrp) = showParams argNames (_argsType funcSig)
+    params@(plain, typed, shows, unwrp) = showParams (_argsType funcSig)
     solutionType = show funcSig
 
-    wrapper = buildFunctionWrapper solutions (show funcSig) params defaultTimeoutMicro
+    wrapper = buildFunctionWrapper solutions funcSig params
     solutions = zip [printf "result_%d" x :: String | x <- [0..] :: [Int]] (sol:otherSols)
 
     formatProp = unwords
-      [ printf "let dupProp = existsUnique $ \\%s -> monadic (not <$> anyDuplicate <$> timeoutWrapper %s) in" plain plain
-      , printf "runStateT (smallCheckM %d dupProp) []" depth] :: String
+      [ printf "let prop_duplicate %s = monadicIO $ run $ labelEvaluation (%s) (executeWrapper %s) (\\out -> (not $ anyDuplicate out) ==> True) in" plain shows plain
+      , printf "quickCheckWithResult defaultTestArgs prop_duplicate" ] :: String
 
-runInterpreter' :: Int -> InterpreterT IO a -> IO (Either InterpreterError a)
-runInterpreter' timeInMicro exec =
-    toResult <$> timeout timeInMicro execute
+-- | Run Hint with the default script loaded.
+runInterpreterWithEnvTimeout :: Int -> InterpreterT IO a -> IO (Either InterpreterError a)
+runInterpreterWithEnvTimeout timeInMicro = runInterpreterWithEnvTimeoutPrepareModule timeInMicro (sequence ioList)
+  where ioList = [getDataFileName "InternalTypeGen.hs"]
+
+-- | Run Hint with the default script loaded, but also prepare arguments for HOFs.
+runInterpreterWithEnvTimeoutHOF :: MonadIO m => Int -> FunctionSignature -> InterpreterT IO a -> FilterTest m (Either InterpreterError a)
+runInterpreterWithEnvTimeoutHOF timeInMicro funcSig executeInterpreter = do
+    fileName <- prepareEnvironment funcSig
+
+    let ioList = [getDataFileName "InternalTypeGen.hs", pure fileName]
+    result <- liftIO $ runInterpreterWithEnvTimeoutPrepareModule timeInMicro (sequence ioList) executeInterpreter
+    case result of
+      Left (WontCompile e)  -> liftIO $ print e >> runInterpreterWithEnvTimeout timeInMicro executeInterpreter
+      _                     -> return result
+
+-- | Prepare all scripts, get the paths of scripts, and run Hint.
+runInterpreterWithEnvTimeoutPrepareModule :: Int -> IO [String] -> InterpreterT IO a -> IO (Either InterpreterError a)
+runInterpreterWithEnvTimeoutPrepareModule timeInMicro prepareModule executeInterpreter =
+  mergeTimeout <$> timeout timeInMicro (prepareModule >>= runInterpreter)
   where
-    execute = do
-      srcPath <- getDataFileName "InternalTypeGen.hs"
+    runInterpreter moduleFiles = LHI.runInterpreter $ do
+      LHI.set [LHI.languageExtensions := [ExtendedDefaultRules, ScopedTypeVariables]]
+      LHI.loadModules moduleFiles
+      LHI.getLoadedModules >>= LHI.setTopLevelModules
+      executeInterpreter
 
-      runInterpreter $ do
+    mergeTimeout = \case
+      Just v  -> v
+      Nothing -> Left $ NotAllowed "timeout"
+      -- Hint only throws NotAllowed when setting a non-existing top-level module.
+      -- We never had such cases and can safely steal NotAllowed to represent timeout. 
 
-        -- allow extensions for function execution
-        extensions <- LHI.get languageExtensions
-        LHI.set [languageExtensions := (ExtendedDefaultRules : ScopedTypeVariables : extensions)]
+-- | Initiate an interpreter with context, evaluate the given property, and return the backend result. 
+-- todo: refactor 'funcSig' out
+evaluateProperties :: MonadIO m => [String] -> FunctionSignature -> [String] -> FilterTest m (Either InterpreterError [BackendResult])
+evaluateProperties modules funcSig properties =
+  runInterpreterWithEnvTimeoutHOF defaultInterpreterTimeoutMicro funcSig $ do
+    LHI.setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
+    mapM (\prop -> LHI.interpret prop (LHI.as :: IO BackendResult) >>= liftIO) properties
 
-        loadModules [srcPath]
-        setTopLevelModules ["InternalTypeGen"]
-
-        exec
-
-    toResult Nothing = Left $ UnknownError "timeout"
-    toResult (Just v) = v
-
-evaluateProperty :: [String] -> String -> IO (Either InterpreterError SmallCheckResult)
-evaluateProperty modules property =
-  runInterpreter' defaultInterpreterTimeoutMicro $ do
-    setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
-    interpret property (as :: IO SmallCheckResult) >>= liftIO
-
-validateSolution :: [String] -> [String] -> String -> FunctionSignature -> Int -> IO (Either InterpreterError FunctionCrashDesc)
-validateSolution modules argNames solution funcSig time = evaluateResult' <$> evaluateProperty modules alwaysFailProp
+validateCandidate :: MonadIO m => [String] -> Candidate -> FunctionSignature -> FilterTest m CandidateValidDesc
+validateCandidate modules solution funcSig = do
+    result <- evaluateProperties modules funcSig [prop]
+    case result of
+      Left  (NotAllowed _)            -> return $ Unknown "timeout"
+      Left  error                     -> return $ Unknown $ show error
+      Right [result]                  -> return $ readResult result
   where
-    alwaysFailProp = buildNotCrashProp argNames solution funcSig
+    prop = buildNotCrashProp solution funcSig
 
-    evaluateSmallCheckResult ::
-      Either InterpreterError SmallCheckResult -> Either InterpreterError SmallCheckResult
-        -> Either InterpreterError FunctionCrashDesc
-    evaluateSmallCheckResult resultF resultS =
-      case resultF of
-        Left (UnknownError "timeout") -> Right $ AlwaysFail $ caseToInput resultS
-        Right (Nothing, _) -> Right $ AlwaysFail $ caseToInput resultS
-        Right (_, exF:_) -> case resultS of
-          Left (UnknownError "timeout") -> Right $ AlwaysSucceed exF
-          Right (Nothing, _) -> Right $ AlwaysSucceed exF
+    readResult :: BackendResult -> CandidateValidDesc
+    readResult r@QC.GaveUp{QC.numTests}
+              | numTests == 0 = Invalid
+              | otherwise     = Partial $ parseExamples r
+    readResult r@QC.Success{} = Total $ parseExamples r
 
-          Right (Just (CounterExample _ _), exS:_) -> Right $ PartialFunction [exF, exS]
-          _ -> error (show resultF ++ "???" ++ show resultS)
-        _ -> trace (show resultF) $ Right $ AlwaysFail $ caseToInput resultS
+-- >>> (evalStateT (classifyCandidate ["Data.Either", "GHC.List", "Data.Maybe", "Data.Function"] "\\e f -> Data.Either.either f (GHC.List.head []) e" (instantiateSignature $ parseTypeString "Either a b -> (a -> b) -> b") ["\\e f -> Data.Either.fromRight (f (Data.Maybe.fromJust Data.Maybe.Nothing)) e", "\\e f -> Data.Either.either f Data.Function.id e"]) emptyFilterState) :: IO CandidateDuplicateDesc
+classifyCandidate :: MonadIO m => [String] -> Candidate -> FunctionSignature -> [Candidate] -> FilterTest m CandidateDuplicateDesc
+classifyCandidate modules candidate funcSig previousCandidates = if null previousCandidates then return (New []) else do
+    let properties    =   buildDupCheckProp (candidate, previousCandidates) funcSig
+    interpreterResult <-  evaluateProperties modules funcSig properties
 
-    evaluateResult' result = case result of
-      Left (UnknownError "timeout") -> Right $ AlwaysFail $ Example [] "timeout"
-      Left error -> trace (show error) (Right $ AlwaysFail $ Example [] (show error))
-      Right (Nothing, _) -> Right $ AlwaysFail $ caseToInput result
-      Right (_, examples) -> Right $ PartialFunction $ take 2 examples -- only need the first two examples, one succeed, one fail
+    let examples      =   readInterpreterResult candidate previousCandidates interpreterResult
 
-    caseToInput :: Either InterpreterError SmallCheckResult -> Example
-    caseToInput (Right (_, example:_)) = example
-
-    preprocessOutput :: String -> String -> String
-    preprocessOutput input output = trace ("ok: " ++ input ++ ", " ++ output) (fromMaybe "N/A" (listToMaybe selectedLine))
+    if all isJust examples
+      then return $ New         (mergeExamples $ map fromJust examples)
+      else return $ DuplicateOf (fst $ head $ filter snd $ zip previousCandidates $ map isJust examples)
+  where
+    readResult :: Candidate -> Candidate -> BackendResult -> Maybe AssociativeInternalExamples
+    readResult candidate previousCandidate result = case result of
+        QC.Failure {}                           -> Nothing
+        QC.GaveUp {QC.numTests} | numTests == 0 -> Nothing
+        QC.GaveUp {}                            -> assocs
+        QC.Success {}                           -> assocs
       where
-        ios = nub $ filter ([] /=) $ lines output
-        selectedLine = filter (isInfixOf input) ios
+        (examples, examplesForPrev) = splitConsecutive $ parseExamples result
+        assocs = Just [(candidate, examples), (previousCandidate, examplesForPrev)]
 
-compareSolution :: [String] -> [String] -> String -> [String] -> FunctionSignature -> Int -> IO [Either InterpreterError SmallCheckResult]
-compareSolution modules argNames solution otherSolutions funcSig time = mapM (evaluateProperty modules) props
-  where props = buildDupCheckProp argNames (solution, otherSolutions) funcSig time defaultDepth
+    readInterpreterResult :: Candidate -> [Candidate] -> Either InterpreterError [BackendResult] -> [Maybe AssociativeInternalExamples]
+    readInterpreterResult candidate previousCandidates =
+      \case
+        Left (NotAllowed _) -> [Nothing]
+        Left err            -> []
+        Right results       -> zipWith (readResult candidate) previousCandidates results
+
+    mergeExamples :: [AssociativeInternalExamples] -> AssociativeInternalExamples
+    mergeExamples rawExamples = 
+      let exampleMaps = map (Map.fromList . map (second (take 2))) rawExamples in
+        Map.toList $ Map.unionsWith (++) exampleMaps
 
 runChecks :: MonadIO m => Environment -> RType -> UProgram -> FilterTest m (Maybe AssociativeExamples)
 runChecks env goalType prog = do
-  result <- runChecks_
+    let (modules, funcSigStr, candidateProgram, _) =   extractSolution env goalType prog
+    let candidate                                  =   show candidateProgram
+    let funcSig                                    =   instantiateSignature $ parseTypeString funcSigStr
+    result                                         <-  andM $ map (\f -> f modules funcSig candidate) checks
 
-  state <- get
-  when result $ liftIO $ runPrints state
+    if result
+      then get    >>=   \s -> liftIO $ printFilter candidate s
+      else modify $     \s -> s {discardedSolutions = candidate : discardedSolutions s}
 
-  return $ if result then Just (collectExamples (unqualifyFunc body, body) state) 
-                     else Nothing
+    if result
+      then get <&> (Just . map (second (map toExample)) . Map.toList . differentiateExamples)
+      else return Nothing
   where
-    (modules, funcSig, body, argList) = extractSolution env goalType prog
-    argNames = map fst argList
-    checks = [ checkSolutionNotCrash
-             , checkDuplicates]
+    checks = [ checkSolutionNotCrash, checkDuplicates]
 
-    runChecks_ = and <$> mapM (\f -> f modules argNames funcSig body) checks
-    runPrints state = do
-      putStrLn "\n*******************FILTER*********************"
-      putStrLn (show $ unqualifyFunc body)
-      putStrLn (printSolutionState (unqualifyFunc body, body) state)
+checkSolutionNotCrash :: MonadIO m => [String] -> FunctionSignature -> String -> FilterTest m Bool
+checkSolutionNotCrash modules funcSig solution = do
+  result <- validateCandidate modules solution funcSig
+  modify $ \s -> s {solutionDescriptions = (solution, result) : solutionDescriptions s }
+  return $ isSuccess result
+      
+checkDuplicates :: MonadIO m => [String] -> FunctionSignature -> String -> FilterTest m Bool
+checkDuplicates modules funcSig candidate = do
+  FilterState previousCandidates _ _ _ _ <- get
+  result <- classifyCandidate modules candidate funcSig previousCandidates
 
-checkSolutionNotCrash :: MonadIO m => [String] -> [String] -> String -> UProgram -> FilterTest m Bool
-checkSolutionNotCrash modules argNames sigStr body = do
-  fs@(FilterState _ _ examples _) <- get
-  result <- liftIO executeCheck
+  case result of
+    DuplicateOf _ -> return False
+    New assocExamples -> do
+      modify $ \s -> s {
+        solutions             = candidate : solutions s,
+        differentiateExamples = Map.unionWith (++) (differentiateExamples s) (Map.fromList assocExamples)
+      }
 
-  let pass = case result of
-               Right (AlwaysFail _) -> False
-               _ -> True
-
-  let Right desc = result
-  put $ fs {solutionExamples = ((unqualifyFunc body, body), desc) : examples}
-  return pass
-
-  where
-    handleNotSupported = (`catch` ((\ex -> return (Left (UnknownError $ show ex))) :: NotSupportedException -> IO (Either InterpreterError FunctionCrashDesc)))
-    funcSig = (instantiateSignature . parseTypeString) sigStr
-    executeCheck = handleNotSupported $ validateSolution modules argNames (show body) funcSig defaultTimeoutMicro
-
-
-checkDuplicates :: MonadIO m => [String] -> [String] -> String -> UProgram -> FilterTest m Bool
-checkDuplicates modules argNames sigStr solution = do
-  fs@(FilterState is solns _ examples) <- get
-  case solns of
-
-    -- no solution yet; skip the check
-    [] -> do
-      put fs {solutions = solution:solns}
       return True
 
-    -- find an input i such that all synthesized results can be differentiated semantically
-    _ -> do
-      results <- liftIO $ compareSolution modules argNames (show solution) (map show solns) funcSig defaultTimeoutMicro
-      passTest <- and <$> zipWithM processResult results solns
-
-      fs'@(FilterState is solns _ examples) <- get
-      if passTest
-        then (put fs' {solutions = solution : solns})
-        else (put fs)
-
-      return passTest
-
-  where
-    funcSig = (instantiateSignature . parseTypeString) sigStr
-    caseToInput (Just (AtLeastTwo i_1 _ i_2 _)) = [i_1, i_2]
-
-    filterRelated i1 i2 (Example inputX _) = inputX == i1 || inputX == i2
-    filterSuccess (Left (UnknownError "timeout")) = False
-    filterSuccess (Left _) = True
-    filterSuccess (Right (r@(Just AtLeastTwo {}), newExamples)) = True
-    filterSuccess _ = False
-
-    processResult result otherSolution = do
-      state@(FilterState is solns _ examples) <- get
-      case result of
-        -- bypass the check on any timeout or error
-        Left (UnknownError "timeout") -> return False -- no example -> reject
-        Left err -> return True
-
-        -- SmallCheck fails to find any differentiating input
-        Right (Just NotExist, _) -> return False
-        Right (Nothing, _) -> return False
-
-        -- the trick to make SC to generate two inputs
-        Right (r@(Just AtLeastTwo {}), newExamples) -> do
-          let [i1, i2] = caseToInput r
-          let sols = [ (unqualifyFunc solution, solution)
-                     , (unqualifyFunc otherSolution, otherSolution)
-                     ]
-          put $ state {
-            inputs = [i1, i2] ++ is,
-            differentiateExamples = (zip sols (filter (filterRelated i1 i2) newExamples)) ++ examples
-          }
-          return True
-        _ -> return False
-
--- show parameters to some Haskell representation
+-- | Format the placeholder for parameters to some Haskell representation.
 -- (plain variables, typed variables, list of show, unwrapped variables)
--- >> showParams ["Int"] => ("arg_0", "(arg_0 :: Inner Int)", "[show arg_0]", "(unwrap arg_0)")
-showParams :: [String] -> [ArgumentType] -> (String, String, String, String)
-showParams argNames args = (plain, typed, shows, unwrp)
+-- >>> showParams [Concrete "Int", Concrete "String"]
+-- ("(arg_1) (arg_2)","(arg_1 :: MyInt) (arg_2 :: [MyChar])","[(show arg_1), (show arg_2)]","(unwrap arg_1) (unwrap arg_2)")
+showParams :: [ArgumentType] -> (String, String, String, String)
+showParams args = (plain, typed, shows, unwrp)
   where
-    args' = zip argNames $ map replaceInner args
+    args' = zip [1..] $ map replaceMyType args
 
-    plain = unwords $ formatIdx "(%s)"
-    unwrp = unwords $ formatIdx "(unwrap %s)"
-    typed = unwords $ map (\(idx, tipe) -> printf "(%s :: %s)" idx (show tipe) :: String) args'
+    plain = unwords $ formatIdx "(arg_%d)"
+    unwrp = unwords $ formatIdx "(unwrap arg_%d)"
+    typed = unwords $ map (\(idx, tipe) -> printf "(arg_%d :: %s)" idx (show tipe) :: String) args'
 
-    shows = "[" ++ intercalate ", " (formatIdx "(show %s)") ++ "]"
-    formatIdx format = map ((printf format :: String -> String) . fst) args'
-    
-    replaceInner :: ArgumentType -> ArgumentType
-    replaceInner x =
-      let apply a b = ArgTypeApp (ArgTypeApp (Concrete "MyFun") a) b in case x of
-        Concrete _ -> x
-        Polymorphic _ -> x
-        ArgTypeList t -> ArgTypeList (replaceInner t)
-        ArgTypeTuple ts -> ArgTypeTuple (map replaceInner ts)
-        ArgTypeApp f a -> ArgTypeApp (replaceInner f) (replaceInner a)
-        ArgTypeFunc arg res -> apply (replaceInner arg) (replaceInner res)
+    shows = "[" ++ intercalate ", " (formatIdx "(show arg_%d)") ++ "]"
+    formatIdx format = map ((printf format :: Int -> String) . fst) args'
 
--- ******** Example Generator ********
+replaceMyType :: ArgumentType -> ArgumentType
+replaceMyType x =
+  let apply a b = ArgTypeApp (ArgTypeApp (Concrete "MyFun") a) b in case x of
+    Concrete      "Int"     -> Concrete "MyInt"
+    Concrete      "Char"    -> Concrete "MyChar"
+    Concrete      "String"  -> ArgTypeList $ Concrete "MyChar"
+    Concrete      _         -> x
+    Polymorphic   _         -> x
+    ArgTypeList   t         -> ArgTypeList (replaceMyType t)
+    ArgTypeTuple  ts        -> ArgTypeTuple (map replaceMyType ts)
+    ArgTypeApp    f a       -> ArgTypeApp (replaceMyType f) (replaceMyType a)
+    ArgTypeFunc   arg res   -> apply (replaceMyType arg) (replaceMyType res)
 
-generateIOPairs :: [String] -> String -> FunctionSignature -> [String] -> Int -> Int -> Int -> Depth -> [String] -> [[String]] -> IO (Either InterpreterError GeneratorResult)
-generateIOPairs modules solution funcSig argNames numPairs timeInMicro interpreterTimeInMicro depth existingResults existingInputs =
-  runInterpreter' interpreterTimeInMicro $ do
-    setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
-    interpret property (as :: IO GeneratorResult) >>= liftIO
+-- | Parse Example string from QC.label to Example
+parseExamples :: BackendResult -> [InternalExample]
+parseExamples result = concatMap (read . head) $ Map.keys $ QC.labels result
 
+-- | Extract higher-order arguments from a type signature.
+-- >>> extractHigherOrderQuery $ parseTypeString "a -> (a -> b) -> [(a -> b -> c)] -> b"
+-- [((a) -> (b)),((a) -> (((b) -> (c))))]
+extractHigherOrderQuery :: FunctionSignature -> [ArgumentType]
+extractHigherOrderQuery FunctionSignature{_constraints, _argsType, _returnType} = nub $ concatMap (`extract` []) _argsType
   where
-    funcSig' = instantiateSignature funcSig
-    typeStr = show funcSig'
-    params = showParams argNames (_argsType funcSig')
-    property = buildProp solution funcSig'
+    extract :: ArgumentType -> [ArgumentType] -> [ArgumentType]
+    extract argType xs = case argType of
+      ArgTypeFunc   l r   -> argType : xs
+      ArgTypeTuple  types -> concatMap (`extract` []) types ++ xs
+      ArgTypeList   sub   -> extract sub [] ++ xs
+      ArgTypeApp    l r   -> extract l [] ++ extract r [] ++ xs
+      _                   -> xs
 
-    buildProp :: String -> FunctionSignature -> String
-    buildProp solution funcSig =
+-- | Given type queries, query Hoogle for components.
+-- >>> queryHoogle ["a -> a", "a -> a -> a"]
+-- [["id"],["asTypeOf","const","seq"]]
+queryHoogle :: [String] -> IO [[String]]
+queryHoogle types = Hoogle.defaultDatabaseLocation >>= (`Hoogle.withDatabase` invokeQuery)
+  where invokeQuery db = do
+              let functions = map ( take 5 .
+                                  nubOrd .
+                                  map ( head .
+                                        splitOn " :: " .
+                                        unHTML .
+                                        Hoogle.targetItem
+                                      ) .
+                                  filter isInModuleList .
+                                  filter doesNotHaveTypeClass .
+                                  Hoogle.searchDatabase db .
+                                  (++) ":: "
+                                ) types
+              return functions
+        isInModuleList x = let Just (name, _) = Hoogle.targetModule x in name `elem` hoogleQueryModuleList
+        doesNotHaveTypeClass Hoogle.Target{Hoogle.targetItem} = not ("=&gt;" `isInfixOf` targetItem)
 
-      formatProp params wrapper
+queryHooglePlus :: [String] -> IO [[String]]
+queryHooglePlus types = print types >> print "called" >> return []
+
+queryHigherOrderArgument :: MonadIO m => [String] -> FilterTest m [[String]]
+queryHigherOrderArgument queries = do
+    FilterState _ _ _ _ cache <-  get
+    let cachedResults           =   zip queries $ map (`Map.lookup` cache) queries
+
+    let nextQueries             =   map fst $ filter needsQuery cachedResults
+    if null nextQueries
+      then return $ map (fromJust . snd) cachedResults
+      else do
+            nextQueryResults    <-  Map.unionsWith (++) <$> mapM (\f -> Map.fromList . zip nextQueries <$> liftIO (f nextQueries)) searchFunctions
+
+            let cachedResultMap =   Map.fromList $ map (second fromJust) $ filter (not . needsQuery) cachedResults
+            let result          =   Map.union cachedResultMap nextQueryResults
+
+            modify (\state -> state { higherOrderArgumentCache = Map.union (higherOrderArgumentCache state) result })
+            return (map snd $ Map.toList result)
+  where
+    needsQuery (_, Nothing) = True
+    needsQuery _            = False
+
+    searchFunctions = [queryHooglePlus]
+
+
+-- >>> prepareEnvironment $ parseTypeString "a -> (Int -> Int -> Int) -> a"
+-- >>> runInterpreterWithEnvTimeoutHOF (10^8) (parseTypeString "a -> (Int -> [Int]) -> a") (return "114514")
+prepareEnvironment :: MonadIO m => FunctionSignature -> FilterTest m String
+prepareEnvironment funcSig = do
+    let higherOrderTypes = extractHigherOrderQuery funcSig
+    queryResults <- queryHigherOrderArgument $ map show higherOrderTypes
+
+    tmpDir <- liftIO getTmpDir
+    baseName <- liftIO nextRandom
+    let baseNameStr = show baseName ++ ".hs"
+    let fileName = tmpDir ++ "/" ++ baseNameStr
+
+    let sourceCode = buildEnvFileContent higherOrderTypes queryResults
+    if null queryResults || all null queryResults
+      then liftIO $ writeFile fileName ""
+      else liftIO $ writeFile fileName sourceCode
+
+    -- liftIO $ putStrLn sourceCode
+
+    return fileName
+  where
+    prelude = [ "{-# LANGUAGE FlexibleInstances #-}"
+              , "module HigherOrderParamsEnv where"
+              , "import Control.Monad"
+              , "import Test.QuickCheck"
+              , "import InternalTypeGen"
+              ] ++ map ("import " ++) hoogleQueryModuleList
+
+    postlude = "instance Arbitrary (%s) where arbitrary = sized $ \\n -> if n < %d then elements insFunc_%d else liftM Generated arbitrary"
+    buildInstanceFunction tipe expr = printf "(Expression %s (%s))" (show expr) (buildExpression tipe expr) :: String
+    buildInstanceFunctions tipe exprs = "[" ++ intercalate ", " (map (buildInstanceFunction tipe) exprs) ++ "]"
+
+    buildEnvFileContent types exprGroups = unlines $ prelude ++ concat (zipWith3 buildStep [(1 :: Int)..] types exprGroups)
       where
-        wrapper = buildWrapper solution typeStr params defaultTimeoutMicro
+        buildStep _ tipe []    = ["-- no Hoogle result available; bypassed building " ++ show tipe ]
+        buildStep i tipe exprs = 
+          let functionType = (buildAppType $ replaceMyType tipe) in
+            [ printf "insFunc_%d :: [%s]" i functionType
+            , printf "insFunc_%d = %s" i (buildInstanceFunctions tipe exprs)
+            , printf postlude functionType higherOrderGenMaxSize i
+            ] :: [String]
 
-        formatProp (plain, typed, shows, unwrp) wrappedSolution = unwords
-          [ wrappedSolution
-          , printf "let previousResults = [%s] in" (intercalate ", " $ map show existingResults)
-          , printf "let previousInputs = %s in" (show existingInputs)
-          , printf "let prop %s = monadic ((wrappedSolution %s) >>= (waitState %d %s previousResults previousInputs)) in" plain plain numPairs shows
-          , printf "execStateT (smallCheckM %d (exists prop)) []" depth] :: String
+    buildAppType :: ArgumentType -> String
+    buildAppType = \case
+            ArgTypeFunc l r   -> printf "MyFun (%s) (%s)" (buildAppType l) (buildAppType r) 
+            otherType         -> show otherType
 
-    buildWrapper solution typeStr params timeInMicro =
-      unwords [ buildLetFunction solution typeStr
-              , buildTimeoutWrapper params timeInMicro
-              ]
-      where
-        buildLetFunction :: String -> String -> String
-        buildLetFunction solution solutionType =
-          printf "let sol_wrappedSolution = ((%s) :: %s) in" solution (replaceId "MyInt" "Int" typeStr) :: String
-
-        buildTimeoutWrapper :: (String, String, String, String) -> Int -> String
-        buildTimeoutWrapper (plain, typed, shows, unwrp) timeInMicro =
-          printf "let wrappedSolution %s = (liftIO $ CB.timeOutMicro' %d (CB.approxShow %d (sol_wrappedSolution %s))) in" typed timeInMicro defaultMaxOutputLength unwrp :: String
+    buildExpression :: ArgumentType -> String -> String
+    buildExpression tipe expr = printf "wrap ((%s) :: %s)" expr (show tipe)

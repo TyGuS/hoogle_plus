@@ -59,7 +59,7 @@ updateCover' bound cover intscts t paren =
      in if isJust intsctMb then (fromJust intsctMb : intscts, cover)
                            else (intscts, cover)
 
-propagate :: MonadIO m => Environment -> RProgram -> AbstractSkeleton -> PNSolver m ()
+propagate :: (MonadIO m, MonadFail m) => Environment -> RProgram -> AbstractSkeleton -> PNSolver m ()
 -- | base case, when we reach the leaf of the AST
 propagate env p@(Program (PSymbol sym) t) upstream = do
     writeLog 2 "propagate" $ text "propagate" <+> pretty upstream <+> text "into" <+> pretty p

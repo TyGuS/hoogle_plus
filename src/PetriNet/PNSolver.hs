@@ -277,7 +277,7 @@ addMusters arg = do
 -- | refine the current abstraction
 -- do the bidirectional type checking first, compare the two programs we get,
 -- with the type split information update the abstraction tree
-refineSemantic :: MonadIO m => Environment -> RProgram -> AbstractSkeleton -> PNSolver m SplitInfo
+refineSemantic :: (MonadIO m, MonadFail m) => Environment -> RProgram -> AbstractSkeleton -> PNSolver m SplitInfo
 refineSemantic env prog at = do
     cover <- gets $ view (refineState . abstractionCover)
     writeLog 2 "refineSemantic" $ text "Current abstract types:" <+> text (show cover)
@@ -509,7 +509,7 @@ fixEncoder env dst info = do
     st' <- liftIO $ execStateT (encoderRefine info srcTypes rets funcs) st
     modify $ set encoder st'
 
-findProgram :: MonadIO m
+findProgram :: (MonadIO m, MonadFail m)
             => Environment -- the search environment
             -> RSchema     -- the goal type
             -> [Example]   -- examples for post-filtering
@@ -691,7 +691,7 @@ generateCode initialFormer env src args sigs = do
     writeLog 1 "generateCode" $ pretty rets
     liftIO (evalStateT (generateProgram sigs src args rets disrel) initialFormer)
 
-nextSolution :: MonadIO m 
+nextSolution :: (MonadIO m, MonadFail m)
              => Environment 
              -> RSchema
              -> [Example] 
@@ -755,7 +755,7 @@ checkSolution env goal examples code = do
                     lift $ writeSolution out
                     return $ Found (code', exs)
 
-runPNSolver :: MonadIO m => Environment -> RSchema -> [Example] -> PNSolver m ()
+runPNSolver :: (MonadIO m, MonadFail m) => Environment -> RSchema -> [Example] -> PNSolver m ()
 runPNSolver env goal examples = do
     writeLog 3 "runPNSolver" $ text $ show (allSymbols env)
     cnt <- getExperiment solutionCnt
