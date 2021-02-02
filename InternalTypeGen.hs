@@ -14,7 +14,6 @@ import qualified Test.ChasingBottoms as CB
 import qualified Test.QuickCheck as QC
 
 defaultMaxOutputLength    = 200         :: CB.Nat
-defaultSeriesLimit        = 5           :: Int
 defaultTimeoutMicro       = 400         :: Int
 defaultIntRange           = [-2..10]    :: [Int]
 defaultCharRange          = ['a'..'d']  :: [Char]
@@ -104,12 +103,10 @@ instance Ord a            =>  Ord (Box a)             where compare (BoxValue l)
 instance Show a           =>  Show (Box a)            where show (BoxValue v) = show v
 instance QC.Arbitrary a   =>  QC.Arbitrary (Box a)    where arbitrary = fmap BoxValue QC.arbitrary
 instance QC.CoArbitrary a =>  QC.CoArbitrary (Box a)  where coarbitrary (BoxValue v) = QC.coarbitrary v
-unbox :: Box a -> a;          unbox (BoxValue v) = v
         
 -- * Custom Datatype Conversion
 class    Unwrappable a b                                                            where unwrap :: a -> b; wrap :: b -> a
-instance Unwrappable (Box a) a                                                      where unwrap = unbox; wrap = BoxValue
-instance Unwrappable a b => Unwrappable (Box a) b                                   where unwrap = unwrap . unbox; wrap = BoxValue . wrap
+instance Unwrappable a b => Unwrappable (Box a) b                                   where unwrap = unwrap . (\(BoxValue v) -> v); wrap = BoxValue . wrap
 instance Unwrappable MyInt Int                                                      where unwrap (MyIntValue v) = v; wrap = MyIntValue
 instance Unwrappable MyChar Char                                                    where unwrap (MyCharValue v) = v; wrap = MyCharValue
 instance (Unwrappable a c, Unwrappable b d)   => Unwrappable (a -> b)    (c -> d)   where unwrap f = \x -> unwrap $ f $ wrap x; wrap f = \x -> wrap $ f $ unwrap x
