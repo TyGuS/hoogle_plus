@@ -121,14 +121,14 @@ printFilter solution fs@FilterState{discardedSolutions, solutionDescriptions, di
         putStrLn "\n*******************FILTER*********************"
         putStrLn $ "SOLN: " ++ solution
         putStrLn "***IO Examples***"
-        putStrLn ioExamples
+        putStrLn $ unlines ioExamples
         putStrLn "***Diff Examples***"
         putStrLn diffExamples
-        putStrLn $ LB.unpack $ encodeWithPrefix discardedSolutions
+        putStrLn $ LB.unpack $ encodeWithPrefix ioExamples
         putStrLn "**********************************************\n"
     where
-        diffExamples = unlines $ concat $ map (\(soln, examples) -> ["- " ++ soln] ++ map (('\t':) . show) examples) $ Map.toList differentiateExamples
-        ioExamples   = let (_, desc) = head $ filter ((== solution) . fst) solutionDescriptions in show desc
+        diffExamples = unlines $ concatMap (\(soln, examples) -> ("- " ++ soln) : map (('\t':) . show) examples) (Map.toList differentiateExamples)
+        ioExamples   = map show $ let (_, desc) = head $ filter ((== solution) . fst) solutionDescriptions in case desc of Total ex -> ex; Partial ex -> ex; _ -> []
 
         encodeWithPrefix obj = LB.append (LB.pack "EXPRMTS:") (A.encode obj)
 

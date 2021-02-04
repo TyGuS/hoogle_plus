@@ -44,6 +44,8 @@ import Debug.Trace
 -- | Parse a string to an internal representation of type signatures.
 -- >>> parseTypeString "(Eq a, Ord b) => a -> b"
 -- (((Eq) (a)), ((Ord) (b))) => a -> b
+-- >>> _returnType $ parseTypeString "((a -> a))"
+-- ((a) -> (a))
 parseTypeString :: String -> FunctionSignature
 parseTypeString input = FunctionSignature constraints argsType returnType
   where
@@ -92,9 +94,9 @@ instantiateSignature (FunctionSignature _ argsType returnType) =
       ArgTypeApp    l r -> concatMap capturePolymorphic [l, r]
       ArgTypeFunc   l r -> concatMap capturePolymorphic [l, r]
       _                 -> []
-        
+
     instantPolymorphic mappings = f
-      where f = \case 
+      where f = \case
                   Polymorphic   x   -> Instantiated $ maybe "Int" snd (find ((== x) . fst) mappings)
                   ArgTypeList   x   -> ArgTypeList $ f x
                   ArgTypeTuple  xs  -> ArgTypeTuple $ map f xs
@@ -219,8 +221,8 @@ validateCandidate modules solution funcSig = do
     readResult :: BackendResult -> CandidateValidDesc
     readResult r@QC.GaveUp{QC.numTests}
               | numTests == 0 = Invalid
-              | otherwise     = Partial $ parseExamples r
-    readResult r@QC.Success{} = Total $ parseExamples r
+              | otherwise     = (Partial . pickExamples . parseExamples) r
+    readResult r@QC.Success{} = (Total . pickExamples . parseExamples) r
 
 -- >>> (evalStateT (classifyCandidate ["Data.Either", "GHC.List", "Data.Maybe", "Data.Function"] "\\e f -> Data.Either.either f (GHC.List.head []) e" (instantiateSignature $ parseTypeString "Either a b -> (a -> b) -> b") ["\\e f -> Data.Either.fromRight (f (Data.Maybe.fromJust Data.Maybe.Nothing)) e", "\\e f -> Data.Either.either f Data.Function.id e"]) emptyFilterState) :: IO CandidateDuplicateDesc
 classifyCandidate :: MonadIO m => [String] -> Candidate -> FunctionSignature -> [Candidate] -> FilterTest m CandidateDuplicateDesc
@@ -252,7 +254,7 @@ classifyCandidate modules candidate funcSig previousCandidates = if null previou
         Right results       -> zipWith (readResult candidate) previousCandidates results
 
     mergeExamples :: [AssociativeInternalExamples] -> AssociativeInternalExamples
-    mergeExamples rawExamples = 
+    mergeExamples rawExamples =
       let exampleMaps = map (Map.fromList . map (second (take 2))) rawExamples in
         Map.toList $ Map.unionsWith (++) exampleMaps
 
@@ -277,7 +279,7 @@ checkSolutionNotCrash modules funcSig solution = do
   result <- validateCandidate modules solution funcSig
   modify $ \s -> s {solutionDescriptions = (solution, result) : solutionDescriptions s }
   return $ isSuccess result
-      
+
 checkDuplicates :: MonadIO m => [String] -> FunctionSignature -> String -> FilterTest m Bool
 checkDuplicates modules funcSig candidate = do
   FilterState previousCandidates _ _ _ _ <- get
@@ -350,29 +352,22 @@ queryHoogle types = Hoogle.defaultDatabaseLocation >>= (`Hoogle.withDatabase` in
         doesNotHaveTypeClass Hoogle.Target{Hoogle.targetItem} = not ("=&gt;" `isInfixOf` targetItem)
 
 queryHooglePlus :: [String] -> IO [[String]]
-queryHooglePlus types = print types >> print "called" >> return []
+queryHooglePlus types = return []
 
-queryHigherOrderArgument :: MonadIO m => [String] -> FilterTest m [[String]]
+queryHigherOrderArgument :: MonadIO m => [String] -> FilterTest m [(String, [String])]
 queryHigherOrderArgument queries = do
-    FilterState _ _ _ _ cache <-  get
-    let cachedResults           =   zip queries $ map (`Map.lookup` cache) queries
+    cache             <-  gets higherOrderArgumentCache
+    let cachedResults =   zipWith (curry $ second $ fromMaybe []) queries (map (`Map.lookup` cache) queries)
 
-    let nextQueries             =   map fst $ filter needsQuery cachedResults
-    if null nextQueries
-      then return $ map (fromJust . snd) cachedResults
-      else do
-            nextQueryResults    <-  Map.unionsWith (++) <$> mapM (\f -> Map.fromList . zip nextQueries <$> liftIO (f nextQueries)) searchFunctions
+    let nextQueries   =   map fst $ filter (null . snd) cachedResults
+    queryResults      <-  Map.unionsWith (++) <$> mapM (\f -> Map.fromList . zip nextQueries <$> liftIO (f nextQueries)) searchFunctions
 
-            let cachedResultMap =   Map.fromList $ map (second fromJust) $ filter (not . needsQuery) cachedResults
-            let result          =   Map.union cachedResultMap nextQueryResults
+    let result        =   Map.union (Map.fromList cachedResults) queryResults
 
-            modify (\state -> state { higherOrderArgumentCache = Map.union (higherOrderArgumentCache state) result })
-            return (map snd $ Map.toList result)
+    modify (\state -> state { higherOrderArgumentCache = Map.union (higherOrderArgumentCache state) result })
+    return (Map.toList result)
   where
-    needsQuery (_, Nothing) = True
-    needsQuery _            = False
-
-    searchFunctions = [queryHooglePlus]
+    searchFunctions = [queryHoogle, queryHooglePlus]
 
 
 -- >>> prepareEnvironment $ parseTypeString "a -> (Int -> Int -> Int) -> a"
@@ -380,7 +375,11 @@ queryHigherOrderArgument queries = do
 prepareEnvironment :: MonadIO m => FunctionSignature -> FilterTest m String
 prepareEnvironment funcSig = do
     let higherOrderTypes = extractHigherOrderQuery funcSig
-    queryResults <- queryHigherOrderArgument $ map show higherOrderTypes
+    let higherOrderTypeStrs = map show higherOrderTypes
+
+    -- order of results is not preserved. Here, we reorder it to pair it with higher-ordered types.
+    -- Why we want to pair it? Because type signature contains ``Box'' information.
+    queryResults <- queryHigherOrderArgument higherOrderTypeStrs <&> \result -> map (fromMaybe [] . (`lookup` result)) higherOrderTypeStrs
 
     tmpDir <- liftIO getTmpDir
     baseName <- liftIO nextRandom
@@ -388,7 +387,7 @@ prepareEnvironment funcSig = do
     let fileName = tmpDir ++ "/" ++ baseNameStr
 
     let sourceCode = buildEnvFileContent higherOrderTypes queryResults
-    if null queryResults || all null queryResults
+    if all null queryResults
       then liftIO $ writeFile fileName ""
       else liftIO $ writeFile fileName sourceCode
 
@@ -405,10 +404,10 @@ prepareEnvironment funcSig = do
     buildInstanceFunction tipe expr = printf "(Expression %s (%s))" (show expr) (buildExpression tipe expr) :: String
     buildInstanceFunctions tipe exprs = "[" ++ intercalate ", " (map (buildInstanceFunction tipe) exprs) ++ "]"
 
-    buildEnvFileContent types exprGroups = unlines $ prelude ++ concat (zipWith3 buildStep [(1 :: Int)..] types exprGroups)
+    buildEnvFileContent tipes exprGroups = unlines $ prelude ++ concat (zipWith3 buildStep [(1 :: Int)..] tipes exprGroups)
       where
-        buildStep _ tipe []    = ["-- no Hoogle result available; bypassed building " ++ show tipe ]
-        buildStep i tipe exprs = 
+        buildStep _ tipe []    = ["-- Bypass building " ++ show tipe]
+        buildStep i tipe exprs =
           let functionType = (buildAppType $ replaceMyType tipe) in
             [ printf "insFunc_%d :: [%s]" i functionType
             , printf "insFunc_%d = %s" i (buildInstanceFunctions tipe exprs)
@@ -417,9 +416,8 @@ prepareEnvironment funcSig = do
 
     buildAppType :: ArgumentType -> String
     buildAppType = \case
-            ArgTypeFunc l r   -> printf "MyFun (%s) (%s)" (buildAppType l) (buildAppType r) 
+            ArgTypeFunc l r   -> printf "MyFun (%s) (%s)" (buildAppType l) (buildAppType r)
             otherType         -> show otherType
 
     buildExpression :: ArgumentType -> String -> String
     buildExpression tipe expr = printf "wrap ((%s) :: %s)" expr (show tipe)
-    

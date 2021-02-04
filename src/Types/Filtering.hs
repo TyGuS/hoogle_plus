@@ -12,11 +12,7 @@ import qualified Data.Map as Map
 import Types.IOFormat (Example(Example))
 
 defaultInterpreterTimeoutMicro = 10 * 10^6 :: Int
-defaultGenerationTimeoutMicro = 30 * 10^6 :: Int
-
--- todo: remove the constant as not used -- example checker
 defaultTimeoutMicro = 100 :: Int
-defaultNumExtraExamples = 2 :: Int
 
 hoogleQueryModuleList = ["Prelude", "Data.List", "Data.Maybe", "Data.Either"]
 hoogleQueryTypeclassList = ["Eq", "Ord"]
@@ -66,28 +62,10 @@ data CandidateDuplicateDesc =
 
 instance Show CandidateValidDesc where
   show = \case
-      Total   examples -> showExamples examples
-      Partial examples -> showExamples examples
+      Total   examples -> unlines $ map show examples
+      Partial examples -> unlines $ map show examples
       Invalid          -> "<bottom>"
       Unknown ex       -> "<exception> " ++ ex
-    where
-      showExamples :: [InternalExample] -> String
-      showExamples examples =
-          let examplesGroupedByOutput = groupOn outputConstr (filter noGenerated examples) in
-          let examplesGroupedByInput  = map (map last . groupOn inputConstrs) examplesGroupedByOutput in
-            unlines $ map show $ concatMap (take 5 . reverse) examplesGroupedByInput
-            
-        where
-          noGenerated :: InternalExample -> Bool
-          noGenerated ex = "<Generated>" `notElem` inputs ex
-
-          groupOn :: (Ord b) => (a -> b) -> [a] -> [[a]]
-          groupOn f =
-            let unpack = fmap snd . Map.toList
-                fld m a = case Map.lookup (f a) m of
-                  Nothing -> Map.insert (f a) [a] m
-                  Just as -> Map.insert (f a) (a:as) m
-            in unpack . foldl fld Map.empty
 
 data ArgumentType =
     Concrete      String
@@ -160,3 +138,22 @@ instance TestPassable CandidateDuplicateDesc where
   isSuccess = \case
     New _ -> True
     _   -> False
+
+
+pickExamples :: [InternalExample] -> [InternalExample]
+pickExamples examples =
+  let examplesGroupedByOutput = groupOn outputConstr (filter noGenerated examples) in
+  let examplesGroupedByInput  = map (map last . groupOn inputConstrs) examplesGroupedByOutput in
+    concatMap (take 5 . reverse) examplesGroupedByInput
+    
+    where
+      noGenerated :: InternalExample -> Bool
+      noGenerated ex = "<Generated>" `notElem` inputs ex
+
+      groupOn :: (Ord b) => (a -> b) -> [a] -> [[a]]
+      groupOn f =
+        let unpack = fmap snd . Map.toList
+            fld m a = case Map.lookup (f a) m of
+              Nothing -> Map.insert (f a) [a] m
+              Just as -> Map.insert (f a) (a:as) m
+        in unpack . foldl fld Map.empty

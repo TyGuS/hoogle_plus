@@ -17,7 +17,7 @@ import Types.IOFormat
 import Types.Experiments
 import Types.Environment
 import Types.Type
-import Types.Filtering (defaultTimeoutMicro, defaultInterpreterTimeoutMicro, defaultGenerationTimeoutMicro)
+import Types.Filtering (defaultTimeoutMicro, defaultInterpreterTimeoutMicro)
 import Synquid.Parser (parseSchema, parseProgram)
 import Synquid.Resolver (ResolverState(..), initResolverState, resolveSchema)
 import Synquid.Type

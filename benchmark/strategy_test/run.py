@@ -4,10 +4,9 @@ from experiment import *
 
 QUERY_FILE = "../suites/working.yml"
 EXPERIMENT = [
-    # OptionExperiment("360-no-filter",   ["--disable-filter=True",   "--cnt=30"], 360),
-    OptionExperiment("360-filter",      ["--disable-filter=False",  "--cnt=9999"], 360),
-    OptionExperiment("180-no-filter",   ["--disable-filter=True",   "--cnt=9999"], 180),
-    OptionExperiment("180-filter",      ["--disable-filter=False",  "--cnt=9999"], 180),
+    # OptionExperiment("notimeout-filter",   ["--disable-filter=False",  "--cnt=9999"], 180),
+    # OptionExperiment("timeout-nofilter",   ["--disable-filter=True",   "--cnt=9999"], 60),
+    OptionExperiment("timeout-filter",     ["--disable-filter=False",  "--cnt=9999"], 60),
 ]
 
 def main():
