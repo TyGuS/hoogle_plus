@@ -138,17 +138,17 @@ buildFunctionWrapper functions solutionType@FunctionSignature{_returnType} param
       printf "let executeWrapper %s = (Prelude.map (\\f -> f %s :: %s) [%s]) in" typed unwrp retType (intercalate ", " wrapperNames) :: String
 
 buildNotCrashProp :: String -> FunctionSignature -> String
-buildNotCrashProp solution funcSig = formatNotCrashProp params wrapper
+buildNotCrashProp solution funcSig = traceId $ formatNotCrashProp params wrapper
   where
     params@(plain, typed, shows, showConstrs, unwrp) = showParams (_argsType funcSig)
 
     wrapper = buildFunctionWrapper [("wrappedSolution", solution)] funcSig params
-    formatNotCrashProp = formatProp "prop_not_crash" "\\out -> (not $ isFailedResult $ Prelude.head out) ==> True"
+    formatNotCrashProp = formatProp "prop_not_crash" "not . isFailedResult . Prelude.head"
 
     formatProp propName propBody (plain, typed, shows, showConstrs, unwrp) wrappedSolution = unwords
       [ wrappedSolution
-      , printf "let %s %s = monadicIO $ run $ labelEvaluation (%s) (%s) (executeWrapper %s) (%s) in" propName plain shows showConstrs plain propBody
-      , printf "quickCheckWithResult defaultTestArgs %s" propName ] :: String
+      , printf "let %s %s = stateEvaluation (%s) (executeWrapper %s) (%s) in" propName plain shows plain propBody
+      , printf "runStateT (smallCheckM 3 (%s)) []" propName ] :: String
 
 buildDupCheckProp :: (String, [String]) -> FunctionSignature -> [String]
 buildDupCheckProp (sol, otherSols) funcSig =
@@ -164,8 +164,8 @@ buildDupCheckProp' (sol, otherSols) funcSig = unwords [wrapper, formatProp]
     solutions = zip [printf "result_%d" x :: String | x <- [0..] :: [Int]] (sol:otherSols)
 
     formatProp = unwords
-      [ printf "let prop_duplicate %s = monadicIO $ run $ labelEvaluation (%s) (%s) (executeWrapper %s) (\\out -> (not $ anyDuplicate out) ==> True) in" plain shows showConstrs plain
-      , printf "quickCheckWithResult defaultTestArgs prop_duplicate" ] :: String
+      [ printf "let prop_duplicate %s = stateEvaluation (%s) (executeWrapper %s) (not . anyDuplicate) in" plain shows plain
+      , printf "runStateT (smallCheckM 3 prop_duplicate) []" ] :: String
 
 -- | Run Hint with the default script loaded.
 runInterpreterWithEnvTimeout :: Int -> InterpreterT IO a -> IO (Either InterpreterError a)
@@ -219,10 +219,10 @@ validateCandidate modules solution funcSig = do
     prop = buildNotCrashProp solution funcSig
 
     readResult :: BackendResult -> CandidateValidDesc
-    readResult r@QC.GaveUp{QC.numTests}
-              | numTests == 0 = Invalid
-              | otherwise     = (Partial . pickExamples . parseExamples) r
-    readResult r@QC.Success{} = (Total . pickExamples . parseExamples) r
+    readResult (examples, tests)
+              | all not tests = Invalid
+              | or tests      = (Total . pickExamples)    examples
+              | otherwise     = (Partial . pickExamples)  examples
 
 -- >>> (evalStateT (classifyCandidate ["Data.Either", "GHC.List", "Data.Maybe", "Data.Function"] "\\e f -> Data.Either.either f (GHC.List.head []) e" (instantiateSignature $ parseTypeString "Either a b -> (a -> b) -> b") ["\\e f -> Data.Either.fromRight (f (Data.Maybe.fromJust Data.Maybe.Nothing)) e", "\\e f -> Data.Either.either f Data.Function.id e"]) emptyFilterState) :: IO CandidateDuplicateDesc
 classifyCandidate :: MonadIO m => [String] -> Candidate -> FunctionSignature -> [Candidate] -> FilterTest m CandidateDuplicateDesc
@@ -237,13 +237,11 @@ classifyCandidate modules candidate funcSig previousCandidates = if null previou
       else return $ DuplicateOf (fst $ head $ filter snd $ zip previousCandidates $ map isJust examples)
   where
     readResult :: Candidate -> Candidate -> BackendResult -> Maybe AssociativeInternalExamples
-    readResult candidate previousCandidate result = case result of
-        QC.Failure {}                           -> Nothing
-        QC.GaveUp {QC.numTests} | numTests == 0 -> Nothing
-        QC.GaveUp {}                            -> assocs
-        QC.Success {}                           -> assocs
+    readResult candidate previousCandidate (exs, tests)
+        | all not tests = Nothing
+        | otherwise = assocs
       where
-        (examples, examplesForPrev) = splitConsecutive $ parseExamples result
+        (examples, examplesForPrev) = splitConsecutive exs
         assocs = Just [(candidate, examples), (previousCandidate, examplesForPrev)]
 
     readInterpreterResult :: Candidate -> [Candidate] -> Either InterpreterError [BackendResult] -> [Maybe AssociativeInternalExamples]
@@ -311,10 +309,6 @@ showParams args = (plain, typed, shows, showConstrs, unwrp)
     shows = "[" ++ intercalate ", " (formatIdx "(show arg_%d)") ++ "]"
     showConstrs =  "[" ++ intercalate ", " (formatIdx "(showConstr arg_%d)") ++ "]"
     formatIdx format = map ((printf format :: Int -> String) . fst) args'
-
--- | Parse Example string from QC.label to Example
-parseExamples :: BackendResult -> [InternalExample]
-parseExamples result = concatMap (read . head) $ Map.keys $ QC.labels result
 
 -- | Extract higher-order arguments from a type signature.
 -- >>> extractHigherOrderQuery $ parseTypeString "a -> (a -> b) -> [(a -> b -> c)] -> b"
@@ -390,7 +384,7 @@ prepareEnvironment funcSig = do
     let sourceCode = buildEnvFileContent higherOrderTypes queryResults
     if all null queryResults
       then liftIO $ writeFile fileName ""
-      else liftIO $ writeFile fileName sourceCode
+      else liftIO $ writeFile fileName "" -- todo: sourceCode
 
     return fileName
   where

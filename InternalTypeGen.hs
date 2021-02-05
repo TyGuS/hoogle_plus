@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, DeriveDataTypeable, LambdaCase #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, DeriveDataTypeable, LambdaCase, ScopedTypeVariables #-}
 module InternalTypeGen where
 
 import Control.DeepSeq (force)
@@ -12,9 +12,11 @@ import Data.List (isInfixOf, elemIndex, nub, drop, reverse, intersect, intercala
 import Text.Printf (printf)
 import qualified Test.ChasingBottoms as CB
 
+import Data.Bifunctor (first, second)
 import Control.Monad.State (StateT(..), modify, liftIO)
 import Test.SmallCheck (exists, Testable, Property, monadic)
 import qualified Test.SmallCheck.Series as SS
+import Test.SmallCheck.Drivers
 
 defaultMaxOutputLength    = 50         :: CB.Nat
 defaultTimeoutMicro       = 400         :: Int
@@ -56,14 +58,14 @@ anyDuplicate :: Ord a => [a] -> Bool
 anyDuplicate [x, y] = x == y
 anyDuplicate xs = length (nubOrd xs) /= length xs
 
-type ExampleGeneration m = StateT [InternalExample] m
+type ExampleGeneration m = StateT ([InternalExample], [Bool]) m
 
-stateEvaluation :: (Data a, ShowConstr a) => [String] -> [a] -> ([CB.Result String] -> Bool) -> Property (ExampleGeneration IO)
-stateEvaluation inputs values pred = monadic $ do
+stateEvaluation :: (Data a, ShowConstr a) => [String] -> [String] -> [a] -> ([CB.Result String] -> Bool) -> Property (ExampleGeneration IO)
+stateEvaluation inputs inputConstrs values pred = monadic $ do
     outputs <- map splitResult <$> mapM (liftIO . evaluateValue defaultTimeoutMicro) values
 
-    let examples = map (\(a, b) -> InternalExample inputs (map showConstr inputs) (showCBResult a) (showCBResult b)) outputs
-    modify (examples ++) >> return True
+    let examples = map (\(a, b) -> InternalExample inputs inputConstrs (showCBResult a) (showCBResult b)) outputs
+    modify (first (examples ++) . second ((pred $ map fst outputs) :)) >> return True
   where
     evaluateValue :: (Data a, ShowConstr a) => Int -> a -> IO (CB.Result (String, String))
     evaluateValue timeInMicro x = CB.timeOutMicro timeInMicro $ liftM2 (,) (t x) (s x)
@@ -140,3 +142,8 @@ instance  ShowConstr a                  =>  ShowConstr (Maybe a)    where showCo
 instance  (ShowConstr a, ShowConstr b)  =>  ShowConstr (a, b)       where showConstr (x, y) = printf "(%s,%s)" (showConstr x) (showConstr y)
 instance  (ShowConstr a)                =>  ShowConstr [a]          where showConstr xs = intercalate "," $ map showConstr xs
 instance  (ShowConstr a, ShowConstr b)  =>  ShowConstr (Either a b) where showConstr = \case Left x -> "Left$" ++ showConstr x; Right y -> "Right$" ++ showConstr y
+
+main = let wrappedSolution = ((\f x -> f x) :: () => ((Int) -> (String)) -> Int -> String) in
+  let executeWrapper (arg_1 :: ((((MyFun) (((Box) (MyInt))))) (((Box) ([MyChar]))))) (arg_2 :: ((Box) (MyInt))) = (Prelude.map (\f -> f (unwrap arg_1) (unwrap arg_2) :: String) [wrappedSolution]) in
+    let prop_not_crash (arg_1) (arg_2) = stateEvaluation ([(show arg_1), (show arg_2)]) (executeWrapper (arg_1) (arg_2)) (not . isFailedResult . Prelude.head) in
+      runStateT (smallCheckM 1 (prop_not_crash)) ([], [])

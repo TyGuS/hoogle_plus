@@ -19,17 +19,18 @@ hoogleQueryTypeclassList = ["Eq", "Ord"]
 higherOrderGenMaxSize = 5 :: Int
 
 frameworkModules =
-  zip [ "Test.QuickCheck"
-  , "Test.QuickCheck.Monadic"
+  zip [ "Test.SmallCheck"
+  , "Test.SmallCheck.Drivers"
   , "Test.QuickCheck.Function"
   , "Control.Exception"
   , "Control.Monad"
+  , "Control.Monad.State"
   ] (repeat Nothing)
 
   ++ [("Test.ChasingBottoms", Just "CB")]
 
 type Candidate = String
-type BackendResult = Result
+type BackendResult = ([InternalExample], [Bool]) 
 type GeneratorResult = [Example]
 
 type AssociativeInternalExamples = [(Candidate, [InternalExample])]
