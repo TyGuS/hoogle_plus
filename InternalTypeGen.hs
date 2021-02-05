@@ -54,11 +54,11 @@ anyDuplicate :: Ord a => [a] -> Bool
 anyDuplicate [x, y] = x == y
 anyDuplicate xs = length (nubOrd xs) /= length xs
 
-labelEvaluation :: (Data a, ShowConstr a, QC.Testable prop) => [String] -> [a] -> ([CB.Result String] -> prop) -> IO QC.Property
-labelEvaluation inputs values prop = do
+labelEvaluation :: (Data a, ShowConstr a, QC.Testable prop) => [String] -> [String] -> [a] -> ([CB.Result String] -> prop) -> IO QC.Property
+labelEvaluation inputs inputConstrs values prop = do
     outputs <- map splitResult <$> mapM (evaluateValue defaultTimeoutMicro) values
     
-    let examples = map (\(a, b) -> InternalExample inputs (map showConstr inputs) (showCBResult a) (showCBResult b)) outputs
+    let examples = map (\(a, b) -> InternalExample inputs inputConstrs (showCBResult a) (showCBResult b)) outputs
     return $ QC.label (show examples) (prop $ map fst outputs)
   where
     evaluateValue :: (Data a, ShowConstr a) => Int -> a -> IO (CB.Result (String, String))
@@ -125,8 +125,11 @@ class                                       ShowConstr a            where showCo
 instance                                    ShowConstr Int          where showConstr x = show $ x `compare` 0
 instance                                    ShowConstr Bool         where showConstr = show
 instance                                    ShowConstr Char         where showConstr = const "_"
+instance                                    ShowConstr MyInt        where showConstr = const "_"
+instance                                    ShowConstr MyChar       where showConstr = const "_"
 instance                                    ShowConstr (Box a)      where showConstr = const "_"
 instance                                    ShowConstr (a -> b)     where showConstr = const "<func>"
+instance                                    ShowConstr (MyFun a b)  where showConstr = \case Generated _ -> "<func>"; Expression n _ -> n
 instance  ShowConstr a                  =>  ShowConstr (Maybe a)    where showConstr = \case Just x -> "Just$" ++ showConstr x; Nothing -> "Nothing"
 instance  (ShowConstr a, ShowConstr b)  =>  ShowConstr (a, b)       where showConstr (x, y) = printf "(%s,%s)" (showConstr x) (showConstr y)
 instance  (ShowConstr a)                =>  ShowConstr [a]          where showConstr xs = intercalate "," $ map showConstr xs

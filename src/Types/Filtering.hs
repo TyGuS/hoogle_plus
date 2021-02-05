@@ -141,13 +141,13 @@ instance TestPassable CandidateDuplicateDesc where
 
 
 pickExamples :: [InternalExample] -> [InternalExample]
-pickExamples = pickExamples2
+pickExamples = pickExamples1
 
 pickExamples1 :: [InternalExample] -> [InternalExample]
 pickExamples1 examples =
   let examplesGroupedByOutput = groupOn outputConstr (filter noGenerated examples) in
   let examplesGroupedByInput  = map (map last . groupOn inputConstrs) examplesGroupedByOutput in
-    concatMap (take 5) examplesGroupedByInput
+    concatMap (take 10) examplesGroupedByInput
     
     where
       noGenerated :: InternalExample -> Bool
@@ -165,7 +165,7 @@ pickExamples2 :: [InternalExample] -> [InternalExample]
 pickExamples2 examples =
   let examplesGroupedByOutput = groupOn outputConstr (filter noGenerated examples) in
   let otherDistinctExamples = map (nubBy anySameInput) examplesGroupedByOutput in
-    concatMap (take 5) otherDistinctExamples
+    concatMap (take 10) otherDistinctExamples
     
     where
       noGenerated :: InternalExample -> Bool

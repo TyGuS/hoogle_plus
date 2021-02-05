@@ -123,8 +123,8 @@ replaceMyType x =
     ArgTypeFunc   arg res   -> apply (replaceMyType arg) (replaceMyType res)
 
 
-buildFunctionWrapper :: [(String, String)] -> FunctionSignature -> (String, String, String, String) -> String
-buildFunctionWrapper functions solutionType@FunctionSignature{_returnType} params@(plain, typed, shows, unwrp) =
+buildFunctionWrapper :: [(String, String)] -> FunctionSignature -> (String, String, String, String, String) -> String
+buildFunctionWrapper functions solutionType@FunctionSignature{_returnType} params@(plain, typed, shows, showConstrs, unwrp) =
     unwords
       (map (buildLetFunction $ show solutionType) functions ++ [buildWrapper (map fst functions) params (show _returnType)])
   where
@@ -133,21 +133,21 @@ buildFunctionWrapper functions solutionType@FunctionSignature{_returnType} param
       printf "let %s = ((%s) :: %s) in" wrapperName program programType :: String
 
     -- ! the wrapper magic (i.e. MyInt) only lives here (inside `typed`)
-    buildWrapper :: [String] -> (String, String, String, String) -> String -> String
-    buildWrapper wrapperNames (plain, typed, shows, unwrp) retType =
+    buildWrapper :: [String] -> (String, String, String, String, String) -> String -> String
+    buildWrapper wrapperNames (plain, typed, shows, showConstrs, unwrp) retType =
       printf "let executeWrapper %s = (Prelude.map (\\f -> f %s :: %s) [%s]) in" typed unwrp retType (intercalate ", " wrapperNames) :: String
 
 buildNotCrashProp :: String -> FunctionSignature -> String
 buildNotCrashProp solution funcSig = formatNotCrashProp params wrapper
   where
-    params@(plain, typed, shows, unwrp) = showParams (_argsType funcSig)
+    params@(plain, typed, shows, showConstrs, unwrp) = showParams (_argsType funcSig)
 
     wrapper = buildFunctionWrapper [("wrappedSolution", solution)] funcSig params
     formatNotCrashProp = formatProp "prop_not_crash" "\\out -> (not $ isFailedResult $ Prelude.head out) ==> True"
 
-    formatProp propName propBody (plain, typed, shows, unwrp) wrappedSolution = unwords
+    formatProp propName propBody (plain, typed, shows, showConstrs, unwrp) wrappedSolution = unwords
       [ wrappedSolution
-      , printf "let %s %s = monadicIO $ run $ labelEvaluation (%s) (executeWrapper %s) (%s) in" propName plain shows plain propBody
+      , printf "let %s %s = monadicIO $ run $ labelEvaluation (%s) (%s) (executeWrapper %s) (%s) in" propName plain shows showConstrs plain propBody
       , printf "quickCheckWithResult defaultTestArgs %s" propName ] :: String
 
 buildDupCheckProp :: (String, [String]) -> FunctionSignature -> [String]
@@ -157,14 +157,14 @@ buildDupCheckProp (sol, otherSols) funcSig =
 buildDupCheckProp' :: (String, [String]) -> FunctionSignature -> String
 buildDupCheckProp' (sol, otherSols) funcSig = unwords [wrapper, formatProp]
   where
-    params@(plain, typed, shows, unwrp) = showParams (_argsType funcSig)
+    params@(plain, typed, shows, showConstrs, unwrp) = showParams (_argsType funcSig)
     solutionType = show funcSig
 
     wrapper = buildFunctionWrapper solutions funcSig params
     solutions = zip [printf "result_%d" x :: String | x <- [0..] :: [Int]] (sol:otherSols)
 
     formatProp = unwords
-      [ printf "let prop_duplicate %s = monadicIO $ run $ labelEvaluation (%s) (executeWrapper %s) (\\out -> (not $ anyDuplicate out) ==> True) in" plain shows plain
+      [ printf "let prop_duplicate %s = monadicIO $ run $ labelEvaluation (%s) (%s) (executeWrapper %s) (\\out -> (not $ anyDuplicate out) ==> True) in" plain shows showConstrs plain
       , printf "quickCheckWithResult defaultTestArgs prop_duplicate" ] :: String
 
 -- | Run Hint with the default script loaded.
@@ -299,8 +299,8 @@ checkDuplicates modules funcSig candidate = do
 -- (plain variables, typed variables, list of show, unwrapped variables)
 -- >>> showParams [Concrete "Int", Concrete "String"]
 -- ("(arg_1) (arg_2)","(arg_1 :: MyInt) (arg_2 :: [MyChar])","[(show arg_1), (show arg_2)]","(unwrap arg_1) (unwrap arg_2)")
-showParams :: [ArgumentType] -> (String, String, String, String)
-showParams args = (plain, typed, shows, unwrp)
+showParams :: [ArgumentType] -> (String, String, String, String, String)
+showParams args = (plain, typed, shows, showConstrs, unwrp)
   where
     args' = zip [1..] $ map replaceMyType args
 
@@ -309,6 +309,7 @@ showParams args = (plain, typed, shows, unwrp)
     typed = unwords $ map (\(idx, tipe) -> printf "(arg_%d :: %s)" idx (show tipe) :: String) args'
 
     shows = "[" ++ intercalate ", " (formatIdx "(show arg_%d)") ++ "]"
+    showConstrs =  "[" ++ intercalate ", " (formatIdx "(showConstr arg_%d)") ++ "]"
     formatIdx format = map ((printf format :: Int -> String) . fst) args'
 
 -- | Parse Example string from QC.label to Example
