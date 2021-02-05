@@ -10,7 +10,7 @@ from os.path import join
 from multiprocessing import Pool
 
 RESULT_DIR = "output"
-NUM_WORKER = 2
+NUM_WORKER = 4
 
 def load_query_set(file_name):
     with open(file_name, 'r') as f: return yaml.load(f, Loader=yaml.FullLoader)
@@ -43,9 +43,10 @@ class OptionExperiment():
         results     = []
         expr_data   = []
 
-        for (result, expr_data) in read_results(process):
+        for (result, data) in read_results(process):
             times.append(time.time())
             results.append(result)
+            expr_data.append(data)
         times = compute_time_diff(times)
 
         with open(join(self.result_dir, f"{query_name}.json"), 'w') as file:

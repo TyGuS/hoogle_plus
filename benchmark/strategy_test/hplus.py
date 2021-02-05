@@ -15,7 +15,7 @@ SCRIPT_DIR = dirname(realpath(__file__))
 
 DEFAULT_TIMEOUT     = 30
 DEFAULT_TIMEOUT_KIL = 5
-DEFAULT_TIMEOUT_CMD   = lambda timeout: ["timeout", "-k", str(DEFAULT_TIMEOUT_KIL), str(timeout)]
+DEFAULT_TIMEOUT_CMD   = lambda timeout: ["gtimeout", "-k", str(DEFAULT_TIMEOUT_KIL), str(timeout)]
 
 def run_hplus(options, timeout=DEFAULT_TIMEOUT):
     chdir(join(SCRIPT_DIR, HPLUS_DIR))

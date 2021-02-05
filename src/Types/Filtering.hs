@@ -3,7 +3,7 @@ module Types.Filtering where
 
 import Control.Exception
 import Control.Monad.State
-import Data.List (groupBy, intercalate)
+import Data.List (groupBy, intercalate, nubBy)
 import Data.Typeable
 import Text.Printf
 import Test.QuickCheck (Result)
@@ -141,10 +141,13 @@ instance TestPassable CandidateDuplicateDesc where
 
 
 pickExamples :: [InternalExample] -> [InternalExample]
-pickExamples examples =
+pickExamples = pickExamples2
+
+pickExamples1 :: [InternalExample] -> [InternalExample]
+pickExamples1 examples =
   let examplesGroupedByOutput = groupOn outputConstr (filter noGenerated examples) in
   let examplesGroupedByInput  = map (map last . groupOn inputConstrs) examplesGroupedByOutput in
-    concatMap (take 5 . reverse) examplesGroupedByInput
+    concatMap (take 5) examplesGroupedByInput
     
     where
       noGenerated :: InternalExample -> Bool
@@ -157,3 +160,26 @@ pickExamples examples =
               Nothing -> Map.insert (f a) [a] m
               Just as -> Map.insert (f a) (a:as) m
         in unpack . foldl fld Map.empty
+
+pickExamples2 :: [InternalExample] -> [InternalExample]
+pickExamples2 examples =
+  let examplesGroupedByOutput = groupOn outputConstr (filter noGenerated examples) in
+  let otherDistinctExamples = map (nubBy anySameInput) examplesGroupedByOutput in
+    concatMap (take 5) otherDistinctExamples
+    
+    where
+      noGenerated :: InternalExample -> Bool
+      noGenerated ex = "<Generated>" `notElem` inputs ex
+
+      groupOn :: (Ord b) => (a -> b) -> [a] -> [[a]]
+      groupOn f =
+        let unpack = fmap snd . Map.toList
+            fld m a = case Map.lookup (f a) m of
+              Nothing -> Map.insert (f a) [a] m
+              Just as -> Map.insert (f a) (a:as) m
+        in unpack . foldl fld Map.empty
+
+      anySameInput :: InternalExample -> InternalExample -> Bool
+      anySameInput l r = let (inputsL, inputsR) = (inputs l, inputs r) in any (uncurry (==)) (zip inputsL inputsR)
+
+

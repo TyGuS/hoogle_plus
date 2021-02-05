@@ -13,7 +13,7 @@ import Text.Printf (printf)
 import qualified Test.ChasingBottoms as CB
 import qualified Test.QuickCheck as QC
 
-defaultMaxOutputLength    = 200         :: CB.Nat
+defaultMaxOutputLength    = 50         :: CB.Nat
 defaultTimeoutMicro       = 400         :: Int
 defaultIntRange           = [-2..10]    :: [Int]
 defaultCharRange          = ['a'..'d']  :: [Char]
