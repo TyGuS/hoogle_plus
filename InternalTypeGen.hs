@@ -11,14 +11,16 @@ import Data.Data (Data(..))
 import Data.List (isInfixOf, elemIndex, nub, drop, reverse, intersect, intercalate)
 import Text.Printf (printf)
 import qualified Test.ChasingBottoms as CB
-import qualified Test.QuickCheck as QC
+
+import Control.Monad.State (StateT(..), modify, liftIO)
+import Test.SmallCheck (exists, Testable, Property, monadic)
+import qualified Test.SmallCheck.Series as SS
 
 defaultMaxOutputLength    = 50         :: CB.Nat
 defaultTimeoutMicro       = 400         :: Int
 defaultIntRange           = [-2..10]    :: [Int]
 defaultCharRange          = ['a'..'d']  :: [Char]
 defaultFuncSpecialSize    = 4           :: Int
-defaultTestArgs           = QC.stdArgs {QC.chatty = False, QC.maxDiscardRatio = 1, QC.maxSuccess = 100, QC.maxSize = 7} :: QC.Args
 
 instance Eq a => Eq (CB.Result a) where
   (CB.Value a) == (CB.Value b) = a == b
@@ -54,12 +56,14 @@ anyDuplicate :: Ord a => [a] -> Bool
 anyDuplicate [x, y] = x == y
 anyDuplicate xs = length (nubOrd xs) /= length xs
 
-labelEvaluation :: (Data a, ShowConstr a, QC.Testable prop) => [String] -> [String] -> [a] -> ([CB.Result String] -> prop) -> IO QC.Property
-labelEvaluation inputs inputConstrs values prop = do
-    outputs <- map splitResult <$> mapM (evaluateValue defaultTimeoutMicro) values
-    
-    let examples = map (\(a, b) -> InternalExample inputs inputConstrs (showCBResult a) (showCBResult b)) outputs
-    return $ QC.label (show examples) (prop $ map fst outputs)
+type ExampleGeneration m = StateT [InternalExample] m
+
+stateEvaluation :: (Data a, ShowConstr a) => [String] -> [a] -> ([CB.Result String] -> Bool) -> Property (ExampleGeneration IO)
+stateEvaluation inputs values pred = monadic $ do
+    outputs <- map splitResult <$> mapM (liftIO . evaluateValue defaultTimeoutMicro) values
+
+    let examples = map (\(a, b) -> InternalExample inputs (map showConstr inputs) (showCBResult a) (showCBResult b)) outputs
+    modify (examples ++) >> return True
   where
     evaluateValue :: (Data a, ShowConstr a) => Int -> a -> IO (CB.Result (String, String))
     evaluateValue timeInMicro x = CB.timeOutMicro timeInMicro $ liftM2 (,) (t x) (s x)
@@ -73,6 +77,7 @@ labelEvaluation inputs inputConstrs values prop = do
       CB.NonTermination -> (CB.NonTermination, CB.NonTermination)
       CB.Exception ex -> (CB.Exception ex, CB.Exception ex)
 
+
 data InternalExample = InternalExample {
     inputs :: [String],
     inputConstrs :: [String],
@@ -84,25 +89,26 @@ data InternalExample = InternalExample {
 newtype  MyInt = MyIntValue Int deriving (Eq, Data)
 instance Ord              MyInt where compare (MyIntValue l) (MyIntValue r) = compare l r      
 instance Show             MyInt where show (MyIntValue v) = show v
-instance QC.Arbitrary     MyInt where arbitrary = QC.elements (map MyIntValue defaultIntRange)
-instance QC.CoArbitrary   MyInt where coarbitrary (MyIntValue v) = QC.coarbitraryIntegral v
+instance Monad m => SS.Serial m MyInt where series = SS.newtypeCons MyIntValue 
+instance Monad m => SS.CoSerial m MyInt where coseries rs = SS.newtypeAlts rs SS.>>- \f -> return $ \case MyIntValue x -> f x
 
 newtype  MyChar = MyCharValue Char deriving (Eq, Data)
 instance Ord              MyChar where compare (MyCharValue l) (MyCharValue r) = compare l r
 instance Show             MyChar where show (MyCharValue v) = show v
-instance QC.Arbitrary     MyChar where arbitrary = QC.elements (map MyCharValue defaultCharRange)
-instance QC.CoArbitrary   MyChar where coarbitrary (MyCharValue v) = QC.coarbitrary $ ord v
+instance Monad m => SS.Serial    m   MyChar where series = SS.newtypeCons MyCharValue
+instance Monad m => SS.CoSerial  m   MyChar where coseries rs = SS.newtypeAlts rs SS.>>- \f -> return $ \case MyCharValue x -> f x
 
 data     MyFun a b = Generated (a -> b) | Expression String (a -> b)
-instance (QC.Arbitrary a, QC.CoArbitrary b)                       => QC.CoArbitrary (MyFun a b)   where coarbitrary = \case Generated f -> QC.coarbitrary f; Expression _ f -> QC.coarbitrary f
+
+instance {-# OVERLAPPABLE #-} (SS.CoSerial m a, SS.Serial m b)  => SS.Serial m (MyFun a b)     where series = SS.newtypeCons Generated
+instance (SS.Serial m a, SS.Serial m b, SS.CoSerial m a, SS.CoSerial m b) => SS.CoSerial m (MyFun a b) where coseries rs = SS.newtypeAlts rs SS.>>- \f -> return $ \case Generated x -> f x; Expression _ x -> f x
 instance Show a                                                   => Show (MyFun a b)             where show = \case Expression str _ -> "(" ++ str ++ ")"; Generated f -> "<Generated>"
-instance {-# OVERLAPPABLE #-} (QC.CoArbitrary a, QC.Arbitrary b)  => QC.Arbitrary (MyFun a b)     where arbitrary = liftM Generated QC.arbitrary
 
 newtype  Box a            =   BoxValue a              deriving (Eq, Data)
 instance Ord a            =>  Ord (Box a)             where compare (BoxValue l) (BoxValue r) = compare l r
 instance Show a           =>  Show (Box a)            where show (BoxValue v) = show v
-instance QC.Arbitrary a   =>  QC.Arbitrary (Box a)    where arbitrary = fmap BoxValue QC.arbitrary
-instance QC.CoArbitrary a =>  QC.CoArbitrary (Box a)  where coarbitrary (BoxValue v) = QC.coarbitrary v
+instance SS.Serial m a    =>  SS.Serial m (Box a)     where series = SS.newtypeCons BoxValue
+instance SS.CoSerial m a  =>  SS.CoSerial m (Box a)   where coseries rs = SS.newtypeAlts rs SS.>>- \f -> return $ \case BoxValue x -> f x
         
 -- * Custom Datatype Conversion
 class    Unwrappable a b                                                            where unwrap :: a -> b; wrap :: b -> a
