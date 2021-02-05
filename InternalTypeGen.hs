@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, DeriveDataTypeable, LambdaCase, ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, DeriveDataTypeable, LambdaCase #-}
 module InternalTypeGen where
 
 import Control.DeepSeq (force)
@@ -142,8 +142,3 @@ instance  ShowConstr a                  =>  ShowConstr (Maybe a)    where showCo
 instance  (ShowConstr a, ShowConstr b)  =>  ShowConstr (a, b)       where showConstr (x, y) = printf "(%s,%s)" (showConstr x) (showConstr y)
 instance  (ShowConstr a)                =>  ShowConstr [a]          where showConstr xs = intercalate "," $ map showConstr xs
 instance  (ShowConstr a, ShowConstr b)  =>  ShowConstr (Either a b) where showConstr = \case Left x -> "Left$" ++ showConstr x; Right y -> "Right$" ++ showConstr y
-
-main = let wrappedSolution = ((\f x -> f x) :: () => ((Int) -> (String)) -> Int -> String) in
-  let executeWrapper (arg_1 :: ((((MyFun) (((Box) (MyInt))))) (((Box) ([MyChar]))))) (arg_2 :: ((Box) (MyInt))) = (Prelude.map (\f -> f (unwrap arg_1) (unwrap arg_2) :: String) [wrappedSolution]) in
-    let prop_not_crash (arg_1) (arg_2) = stateEvaluation ([(show arg_1), (show arg_2)]) (executeWrapper (arg_1) (arg_2)) (not . isFailedResult . Prelude.head) in
-      runStateT (smallCheckM 1 (prop_not_crash)) ([], [])

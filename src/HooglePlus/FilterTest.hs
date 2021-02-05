@@ -147,8 +147,8 @@ buildNotCrashProp solution funcSig = traceId $ formatNotCrashProp params wrapper
 
     formatProp propName propBody (plain, typed, shows, showConstrs, unwrp) wrappedSolution = unwords
       [ wrappedSolution
-      , printf "let %s %s = stateEvaluation (%s) (executeWrapper %s) (%s) in" propName plain shows plain propBody
-      , printf "runStateT (smallCheckM 3 (%s)) []" propName ] :: String
+      , printf "let %s %s = stateEvaluation (%s) (%s) (executeWrapper %s) (%s) in" propName plain shows showConstrs plain propBody
+      , printf "execStateT (smallCheckM 1 (%s)) ([], [])" propName ] :: String
 
 buildDupCheckProp :: (String, [String]) -> FunctionSignature -> [String]
 buildDupCheckProp (sol, otherSols) funcSig =
@@ -164,8 +164,8 @@ buildDupCheckProp' (sol, otherSols) funcSig = unwords [wrapper, formatProp]
     solutions = zip [printf "result_%d" x :: String | x <- [0..] :: [Int]] (sol:otherSols)
 
     formatProp = unwords
-      [ printf "let prop_duplicate %s = stateEvaluation (%s) (executeWrapper %s) (not . anyDuplicate) in" plain shows plain
-      , printf "runStateT (smallCheckM 3 prop_duplicate) []" ] :: String
+      [ printf "let prop_duplicate %s = stateEvaluation (%s) (%s) (executeWrapper %s) (not . anyDuplicate) in" plain shows showConstrs plain
+      , printf "execStateT (smallCheckM 1 prop_duplicate) ([], [])" ] :: String
 
 -- | Run Hint with the default script loaded.
 runInterpreterWithEnvTimeout :: Int -> InterpreterT IO a -> IO (Either InterpreterError a)
