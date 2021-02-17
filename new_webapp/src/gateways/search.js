@@ -63,18 +63,13 @@ const streamResponse = (route, fetchOpts, onIncrementalResponse) => {
                         }
                         // Enqueue the next data chunk into our target stream
                         const convertedValue = msgQueue.concat(decoder.decode(value));
-                        console.log("convertedValue", convertedValue);
                         convertedValue.trim().split("\n").forEach(jsonStr => {
                             try {
                                 const jsonBlob = JSON.parse(jsonStr);
                                 onIncrementalResponse(jsonBlob);
-                                console.log("convertedValue sent:", jsonBlob);
                                 msgQueue = "";
                             } catch (error) {
-                                console.log("remaining json", jsonStr);
                                 msgQueue = msgQueue.concat(jsonStr);
-                                console.log("new message queue", msgQueue);
-                                // console.error("convertedValue error", error);
                             }
                         })
                         controller.enqueue(value);

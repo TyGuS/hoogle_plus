@@ -10,6 +10,7 @@ OPTIONS = ['--disable-filter=False']
 TIMEOUT_CMD = 'timeout'
 TIMEOUT = 60
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+FNULL = open(os.devnull, 'w')
 
 class QueryType(enum.Enum):
     search_programs = 'SearchPrograms'
@@ -60,13 +61,15 @@ def run_hplus(options):
     # TODO: we may put these paths into configuration file
     os.chdir(os.path.join(SCRIPT_DIR, '../../'))
     command = [TIMEOUT_CMD, str(TIMEOUT)] + HPLUS_CMD + OPTIONS + options
-    print(" ".join(command))
-    process = subprocess.Popen(command, stdout=subprocess.PIPE)
+    # print(" ".join(command))
+    with open("server.log", "a+") as f:
+        f.write(" ".join(command))
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=FNULL)
     return process
 
 def get_results(process, query_type, qid):
     for line in iter(process.stdout.readline, b''):
-        print(line)
+        # print(line)
         if line[:8] == b'RESULTS:':
             result = json.loads(line[8:])
             obj = build_object(query_type, result, qid)
@@ -75,8 +78,13 @@ def get_results(process, query_type, qid):
             yield (str_to_send + '\n')
 
 def communicate_result(process):
-    result, err = process.communicate()
-    result = result.decode('utf-8')
-    m = re.findall('RESULTS:(.*)', result)
-    # print(m)
-    return json.loads(m[0])
+    try:
+        result, err = process.communicate(timeout=60)
+        result = result.decode('utf-8')
+        m = re.findall('RESULTS:(.*)', result)
+        # print(m)
+        return json.loads(m[0])
+    except subprocess.TimeoutExpired:
+        process.terminate()
+        return ""
+
