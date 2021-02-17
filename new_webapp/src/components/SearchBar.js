@@ -69,7 +69,7 @@ const connectedSearchBar = (props) => {
 
     const handleStop = (event) => {
         props.markClean();
-        doStop({id: queryId})
+        doStop({id: queryId});
     };
 
     const hasAnExample = !_.isEmpty(exampleRows);

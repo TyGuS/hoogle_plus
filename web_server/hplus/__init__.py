@@ -73,6 +73,7 @@ def create_app(test_config=None):
     def stop():
         qid = request.get_json()['id']
         pid = cache.get(qid)
+        print('killing pid', pid, 'with group id', os.getpgid(pid))
         os.killpg(os.getpgid(pid), signal.SIGKILL)
         return ('', 204)
 
