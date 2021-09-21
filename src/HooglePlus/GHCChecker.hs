@@ -163,7 +163,7 @@ runGhcChecks params env goalType prog = let
     disableDemand = _disableDemand params
     disableFilter = _disableFilter params
     in do
-        typeCheckResult <- liftIO $ runInterpreter $ checkType expr modules
+        typeCheckResult <- if disableDemand then return (Right True) else liftIO $ runInterpreter $ checkType expr modules
         strictCheckResult <- if disableDemand then return True else liftIO $ checkStrictness tyclassCount body funcSig modules
         filterCheckResult <- if disableFilter then return True else runChecks env goalType prog
         case typeCheckResult of
