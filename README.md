@@ -52,3 +52,5 @@ First run `docker pull aaron069/hoogle-plus:v5`
 Then go to your hoogle_plus repo, run `docker run -v ./:/home/hoogle-plus -it aaron069/hoogle-plus:v5`
 If you want to redirect port on localhost:3000, add this flag: `-p 3000:3000` on above command.
 
+## Troubleshoot
+Please install z3 `v4.8.10` or above to build this project.
