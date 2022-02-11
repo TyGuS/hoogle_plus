@@ -25,6 +25,7 @@ import Distribution.PackageDescription.Parsec
 import Distribution.Package
 import System.Directory
 import System.IO
+import Debug.Trace
 
 import Database.Download
 import Database.Generate
@@ -67,7 +68,7 @@ declHeadVars :: DeclHead l -> [Id]
 declHeadVars (DHead _ _) = []
 declHeadVars (DHInfix _ bvar name) = [varsFromBind bvar]
 declHeadVars (DHParen _ head) = declHeadVars head
-declHeadVars (DHApp _ head bvar) = varsFromBind bvar : declHeadVars head
+declHeadVars (DHApp _ head bvar) = declHeadVars head ++ [varsFromBind bvar] 
 
 qnameStr :: QName l -> Id
 qnameStr name = case name of
@@ -137,16 +138,16 @@ matchDtWithCons (decl:decls) = case decl of
 
 resolveContext :: MonadIO m => Context () -> StateT Int m [(Id, [Id])]
 resolveContext (CxSingle _ asst) = resolveAsst asst
-resolveContext (CxTuple _ assts) = groupTuples . concat <$> mapM resolveAsst assts
+resolveContext (CxTuple _ assts) = concat <$> mapM resolveAsst assts
 resolveContext (CxEmpty _)       = return []
 
 resolveAsst :: MonadIO m => Asst () -> StateT Int m [(Id, [Id])]
 resolveAsst a@(ClassA _ qname typs) = 
-    if Set.null tyVars 
+    if null tyVars 
         then return [] 
-        else return [(Set.findMin tyVars, [qnameStr qname])]
+        else return [(qnameStr qname, tyVars)]
   where
-    tyVars = Set.unions $ map allTypeVars typs
+    tyVars = map (Set.findMin . allTypeVars) typs
 resolveAsst (ParenA _ asst) = resolveAsst asst
 resolveAsst a = error $ "Unknown " ++ show a
 
@@ -156,13 +157,7 @@ toSynquidSchema (TyForall _ _ (Just ctx) typ) = do -- if this type has some cont
     classQuals <- resolveContext ctx
     return $ Monotype (foldr go t classQuals)
     where
-        go typClassArr acc = let
-            dt = DatatypeT (toTCDictName typClassArr) KnAny
-            tv = TypeVarT (getTypeVar typClassArr) KnAny
-            in FunctionT "ATypeClassDict" (TyAppT dt tv KnAny) acc
-        toTCDictName (_, [tyclassName]) = fixTCName tyclassName
-        toTCDictName _ = error "toTCDictName: Unhandled case"
-        getTypeVar (tyVar, _) = tyVar
+        go typClassArr acc = FunctionT "ATypeClassDict" (mkTyclass typClassArr) acc
 toSynquidSchema typ = Monotype <$> toSynquidSkeleton typ
 
 toSynquidSkeleton :: MonadIO m => Type () -> StateT Int m TypeSkeleton
@@ -236,29 +231,40 @@ datatypeOfCon (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
         InfixConDecl _ typl name typr -> datatypeOf typl `Set.union` datatypeOf typr
         RecDecl _ name fields -> error "record declaration is not supported"
 
-toSynquidDecl :: MonadIO m => Entry -> StateT Int m Declaration
+toSynquidDecl :: MonadIO m => Entry -> StateT Int m [Declaration]
 toSynquidDecl (EDecl (TypeDecl _ head typ)) = do
     typ' <- toSynquidSkeleton typ
     let dt = DatatypeT (declHeadName head) KnStar
     let synonym = foldl' (\a t -> TyAppT t a KnStar) dt (map (flip TypeVarT KnStar) $ declHeadVars head)
-    return $ Pos (initialPos $ declHeadName head) $ TP.TypeDecl synonym typ'
-toSynquidDecl (EDecl (DataFamDecl a b head c)) = 
-    toSynquidDecl (EDecl (DataDecl a (DataType a) b head [] []))
+    return $ [Pos (initialPos $ declHeadName head) $ TP.TypeDecl synonym typ']
+-- toSynquidDecl (EDecl (DataFamDecl a b head c)) = 
+--     toSynquidDecl (EDecl (DataDecl a (DataType a) b head [] []))
 toSynquidDecl (EDecl (DataDecl _ _ _ head conDecls _)) = do
     constructors <- processConDecls conDecls
     let name = declHeadName head
     let vars = declHeadVars head
-    return $ Pos (initialPos name) $ TP.DataDecl name vars constructors
+    return $ [Pos (initialPos name) $ TP.DataDecl name vars constructors]
 toSynquidDecl (EDecl (TypeSig _ names typ)) = do
     sch <- toSynquidSchema typ
-    return $ Pos (initialPos (nameStr $ names !! 0)) 
-           $ TP.FuncDecl (nameStr $ head names) sch
-toSynquidDecl (EDecl (ClassDecl _ _ head _ _)) = do
-    let name = fixTCName (declHeadName head)
-    let vars = declHeadVars head
-    return $ Pos (initialPos "") $ TP.DataDecl name vars []
-toSynquidDecl decl = do
-    return $ Pos (initialPos "") $ TP.TypeDecl (DatatypeT "Int" knFst) (DatatypeT "Int" knFst) -- [TODO] a fake conversion
+    return $ [Pos (initialPos (nameStr $ names !! 0)) 
+           $ TP.FuncDecl (nameStr $ head names) sch]
+toSynquidDecl d@(EDecl (ClassDecl _ ctx head _ _)) = do
+    -- add type class implications
+    classQuals <- case ctx of
+                    Just c -> resolveContext c
+                    Nothing -> return []
+    return $ map (Pos (initialPos "")) $ TP.DataDecl name vars [] : map createConversion classQuals
+    where
+        name = fixTCName (declHeadName head)
+        vars = declHeadVars head
+        tyclass = foldl (\a r -> TyAppT a r KnAny) (DatatypeT name KnAny) (map (\v -> TypeVarT v KnAny) vars)
+
+        createConversion (dt, vars) =
+            TP.FuncDecl (name ++ "@convert@" ++ dt ++ "@" ++ intercalate "@" vars) 
+                        (Monotype $ FunctionT "tcarg" tyclass (mkTyclass (dt, vars)))
+            
+
+toSynquidDecl decl = return []
 
 isInstance :: Entry -> Bool
 isInstance (EDecl (InstDecl _ _ _ _)) = True
@@ -535,3 +541,12 @@ toSynquidProgram (List _ elmts) = let
     mkCons e acc = Program (PApp "Cons" [e, acc]) AnyT
     in foldr mkCons (Program (PSymbol "Nil") AnyT) args
 toSynquidProgram e = error $ show e
+
+---
+-- helper function
+---
+mkTyclass :: (Id, [Id]) -> TypeSkeleton
+mkTyclass (dt, tvs) = foldl (\a r -> TyAppT a r KnAny) fun args
+    where
+        fun = DatatypeT (fixTCName dt) KnAny
+        args = map (\v -> TypeVarT v KnAny) tvs

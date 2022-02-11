@@ -66,29 +66,34 @@ defaultPair = Pos (initialPos "Pair") $ DataDecl "Pair" ["a", "b"] [
 -- Eq, Ord, Show, Read, Enum, Bounded, Num, Real, Floating,
 -- Integral, RealFloat, Fractional, RealFrac
 defaultTypeclassInstances =
-    [ mkInstance "Show" intType
-    , mkInstance "Show" boolType
-    , mkInstance "Show" charType
-    , mkInstance "Show" intType
-    , mkInstance "Show" floatType
-    , mkInstance "Show" doubleType
-    , mkInstance "Show" unitType
-    , mkInstance "Eq" intType
-    , mkInstance "Eq" boolType
-    , mkInstance "Eq" charType
-    , mkInstance "Eq" intType
-    , mkInstance "Eq" floatType
-    , mkInstance "Eq" doubleType
-    , mkInstance "Eq" unitType
-    , mkInstance "Ord" intType
-    , mkInstance "Ord" boolType
-    , mkInstance "Ord" charType
-    , mkInstance "Ord" intType
-    , mkInstance "Ord" floatType
-    , mkInstance "Ord" doubleType
+    [ 
+    --   mkInstance "Show" intType
+    -- , mkInstance "Show" boolType
+    -- , mkInstance "Show" charType
+    -- , mkInstance "Show" intType
+    -- , mkInstance "Show" floatType
+    -- , mkInstance "Show" doubleType
+    -- , mkInstance "Show" unitType
+    -- , mkInstance "Eq" intType
+    -- , mkInstance "Eq" boolType
+    -- , mkInstance "Eq" charType
+    -- , mkInstance "Eq" intType
+    -- , mkInstance "Eq" floatType
+    -- , mkInstance "Eq" doubleType
+    -- , mkInstance "Eq" unitType
+    -- , mkInstance "Ord" intType
+    -- , mkInstance "Ord" boolType
+    -- , mkInstance "Ord" charType
+    -- , mkInstance "Ord" intType
+    -- , mkInstance "Ord" floatType
+    -- , mkInstance "Ord" doubleType
     -- , mkInstance "Alternative" maybeType
     -- , mkInstance "Monad" maybeType
     -- , mkInstance "Applicative" maybeType
+        mkInstance "Monad" (DatatypeT "List" knFst)
+      , mkInstance "MonadPlus" (DatatypeT "List" knFst)
+      , mkInstance "Traversable" (DatatypeT "List" knFst)
+      , mkInstance "Foldable" (DatatypeT "List" knFst)
     ]
 
 

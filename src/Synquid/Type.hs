@@ -42,6 +42,7 @@ hasAny _ = False
 scalarName :: TypeSkeleton -> String
 scalarName (DatatypeT name _) = name
 scalarName (TypeVarT name _) = name
+scalarName (TyAppT tFun tArg _) = scalarName tFun
 scalarName t = error $ "scalarName error: cannot be applied to nonscalar type "
 
 allDatatypes :: TypeSkeleton -> Set String
@@ -106,6 +107,31 @@ substituteKindInType kass (FunctionT x tArg tRes) = FunctionT x tArg' tRes'
         tArg' = substituteKindInType kass tArg
         tRes' = substituteKindInType kass tRes
 substituteKindInType _ t = t
+
+-- default remaining kind variables to star
+defaultKindInType :: TypeSkeleton -> TypeSkeleton
+defaultKindInType (TypeVarT v k) = TypeVarT v (defaultKind k)
+defaultKindInType (DatatypeT v k) = DatatypeT v (defaultKind k)
+defaultKindInType (TyAppT tFun tArg k) = TyAppT tFun' tArg' k'
+    where
+        tFun' = defaultKindInType tFun
+        tArg' = defaultKindInType tArg
+        k' = defaultKind k
+defaultKindInType (TyFunT tArg tRes) = TyFunT tArg' tRes'
+    where
+        tArg' = defaultKindInType tArg
+        tRes' = defaultKindInType tRes
+defaultKindInType (FunctionT x tArg tRes) = FunctionT x tArg' tRes'
+    where
+        tArg' = defaultKindInType tArg
+        tRes' = defaultKindInType tRes
+defaultKindInType t = t
+
+defaultKind :: Kind -> Kind
+defaultKind KnStar = KnStar
+defaultKind (KnArr k1 k2) = KnArr (defaultKind k1) (defaultKind k2)
+defaultKind (KnVar _) = KnStar
+defaultKind k = k
 
 lastType :: TypeSkeleton -> TypeSkeleton
 lastType (FunctionT _ _ tRes) = lastType tRes

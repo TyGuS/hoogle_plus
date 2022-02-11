@@ -89,13 +89,16 @@ removeAll a b = unwords $ words $ go a b
             then (go regex $ subRegex regex input "")
             else input
 
+removeConversions :: String -> String
+removeConversions = removeAll (mkRegex (tyclassPrefix ++ "([@a-zA-Z]*)@convert@([@a-zA-Z]*)"))
+
 removeTypeclassArgs :: String -> String
 removeTypeclassArgs = removeAll (mkRegex (tyclassArgBase++"[0-9]+"))
 
 removeTypeclassInstances :: String -> String
 removeTypeclassInstances = removeAll (mkRegex (tyclassInstancePrefix ++ "[0-9]*[a-zA-Z]*"))
 
-removeTypeclasses = removeEmptyParens . removeTypeclassArgs . removeTypeclassInstances
+removeTypeclasses = removeEmptyParens . removeConversions . removeTypeclassArgs . removeTypeclassInstances
     where
         removeEmptyParens = removeAll (mkRegex "\\(\\ +\\)")
 

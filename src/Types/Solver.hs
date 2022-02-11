@@ -49,6 +49,7 @@ data SolverState = SolverState {
     _instanceCounts :: HashMap Id Int, -- Number of instantiations for a real-name, used in selecting representative
     _toRemove :: [Id],
     _useCount :: Map Id Int,
+    _isRefineStopped :: Bool,
     _encoder :: EncodeState
     -- _messageChan :: Chan Message
 }
@@ -81,6 +82,7 @@ emptySolverState = SolverState {
     _instanceCounts = HashMap.empty,
     _toRemove = [],
     _useCount = Map.empty,
+    _isRefineStopped = False,
     _encoder = undefined
     -- _messageChan = undefined
 }

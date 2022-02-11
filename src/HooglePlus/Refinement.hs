@@ -129,7 +129,7 @@ propagate env p@(Program (PApp f args) _) upstream = do
         -- such that ct < at' < at
         currAbs <- lift $ mapM (currentAbst bound cover) cArgs
         absArgs <- mapM (generalize env) cArgs
-        -- lift $ writeLog 3 "propagate" $ text "try" <+> pretty absArgs <+> text "from" <+> pretty cArgs <+> text "with currently" <+> pretty currAbs
+        lift $ writeLog 3 "propagate" $ text "try" <+> pretty absArgs <+> text "from" <+> pretty cArgs <+> text "with currently" <+> pretty currAbs
         guard ((all (uncurry $ isSubtypeOf bound)) (zip absArgs currAbs))
         lift $ writeLog 3 "propagate" $ text "get generalized types" <+> pretty absArgs <+> text "from" <+> pretty cArgs
         res <- lift $ applySemantic bound t absArgs
@@ -297,8 +297,9 @@ generalize env t@(ATyAppT tFun tArg k) = do
     a <- generalize env tArg
     -- might abstracting some TyApp as a higher kinded type variable
     -- [TODO] does this slow us down?
-    v <- lift $ freshId "T"
-    return (ATypeVarT v k) `mplus` return (ATyAppT f a k)
+    -- v <- lift $ freshId "T"
+    -- TODO: let's try to not generalize the kind away
+    return (ATyAppT f a k)
 generalize env t@(ATyFunT tArg tRes) = do
     a <- generalize env tArg
     r <- generalize env tRes

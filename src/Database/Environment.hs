@@ -45,13 +45,13 @@ writeEnv path env = B.writeFile path (encode env)
 getDeps :: PackageFetchOpts -> Map MdlName [Entry] -> [Entry] -> IO [Declaration]
 getDeps Local{files=f} allEntries ourEntries = do
   let dependentEntries = DC.entryDependencies allEntries ourEntries (concat $ Map.elems allEntries)
-  nubOrd <$> mapM (flip evalStateT 0 . DC.toSynquidDecl) dependentEntries
+  nubOrd . concat <$> mapM (flip evalStateT 0 . DC.toSynquidDecl) dependentEntries
 getDeps Hackage{packages=ps} allEntries ourEntries = do
   pkgsDeps <- mapM (\pkgName -> do
     pkgDeps <- nubOrd <$> DC.packageDependencies pkgName True
     entriesFromDeps <- concatMap (concat . Map.elems) <$> (mapM (flip DC.readDeclarations Nothing) pkgDeps)
     let dependentEntries = DC.entryDependencies allEntries ourEntries entriesFromDeps
-    mapM (flip evalStateT 0 . DC.toSynquidDecl) dependentEntries
+    concat <$> mapM (flip evalStateT 0 . DC.toSynquidDecl) dependentEntries
     ) ps
   return $ nubOrd $ concat pkgsDeps
 
@@ -71,7 +71,7 @@ generateEnv genOpts = do
     let moduleNames = Map.keys entriesByMdl
     let allCompleteEntries = concat (Map.elems entriesByMdl)
     let allEntries = nubOrd allCompleteEntries
-    ourDecls <- mapM (\(entry) -> (evalStateT (DC.toSynquidDecl entry) 0)) allEntries
+    ourDecls <- concat <$> mapM (\(entry) -> (evalStateT (DC.toSynquidDecl entry) 0)) allEntries
 
     let instanceDecls = filter (\entry -> DC.isInstance entry) allEntries
     let instanceRules = map DC.getInstanceRule instanceDecls
@@ -79,12 +79,12 @@ generateEnv genOpts = do
     let instanceTuples = zip instanceRules transitionIds
     instanceFunctions <- mapM (\(entry, id) -> evalStateT (DC.instanceToFunction entry id) 0) instanceTuples
 
-    let declStrs = show (instanceFunctions ++ ourDecls)
-    let removeParentheses = (\x -> LUtils.replace ")" "" $ LUtils.replace "(" "" x)
-    let tcNames = nub $ map removeParentheses $ filter (\x -> isInfixOf tyclassPrefix x) (splitOn " " declStrs)
-    let tcDecls = map (\x -> Pos (initialPos "") $ TP.DataDecl x ["a"] []) tcNames
+    -- let declStrs = show (instanceFunctions ++ ourDecls)
+    -- let removeParentheses = (\x -> LUtils.replace ")" "" $ LUtils.replace "(" "" x)
+    -- let tcNames = nub $ map removeParentheses $ filter (\x -> isInfixOf tyclassPrefix x) (splitOn " " declStrs)
+    -- let tcDecls = map (\x -> Pos (initialPos "") $ TP.DataDecl x ["a"] []) tcNames
 
-    let library = concat [ourDecls, dependencyEntries, instanceFunctions, tcDecls, defaultLibrary]
+    let library = concat [ourDecls, dependencyEntries, instanceFunctions, defaultLibrary]
     let hooglePlusDecls = DC.reorderDecls $ nubOrd $ library
 
     result <- case resolveDecls hooglePlusDecls moduleNames of

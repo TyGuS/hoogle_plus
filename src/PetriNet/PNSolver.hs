@@ -463,7 +463,11 @@ incEncoder env = do
     src <- use sourceTypes
     (_, _, rets, funcs, _) <- prepEncoderArgs env tgt
     st <- use encoder
-    st <- liftIO $ execStateT (encoderInc funcs src rets) st
+    refineStop <- use isRefineStopped
+    st <- liftIO $ execStateT (do
+        encoderInc funcs src rets
+        when refineStop switchToPureEnum ) st
+
     encoder .= st
 
 findPath :: MonadIO m
@@ -634,6 +638,9 @@ findProgram env dst = do
                 | not (doRefine rs) || (stop && coverSize cover >= placeNum) -> do
                     cover <- use abstractionCover
                     funcs <- use activeSigs
+                    modify $ set isRefineStopped True
+                    st <- liftIO . execStateT switchToPureEnum =<< use encoder
+                    encoder .= st
                     -- modify $ over solverStats (\s -> s {
                     --       numOfPlaces = Map.insert (iterations s + 1) (coverSize cover) (numOfPlaces s)
                     --     , numOfTransitions = Map.insert (iterations s + 1) (Set.size funcs) (numOfTransitions s)

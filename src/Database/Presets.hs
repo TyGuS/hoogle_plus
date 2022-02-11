@@ -8,6 +8,7 @@ getOptsFromPreset :: Preset -> GenerationOpts
 getOptsFromPreset ICFPTotal = genOptsTier1
 getOptsFromPreset ICFPPartial = genOptsTier2
 getOptsFromPreset POPL = poplWithTypeclasses
+getOptsFromPreset ECTA = ectaConfig
 
 genOptsTier1 = defaultGenerationOpts {
   modules = myModules,
@@ -28,6 +29,25 @@ poplWithTypeclasses = defaultGenerationOpts {
   pkgFetchOpts = Local {
     files = ["libraries/customPrelude.txt", "libraries/ghc-prim.txt",
              "libraries/containers.txt"]
+  }
+}
+
+ectaConfig = defaultGenerationOpts {
+  modules = [
+      "Data.List"
+    , "Data.Maybe"
+    , "Data.Either"
+    , "Data.Tuple"
+    , "Data.Function"
+    , "Control.Monad.Trans.Maybe"
+    , "Control.Monad.State.Lazy"
+    , "Data.Traversable"
+    , "Data.Foldable"
+    , "Control.Monad"
+    , "Control.Applicative"
+    ],
+  pkgFetchOpts = Local {
+    files = ["libraries/test_hktv.txt"]
   }
 }
 

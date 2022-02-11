@@ -2,11 +2,12 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
 
-module PetriNet.PNEncoder(
-     encoderInit
+module PetriNet.PNEncoder
+    ( encoderInit
     , encoderSolve
     , encoderRefine
     , encoderInc
+    , switchToPureEnum
     ) where
 
 import Data.Maybe
@@ -49,7 +50,7 @@ createEncoder inputs ret sigs = do
     createConstraints places sigs
     -- set initial and final state for solver
     setInitialState inputs places
-    setFinalState ret places
+    setFinalState [ret] places
 
 -- | set the initial state for the solver, where we have tokens only in void or inputs
 -- the tokens in the other places should be zero
@@ -77,20 +78,35 @@ setInitialState inputs places = do
 
 -- | set the final solver state, we allow only one token in the return type
 -- and maybe several tokens in the "void" place
-setFinalState :: AbstractSkeleton -> [AbstractSkeleton] -> Encoder ()
-setFinalState ret places = do
-    -- the return value should have only one token
-    includeRet
+setFinalState :: [AbstractSkeleton] -> [AbstractSkeleton] -> Encoder ()
+setFinalState rets places = do
+    includeOneRet [] rets
+    aboutRets <- mkOr =<< gets finalConstraints
+    modify $ \st -> st { finalConstraints = [aboutRets] }
+
     -- other places excluding void and ret should have nothing
-    let nonOutputs = filter (ret /=) places
+    let nonOutputs = filter (`notElem` rets) places
     mapM_ excludeOther nonOutputs
+
   where
-    includeRet = do
+    includeRet ret = do
         placeMap <- gets place2variable
         l <- gets loc
         let retVar = findVariable "place2variable" (ret, l) placeMap
         assrt <- mkIntNum 1 >>= mkEq retVar
         modify $ \st -> st { finalConstraints = assrt : finalConstraints st }
+
+    includeOneRet _ [] = return ()
+    includeOneRet prevs (r:rs) = do
+        placeMap <- gets place2variable
+        l <- gets loc
+        let retVar = findVariable "place2variable" (r, l) placeMap
+        assrt <- mkIntNum 1 >>= mkEq retVar
+        others <- mapM (\p -> mkIntNum 0 >>= mkEq (findVariable "place2variable" (p, l) placeMap)) (prevs ++ rs)
+        finalCond <- mkAnd (assrt : others)
+        modify $ \st -> st { finalConstraints = finalCond : finalConstraints st }
+
+        includeOneRet (r:prevs) rs
 
     excludeOther p = do
         l <- gets loc
@@ -105,23 +121,12 @@ getParam = do
     boolS <- mkBoolSort
     return (cnt, boolS)
 
-cancelConstraints :: String -> Encoder ()
-cancelConstraints name = do
-    (cnt, boolS) <- getParam
-    cancelSym <- mkStringSymbol $ name ++ show cnt
-    cancelExp <- mkConst cancelSym boolS >>= mkNot
-    assert cancelExp
-
 addAllConstraints :: Encoder ()
 addAllConstraints = do
     pcons <- gets persistConstraints
     ocons <- gets optionalConstraints
     fcons <- gets finalConstraints
     bcons <- gets blockConstraints
-    -- liftIO $ putStrLn $ "size of persist constraints " ++ show (length pcons)
-    -- liftIO $ putStrLn $ "size of optional constraints " ++ show (length ocons)
-    -- liftIO $ putStrLn $ "size of final constraints " ++ show (length fcons)
-    -- liftIO $ putStrLn $ "size of block constraints " ++ show (length bcons)
     mapM_ assert pcons
     mapM_ assert ocons
     mapM_ assert fcons
@@ -136,44 +141,39 @@ nonincrementalSolve = do
                             , prevChecked = False }
 
     addAllConstraints
-    -- str <- solverToString
-    -- liftIO $ putStrLn str
-    -- liftIO $ writeFile "constraint.z3" str
+
+    check
+
+switchToPureEnum :: Encoder ()
+switchToPureEnum = do
+    modify $ \st -> st { encoderMode = PureEnum, finalConstraints = [] }
+    -- reset final constraints
+    rets <- gets returnTyps
+    places <- gets (HashMap.keys . ty2tr)
+    setFinalState rets places
+
+    addAllConstraints
+
+pureEnumeration :: Encoder Z3.Result
+pureEnumeration = do
+    prev <- gets prevChecked
+    when prev $ do
+        toBlock <- gets block
+        assert toBlock
+
     check
 
 incrementalSolve :: Encoder Z3.Result
-incrementalSolve = do
-    modify $ \st -> st { counter = counter st + 1 }
-    prev <- gets prevChecked
-    (cnt, boolS) <- getParam
-    blockSym <- mkStringSymbol $ "block" ++ show cnt
-    blockE <- mkConst blockSym boolS
-    blocked <- ifM (gets prevChecked)
-                   (gets block >>= mkImplies blockE)
-                   (mkTrue >>= mkImplies blockE)
-    modify $ \st -> st { blockConstraints = blockE : blockConstraints st
-                        , prevChecked = False }
-    exclusions <- gets optionalConstraints
-    excludeSym <- mkStringSymbol $ "exclude" ++ show cnt
-    excludeE <- mkConst excludeSym boolS
-    excluded <- mkAnd exclusions >>= mkImplies excludeE
-    finals <- gets finalConstraints
-    finalSym <- mkStringSymbol $ "final" ++ show cnt
-    finalE <- mkConst finalSym boolS
-    finaled <- mkAnd finals >>= mkImplies finalE
-
-    assert excluded
-    assert finaled
-    assert blocked
-
-    blocks <- gets blockConstraints
-    checkAssumptions (excludeE : finalE : blocks)
+incrementalSolve = error "unsupported"
 
 solveAndGetModel :: Encoder [Id]
 solveAndGetModel = do
     l <- gets loc
-    incremental <- gets incrementalSolving
-    res <- if incremental then incrementalSolve else nonincrementalSolve
+    mode <- gets encoderMode
+    res <- case mode of 
+            PureEnum -> pureEnumeration
+            IncrementalEnum -> incrementalSolve
+            NonIncrementalEnum -> nonincrementalSolve
 
     case res of
         Sat -> do
@@ -186,34 +186,26 @@ solveAndGetModel = do
             blockTrs <- zipWithM blockTr [0..(l-1)] selected
             blockAss <- mkAnd (placed ++ blockTrs) >>= mkNot
             modify $ \s -> s { block = blockAss }
-            unless incremental solverReset
+            when (mode == NonIncrementalEnum) solverReset
             selectedNames <- getTrNames selected
-            when incremental $ do
-                cancelConstraints "exclude"
-                cancelConstraints "final"
             return selectedNames
-        Unsat -> do
-            rets <- gets returnTyps
-            unless incremental solverReset
-            if length rets == 1
-              then do
-                -- liftIO $ print "unsat for increase length"
-                when incremental $ do
-                    cancelConstraints "exclude"
-                    cancelConstraints "final"
-                    blocks <- gets blockConstraints
-                    mapM_ (mkNot >=> assert) blocks
-                return []
-              else do
-                liftIO $ print "unsat for change goal"
-                -- try a more general return type
-                t2tr <- gets ty2tr
-                when incremental $ cancelConstraints "final"
-                modify $ \st -> st { finalConstraints = []
-                                   , returnTyps = tail rets
-                                   , prevChecked = False }
-                setFinalState (rets !! 1) (HashMap.keys t2tr)
-                solveAndGetModel
+        Unsat -> 
+            case mode of
+                PureEnum -> return []
+                _ -> do
+                    rets <- gets returnTyps
+                    when (mode == NonIncrementalEnum) solverReset
+                    if length rets == 1
+                    then return []
+                    else do
+                        liftIO $ putStrLn "unsat for change goal"
+                        -- try a more general return type
+                        t2tr <- gets ty2tr
+                        modify $ \st -> st { finalConstraints = []
+                                        , returnTyps = tail rets
+                                        , prevChecked = False }
+                        setFinalState [rets !! 1] (HashMap.keys t2tr)
+                        solveAndGetModel
         Undef -> return []
   where
     getTrNames selected = do
@@ -274,11 +266,13 @@ encoderSolve = runStateT solveAndGetModel
 -- we only need to change the must firers and noTransitionTokens and final states
 encoderInc :: [FunctionCode] -> [AbstractSkeleton] -> [AbstractSkeleton] -> Encoder ()
 encoderInc sigs inputs rets = do
+    solverReset
     modify $ \st -> st { loc = loc st + 1
                        , returnTyps = rets
                        , optionalConstraints = []
                        , blockConstraints = []
                        , finalConstraints = []
+                       , incrementalSolving = False
                        , prevChecked = False }
     places <- gets (HashMap.keys . ty2tr)
     transitions <- gets (Set.toList . Set.unions . HashMap.elems . ty2tr)
@@ -311,7 +305,10 @@ encoderInc sigs inputs rets = do
     -- set new initial and final state
     setInitialState inputs places
 
-    setFinalState (head rets) places
+    mode <- gets encoderMode
+    case mode of
+        PureEnum -> setFinalState rets places
+        _ -> setFinalState [head rets] places
 
 encoderRefine :: SplitInfo -> HashMap Id [Id] -> [AbstractSkeleton] -> [AbstractSkeleton] -> [FunctionCode] -> HashMap AbstractSkeleton (Set Id) -> Encoder ()
 encoderRefine info musters inputs rets newSigs t2tr = do
@@ -355,7 +352,7 @@ encoderRefine info musters inputs rets newSigs t2tr = do
     -- set new initial and final state
     setInitialState inputs currPlaces
 
-    setFinalState (head rets) currPlaces
+    setFinalState [head rets] currPlaces
 
 disableTransitions :: [Id] -> Int -> Encoder ()
 disableTransitions trs t = mapM_ disableTrAt trs

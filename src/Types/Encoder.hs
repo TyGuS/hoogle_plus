@@ -49,6 +49,12 @@ data Z3Env = Z3Env {
   envContext :: Z3.Context
 }
 
+data EncoderMode
+  = PureEnum
+  | IncrementalEnum
+  | NonIncrementalEnum
+  deriving (Eq, Ord, Show)
+
 data EncodeState = EncodeState {
   z3env :: Z3Env,
   counter :: Int,
@@ -71,7 +77,8 @@ data EncodeState = EncodeState {
   finalConstraints :: [Z3.AST],
   blockConstraints :: [Z3.AST],
   useArguments :: Bool,
-  disableClones :: Bool
+  disableClones :: Bool,
+  encoderMode :: EncoderMode
 }
 
 emptyEncodeState = EncodeState {
@@ -96,7 +103,8 @@ emptyEncodeState = EncodeState {
   finalConstraints = [],
   blockConstraints = [],
   useArguments = True,
-  disableClones = True
+  disableClones = True,
+  encoderMode = NonIncrementalEnum
 }
 
 newEnv :: Maybe Logic -> Opts -> IO Z3Env

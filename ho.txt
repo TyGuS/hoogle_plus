@@ -1,2 +1,7 @@
-(Data.Function.$)
+Data.Tuple.fst
+Data.Tuple.snd
+Data.Maybe.listToMaybe
+Data.Either.either
 Data.Function.id
+(Data.Function..)
+Control.Monad.return
