@@ -14,6 +14,7 @@ import Synquid.Program
 import Synquid.Type
 import Synquid.Pretty
 import Synquid.Util
+import Database.Util
 
 import Data.Maybe
 import qualified Data.Text as Text
@@ -68,6 +69,9 @@ nubSpence l = runST $ do
 listDiff left right = Set.toList $ (Set.fromList left) `Set.difference` (Set.fromList right)
 
 replaceId a b = Text.unpack . Text.replace (Text.pack a) (Text.pack b) . Text.pack
+
+stripSuffix :: String -> String
+stripSuffix = replaceId hoPostfix "" . removeLast '_'
 
 freshId :: MonadIO m => Id -> PNSolver m Id
 freshId prefix = do

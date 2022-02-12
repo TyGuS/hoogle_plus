@@ -189,6 +189,10 @@ longScalarName (TypeVarT name _) = name
 longScalarName (TyAppT tFun tArg _) = longScalarName tFun ++ longScalarName tArg
 longScalarName t = error $ "longScalarName error: cannot be applied to nonscalar type "
 
+withSchema :: (TypeSkeleton -> TypeSkeleton) -> SchemaSkeleton -> SchemaSkeleton
+withSchema f (ForallT x t) = ForallT x (withSchema f t)
+withSchema f (Monotype t) = Monotype (f t)
+
 {- kind unification -}
 kindUnification :: Kind -> Kind -> Kind
 kindUnification (KnVar _) k = k

@@ -55,6 +55,32 @@ getDeps Hackage{packages=ps} allEntries ourEntries = do
     ) ps
   return $ nubOrd $ concat pkgsDeps
 
+generateHigherOrder :: GenerationOpts -> Environment -> IO Environment
+generateHigherOrder genOpts env = do
+    let pathToHo = hoPath genOpts
+    hofStr <- readFile pathToHo
+    let hofNames = words hofStr
+    -- get signatures
+    let sigs = map (\f -> lookupWithError "env: symbols" f (env ^. symbols)) hofNames
+    -- transform into fun types and add into the environments
+    let sigs' = concat $ zipWith unfoldFuns hofNames sigs
+    let env' = env { _symbols = Map.union (env ^. symbols) (Map.fromList sigs')
+                   , _hoCandidates = map fst sigs' }
+    return env'
+    where
+        newHoName name i = name ++ "_" ++ show i ++ hoPostfix
+
+        mkFun acc (n, arg) = FunctionT n arg acc
+
+        unfoldFuns name (ForallT x t) = map (over _2 (ForallT x)) (unfoldFuns name t)
+        unfoldFuns name (Monotype t) = map (over _2 Monotype) $ snd $ unfoldFuns' name 0 [] t
+
+        unfoldFuns' name i sofarArgs t@(FunctionT x tArg tRes) =
+            let (i', sofar) = unfoldFuns' name i ((x,tArg):sofarArgs) tRes
+                currHo = foldl mkFun (toFunType t) sofarArgs
+             in (i' + 1, (newHoName name i', currHo):sofar)
+        unfoldFuns' name i sofarArgs t = (i, [])
+
 generateEnv :: GenerationOpts -> IO Environment
 generateEnv genOpts = do
     let useHO = enableHOF genOpts
@@ -93,15 +119,8 @@ generateEnv genOpts = do
             let filterHO = if useHO then const True else not . isHigherOrder . toMonotype
             let env' = over symbols (Map.filter filterHO) $
                       set included_modules (Set.fromList moduleNames) env
-            hofStr <- readFile pathToHo
-            let hofNames = words hofStr
-            -- get signatures
-            let sigs = map (\f -> lookupWithError "env: symbols" f (env' ^. symbols)) hofNames
-            -- transform into fun types and add into the environments
-            let sigs' = zipWith (\n t -> (n ++ hoPostfix, toFunType t)) hofNames sigs
-            let env = set symbols (Map.union (env' ^. symbols) (Map.fromList sigs')) $
-                      set hoCandidates (map fst sigs') env'
-            return env
+            generateHigherOrder genOpts env'
+
     printStats result
     print (result ^. symbols)
     return result
@@ -109,12 +128,11 @@ generateEnv genOpts = do
      filterEntries entries Nothing = entries
      filterEntries entries (Just mdls) = Map.filterWithKey (\m _-> m `elem` mdls) entries
 
-toFunType :: SchemaSkeleton -> SchemaSkeleton
-toFunType (ForallT x t) = ForallT x (toFunType t)
-toFunType (Monotype (FunctionT x tArg tRes)) = let
-  tArg' = toMonotype $ toFunType $ Monotype tArg
-  tRes' = toMonotype $ toFunType $ Monotype tRes
-  in Monotype $ TyFunT tArg' tRes'
+toFunType :: TypeSkeleton -> TypeSkeleton
+toFunType (FunctionT x tArg tRes) = let
+  tArg' = toFunType tArg
+  tRes' = toFunType tRes
+  in TyFunT tArg' tRes'
 toFunType t = t
 
 -- filesToEntries reads each file into map of module -> declartions

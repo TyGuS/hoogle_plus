@@ -28,6 +28,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Tuple (swap)
 import Text.Printf
+import Debug.Trace
 
 findSymbol :: MonadIO m => Environment -> Id -> PNSolver m TypeSkeleton
 findSymbol env sym = do
@@ -59,13 +60,15 @@ updateCover' bound cover intscts t paren | isSubtypeOf bound t paren =
                       then updatedCover
                       else HashMap.insertWith Set.union paren (Set.singleton t) updatedCover
         int_fun s (ints, acc) = updateCover' bound acc ints s rootNode
-     in foldr int_fun ([], baseCover) scts
+     in foldr int_fun ([], baseCover) (nub scts)
 updateCover' bound cover intscts t paren | isSubtypeOf bound paren t =
     let parents = HashMap.keys $ HashMap.filter (Set.member paren) cover
-        rmParen = HashMap.map (Set.delete paren) cover
-        addCurr p = HashMap.insertWith Set.union p $ Set.singleton t
-        addedCurr = foldr addCurr rmParen parents
-        cover' = HashMap.insertWith Set.union t (Set.singleton paren) addedCurr
+        rmParen s = let s' = Set.delete paren s in if Set.null s' then Nothing else Just s'
+        replaceWith p acc = 
+            if isSubtypeOf bound t p && not (equalAbstract bound t p)
+                then HashMap.insertWith Set.union p (Set.singleton t) (HashMap.update rmParen p acc)
+                else acc
+        cover' = HashMap.insertWith Set.union t (Set.singleton paren) (foldr replaceWith cover parents)
      in (intscts, cover')
 updateCover' bound cover intscts t paren =
     let intsctMb = abstractIntersect bound t paren
@@ -102,7 +105,9 @@ propagate env p@(Program (PSymbol sym) t) upstream = do
     let bound = env ^. boundTypeVars
     unless (existAbstract bound cover upstream)
            (do
+                writeLog 3 "propagate" $ text "adding" <+> pretty upstream <+> text "into" <+> pretty cover
                 let newCover = updateCover bound upstream cover
+                writeLog 3 "propagate" $ text "add" <+> pretty upstream <+> text "gets" <+> pretty newCover
                 modify $ set abstractionCover newCover
                 let newTyps = allTypesOf newCover \\ allTypesOf cover
                 modify $ over splitTypes (Set.union $ Set.fromList newTyps)
@@ -113,6 +118,8 @@ propagate env p@(Program (PSymbol sym) t) upstream = do
 propagate env p@(Program (PApp f args) _) upstream = do
     unless (isBot upstream) (propagate env (Program (PSymbol "x") AnyT) upstream)
     writeLog 3 "propagate" $ text "propagate" <+> pretty upstream <+> text "into" <+> pretty p
+    cover <- gets (view abstractionCover)
+    writeLog 3 "propagate" $ text "current abstraction cover:" <+> pretty (cover)
     t <- findSymbol env (removeLast '_' f)
     let closedArgs = map typeOf args
     let argConcs = map (compactAbstractType . toAbstractType) closedArgs
@@ -127,7 +134,9 @@ propagate env p@(Program (PApp f args) _) upstream = do
         -- its current abstraction is at
         -- we are finding a refined abstraction at' < at
         -- such that ct < at' < at
+        lift $ writeLog 3 "propagate" $ text "inside mostGeneral"
         currAbs <- lift $ mapM (currentAbst bound cover) cArgs
+        lift $ writeLog 3 "propagate" $ text "find current abstraction" <+> pretty currAbs 
         absArgs <- mapM (generalize env) cArgs
         lift $ writeLog 3 "propagate" $ text "try" <+> pretty absArgs <+> text "from" <+> pretty cArgs <+> text "with currently" <+> pretty currAbs
         guard ((all (uncurry $ isSubtypeOf bound)) (zip absArgs currAbs))
@@ -153,7 +162,7 @@ bottomUpCheck env p@(Program (PSymbol sym) typ) = do
     -- lookup the symbol type in current scope
     nameMap <- use nameMapping
     let sym' = removeLast '_' sym
-    let name = replaceId hoPostfix "" $ fromMaybe sym' (Map.lookup sym' nameMap)
+    let name = stripSuffix $ fromMaybe sym' (Map.lookup sym' nameMap)
     t <- findSymbol env name
     writeLog 2 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p <+> text "get" <+> pretty t
     return (Program (PSymbol sym) t)
@@ -162,7 +171,9 @@ bottomUpCheck env p@(Program (PApp f args) typ) = do
     case argResult of
         Left err -> return err
         Right checkedArgs -> do
-            t <- findSymbol env (removeLast '_' f)
+            nameMap <- gets (view nameMapping)
+            let name = stripSuffix $ fromMaybe f (Map.lookup f nameMap)
+            t <- findSymbol env name
             -- check function signature against each argument provided
             let argVars = allArgTypes t
             let checkedArgTys = map typeOf checkedArgs

@@ -269,10 +269,12 @@ abstractIntersect bound t1 t2 =
 -- | find the current most restrictive abstraction for a given type
 currentAbst :: MonadIO m => [Id] -> AbstractCover -> AbstractSkeleton -> PNSolver m AbstractSkeleton
 currentAbst tvs cover (AFunctionT tArg tRes) = do
+    writeLog 3 "currentAbst" $ text "finding current abstraction for" <+> pretty (AFunctionT tArg tRes)
     tArg' <- currentAbst tvs cover tArg
     tRes' <- currentAbst tvs cover tRes
     return $ AFunctionT tArg' tRes'
 currentAbst tvs cover at = do
+    writeLog 3 "currentAbst" $ text "finding current abstraction for" <+> pretty at
     freshAt <- freshAbstract tvs at
     case currentAbst' freshAt rootNode of
         Nothing -> error $ "cannot find current abstraction for type " ++ show at

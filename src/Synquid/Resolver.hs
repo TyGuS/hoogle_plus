@@ -62,9 +62,9 @@ resolveDecls declarations moduleNames =
     where
         go = do
             -- Pass 1: collect all declarations and resolve sorts, but do not resolve refinement types yet
-            mapM_ (\d -> traceShow d $ extractPos resolveDeclaration d) declarations
+            mapM_ (extractPos resolveDeclaration) declarations
             -- Pass 2: resolve refinement types in signatures
-            mapM_ (\d -> traceShow d $ extractPos resolveSignatures d) declarations
+            mapM_ (extractPos resolveSignatures) declarations
         extractPos pass (Pos pos decl) = do
             currentPosition .= pos
             pass decl
@@ -88,7 +88,6 @@ resolveDeclaration (DataDecl dtName tParams ctors) = do
         _typeParams = tParams,
         _constructors = map constructorName ctors
         }
-    trace ("resolveDeclaration: adding datatype " ++ show (dtName, tParams)) $ return ()
     environment %= addDatatype dtName datatype
     mapM_ (\(ConstructorSig name typ) -> addNewSignature name $ Monotype typ) ctors
 resolveDeclaration (SynthesisGoal name impl) = do
@@ -129,7 +128,7 @@ resolveSchema sch = do
 resolveType :: TypeSkeleton -> Kind -> Resolver TypeSkeleton
 resolveType t@(TypeVarT v _) k = do
     kindConstraints %= ((KnVar v, k):)
-    return $ trace ("resolveType: adding" ++ show (KnVar v, k)) $ TypeVarT v k
+    return $ TypeVarT v k
 resolveType t@(DatatypeT name _) k = do
     ds <- use $ environment . datatypes
     case Map.lookup name ds of
@@ -137,12 +136,11 @@ resolveType t@(DatatypeT name _) k = do
             trySynonym <- substituteTypeSynonym t
             case trySynonym of
                 Nothing -> throwResError $ text name <+> text "is not a defined datatype"
-                Just t' -> trace ("resolveType: find synonym " ++ show t') $ resolveType t' k
+                Just t' -> resolveType t' k
         Just (DatatypeDef tParams _) -> do
             k' <- mkVarKind (length tParams) KnStar
-            trace ("Get kind " ++ show k' ++ " for datatype " ++ show name ++ " with params " ++ show tParams) $ return ()
             kindConstraints %= ((k, k'):)
-            return $ trace ("resolveType: adding" ++ show (k, k')) $ DatatypeT name k
+            return $ DatatypeT name k
     where
         mkVarKind 0 acc = return acc
         mkVarKind i acc = do
@@ -155,10 +153,10 @@ resolveType t@(TyAppT tFun tArg _) k = do
             kn <- case tArg of
                 TypeVarT v _ -> return (KnVar v)
                 _ -> KnVar <$> freshK
-            f <- trace ("resolveType: resolving " ++ show (tFun, KnArr kn k)) $ resolveType tFun (KnArr kn k)
+            f <- resolveType tFun (KnArr kn k)
             a <- resolveType tArg kn
             return $ TyAppT f a k
-        Just t' -> trace ("resolveType: find synonym " ++ show t') $ resolveType t' k
+        Just t' -> resolveType t' k
 resolveType (TyFunT tArg tRes) KnStar = do
     a <- resolveType tArg KnStar
     r <- resolveType tRes KnStar
@@ -173,7 +171,7 @@ resolveType (FunctionT x tArg tRes) KnStar =
                 resolveType tRes KnStar
             return $ FunctionT x tArg' tRes'
 resolveType AnyT _ = return AnyT
-resolveType t k = trace ("resolveType: adding " ++ show (k, KnStar)) (kindConstraints %= ((k, KnStar):) >> return t)
+resolveType t k = (kindConstraints %= ((k, KnStar):) >> return t)
     --throwResError $ pretty t <+> text "should not have kind" <+> pretty k
 
 {- Misc -}
@@ -203,13 +201,11 @@ freshK = do
 
 resolveKindAndType :: TypeSkeleton -> Kind -> Resolver TypeSkeleton
 resolveKindAndType t k = do
-    -- traceShow t (return ())
     t' <- resolveType t k
     solveAllKind
     solveAllAssignment
     kass <- use kindAssignment
     let t = substituteKindInType kass t'
-    -- traceShow t (return ())
     kindAssignment .= Map.empty
     return (defaultKindInType t)
 
@@ -217,12 +213,10 @@ solveAllKind :: Resolver ()
 solveAllKind = do
     kass <- use kindAssignment
     kcs <- use kindConstraints
-    traceShow kcs (return ())
     kindConstraints .= []
     mapM_ solveKind kcs
     -- if we get new type assignments during the constraint solving
     kass' <- use kindAssignment
-    -- traceShow kass' (return ())
     when (Map.size kass' > Map.size kass) solveAllKind
 
 solveAllAssignment :: Resolver ()
