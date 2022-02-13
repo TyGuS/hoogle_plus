@@ -8,11 +8,11 @@ import re
 from multiprocessing import Pool
 
 
-BASE_CMD = 'echo "{count}" && timeout 60 stack exec -- hplus "{query}" --log=1 {options} > {log_file}'
-DEFAULT_QUERY_FILE = "benchmark/suites/working.yml"
-LOG_DIR = "tmp/run_each/logs/"
-TSV_DIR = "tmp/run_each/tsv/"
-REPEATS = 3
+BASE_CMD = 'echo "{count}" && timeout 120 stack exec -- hplus "{query}" --log=1 --cnt=5 {options} > {log_file}'
+DEFAULT_QUERY_FILE = "benchmark/suites/not-work.yaml"
+LOG_DIR = "tmp/run_qual/logs/"
+TSV_DIR = "tmp/run_qual/tsv/"
+REPEATS = 1
 NUM_POOLS = 2
 
 def ensure_dir(directory):
@@ -38,16 +38,15 @@ class Variant():
     def log_to_dict(self, querydct, log_path):
         qn = querydct["name"]
         log_name = Variant.log_name(self.name, qn, log_path)
+
         with open(log_name) as f:
             lines = f.readlines()
             stats = lines[-2]
             solution = lines[-4]
-            obj = {}
-            obj["name"] = qn
-            obj["query"] = querydct["query"]
             if "writeSolution" not in stats:
                 # did not finish completely
-                return obj
+                return
+            obj = {}
             obj["Solution"] = solution
             if "****" not in lines[-3]:
                 obj["Solution"] = "No Solution"
@@ -59,11 +58,28 @@ class Variant():
                 if v[0] == '[':
                     v = v.strip('[]').split(',')
                 obj[k] = v
+            obj["name"] = qn
+            obj["query"] = querydct["query"]
             transitions_regex = r"numOfTransitions = fromList \[(.*)\], num"
             res = re.findall(transitions_regex, stats)
             if res:
                 last_transition = res[0].split(",")[-1][:-1]
                 obj["numOfTransitions"] = last_transition
+            return obj
+
+    def log_solutions(self, querydct, log_path):
+        qn = querydct["name"]
+        log_name = Variant.log_name(self.name, qn, log_path)
+
+        with open(log_name) as f:
+            lines = f.readlines()
+            obj = {}
+            reg_str = r'^SOLUTION:\ ([a-zA-Z0-9\.\(\)\[\]\.\,\:\ ]+)\n'
+            res = list(filter(lambda x: re.search(reg_str, x), lines))
+            res = list(map(lambda x: re.search(reg_str, x).group(1), res))
+            obj["name"] = qn
+            obj["query"] = querydct["query"]
+            obj["solutions"] = '\n'.join(res)
             return obj
 
     def write_tsv(self, idx, result_dict):
@@ -112,7 +128,8 @@ class Experiment():
             out_dir = os.path.join(LOG_DIR, str(idx))
             for query in self.queries:
                 for variant in self.variants:
-                    result_dict = variant.log_to_dict(query, out_dir)
+                    # result_dict = variant.log_to_dict(query, out_dir)
+                    result_dict = variant.log_solutions(query, out_dir)
                     if result_dict is not None:
                         variant.write_tsv(idx, result_dict)
 
@@ -123,17 +140,19 @@ class Experiment():
 
 def main():
     bmg = Experiment([
-        Variant("tygarQ"),
-        Variant("tygar0", "--use-refine=tygar0"),
-        Variant("tygarQB5", "--stop-refine=True --stop-threshold=5"),
-        Variant("tygarQB10", "--stop-refine=True --stop-threshold=10"),
-        Variant("tygarQB15", "--stop-refine=True --stop-threshold=15"),
-        Variant("tygarQB20", "--stop-refine=True --stop-threshold=20"),
-        Variant("nogar", "--use-refine=nogar"),
+        # Variant("tygarQ"),
+        # Variant("tygar0", "--use-refine=tygar0"),
+        # Variant("tygarQB5", "--stop-refine=True --stop-threshold=5"),
+        Variant("H", "--stop-refine=True --stop-threshold=10"),
+        Variant("H-D", "--stop-refine=True --stop-threshold=10 --disable-demand"),
+        Variant("H-R", "--stop-refine=True --stop-threshold=10 --disable-demand --disable-relevancy"),
+        # Variant("tygarQB15", "--stop-refine=True --stop-threshold=15"),
+        # Variant("tygarQB20", "--stop-refine=True --stop-threshold=20"),
+        # Variant("nogar", "--use-refine=nogar"),
         ])
     bmg.load_queries()
     bmg.setup()
-    # bmg.run()
+    bmg.run()
     bmg.logs_to_csv()
 
 if __name__ == "__main__":

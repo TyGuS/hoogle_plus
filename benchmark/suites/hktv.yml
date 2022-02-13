@@ -1,0 +1,49 @@
+- name: maybeToTransformer
+  query: "Monad m => mb: Maybe a -> MaybeT m a"
+  solution: "\\mb -> Control.Monad.Trans.Maybe.MaybeT (return mb)"
+  source: "hktv"
+
+- name: execStateT
+  query: "Monad m => operation: StateT s m a -> state: s -> m s"
+  solution: "\\operation state -> Control.Monad.liftM Data.Tuple.snd (Control.Monad.State.Lazy.runStateT operation state)"
+  source: "hktv"
+
+- name: composeNestedMonads
+  query: "(Monad m1, Monad m2) => sm: m1 (m2 a) -> f: (a -> m2 b) -> m1 (m2 b)"
+  solution: "\\sm f -> (sm Control.Monad.>>= (Control.Monad.return Data.Function.. (Control.Monad.=<< f))"
+  source: "hktv"
+
+- name: traverseDag
+  query: "Monad m => f: ([a1] -> a2 -> m [a1]) -> xs: [(a2, b)] -> m ([a1])"
+  solution: "\\f xs -> Control.Monad.foldM f [] (Data.List.map Data.Tuple.fst xs)"
+  source: "hktv"
+
+- name: extractEitherValues
+  query: "(Traversable t, Monad m) => datasets: t (Either (m b) (m b)) -> m (t b)"
+  solution: "\\datasets -> forM datasets (Data.Either.either Data.Function.id Data.Function.id)"
+  source: "hktv"
+
+- name: runEachLine
+  query: "(Monad m) => loop: StateT [(a1, String)] m a2 -> xs: [a1] -> str: String -> m a2"
+  solution: "\\loop xs str -> Control.Monad.State.Lazy.evalStateT loop (Data.List.zip xs (Data.List.lines str))"
+  source: "hktv"
+
+- name: threads
+  query: "f: (a2 -> Maybe a1) -> xs: [a2] -> def: a1 -> a1"
+  solution: "\\f xs def -> Data.Maybe.fromMaybe def (Control.Monad.msum (Data.List.map f xs))"
+  source: "hktv"
+
+- name: monadicUpdate
+  query: "Monad m => x: m a -> upd: (a -> m b) -> mb: Maybe a -> m b"
+  solution: "\\x upd mb -> Data.Maybe.maybe ((Control.Monad.>>=) e upd) upd mb"
+  source: "hktv"
+
+- name: cycleDetection
+  query: "MonadPlus m => x: m a1 -> xs: [a2] -> f: (a2 -> m a1) -> m a1"
+  solution: "\\x xs f -> Control.Monad.mplus x (Control.Monad.msum (Data.List.map f xs))"
+  source: "hktv"
+
+- name: firstM
+  query: "Monad m => p: (a -> m Bool) -> xs: [a] -> m (Maybe a)"
+  solution: "\\p xs -> Control.Monad.liftM Data.Maybe.listToMaybe (Control.Monad.filterM p xs)"
+  source: "hktv"

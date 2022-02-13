@@ -180,7 +180,7 @@ bottomUpCheck env p@(Program (PApp f args) typ) = do
             mapM_ (uncurry $ solveTypeConstraint env) (zip checkedArgTys argVars)
             -- we eagerly substitute the assignments into the return type of t
             tass <- use typeAssignment
-            let ret = typeSubstitute tass (lastType t)
+            let ret = typeSubstitute tass (partialReturn checkedArgs t)
             -- if any of these checks returned false, this function application
             -- would produce a bottom type
             writeLog 2 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p <+> text "get" <+> pretty ret
@@ -188,6 +188,9 @@ bottomUpCheck env p@(Program (PApp f args) typ) = do
                 (return $ Program (PApp f checkedArgs) ret)
                 (return $ Program (PApp f checkedArgs) BotT)
   where
+    partialReturn (_:args) (FunctionT _ _ tRes) = partialReturn args tRes
+    partialReturn [] t = t
+    
     checkArgs [] = return $ Right []
     checkArgs (arg:args) = do
         checkedArg <- bottomUpCheck env arg
