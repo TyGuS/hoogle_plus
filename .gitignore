@@ -87,3 +87,5 @@ dist/
 build/
 *.egg-info/
 output/
+
+log

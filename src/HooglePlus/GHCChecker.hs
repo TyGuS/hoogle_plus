@@ -159,17 +159,17 @@ runGhcChecks params env goalType examples prog = let
     disableDemand = _disableDemand params
     disableFilter = _disableFilter params
     in do
-        liftIO $ print goalType
-        liftIO $ print funcSig
+        -- liftIO $ print goalType
+        -- liftIO $ print funcSig
         typeCheckResult <- liftIO $ runInterpreter $ checkType expr modules
         strictCheckResult <- if disableDemand 
             then return True 
             else liftIO $ checkStrictness tyclassCount (show body) funcSig modules
-        liftIO $ print strictCheckResult
+        -- liftIO $ print strictCheckResult
         exampleCheckResult <- if not strictCheckResult 
             then return Nothing 
             else liftIO $ fmap ((:[]) . ((unqualifyFunc body, body),)) <$> checkOutputs prog examples
-        liftIO $ print exampleCheckResult
+        -- liftIO $ print exampleCheckResult
         filterCheckResult <- if disableFilter || isNothing exampleCheckResult
             then return exampleCheckResult
             else do
@@ -177,7 +177,7 @@ runGhcChecks params env goalType examples prog = let
                 if isNothing filterResult
                     then return filterResult
                     else return $ Just (fromJust exampleCheckResult ++ fromJust filterResult)
-        liftIO $ print filterCheckResult
+        -- liftIO $ print filterCheckResult
         case typeCheckResult of
             Left err -> liftIO $ putStrLn (displayException err) >> return Nothing
             Right False -> liftIO $ putStrLn "Program does not typecheck" >> return Nothing

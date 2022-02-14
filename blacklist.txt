@@ -1,10 +1,6 @@
-Data.Function.const
 Data.Function.id
 Data.Function.fix
-Data.Function.on
-Data.Function.flip
 (Data.Function.&)
-(Data.Function..)
 GHC.List.reverse
 GHC.List.cycle
 Data.ByteString.Lazy.reverse

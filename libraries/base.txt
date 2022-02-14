@@ -3628,23 +3628,23 @@ group :: Eq a => [a] -> [[a]]
 -- unlines :: [String] -> String
 -- unwords :: [String] -> String
 -- nub :: Eq a => [a] -> [a]
--- delete :: Eq a => a -> [a] -> [a]
+delete :: Eq a => a -> [a] -> [a]
 -- (\\) :: Eq a => [a] -> [a] -> [a]
 -- infix 5 \\
 -- union :: Eq a => [a] -> [a] -> [a]
 -- intersect :: Eq a => [a] -> [a] -> [a]
--- sort :: Ord a => [a] -> [a]
--- sortOn :: Ord b => (a -> b) -> [a] -> [a]
+sort :: Ord a => [a] -> [a]
+sortOn :: Ord b => (a -> b) -> [a] -> [a]
 -- insert :: Ord a => a -> [a] -> [a]
 -- nubBy :: (a -> a -> Bool) -> [a] -> [a]
 -- deleteBy :: (a -> a -> Bool) -> a -> [a] -> [a]
 -- deleteFirstsBy :: (a -> a -> Bool) -> [a] -> [a] -> [a]
 -- unionBy :: (a -> a -> Bool) -> [a] -> [a] -> [a]
 -- intersectBy :: (a -> a -> Bool) -> [a] -> [a] -> [a]
--- groupBy :: (a -> a -> Bool) -> [a] -> [[a]]
--- sortBy :: (a -> a -> Ordering) -> [a] -> [a]
+groupBy :: (a -> a -> Bool) -> [a] -> [[a]]
+sortBy :: (a -> a -> Ordering) -> [a] -> [a]
 -- insertBy :: (a -> a -> Ordering) -> a -> [a] -> [a]
--- maximumBy :: Foldable t => (a -> a -> Ordering) -> t a -> a
+maximumBy :: (a -> a -> Ordering) -> [a] -> a
 -- minimumBy :: Foldable t => (a -> a -> Ordering) -> t a -> a
 -- genericLength :: Num i => [a] -> i
 -- genericTake :: Integral i => i -> [a] -> [a]

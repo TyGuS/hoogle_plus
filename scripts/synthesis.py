@@ -11,8 +11,8 @@ from benchmark import *
 
 HPLUS_CMD = ['stack', 'exec', '--', 'hplus']  # Command to call hoogle+
 TIMEOUT_CMD = 'timeout'  # Timeout command
-TIMEOUT = '60'  # Timeout value (seconds)
-CMD_OPTS = ['--stop-refine', '--stop-threshold=10']
+TIMEOUT = '300'  # Timeout value (seconds)
+CMD_OPTS = ['--stop-refine', '--stop-threshold=10', '--disable-filter', '--cnt=10000']
 LOGFILE = 'results.log'                                         # Log file
 # Result serialization file
 DUMPFILE = 'results.pkl'
@@ -28,23 +28,35 @@ def format_time(t):
         return '{0:0.2f}'.format(t)
 
 
-def run_benchmark(output_dir, results, name, query, examples, default_opts,
+def run_benchmark(output_dir, results, name, query, examples, desired_solution, default_opts,
                   timeout=TIMEOUT, is_filtering=False):
     '''
         Run benchmark name with command-line options opts
         (use default_opts with running the common context variant);
         record results in the results dictionary
     '''
-    command = HPLUS_CMD + CMD_OPTS + \
-        ['--json={{"query":"{}", "inExamples":{}}}'.format(
-            query, json.dumps(examples))] + default_opts
+    # FIXME: pass examples here if you want to test with examples
+    command = [TIMEOUT_CMD, TIMEOUT] + HPLUS_CMD + CMD_OPTS + \
+        ['--json={{"query":"{}", "inExamples":[], "inArgNames": []}}'.format(
+            query)] + default_opts
     # start the timer
     start = time.time()
+    solution = None
     with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=FNULL) as process:
         try:
-            output, unused_err = process.communicate(timeout=timeout)
-            print(name, ':', query, Fore.GREEN +
-                  'OK' + Style.RESET_ALL, end='\n')
+            # output, unused_err = process.communicate(timeout=timeout)
+            for line in iter(process.stdout.readline, b''):
+                print(line)
+                if line[:8] == b'RESULTS:':
+                    candidates = json.loads(line[8:])['outCandidates']
+                    if candidates:
+                        outSolutions = [x['qualSolution'] for x in candidates]
+                        if desired_solution in outSolutions:
+                            solution = desired_solution
+                            print(name, ':', query, Fore.GREEN + 'OK' + Style.RESET_ALL, end='\n')
+                            break
+
+            process.kill()
         except subprocess.TimeoutExpired:
             process.kill()
             print(name, ':', query, Fore.YELLOW + 'TIMEOUT' + Style.RESET_ALL,
@@ -52,17 +64,8 @@ def run_benchmark(output_dir, results, name, query, examples, default_opts,
             output, unused_err = process.communicate()
     end = time.time()
 
-    solution = []
-    for line in output.split(b'\n'):
-        # print(line)
-        if line[:8] == b'RESULTS:':
-            candidates = json.loads(line[8:])['outCandidates']
-            if candidates:
-                solution.append(candidates)
-
     # store synthesis results into json files
     if is_filtering:
-
         json_file = os.path.join(output_dir, '{}.json'.format(name))
         with open(json_file, 'w') as f:
             json.dump({'name': name, 'query': query,
@@ -70,14 +73,14 @@ def run_benchmark(output_dir, results, name, query, examples, default_opts,
     else:
         # end the timer and print the consumed time
         print(format_time(end - start), end=' ')
-        if not solution or solution[0]['outError']:  # Synthesis failed
+        if not solution:  # Synthesis failed
             print(Fore.RED + 'FAIL' + Style.RESET_ALL, end='\n')
             results[name] = SynthesisResult(name, end - start)
         else:  # Synthesis succeeded: code metrics from the output and record synthesis time
             print(Fore.GREEN + 'OK' + Style.RESET_ALL, end='\n')
             results[name] = SynthesisResult(name,
                                             format_time(end - start),
-                                            solution[0][0]['solution'])
+                                            solution)
 
 
 def write_csv(output_dir, groups, results):
@@ -96,20 +99,15 @@ def write_csv(output_dir, groups, results):
 
 def run_synthesis(groups, output_dir, timeout=TIMEOUT, options=[], is_filtering=False):
     results = {}
-    with Pool(processes=8) as pool:
-        for group in groups.values():
-            for b in group.benchmarks:
-                if b.name in results:
-                    print(str(b) + ' ' + Fore.YELLOW +
-                          Style.BRIGHT + 'SKIPPED' + Style.RESET_ALL)
-                else:
-                    print('Running', str(b))
-                    pool.apply_async(run_benchmark,
-                                     args=(output_dir, results, b.name, b.query, [],
-                                           group.default_options + options, timeout, is_filtering),
-                                     error_callback=lambda x: print(x))
-        pool.close()
-        pool.join()
+    for group in groups.values():
+        for b in group.benchmarks:
+            if b.name in results:
+                print(str(b) + ' ' + Fore.YELLOW +
+                        Style.BRIGHT + 'SKIPPED' + Style.RESET_ALL)
+            else:
+                print('Running', str(b))
+                run_benchmark(output_dir, results, b.name, b.query, b.examples, b.desired_solution,
+                                group.default_options + options, timeout, is_filtering)
 
     # Generate CSV if not testing the filtering algorithm
     if not is_filtering:

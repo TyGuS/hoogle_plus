@@ -33,6 +33,7 @@ myModules = [
   "GHC.Char",
   "GHC.List",
   "Data.Eq",
+  "Data.Ord",
   "Data.List",
   "Data.Function",
   -- ByteString

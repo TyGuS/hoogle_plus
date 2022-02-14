@@ -76,7 +76,7 @@ if __name__ == '__main__':
         for b in cl_opts.benchmarks:
             benchmark = find_benchmark_in_groups(b, groups)
             customized_group.add_benchmark(benchmark)
-        groups = [customized_group]
+        groups = {'customized': customized_group}
 
     if cl_opts.synthesis or cl_opts.all:
         run_synthesis(groups, cl_opts.output_dir)
