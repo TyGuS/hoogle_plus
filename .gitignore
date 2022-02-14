@@ -40,3 +40,4 @@ hplus.code-workspace
 benchmark/suites/working.yml
 *.z3
 log
+__pycache__/

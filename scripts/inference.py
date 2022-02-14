@@ -327,7 +327,7 @@ def run_type_inference(suite, groups, output_dir, use_study_data=False):
             for entry in entries:
                 outfile.write(format_width(15, entry.num_vars))
                 outfile.write(format_width(15, entry.num_exs))
-                outfile.write(format_width(15, entry.rank if entry.rank is not 11 else '-'))
+                outfile.write(format_width(15, entry.rank if entry.rank != 11 else '-'))
                 outfile.write(format_width(15, format_number(entry.prefilter_gens[0])))
                 outfile.write(format_width(15, format_number(entry.prefilter_gens[1])))
                 outfile.write(format_width(15, format_number(entry.postfilter_gens[0])))

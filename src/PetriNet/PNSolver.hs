@@ -766,6 +766,7 @@ writeSolution code = do
     -- liftIO $ hFlush stdout
     -- writeLog 1 "writeSolution" $ text (show stats')
     liftIO $ printSolution code
+    liftIO $ hFlush stdout
 
 recoverNames :: Map Id Id -> Program t -> Program t
 recoverNames mapping (Program (PSymbol sym) t) =

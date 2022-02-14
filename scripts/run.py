@@ -14,6 +14,7 @@ from synthesis import run_synthesis, LOGFILE
 assert sys.version_info >= (3, 5)
 DEFAULT_QUERY_FILE = 'benchmark/suites/working.yml'
 USER_QUERY_FILE = 'benchmark/suites/user-data.yml'
+HKTV_QUERY_FILE = 'benchmark/suites/hktv.yml'
 
 def cmdline():
     import argparse
@@ -76,7 +77,7 @@ if __name__ == '__main__':
         for b in cl_opts.benchmarks:
             benchmark = find_benchmark_in_groups(b, groups)
             customized_group.add_benchmark(benchmark)
-        groups = [customized_group]
+        groups = {'customized': customized_group}
 
     if cl_opts.synthesis or cl_opts.all:
         run_synthesis(groups, cl_opts.output_dir)
