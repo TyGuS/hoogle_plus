@@ -179,7 +179,7 @@ runGhcChecks params env goalType examples prog = let
                     else return $ Just (fromJust exampleCheckResult ++ fromJust filterResult)
         -- liftIO $ print filterCheckResult
         case typeCheckResult of
-            Left err -> liftIO $ putStrLn (displayException err) >> return Nothing
+            Left err -> return Nothing
             Right False -> liftIO $ putStrLn "Program does not typecheck" >> return Nothing
             Right True -> return filterCheckResult
     where

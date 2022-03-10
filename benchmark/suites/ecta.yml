@@ -8,87 +8,87 @@
   solution: "\\xs -> GHC.List.filter (Data.Function.flip GHC.List.elem xs) ys"
   source: "StackOverflow"
 
-- name: flipFilter
+- name: filterNot
   query: "p: (a -> Bool) -> xs: [a] -> [a]"
-  solution: "\\p xs -> GHC.List.filter ((Data.Function..) Data.Bool.not p) xs"
+  solution: "\\p xs -> GHC.List.filter (Data.Bool.not . p) xs"
   source: "StackOverflow"
 
-- name: nextIsGreater
-  query: "Ord a => [a] -> Bool"
-  solution: "\\xs -> GHC.List.all (Data.Ord.<) (GHC.List.zip (GHC.List.init xs) (GHC.List.tail xs))"
+- name: isSortedBy
+  query: "cmp: (a -> a -> Bool) -> xs: [a] -> Bool"
+  solution: "\\cmp xs -> GHC.List.and (GHC.List.zipWith cmp xs (GHC.List.tail xs))"
   source: "StackOverflow"
 
 - name: multipleNth
-  query: "[a] -> [Int] -> [a]"
-  solution: "\\xs indices -> GHC.List.map (GHC.List.!! xs) indices"
-  source: "StackOverflow"
-
-- name: elemFreqByFirstOcc
-  query: "Eq a => [a] -> [(a, Int)]"
-  solution: "\\xs -> GHC.List.map GHC.List.length (Data.List.group (Data.List.sort xs))"
+  query: "xs: [a] -> indices: [Int] -> [a]"
+  solution: "\\xs indices -> GHC.List.map ((GHC.List.!!) xs) indices"
   source: "StackOverflow"
 
 - name: doubleMap
-  query: "(a -> b) -> [[a]] -> [[b]]"
-  solution: "\\f xss -> map (map f) xss"
+  query: "f: (a -> b) -> xss: [[a]] -> [[b]]"
+  solution: "\\f xss -> GHC.List.map (GHC.List.map f) xss"
   source: "StackOverflow"
 
-- name: sumTuples
-  query: "[(a, [b])] -> Int"
-  solution: "\\ps -> GHC.List.sum (GHC.List.map ((Data.Function..) GHC.List.length Data.Tuple.snd) xs)"
+- name: lengthOfSnds
+  query: "ps: [(a, [b])] -> Int"
+  solution: "\\xs -> GHC.List.length (GHC.List.concat (GHC.List.map Data.Tuple.snd xs))"
   source: "StackOverflow"
 
-- name: moreThanNTimes
-  query: "Eq a => Int -> a -> [a] -> Bool"
-  solution: "\\n x xs -> Data.Bool.not (GHC.List.null (GHC.List.drop n (GHC.List.filter ((Data.Eq.==) x) xs)))"
+- name: lessThanNTimes
+  query: "Eq a => n: Int -> x: a -> xs: [a] -> Bool"
+  solution: "\\n x xs -> GHC.List.null (GHC.List.drop n (GHC.List.filter (== x) xs))"
   source: "StackOverflow"
 
 - name: groupByFirst
-  query: "Eq a => [(a, b)] -> [[(a, b)]]"
-  solution: "\\xs -> Data.List.groupBy (Data.Function.on (Data.Eq.==) Data.Tuple.fst) (Data.List.sortOn Data.Tuple.fst xs)"
+  query: "Eq a => xs: [(a, b)] -> [[(a, b)]]"
+  solution: "\\xs -> Data.List.groupBy (Data.Function.on (Data.Eq.==) Data.Tuple.fst) xs"
   source: "StackOverflow"
 
 - name: mySortBy
-  query: "(a -> a -> Comparing) -> [(a, b)] -> [(a, b)]"
+  query: "cmp: (a -> a -> Ordering) -> xs: [(a, b)] -> [(a, b)]"
   solution: "\\cmp xs -> Data.List.sortBy (Data.Function.on cmp Data.Tuple.fst) xs"
   source: "StackOverflow"
 
-- name: transposeAndCompress
-  query: "[[a]] -> [a]"
-  solution: "\\xs -> GHC.List.concat (GHC.List.foldr (GHC.List.zipWith (:)) (GHC.List.repeat []) xs)"
+- name: transpose
+  query: "xs: [[a]] -> [[a]]"
+  solution: "\\xs -> GHC.List.foldr (GHC.List.zipWith (:)) (GHC.List.repeat []) xs"
   source: "StackOverflow"
 
 - name: partition
-  query: "(a -> Bool) -> [a] -> ([a], [a])"
-  solution: "\\p xs -> (GHC.List.filter p xs, GHC.List.filter ((Data.Function..) Data.Bool.not p) xs)"
+  query: "p: (a -> Bool) -> xs: [a] -> ([a], [a])"
+  solution: "\\p xs -> (GHC.List.filter p xs, GHC.List.filter (Data.Bool.not . p) xs)"
   source: "StackOverflow"
 
 - name: matchedKeys
-  query: "(b -> Bool) -> [(a, b)] -> [a]"
-  solution: "\\p xs -> GHC.List.map Data.Tuple.fst (GHC.List.filter ((Data.Function..) p Data.Tuple.snd) xs)"
+  query: "p: (b -> Bool) -> xs: [(a, b)] -> [a]"
+  solution: "\\p xs -> GHC.List.map Data.Tuple.fst (GHC.List.filter (p . Data.Tuple.snd) xs)"
   source: "StackOverflow"
 
 - name: filterPairs
-  query: "(a -> b -> Bool) -> [a] -> [b] -> [(a, b)]"
-  solution: "\\p xs ys -> GHC.List.filter (Data.Tuple.uncurry f) (GHC.List.zip xs ys)"
+  query: "f:(a -> b -> Bool) -> xs:[a] -> ys:[b] -> [(a, b)]"
+  solution: "\\f xs ys -> GHC.List.filter (Data.Tuple.uncurry f) (GHC.List.zip xs ys)"
   source: "StackOverflow"
 
 - name: applyNthNTimes
-  query: "(a -> a) -> [a] -> [a]"
-  solution: "\\xs -> GHC.List.zipWith ($) (GHC.List.iterate ((Data.Function..) f) f) xs"
+  query: "f: (a -> a) -> xs: [a] -> [a]"
+  solution: "\\f xs -> GHC.List.zipWith (Data.Function.$) (GHC.List.iterate ((Data.Function..) f) f) xs"
   source: "StackOverflow"
 
 - name: removeMax
-  query: "Ord a => [a] -> [a]"
-  solution: "\\xs -> GHC.List.foldr (Data.Function.const (Data.List.delete (GHC.List.maximum xs))) xs xs"
+  query: "Ord a => xs: [a] -> [a]"
+  solution: "\\xs -> GHC.List.filter (/= (GHC.List.maximum xs)) xs"
   source: "StackOverflow"
 
-- name: allSameLength
-  query: "[a] -> [[a]] -> Bool"
-  solution: "\\xs xss -> GHC.List.all (Data.Function.on (Data.Eq.==) GHC.List.length xs) xss"
+- name: allSameBy
+  query: "Eq b => cmp: (a -> b) -> xs: a -> xss: [a] -> Bool"
+  solution: "\\cmp xs xss -> GHC.List.all (Data.Function.on (Data.Eq.==) cmp xs) xss"
   source: "StackOverflow"
 
 - name: mostFrequent
-  query: "Eq a => [a] -> a"
-  solution: "\\xs -> GHC.List.head (Data.List.maximumBy (Data.Function.on Data.Ord.compare GHC.List.length) (Data.List.group xs))"
+  query: "Ord b => xs: [a] -> occur: ([a] -> [(a, b)]) -> (a, b)"
+  solution: "\\xs occur -> Data.List.maximumBy (Data.Function.on Data.Ord.compare Data.Tuple.snd) (occur xs)"
+  source: "StackOverflow"
+
+- name: splitOn
+  query: "Eq a => x: a -> xs: [a] -> [[a]]"
+  solution: "\\x xs -> Data.List.groupBy (Data.Function.on (Data.Bool.&&) (/= x)) xs"
   source: "StackOverflow"

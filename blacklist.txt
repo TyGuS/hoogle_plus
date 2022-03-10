@@ -1,3 +1,4 @@
+Data.Function.const
 Data.Function.id
 Data.Function.fix
 (Data.Function.&)

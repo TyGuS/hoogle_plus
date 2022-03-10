@@ -114,7 +114,7 @@
 
 - name: coundPredMatch
   query: "xs: [a] -> p: (a -> Bool) -> Int"
-  solution: "\\xs f -> GHC.List.length (GHC.List.filter f xs)"
+  solution: "\\xs p -> GHC.List.length (GHC.List.filter p xs)"
   source: "hoogle"
   examples:
     - inputs: ["[1,2,3,4,5]", "\\x -> x `mod` 2 == 0"]
@@ -129,8 +129,8 @@
   examples: []
 
 - name: splitAtFirst
-  query: "x: a -> xs: [a] -> ([a], [a])"
-  solution: "\\x xs -> GHC.List.splitAt (Data.Maybe.fromMaybe 0 (GHC.List.elemIndex x xs)) xs"
+  query: "Eq a => x: a -> xs: [a] -> ([a], [a])"
+  solution: "\\x xs -> GHC.List.break (== x) xs"
   source: "hoogle"
   examples:
     - inputs: ["1", "[2,3,1,4,1,5]"]
@@ -156,7 +156,7 @@
 
 - name: multiAppPair
   query: "tp: (a -> b, a -> c) -> x: a -> (b, c)"
-  solution: "\\tp x -> (,) ((fst tp) x) ((snd tp) x)"
+  solution: "\\tp x -> (((fst tp) $ x) , ((snd tp) $ x))"
   source: "original"
   examples:
     - inputs: ["(\\x -> x * 3, \\x -> x * x)", "2"]
@@ -175,7 +175,7 @@
 
 - name: firstMatch
   query: "xs: [a] -> p: (a -> Bool) -> a"
-  solution: "\\xs f -> GHC.List.head (GHC.List.filter f xs)"
+  solution: "\\xs p -> GHC.List.head (GHC.List.filter p xs)"
   source: "hoogle"
   examples:
     - inputs: ["[1,2,3,4,5]", "\\x -> x `mod` 2 == 0"]
@@ -185,7 +185,7 @@
 
 - name: firstMaybe
   query: "mbs: [Maybe a] -> a"
-  solution: "\\arg0 -> GHC.List.head (Data.Maybe.catMaybes arg0)"
+  solution: "\\mbs -> GHC.List.head (Data.Maybe.catMaybes mbs)"
   source: "hoogle"
   examples:
     - inputs: ["[Nothing, Just 1, Just 2]"]
@@ -193,7 +193,7 @@
 
 - name: rights
   query: "es: [Either a b] -> Either a [b]"
-  solution: "\\arg0 -> Right (Data.Either.rights arg0)"
+  solution: "\\es -> Data.Either.Right (Data.Either.rights es)"
   source: "hoogle"
   examples:
     - inputs: ["[Left 1, Right 2, Right 3]"]
@@ -201,7 +201,7 @@
 
 - name: firstKey
   query: "xs: [(a, b)] -> a"
-  solution: "\\arg0 -> Data.Tuple.fst (GHC.List.head arg0)"
+  solution: "\\xs -> Data.Tuple.fst (GHC.List.head xs)"
   source: "hoogle"
   examples:
     - inputs: ["[(1, [1,2,3]), (2, [2,3,4]), (4, [4,5,6])]"]
@@ -209,7 +209,7 @@
 
 - name: applyPair
   query: "p: (a -> b, a) -> b"
-  solution: "\\arg0 -> (Data.Tuple.fst arg0) (Data.Tuple.snd arg0)"
+  solution: "\\p -> (fst p) $ (snd p)"
   source: "stackOverflow"
   examples:
     - inputs: ["(\\x -> x * x, 10)"]
@@ -222,7 +222,7 @@
 
 - name: firstRight
   query: "es: [Either a b] -> Either a b"
-  solution: "\\arg0 -> Right (GHC.List.head (Data.Either.rights arg0))"
+  solution: "\\es -> Data.Either.Right (GHC.List.head (Data.Either.rights es))"
   source: "hoogle"
   examples:
     - inputs: ["[Left 1, Left 2, Right 3, Left 3, Right 4]"]
@@ -230,7 +230,7 @@
 
 - name: maybe
   query: "mb: Maybe a -> x: a -> Maybe a"
-  solution: "\\mb x -> Just (Data.Maybe.fromMaybe x mb)"
+  solution: "\\mb x -> Data.Maybe.Just (Data.Maybe.fromMaybe x mb)"
   source: "hoogle"
   examples:
     - inputs: ["Nothing", "2"]
@@ -240,7 +240,7 @@
 
 - name: app3
   query: "f: (a -> b -> c -> d) -> x: a -> y: c -> z: b -> d"
-  solution: "\\f x z y -> f x y z"
+  solution: "\\f x y z -> f x z y"
   source: "hoogle"
   examples:
     - inputs: ["\\x y z -> x + y - z", "2", "34", "12"]
@@ -256,7 +256,7 @@
 
 - name: flatten
   query: "xss: [[[a]]] -> [a]"
-  solution: "\\xs -> GHC.List.concat (GHC.List.concat xs)"
+  solution: "\\xss -> GHC.List.concat (GHC.List.concat xss)"
   source: "stackOverflow"
   examples:
     - inputs: ["[[[1,2,3], [2,3,4]],[[1,2]]]"]
@@ -264,7 +264,7 @@
 
 - name: takeNdropM
   query: "n: Int -> m: Int -> xs: [a] -> ([a], [a])"
-  solution: "\\n m l -> (GHC.List.take n l, GHC.List.drop m l)"
+  solution: "\\n m xs -> ((GHC.List.take n xs) , (GHC.List.drop m xs))"
   source: "stackOverflow"
   examples:
     - inputs: ["3", "5", "[1,2,3,4,5,6,7]"]
@@ -312,7 +312,7 @@
 
 - name: resolveEither
   query: "e: Either a b -> f: (a -> b) -> b"
-  solution: "\\x f -> Data.Either.either f Data.Function.id x"
+  solution: "\\e f -> Data.Either.either f Data.Function.id e"
   source: "original"
   examples:
     - inputs: ["Left 3", "\\x -> x + 1"]
@@ -322,7 +322,7 @@
 
 - name: applyNtimes
   query: "f: (a -> a) -> x: a -> n: Int -> a"
-  solution: "\\f x n -> GHC.List.foldr ($) x (GHC.List.replicate n f)"
+  solution: "\\f x n -> (GHC.List.iterate f x) !! n"
   source: "study"
   examples:
     - inputs: ["\\x -> x ++ x", "\"f-\"", "3"]
@@ -342,7 +342,7 @@
 
 - name: pipe
   query: "fs: [(a -> a)] -> x: a -> a"
-  solution: "\\xs x -> GHC.List.foldr ($) x xs"
+  solution: "\\fs x -> GHC.List.foldr (Data.Function.$) x fs"
   source: "hoogle"
   examples:
     - inputs: ["[\\x -> x + 1, \\x -> x * 2, \\x -> x * x]", "3"]
@@ -366,7 +366,7 @@
 
 - name: mbElem
   query: "Eq a => x: a -> xs: [a] -> Maybe a"
-  solution: "\\x xs -> Data.Bool.bool Data.Maybe.Nothing (Data.Maybe.Just x) (GHC.List.elem x xs)"
+  solution: "\\x xs -> Data.Maybe.listToMaybe (GHC.List.filter (== x) xs)"
   source: "hoogle"
   examples:
     - inputs: ["2", "[1,3,5,7,9]"]
@@ -379,7 +379,7 @@
 
 - name: areEq
   query: "Eq a => x: a -> y: a -> Maybe a"
-  solution: "\\x y -> Data.Bool.bool Data.Maybe.Nothing (Data.Maybe.Just x) (x == y)"
+  solution: "\\x y -> Data.Maybe.listToMaybe (GHC.List.takeWhile (== x) (GHC.List.repeat y))"
   source: "hoogle"
   examples:
     - inputs: ["1", "2"]
@@ -407,7 +407,7 @@
 
 - name: inverseMap
   query: "fs: [a -> b] -> x: a -> [b]"
-  solution: "\\fs x -> GHC.List.map ((Data.Function.$) x) fs"
+  solution: "\\fs x -> GHC.List.zipWith (Data.Function.$) fs (GHC.List.repeat x)"
   source: "study"
   examples:
     - inputs: ["[\\x -> x + 3, \\x -> x * x]", "4"]

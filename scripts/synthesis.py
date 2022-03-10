@@ -11,13 +11,13 @@ from benchmark import *
 
 HPLUS_CMD = ['stack', 'exec', '--', 'hplus']  # Command to call hoogle+
 TIMEOUT_CMD = 'timeout'  # Timeout command
-TIMEOUT = '300'  # Timeout value (seconds)
-CMD_OPTS = ['--stop-refine', '--stop-threshold=10', '--disable-filter', '--cnt=10000']
+TIMEOUT = '600'  # Timeout value (seconds)
+CMD_OPTS = ['--stop-refine', '--stop-threshold=10', '--disable-filter', '--cnt=10000', '--log=0']
 LOGFILE = 'results.log'                                         # Log file
 # Result serialization file
 DUMPFILE = 'results.pkl'
 # CSV-output file
-CSV_FILE = 'result.tsv'
+CSV_FILE = 'result_ecta.tsv'
 FNULL = open(os.devnull, 'w')
 
 
@@ -42,11 +42,12 @@ def run_benchmark(output_dir, results, name, query, examples, desired_solution, 
     # start the timer
     start = time.time()
     solution = None
+    end = None
     with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=FNULL) as process:
         try:
             # output, unused_err = process.communicate(timeout=timeout)
             for line in iter(process.stdout.readline, b''):
-                print(line)
+                # print(line)
                 if line[:8] == b'RESULTS:':
                     candidates = json.loads(line[8:])['outCandidates']
                     if candidates:
@@ -54,6 +55,7 @@ def run_benchmark(output_dir, results, name, query, examples, desired_solution, 
                         if desired_solution in outSolutions:
                             solution = desired_solution
                             print(name, ':', query, Fore.GREEN + 'OK' + Style.RESET_ALL, end='\n')
+                            end = time.time()
                             break
 
             process.kill()
@@ -62,7 +64,9 @@ def run_benchmark(output_dir, results, name, query, examples, desired_solution, 
             print(name, ':', query, Fore.YELLOW + 'TIMEOUT' + Style.RESET_ALL,
                   Fore.GREEN + 'OK' + Style.RESET_ALL, end='\n')
             output, unused_err = process.communicate()
-    end = time.time()
+    
+    if end is None:
+        end = time.time()
 
     # store synthesis results into json files
     if is_filtering:
@@ -83,9 +87,9 @@ def run_benchmark(output_dir, results, name, query, examples, desired_solution, 
                                             solution)
 
 
-def write_csv(output_dir, groups, results):
+def write_csv(output_dir, tsv_prefix, groups, results):
     '''Generate CSV file from the results dictionary'''
-    with open(os.path.join(output_dir, CSV_FILE), 'w+') as outfile:
+    with open(os.path.join(output_dir, tsv_prefix + ".tsv"), 'w+') as outfile:
         outfile.write('Name\tQuery\tTime\tSolution\n')
         for group in groups.values():
             for b in group.benchmarks:
@@ -97,18 +101,21 @@ def write_csv(output_dir, groups, results):
                 outfile.write('\n')
 
 
-def run_synthesis(groups, output_dir, timeout=TIMEOUT, options=[], is_filtering=False):
-    results = {}
-    for group in groups.values():
-        for b in group.benchmarks:
-            if b.name in results:
-                print(str(b) + ' ' + Fore.YELLOW +
-                        Style.BRIGHT + 'SKIPPED' + Style.RESET_ALL)
-            else:
-                print('Running', str(b))
-                run_benchmark(output_dir, results, b.name, b.query, b.examples, b.desired_solution,
-                                group.default_options + options, timeout, is_filtering)
+def run_synthesis(groups, output_dir, tsv_prefix, timeout=TIMEOUT, options=[], is_filtering=False):
+    for i in range(1):
+        results = {}
+        for group in groups.values():
+            for b in group.benchmarks:
+                if b.name in results:
+                    print(str(b) + ' ' + Fore.YELLOW +
+                            Style.BRIGHT + 'SKIPPED' + Style.RESET_ALL)
+                else:
+                    print('Running', str(b))
+                    run_benchmark(output_dir, results, b.name, b.query, b.examples, b.desired_solution,
+                                    group.default_options + options, timeout, is_filtering)
 
-    # Generate CSV if not testing the filtering algorithm
-    if not is_filtering:
-        write_csv(output_dir, groups, results)
+                    time.sleep(30)
+
+        # Generate CSV if not testing the filtering algorithm
+        if not is_filtering:
+            write_csv(output_dir, tsv_prefix + "_" + str(i), groups, results)

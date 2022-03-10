@@ -118,8 +118,8 @@ solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) tv'@(ScalarT (TypeVarT _ 
             then checkAssignment env id' tv
             else unify env id tv'
 solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t | isBound env id = modify $ set isChecked False
-solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) (ScalarT (DatatypeT dt _ _) _)
-  | tyclassPrefix `isPrefixOf` dt = modify $ set isChecked False -- type class cannot unify with a type variable
+-- solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) (ScalarT (DatatypeT dt _ _) _)
+--   | tyclassPrefix `isPrefixOf` dt && id /= varName = modify $ set isChecked False -- type class cannot unify with a type variable
 solveTypeConstraint env tv@(ScalarT (TypeVarT _ id) _) t = do
     tass <- gets (view typeAssignment)
     writeLog 3 "solveTypeConstraint" $ text "Solving constraint" <+> pretty tv <+> text "==" <+> pretty t

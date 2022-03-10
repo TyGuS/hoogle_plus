@@ -49,10 +49,12 @@ updateCover' bound cover intscts t paren | isSubtypeOf bound t paren =
      in foldr int_fun ([], baseCover) scts
 updateCover' bound cover intscts t paren | isSubtypeOf bound paren t =
     let parents = HashMap.keys $ HashMap.filter (Set.member paren) cover
-        rmParen = HashMap.map (Set.delete paren) cover
-        addCurr p = HashMap.insertWith Set.union p $ Set.singleton t
-        addedCurr = foldr addCurr rmParen parents
-        cover' = HashMap.insertWith Set.union t (Set.singleton paren) addedCurr
+        rmParen s = let s' = Set.delete paren s in if Set.null s' then Nothing else Just s'
+        replaceWith p acc = 
+            if isSubtypeOf bound t p && not (equalAbstract bound t p)
+                then HashMap.insertWith Set.union p (Set.singleton t) (HashMap.update rmParen p acc)
+                else acc
+        cover' = HashMap.insertWith Set.union t (Set.singleton paren) (foldr replaceWith cover parents)
      in (intscts, cover')
 updateCover' bound cover intscts t paren =
     let intsctMb = abstractIntersect bound t paren

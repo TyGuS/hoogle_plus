@@ -20,7 +20,8 @@ data GenerationOpts = GenerationOpts {
     modules :: [String],
     envPath :: FilePath,
     hoPath :: FilePath,
-    hooglePath :: FilePath
+    hooglePath :: FilePath,
+    hoOption :: HigherOrderOption
     }
     deriving (Show, Typeable, Eq)
 
@@ -39,13 +40,23 @@ data Entry
     | EDecl HDeclaration
     deriving (Data, Typeable, Show, Eq, Ord)
 
+data HigherOrderOption
+    = HOFAll
+    | HOFPartial
+    deriving (Eq, Ord, Show, Data, Typeable)
+
 type DependsOn = Map PkgName [Id]
 type HType = HSE.Type ()
 type HName = HSE.Name ()
 type HExp = HSE.Exp ()
 type HDeclaration = HSE.Decl ()
 
-data Preset = TotalFunctions | PartialFunctions deriving (Eq, Show, Data, Typeable)
+data Preset 
+    = TotalFunctions 
+    | PartialFunctions 
+    | ECTAFull 
+    | ECTAPartial 
+    deriving (Eq, Show, Data, Typeable)
 
 defaultHackageOpts = Hackage {
     packages = ["base"]
@@ -62,7 +73,8 @@ defaultGenerationOpts = GenerationOpts {
     modules = [],
     envPath = defaultEnvPath,
     hoPath = defaultHoPath,
-    hooglePath = defaultHooglePath
+    hooglePath = defaultHooglePath,
+    hoOption = HOFPartial
     }
 
 defaultEnvPath = "data/env.db"

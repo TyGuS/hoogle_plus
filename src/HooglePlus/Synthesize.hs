@@ -47,7 +47,24 @@ import System.Exit
 import Text.Parsec.Indent
 import Text.Parsec.Pos
 import Text.Printf (printf)
+import Data.Text (Text)
+import qualified Data.Text as Text
+import System.Timeout
 
+data ExportType
+  = TVar Text
+  | TFun ExportType ExportType
+  | TCons Text [ExportType]
+  deriving (Eq, Ord, Show)
+
+toExportType :: RSchema -> ExportType
+toExportType (ForallT x t) = toExportType t
+toExportType (Monotype t) = toExportType' t
+
+toExportType' :: RType -> ExportType
+toExportType' (ScalarT (TypeVarT _ x) _) = TVar (Text.pack x)
+toExportType' (ScalarT (DatatypeT dt args _) _) = TCons (Text.pack dt) (map toExportType' args)
+toExportType' (FunctionT x tArg tRes) = TFun (toExportType' tArg) (toExportType' tRes)
 
 envToGoal :: Environment -> String -> IO Goal
 envToGoal env queryStr = do
@@ -69,7 +86,7 @@ envToGoal env queryStr = do
           Left parseErr -> putDoc (pretty parseErr) >> putDoc linebreak >> error (prettyShow parseErr)
       _ -> error "parse a signature for a none goal declaration"
 
-synthesize :: SearchParams -> Goal -> [Example] -> Chan Message -> IO ()
+synthesize :: SearchParams -> Goal -> [Example] -> Chan Message -> IO (Maybe ())
 synthesize searchParams goal examples messageChan = catch (do
     let rawEnv = gEnvironment goal
     let goalType = gSpec goal
@@ -77,6 +94,10 @@ synthesize searchParams goal examples messageChan = catch (do
     let useHO = _useHO searchParams
     let rawSyms = rawEnv ^. symbols
     let hoCands = rawEnv ^. hoCandidates
+    -- export components for ECTA
+    -- print (Map.map toExportType $ Map.filterWithKey (\k _ -> not (hoPostfix `isInfixOf` k)) rawSyms)
+    -- print (map (over _2 toExportType) (rawEnv ^. arguments), toExportType' destinationType)
+    -- error "stop"
     envWithHo <- if useHO -- add higher order query arguments
         then do
             let args = rawEnv ^. arguments
@@ -117,7 +138,7 @@ synthesize searchParams goal examples messageChan = catch (do
     let augmentedExamples = examples -- nubOrdOn inputs $ examples ++ preseedExamples
     case checkResult of
       Left errs -> error (unlines ("Examples does not type check" : errs))
-      Right _ -> evalStateT (runPNSolver envWithHo goalType augmentedExamples) is)
+      Right _ -> timeout (600 * 10 ^ 6) $ evalStateT (runPNSolver envWithHo goalType augmentedExamples) is)
     (\e ->
          writeChan messageChan (MesgLog 0 "error" (show e)) >>
          writeChan messageChan (MesgClose (CSError e)) >>

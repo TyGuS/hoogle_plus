@@ -269,7 +269,7 @@ executeSearch synquidParams searchParams inStr = catch (do
   solverChan <- newChan
   checkerChan <- newChan
   hSetBuffering stdout LineBuffering
-  forkIO $ synthesize searchParams goal exquery solverChan
+  forkIO $ (fromMaybe () <$> synthesize searchParams goal exquery solverChan)
   readChan solverChan >>= (handleMessages solverChan))
   (\(e :: SomeException) -> printResult $ encodeWithPrefix $ QueryOutput [] (show e) [])
   where

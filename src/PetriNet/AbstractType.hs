@@ -129,8 +129,8 @@ checkUnification bound tass t@(AScalar (ATypeVarT id)) t'@(AScalar (ATypeVarT id
 checkUnification bound tass (AScalar (ATypeVarT id)) t | id `elem` bound = Nothing
 checkUnification bound tass t@(AScalar ADatatypeT {}) t'@(AScalar (ATypeVarT id)) = checkUnification bound tass t' t
 checkUnification bound tass (AScalar (ATypeVarT id)) t | id `elem` abstractTypeVars t = Nothing
-checkUnification bound tass (AScalar (ATypeVarT id)) (AScalar (ADatatypeT dt _)) 
-  | tyclassPrefix `isPrefixOf` dt && id /= varName = Nothing
+-- checkUnification bound tass (AScalar (ATypeVarT id)) (AScalar (ADatatypeT dt _)) 
+--   | tyclassPrefix `isPrefixOf` dt && id /= varName = Nothing
 checkUnification bound tass (AScalar (ATypeVarT id)) t = let
     tass' = Map.map (abstractSubstitute (Map.singleton id t)) tass
     tass'' = Map.insert id t tass'

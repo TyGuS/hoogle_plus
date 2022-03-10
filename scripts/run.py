@@ -44,6 +44,7 @@ def cmdline():
                    help='Run experiments that related to OOPSLA20 submission')
     a.add_argument('--all', action='store_true',
                    help='Run all experiments')
+    a.add_argument('--tsv-prefix', default='results', help='File name prefix for tsv output')
     return a.parse_args()
 
 if __name__ == '__main__':
@@ -79,7 +80,7 @@ if __name__ == '__main__':
         groups = {'customized': customized_group}
 
     if cl_opts.synthesis or cl_opts.all:
-        run_synthesis(groups, cl_opts.output_dir)
+        run_synthesis(groups, cl_opts.output_dir, cl_opts.tsv_prefix)
 
     if cl_opts.type_inference or cl_opts.oopsla or cl_opts.all:
         run_type_inference(cl_opts.benchmark_suite, groups, cl_opts.output_dir, cl_opts.use_study_data)

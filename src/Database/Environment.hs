@@ -57,9 +57,10 @@ getDeps Hackage{packages=ps} allEntries ourEntries = do
 
 generateHigherOrder :: GenerationOpts -> Environment -> IO Environment
 generateHigherOrder genOpts env = do
+    let isHoAll = hoOption genOpts
     let pathToHo = hoPath genOpts
     hofStr <- readFile pathToHo
-    let hofNames = words hofStr
+    let hofNames = if isHoAll == HOFAll then Map.keys (env ^. symbols) else words hofStr
     -- get signatures
     let sigs = map (\f -> lookupWithError "env: symbols" f (env ^. symbols)) hofNames
     -- transform into fun types and add into the environments
@@ -122,12 +123,17 @@ generateEnv genOpts = do
                                                 else Map.filter (not . isHigherOrder . toMonotype) $ env ^. symbols,
                            _included_modules = Set.fromList (moduleNames)
                           }
+            print (Map.size $ Map.filter isPolymorphic $ env ^. symbols)
+            print (Map.size $ env ^. symbols)
             generateHigherOrder genOpts env'
     printStats result
     return result
    where
      filterEntries entries Nothing = entries
      filterEntries entries (Just mdls) = Map.filterWithKey (\m _-> m `elem` mdls) entries
+
+     isPolymorphic (ForallT _ _) = True
+     isPolymorphic _ = False
 
 toFunType :: RType -> RType
 toFunType (FunctionT x tArg tRes) = let

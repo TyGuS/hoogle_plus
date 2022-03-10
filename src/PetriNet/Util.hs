@@ -184,7 +184,8 @@ toOutput env soln exs = do
     let args = env ^. arguments
     let argDocs = map (\(n, ty) -> FunctionDoc n (show ty) "") args
     let symbolsWoArgs = symbols \\ argNames
-    docs <- liftIO $ hoogleIt symbolsWoArgs
+    -- docs <- liftIO $ hoogleIt symbolsWoArgs
+    let docs = []
     entries <- mapM mkEntry exs
     return $ QueryOutput entries "" (docs ++ argDocs)
     where
