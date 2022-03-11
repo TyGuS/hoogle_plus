@@ -137,7 +137,7 @@ check :: MonadIO m
        -> SearchParams -- search parameters: to control what to be checked
        -> [Example] -- examples for post-filtering
        -> RProgram -- program to be checked
-       -> RSchema -- goal type to be checked against
+       -> SchemaSkeleton -- goal type to be checked against
        -> Chan Message -- message channel for logging
        -> FilterTest m (Maybe AssociativeExamples) -- return Nothing is check fails, otherwise return a list of updated examples
 check env searchParams examples program goalType solverChan = do
@@ -148,7 +148,7 @@ check env searchParams examples program goalType solverChan = do
 runGhcChecks :: MonadIO m 
              => SearchParams 
              -> Environment 
-             -> RType 
+             -> TypeSkeleton 
              -> [Example]
              -> UProgram 
              -> FilterTest m (Maybe AssociativeExamples)

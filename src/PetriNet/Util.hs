@@ -91,7 +91,7 @@ freshId bounds prefix = do
     if v `elem` bounds then freshId bounds prefix else return v
 
 -- | Replace all bound type variables with fresh free variables
-freshType :: (CheckMonad (t m), MonadIO m) => [Id] -> RSchema -> t m RType
+freshType :: (CheckMonad (t m), MonadIO m) => [Id] -> SchemaSkeleton -> t m TypeSkeleton
 freshType bounds t = freshType' Map.empty [] t
   where
     freshType' subst constraints (ForallT a sch) = do
@@ -100,7 +100,7 @@ freshType bounds t = freshType' Map.empty [] t
         freshType' (Map.insert a (vart v ftrue) subst) (v:constraints) sch
     freshType' subst constraints (Monotype t) = return (typeSubstitute subst t)
 
-findSymbol :: (CheckMonad (t m), MonadIO (t m), MonadIO m) => Environment -> Id -> t m RType
+findSymbol :: (CheckMonad (t m), MonadIO (t m), MonadIO m) => Environment -> Id -> t m TypeSkeleton
 findSymbol env sym = do
     nameMap <- getNameMapping
     let name = fromMaybe sym (Map.lookup sym nameMap)

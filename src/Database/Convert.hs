@@ -211,7 +211,7 @@ toSynquidSkeleton t = do
 varsFromBind (KindedVar _ name _) = nameStr name
 varsFromBind (UnkindedVar _ name) = nameStr name
 
--- | Add true as the refinement to convert all types into RType
+-- | Add true as the refinement to convert all types into TypeSkeleton
 addTrue (ScalarT (DatatypeT name tArgs pArgs) _) = ScalarT (DatatypeT name (map addTrue tArgs) []) ftrue
 addTrue (ScalarT IntT _) = ScalarT IntT ftrue
 addTrue (ScalarT BoolT _) = ScalarT BoolT ftrue
@@ -219,17 +219,17 @@ addTrue (ScalarT (TypeVarT vSubst a) _) = ScalarT (TypeVarT vSubst a) ftrue
 addTrue (FunctionT x tArg tFun) = FunctionT x (addTrue tArg) (addTrue tFun)
 addTrue AnyT = AnyT
 
-toSynquidRType :: (MonadIO m) => Type () -> StateT Int m RType
-toSynquidRType typ = do
+toSynquidTypeSkeleton :: (MonadIO m) => Type () -> StateT Int m TypeSkeleton
+toSynquidTypeSkeleton typ = do
     mbTyp <- toSynquidSkeleton typ
     case mbTyp of
         Nothing -> return AnyT
         Just [] -> return AnyT
         Just (typ:_) -> return $ addTrue typ
 
-toSynquidRSchema :: SSchema -> RSchema
-toSynquidRSchema (Monotype typ) = Monotype $ addTrue typ
-toSynquidRSchema (ForallT a typ) = ForallT a (toSynquidRSchema typ)
+toSynquidSchemaSkeleton :: SSchema -> SchemaSkeleton
+toSynquidSchemaSkeleton (Monotype typ) = Monotype $ addTrue typ
+toSynquidSchemaSkeleton (ForallT a typ) = ForallT a (toSynquidSchemaSkeleton typ)
 
 addPrelude :: [Entry] -> [Entry]
 addPrelude [] = []
@@ -242,12 +242,12 @@ processConDecls [] = return []
 processConDecls (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
     case conDecl of
         ConDecl _ name typs -> do
-            typ <- toSynquidRType $ head typs
+            typ <- toSynquidTypeSkeleton $ head typs
             if hasAny typ then processConDecls decls
                           else (:) (TP.ConstructorSig (nameStr name) typ) <$> processConDecls decls
         InfixConDecl _ typl name typr -> do
-            typl' <- toSynquidRType typl
-            typr' <- toSynquidRType typr
+            typl' <- toSynquidTypeSkeleton typl
+            typr' <- toSynquidTypeSkeleton typr
             if hasAny typl' || hasAny typr'
                 then processConDecls decls
                 else (:) (TP.ConstructorSig (nameStr name) (FunctionT "arg0" typl' typr')) <$> processConDecls decls
@@ -264,7 +264,7 @@ datatypeOfCon (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
 
 toSynquidDecl :: (MonadIO m) => Entry -> StateT Int m Declaration
 toSynquidDecl (EDecl (TypeDecl _ head typ)) = do
-    typ' <- toSynquidRType typ
+    typ' <- toSynquidTypeSkeleton typ
     if hasAny typ' then return $ Pos (initialPos "") $ TP.QualifierDecl [] -- a fake conversion
                    else return $ Pos (initialPos $ declHeadName head) $ TP.TypeDecl (declHeadName head) (declHeadVars head) typ'
 toSynquidDecl (EDecl (DataFamDecl a b head c)) = toSynquidDecl (EDecl (DataDecl a (DataType a) b head [] []))
@@ -277,7 +277,7 @@ toSynquidDecl (EDecl (TypeSig _ names typ)) = do
     maybeSch <- toSynquidSchema typ
     case maybeSch of
         Nothing  -> return $ Pos (initialPos "") $ TP.QualifierDecl [] -- a fake conversion
-        Just sch -> return $ Pos (initialPos (nameStr $ names !! 0)) $ TP.FuncDecl (nameStr $ head names) (toSynquidRSchema sch)
+        Just sch -> return $ Pos (initialPos (nameStr $ names !! 0)) $ TP.FuncDecl (nameStr $ head names) (toSynquidSchemaSkeleton sch)
 toSynquidDecl (EDecl (ClassDecl _ _ head _ _)) = do
     let name = fixTCName (declHeadName head)
     let vars = declHeadVars head
@@ -332,7 +332,7 @@ instanceToFunction (IRule _ _ ctx head) n = do
             arg <- toArg e
             return $ FunctionT "" arg acc
         toDecl :: (MonadIO m) => String -> SType -> StateT Int m Declaration
-        toDecl y x = return $ Pos (initialPos "") $ TP.FuncDecl (tyclassInstancePrefix ++ (show n) ++ (y)) $ toSynquidRSchema $ Monotype x
+        toDecl y x = return $ Pos (initialPos "") $ TP.FuncDecl (tyclassInstancePrefix ++ (show n) ++ (y)) $ toSynquidSchemaSkeleton $ Monotype x
 
 
 toArg :: (MonadIO m) => Asst () -> StateT Int m SType

@@ -20,7 +20,7 @@ import Data.Function
 import Control.Lens
 
 import Types.Common
-import Types.Abstract
+import Types.Type
 import Types.Experiments
 
 data EncoderType = Normal | Arity
@@ -30,10 +30,10 @@ data VarType = VarPlace | VarTransition | VarFlow | VarTimestamp
     deriving(Eq, Ord, Show)
 
 data FunctionCode = FunctionCode {
-    funName   :: String,  -- function name
+    funName   :: Id,  -- function name
     hoParams  :: [FunctionCode],
-    funParams :: [AbstractSkeleton], -- function parameter types and their count
-    funReturn :: [AbstractSkeleton]   -- function return type
+    funParams :: [TypeSkeleton], -- function parameter types and their count
+    funReturn :: [TypeSkeleton]   -- function return type
 }
 
 instance Eq FunctionCode where
@@ -88,11 +88,11 @@ makeLenses ''IncrementState
 data EncodeVariables = EncodeVariables {
     _transitionNb :: Int,
     _variableNb :: Int,
-    _place2variable :: HashMap (AbstractSkeleton, Int) Z3.AST, -- place name and timestamp
+    _place2variable :: HashMap (TypeSkeleton, Int) Z3.AST, -- place name and timestamp
     _time2variable :: HashMap Int Z3.AST, -- timestamp and abstraction level
     _transition2id :: HashMap Id Z3.AST, -- transition name and abstraction level
     _id2transition :: HashMap Int Id,
-    _type2transition :: HashMap AbstractSkeleton (Set Id)
+    _type2transition :: HashMap TypeSkeleton (Set Id)
 } deriving(Eq)
 
 emptyVariables = EncodeVariables {
@@ -110,7 +110,7 @@ makeLenses ''EncodeVariables
 data RefineInfo = RefineInfo {
     _mustFirers :: HashMap Id [Id],
     _disabledTrans :: [Id],
-    _returnTyps :: [AbstractSkeleton]
+    _returnTyps :: [TypeSkeleton]
 } deriving(Eq)
 
 emptyRefine = RefineInfo {

@@ -45,7 +45,7 @@ import Data.List
 import Text.Printf
 import Debug.Trace
 
-checkExample :: Environment -> RSchema -> Example -> Chan Message -> IO (Either ErrorMessage RSchema)
+checkExample :: Environment -> SchemaSkeleton -> Example -> Chan Message -> IO (Either ErrorMessage SchemaSkeleton)
 checkExample env typ ex checkerChan = do
     let mdls = Set.toList $ env ^. included_modules
     eitherTyp <- parseExample mdls mkFun
@@ -85,7 +85,7 @@ checkExample env typ ex checkerChan = do
               _ -> ([], FunctionT x tArg tRes)
         unprefixTc t = ([], t)
 
-checkExamples :: Environment -> RSchema -> [Example] -> Chan Message -> IO (Either [ErrorMessage] [RSchema] )
+checkExamples :: Environment -> SchemaSkeleton -> [Example] -> Chan Message -> IO (Either [ErrorMessage] [SchemaSkeleton] )
 checkExamples env typ exs checkerChan = do
     outExs <- mapM (\ex -> checkExample env typ ex checkerChan) exs
     let (errs, validResults) = partitionEithers outExs
@@ -106,7 +106,7 @@ execExample mdls env typ prog ex = do
     let prettyShow a = if "_|_" `isInfixOf` a then "bottom" else a
     return (result >>= Right . prettyShow)
 
-augmentTestSet :: Environment -> RSchema -> IO [Example]
+augmentTestSet :: Environment -> SchemaSkeleton -> IO [Example]
 augmentTestSet env goal = do
     let candidates = env ^. queryCandidates
     let permutedCands = concatMap permuteMap (Map.toList candidates)

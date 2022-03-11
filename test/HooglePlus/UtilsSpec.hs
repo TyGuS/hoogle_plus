@@ -22,7 +22,7 @@ doParseType tyStr = flip evalState (initialPos "goal") $ runIndentParserT parseT
 
 anyTy program = Program{typeOf=AnyT, content=program}
 
--- separateFunctions :: String -> ([RType], RType)
+-- separateFunctions :: String -> ([TypeSkeleton], TypeSkeleton)
 separateFunctions query = let
     res = either (\left -> error $ show left) id $ doParseType query
     in allBaseTypes res

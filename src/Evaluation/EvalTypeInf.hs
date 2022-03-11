@@ -166,7 +166,7 @@ runTypeInferenceEval fp isStudy bms = do
     results <- mapM (runInference isStudy) bms
     writeResultsTsv fp (concat results)
 
-getCorrectIndex :: Environment -> RSchema -> Int -> [String] -> IO String
+getCorrectIndex :: Environment -> SchemaSkeleton -> Int -> [String] -> IO String
 getCorrectIndex _ _ _ [] = return "NO ANSWER"
 getCorrectIndex env q idx (infer:xs) = do
     let t = parseQueryType env infer

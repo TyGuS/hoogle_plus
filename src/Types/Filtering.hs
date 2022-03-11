@@ -31,7 +31,7 @@ frameworkModules =
 
 type SmallCheckResult = (Maybe PropertyFailure, [Example])
 type GeneratorResult = [Example]
-type SolutionPair = (UProgram, UProgram) -- qualified and unqualified
+type SolutionPair = (TProgram, TProgram) -- qualified and unqualified
 type AssociativeExamples = [(SolutionPair, [Example])]
 
 data FunctionCrashDesc = 
@@ -90,7 +90,7 @@ instance Show FunctionSignature where
 
 data FilterState = FilterState {
   inputs :: [[String]],
-  solutions :: [UProgram],
+  solutions :: [TProgram],
   solutionExamples :: [(SolutionPair, FunctionCrashDesc)],
   differentiateExamples :: [(SolutionPair, Example)]
 } deriving (Eq)

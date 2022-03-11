@@ -55,34 +55,31 @@ module Synquid.Pretty (
   programNodeCount
 ) where
 
+import Control.Lens
+import Data.Hashable
+import           Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
+import Data.List
+import           Data.Map (Map, (!))
+import qualified Data.Map as Map
+import           Data.Set (Set)
+import qualified Data.Set as Set
+import Data.Tree
+import Data.Tree.Pretty
+
+import Text.PrettyPrint.ANSI.Leijen hiding ((<+>), (<$>), hsep, vsep)
+import qualified Text.PrettyPrint.ANSI.Leijen as L
+
 import Types.Environment
-import Types.Abstract
 import Types.Common
 import Types.Type
 import Types.Program
 import Types.Encoder
-import Database.Util
-import Synquid.Logic
 import Synquid.Type
 import Synquid.Error
 import Synquid.Program
 import Synquid.Tokens
 import Synquid.Util
-
-import Text.PrettyPrint.ANSI.Leijen hiding ((<+>), (<$>), hsep, vsep)
-import qualified Text.PrettyPrint.ANSI.Leijen as L
-import qualified Data.Set as Set
-import Data.Set (Set)
-import qualified Data.Map as Map
-import Data.Map (Map, (!))
-import qualified Data.HashMap.Strict as HashMap
-import Data.HashMap.Strict (HashMap)
-import Data.List
-import Data.Hashable
-import Data.Tree
-import Data.Tree.Pretty
-
-import Control.Lens
 
 infixr 5 $+$
 infixr 6 <+>
@@ -90,43 +87,58 @@ infixr 6 <+>
 prettyShow :: Pretty p => p -> String
 prettyShow p = displayS (renderCompact $ pretty p) ""
 
+tab :: Int
 tab = 2
 
 -- | Is document empty?
+isEmpty :: Doc -> Bool
 isEmpty d = case renderCompact d of
   SEmpty -> True
   _ -> False
 
 -- | Separate two documents by space if both are nonempty
+(<+>) :: Doc -> Doc -> Doc
 doc1 <+> doc2 | isEmpty doc1 = doc2
               | isEmpty doc2 = doc1
               | otherwise    = doc1 L.<+> doc2
 
 -- | Separate two documents by linebreak if both are nonempty
+($+$) :: Doc -> Doc -> Doc
 doc1 $+$ doc2 | isEmpty doc1 = doc2
               | isEmpty doc2 = doc1
               | otherwise    = doc1 L.<$> doc2
 
 -- | Separate by spaces
+hsep :: [Doc] -> Doc
 hsep = foldr (<+>) empty
+
 -- | Separate by new lines
+vsep :: [Doc] -> Doc
 vsep = foldr ($+$) empty
+
 -- | Separate by commas
+commaSep :: [Doc] -> Doc
 commaSep = hsep . punctuate comma
 
 -- | Enclose in spaces
+spaces :: Doc -> Doc
 spaces d = space <> d <> space
+
 -- | Conditionally enclose in parentheses
+condParens :: Bool -> Doc -> Doc
 condParens b doc = if b then parens doc else doc
 
 -- | Conditionally produce a doc
+option :: Bool -> Doc -> Doc
 option b doc = if b then doc else empty
 
 -- | Convert a 'Just' value to doc
+optionMaybe :: Maybe Doc -> Doc
 optionMaybe mVal toDoc = case mVal of
   Nothing -> empty
   Just val -> toDoc val
 
+entryDoc :: (Pretty a, Pretty b) => (a -> Doc) -> (b -> Doc) -> (a, b) -> Doc
 entryDoc keyDoc valDoc (k, v) = nest 2 $ (keyDoc k  <+> text "->") <+> valDoc v
 
 hMapDoc :: (k -> Doc) -> (v -> Doc) -> Map k v -> Doc
@@ -151,82 +163,6 @@ hlBrackets = enclose (parenDoc lbracket) (parenDoc rbracket)
 
 condHlParens b doc = if b then hlParens doc else doc
 
-{- Formulas -}
-
-instance Pretty Sort where
-  pretty IntS = text "Int"
-  pretty BoolS = text "Bool"
-  pretty (SetS el) = text "Set" <+> pretty el
-  pretty (VarS name) = text name
-  pretty (DataS name args) = text name <+> hsep (map (hlParens . pretty) args)
-  pretty AnyS = operator "?"
-
-instance Show Sort where
-  show = show . plain . pretty
-
-instance Pretty PredSig where
-  pretty (PredSig p argSorts resSort) = hlAngles $ text p <+> text "::" <+> hsep (map (\s -> pretty s <+> text "->") argSorts) <+> pretty resSort
-
-instance Pretty UnOp where
-  pretty op = operator $ unOpTokens Map.! op
-
-instance Show UnOp where
-  show = show . plain . pretty
-
-instance Pretty BinOp where
-  pretty op = operator $ binOpTokens Map.! op
-
-instance Show BinOp where
-  show = show . plain . pretty
-
--- | Binding power of a formula
-power :: Formula -> Int
-power (Pred _ _ []) = 10
-power (Cons _ _ []) = 10
-power Pred {} = 9
-power Cons {} = 9
-power Unary {} = 8
-power (Binary op _ _)
-  | op `elem` [Times, Intersect] = 7
-  | op `elem` [Plus, Minus, Union, Diff] = 6
-  | op `elem` [Eq, Neq, Lt, Le, Gt, Ge, Member, Subset] = 5
-  | op `elem` [And, Or] = 4
-  | op `elem` [Implies] = 3
-  | op `elem` [Iff] = 2
-power All {} = 1
-power Ite {} = 1
-power _ = 10
-
--- | Pretty-printed formula
-fmlDoc :: Formula -> Doc
-fmlDoc = fmlDocAt 0
-
--- | 'fmlDocAt' @n fml@ : print @expr@ in a context with binding power @n@
-fmlDocAt :: Int -> Formula -> Doc
-fmlDocAt n fml = condHlParens (n' <= n) (
-  case fml of
-    BoolLit b -> pretty b
-    IntLit i -> intLiteral i
-    SetLit s elems -> withSort (SetS s) (hlBrackets $ commaSep $ map fmlDoc elems)
-    SetComp (Var s x) e -> withSort (SetS s) (hlBrackets $ text x <> operator "|" <> pretty e)
-    Var s name -> withSort s $ if name == valueVarName then special name else text name
-    Unknown s name -> if Map.null s then text name else hMapDoc pretty pretty s <> text name
-    Unary op e -> pretty op <> fmlDocAt n' e
-    Binary op e1 e2 -> fmlDocAt n' e1 <+> pretty op <+> fmlDocAt n' e2
-    Ite e0 e1 e2 -> keyword "if" <+> fmlDoc e0 <+> keyword "then" <+> fmlDoc e1 <+> keyword "else" <+> fmlDoc e2
-    Pred b name args -> withSort b $ text name <+> hsep (map (fmlDocAt n') args)
-    Cons b name args -> withSort b $ hlParens (text name <+> hsep (map (fmlDocAt n') args))
-    All x e -> keyword "forall" <+> pretty x <+> operator "." <+> fmlDoc e
-  )
-  where
-    n' = power fml
-    withSort s doc = doc -- <> text ":" <> pretty s
-
-instance Pretty Formula where pretty = fmlDoc
-
-instance Show Formula where
-  show = show . plain . pretty
-
 instance Pretty a => Pretty (Set a) where
   pretty = pretty . Set.toList
 
@@ -236,13 +172,16 @@ instance (Pretty k, Pretty v) => Pretty (Map k v) where
 instance (Pretty k, Pretty v) => Pretty (HashMap k v) where
   pretty = pretty . HashMap.toList
 
-instance Pretty QSpace where
-  pretty space = braces $ commaSep $ map pretty $ view qualifiers space
-
-instance Show QSpace where
-  show = show . plain . pretty
-
 {- Types -}
+
+instance Pretty TypeSkeleton where
+  pretty (TypeVarT v) = text v
+  pretty (DatatypeT "List" [tArg]) = hlBrackets $ pretty tArg
+  pretty (DatatypeT "Pair" [larg, rarg]) = hlParens $ pretty larg <+> text "," <+> pretty rarg
+  pretty (DatatypeT dt tArgs) = text dt <+> hsep (map (hlParens . pretty) tArgs)
+  pretty (FunctionT _ tArg tRes) = hlParens $ pretty tArg <+> text "->" <+> pretty tRes
+  pretty TopT = text "_"
+  pretty BotT = text "⊥"
 
 prettyBase :: Pretty r => (Int -> TypeSkeleton r -> Doc) -> BaseType r -> Doc
 prettyBase prettyType base = case base of
@@ -252,15 +191,6 @@ prettyBase prettyType base = case base of
   DatatypeT "Pair" (larg:rarg:[]) pArgs -> hlParens $ prettyType 0 larg <+> operator "," <+> prettyType 0 rarg <+> hsep (map (hlAngles . pretty) pArgs)
   TypeVarT s name -> if Map.null s then text name else hMapDoc pretty pretty s <> text name
   DatatypeT name tArgs pArgs -> text name <+> hsep (map (hlParens . prettyType 2) tArgs) <+> hsep (map (hlAngles . pretty) pArgs)
-
-instance Pretty (BaseType ()) where
-  pretty = prettyBase (\_ -> pretty)
-
-instance Pretty (BaseType Formula) where
-  pretty = prettyBase prettyTypeAt
-
-instance Show (BaseType Formula) where
-  show = show . plain . pretty
 
 prettySType :: SType -> Doc
 prettySType (ScalarT base _) = pretty base
@@ -276,17 +206,17 @@ instance Show SType where
  show = show . plain . pretty
 
 -- | Pretty-printed refinement type
-prettyType :: RType -> Doc
+prettyType :: TypeSkeleton -> Doc
 prettyType = prettyTypeAt 0
 
 -- | Binding power of a type
-typePower :: RType -> Int
+typePower :: TypeSkeleton -> Int
 typePower FunctionT {} = 1
 typePower (ScalarT (DatatypeT _ tArgs pArgs) r)
   | ((not (null tArgs) || not (null pArgs)) && (r == ftrue)) = 2
 typePower _ = 3
 
-prettyTypeAt :: Int -> RType -> Doc
+prettyTypeAt :: Int -> TypeSkeleton -> Doc
 prettyTypeAt n t = condHlParens (n' <= n) (
   case t of
     ScalarT base (BoolLit True) -> pretty base
@@ -298,10 +228,10 @@ prettyTypeAt n t = condHlParens (n' <= n) (
   where
     n' = typePower t
 
-instance Pretty RType where
+instance Pretty TypeSkeleton where
   pretty = prettyType
 
-instance Show RType where
+instance Show TypeSkeleton where
  show = show . plain . pretty
 
 prettySTypeWithName :: SType -> Doc
@@ -326,10 +256,10 @@ instance Pretty SSchema where
 instance Show SSchema where
  show = show . plain . pretty
 
-instance Pretty RSchema where
+instance Pretty SchemaSkeleton where
   pretty = prettySchema
 
-instance Show RSchema where
+instance Show SchemaSkeleton where
   show = show . plain . pretty
 
 {- Programs -}
@@ -495,7 +425,7 @@ fmlNodeCount' (BoolLit _) = 0
 fmlNodeCount' f = fmlNodeCount f
 
 -- | 'typeNodeCount' @t@ : cumulative size of all refinements in @t@
-typeNodeCount :: RType -> Int
+typeNodeCount :: TypeSkeleton -> Int
 typeNodeCount (ScalarT (DatatypeT _ tArgs pArgs) fml) = fmlNodeCount' fml + sum (map typeNodeCount tArgs) + sum (map fmlNodeCount' pArgs)
 typeNodeCount (ScalarT _ fml) = fmlNodeCount' fml
 typeNodeCount (FunctionT _ tArg tRes) = typeNodeCount tArg + typeNodeCount tRes

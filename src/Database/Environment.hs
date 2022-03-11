@@ -135,7 +135,7 @@ generateEnv genOpts = do
      isPolymorphic (ForallT _ _) = True
      isPolymorphic _ = False
 
-toFunType :: RType -> RType
+toFunType :: TypeSkeleton -> TypeSkeleton
 toFunType (FunctionT x tArg tRes) = let
   tArg' = toFunType tArg
   tRes' = toFunType tRes

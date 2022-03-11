@@ -193,7 +193,7 @@ compareSolution :: [String] -> [String] -> String -> [String] -> FunctionSignatu
 compareSolution modules argNames solution otherSolutions funcSig time = mapM (evaluateProperty modules) props
   where props = buildDupCheckProp argNames (solution, otherSolutions) funcSig time defaultDepth
 
-runChecks :: MonadIO m => Environment -> RType -> UProgram -> FilterTest m (Maybe AssociativeExamples)
+runChecks :: MonadIO m => Environment -> TypeSkeleton -> UProgram -> FilterTest m (Maybe AssociativeExamples)
 runChecks env goalType prog = do
   result <- runChecks_
 

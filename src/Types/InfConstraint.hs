@@ -28,7 +28,7 @@ data InfStats = InfStats {
 makeLenses ''InfStats
 
 data TypeClassState = TypeClassState {
-    _tyclassCache :: Map SType [Id],
+    _tyclassCache :: Map TypeSkeleton [Id],
     _supportModules :: [String],
     _generalNames :: Map Id Int,
     -- stats
@@ -44,10 +44,10 @@ emptyTyclassState = TypeClassState {
     _infStats = InfStats 0 0
 }
 
-type AntiPair = (SType, SType)
+type AntiPair = (TypeSkeleton, TypeSkeleton)
 data AntiUnifConstraint = 
-    UnifConstraint SType SType
-  | DisunifConstraint SType SType
+    UnifConstraint TypeSkeleton TypeSkeleton
+  | DisunifConstraint TypeSkeleton TypeSkeleton
   deriving(Eq)
 
 data AntiUnifState = AntiUnifState {
@@ -56,7 +56,7 @@ data AntiUnifState = AntiUnifState {
     -- temporary constraints to be satisfied during anti-unification
     _unifConstraints :: [AntiUnifConstraint],
     _disunifConstraints :: [AntiUnifConstraint],
-    _tmpAssignment :: Map Id SType
+    _tmpAssignment :: Map Id TypeSkeleton
 } deriving(Eq)
 
 makeLenses ''AntiUnifState
@@ -70,7 +70,7 @@ emptyAntiUnifState = AntiUnifState {
 }
 
 data TypeNaming = TypeNaming {
-    _substCounter :: Map SType (Id, Int),
+    _substCounter :: Map TypeSkeleton (Id, Int),
     _nameCounter :: Map Id Int,
     _prevTypeVars :: Set Id,
     _beginTypeVars :: Set Id

@@ -18,7 +18,7 @@ import System.Directory
 import System.IO
 
 import Types.Generate
-import Database.Util
+import Database.Prelude
 import Synquid.Util (getTmpDir)
 
 docVersionsUrl = "https://hackage.haskell.org/packages/docs"

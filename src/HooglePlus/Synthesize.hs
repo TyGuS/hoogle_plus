@@ -57,11 +57,11 @@ data ExportType
   | TCons Text [ExportType]
   deriving (Eq, Ord, Show)
 
-toExportType :: RSchema -> ExportType
+toExportType :: SchemaSkeleton -> ExportType
 toExportType (ForallT x t) = toExportType t
 toExportType (Monotype t) = toExportType' t
 
-toExportType' :: RType -> ExportType
+toExportType' :: TypeSkeleton -> ExportType
 toExportType' (ScalarT (TypeVarT _ x) _) = TVar (Text.pack x)
 toExportType' (ScalarT (DatatypeT dt args _) _) = TCons (Text.pack dt) (map toExportType' args)
 toExportType' (FunctionT x tArg tRes) = TFun (toExportType' tArg) (toExportType' tRes)

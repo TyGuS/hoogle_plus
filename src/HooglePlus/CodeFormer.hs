@@ -1,38 +1,36 @@
-{-# LANGUAGE FlexibleContexts #-}
-
 module HooglePlus.CodeFormer(
       generateProgram
     , FormerState(..)
     , CodePieces
     ) where
 
+import           Control.Monad.State.Lazy
+import           Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
+import           Data.List
+import           Data.Maybe
+import           Data.Set ( Set )
+import qualified Data.Set as Set
+import           Data.Text ( Text )
+import qualified Data.Text as Text
+
 import Types.Common
 import Types.Encoder
-import Types.Abstract
+import Types.Type
 import Synquid.Util
+import Utility.Container ( textElem )
 
-import Control.Monad.State
-import Data.Set (Set)
-import qualified Data.Set as Set
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
-import Data.List
-import Data.Text (Text)
-import qualified Data.Text as Text
-import Data.Maybe
-import Data.List.Split
-
-type Code = String
+type Code = Text
 type CodePieces = Set Code
-data FormerState = FormerState {
-    typedTerms :: HashMap AbstractSkeleton CodePieces,
-    allSignatures :: [FunctionCode]
-}
+
+data FormerState = FormerState { typedTerms :: HashMap TypeSkeleton CodePieces
+                               , allSignatures :: [FunctionCode]
+                               }
 
 type CodeFormer = StateT FormerState IO
 
 withParen :: Code -> Code
-withParen c = "(" ++ c ++ ")"
+withParen c = "(" `Text.append` c `Text.append` ")"
 
 applyFunction :: FunctionCode -> CodeFormer CodePieces
 applyFunction func = do
@@ -62,11 +60,11 @@ applyFunction func = do
 -- | generate the program from the signatures appeared in selected transitions
 -- these signatures are sorted by their timestamps,
 -- i.e. they may only use symbols appearing before them
-generateProgram :: [FunctionCode]      -- signatures used to generate program
-                -> [AbstractSkeleton]  -- argument types in the query
-                -> [Id]                -- argument names
-                -> [AbstractSkeleton]  -- return types
-                -> Bool                -- relevancy toggle
+generateProgram :: [FunctionCode]  -- signatures used to generate program
+                -> [TypeSkeleton]  -- argument types in the query
+                -> [Id]            -- argument names
+                -> [TypeSkeleton]  -- return types
+                -> Bool            -- relevancy toggle
                 -> CodeFormer CodePieces
 generateProgram signatures inputs argNames rets disrel = do
     -- prepare scalar variables
@@ -76,8 +74,7 @@ generateProgram signatures inputs argNames rets disrel = do
     mapM_ applyFunction signatures
     termLib <- gets typedTerms
     let codePieces = map (\ret -> HashMap.lookupDefault Set.empty ret termLib) rets
-    let vars = []
-    return $ Set.filter (includeAllSymbols vars . splitOneOf " ()") (Set.unions codePieces)
+    return $ Set.filter (includeAllSymbols . Text.split (`textElem` " ()")) (Set.unions codePieces)
   where
     addTypedArg input argName = do
         st <- get
@@ -85,7 +82,7 @@ generateProgram signatures inputs argNames rets disrel = do
         let newTerms = HashMap.insertWith Set.union input (Set.singleton argName) tterms
         put $ st { typedTerms = newTerms }
 
-    includeAllSymbols vars code =
+    includeAllSymbols code =
         let fold_fn f (b, c) = if b && f `elem` c then (True, f `delete` c) else (False, c)
             base             = (True, code)
             funcNames        = map funName signatures

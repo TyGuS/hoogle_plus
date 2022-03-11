@@ -96,7 +96,7 @@ readBuiltinData synquidParams env = do
     where
         transformObj (QueryInput q exs _) = (parseQueryType env q, exs)
 
-parseQueryType :: Environment -> String -> RSchema
+parseQueryType :: Environment -> String -> SchemaSkeleton
 parseQueryType env str = let
     parseResult = flip evalState (initialPos "type") $ 
                   runIndentParserT parseSchema () "" str

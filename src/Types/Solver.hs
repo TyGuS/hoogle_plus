@@ -15,7 +15,6 @@ import Control.Concurrent.Chan
 import Control.Monad.Logic
 
 import Types.Program
-import Types.Abstract
 import Types.Experiments hiding (PetriNet)
 import Types.Type
 import Types.Common
@@ -24,78 +23,73 @@ import Types.Filtering
 import Types.CheckMonad
 import Types.TypeChecker
 import Types.IOFormat
-import Database.Util
 
-rootNode = AScalar (ATypeVarT varName)
-pairProj = "pair_match"
+data GroupState = GroupState { _groupMap :: Map GroupId (Set Id) -- mapping from group id to Skel and list of function names with the same skel
+                             , _groupRepresentative :: Map GroupId Id -- mapping of current representative for group.
+                             , _typeToGroup :: Map FunctionCode GroupId
+                             , _nameToGroup :: Map Id GroupId
+                             }
+  deriving(Eq)
 
-type AbstractCover = HashMap AbstractSkeleton (Set AbstractSkeleton)
-
-data GroupState = GroupState {
-    _groupMap :: Map GroupId (Set Id), -- mapping from group id to Skel and list of function names with the same skel
-    _groupRepresentative :: Map GroupId Id, -- mapping of current representative for group.
-    _typeToGroup :: Map FunctionCode GroupId,
-    _nameToGroup :: Map Id GroupId
-} deriving(Eq)
-
-emptyGroup = GroupState {
-    _groupMap = Map.empty,
-    _groupRepresentative = Map.empty,
-    _typeToGroup = Map.empty,
-    _nameToGroup = Map.empty
-}
+emptyGroup :: GroupState
+emptyGroup = GroupState { _groupMap = Map.empty
+                        , _groupRepresentative = Map.empty
+                        , _typeToGroup = Map.empty
+                        , _nameToGroup = Map.empty
+                        }
 
 makeLenses ''GroupState
 
-data SearchState = SearchState {
-    _currentSolutions :: [RProgram], -- type checked solutions
-    _currentLoc :: Int, -- current solution depth
-    _currentSigs :: Map Id AbstractSkeleton, -- current type signature groups
-    _activeSigs :: Set Id,
-    _functionMap :: HashMap Id FunctionCode
-} deriving(Eq)
+data SearchState = SearchState { _currentSolutions :: [RProgram] -- type checked solutions
+                               , _currentLoc :: Int -- current solution depth
+                               , _currentSigs :: Map Id TypeSkeleton -- current type signature groups
+                               , _activeSigs :: Set Id
+                               , _functionMap :: HashMap Id FunctionCode
+                               }
+  deriving(Eq)
 
-emptySearchState = SearchState {
-    _currentSolutions = [],
-    _currentLoc = 0,
-    _currentSigs = Map.empty,
-    _activeSigs = Set.empty,
-    _functionMap = HashMap.empty
-}
+emptySearchState = SearchState { _currentSolutions = []
+                               , _currentLoc = 0
+                               , _currentSigs = Map.empty
+                               , _activeSigs = Set.empty
+                               , _functionMap = HashMap.empty
+                               }
 
 makeLenses ''SearchState
 
-data StatisticState = StatisticState {
-    _instanceCounts :: HashMap Id Int, -- Number of instantiations for a real-name, used in selecting representative
-    _useCount :: Map Id Int,
-    _solverStats :: TimeStatistics
-} deriving(Eq)
+data StatisticState = StatisticState { _instanceCounts :: HashMap Id Int -- Number of instantiations for a real-name, used in selecting representative
+                                     , _useCount :: Map Id Int
+                                     , _solverStats :: TimeStatistics
+                                     }
+  deriving(Eq)
 
-emptyStatistic = StatisticState {
-    _instanceCounts = HashMap.empty,
-    _useCount = Map.empty,
-    _solverStats = emptyTimeStats
-}
+emptyStatistic = StatisticState { _instanceCounts = HashMap.empty
+                                , _useCount = Map.empty
+                                , _solverStats = emptyTimeStats
+                                }
 
 makeLenses ''StatisticState
 
-type CheckError = (RProgram, AbstractSkeleton)
+data CheckError = CheckError { errorProgram :: TProgram
+                             , desiredType :: TypeSkeleton
+                             }
+  deriving( Eq )
 
 data RefineState = RefineState {
     _abstractionCover :: AbstractCover,
-    _instanceMapping :: HashMap (Id, [AbstractSkeleton]) (Id, AbstractSkeleton),
-    _targetType :: AbstractSkeleton,
-    _sourceTypes :: [AbstractSkeleton],
-    _splitTypes :: Set AbstractSkeleton,
+    _instanceMapping :: HashMap (Id, [TypeSkeleton]) (Id, TypeSkeleton),
+    _targetType :: TypeSkeleton,
+    _sourceTypes :: [TypeSkeleton],
+    _splitTypes :: Set TypeSkeleton,
     _toRemove :: [Id],
     _passOneOrMore :: Bool, -- ^ whether all the possible filling of a sketch all type checks
     _lastError :: CheckError -- ^ the last type checking error, used for refinement
-} deriving(Eq)
+} deriving( Eq )
 
 emptyRefineState = RefineState {
     _abstractionCover = HashMap.empty,
     _instanceMapping = HashMap.empty,
-    _targetType = AScalar (ATypeVarT varName),
+    _targetType = TypeVarT varName,
     _sourceTypes = [],
     _splitTypes = Set.empty,
     _toRemove = [],
@@ -157,5 +151,5 @@ instance Monad m => CheckMonad (BackTrack m) where
 
 data SearchResult = NotFound 
                   | Found (RProgram, AssociativeExamples)
-                  | MoreRefine (RProgram, AbstractSkeleton)
+                  | MoreRefine (RProgram, TypeSkeleton)
                   deriving(Eq)

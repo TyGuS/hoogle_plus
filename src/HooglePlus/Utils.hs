@@ -150,7 +150,7 @@ printSolutionState solution (FilterState _ sols workingExamples diffExamples) = 
         showGroup :: [(SolutionPair, Example)] -> String
         showGroup xs = unlines ((show $ fst $ head xs) : (map (show . snd) xs))
 
-extractSolution :: Environment -> RType -> UProgram -> ([String], String, UProgram, [(Id, RSchema)])
+extractSolution :: Environment -> TypeSkeleton -> UProgram -> ([String], String, UProgram, [(Id, SchemaSkeleton)])
 extractSolution env goalType prog = (modules, funcSig, body, argList)
     where
         argList = _arguments env
@@ -161,17 +161,17 @@ extractSolution env goalType prog = (modules, funcSig, body, argList)
         funcSig = mkFunctionSigStr (monoGoals ++ [goalType])
         body = mkLambda argNames prog
 
-updateEnvWithBoundTyVars :: RSchema -> Environment -> (Environment, RType)
+updateEnvWithBoundTyVars :: SchemaSkeleton -> Environment -> (Environment, TypeSkeleton)
 updateEnvWithBoundTyVars (Monotype ty) env = (env, ty)
 updateEnvWithBoundTyVars (ForallT x ty) env = updateEnvWithBoundTyVars ty (addTypeVar x env)
 
-updateEnvWithSpecArgs :: RType -> Environment -> (Environment, RType)
+updateEnvWithSpecArgs :: TypeSkeleton -> Environment -> (Environment, TypeSkeleton)
 updateEnvWithSpecArgs (FunctionT x tArg tRes) env = (addVariable x tArg $ addArgument x tArg env', ret)
     where
         (env', ret) = updateEnvWithSpecArgs tRes env
 updateEnvWithSpecArgs ty env = (env, ty)
 
-preprocessEnvFromGoal :: Goal -> (Environment, RType)
+preprocessEnvFromGoal :: Goal -> (Environment, TypeSkeleton)
 preprocessEnvFromGoal goal = updateEnvWithSpecArgs monospec env''
     where
         env''' = gEnvironment goal

@@ -164,7 +164,7 @@ resolveSignatures _                      = return ()
 
 {- Types and sorts -}
 
-resolveSchema :: RSchema -> Resolver RSchema
+resolveSchema :: SchemaSkeleton -> Resolver SchemaSkeleton
 resolveSchema sch = do
   let tvs = Set.toList $ typeVarsOf (toMonotype sch)
   sch' <- withLocalEnv $ do
@@ -185,7 +185,7 @@ resolveSchema sch = do
       return $ ForallP sig sch'
     resolveSchema' (Monotype t) = Monotype <$> resolveType t
 
-resolveType :: RType -> Resolver RType
+resolveType :: TypeSkeleton -> Resolver TypeSkeleton
 resolveType (ScalarT (DatatypeT name tArgs pArgs) fml) = do
   ds <- use $ environment . datatypes
   case Map.lookup name ds of

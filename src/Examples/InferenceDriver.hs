@@ -43,7 +43,7 @@ import Outputable
 import Text.Printf
 
 -- pre: the mkFun is a tuple of arguments and return types
-parseExample :: [String] -> String -> IO (Either ErrorMessage RSchema)
+parseExample :: [String] -> String -> IO (Either ErrorMessage SchemaSkeleton)
 parseExample mdls mkFun = catch (do
     typ <- askGhc mdls $ exprType TM_Default mkFun
     let hsType = typeToLHsType typ
@@ -54,7 +54,7 @@ parseExample mdls mkFun = catch (do
         toInt (ForallT x t) = ForallT x (toInt t)
         toInt (Monotype t) = Monotype (integerToInt t)
 
-getExampleTypes :: Environment -> [Id] -> [RSchema] -> Int -> IO ([String], InfStats)
+getExampleTypes :: Environment -> [Id] -> [SchemaSkeleton] -> Int -> IO ([String], InfStats)
 getExampleTypes env argNames validSchemas num = do
     let mdls = env ^. included_modules
     let initTyclassState = emptyTyclassState { _supportModules = Set.toList mdls }
@@ -109,7 +109,7 @@ getExampleTypes env argNames validSchemas num = do
         flattenResult (antiUnifs, generals) = zipWith padding antiUnifs generals
 
 -- turn a GHC type into Hoogle+ type
-resolveType :: LHsType GhcPs -> RSchema
+resolveType :: LHsType GhcPs -> SchemaSkeleton
 resolveType (L _ (HsForAllTy bs t)) = foldr ForallT (resolveType t) vs
     where
         vs = map ((wildcardPrefix:) . vname) bs
@@ -134,7 +134,7 @@ resolveType (L _ (HsQualTy ctx body)) = Monotype bodyWithTcArgs
         bodyWithTcArgs = foldr (FunctionT "") (toMonotype $ resolveType body) tyConstraints
 resolveType t = Monotype $ resolveType' t
 
-resolveType' :: LHsType GhcPs -> RType
+resolveType' :: LHsType GhcPs -> TypeSkeleton
 resolveType' (L _ (HsFunTy f r)) = FunctionT "" (resolveType' f) (resolveType' r)
 resolveType' (L _ (HsQualTy _ t)) = resolveType' t
 resolveType' (L _ (HsTyVar _ (L _ v))) =
@@ -249,7 +249,7 @@ antiUnification' (FunctionT x1 tArg1 tRes1) (FunctionT x2 tArg2 tRes2) = do
     return $ FunctionT x1 tArg tRes
 antiUnification' t1 t2 = findWithDefaultAntiVariable t1 t2
 
-generalizeType :: MonadIO m => [RSchema] -> TyclassAssignment -> SType -> StateT TypeClassState m [(TyclassAssignment, SType)]
+generalizeType :: MonadIO m => [SchemaSkeleton] -> TyclassAssignment -> SType -> StateT TypeClassState m [(TyclassAssignment, SType)]
 generalizeType exTyps tcass t = do
     -- do the filtering inside observeAll
     liftIO $ print t

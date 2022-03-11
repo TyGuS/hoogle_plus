@@ -16,7 +16,7 @@ import Control.Concurrent.Chan
 data CheckerState = CheckerState {
     _nameCounter :: Map Id Int,
     _isChecked :: Bool,
-    _typeAssignment :: Map Id SType,
+    _typeAssignment :: Map Id TypeSkeleton,
     _nameMapping :: Map Id Id,
     _checkerChan :: Chan Message
 } deriving(Eq)

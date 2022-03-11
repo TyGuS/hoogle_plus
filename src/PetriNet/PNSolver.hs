@@ -74,7 +74,7 @@ encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [la
     params = abstractParamList t
 encodeFunction id t@AScalar {} = FunctionCode id [] [] [t]
 
-instantiate :: MonadIO m => Environment -> Map Id RSchema -> PNSolver m (Map Id AbstractSkeleton)
+instantiate :: MonadIO m => Environment -> Map Id SchemaSkeleton -> PNSolver m (Map Id AbstractSkeleton)
 instantiate env sigs = do
     modify $ set (refineState . toRemove) []
     noBlack <- getExperiment disableBlack
@@ -91,7 +91,7 @@ instantiate env sigs = do
         foldM (\acc -> (<$>) (acc ++) . uncurry (instantiateWith env typs)) [] sigs'
 
 -- add Pair_match function as needed
-instantiateWith :: MonadIO m => Environment -> [AbstractSkeleton] -> Id -> RType -> PNSolver m [(Id, AbstractSkeleton)]
+instantiateWith :: MonadIO m => Environment -> [AbstractSkeleton] -> Id -> TypeSkeleton -> PNSolver m [(Id, AbstractSkeleton)]
 -- skip "snd" function, it would be handled together with "fst"
 instantiateWith env typs id t | id == "snd" = return []
 instantiateWith env typs id t = do
@@ -447,7 +447,7 @@ addEncodedFunction (id, f) = do
     -- store the used abstract types and their groups into mapping
     updateTy2Tr id f
 
-resetEncoder :: (MonadIO m) => Environment -> RType -> PNSolver m ()
+resetEncoder :: (MonadIO m) => Environment -> TypeSkeleton -> PNSolver m ()
 resetEncoder env dst = do
     (srcTypes, tgt) <- updateSrcTgt env dst
     writeLog 2 "resetEncoder" $ text "parameter types are" <+> pretty srcTypes
@@ -470,7 +470,7 @@ incEncoder env = do
 
 findPath :: MonadIO m
          => Environment
-         -> RType
+         -> TypeSkeleton
          -> PNSolver m [Id]
 findPath env dst = do
     st <- gets $ view encoder
@@ -491,7 +491,7 @@ findPath env dst = do
 
 fixEncoder :: MonadIO m
            => Environment
-           -> RType
+           -> TypeSkeleton
            -> SplitInfo
            -> PNSolver m ()
 fixEncoder env dst info = do
@@ -511,7 +511,7 @@ fixEncoder env dst info = do
 
 findProgram :: MonadIO m
             => Environment -- the search environment
-            -> RSchema     -- the goal type
+            -> SchemaSkeleton     -- the goal type
             -> [Example]   -- examples for post-filtering
             -> Int         -- remaining number of solutions to be found
             -> PNSolver m ()
@@ -540,7 +540,7 @@ findProgram env goal examples cnt = do
 
 enumeratePath :: MonadIO m 
               => Environment
-              -> RSchema
+              -> SchemaSkeleton
               -> [Example] 
               -> [Id] 
               -> BackTrack m SearchResult
@@ -560,7 +560,7 @@ enumeratePath env goal examples path = do
 
 checkPath :: MonadIO m 
           => Environment 
-          -> RSchema
+          -> SchemaSkeleton
           -> [Example] 
           -> [Id] 
           -> BackTrack m SearchResult
@@ -602,7 +602,7 @@ checkPath env goal examples path = do
 
 -- TODO: maybe we can change the order here
 -- once we get a correct solution, stop the refine
-parseAndCheck :: MonadIO m => Environment -> RType -> String -> BackTrack m (Either RProgram CheckError)
+parseAndCheck :: MonadIO m => Environment -> TypeSkeleton -> String -> BackTrack m (Either RProgram CheckError)
 parseAndCheck env dst code = do
     prog <- case parseExp code of
                 ParseOk exp         -> return (toSynquidProgram exp)
@@ -693,7 +693,7 @@ generateCode initialFormer env src args sigs = do
 
 nextSolution :: MonadIO m 
              => Environment 
-             -> RSchema
+             -> SchemaSkeleton
              -> [Example] 
              -> Int
              -> PNSolver m ()
@@ -729,7 +729,7 @@ nextSolution env goal examples cnt = do
 
 checkSolution :: MonadIO m 
               => Environment 
-              -> RSchema
+              -> SchemaSkeleton
               -> [Example] 
               -> RProgram 
               -> BackTrack m SearchResult
@@ -755,7 +755,7 @@ checkSolution env goal examples code = do
                     lift $ writeSolution out
                     return $ Found (code', exs)
 
-runPNSolver :: MonadIO m => Environment -> RSchema -> [Example] -> PNSolver m ()
+runPNSolver :: MonadIO m => Environment -> SchemaSkeleton -> [Example] -> PNSolver m ()
 runPNSolver env goal examples = do
     writeLog 3 "runPNSolver" $ text $ show (allSymbols env)
     cnt <- getExperiment solutionCnt
@@ -818,7 +818,7 @@ updateTy2Tr id f = do
 
 updateSrcTgt :: MonadIO m
             => Environment
-            -> RType
+            -> TypeSkeleton
             -> PNSolver m ([AbstractSkeleton], AbstractSkeleton)
 updateSrcTgt env dst = do
     -- reset source and destination types
@@ -851,7 +851,7 @@ prepEncoderArgs env tgt = do
     let sigs = HashMap.elems funcs
     return (loc, rets, sigs)
 
-foArgsOf :: Environment -> [(Id, RSchema)]
+foArgsOf :: Environment -> [(Id, SchemaSkeleton)]
 foArgsOf = filter (not . isFunctionType . toMonotype . snd) . _arguments
 
 noneInst instMap id t = not (HashMap.member (id, absFunArgs id t) instMap)

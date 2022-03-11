@@ -114,7 +114,7 @@ checkNum :: [Char] -> Bool
 checkNum [] = True
 checkNum (n:ns) = if isDigit n then checkNum ns else False
 
-fixIndex :: RType -> Int
+fixIndex :: TypeSkeleton -> Int
 fixIndex (FunctionT n a r) =
     let num = drop 3 n 
         maxIndex = max (fixIndex a) (fixIndex r)
@@ -124,7 +124,7 @@ fixIndex (FunctionT n a r) =
      in max argNum maxIndex
 fixIndex _ = -1
 
-fixArgName :: Int -> RType -> RType
+fixArgName :: Int -> TypeSkeleton -> TypeSkeleton
 fixArgName _ typ = let (_, res) = fixArgName' ((fixIndex typ) + 1) typ in res
   where
     fixArgName' idx (FunctionT x tArg tRes)
@@ -209,30 +209,30 @@ parseFuncDeclOrGoal = do
 
 {- Types -}
 
-parseSchema :: Parser RSchema
+parseSchema :: Parser SchemaSkeleton
 parseSchema = parseForall <|> (Monotype <$> parseTypeMbTypeclasses)
 
-parseForall :: Parser RSchema
+parseForall :: Parser SchemaSkeleton
 parseForall = do
   sig <- angles parsePredSig
   dot
   sch <- parseSchema
   return $ ForallP sig sch
 
-parseTypeMbTypeclasses :: Parser RType
+parseTypeMbTypeclasses :: Parser TypeSkeleton
 parseTypeMbTypeclasses = do
   tcs <- try parseTypeclasses <|> (pure id)
   plainTypes <- parseType
   return (tcs $ fixArgName 0 plainTypes)
 
-parseTCName :: Parser RType
+parseTCName :: Parser TypeSkeleton
 parseTCName = do
   name <- parseTypeName
   typeArgs <- many (sameOrIndented >> parseTypeAtom)
   let typeName = tyclassPrefix ++ name
   return $ ScalarT (DatatypeT typeName typeArgs []) ftrue
 
-parseTypeclasses :: Parser (RType -> RType)
+parseTypeclasses :: Parser (TypeSkeleton -> TypeSkeleton)
 parseTypeclasses = do
   tcs <- parens (commaSep1 parseTCName) <|> (parseTCName >>= (\x -> return [x]))
   let tcsAndNumbers = zip tcs [0 .. (length tcs)]
@@ -240,7 +240,7 @@ parseTypeclasses = do
   let combineTypeclasses (tc, num) next rest = FunctionT (tyclassArgBase ++ (show num)) tc (next rest)
   return $ foldr combineTypeclasses id tcsAndNumbers
 
-parseType :: Parser RType
+parseType :: Parser TypeSkeleton
 parseType = withPos (choice [try parseFunctionTypeWithArg, parseFunctionTypeMb] <?> "type")
 
 -- | Parse top-level type that starts with an argument name, and thus must be a function type
@@ -264,7 +264,7 @@ parseFunctionTypeMb = do
       returnType <- parseType
       return $ FunctionT "" argType returnType
 
-parseTypeAtom :: Parser RType
+parseTypeAtom :: Parser TypeSkeleton
 parseTypeAtom = choice [
   try $ parens parseType,
   parseScalarRefType,

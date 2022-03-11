@@ -3,7 +3,7 @@ version: 0.1.0.0
 github: "davidmrdavid/hoogle_plus"
 license: BSD3
 author: "Zheng Guo"
-maintainer: "zhg069@ucsd.edu"
+maintainer: "zhg069@eng.ucsd.edu"
 
 extra-source-files:
 - README.md
@@ -77,15 +77,20 @@ dependencies:
 - QuickCheck
 - random
 
+default-extensions:
+- DeriveGeneric
+- FlexibleContexts
+- TemplateHaskell
+- Rank2Types
+- FlexibleInstances
+- TypeSynonymInstances
+- OverloadedStrings
+- DeriveAnyClass
+- DeriveDataTypeable
+
 library:
   source-dirs:
   - src
-  other-extensions:
-  - TemplateHaskell
-  - Rank2Types
-  - FlexibleInstances
-  - TypeSynonymInstances
-  - FlexibleContexts
   verbatim:
   - "includes: z3.h"
   extra-libraries: z3
@@ -97,6 +102,7 @@ executables:
     ghc-options:
     - -rtsopts
     - -O2
+    - -Wall
     dependencies:
     - HooglePlus
 

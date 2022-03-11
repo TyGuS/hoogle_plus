@@ -26,7 +26,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Text.Printf
 import Control.Monad.State
 
-firstLvAbs :: Environment -> [RSchema] -> AbstractCover
+firstLvAbs :: Environment -> [SchemaSkeleton] -> AbstractCover
 firstLvAbs env schs = Set.foldr (updateCover tvs) initCover dts
   where
     tvs = env ^. boundTypeVars
@@ -45,7 +45,7 @@ allAbstractDts bound (FunctionT _ tArg tRes) = allAbstractDts bound tArg `Set.un
 allAbstractDts _ _ = Set.empty
 
 -- Produce the most specific abstraction possible from the given types.
-specificAbstractionFromTypes :: Environment -> [RSchema] -> AbstractCover
+specificAbstractionFromTypes :: Environment -> [SchemaSkeleton] -> AbstractCover
 specificAbstractionFromTypes env schemas = let
     abstrSkels = map (compactAbstractType . toAbstractType . shape . toMonotype) schemas
     base = HashMap.singleton rootNode Set.empty

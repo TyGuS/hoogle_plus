@@ -111,7 +111,7 @@ supportedTyclasses :: [String]
 supportedTyclasses = ["Num", "Ord", "Eq"]
 
 -- assume the types passed into the method already have fresh variable names
-checkTypes :: Environment -> CheckerState -> [Id] -> RType -> RType -> IO (Bool, Map Id SType)
+checkTypes :: Environment -> CheckerState -> [Id] -> TypeSkeleton -> TypeSkeleton -> IO (Bool, Map Id SType)
 checkTypes env initChecker tmpBound r1 r2 = do
     let bound = tmpBound ++ env ^. boundTypeVars
     state <- execStateT (do
