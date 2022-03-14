@@ -48,7 +48,6 @@ dependencies:
 - logict
 - MissingH
 - mtl
-- packdeps
 - parsec
 - pqueue
 - pretty-simple

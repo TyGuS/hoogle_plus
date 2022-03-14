@@ -140,3 +140,10 @@ $ stack build && stack test
 [vscode-remote]: <https://code.visualstudio.com/docs/remote/containers>
 
 
+## Troubleshooting
+
+> `stack build` fails when building the package `z3`
+
+One possible reason is that you installed `z3` inside a python virtual environment.
+To solve this problem, you need to add the path to `include` directory of the virtual environment
+into `stack.yaml` as an entry in `extra-include-dirs`.

@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleInstances, UndecidableInstances, FlexibleContexts #-}
-
 module Synquid.Pretty (
   -- * Interface
   Pretty (..),
@@ -134,9 +132,7 @@ option b doc = if b then doc else empty
 
 -- | Convert a 'Just' value to doc
 optionMaybe :: Maybe Doc -> Doc
-optionMaybe mVal toDoc = case mVal of
-  Nothing -> empty
-  Just val -> toDoc val
+optionMaybe mVal toDoc = maybe empty toDoc mVal
 
 entryDoc :: (Pretty a, Pretty b) => (a -> Doc) -> (b -> Doc) -> (a, b) -> Doc
 entryDoc keyDoc valDoc (k, v) = nest 2 $ (keyDoc k  <+> text "->") <+> valDoc v
@@ -188,7 +184,7 @@ prettyBase prettyType base = case base of
   IntT -> text "Int"
   BoolT -> text "Bool"
   DatatypeT "List" tArgs pArgs -> hlBrackets $ hsep (map (prettyType 0) tArgs) <+> hsep (map (hlAngles . pretty) pArgs)
-  DatatypeT "Pair" (larg:rarg:[]) pArgs -> hlParens $ prettyType 0 larg <+> operator "," <+> prettyType 0 rarg <+> hsep (map (hlAngles . pretty) pArgs)
+  DatatypeT "Pair" [larg, rarg] pArgs -> hlParens $ prettyType 0 larg <+> operator "," <+> prettyType 0 rarg <+> hsep (map (hlAngles . pretty) pArgs)
   TypeVarT s name -> if Map.null s then text name else hMapDoc pretty pretty s <> text name
   DatatypeT name tArgs pArgs -> text name <+> hsep (map (hlParens . prettyType 2) tArgs) <+> hsep (map (hlAngles . pretty) pArgs)
 
@@ -213,7 +209,7 @@ prettyType = prettyTypeAt 0
 typePower :: TypeSkeleton -> Int
 typePower FunctionT {} = 1
 typePower (ScalarT (DatatypeT _ tArgs pArgs) r)
-  | ((not (null tArgs) || not (null pArgs)) && (r == ftrue)) = 2
+  | (not (null tArgs) || not (null pArgs)) && (r == ftrue) = 2
 typePower _ = 3
 
 prettyTypeAt :: Int -> TypeSkeleton -> Doc
@@ -292,7 +288,7 @@ prettyProgram (Program p typ) = case p of
       countArgs = filter (not . isTcArg) x
       prefix = if '(' == head funName && length countArgs == 2 -- infix operators
                   then let funName' = drop 1 funName
-                           lastPart = reverse $ takeWhile ((/=) '.') $ tail $ reverse funName'
+                           lastPart = reverse $ takeWhile ('.' /=) $ tail $ reverse funName'
                         in hang tab $ mbPair funName $ optParens (head countArgs) <+> text lastPart <+> optParens (countArgs !! 1)
                   else hang tab $ text funName <+> hsep (map optParens x)
       in if f `elem` Map.elems unOpTokens
@@ -300,10 +296,10 @@ prettyProgram (Program p typ) = case p of
             else prefix
     PFun x e -> let (args, e') = mergeLambdas (Program p typ)
                  in nest 2 $ operator "\\" <> hsep (map text args) <+> operator "->" <+> prettyProgram e'
-    PIf c t e -> linebreak <> (hang tab $ keyword "if" <+> prettyProgram c $+$ (hang tab (keyword "then" </> prettyProgram t)) $+$ (hang tab (keyword "else" </> prettyProgram e)))
-    PMatch l cases -> linebreak <> (hang tab $ keyword "match" <+> prettyProgram l <+> keyword "with" $+$ vsep (map prettyCase cases))
+    PIf c t e -> linebreak <> hang tab (keyword "if" <+> prettyProgram c $+$ (hang tab (keyword "then" </> prettyProgram t)) $+$ (hang tab (keyword "else" </> prettyProgram e)))
+    PMatch l cases -> linebreak <> hang tab (keyword "match" <+> prettyProgram l <+> keyword "with" $+$ vsep (map prettyCase cases))
     PFix fs e -> prettyProgram e
-    PLet x e e' -> linebreak <> (align $ hang tab (keyword "let" <+> withType (text x) (typeOf e) <+> operator "=" </> prettyProgram e </> keyword "in") $+$ prettyProgram e')
+    PLet x e e' -> linebreak <> align (hang tab (keyword "let" <+> withType (text x) (typeOf e) <+> operator "=" </> prettyProgram e </> keyword "in") $+$ prettyProgram e')
     PHole -> if show (pretty typ) == dontCare then operator "??" else hlParens $ operator "?? ::" <+> pretty typ
     PErr -> keyword "error"
   where
