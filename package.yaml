@@ -51,7 +51,6 @@ dependencies:
 - parsec
 - pqueue
 - pretty-simple
-- pretty-tree
 - process
 - regex-compat
 - regex-posix
@@ -75,6 +74,7 @@ dependencies:
 - yaml
 - QuickCheck
 - random
+- wl-pprint-text
 
 default-extensions:
 - DeriveGeneric

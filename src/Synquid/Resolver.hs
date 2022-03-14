@@ -11,7 +11,6 @@ module Synquid.Resolver (
   , resolveSchema) where
 
 import Synquid.Error
-import Synquid.Logic
 import Synquid.Pretty
 import Synquid.Program
 import Synquid.Type
