@@ -10,16 +10,6 @@ module Synquid.Resolver (
   , initResolverState
   , resolveSchema) where
 
-import Synquid.Error
-import Synquid.Pretty
-import Synquid.Program
-import Synquid.Type
-import Synquid.Util
-import Types.Common hiding (varName)
-import Types.Generate
-import Types.Environment
-import Types.Program
-import Types.Type
 import Control.Applicative
 import Control.Monad.Except
 import Control.Monad.State
@@ -33,85 +23,82 @@ import Data.List
 import qualified Data.Foldable as Foldable
 import qualified Data.Traversable as Traversable
 
+import Synquid.Error
+import Synquid.Pretty
+import Synquid.Program
+import Synquid.Util
+import Types.Common hiding (varName)
+import Types.Generate
+import Types.Environment
+import Types.Program
+import Types.Type
 
-{- Interface -}
 
-data ResolverState = ResolverState {
-  _environment :: Environment,
-  _goals :: [(Id, (UProgram, SourcePos))],
-  _condQualifiers :: [Formula],
-  _typeQualifiers :: [Formula],
-  _mutuals :: Map Id [Id],
-  _inlines :: Map Id ([Id], Formula),
-  _sortConstraints :: [SortConstraint],
-  _currentPosition :: SourcePos,
-  _idCount :: Int
-}
+--------------------------------------------------------------------------------
+------------------------------- Resolver State ---------------------------------
+--------------------------------------------------------------------------------
 
-makeLenses ''ResolverState
+data ResolverState = ResolverState { getSynonyms  :: [TypeSynonym]
+                                   , getDatatypes :: [DatatypeDef]
+                                   , getIdCount   :: Int
+                                   }
+  deriving ( Show )
 
-initResolverState = ResolverState {
-  _environment = emptyEnv,
-  _goals = [],
-  _condQualifiers = [],
-  _typeQualifiers = [],
-  _mutuals = Map.empty,
-  _inlines = Map.empty,
-  _sortConstraints = [],
-  _currentPosition = noPos,
-  _idCount = 0
-}
+type Resolver a = StateT ResolverState (Except ErrorMessage) a
+
+------ Operations on resolver state
+
+initResolverState :: ResolverState
+initResolverState = ResolverState [] [] 0
+
+addSynonym :: TypeSynonym -> Resolver ()
+addSynonym syn = modify $ \s -> s { getSynonyms = syn : getSynonyms s }
+
+addDatatype :: DatatypeDef -> Resolver ()
+addDatatype dt = modify $ \s -> s { getDatatypes = dt : getDatatypes s }
+
+incCounter :: Resolver ()
+incCounter = modify $ \s -> s { getIdCount = getIdCount s + 1 }
+
+
+--------------------------------------------------------------------------------
+------------------------------- Resolve Decls  ---------------------------------
+--------------------------------------------------------------------------------
 
 -- | Convert a parsed program AST into a list of synthesis goals and qualifier maps
 resolveDecls :: [Declaration] -> [MdlName] -> Either ErrorMessage Environment
 resolveDecls declarations moduleNames =
-  runExcept (execStateT go initResolverState) >>= (\s -> Right (s ^. environment))
+  runExcept (execStateT go initResolverState) >>= (Right . getResolverEnv s)
   where
+    go :: Resolver ()
     go = do
       -- Pass 1: collect all declarations and resolve sorts, but do not resolve refinement types yet
       mapM_ (extractPos resolveDeclaration) declarations
       -- Pass 2: resolve refinement types in signatures
       mapM_ (extractPos resolveSignatures) declarations
+
+    extractPos :: (SourcePos -> Resolver a) -> Declaration -> Resolver a
     extractPos pass (Pos pos decl) = do
       currentPosition .= pos
       pass decl
 
-instantiateSorts :: [Sort] -> [Sort]
-instantiateSorts sorts = fromRight $ runExcept (evalStateT (instantiate sorts) (initResolverState))
-
-addAllVariables :: [Formula] -> Environment -> Environment
-addAllVariables = flip (foldr (\(Var s x) -> addVariable x (fromSort s)))
-
-{- Implementation -}
-
-type Resolver a = StateT ResolverState (Except ErrorMessage) a
-
+throwResError :: ErrorMessage -> Resolver a
 throwResError descr = do
   pos <- use currentPosition
   throwError $ ErrorMessage ResolutionError pos descr
 
-resolveDeclaration :: BareDeclaration -> Resolver ()
-resolveDeclaration (TypeDecl typeName typeVars typeBody) = do
+resolveDeclaration :: BareDeclaration -> Environment -> Resolver Environment
+resolveDeclaration (TypeDecl typeName typeVars typeBody) _ = do
   typeBody' <- resolveType typeBody
   let extraTypeVars = typeVarsOf typeBody' Set.\\ Set.fromList typeVars
   if Set.null extraTypeVars
-    then environment %= addTypeSynonym typeName typeVars typeBody'
+    then addSynonym (TypeSynonym typeName typeVars typeBody')
     else throwResError (text "Type variable(s)" <+> hsep (map text $ Set.toList extraTypeVars) <+>
               text "in the definition of type synonym" <+> text typeName <+> text "are undefined")
-resolveDeclaration (FuncDecl funcName typeSchema) = addNewSignature funcName typeSchema
-resolveDeclaration (DataDecl dtName tParams pVarParams ctors) = do
-  let
-    (pParams, pVariances) = unzip pVarParams
-    datatype = DatatypeDef {
-      _typeParams = tParams,
-      _predVariances = pVariances,
-      _constructors = map constructorName ctors
-    }
-  environment %= addDatatype dtName datatype
-  let addPreds typ = foldl (flip ForallP) (Monotype typ) pParams
-  mapM_ (\(ConstructorSig name typ) -> addNewSignature name $ addPreds typ) ctors
-resolveDeclaration (MeasureDecl measureName inSort outSort post defCases isTermination) = error "resolveDeclaration"
-resolveDeclaration (PredDecl (PredSig name argSorts resSort)) = error "resolveDecl"
+resolveDeclaration (FuncDecl funcName typeSchema) env = addComponent funcName typeSchema env
+resolveDeclaration (DataDecl dtName tParams ctors) = do
+  addDatatype (DatatypeDef tParams (map constructorName ctors))
+  return $ foldr (\(ConstructorSig name typ) -> addComponent name typ) env ctors
 resolveDeclaration (SynthesisGoal name impl) = do
   syms <- uses environment allSymbols
   pos <- use currentPosition

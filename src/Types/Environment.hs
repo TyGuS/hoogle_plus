@@ -1,78 +1,52 @@
 module Types.Environment where
 
-import           Control.Lens
 import           GHC.Generics ( Generic )
-import           Data.Set ( Set )
-import qualified Data.Set as Set
+import           Data.Function ( on )
 import           Data.Map ( Map )
 import qualified Data.Map as Map
 
-
 import Types.Type
 import Types.Common
-import Types.Generate
-import Types.IOFormat
 
 
 -- | User-defined datatype representation
-data DatatypeDef = DatatypeDef {
-  _typeParams :: [Id],              -- ^ Type parameters
-  _predVariances :: [Bool],         -- ^ For each predicate parameter, whether it is contravariant
-  _constructors :: [Id]            -- ^ Constructor names
-} deriving (Eq, Ord, Generic, Show)
+type Parameter = Id
+type ConstructorName = Id
+data DatatypeDef = DatatypeDef [Parameter] [ConstructorName]
+  deriving ( Eq, Ord, Generic, Show )
 
-makeLenses ''DatatypeDef
+getParameters :: DatatypeDef -> [Parameter]
+getParameters (DatatypeDef ps _) = ps
 
+getConstructors :: DatatypeDef -> [ConstructorName]
+getConstructors (DatatypeDef _ cs) = cs
 
--- | Typing environment
-data Environment = Environment {
-  _symbols :: Map Id SchemaSkeleton,          -- ^ Variables and constants (with their refinement types), indexed by arity
-  _arguments :: [(Id, SchemaSkeleton)],            -- ^ Function arguments, required in all the solutions
-  _typeClasses :: Map Id (Set Id),         -- ^ Type class instances
-  _boundTypeVars :: [Id],                  -- ^ Bound type variables
-  -- | Constant part:
-  _constants :: Set Id,                    -- ^ Subset of symbols that are constants
-  _datatypes :: Map Id DatatypeDef,        -- ^ Datatype definitions
-  _typeSynonyms :: Map Id ([Id], TypeSkeleton),   -- ^ Type synonym definitions
-  _included_modules :: Set String,          -- ^ The set of modules any solution would need to import
-  _typClassInstances :: [(String, String)],
-  _condTypClasses :: [([(String, [Set String])], (String, String))],
-  _hoCandidates :: [Id],
-  _queryCandidates :: Map SchemaSkeleton [Example]
-  } deriving(Show, Generic)
+data TypeSynonym = TypeSynonym Id [Id] TypeSkeleton
+  deriving ( Eq, Ord, Generic, Show )
 
-makeLenses ''Environment
+type SymbolLib = Map Id SchemaSkeleton
 
+data Environment = Environment { getSymbols :: SymbolLib                   -- ^ Components with their types
+                               , getArguments :: [(Id, SchemaSkeleton)]    -- ^ Function arguments, required in all the solutions
+                               , getBoundTypeVars :: [Id]                  -- ^ Bound type variables
+                               }
+  deriving ( Show, Generic )
 
 instance Eq Environment where
-  (==) e1 e2 = (e1 ^. symbols) == (e2 ^. symbols)
+  (==) e1 e2 = getSymbols e1 == getSymbols e2
 
 instance Ord Environment where
-  (<=) e1 e2 = (e1 ^. symbols) <= (e2 ^. symbols)
+  compare = compare `on` getSymbols
 
-
--- | Empty environment
-emptyEnv = Environment {
-  _symbols = Map.empty,
-  _arguments = [],
-  _typeClasses = Map.empty,
-  _boundTypeVars = [],
-  _constants = Set.empty,
-  _datatypes = Map.empty,
-  _typeSynonyms = Map.empty,
-  _included_modules = Set.empty,
-  _typClassInstances = [],
-  _condTypClasses = [],
-  _hoCandidates = [],
-  _queryCandidates = Map.empty 
-}
+emptyEnv :: Environment
+emptyEnv = Environment Map.empty [] []
 
 --------------------------------------------------------------------------------
 --------------------------  Environment Operations -----------------------------
 --------------------------------------------------------------------------------
 
-allSymbols :: Environment -> Map Id SchemaSkeleton
-allSymbols env = env ^. symbols
+allSymbols :: Environment -> SymbolLib
+allSymbols = getSymbols
 
 -- | 'lookupSymbol' @name env@ : type of symbol @name@ in @env@, including built-in constants
 lookupSymbol :: Id -> Int -> Environment -> Maybe SchemaSkeleton
@@ -80,47 +54,23 @@ lookupSymbol name a env = Map.lookup name (allSymbols env)
 
 -- | 'isBound' @tv env@: is type variable @tv@ bound in @env@?
 isBound :: Environment -> Id -> Bool
-isBound env tv = tv `elem` env ^. boundTypeVars
+isBound env tv = tv `elem` getBoundTypeVars env
 
 addArgument :: Id -> TypeSkeleton -> Environment -> Environment
-addArgument name t = arguments %~ ((name, Monotype t):)
+addArgument name t (Environment symbols args bvs) = Environment symbols (args ++ [(name, Monotype t)]) bvs
 
-addVariable :: Id -> TypeSkeleton -> Environment -> Environment
-addVariable name t = addPolyVariable name (Monotype t)
+modifySymbols :: (SymbolLib -> SymbolLib) -> Environment -> Environment
+modifySymbols f (Environment symbols args bvs) = Environment (f symbols) args bvs
 
-addPolyVariable :: Id -> SchemaSkeleton -> Environment -> Environment
-addPolyVariable name sch = symbols %~ Map.insert name sch
-
--- | 'addConstant' @name t env@ : add type binding @name@ :: Monotype @t@ to @env@
-addConstant :: Id -> TypeSkeleton -> Environment -> Environment
-addConstant name t = addPolyConstant name (Monotype t)
-
--- | 'addPolyConstant' @name sch env@ : add type binding @name@ :: @sch@ to @env@
-addPolyConstant :: Id -> SchemaSkeleton -> Environment -> Environment
-addPolyConstant name sch = addPolyVariable name sch . (constants %~ Set.insert name)
+addComponent :: Id -> SchemaSkeleton -> Environment -> Environment
+addComponent name sch (Environment symbols args bvs) =
+  case name `Map.lookup` symbols of
+    Nothing -> Environment (Map.insert name sch symbols) args bvs
+    Just _  -> error $ "addComponent: symbol " ++ show name ++ " already defined"
 
 removeVariable :: Id -> Environment -> Environment
-removeVariable name env = case Map.lookup name (allSymbols env) of
-  Nothing -> env
-  Just sch -> over symbols (Map.delete name) . over constants (Set.delete name) $ env
-
-addTypeSynonym :: Id -> [Id] -> TypeSkeleton -> Environment -> Environment
-addTypeSynonym name tvs t = over typeSynonyms (Map.insert name (tvs, t))
-
--- | 'addDatatype' @name env@ : add datatype @name@ to the environment
-addDatatype :: Id -> DatatypeDef -> Environment -> Environment
-addDatatype name dt = over datatypes (Map.insert name dt)
-
--- | 'lookupConstructor' @ctor env@ : the name of the datatype for which @ctor@ is registered as a constructor in @env@, if any
-lookupConstructor :: Id -> Environment -> Maybe Id
-lookupConstructor ctor env = let m = Map.filter (\dt -> ctor `elem` dt ^. constructors) (env ^. datatypes)
-  in if Map.null m
-      then Nothing
-      else Just $ fst $ Map.findMin m
+removeVariable name = modifySymbols (Map.delete name)
 
 -- | 'addTypeVar' @a@ : Add bound type variable @a@ to the environment
 addTypeVar :: Id -> Environment -> Environment
-addTypeVar a = over boundTypeVars (a :)
-
-typeSubstituteEnv :: TypeSubstitution -> Environment -> Environment
-typeSubstituteEnv tass = over symbols (Map.map (schemaSubstitute tass))
+addTypeVar a (Environment symbols args bvs) = Environment symbols args (a : bvs)

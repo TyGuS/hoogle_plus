@@ -86,7 +86,7 @@ hasAny _                       = False
 typeName :: TypeSkeleton -> Id
 typeName (DatatypeT name _) = name
 typeName (TypeVarT name)    = name
-typeName t                  = error $ "scalarName error: cannot be applied to nonscalar type "
+typeName t                  = error "scalarName error: cannot be applied to nonscalar type "
 
 allDatatypes :: TypeSkeleton -> Set Id
 allDatatypes (FunctionT _ tArg tRet) = allDatatypes tArg `Set.union` allDatatypes tRet
@@ -110,11 +110,11 @@ lastType (FunctionT _ _ tRes) = lastType tRes
 lastType t                    = t
 
 allArgTypes :: TypeSkeleton -> [TypeSkeleton]
-allArgTypes (FunctionT x tArg tRes) = tArg : (allArgTypes tRes)
+allArgTypes (FunctionT x tArg tRes) = tArg : allArgTypes tRes
 allArgTypes _                       = []
 
 allArgs :: TypeSkeleton -> [TypeSkeleton]
-allArgs (FunctionT _ tArg tRes) = tArg : (allArgs tRes)
+allArgs (FunctionT _ tArg tRes) = tArg : allArgs tRes
 allArgs _                       = []
 
 allBaseTypes :: TypeSkeleton -> [TypeSkeleton]
@@ -156,14 +156,14 @@ typeVarsOf (FunctionT _ tArg tRes) = typeVarsOf tArg `Set.union` typeVarsOf tRes
 typeVarsOf _                       = Set.empty
 
 typeDepth :: TypeSkeleton -> Int
-typeDepth (DatatypeT _ tys) | length tys /= 0 = 1 + (maximum $ map typeDepth tys)
+typeDepth (DatatypeT _ tys) | not (null tys)  = 1 + maximum (map typeDepth tys)
 typeDepth (FunctionT _ tArg tRet)             = max (typeDepth tArg) (typeDepth tRet)
 typeDepth t                                   = 0
 
 longScalarName :: TypeSkeleton -> Id
-longScalarName (DatatypeT name rs) = name `Text.append` (Text.concat $ map longScalarName rs)
+longScalarName (DatatypeT name rs) = name `Text.append` Text.concat (map longScalarName rs)
 longScalarName (TypeVarT name)     = name
-longScalarName t                   = error $ "longScalarName error: cannot be applied to nonscalar type "
+longScalarName t                   = error "longScalarName error: cannot be applied to nonscalar type "
 
 breakdown :: TypeSkeleton -> [TypeSkeleton]
 breakdown t@DatatypeT {}          = [t]
