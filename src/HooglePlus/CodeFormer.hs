@@ -4,11 +4,10 @@ module HooglePlus.CodeFormer(
     , CodePieces
     ) where
 
-import           Control.Monad.State.Lazy
+import Control.Monad.State.Lazy ( gets, MonadState(put, get), StateT )
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import           Data.List
-import           Data.Maybe
+import           Data.List ( delete )
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           Data.Text ( Text )
@@ -17,14 +16,13 @@ import qualified Data.Text as Text
 import Types.Common
 import Types.Encoder
 import Types.Type
-import Synquid.Util
-import Utility.Container ( textElem )
+import Utility.Utils ( textElem )
 
 type Code = Text
 type CodePieces = Set Code
 
 data FormerState = FormerState { typedTerms :: HashMap TypeSkeleton CodePieces
-                               , allSignatures :: [FunctionCode]
+                               , allSignatures :: [EncodedFunction]
                                }
 
 type CodeFormer = StateT FormerState IO
@@ -32,10 +30,10 @@ type CodeFormer = StateT FormerState IO
 withParen :: Code -> Code
 withParen c = "(" `Text.append` c `Text.append` ")"
 
-applyFunction :: FunctionCode -> CodeFormer CodePieces
+applyFunction :: EncodedFunction -> CodeFormer CodePieces
 applyFunction func = do
     args <- generateArgs [""] (funParams func)
-    let res = Set.fromList $ map (\a -> withParen $ fname ++ a) args
+    let res = Set.fromList $ map (\a -> withParen $ fname `Text.append` a) args
     -- update typedTerms
     st <- get
     let tterms = typedTerms st
@@ -45,14 +43,16 @@ applyFunction func = do
   where
     fname = funName func
 
+    generateArgs :: [Code] -> [TypeSkeleton] -> CodeFormer [Code]
     generateArgs codeSoFar [] = return codeSoFar
     generateArgs codeSoFar (tArg:tArgs) = do
         args <- generateArg tArg
-        let partialApplication = [f ++ " " ++ a | f <- codeSoFar, a <- args]
+        let partialApplication = [Text.unwords [f, a] | f <- codeSoFar, a <- args]
         case partialApplication of
             []          -> return []
             codePieces  -> generateArgs codePieces tArgs
 
+    generateArg :: TypeSkeleton -> CodeFormer [Code]
     generateArg tArg = do
         tterms <- gets typedTerms
         return $ Set.toList $ HashMap.lookupDefault Set.empty tArg tterms
@@ -60,7 +60,7 @@ applyFunction func = do
 -- | generate the program from the signatures appeared in selected transitions
 -- these signatures are sorted by their timestamps,
 -- i.e. they may only use symbols appearing before them
-generateProgram :: [FunctionCode]  -- signatures used to generate program
+generateProgram :: [EncodedFunction]  -- signatures used to generate program
                 -> [TypeSkeleton]  -- argument types in the query
                 -> [Id]            -- argument names
                 -> [TypeSkeleton]  -- return types

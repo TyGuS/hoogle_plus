@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell, DeriveFunctor, DeriveGeneric #-}
 module Types.Program where
 
 import Control.Lens
@@ -8,7 +7,7 @@ import           Data.Text ( Text )
 import qualified Data.Text as Text
 import GHC.Generics
 
-import Synquid.Error
+import Compiler.Error
 import Types.Common
 import Types.Type
 import Types.Environment
@@ -45,7 +44,6 @@ data BareDeclaration
   = TypeDecl Id [Id] TypeSkeleton          -- ^ Type name, variables, and definition
   | FuncDecl Id SchemaSkeleton             -- ^ Function name and signature
   | DataDecl Id [Id] [ConstructorSig]      -- ^ Datatype name, type parameters, predicate parameters, and constructor definitions
-  | SynthesisGoal Id TProgram              -- ^ Name and template for the function to reconstruct
   deriving (Eq, Ord, Show)
 
 type Declaration = Pos BareDeclaration
@@ -55,29 +53,6 @@ data Goal = Goal { gEnvironment :: Environment  -- ^ Enclosing environment
                  , gSpec :: SchemaSkeleton      -- ^ Specification
                  }
   deriving (Eq, Ord, Show)
-
---------------------------------------------------------------------------------
---------------------------  Prefixes and Postfixes -----------------------------
---------------------------------------------------------------------------------
-
-tyclassPrefix :: Id
-tyclassPrefix = "@@hplusTC@@"
-
-tyclassInstancePrefix :: Id
-tyclassInstancePrefix = "@@hplusTCInstance@@"
-
-tyclassArgBase :: Id
-tyclassArgBase = "tcarg"
-
-hoPostfix :: Id
-hoPostfix = "'ho'"
-
-pairProj :: Id
-pairProj = "pair_match"
-
-isTyclass :: Id -> Bool
-isTyclass f = tyclassArgBase `Text.isInfixOf` f || 
-              tyclassInstancePrefix `Text.isPrefixOf` f
 
 --------------------------------------------------------------------------------
 -------------------------- Program Operations ----------------------------------
@@ -99,14 +74,12 @@ eraseTypes = fmap (const TopT)
 symbolsOf :: Program t -> Set Id
 symbolsOf (Program p _) = case p of
   PSymbol name -> Set.singleton name
-  PApp fun arg -> fun `Set.insert` (Set.unions $ map symbolsOf arg)
+  PApp fun arg -> fun `Set.insert` Set.unions (map symbolsOf arg)
   PFun x body  -> symbolsOf body
   _            -> Set.empty
 
+constructorName :: ConstructorSig -> Id
 constructorName (ConstructorSig name _) = name
-
-isSynthesisGoal (Pos _ (SynthesisGoal _ _)) = True
-isSynthesisGoal _ = False
 
 {- Misc -}
 

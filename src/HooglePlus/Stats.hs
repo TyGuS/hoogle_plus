@@ -2,17 +2,17 @@
 {-# LANGUAGE FlexibleContexts #-}
 module HooglePlus.Stats where
 
-import Types.Experiments
-import Types.Solver
-import Types.CheckMonad
-
-import Synquid.Util
 import Control.Monad.State
 import System.CPUTime
 import Text.Printf
 import Control.Lens
 import qualified Data.Map as Map
 import Text.Pretty.Simple
+
+import Types.Experiments
+import Types.Solver
+import Types.CheckMonad
+import Utility.Utils ( showFullPrecision )
 
 -- | wrap some action with time measuring and print out the execution time
 withTime :: (CheckMonad (t m), MonadIO (t m), MonadIO m) => TimeStatUpdate -> t m a -> t m a

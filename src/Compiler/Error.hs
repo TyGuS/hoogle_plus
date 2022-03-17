@@ -1,4 +1,4 @@
-module Synquid.Error (
+module Compiler.Error (
   Pos(..)
   ,SourcePos
   ,sourceLine
@@ -9,7 +9,7 @@ module Synquid.Error (
   ,ErrorMessage(..)
   ) where
 
-import Text.PrettyPrint.ANSI.Leijen
+import Text.PrettyPrint.ANSI.Leijen ( Doc )
 import Text.Parsec.Pos
 
 -- | Anything with a source position attached 
@@ -28,4 +28,3 @@ data ErrorMessage = ErrorMessage {
   emPosition :: SourcePos,
   emDescription :: Doc
 }
-

@@ -1,4 +1,4 @@
-module Synquid.Pretty (
+module Types.Pretty (
   -- * Interface
   Pretty (..),
   Doc,
@@ -9,7 +9,6 @@ module Synquid.Pretty (
   -- * Basic documents
   empty,
   isEmpty,
-  text,
   linebreak,
   semi,
   lbrace, rbrace,
@@ -66,8 +65,8 @@ import Types.Environment
 import Types.Type
 import Types.Program
 import Types.Encoder
-import Synquid.Error
-import Synquid.Util
+import Compiler.Error
+import Utility.Utils ( asInteger, text )
 
 infixr 5 $+$
 infixr 6 <+>
@@ -77,9 +76,6 @@ prettyShow p = displayS (renderCompact $ pretty p) ""
 
 tab :: Int
 tab = 2
-
-text :: Text -> Doc
-text = L.text . Text.unpack
 
 -- | Is document empty?
 isEmpty :: Doc -> Bool
@@ -231,11 +227,11 @@ prettyProgram (Program p typ) = case p of
 instance (Pretty t) => Pretty (Program t) where
   pretty = prettyProgram
 
+prettyBinding :: Pretty a => (Text, a) -> Doc
 prettyBinding (name, typ) = text name <+> operator "::" <+> pretty typ
 
-prettyBindings env = commaSep (map pretty (Map.keys $ removeDomain (env ^. constants) (allSymbols env)))
--- prettyBindings env = hMapDoc pretty pretty (removeDomain (env ^. constants) (allSymbols env))
--- prettyBindings env = empty
+prettyBindings :: Environment -> Doc
+prettyBindings env = commaSep (map pretty (Map.keys $ allSymbols env))
 
 instance Pretty Environment where
   pretty = prettyBindings
@@ -254,7 +250,6 @@ instance Pretty BareDeclaration where
   pretty (DataDecl name tParams ctors) = hang tab $
     keyword "data" <+> text name <+> hsep (map text tParams) <+> keyword "where"
     $+$ vsep (map pretty ctors)
-  pretty (SynthesisGoal name impl) = text name <+> operator "=" <+> pretty impl
 
 instance Pretty a => Pretty (Pos a) where
   pretty (Pos _ x) = pretty x
@@ -302,6 +297,7 @@ mkTableLaTeX widths docs =
 lfill :: Int -> Doc -> Doc
 lfill w d        = case renderCompact d of
   SText l s _ -> spaces (w - l) <> d
+  _           -> d
  where
   spaces n | n <= 0    = empty
            | otherwise = string $ replicate n ' '
@@ -311,10 +307,9 @@ instance Pretty SplitInfo where
                              $+$ string "Removed transitions:" <+> string (show r)
                              $+$ string "New transitions:" <+> string (show tr)
 
-instance Pretty FunctionCode where
-    pretty (FunctionCode name hop params rets) =
+instance Pretty EncodedFunction where
+    pretty (EncodedFunction name params rets) =
         string "function code:" <+> hlBraces
       ( string "function name:" <+> text name
-        $+$ string "HO parameters:" <+> hlBrackets (commaSep (map pretty hop))
         $+$ string "paramters:" <+> hlBrackets (commaSep (map pretty params))
         $+$ string "return types:" <+> hlBrackets (commaSep (map pretty rets)))

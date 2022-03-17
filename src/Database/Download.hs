@@ -2,24 +2,22 @@
 
 module Database.Download where
 
-import Data.Conduit.Binary (sinkFile) -- Exported from the package conduit-extra
+import Data.Conduit.Binary ( sinkFile ) -- Exported from the package conduit-extra
 import Network.HTTP.Conduit
-import Data.Conduit (runConduit, (.|), ($$+-))
-import Control.Monad.Trans.Resource (runResourceT)
+import Data.Conduit ( runConduit, (.|), ($$+-) )
+import Control.Monad.Trans.Resource ( runResourceT )
 import qualified Data.ByteString.Lazy as L
-import Data.Aeson
+import Data.Aeson ( decode )
 import qualified Data.Map as Map
 import Data.Map (Map)
-import GHC.Generics
-import Data.Maybe
-import Network.HTTP.Types.Status
-import Control.Monad.Extra
-import System.Directory
-import System.IO
+import Data.Maybe ( fromJust, isNothing )
+import Network.HTTP.Types.Status ( ok200 )
+import Control.Monad.Extra ( ifM )
+import System.Directory ( doesFileExist, removeFile )
+import System.IO ( stderr, hPutStrLn )
 
 import Types.Generate
-import Database.Prelude
-import Synquid.Util (getTmpDir)
+import Utility.Utils ( getTmpDir )
 
 docVersionsUrl = "https://hackage.haskell.org/packages/docs"
 docDownloadUrl = "https://hackage.haskell.org/package/"

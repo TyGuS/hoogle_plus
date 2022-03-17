@@ -1,7 +1,7 @@
 -- | Common types and helper functions
-module Synquid.Util where
+module Compiler.Util where
 
-import Types.Common
+
 import Data.Maybe
 import Data.Either
 import Data.List
@@ -24,6 +24,8 @@ import Debug.Trace
 import Text.Pretty.Simple
 import Debug.Pretty.Simple
 import Text.Regex (mkRegex, subRegex)
+
+import Types.Common
 
 maxCnt = 99999
 infinity = 1.0 / 0.0

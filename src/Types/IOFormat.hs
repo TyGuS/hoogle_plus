@@ -7,6 +7,8 @@ import Data.Data
 import Data.Text ( Text )
 import Control.DeepSeq
 
+import Text.PrettyPrint.ANSI.Leijen ( Pretty(pretty), string )
+
 import Types.Type
 
 outputPrefix :: Text
@@ -52,6 +54,12 @@ data FunctionDoc = FunctionDoc { functionName :: String
   deriving(Eq, Show, Generic, NFData)
 
 instance ToJSON FunctionDoc
+instance Pretty FunctionDoc where
+  pretty (FunctionDoc n sig desc)=
+    string $ unlines [ "Function: " ++ n
+                      , "Signature: " ++ sig
+                      , "Description: " ++ desc
+                      ]
 
 data ResultEntry = ResultEntry { qualSolution :: String
                                , unqualSolution :: String

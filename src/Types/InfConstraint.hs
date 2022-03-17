@@ -5,7 +5,6 @@
 module Types.InfConstraint where
 
 import Types.Type
-import Types.CheckMonad
 import Types.Common
 import Types.Experiments
 
@@ -80,35 +79,3 @@ makeLenses ''TypeNaming
 
 type AntiUnifier m = StateT AntiUnifState (LogicT (StateT TypeClassState m))
 type TypeGeneralizer m = StateT TypeNaming (LogicT (StateT TypeClassState m))
-
-instance Monad m => CheckMonad (AntiUnifier m) where
-    getNameCounter = lift $ lift $ gets (view generalNames)
-    setNameCounter nc = lift $ lift $ modify (set generalNames nc)
-    getNameMapping = getNameMapping
-    setNameMapping = setNameMapping
-    getIsChecked = getIsChecked
-    setIsChecked = setIsChecked
-    getMessageChan = getMessageChan
-    overStats = overStats
-
-instance Monad m => CheckMonad (LogicT (StateT TypeClassState m)) where
-    getNameCounter = lift $ gets (view generalNames)
-    setNameCounter nc = lift $ modify (set generalNames nc)
-    getNameMapping = getNameMapping
-    setNameMapping = setNameMapping
-    getIsChecked = getIsChecked
-    setIsChecked = setIsChecked
-    getMessageChan = getMessageChan
-    overStats = overStats
-
-instance Monad m => CheckMonad (TypeGeneralizer m) where
-    getNameCounter = gets (view nameCounter)
-    setNameCounter nc = modify (set nameCounter nc)
-    getNameMapping = getNameMapping
-    setNameMapping = setNameMapping
-    getIsChecked = getIsChecked
-    setIsChecked = setIsChecked
-    getMessageChan = getMessageChan
-    overStats = overStats
-
-wildcardPrefix = '?'

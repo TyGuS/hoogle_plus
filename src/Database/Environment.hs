@@ -135,12 +135,89 @@ generateEnv genOpts = do
      isPolymorphic (ForallT _ _) = True
      isPolymorphic _ = False
 
-toFunType :: TypeSkeleton -> TypeSkeleton
-toFunType (FunctionT x tArg tRes) = let
-  tArg' = toFunType tArg
-  tRes' = toFunType tRes
-  in ScalarT (DatatypeT "Fun" [tArg', tRes'] []) ftrue
-toFunType t = t
+
+--------------------------------------------------------------------------------
+------------------------------ Component Grouping ------------------------------
+--------------------------------------------------------------------------------
+
+data GroupResult = GroupResult
+  { groupMap            :: Map GroupId (Set Id) -- mapping from group id to Skel and list of function names with the same skel
+  , groupRepresentative :: Map GroupId Id -- mapping of current representative for group.
+  , typeToGroup         :: Map EncodedFunction GroupId
+  , nameToGroup         :: Map Id GroupId
+  }
+  deriving Eq
+
+emptyGroup :: GroupResult
+emptyGroup = GroupResult { groupMap            = Map.empty
+                         , groupRepresentative = Map.empty
+                         , typeToGroup         = Map.empty
+                         , nameToGroup         = Map.empty
+                         }
+
+groupPrefix :: Id
+groupPrefix = "gm"
+
+data FunctionGroup = FunctionGroup GroupId EncodedFunction (Set Id)
+  deriving Eq
+
+mkFunctionGroup :: GroupId -> (EncodedFunction, Set Id) -> FunctionGroup
+mkFunctionGroup gid (f, fs) = FunctionGroup gid f fs
+
+getFunctionSet :: FunctionGroup -> Set Id
+getFunctionSet (FunctionGroup _ _ ids) = ids
+
+toGroupMap :: FunctionGroup -> (GroupId, Set Id)
+toGroupMap (FunctionGroup gid _ ids) = (gid, ids)
+
+toTypeMap :: FunctionGroup -> (EncodedFunction, GroupId)
+toTypeMap (FunctionGroup gid f _) = (f, gid)
+
+toNameMap :: FunctionGroup -> Map Id GroupId
+toNameMap (FunctionGroup gid _ ids) = Map.fromSet (const gid) ids
+
+groupSignatures
+  :: Fresh s m => Map Id EncodedFunction -> StateT s m GroupResult
+groupSignatures sigs = do
+  -- group signatures by their types
+  let sigGroups = Map.toList $ Map.map Set.fromList $ groupByMap sigs
+  writeLog 3 "groupSignatures" $ pretty sigGroups
+
+  -- give each group a unique id
+  groupNames <- mapM (\_ -> freshId [] groupPrefix) sigGroups
+  let namedSigGroups = zipWith mkFunctionGroup groupNames sigGroups
+  let allIds         = map (Set.size . getFunctionSet) namedSigGroups
+  let dupes          = filter (> 1) allIds
+  writeLog 3 "groupSignatures" $ string $ printf
+    "%d class; %d equiv; %d total"
+    (length sigGroups)
+    (sum dupes)
+    (Map.size sigs)
+
+  let groupMap = Map.fromList $ map toGroupMap namedSigGroups
+  let t2g      = Map.fromList $ map toTypeMap namedSigGroups
+  let n2g      = Map.unions $ map toNameMap namedSigGroups
+  return $ GroupResult groupMap Map.empty t2g n2g
+
+
+selectRepresentative :: MonadIO m => Set Id -> GroupId -> Set Id -> PNSolver m Id
+selectRepresentative hoArgs gid s = do
+    let setToPickFrom = s
+    strat <- getExperiment coalesceStrategy
+    case strat of
+        First -> return $ Set.elemAt 0 setToPickFrom
+        LeastInstantiated -> pickReprOrder sortOn setToPickFrom
+        MostInstantiated -> pickReprOrder sortDesc setToPickFrom
+    where
+        pickReprOrder sorting setToPickFrom = do
+            nm <- gets $ view (typeChecker . nameMapping)
+            instCounts <- gets $ view (statistics . instanceCounts)
+            let idToCount id = instCounts HashMap.! (nm Map.! id)
+            let countMapping = sorting snd $ map (\x -> (x, idToCount x)) $ Set.toList setToPickFrom
+            writeLog 3 "SelectRepresentative" $ text gid <+> "needs to pick: " <+> pretty countMapping
+            return $ fst $ head countMapping
+
+        sortDesc f = sortBy (on (flip compare) f)
 
 -- filesToEntries reads each file into map of module -> declartions
 -- Filters for modules we care about. If none, use them all.

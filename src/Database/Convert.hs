@@ -29,18 +29,13 @@ import Debug.Trace
 
 import Database.Download
 import Database.Generate
-import Database.Util
-import Synquid.Error
-import Synquid.Logic hiding (Var)
-import Synquid.Type
-import Synquid.Util
 import Types.Common
 import Types.Generate
 import Types.Environment
-import Types.Program (BareDeclaration, Declaration, BareProgram(..), UProgram, Program(..))
 import Types.Type
 import qualified Types.Program as TP
 import qualified Data.Text as Text
+import Types.Fresh
 
 prependName prefix name  = case name of
     Ident l var -> Ident l (prefix ++ "." ++ var)
@@ -130,13 +125,11 @@ resolveContext (CxTuple _ assts) = groupTuples . concat <$> mapM resolveAsst ass
 resolveContext (CxEmpty _)       = return []
 
 resolveAsst :: (MonadIO m) => Asst () -> StateT Int m [(Id, [Id])]
-resolveAsst a@(ClassA _ qname typs) = if Set.null tyVars then return [] else return [(Set.findMin tyVars, [qnameStr qname])]
-  where
-    tyVars = Set.unions $ map allTypeVars typs
+resolveAsst (TypeA _ typ) = toSynquidSkeleton typ
 resolveAsst (ParenA _ asst) = resolveAsst asst
 resolveAsst a = error $ "Unknown " ++ show a
 
-toSynquidSchema :: (MonadIO m) => Type () -> StateT Int m (Maybe SSchema)
+toSynquidSchema :: (MonadIO m) => Type () -> StateT Int m (Maybe SchemaSkeleton)
 toSynquidSchema (TyForall _ _ (Just ctx) typ) = do -- if this type has some context
     mbTyps <- toSynquidSkeleton typ
     case mbTyps of
@@ -158,16 +151,20 @@ toSynquidSchema typ = do
         Just [] -> return Nothing
         Just (typ:_)  -> return $ Just . Monotype $ typ
 
-toSynquidSkeleton :: (MonadIO m) => Type () -> StateT Int m (Maybe [SType])
+instance Monad m => Fresh Int m where
+  nextCounter _ = do
+    i <- get
+    put (i + 1)
+    return i
+
+toSynquidSkeleton :: (MonadIO m) => Type () -> StateT Int m (Maybe TypeSkeleton)
 toSynquidSkeleton t@(TyForall _ _ _ typ) = toSynquidSkeleton typ
 toSynquidSkeleton (TyFun _ arg ret) = do
-    counter <- get
-    -- traceShow ((show counter)) $ return ()
-    put (counter + 1)
+    argName <- freshId "arg"
     ret' <- toSynquidSkeleton ret
     arg' <- toSynquidSkeleton arg
     case (arg', ret') of
-        (Just (a:_), Just (r:_)) -> return $ Just [FunctionT ("arg"++show counter) a r]
+        (Just (a:_), Just (r:_)) -> return $ Just [FunctionT argName a r]
         _ -> return Nothing
 toSynquidSkeleton (TyParen _ typ) = toSynquidSkeleton typ
 toSynquidSkeleton (TyKind _ typ _) = toSynquidSkeleton typ

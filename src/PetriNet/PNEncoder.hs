@@ -41,7 +41,7 @@ instance MonadZ3 Encoder where
     getContext = gets (envContext . _z3env)
 
 -- | create a new encoder in z3
-createEncoder :: [AbstractSkeleton] -> AbstractSkeleton -> [FunctionCode] -> Encoder ()
+createEncoder :: [AbstractSkeleton] -> AbstractSkeleton -> [EncodedFunction] -> Encoder ()
 createEncoder inputs ret sigs = do
     ty2tr <- gets $ view (variables . type2transition)
     let places = HashMap.keys ty2tr
@@ -243,7 +243,7 @@ encoderInit :: EncodeState
             -> Int
             -> [AbstractSkeleton]
             -> [AbstractSkeleton]
-            -> [FunctionCode]
+            -> [EncodedFunction]
             -> IO EncodeState
 encoderInit encoderState len inputs rets sigs = do
     z3Env <- initialZ3Env
@@ -259,7 +259,7 @@ encoderSolve = runStateT solveAndGetModel
 
 -- optimize the optional constraints here:
 -- we only need to change the must firers and noTransitionTokens and final states
-encoderInc :: [FunctionCode] -> [AbstractSkeleton] -> [AbstractSkeleton] -> Encoder ()
+encoderInc :: [EncodedFunction] -> [AbstractSkeleton] -> [AbstractSkeleton] -> Encoder ()
 encoderInc sigs inputs rets = do
     modify $ over (increments . loc) (+ 1)
     modify $ set (refinements . returnTyps) rets
@@ -302,7 +302,7 @@ encoderInc sigs inputs rets = do
 encoderRefine :: SplitInfo 
               -> [AbstractSkeleton] 
               -> [AbstractSkeleton] 
-              -> [FunctionCode] 
+              -> [EncodedFunction] 
               -> Encoder ()
 encoderRefine info inputs rets newSigs = do
     {- update the abstraction level -}
@@ -403,7 +403,7 @@ createVariables places transitions = do
     -- add timestamp variables
     mapM_ addTimestampVar [0..(l-1)]
 
-createConstraints :: [AbstractSkeleton] -> [FunctionCode] -> Encoder ()
+createConstraints :: [AbstractSkeleton] -> [EncodedFunction] -> Encoder ()
 createConstraints places transitions = do
     -- prepare constraint parameters
     -- liftIO $ print places
@@ -484,8 +484,8 @@ noTransitionTokens t p = do
         let tsVar = findVariable "time2variable" t tsMap
         mapM (mkEq tsVar) transitions
 
-fireTransitions :: Int -> FunctionCode -> Encoder ()
-fireTransitions t (FunctionCode name [] params rets) = do
+fireTransitions :: Int -> EncodedFunction -> Encoder ()
+fireTransitions t (EncodedFunction name [] params rets) = do
     transMap <- gets $ view (variables . transition2id)
     placeMap <- gets $ view (variables . place2variable)
     tsMap <- gets $ view (variables . time2variable)

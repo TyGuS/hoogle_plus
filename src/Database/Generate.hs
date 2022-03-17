@@ -1,26 +1,11 @@
-{-# LANGUAGE ViewPatterns, PatternGuards, OverloadedStrings, Rank2Types #-}
-
 module Database.Generate where
 
-import Control.Monad.IO.Class
 import Language.Haskell.Exts
-import Data.Conduit
-import Data.Data
-import qualified Data.ByteString as B
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import Data.Char
-import Data.List.Extra
-import Data.Either
-import GHC.Generics
-import Control.Monad.Extra
-import Types.Type (SType, SchemaSkeleton, TypeSkeleton(..))
-import Types.Generate
-import Synquid.Type (isFunctionType, lastType, toMonotype, shape, arity)
-import qualified Synquid.Program as SP
-import Synquid.Pretty
+import Data.Char ( isAlpha )
+import Data.List.Extra ( isPrefixOf, stripPrefix, breakOn, word1 )
+import Control.Monad ( void )
 
-import Database.Util
+import Types.Generate
 
 
 parseMode :: ParseMode
@@ -29,16 +14,18 @@ parseMode = defaultParseMode{extensions=map EnableExtension es}
                ,TypeFamilies,FlexibleContexts,FunctionalDependencies,ImplicitParams,MagicHash,UnboxedTuples
                ,ParallelArrays,UnicodeSyntax,DataKinds,PolyKinds]
 
-myParseDecl = fmap (fmap $ const ()) . parseDeclWithMode parseMode -- partial application, to share the initialisation cost
+myParseDecl :: String -> ParseResult (Decl ())
+myParseDecl = fmap void . parseDeclWithMode parseMode -- partial application, to share the initialisation cost
 
+unGADT :: Decl l -> Decl l
 unGADT (GDataDecl a b c d _  [] e) = DataDecl a b c d [] e
 unGADT x = x
 
 applyType :: Type a -> [Type a] -> Type a
-applyType x (t:ts) = applyType (TyApp (ann t) x t) ts
-applyType x [] = x
+applyType = foldl (\x t -> TyApp (ann t) x t)
 
 applyFun1 :: [Type a] -> Type a
+applyFun1 [] = error "applyFun1: empty list"
 applyFun1 [x] = x
 applyFun1 (x:xs) = TyFun (ann x) x $ applyFun1 xs
 
@@ -53,7 +40,7 @@ readItem x -- newtype
     , ParseOk (DataDecl an _ b c d e) <- fmap unGADT $ myParseDecl $ "data " ++ x
     = Just $ DataDecl an (NewType ()) b c d e
 readItem x -- constructors
-    | ParseOk (GDataDecl _ _ _ _ _ [GadtDecl s name _ ty] _) <- myParseDecl $ "data Data where " ++ x
+    | ParseOk (GDataDecl _ _ _ _ _ [GadtDecl s name _ _ _ ty] _) <- myParseDecl $ "data Data where " ++ x
     , let f (TyBang _ _ _ (TyParen _ x@TyApp{})) = x
           f (TyBang _ _ _ x) = x
           f x = x
@@ -95,9 +82,10 @@ fixLine ('[':':':xs) | (a,']':b) <- break (== ']') xs = "(:" ++ a ++ ")" ++ b
 fixLine x | "class " `isPrefixOf` x = fst $ breakOn " where " x
 fixLine x = x
 
-
+fromIdentity :: Name l -> String
 fromIdentity (Ident _ name) = name
 fromIdentity (Symbol _ name) = name
 
+getNames :: Entry -> [String]
 getNames (EDecl (TypeSig _ names _)) = map fromIdentity names
 getNames _ = []

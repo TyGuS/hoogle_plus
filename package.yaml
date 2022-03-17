@@ -77,15 +77,19 @@ dependencies:
 - wl-pprint-text
 
 default-extensions:
-- DeriveGeneric
-- FlexibleContexts
-- TemplateHaskell
-- Rank2Types
-- FlexibleInstances
-- TypeSynonymInstances
-- OverloadedStrings
 - DeriveAnyClass
 - DeriveDataTypeable
+- DeriveFunctor
+- DeriveGeneric
+- FlexibleContexts
+- FlexibleInstances
+- OverloadedStrings
+- Rank2Types
+- TemplateHaskell
+- TypeSynonymInstances
+- ViewPatterns
+- MultiParamTypeClasses
+- UndecidableInstances
 
 library:
   source-dirs:

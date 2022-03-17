@@ -1,21 +1,17 @@
-{-# LANGUAGE TemplateHaskell, DeriveDataTypeable #-}
 module Types.Experiments where
+
+import Data.Data
+import Control.Lens hiding (index, indices)
+import           Data.Map (Map)
+import qualified Data.Map as Map
+import Control.Exception
 
 import Types.Type
 import Types.Program
 import Types.IOFormat
-import Synquid.Program
-import Synquid.Error
+import Compiler.Error
 import Types.Common
-import Types.Filtering
 import Types.Generate
-
--- import Control.Monad.List
-import Data.Data
-import Control.Lens hiding (index, indices)
-import Data.Map (Map)
-import qualified Data.Map as Map
-import Control.Exception
 
 {- Interface -}
 data RefineStrategy =
@@ -117,18 +113,6 @@ data ExperimentCourse
   | POPLQuality
   | POPLSpeed
   deriving (Show, Data, Typeable)
-
-data Message
-  = MesgClose CloseStatus
-  | MesgP (QueryOutput, TimeStatistics, FilterState) -- Program with the stats associated with generating it
-  | MesgS TimeStatistics
-  | MesgLog Int String String -- Log level, tag, message
-
-data CloseStatus
-  = CSNormal
-  | CSNoSolution
-  | CSTimeout
-  | CSError SomeException
 
 -- | Parameters of the synthesis
 data SynquidParams = SynquidParams {

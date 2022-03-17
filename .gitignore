@@ -89,3 +89,5 @@ build/
 output/
 
 log
+
+.vs/

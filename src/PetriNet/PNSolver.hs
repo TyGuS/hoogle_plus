@@ -62,17 +62,17 @@ import Types.Type
 import Types.IOFormat
 import Types.TypeChecker
 
-encodeFunction :: Id -> AbstractSkeleton -> FunctionCode
+encodeFunction :: Id -> AbstractSkeleton -> EncodedFunction
 encodeFunction id t | pairProj `isPrefixOf` id =
-    let toMatch (FunctionCode name ho [p1,p2] ret) = FunctionCode id ho [p1] (p2:ret)
+    let toMatch (EncodedFunction name ho [p1,p2] ret) = EncodedFunction id ho [p1] (p2:ret)
      in toMatch $ encodeFunction "__f" t
-encodeFunction id t@(AFunctionT tArg tRet) = FunctionCode id hoParams params [lastAbstract t]
+encodeFunction id t@(AFunctionT tArg tRet) = EncodedFunction id hoParams params [lastAbstract t]
   where
     base = (0, [])
     hoFun x = encodeFunction (show x) x
     hoParams = map hoFun $ filter isAFunctionT (abstractParamList t)
     params = abstractParamList t
-encodeFunction id t@AScalar {} = FunctionCode id [] [] [t]
+encodeFunction id t@AScalar {} = EncodedFunction id [] [] [t]
 
 instantiate :: MonadIO m => Environment -> Map Id SchemaSkeleton -> PNSolver m (Map Id AbstractSkeleton)
 instantiate env sigs = do
@@ -245,26 +245,6 @@ mkGroups env sigs = do
     updateGroups (gid, fids) = do
         modify $ over (groupState . groupMap) (Map.insertWith Set.union gid fids)
         mapM_ (\fid -> modify $ over (groupState . nameToGroup) (Map.insert fid gid)) fids
-
-selectRepresentative :: MonadIO m => Set Id -> GroupId -> Set Id -> PNSolver m Id
-selectRepresentative hoArgs gid s = do
-    let setToPickFrom = s
-    strat <- getExperiment coalesceStrategy
-    case strat of
-        First -> return $ Set.elemAt 0 setToPickFrom
-        LeastInstantiated -> pickReprOrder sortOn setToPickFrom
-        MostInstantiated -> pickReprOrder sortDesc setToPickFrom
-    where
-        pickReprOrder sorting setToPickFrom = do
-            nm <- gets $ view (typeChecker . nameMapping)
-            instCounts <- gets $ view (statistics . instanceCounts)
-            let idToCount id = instCounts HashMap.! (nm Map.! id)
-            let countMapping = sorting snd $ map (\x -> (x, idToCount x)) $ Set.toList setToPickFrom
-            writeLog 3 "SelectRepresentative" $ text gid <+> "needs to pick: " <+> pretty countMapping
-            return $ fst $ head countMapping
-
-        sortDesc f = sortBy (on (flip compare) f)
-
 
 addMusters :: MonadIO m => Id -> PNSolver m ()
 addMusters arg = do
@@ -679,7 +659,7 @@ generateCode :: MonadIO m
              -> Environment
              -> [AbstractSkeleton]
              -> [Id]
-             -> [FunctionCode]
+             -> [EncodedFunction]
              -> BackTrack m (Set String)
 generateCode initialFormer env src args sigs = do
     tgt <- gets $ view (refineState . targetType)
@@ -792,14 +772,14 @@ recoverNames mapping (Program (PFun x body) t) = Program (PFun x body') t
   where
     body' = recoverNames mapping body
 
-substName :: [Id] -> [FunctionCode] -> [FunctionCode]
+substName :: [Id] -> [EncodedFunction] -> [EncodedFunction]
 substName [] [] = []
 substName (n:ns) (fc:fcs) = fc { funName = n } : substName ns fcs
 
 addCloneFunction :: MonadIO m => AbstractSkeleton -> PNSolver m Id
 addCloneFunction ty = do
     let fname = show ty ++ "|clone"
-    let fc = FunctionCode fname [] [ty] [ty, ty]
+    let fc = EncodedFunction fname [] [ty] [ty, ty]
     modify $ over (searchState . functionMap) (HashMap.insert fname fc)
     updateTy2Tr fname ty
     return fname
@@ -835,7 +815,7 @@ updateSrcTgt env dst = do
     modify $ set (refineState . sourceTypes) srcTypes
     return (srcTypes, tgt)
 
-type EncoderArgs = (Int, [AbstractSkeleton], [FunctionCode])
+type EncoderArgs = (Int, [AbstractSkeleton], [EncodedFunction])
 
 prepEncoderArgs :: MonadIO m
                 => Environment
@@ -885,6 +865,6 @@ assemblePair first secod | absFunArgs "fst" first == absFunArgs "snd" secod =
      in AFunctionT p (AFunctionT f s)
 assemblePair first second = error "fst and snd have different arguments"
 
-findFunction :: HashMap Id FunctionCode -> Id -> FunctionCode
+findFunction :: HashMap Id EncodedFunction -> Id -> EncodedFunction
 findFunction fm name = fromMaybe (error $ "cannot find function name " ++ name)
                                  (HashMap.lookup name fm)

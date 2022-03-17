@@ -1,9 +1,11 @@
 packages:
 - .
-resolver: lts-16.27
+resolver: lts-18.28
 extra-deps:
   - table-layout-0.8.0.3
   - data-default-instances-base-0.1.0.1
   - z3-408.1
   - leancheck-0.9.3
   - hoogle-5.0.18.2
+  - MissingH-1.5.0.1
+  - data-tree-print-0.1.0.2

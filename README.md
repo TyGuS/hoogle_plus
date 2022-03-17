@@ -57,7 +57,17 @@ You may try different searche modes with the following command line args:
 # Building from scratch, for the developers
 
 ## Build
-To build this project, you need to have z3-4.7.1.
+To build this project, you need to have [stack](https://docs.haskellstack.org/en/stable/README/) and [z3](https://github.com/Z3Prover/) installed.
+
+Based on which version of z3 you installed, you need to modify the z3 haskell binding version in `stack.yaml` according to the compatability requirements [here](https://github.com/IagoAbal/haskell-z3).
+
+When running on Windows without WSL, we recommend downloading the compiled binaries from [z3 website](https://github.com/Z3Prover/z3/releases/).
+
+The general compile command is `stack build`.
+If you are on Windows and ~not~ using WSL, please run `stack build --extra-include-dirs=<your z3 installation dir>\include --extra-lib-dirs=<your z3 installation dir>\bin`
+where you should replace the text between angle brackets with the location of your downloaded z3.
+
+The last preparation is to generate Hoogle documentations by running `stack install hoogle && hoogle generate`.
 
 ## Usage
 Execute in the `hoogle_plus` directory:

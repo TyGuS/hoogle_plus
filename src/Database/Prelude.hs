@@ -1,6 +1,6 @@
 module Database.Prelude where
 
-import Text.Printf
+import Text.Printf ( printf )
 import Text.Parsec.Pos ( initialPos )
 import qualified Data.Set as Set
 import qualified Data.Map as Map
@@ -9,7 +9,7 @@ import qualified Data.Text as Text
 import Types.Common
 import Types.Program
 import Types.Type
-import Synquid.Error ( Pos(Pos) )
+import Compiler.Error ( Pos(Pos) )
 
 --------------------------------------------------------------------------------
 ---------------------- Default Functions and Datatypes -------------------------

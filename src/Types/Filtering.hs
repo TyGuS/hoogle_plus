@@ -5,10 +5,12 @@ import Control.Monad.State
 import Data.Typeable
 import Text.Printf
 import Data.List (intercalate)
-import Types.IOFormat (Example)
-import Types.Program
 
 import Test.SmallCheck.Drivers
+
+import Types.Program
+import Types.IOFormat (Example)
+import Types.Pretty
 
 defaultTimeoutMicro = 1 * 10^6 :: Int
 defaultDepth = 3 :: Int
@@ -70,13 +72,14 @@ newtype NotSupportedException = NotSupportedException String
 
 instance Exception NotSupportedException
 
-data TypeConstraint = TypeConstraint String String
+newtype ClassConstraint = ClassConstraint { unClassConstraint :: String }
+  deriving (Eq, Show)
 
-instance Show TypeConstraint where
-  show (TypeConstraint name constraint) = printf "%s %s" constraint name
+instance Pretty ClassConstraint where
+  pretty (ClassConstraint constraint) = pretty constraint
 
 data FunctionSignature =
-  FunctionSignature { _constraints :: [TypeConstraint]
+  FunctionSignature { _constraints :: [ClassConstraint]
                     , _argsType :: [ArgumentType]
                     , _returnType :: ArgumentType
   }

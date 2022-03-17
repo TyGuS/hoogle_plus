@@ -29,24 +29,17 @@ data EncoderType = Normal | Arity
 data VarType = VarPlace | VarTransition | VarFlow | VarTimestamp
     deriving(Eq, Ord, Show)
 
-data FunctionCode = FunctionCode {
+data EncodedFunction = EncodedFunction {
     funName   :: Id,  -- function name
-    hoParams  :: [FunctionCode],
     funParams :: [TypeSkeleton], -- function parameter types and their count
     funReturn :: [TypeSkeleton]   -- function return type
 }
 
-instance Eq FunctionCode where
-  fc1 == fc2 = let
-    areEq arg = on (==) arg fc1 fc2
-    in areEq hoParams && areEq funParams && areEq funReturn
+instance Eq EncodedFunction where
+  EncodedFunction _ params1 rets1 == EncodedFunction _ params2 rets2 = params1 == params2 && rets1 == rets2
 
-instance Ord FunctionCode where
-  compare fc1 fc2 = let
-    thenCmp EQ       ordering = ordering
-    thenCmp ordering _        = ordering
-    cmp arg = on compare arg fc1 fc2
-    in foldr1 thenCmp [cmp hoParams, cmp funParams, cmp funReturn]
+instance Ord EncodedFunction where
+  compare (EncodedFunction _ params1 rets1) (EncodedFunction _ params2 rets2) = compare params1 params2 <> compare rets1 rets2
 
 data Z3Env = Z3Env {
     envSolver  :: Z3.Solver,
