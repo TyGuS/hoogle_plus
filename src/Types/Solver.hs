@@ -1,9 +1,8 @@
 module Types.Solver where
 
-import           Control.Concurrent.Chan
-import           Control.Lens
-import           Control.Monad.Logic
-import           Control.Monad.State
+import           Control.Lens                   ( makeLenses )
+import           Control.Monad.Logic            ( LogicT )
+import           Control.Monad.State            ( StateT )
 import           Data.HashMap.Strict            ( HashMap )
 import qualified Data.HashMap.Strict           as HashMap
 import           Data.Map                       ( Map )
@@ -14,17 +13,14 @@ import qualified Data.Set                      as Set
 import           Text.PrettyPrint.ANSI.Leijen   ( string )
 import           Text.Printf                    ( printf )
 
+import           Database.Environment
 import           Types.Common
 import           Types.Encoder
 import           Types.Experiments       hiding ( PetriNet )
 import           Types.Filtering
-import           Types.Fresh
-import           Types.Pretty
 import           Types.Program
 import           Types.Type
 import           Types.TypeChecker
-import           Utility.Utils
-import           Database.Environment
 
 
 data SearchState = SearchState
@@ -36,6 +32,7 @@ data SearchState = SearchState
   }
   deriving Eq
 
+emptySearchState :: SearchState
 emptySearchState = SearchState { _currentSolutions = []
                                , _currentLoc       = 0
                                , _currentSigs      = Map.empty
@@ -48,14 +45,12 @@ makeLenses ''SearchState
 data StatisticState = StatisticState
   { _instanceCounts :: HashMap Id Int -- Number of instantiations for a real-name, used in selecting representative
   , _useCount       :: Map Id Int
-  , _solverStats    :: TimeStatistics
   }
   deriving Eq
 
-emptyStatistic = StatisticState { _instanceCounts = HashMap.empty
-                                , _useCount       = Map.empty
-                                , _solverStats    = emptyTimeStats
-                                }
+emptyStatistic :: StatisticState
+emptyStatistic =
+  StatisticState { _instanceCounts = HashMap.empty, _useCount = Map.empty }
 
 makeLenses ''StatisticState
 
@@ -78,6 +73,7 @@ data RefineState = RefineState
   }
   deriving Eq
 
+emptyRefineState :: RefineState
 emptyRefineState = RefineState { _abstractionCover = Map.empty
                                , _instanceMapping  = HashMap.empty
                                , _targetType       = TypeVarT varName
@@ -99,7 +95,6 @@ data SolverState = SolverState
   , _encoder      :: EncodeState
   , _typeChecker  :: CheckerState
   , _filterState  :: FilterState
-  , _messageChan  :: Chan Message
   }
   deriving Eq
 
@@ -112,7 +107,6 @@ emptySolverState = SolverState { _searchParams = defaultSearchParams
                                , _encoder      = emptyEncodeState
                                , _typeChecker  = emptyChecker
                                , _filterState  = emptyFilterState
-                               , _messageChan  = undefined
                                }
 
 makeLenses ''SolverState

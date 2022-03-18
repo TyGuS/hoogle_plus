@@ -3,152 +3,136 @@
 
 module Types.Encoder where
 
-import Data.Maybe
-import Data.HashMap.Strict (HashMap)
-import Data.Map (Map)
-import Data.Set (Set)
-import qualified Data.Set as Set
-import qualified Data.HashMap.Strict as HashMap
-import qualified Z3.Base as Z3
-import Z3.Monad hiding(Z3Env, newEnv)
-import Control.Monad.State
-import Data.Data
-import Data.Typeable
-import GHC.Generics
-import qualified Language.Haskell.Exts.Syntax as HSE
-import Data.Function
-import Control.Lens
+import           Control.Lens
+import           Control.Monad.State            ( StateT )
+import           Data.Data                      ( Data
+                                                , Typeable
+                                                )
+import           Data.Map                       ( Map )
+import qualified Data.Map                      as Map
+import           Data.Set                       ( Set )
+import qualified Data.Set                      as Set
+import qualified Language.Haskell.Exts.Syntax  as HSE
+import qualified Z3.Base                       as Z3
+import           Z3.Monad                       ( Logic
+                                                , Opts
+                                                , setOpts
+                                                , stdOpts
+                                                )
 
-import Types.Common
-import Types.Type
-import Types.Experiments
+import           Types.Common
+import           Types.Experiments
+import           Types.Type
 
-data EncoderType = Normal | Arity
-    deriving(Eq, Show, Data, Typeable)
 
-data VarType = VarPlace | VarTransition | VarFlow | VarTimestamp
-    deriving(Eq, Ord, Show)
-
-data EncodedFunction = EncodedFunction {
-    funName   :: Id,  -- function name
-    funParams :: [TypeSkeleton], -- function parameter types and their count
-    funReturn :: [TypeSkeleton]   -- function return type
-}
+data EncodedFunction = EncodedFunction
+  { funName   :: Id -- function name
+  , funParams :: [TypeSkeleton] -- function parameter types
+  , funReturn :: [TypeSkeleton]   -- function return type
+  }
 
 instance Eq EncodedFunction where
-  EncodedFunction _ params1 rets1 == EncodedFunction _ params2 rets2 = params1 == params2 && rets1 == rets2
+  EncodedFunction _ params1 rets1 == EncodedFunction _ params2 rets2 =
+    params1 == params2 && rets1 == rets2
 
 instance Ord EncodedFunction where
-  compare (EncodedFunction _ params1 rets1) (EncodedFunction _ params2 rets2) = compare params1 params2 <> compare rets1 rets2
+  compare (EncodedFunction _ params1 rets1) (EncodedFunction _ params2 rets2) =
+    compare params1 params2 <> compare rets1 rets2
 
-data Z3Env = Z3Env {
-    envSolver  :: Z3.Solver,
-    envContext :: Z3.Context
-} deriving(Eq)
+data Z3Env = Z3Env
+  { envSolver  :: Z3.Solver
+  , envContext :: Z3.Context
+  }
+  deriving Eq
 
-data Constraints = Constraints {
-    _persistConstraints :: [Z3.AST],
-    _optionalConstraints :: [Z3.AST],
-    _finalConstraints :: [Z3.AST],
-    _blockConstraints :: [Z3.AST]
-} deriving(Eq)
+data Constraints = Constraints
+  { _persistConstraints  :: [Z3.AST]
+  , _optionalConstraints :: [Z3.AST]
+  , _finalConstraints    :: [Z3.AST]
+  , _blockConstraints    :: [Z3.AST]
+  }
+  deriving Eq
 
-emptyConstraints = Constraints {
-    _persistConstraints = [],
-    _optionalConstraints = [],
-    _finalConstraints = [],
-    _blockConstraints = []
-}
+emptyConstraints :: Constraints
+emptyConstraints = Constraints { _persistConstraints  = []
+                               , _optionalConstraints = []
+                               , _finalConstraints    = []
+                               , _blockConstraints    = []
+                               }
 
 makeLenses ''Constraints
 
-data IncrementState = IncrementState {
-    _counter :: Int,
-    _block :: Z3.AST,
-    _prevChecked :: Bool,
-    _loc :: Int
-} deriving(Eq)
+data EncodeVariables = EncodeVariables
+  { _transitionNb    :: Int
+  , _variableNb      :: Int
+  , _place2variable  :: Map (TypeSkeleton, Int) Z3.AST -- place name and timestamp
+  , _time2variable   :: Map Int Z3.AST -- timestamp and abstraction level
+  , _transition2id   :: Map Id Z3.AST -- transition name and abstraction level
+  , _id2transition   :: Map Int Id
+  , _type2transition :: Map TypeSkeleton (Set Id)
+  }
+  deriving Eq
 
-emptyIncrements = IncrementState {
-    _counter = 0,
-    _block = undefined,
-    _prevChecked = False,
-    _loc = 1
-}
-
-makeLenses ''IncrementState
-
-data EncodeVariables = EncodeVariables {
-    _transitionNb :: Int,
-    _variableNb :: Int,
-    _place2variable :: HashMap (TypeSkeleton, Int) Z3.AST, -- place name and timestamp
-    _time2variable :: HashMap Int Z3.AST, -- timestamp and abstraction level
-    _transition2id :: HashMap Id Z3.AST, -- transition name and abstraction level
-    _id2transition :: HashMap Int Id,
-    _type2transition :: HashMap TypeSkeleton (Set Id)
-} deriving(Eq)
-
-emptyVariables = EncodeVariables {
-    _transitionNb = 0,
-    _variableNb = 1,
-    _place2variable = HashMap.empty,
-    _time2variable = HashMap.empty,
-    _transition2id = HashMap.empty,
-    _id2transition = HashMap.empty,
-    _type2transition = HashMap.empty
-}
+emptyVariables :: EncodeVariables
+emptyVariables = EncodeVariables { _transitionNb    = 0
+                                 , _variableNb      = 1
+                                 , _place2variable  = Map.empty
+                                 , _time2variable   = Map.empty
+                                 , _transition2id   = Map.empty
+                                 , _id2transition   = Map.empty
+                                 , _type2transition = Map.empty
+                                 }
 
 makeLenses ''EncodeVariables
 
-data RefineInfo = RefineInfo {
-    _mustFirers :: HashMap Id [Id],
-    _disabledTrans :: [Id],
-    _returnTyps :: [TypeSkeleton]
-} deriving(Eq)
+data SolverMode = Enumeration | FreshSearch
+  deriving ( Eq, Show )
 
-emptyRefine = RefineInfo {
-    _mustFirers = HashMap.empty,
-    _disabledTrans = [],
-    _returnTyps = []
-}
+data EncodeState = EncodeState
+  { _z3env           :: Z3Env
+  , _encSearchParams :: SearchParams
+  , _variables       :: EncodeVariables
+  , _constraints     :: Constraints
+  , _block           :: Z3.AST
+  , _prevChecked     :: Bool
+  , _pathLength      :: Int
+  , _mustFirers      :: Map Id [Id]
+  , _disabledTrans   :: [Id]
+  , _returnTyps      :: [TypeSkeleton]
+  , _currentMode     :: SolverMode
+  }
+  deriving Eq
 
-makeLenses ''RefineInfo
-
-data EncodeState = EncodeState {
-    _z3env :: Z3Env,
-    _encSearchParams :: SearchParams,
-    _increments :: IncrementState,
-    _variables :: EncodeVariables,
-    _constraints :: Constraints,
-    _refinements :: RefineInfo
-} deriving(Eq)
-
-emptyEncodeState = EncodeState {
-    _z3env = undefined,
-    _encSearchParams = defaultSearchParams,
-    _increments = emptyIncrements,
-    _variables = emptyVariables,
-    _constraints = emptyConstraints,
-    _refinements = emptyRefine
-}
+emptyEncodeState :: EncodeState
+emptyEncodeState = EncodeState { _z3env           = undefined
+                               , _encSearchParams = defaultSearchParams
+                               , _variables       = emptyVariables
+                               , _constraints     = emptyConstraints
+                               , _block           = undefined
+                               , _prevChecked     = False
+                               , _pathLength      = 1
+                               , _mustFirers      = Map.empty
+                               , _disabledTrans   = []
+                               , _returnTyps      = []
+                               , _currentMode     = FreshSearch
+                               }
 
 makeLenses ''EncodeState
 
 newEnv :: Maybe Logic -> Opts -> IO Z3Env
-newEnv mbLogic opts =
-  Z3.withConfig $ \cfg -> do
-    setOpts cfg opts
-    ctx <- Z3.mkContext cfg
-    solver <- maybe (Z3.mkSolver ctx) (Z3.mkSolverForLogic ctx) mbLogic
-    return $ Z3Env solver ctx
+newEnv mbLogic opts = Z3.withConfig $ \cfg -> do
+  setOpts cfg opts
+  ctx    <- Z3.mkContext cfg
+  solver <- maybe (Z3.mkSolver ctx) (Z3.mkSolverForLogic ctx) mbLogic
+  return $ Z3Env solver ctx
 
+initialZ3Env :: IO Z3Env
 initialZ3Env = newEnv Nothing stdOpts
 
 freshEnv :: Z3.Context -> IO Z3Env
-freshEnv ctx =
-  Z3.withConfig $ \cfg -> do
-    setOpts cfg stdOpts
-    solver <- Z3.mkSolver ctx
-    return $ Z3Env solver ctx
+freshEnv ctx = Z3.withConfig $ \cfg -> do
+  setOpts cfg stdOpts
+  solver <- Z3.mkSolver ctx
+  return $ Z3Env solver ctx
 
 type Encoder = StateT EncodeState IO

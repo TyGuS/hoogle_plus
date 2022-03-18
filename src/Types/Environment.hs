@@ -1,6 +1,6 @@
 module Types.Environment where
 
-import           Control.Monad.State
+import           Control.Monad.State            ( StateT )
 import           Data.Function                  ( on )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map

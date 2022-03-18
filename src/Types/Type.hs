@@ -23,6 +23,7 @@ module Types.Type
   , isBot
   , isFunctionType
   , isHigherOrder
+  , isPolymorphic
   , lastType
   , resType
   , typeDepth
@@ -214,6 +215,10 @@ isHigherOrder :: TypeSkeleton -> Bool
 isHigherOrder (FunctionT _ tArg tRet) =
   isFunctionType tArg || isHigherOrder tRet
 isHigherOrder _ = False
+
+isPolymorphic :: SchemaSkeleton -> Bool
+isPolymorphic (ForallT _ _) = True
+isPolymorphic _             = False
 
 hasAny :: TypeSkeleton -> Bool
 hasAny TopT                    = True

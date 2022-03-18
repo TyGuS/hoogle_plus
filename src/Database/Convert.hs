@@ -1,556 +1,407 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-module Database.Convert where
+module Database.Convert
+  ( readDeclarationsFromFile
+  , toTypeSkeleton
+  , toSchemaSkeleton
+  , toDeclaration
+  , reorderDecls
+  ) where
 
-import Language.Haskell.Exts hiding (PApp)
-import qualified Data.Set as Set
-import Data.Set (Set)
-import qualified Data.Map as Map
-import Data.Map (Map)
-import qualified Data.HashMap.Strict as HashMap
-import Data.HashMap.Strict (HashMap)
-import Data.Hashable
-import Data.List
-import Data.Maybe
-import Data.Either
-import Data.Ord
-import Data.Foldable
-import Control.Applicative
-import qualified Data.Sort as Sort
-import Data.List.Split
-import Control.Monad.State
-import Text.Parsec.Pos
-import Distribution.Verbosity
-import Distribution.PackageDescription hiding (Var)
-import Distribution.PackageDescription.Parsec
-import Distribution.Package
-import System.Directory
-import System.IO
-import Debug.Trace
+import           Control.Monad.State            ( MonadState(get, put)
+                                                , State
+                                                , foldM
+                                                )
+import           Data.Either                    ( rights )
+import           Data.List                      ( foldl'
+                                                , sortOn
+                                                )
+import           Data.Map                       ( Map )
+import qualified Data.Map                      as Map
+import           Data.Set                       ( Set )
+import qualified Data.Set                      as Set
+import qualified Data.Text                     as Text
 
-import Database.Download
-import Database.Generate
-import Types.Common
-import Types.Generate
-import Types.Environment
-import Types.Type
-import qualified Types.Program as TP
-import qualified Data.Text as Text
-import Types.Fresh
+import           Language.Haskell.Exts   hiding ( PApp )
+import           System.IO                      ( IOMode(ReadMode)
+                                                , hGetContents
+                                                , hSetEncoding
+                                                , openFile
+                                                , utf8
+                                                )
 
-prependName prefix name  = case name of
-    Ident l var -> Ident l (prefix ++ "." ++ var)
-    Symbol l var -> Ident l ("(" ++ prefix ++ "." ++ var ++ ")")
+import           Database.Generate
+import           Types.Common
+import           Types.Fresh
+import           Types.Generate
+import           Types.Program           hiding ( DataDecl
+                                                , TypeDecl
+                                                )
+import qualified Types.Program                 as TP
+import           Types.Type
 
+--------------------------------------------------------------------------------
+------------------------------ Names and Vars ----------------------------------
+--------------------------------------------------------------------------------
+
+prependName :: String -> Name l -> Name l
+prependName prefix name = case name of
+  Ident  l var -> Ident l (prefix ++ "." ++ var)
+  Symbol l var -> Ident l ("(" ++ prefix ++ "." ++ var ++ ")")
+
+nameStr :: Name l -> String
 nameStr name = case name of
-    Ident _ var -> var
-    Symbol _ sym -> sym
+  Ident  _ var -> var
+  Symbol _ sym -> sym
 
-isIdentity (Ident _ _) = True
+isIdentity :: Name l -> Bool
+isIdentity (Ident  _ _) = True
 isIdentity (Symbol _ _) = False
 
+moduleNameStr :: ModuleName l -> String
 moduleNameStr (ModuleName _ name) = name
 
-declHeadName (DHead _ name) = nameStr name
-declHeadName (DHInfix _ bvar name) = nameStr name
-declHeadName (DHParen _ head) = declHeadName head
-declHeadName (DHApp _ head _) = declHeadName head
+declHeadName :: DeclHead l -> Id
+declHeadName (DHead _ name       ) = Text.pack $ nameStr name
+declHeadName (DHInfix _ bvar name) = Text.pack $ nameStr name
+declHeadName (DHParen _ head     ) = declHeadName head
+declHeadName (DHApp _ head _     ) = declHeadName head
 
-declHeadVars (DHead _ _) = []
+declHeadVars :: DeclHead l -> [Id]
+declHeadVars (DHead _ _          ) = []
 declHeadVars (DHInfix _ bvar name) = [varsFromBind bvar]
-declHeadVars (DHParen _ head) = declHeadVars head
-declHeadVars (DHApp _ head bvar) = varsFromBind bvar : declHeadVars head
+declHeadVars (DHParen _ head     ) = declHeadVars head
+declHeadVars (DHApp _ head bvar  ) = varsFromBind bvar : declHeadVars head
 
+qnameStr :: QName l -> Id
 qnameStr name = case name of
-    Qual _ moduleName consName -> moduleNameStr moduleName ++ "." ++ nameStr consName
-    UnQual _ name -> nameStr name
-    Special _ name -> specialConsStr name
+  Qual _ moduleName consName ->
+    Text.pack $ moduleNameStr moduleName ++ "." ++ nameStr consName
+  UnQual  _ name -> Text.pack (nameStr name)
+  Special _ name -> specialConsStr name
 
-consStr (TyCon _ name) = qnameStr name
-consStr (TyApp _ fun arg) = consStr fun
-consStr (TyFun _ arg ret) = consStr arg ++ "To" ++ consStr ret
-consStr (TyList _ typ) = "List" ++ consStr typ
-consStr _ = "_"
-
-specialConsStr (UnitCon _) = "Unit"
-specialConsStr (ListCon _) = "Nil"
-specialConsStr (FunCon _) = "Fun"
-specialConsStr (TupleCon _ _ _) = "Pair"
+specialConsStr :: SpecialCon l -> Id
+specialConsStr (UnitCon _)                    = "Unit"
+specialConsStr (ListCon _)                    = "Nil"
+specialConsStr (FunCon  _)                    = "Fun"
+specialConsStr TupleCon{}                     = "Pair"
 specialConsStr (Language.Haskell.Exts.Cons _) = "Cons"
-specialConsStr _ = "_"
+specialConsStr _                              = "_"
 
+allTypeVars :: Type l -> Set String
 allTypeVars (TyForall _ _ _ typ) = allTypeVars typ
-allTypeVars (TyFun _ arg ret) = allTypeVars arg `Set.union` allTypeVars ret
+allTypeVars (TyFun   _ arg ret ) = allTypeVars arg `Set.union` allTypeVars ret
 allTypeVars (TyTuple _ _ typs) = foldr (Set.union . allTypeVars) Set.empty typs
--- allTypeVars (TyUnboxedSum _ typs) = foldr (\t vars -> vars `Set.union` allTypeVars t) Set.empty typs
-allTypeVars (TyList _ typ) = allTypeVars typ
-allTypeVars (TyApp _ fun arg) = allTypeVars fun `Set.union` allTypeVars arg
-allTypeVars (TyVar _ name) = Set.singleton $ nameStr name
-allTypeVars (TyCon _ name) = Set.empty
-allTypeVars (TyParen _ typ) = allTypeVars typ
-allTypeVars (TyInfix _ typ1 _ typ2) = allTypeVars typ1 `Set.union` allTypeVars typ2
+allTypeVars (TyList _ typ      ) = allTypeVars typ
+allTypeVars (TyApp _ fun arg   ) = allTypeVars fun `Set.union` allTypeVars arg
+allTypeVars (TyVar   _ name    ) = Set.singleton $ nameStr name
+allTypeVars (TyCon   _ name    ) = Set.empty
+allTypeVars (TyParen _ typ     ) = allTypeVars typ
+allTypeVars (TyInfix _ typ1 _ typ2) =
+  allTypeVars typ1 `Set.union` allTypeVars typ2
 allTypeVars (TyKind _ typ _) = allTypeVars typ
-allTypeVars (TyEquals _ ltyp rtyp) = allTypeVars ltyp `Set.union` allTypeVars rtyp
+allTypeVars (TyEquals _ ltyp rtyp) =
+  allTypeVars ltyp `Set.union` allTypeVars rtyp
 allTypeVars _ = Set.empty
 
+datatypeOf :: Type l -> Set Id
 datatypeOf (TyForall _ _ _ typ) = datatypeOf typ
-datatypeOf (TyFun _ arg ret) = datatypeOf arg `Set.union` datatypeOf ret
-datatypeOf (TyTuple _ _ typs) = foldr (\t vars -> vars `Set.union` datatypeOf t) (Set.singleton "Pair") typs
--- datatypeOf (TyUnboxedSum _ typs) = foldr (\t vars -> vars `Set.union` datatypeOf t) Set.empty typs
-datatypeOf (TyList _ typ) = Set.singleton "List" `Set.union` datatypeOf typ
+datatypeOf (TyFun _ arg ret   ) = datatypeOf arg `Set.union` datatypeOf ret
+datatypeOf (TyTuple _ _ typs) =
+  foldr (\t vars -> vars `Set.union` datatypeOf t) (Set.singleton "Pair") typs
+datatypeOf (TyList _ typ   ) = Set.singleton "List" `Set.union` datatypeOf typ
 datatypeOf (TyApp _ fun arg) = datatypeOf fun `Set.union` datatypeOf arg
-datatypeOf (TyVar _ name) = Set.empty
-datatypeOf t@(TyCon _ name) | Special _ _ <- name = Set.empty
-datatypeOf t@(TyCon _ name) = Set.singleton $ consStr t
-datatypeOf (TyParen _ typ) = datatypeOf typ
-datatypeOf (TyInfix _ typ1 _ typ2) = datatypeOf typ1 `Set.union` datatypeOf typ2
-datatypeOf (TyKind _ typ _) = datatypeOf typ
+datatypeOf (TyVar   _ name ) = Set.empty
+datatypeOf (TyCon   _ name ) = Set.singleton $ qnameStr name
+datatypeOf (TyParen _ typ  ) = datatypeOf typ
+datatypeOf (TyInfix _ typ1 _ typ2) =
+  datatypeOf typ1 `Set.union` datatypeOf typ2
+datatypeOf (TyKind   _ typ  _   ) = datatypeOf typ
 datatypeOf (TyEquals _ ltyp rtyp) = datatypeOf ltyp `Set.union` datatypeOf rtyp
-datatypeOf _ = Set.empty
+datatypeOf _                      = Set.empty
 
-matchDtWithCons :: [Entry] -> [Entry]
-matchDtWithCons [] = []
-matchDtWithCons (decl:decls) = case decl of
-    EDecl (DataDecl a b c hd conDecls d) -> case decls of
-        [] -> decl : matchDtWithCons decls
-        decl':decls' | EDecl (TypeSig _ names typ) <- decl' -> if nameStr (head names) == declHeadName hd
-                                                                   then let conDecl = QualConDecl a Nothing c (ConDecl a (head names) [typ])
-                                                                        in EDecl (DataDecl a b c hd (conDecl:conDecls) d) : matchDtWithCons decls'
-                                                                   else decl : matchDtWithCons decls
-                     | otherwise -> decl : matchDtWithCons decls
-    _ -> decl : matchDtWithCons decls
+varsFromBind :: TyVarBind l -> Id
+varsFromBind (KindedVar _ name _) = Text.pack $ nameStr name
+varsFromBind (UnkindedVar _ name) = Text.pack $ nameStr name
 
-resolveContext :: (MonadIO m) => Context () -> StateT Int m [(Id, [Id])]
-resolveContext (CxSingle _ asst) = resolveAsst asst
-resolveContext (CxTuple _ assts) = groupTuples . concat <$> mapM resolveAsst assts
-resolveContext (CxEmpty _)       = return []
+datatypeOfCon :: [QualConDecl ()] -> Set Id
+datatypeOfCon [] = Set.empty
+datatypeOfCon (decl : decls) =
+  let QualConDecl _ _ _ conDecl = decl
+  in  case conDecl of
+        ConDecl _ name typs -> Set.unions $ map datatypeOf typs
+        InfixConDecl _ typl name typr ->
+          datatypeOf typl `Set.union` datatypeOf typr
+        RecDecl _ name fields -> error "record declaration is not supported"
 
-resolveAsst :: (MonadIO m) => Asst () -> StateT Int m [(Id, [Id])]
-resolveAsst (TypeA _ typ) = toSynquidSkeleton typ
-resolveAsst (ParenA _ asst) = resolveAsst asst
-resolveAsst a = error $ "Unknown " ++ show a
+instHeadName :: InstHead l -> Id
+instHeadName (IHCon _ name       ) = qnameStr name
+instHeadName (IHInfix _ bvar name) = qnameStr name
+instHeadName (IHParen _ head     ) = instHeadName head
+instHeadName (IHApp _ head _     ) = instHeadName head
 
-toSynquidSchema :: (MonadIO m) => Type () -> StateT Int m (Maybe SchemaSkeleton)
-toSynquidSchema (TyForall _ _ (Just ctx) typ) = do -- if this type has some context
-    mbTyps <- toSynquidSkeleton typ
-    case mbTyps of
-        Nothing -> return Nothing
-        Just [] -> return Nothing
-        Just (typ:_)  -> do
-            classQuals <- resolveContext ctx
-            return $ Just $ (Monotype (foldr go (typ) classQuals))
-    where
-        go typClassArr acc = FunctionT "ATypeClassDict" (ScalarT (DatatypeT (toTCDictName typClassArr) [ScalarT (TypeVarT Map.empty (getTypeVar typClassArr)) ()] []) ()) acc
-        toTCDictName (_, [tyclassName]) = fixTCName tyclassName
-        toTCDictName _ = error "toTCDictName: Unhandled case"
-        getTypeVar (tyVar, _) = tyVar
+toTyclassName :: Id -> Id
+toTyclassName name = Text.append tyclassPrefix $ last $ Text.splitOn "." name
 
-toSynquidSchema typ = do
-    mbTyps <- toSynquidSkeleton typ
-    case mbTyps of
-        Nothing -> return Nothing
-        Just [] -> return Nothing
-        Just (typ:_)  -> return $ Just . Monotype $ typ
+getTyclassDictName :: InstHead l -> Id
+getTyclassDictName (IHApp _ typeclass _) = instHeadName typeclass
+getTyclassDictName (IHParen _ head) = getTyclassDictName head
+getTyclassDictName _ = error "getTyclassDictName: case to be implemented"
 
+--------------------------------------------------------------------------------
+---------------------------- Convert Declarations ------------------------------
+--------------------------------------------------------------------------------
 instance Monad m => Fresh Int m where
   nextCounter _ = do
     i <- get
     put (i + 1)
     return i
 
-toSynquidSkeleton :: (MonadIO m) => Type () -> StateT Int m (Maybe TypeSkeleton)
-toSynquidSkeleton t@(TyForall _ _ _ typ) = toSynquidSkeleton typ
-toSynquidSkeleton (TyFun _ arg ret) = do
-    argName <- freshId "arg"
-    ret' <- toSynquidSkeleton ret
-    arg' <- toSynquidSkeleton arg
-    case (arg', ret') of
-        (Just (a:_), Just (r:_)) -> return $ Just [FunctionT argName a r]
-        _ -> return Nothing
-toSynquidSkeleton (TyParen _ typ) = toSynquidSkeleton typ
-toSynquidSkeleton (TyKind _ typ _) = toSynquidSkeleton typ
-toSynquidSkeleton t@(TyCon _ name) = case name of
-    Qual _ moduleName consName -> return $ Just [ScalarT (DatatypeT (moduleNameStr moduleName ++ "." ++ nameStr consName) [] []) ()]
-    UnQual _ name -> return $ Just [ScalarT (DatatypeT (nameStr name) [] []) ()]
-    Special _ name -> return $ Just [ScalarT (DatatypeT (specialConsStr name) [] []) ()]
-toSynquidSkeleton (TyApp _ fun arg)
-    | (TyCon _ name) <- fun = constructTyp
-    | (TyApp _ fun' arg') <- fun = constructTyp
-    | (TyVar _ _) <- fun = return Nothing -- this is a higher kinded type variable, do not support now
-    | otherwise = do
-        funs <- toSynquidSkeleton fun
-        args <- toSynquidSkeleton arg
-        return $ liftA2 (++) funs args
-  where
-    constructTyp = do
-        mbdt <- toSynquidSkeleton fun
-        let toTys (ScalarT (DatatypeT id tys _) _:_) = (id, tys)
-        let idTys = toTys <$> mbdt
-        args <- toSynquidSkeleton arg
-        return $ liftA2 (\(id,t) a -> [ScalarT (DatatypeT id (t ++ a) []) ()]) idTys args
-toSynquidSkeleton (TyVar _ name) = return $ Just [ScalarT (TypeVarT Map.empty (nameStr name)) ()]
-toSynquidSkeleton (TyList _ typ) = do
-    typ' <- toSynquidSkeleton typ
-    return $ (\ty -> [ScalarT (DatatypeT "List" ty []) ()]) <$> typ'
-toSynquidSkeleton (TyTuple _ _ (f:s:ts)) = do
-    mbfst <- toSynquidSkeleton f
-    mbsnd <- toSynquidSkeleton s
-    pts <- mapM toSynquidSkeleton ts
-    case (mbfst, mbsnd) of
-        (Just fst, Just snd) -> do
-            let base = ScalarT (DatatypeT "Pair" (fst ++ snd) []) ()
-            let res = foldl' (\a (Just t) -> ScalarT (DatatypeT "Pair" (a:t) []) ()) base pts
-            return $ Just [res]
-        _ -> return Nothing
-toSynquidSkeleton t = do
-    liftIO $ print $ "[toSynquidSkeleton] unhandled case, ignoring: " ++ show t
-    return Nothing -- error $ "Unhandled case " ++ show t
+matchDtWithCons :: [Entry] -> [Entry]
+matchDtWithCons []             = []
+matchDtWithCons (decl : decls) = case decl of
+  EDecl (DataDecl a b c hd conDecls d) -> case decls of
+    [] -> decl : matchDtWithCons decls
+    decl' : decls'
+      | EDecl (TypeSig _ names typ) <- decl'
+      -> if Text.pack (nameStr (head names)) == declHeadName hd
+        then
+          let conDecl = QualConDecl a Nothing c (ConDecl a (head names) [typ])
+          in  EDecl (DataDecl a b c hd (conDecl : conDecls) d)
+                : matchDtWithCons decls'
+        else decl : matchDtWithCons decls
+      | otherwise
+      -> decl : matchDtWithCons decls
+  _ -> decl : matchDtWithCons decls
 
-varsFromBind (KindedVar _ name _) = nameStr name
-varsFromBind (UnkindedVar _ name) = nameStr name
+resolveContext :: Context () -> State Int [TypeSkeleton]
+resolveContext (CxSingle _ asst ) = (: []) <$> resolveAsst asst
+resolveContext (CxTuple  _ assts) = mapM resolveAsst assts
+resolveContext (CxEmpty _       ) = return []
 
--- | Add true as the refinement to convert all types into TypeSkeleton
-addTrue (ScalarT (DatatypeT name tArgs pArgs) _) = ScalarT (DatatypeT name (map addTrue tArgs) []) ftrue
-addTrue (ScalarT IntT _) = ScalarT IntT ftrue
-addTrue (ScalarT BoolT _) = ScalarT BoolT ftrue
-addTrue (ScalarT (TypeVarT vSubst a) _) = ScalarT (TypeVarT vSubst a) ftrue
-addTrue (FunctionT x tArg tFun) = FunctionT x (addTrue tArg) (addTrue tFun)
-addTrue AnyT = AnyT
+resolveAsst :: Asst () -> State Int TypeSkeleton
+resolveAsst (TypeA  _ typ ) = toTypeSkeleton typ
+resolveAsst (ParenA _ asst) = resolveAsst asst
+resolveAsst a               = error $ "Unknown " ++ show a
 
-toSynquidTypeSkeleton :: (MonadIO m) => Type () -> StateT Int m TypeSkeleton
-toSynquidTypeSkeleton typ = do
-    mbTyp <- toSynquidSkeleton typ
-    case mbTyp of
-        Nothing -> return AnyT
-        Just [] -> return AnyT
-        Just (typ:_) -> return $ addTrue typ
+toSchemaSkeleton :: Type () -> State Int SchemaSkeleton
+toSchemaSkeleton (TyForall _ _ (Just ctx) typ) = do
+  typ'       <- toTypeSkeleton typ
+  classQuals <- resolveContext ctx
+  Monotype <$> foldM addTyclass typ' classQuals
+ where
+  addTyclass :: TypeSkeleton -> TypeSkeleton -> State Int TypeSkeleton
+  addTyclass typ classQual = do
+    tcarg <- freshId [] "tcarg"
+    return $ FunctionT tcarg classQual typ
+toSchemaSkeleton typ = Monotype <$> toTypeSkeleton typ
 
-toSynquidSchemaSkeleton :: SSchema -> SchemaSkeleton
-toSynquidSchemaSkeleton (Monotype typ) = Monotype $ addTrue typ
-toSynquidSchemaSkeleton (ForallT a typ) = ForallT a (toSynquidSchemaSkeleton typ)
+toTypeSkeleton :: Type () -> State Int TypeSkeleton
+toTypeSkeleton t@(TyForall _ _ _ typ) = toTypeSkeleton typ
+toTypeSkeleton (  TyFun _ arg ret   ) = do
+  argName <- freshId [] "arg"
+  ret'    <- toTypeSkeleton ret
+  arg'    <- toTypeSkeleton arg
+  return $ FunctionT argName arg' ret'
+toTypeSkeleton (TyParen _ typ ) = toTypeSkeleton typ
+toTypeSkeleton (TyKind _ typ _) = toTypeSkeleton typ
+toTypeSkeleton t@(TyCon _ name) =
+  let dtName = case name of
+        Qual _ moduleName consName ->
+          moduleNameStr moduleName ++ "." ++ nameStr consName
+        UnQual  _ name -> nameStr name
+        Special _ name -> Text.unpack $ specialConsStr name
+  in  return $ DatatypeT (Text.pack dtName) []
+toTypeSkeleton (TyApp _ fun arg) = do
+  fun' <- toTypeSkeleton fun
+  arg' <- toTypeSkeleton arg
+  case fun' of
+    DatatypeT dtName args -> return $ DatatypeT dtName (args ++ [arg'])
+    TypeVarT _ ->
+      error "toTypeSkeleton: higher-kinded type variable is not supported"
+    _ -> error "toTypeSkeleton: neither datatype nor type variable"
+toTypeSkeleton (TyVar  _ name ) = return $ TypeVarT (Text.pack $ nameStr name)
+toTypeSkeleton (TyList _ typ  ) = listType <$> toTypeSkeleton typ
+toTypeSkeleton (TyTuple _ _ ts) = do
+  ts' <- mapM toTypeSkeleton ts
+  case ts' of
+    (t1 : t2 : remains) -> return $ foldl' pairType (pairType t1 t2) remains
+    _ -> error "toTypeSkeleton: tuple must have at least two elements"
+toTypeSkeleton _ = return TopT
 
-addPrelude :: [Entry] -> [Entry]
-addPrelude [] = []
-addPrelude (decl:decls) = case decl of
-    EModule mdl -> if mdl == "GHC.OldList" then takeWhile (not . isModule) decls else addPrelude decls
-    _ -> addPrelude decls
+processConDecls :: [QualConDecl ()] -> State Int [ConstructorSig]
+processConDecls = mapM processConDecl
+ where
+  processConDecl (QualConDecl _ _ _ conDecl) = case conDecl of
+    ConDecl _ name typs -> do
+      -- Note: I don't know why Haskell library design this to be a list
+      -- Ordinarily, a constructor should have only one type signature,
+      -- so we extract the head of the signature list.
+      typ <- toTypeSkeleton $ head typs
+      if hasAny typ
+        then error "processConDecls: constructor type is not supported"
+        else return $ ConstructorSig (Text.pack $ nameStr name) typ
+    InfixConDecl _ typl name typr -> do
+      typl' <- toTypeSkeleton typl
+      typr' <- toTypeSkeleton typr
+      if hasAny typl' || hasAny typr'
+        then error "processConDecls: infix constructor type is not supported"
+        else return $ ConstructorSig (Text.pack $ nameStr name)
+                                     (FunctionT "arg0" typl' typr')
+    RecDecl _ name fields -> error "record declaration is not supported"
 
-processConDecls :: (MonadIO m) => [QualConDecl ()] -> StateT Int m [TP.ConstructorSig]
-processConDecls [] = return []
-processConDecls (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
-    case conDecl of
-        ConDecl _ name typs -> do
-            typ <- toSynquidTypeSkeleton $ head typs
-            if hasAny typ then processConDecls decls
-                          else (:) (TP.ConstructorSig (nameStr name) typ) <$> processConDecls decls
-        InfixConDecl _ typl name typr -> do
-            typl' <- toSynquidTypeSkeleton typl
-            typr' <- toSynquidTypeSkeleton typr
-            if hasAny typl' || hasAny typr'
-                then processConDecls decls
-                else (:) (TP.ConstructorSig (nameStr name) (FunctionT "arg0" typl' typr')) <$> processConDecls decls
-        RecDecl _ name fields -> error "record declaration is not supported"
-
-datatypeOfCon :: [QualConDecl ()] -> Set Id
-datatypeOfCon [] = Set.empty
-datatypeOfCon (decl:decls) = let QualConDecl _ _ _ conDecl = decl in
-    case conDecl of
-        ConDecl _ name typs -> Set.unions $ map datatypeOf typs
-        InfixConDecl _ typl name typr -> datatypeOf typl `Set.union` datatypeOf typr
-        RecDecl _ name fields -> error "record declaration is not supported"
-
-
-toSynquidDecl :: (MonadIO m) => Entry -> StateT Int m Declaration
-toSynquidDecl (EDecl (TypeDecl _ head typ)) = do
-    typ' <- toSynquidTypeSkeleton typ
-    if hasAny typ' then return $ Pos (initialPos "") $ TP.QualifierDecl [] -- a fake conversion
-                   else return $ Pos (initialPos $ declHeadName head) $ TP.TypeDecl (declHeadName head) (declHeadVars head) typ'
-toSynquidDecl (EDecl (DataFamDecl a b head c)) = toSynquidDecl (EDecl (DataDecl a (DataType a) b head [] []))
-toSynquidDecl (EDecl (DataDecl _ _ _ head conDecls _)) = do
-    constructors <- processConDecls conDecls
-    let name = declHeadName head
-    let vars = declHeadVars head
-    return $ Pos (initialPos name) $ TP.DataDecl name vars [] constructors
-toSynquidDecl (EDecl (TypeSig _ names typ)) = do
-    maybeSch <- toSynquidSchema typ
-    case maybeSch of
-        Nothing  -> return $ Pos (initialPos "") $ TP.QualifierDecl [] -- a fake conversion
-        Just sch -> return $ Pos (initialPos (nameStr $ names !! 0)) $ TP.FuncDecl (nameStr $ head names) (toSynquidSchemaSkeleton sch)
-toSynquidDecl (EDecl (ClassDecl _ _ head _ _)) = do
-    let name = fixTCName (declHeadName head)
-    let vars = declHeadVars head
-    return $ Pos (initialPos "") $ TP.DataDecl name vars [] []
-toSynquidDecl decl = do
-    return $ Pos (initialPos "") $ TP.QualifierDecl [] -- [TODO] a fake conversion
+toDeclaration :: Entry -> State Int Declaration
+toDeclaration (EDecl (TypeDecl _ head typ)) = do
+  typ' <- toTypeSkeleton typ
+  if hasAny typ'
+    then return dummyDecl -- a fake conversion
+    else return $ TP.TypeDecl (declHeadName head) (declHeadVars head) typ'
+toDeclaration (EDecl (DataFamDecl a b head c)) =
+  toDeclaration (EDecl (DataDecl a (DataType a) b head [] []))
+toDeclaration (EDecl (DataDecl _ _ _ head conDecls _)) = do
+  constructors <- processConDecls conDecls
+  let name = declHeadName head
+  let vars = declHeadVars head
+  return $ TP.DataDecl name vars constructors
+toDeclaration (EDecl (TypeSig _ names typ)) =
+  FuncDecl (Text.pack $ nameStr $ head names) <$> toSchemaSkeleton typ
+toDeclaration (EDecl (ClassDecl _ _ head _ _)) = do
+  let name = toTyclassName (declHeadName head)
+  let vars = declHeadVars head
+  return $ TP.DataDecl name vars []
+toDeclaration (EDecl (InstDecl _ _ rule _)) = do
+  cnt <- nextCounter "inst"
+  instanceToFunction (getInstanceRule rule) cnt
+toDeclaration decl = return dummyDecl -- a fake conversion
 
 isInstance :: Entry -> Bool
-isInstance (EDecl (InstDecl _ _ _ _)) = True
-isInstance _ = False
+isInstance (EDecl InstDecl{}) = True
+isInstance _                  = False
 
-instHeadName :: InstHead l -> [Char]
-instHeadName (IHCon _ name) = qnameStr name
-instHeadName (IHInfix _ bvar name) = qnameStr name
-instHeadName (IHParen _ head) = instHeadName head
-instHeadName (IHApp _ head _) = instHeadName head
+getInstanceRule :: InstRule l -> InstRule l
+getInstanceRule (IParen _ instanceRule) = instanceRule
+getInstanceRule instanceRule@IRule{}    = instanceRule
 
+getTyclassVars :: InstHead () -> State Int [TypeSkeleton]
+getTyclassVars (IHApp _ hd typeVar) = do
+  typeSkeletonArr <- getTyclassVars hd
+  typeSkeleton    <- toTypeSkeleton typeVar
+  return (typeSkeletonArr ++ [typeSkeleton])
+getTyclassVars (IHParen _ hd) = getTyclassVars hd
+getTyclassVars (IHCon   _ _ ) = return []
+getTyclassVars _              = error "getTyclassVars: case to be implemented"
 
-getTyclassVars :: (MonadIO m) => InstHead () -> StateT Int m [SType]
-getTyclassVars (IHApp _ head typeVar) = do
-    typeSkeletonArr <- getTyclassVars head
-    typeSkeleton <- (Data.List.head . fromJust) <$> toSynquidSkeleton typeVar
-    return $ (typeSkeletonArr ++ [typeSkeleton])
-getTyclassVars (IHParen _ head) = getTyclassVars head
-getTyclassVars (IHCon _ _) = return []
-getTyclassVars _ = error "getTyclassDictName: case to be implemented"
-
-
-fixDataType (ScalarT (DatatypeT name vars refs) ref) =
-    let (_, name') = breakLast name
-        in (ScalarT (DatatypeT name' vars refs) ref)
-fixDataType x = x
+unqualDataType :: TypeSkeleton -> TypeSkeleton
+unqualDataType (DatatypeT name vars) =
+  let name' = last $ Text.splitOn "." name in DatatypeT name' vars
+unqualDataType x = x
 
 -- FIRST KIND: instance Show Int              >>> __hplusTCTransition__Show Int
 -- SECOND KIND: instance (Show a) => Show [a] >> __hplusTCTrransition__Show a -> __hplusTCTransition__Show (List a) -> ...
 -- THIRD KIND: instance (Show a, Show b) => Show (Either a b) >> ......
-instanceToFunction :: (MonadIO m) => InstRule () -> Int -> StateT Int m Declaration
-instanceToFunction (IParen _ inst) n = instanceToFunction inst n
+instanceToFunction :: InstRule () -> Int -> State Int Declaration
+instanceToFunction (IParen _ inst     ) n = instanceToFunction inst n
 instanceToFunction (IRule _ _ ctx head) n = do
-    let name = getTyclassDictName head
-    tyVars <- getTyclassVars head
-    let tyVars' = map (\x -> fixDataType x) tyVars
-    let base = ScalarT (DatatypeT name tyVars' []) ()
-    let toDecl' = toDecl (Text.unpack $ Text.replace (Text.pack(tyclassPrefix)) (Text.pack ("")) $ Text.pack name)
-    case ctx of
-        Nothing -> toDecl' =<< foldrM go base []
-        Just (CxTuple _ tyclassConds) -> toDecl' =<< foldrM go base tyclassConds
-        Just (CxSingle _ tyclassCond) -> toDecl' =<< foldrM go base [tyclassCond]
+  let name = getTyclassDictName head
+  -- Note: remove this check to include higher kinded type instances
+  if any (`Text.isInfixOf` name) higherOrderNames
+    then return dummyDecl
+    else do
+      tyVars <- getTyclassVars head
+      let tyVars' = map unqualDataType tyVars
+      let base    = DatatypeT (toTyclassName name) tyVars'
+      instanceTyp <- case ctx of
+        Nothing                        -> return base
+        Just (CxTuple  _ tyclassConds) -> foldM mkInstanceType base tyclassConds
+        Just (CxSingle _ tyclassCond ) -> mkInstanceType base tyclassCond
         _ -> error "instanceToFunction: Unhandled case"
-    where
-        go e acc = do
-            arg <- toArg e
-            return $ FunctionT "" arg acc
-        toDecl :: (MonadIO m) => String -> SType -> StateT Int m Declaration
-        toDecl y x = return $ Pos (initialPos "") $ TP.FuncDecl (tyclassInstancePrefix ++ (show n) ++ (y)) $ toSynquidSchemaSkeleton $ Monotype x
+      return $ mkInstanceDecl name instanceTyp
+ where
+  mkInstanceType :: TypeSkeleton -> Asst () -> State Int TypeSkeleton
+  mkInstanceType typ asst = do
+    tcArg     <- toTyclassDatatype <$> resolveAsst asst
+    tcArgName <- freshId [] "tcarg"
+    return $ FunctionT tcArgName tcArg typ
 
+  mkInstanceDecl :: Id -> TypeSkeleton -> Declaration
+  mkInstanceDecl dtName x = FuncDecl
+    (tyclassInstancePrefix `Text.append` Text.pack (show n) `Text.append` dtName
+    )
+    (Monotype x)
 
-toArg :: (MonadIO m) => Asst () -> StateT Int m SType
-toArg x = do
-    typeVars <- getTypeVars x
-    let tyVars' = map (\x -> fixDataType x) typeVars
-    return $ (ScalarT (DatatypeT (toTCDictName x) tyVars' []) ())
-
-getTyclassDictName :: InstHead l -> String
-getTyclassDictName (IHApp _ typeclass _) = fixTCName (instHeadName typeclass)
-getTyclassDictName (IHParen _ head) = getTyclassDictName head
-getTyclassDictName _ = error "getTyclassDictName: case to be implemented"
-
-fixTCName :: String -> String
-fixTCName str =
-    let (_, end) = breakLast str
-        end' = tyclassPrefix ++ end
-        in end'
-
-breakLast :: String -> (String, String)
-breakLast str = (reverse (drop 1 y), reverse x) where (x, y) = break (== '.') $ reverse str
-
-toTCDictName :: Asst l -> String
-toTCDictName (ClassA _ declName _) = fixTCName (qnameStr declName)
-toTCDictName (ParenA _ asst) = toTCDictName asst
-toTCDictName _ = error "toTCDictName: Unhandled case"
-
-getTypeVars :: (MonadIO m) => Asst () -> StateT Int m [SType]
-getTypeVars (ClassA _ _ typeVars) = mapM (\x -> Data.List.head . fromJust <$> toSynquidSkeleton x) typeVars
-getTypeVars (ParenA _ asst) = getTypeVars asst
-getTypeVars _ = error "getTypeVars: Unhandled case"
-
-getInstanceRule :: Entry -> InstRule ()
-getInstanceRule (EDecl (InstDecl x1 x2 (IParen _ instanceRule) x3)) = getInstanceRule (EDecl (InstDecl x1 x2 instanceRule x3))
-getInstanceRule (EDecl (InstDecl _ _ instanceRule@(IRule _ _ _ _) _)) = instanceRule
-getInstanceRule _ =  error "getInstanceRule: unexpected case"
+toTyclassDatatype :: TypeSkeleton -> TypeSkeleton
+toTyclassDatatype (DatatypeT dt tArgs) = DatatypeT (toTyclassName dt) tArgs
+toTyclassDatatype x = error "toTyclassDatatype: not a datatype"
 
 reorderDecls :: [Declaration] -> [Declaration]
-reorderDecls = Sort.sortOn toInt
-  where
-    toInt (Pos _ (TP.TypeDecl "String" _ _)) = 1
-    toInt (Pos _ (TP.TypeDecl _ [] _)) = 2
-    toInt (Pos _ TP.TypeDecl {}) = 3
-    toInt (Pos _ (TP.DataDecl "List" _ _ _)) = 0
-    toInt (Pos _ (TP.DataDecl "Char" _ _ _)) = 0
-    toInt (Pos _ (TP.DataDecl "Pair" _ _ _)) = 0
-    toInt (Pos _ (TP.DataDecl _ [] _ _)) = 2
-    toInt (Pos _ TP.DataDecl {}) = 3
-    toInt (Pos _ TP.QualifierDecl {}) = 98
-    toInt (Pos _ TP.FuncDecl {}) = 99
-    toInt (Pos _ TP.SynthesisGoal {}) = 100
+reorderDecls = sortOn toInt
+ where
+  toInt (TP.TypeDecl "String" _  _) = 1
+  toInt (TP.TypeDecl _        [] _) = 2
+  toInt TP.TypeDecl{}               = 3
+  toInt (TP.DataDecl "List" _  _)   = 0
+  toInt (TP.DataDecl "Char" _  _)   = 0
+  toInt (TP.DataDecl "Pair" _  _)   = 0
+  toInt (TP.DataDecl _      [] _)   = 2
+  toInt TP.DataDecl{}               = 3
+  toInt TP.FuncDecl{}               = 99
 
-renameSigs :: Bool -> String -> [Entry] -> Map Id [Entry]
-renameSigs _ _ [] = Map.empty
-renameSigs renameFunc currModule (decl:decls) = case decl of
-    EModule mdl -> Map.insertWith (++) mdl [decl] (renameSigs renameFunc mdl decls)
-    EPackage _ -> renameSigs renameFunc currModule decls
-    EDecl (TypeSig loc names ty) -> let
-      newNames = if renameFunc then map (prependName currModule) names else names
-      in Map.insertWith (++) currModule [EDecl (TypeSig loc newNames ty)] (renameSigs renameFunc currModule decls)
-    _ -> Map.insertWith (++) currModule [decl] (renameSigs renameFunc currModule decls)
+higherOrderNames :: [Id]
+higherOrderNames = ["Applicative", "Functor", "Monad"]
 
-readDeclarations :: PkgName -> Maybe Version -> IO (Map Id [Entry])
-readDeclarations pkg version = do
-    downloadDir <- getTmpDir
-    vpkg <-
-        case version of
-            Nothing -> return pkg
-            Just v -> ifM (checkVersion pkg v) (return $ pkg ++ "-" ++ v) (return pkg)
-    let filePath = downloadDir ++ vpkg ++ ".txt"
-    readDeclarationsFromFile filePath True
+renameSigs :: Bool -> String -> [Entry] -> Map String [Entry]
+renameSigs _          _          []             = Map.empty
+renameSigs renameFunc currModule (decl : decls) = case decl of
+  EModule mdl ->
+    Map.insertWith (++) mdl [decl] (renameSigs renameFunc mdl decls)
+  EPackage _ -> renameSigs renameFunc currModule decls
+  EDecl (TypeSig loc names ty) ->
+    let newNames =
+          if renameFunc then map (prependName currModule) names else names
+    in  Map.insertWith (++)
+                       currModule
+                       [EDecl (TypeSig loc newNames ty)]
+                       (renameSigs renameFunc currModule decls)
+  _ -> Map.insertWith (++)
+                      currModule
+                      [decl]
+                      (renameSigs renameFunc currModule decls)
 
 readDeclarationsFromFile :: FilePath -> Bool -> IO (Map MdlName [Entry])
 readDeclarationsFromFile fp renameFunc = do
-    h   <- openFile fp ReadMode
-    hSetEncoding h utf8
-    s   <- hGetContents h
-    let fileLines = lines s
-    let code = concat $ rights $ map parseLine fileLines
-    return $ renameSigs renameFunc "" code
+  h <- openFile fp ReadMode
+  hSetEncoding h utf8
+  s <- hGetContents h
+  let fileLines = lines s
+  let code = concat $ rights $ map parseLine fileLines
+  return $ renameSigs renameFunc "" code
 
-
-packageDependencies :: PkgName -> Bool -> IO [PkgName]
-packageDependencies pkg toDownload = do
-    downloadDir <- getTmpDir
-    gPackageDesc <- readGenericPackageDescription silent $ downloadDir ++ pkg ++ ".cabal"
-    case condLibrary gPackageDesc of
-        Nothing -> return []
-        Just (CondNode _ dependencies _) -> do
-            let dps = map dependentPkg dependencies
-            -- download necessary files to resolve package dependencies
-            foldrM (\fname existDps ->
-                ifM (if toDownload
-                        then do
-                          gotFile <- isJust <$> downloadFile fname Nothing
-                          gotCabal <- isJust <$> downloadCabal fname Nothing
-                          return (gotFile && gotCabal)
-                        else doesFileExist $ downloadDir ++ fname ++ ".txt")
-                    (return $ fname:existDps)
-                    (return existDps)) [] dps
-  where
-    dependentPkg (Dependency name _) = unPackageName name
-
-declMap :: [Entry] -> Map Id Entry
-declMap decls = foldr (\d -> Map.insert (getDeclName d) d) Map.empty $ filter isDataDecl decls
-
-dependsOn :: Entry -> (Id, Set Id)
-dependsOn decl = case decl of
-    EDecl (DataDecl _ _ _ head conDecls _) -> (declHeadName head, datatypeOfCon conDecls)
-    EDecl (TypeDecl _ head ty) -> (declHeadName head, datatypeOf ty)
-    _ -> error "[In `dependsOn`] Please filter before calling this function"
-
-dependencyGraph :: [Entry] -> Map Id (Set Id)
-dependencyGraph = foldr (uncurry Map.insert . dependsOn) Map.empty . filter isDataDecl
-
-nodesOf :: Map Id (Set Id) -> [Id]
-nodesOf graph = nub $ Map.keys graph ++ Set.toList (Set.unions $ Map.elems graph)
-
-topoSort :: Map Id (Set Id) -> [Id]
-topoSort graph = reverse $ topoSortHelper (nodesOf graph) Set.empty graph
-  where
-    topoSortHelper [] _ graph = []
-    topoSortHelper (v:vs) visited graph = if Set.member v visited
-        then topoSortHelper vs visited graph
-        else topoSortHelper vs (Set.insert v visited) graph ++
-                v:topoSortHelper (Set.toList (Map.findWithDefault Set.empty v graph)) visited graph
-
-dependencyClosure :: [Id] -> [Id] -> [(Id, Entry)] -> [Entry]
-dependencyClosure definedDts allDts theirDts = let
-    undefinedDts = allDts >.> definedDts
-    in if not (null undefinedDts)
-        then let
-            foreignDts = filter ((`elem` undefinedDts) . fst) theirDts
-            newDecls = nub $ map snd foreignDts
-            newAddedDts = Set.toList $ Set.unions $ map getDeclTy newDecls
-            in newDecls ++ dependencyClosure allDts newAddedDts theirDts
-        else []
-
--- entryDependencies will look for the missing type declarations in `ourEntries`
--- by first checking `allEntries`, then looking at `dpDecls`
-entryDependencies :: Map Id [Entry] -> [Entry] -> [Entry] -> [Entry]
-entryDependencies allEntries ourEntries dpDecls = let
-    myDtDefs = (dtDefsIn . concat . Map.elems) allEntries
-    closedDecls = dependencyClosure myDefinedDts myDts (theirDts ++ myDtDefs)
-    allDecls = closedDecls
-    sortedIds = topoSort $ dependencyGraph allDecls
-    in
-    matchDtWithCons $ map (\id -> fromMaybe (error $ "cannot find " ++ id) (Map.lookup id $ declMap allDecls))
-                    $ nub $ sortedIds >.> ["List", "Pair", "Char"]
-  where
-    myDts = dtNamesIn ourEntries
-    myDefinedDts = definedDtsIn ourEntries
-    theirDts = dtDefsIn dpDecls
-
-declDependencies :: Id -> [Entry] -> [Entry] -> IO [Entry]
-declDependencies pkgName decls dpDecls = do
-    entries <- readDeclarations pkgName Nothing
-    return $ entryDependencies entries decls dpDecls
+--------------------------------------------------------------------------------
+------------------------------- Miscellaneous ----------------------------------
+--------------------------------------------------------------------------------
 
 isDataDecl :: Entry -> Bool
 isDataDecl decl = case decl of
-    EDecl DataDecl {} -> True
-    EDecl TypeDecl {} -> True
-    _ -> False
+  EDecl DataDecl{} -> True
+  EDecl TypeDecl{} -> True
+  _                -> False
 
 isModule :: Entry -> Bool
 isModule (EModule _) = True
-isModule _ = False
+isModule _           = False
 
-dtNameOf :: Entry -> String
-dtNameOf (EDecl (DataDecl _ _ _ head conDecls _)) = declHeadName head
-dtNameOf (EDecl (TypeDecl _ head _)) = declHeadName head
-
-packageDtDefs :: PkgName -> IO [(Id, Entry)]
-packageDtDefs pkg = do
-    decls <- concat . Map.elems <$> readDeclarations pkg Nothing
-    -- It relies on the order of definitions exist in the source file
-    return $ foldr (\decl -> ((dtNameOf decl, decl):)) [] $ filter isDataDecl decls
-
-dtDefsIn :: [Entry] -> [(Id, Entry)]
-dtDefsIn decls = foldr (\decl -> ((dtNameOf decl, decl):)) [] $ filter isDataDecl decls
-
-getDeclTy :: Entry -> Set Id
-getDeclTy (EDecl (TypeSig _ names ty)) = datatypeOf ty
-getDeclTy (EDecl (TypeDecl _ _ ty)) = datatypeOf ty
-getDeclTy _ = Set.empty
-
-getDeclName :: Entry -> Id
-getDeclName (EDecl (DataDecl _ _ _ head conDecls _)) = declHeadName head
-getDeclName (EDecl (TypeDecl _ head ty)) = declHeadName head
-getDeclName (EDecl (TypeSig _ names ty)) = nameStr $ head names
-getDeclName _ = ""
-
--- packageDtNames :: PkgName -> IO [Id]
--- packageDtNames pkg = do
---     decls <- readDeclarations pkg Nothing
---     return $ Set.toList $ Set.unions $ map getDeclTy decls
-
-dtNamesIn :: [Entry] -> [Id]
-dtNamesIn decls = Set.toList $ Set.unions $ map getDeclTy decls
-
-definedDtsIn :: [Entry] -> [Id]
-definedDtsIn decls = map dtNameOf $ filter isDataDecl decls
-
--- definedDts :: [Entry] -> IO [Id]
--- definedDts decls = map dtNameOf $ filter isDataDecl decls
-
-toSynquidProgram :: Exp SrcSpanInfo -> UProgram
-toSynquidProgram (Lambda _ pats body) =
-    foldr (\(PVar _ name) p -> Program (PFun (nameStr name) p) AnyT) (toSynquidProgram body) pats
-toSynquidProgram (Var _ qname) = Program (PSymbol (qnameStr qname)) AnyT
-toSynquidProgram (App _ fun arg) =
-    let synFun = toSynquidProgram fun
-     in case content synFun of
-          PSymbol f -> Program (PApp f [toSynquidProgram arg]) AnyT
-          PApp f args -> Program (PApp f (args ++ [toSynquidProgram arg])) AnyT
-          _ -> error "unrecognized function type"
-toSynquidProgram (Paren _ e) = toSynquidProgram e
-toSynquidProgram (Con _ qname) = Program (PSymbol (qnameStr qname)) AnyT
-toSynquidProgram (List _ elmts) = let
-    args = map toSynquidProgram elmts
-    mkCons e acc = Program (PApp "Cons" [e, acc]) AnyT
-    in foldr mkCons (Program (PSymbol "Nil") AnyT) args
-toSynquidProgram e = error $ show e
+-- toSynquidProgram :: Exp SrcSpanInfo -> TProgram
+-- toSynquidProgram (Lambda _ pats body) =
+--     foldr (\(PVar _ name) p -> Program (PFun (nameStr name) p) AnyT) (toSynquidProgram body) pats
+-- toSynquidProgram (Var _ qname) = Program (PSymbol (qnameStr qname)) AnyT
+-- toSynquidProgram (App _ fun arg) =
+--     let synFun = toSynquidProgram fun
+--      in case content synFun of
+--           PSymbol f -> Program (PApp f [toSynquidProgram arg]) AnyT
+--           PApp f args -> Program (PApp f (args ++ [toSynquidProgram arg])) AnyT
+--           _ -> error "unrecognized function type"
+-- toSynquidProgram (Paren _ e) = toSynquidProgram e
+-- toSynquidProgram (Con _ qname) = Program (PSymbol (qnameStr qname)) AnyT
+-- toSynquidProgram (List _ elmts) = let
+--     args = map toSynquidProgram elmts
+--     mkCons e acc = Program (PApp "Cons" [e, acc]) AnyT
+--     in foldr mkCons (Program (PSymbol "Nil") AnyT) args
+-- toSynquidProgram e = error $ show e

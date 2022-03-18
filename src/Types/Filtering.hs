@@ -1,42 +1,64 @@
 module Types.Filtering where
 
-import Control.Exception
-import Control.Monad.State
-import Data.Typeable
-import Text.Printf
-import Data.List (intercalate)
+import           Control.Exception              ( Exception )
+import           Control.Monad.State            ( StateT )
+import           Data.List                      ( intercalate )
+import           Data.Typeable                  ( Typeable )
+import           Text.Printf                    ( printf )
 
-import Test.SmallCheck.Drivers
+import           Test.SmallCheck.Drivers        ( PropertyFailure )
 
-import Types.Program
-import Types.IOFormat (Example)
-import Types.Pretty
+import           Types.IOFormat                 ( Example )
+import           Types.Pretty
+import           Types.Program
 
-defaultTimeoutMicro = 1 * 10^6 :: Int
-defaultDepth = 3 :: Int
-defaultInterpreterTimeoutMicro = 4 * 10^6 :: Int
-defaultMaxOutputLength = 10 :: Int 
-defaultGenerationTimeoutMicro = 30 * 10^6 :: Int
-defaultGenerationDepth = 4 :: Int
+--------------------------------------------------------------------------------
+-------------------------------- Constants -------------------------------------
+--------------------------------------------------------------------------------
 
+defaultTimeoutMicro :: Int
+defaultTimeoutMicro = 1 * 10 ^ 6
+
+defaultDepth :: Int
+defaultDepth = 3
+
+defaultInterpreterTimeoutMicro :: Int
+defaultInterpreterTimeoutMicro = 4 * 10 ^ 6
+
+defaultMaxOutputLength :: Int
+defaultMaxOutputLength = 10
+
+defaultGenerationTimeoutMicro :: Int
+defaultGenerationTimeoutMicro = 30 * 10 ^ 6
+
+defaultGenerationDepth :: Int
+defaultGenerationDepth = 4
+
+frameworkModules :: [(String, Maybe String)]
 frameworkModules =
-  zip [ "Test.SmallCheck"
-  , "Test.SmallCheck.Drivers"
-  , "Test.LeanCheck.Function.ShowFunction"
-  , "System.IO.Silently"
-  , "Control.Exception"
-  , "Control.Monad"
-  , "Control.Monad.State"
-  ] (repeat Nothing)
+  zip
+      [ "Test.SmallCheck"
+      , "Test.SmallCheck.Drivers"
+      , "Test.LeanCheck.Function.ShowFunction"
+      , "System.IO.Silently"
+      , "Control.Exception"
+      , "Control.Monad"
+      , "Control.Monad.State"
+      ]
+      (repeat Nothing)
 
-  ++ [("Test.ChasingBottoms", Just "CB")]
+    ++ [("Test.ChasingBottoms", Just "CB")]
+
+--------------------------------------------------------------------------------
+---------------------------------- Types ---------------------------------------
+--------------------------------------------------------------------------------
 
 type SmallCheckResult = (Maybe PropertyFailure, [Example])
 type GeneratorResult = [Example]
 type SolutionPair = (TProgram, TProgram) -- qualified and unqualified
 type AssociativeExamples = [(SolutionPair, [Example])]
 
-data FunctionCrashDesc = 
+data FunctionCrashDesc =
     AlwaysSucceed Example
   | AlwaysFail Example
   | PartialFunction [Example]
@@ -44,10 +66,10 @@ data FunctionCrashDesc =
   deriving (Eq)
 
 instance Show FunctionCrashDesc where
-  show (AlwaysSucceed i) = show i
-  show (AlwaysFail i) = show i
+  show (AlwaysSucceed   i ) = show i
+  show (AlwaysFail      i ) = show i
   show (PartialFunction xs) = unlines (map show xs)
-  show (UnableToCheck ex) = "Exception: " ++ show ex
+  show (UnableToCheck   ex) = "Exception: " ++ show ex
 
 data ArgumentType =
     Concrete    String
@@ -61,8 +83,8 @@ data ArgumentType =
 instance Show ArgumentType where
   show (Concrete    name) = name
   show (Polymorphic name) = name
-  show (ArgTypeList sub)  = printf "[%s]" (show sub)
-  show (ArgTypeApp  l r)  = printf "((%s) (%s))"  (show l) (show r)
+  show (ArgTypeList sub ) = printf "[%s]" (show sub)
+  show (ArgTypeApp l r  ) = printf "((%s) (%s))" (show l) (show r)
   show (ArgTypeTuple types) =
     (printf "(%s)" . intercalate ", " . map show) types
   show (ArgTypeFunc src dst) = printf "((%s) -> (%s))" (show src) (show dst)
@@ -78,31 +100,33 @@ newtype ClassConstraint = ClassConstraint { unClassConstraint :: String }
 instance Pretty ClassConstraint where
   pretty (ClassConstraint constraint) = pretty constraint
 
-data FunctionSignature =
-  FunctionSignature { _constraints :: [ClassConstraint]
-                    , _argsType :: [ArgumentType]
-                    , _returnType :: ArgumentType
+data FunctionSignature = FunctionSignature
+  { _constraints :: [ClassConstraint]
+  , _argsType    :: [ArgumentType]
+  , _returnType  :: ArgumentType
   }
 
 instance Show FunctionSignature where
-  show (FunctionSignature constraints argsType returnType) =
-    printf "(%s) => %s" constraintsExpr argsExpr
-      where
-        constraintsExpr = (intercalate ", " . map show) constraints
-        argsExpr = (intercalate " -> " . map show) (argsType ++ [returnType])
+  show (FunctionSignature constraints argsType returnType) = printf
+    "(%s) => %s"
+    constraintsExpr
+    argsExpr
+   where
+    constraintsExpr = (intercalate ", " . map show) constraints
+    argsExpr        = (intercalate " -> " . map show) (argsType ++ [returnType])
 
-data FilterState = FilterState {
-  inputs :: [[String]],
-  solutions :: [TProgram],
-  solutionExamples :: [(SolutionPair, FunctionCrashDesc)],
-  differentiateExamples :: [(SolutionPair, Example)]
-} deriving (Eq)
+data FilterState = FilterState
+  { inputs                :: [[String]]
+  , solutions             :: [TProgram]
+  , solutionExamples      :: [(SolutionPair, FunctionCrashDesc)]
+  , differentiateExamples :: [(SolutionPair, Example)]
+  }
+  deriving Eq
 
-emptyFilterState = FilterState {
-  inputs = [],
-  solutions = [],
-  solutionExamples = [],
-  differentiateExamples = []
-}
+emptyFilterState = FilterState { inputs                = []
+                               , solutions             = []
+                               , solutionExamples      = []
+                               , differentiateExamples = []
+                               }
 
 type FilterTest m = StateT FilterState m

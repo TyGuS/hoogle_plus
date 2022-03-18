@@ -1,8 +1,6 @@
 module Database.Presets where
 
 import Types.Generate
-import Types.Experiments
-import Types.Environment
 
 getOptsFromPreset :: Preset -> GenerationOpts
 getOptsFromPreset TotalFunctions = genOptsTier1
@@ -10,6 +8,7 @@ getOptsFromPreset PartialFunctions = genOptsTier2
 getOptsFromPreset ECTAFull = genOptsECTA
 getOptsFromPreset ECTAPartial = genOptsECTA2
 
+genOptsTier1 :: GenerationOpts
 genOptsTier1 = defaultGenerationOpts {
   modules = myModules,
   pkgFetchOpts = Local {
@@ -17,6 +16,7 @@ genOptsTier1 = defaultGenerationOpts {
       }
   }
 
+genOptsTier2 :: GenerationOpts
 genOptsTier2 = genOptsTier1 {
   modules = myModules,
   pkgFetchOpts = Local {
@@ -24,6 +24,7 @@ genOptsTier2 = genOptsTier1 {
       }
   }
 
+genOptsECTA :: GenerationOpts
 genOptsECTA = defaultGenerationOpts {
   modules = ectaModules,
   pkgFetchOpts = Local {
@@ -32,10 +33,12 @@ genOptsECTA = defaultGenerationOpts {
   hoOption = HOFAll
   }
 
+genOptsECTA2 :: GenerationOpts
 genOptsECTA2 = genOptsECTA {
   hoOption = HOFPartial
   }
 
+myModules :: [String]
 myModules = [
   -- base
   "Data.Int",
@@ -54,6 +57,7 @@ myModules = [
   "Data.ByteString.Builder"
   ]
 
+ectaModules :: [String]
 ectaModules = [
   -- base
   "Data.Int",

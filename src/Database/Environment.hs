@@ -1,139 +1,116 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module Database.Environment(
+module Database.Environment
+  ( 
     writeEnv
   , generateEnv
-  , toFunType
   , getFiles
   , filesToEntries
+
+  , GroupResult(..)
+  , emptyGroup
+  , groupSignatures
   ) where
 
-import Data.Either
-import Data.Serialize (encode)
-import Data.List.Extra
-import Control.Lens ((^.), over, _2)
-import qualified Data.ByteString as B
-import Data.Map (Map)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import Control.Monad.State (evalStateT)
-import System.Exit (exitFailure)
-import Text.Parsec.Pos (initialPos)
-import Text.Printf
+import           Control.Monad.State            ( StateT
+                                                , evalState
+                                                )
+import           Data.Bifunctor                 ( second )
+import           Data.Functor                   ( (<&>) )
+import           Data.List.Extra                ( nubOrd )
+import           Data.Map                       ( Map )
+import qualified Data.Map                      as Map
+import           Data.Serialize                 ( encode )
+import           Data.Set                       ( Set )
+import qualified Data.Set                      as Set
+import           Data.Text                      ( Text )
+import qualified Data.Text                     as Text
+import           System.Exit                    ( exitFailure )
+import           Text.Parsec.Pos                ( initialPos )
+import           Text.Printf                    ( printf )
 
-import Synquid.Error (Pos(Pos))
-import Synquid.Logic (ftrue)
-import Types.Type -- (BaseType(..), TypeSkeleton(..), SchemaSkeleton(..))
-import Synquid.Type (isHigherOrder, toMonotype)
-import Synquid.Pretty as Pretty
-import Database.Util
-import qualified Database.Download as DD
-import qualified Database.Convert as DC
-import Types.Environment
-import Types.Program (BareDeclaration(..), Declaration(..), ConstructorSig(..))
-import Types.Generate
-import Synquid.Resolver (resolveDecls)
-import qualified Data.List.Utils as LUtils
-import qualified Types.Program as TP
-import Synquid.Util
-import qualified Debug.Trace as D
+import qualified Data.List.Utils               as LUtils
+import           Text.PrettyPrint.ANSI.Leijen   ( string )
 
-writeEnv :: FilePath -> Environment -> IO ()
-writeEnv path env = B.writeFile path (encode env)
+import           Compiler.Resolver
+import           Database.Convert
+import           Types.Common
+import           Types.Encoder
+import           Types.Environment
+import           Types.Fresh
+import           Types.Generate
+import           Types.Pretty
+import           Types.Type
+import           Utility.Utils
 
--- getDeps will try its best to come up with the declarations needed to satisfy unmet type dependencies in ourEntries.
--- There are the entries in the current set of packages (allEntries), and the strategy to look at other packages.
-getDeps :: PackageFetchOpts -> Map MdlName [Entry] -> [Entry] -> IO [Declaration]
-getDeps Local{files=f} allEntries ourEntries = do
-  let dependentEntries = DC.entryDependencies allEntries ourEntries (concat $ Map.elems allEntries)
-  nubOrd <$> mapM (flip evalStateT 0 . DC.toSynquidDecl) dependentEntries
-getDeps Hackage{packages=ps} allEntries ourEntries = do
-  pkgsDeps <- mapM (\pkgName -> do
-    pkgDeps <- nubOrd <$> DC.packageDependencies pkgName True
-    entriesFromDeps <- concatMap (concat . Map.elems) <$> (mapM (flip DC.readDeclarations Nothing) pkgDeps)
-    let dependentEntries = DC.entryDependencies allEntries ourEntries entriesFromDeps
-    mapM (flip evalStateT 0 . DC.toSynquidDecl) dependentEntries
-    ) ps
-  return $ nubOrd $ concat pkgsDeps
+writeEnv :: Environment -> IO ()
+writeEnv env = return ()
 
-generateHigherOrder :: GenerationOpts -> Environment -> IO Environment
-generateHigherOrder genOpts env = do
-    let isHoAll = hoOption genOpts
-    let pathToHo = hoPath genOpts
-    hofStr <- readFile pathToHo
-    let hofNames = if isHoAll == HOFAll then Map.keys (env ^. symbols) else words hofStr
+
+generateHigherOrder :: [Id] -> Map Id SchemaSkeleton -> Map Id SchemaSkeleton
+generateHigherOrder hofNames components =
     -- get signatures
-    let sigs = map (\f -> lookupWithError "env: symbols" f (env ^. symbols)) hofNames
-    -- transform into fun types and add into the environments
-    let sigs' = concat $ zipWith unfoldFuns hofNames sigs
-    let env' = env { _symbols = Map.union (env ^. symbols) (Map.fromList sigs')
-                   , _hoCandidates = map fst sigs' }
-    return env'
-    where
-        newHoName name i = name ++ "_" ++ show i ++ hoPostfix
+  let hoSigs = Map.filterWithKey (\k _ -> k `elem` hofNames) components
+  -- transform into fun types and add into the environments
+      sigs'  = concat $ Map.mapWithKey unfoldFun hoSigs
+  in  Map.fromList sigs'
+ where
+  newHoName :: Id -> Int -> Id
+  newHoName name i =
+    Text.pack $ Text.unpack name ++ "_" ++ show i ++ Text.unpack hoPostfix
 
-        mkFun acc (n, arg) = FunctionT n arg acc
+  unfoldFun :: Id -> SchemaSkeleton -> [(Id, SchemaSkeleton)]
+  unfoldFun name (ForallT x sch) =
+    map (second $ ForallT x) (unfoldFun name sch)
+  unfoldFun name (Monotype t) =
+    map (second Monotype) (snd $ unfoldFun' name 0 [] t)
 
-        unfoldFuns name (ForallT x t) = map (over _2 (ForallT x)) (unfoldFuns name t)
-        unfoldFuns name (Monotype t) = map (over _2 Monotype) $ snd $ unfoldFuns' name 0 [] t
+  unfoldFun'
+    :: Id
+    -> Int
+    -> [(Id, TypeSkeleton)]
+    -> TypeSkeleton
+    -> (Int, [(Id, TypeSkeleton)])
+  unfoldFun' name i sofarArgs t@(FunctionT x tArg tRes) =
+    let (i', sofar) = unfoldFun' name i ((x, tArg) : sofarArgs) tRes
+        mkFun res (xArg, arg) = FunctionT xArg arg res
+        currHo = foldl mkFun (toAbstractFun t) sofarArgs
+    in  (i' + 1, (newHoName name i', currHo) : sofar)
+  unfoldFun' name i sofarArgs t = (i, [])
 
-        unfoldFuns' name i sofarArgs t@(FunctionT x tArg tRes) =
-            let (i', sofar) = unfoldFuns' name i ((x,tArg):sofarArgs) tRes
-                currHo = foldl mkFun (toFunType t) sofarArgs
-             in (i' + 1, (newHoName name i', currHo):sofar)
-        unfoldFuns' name i sofarArgs t = (i, [])
-
-generateEnv :: GenerationOpts -> IO Environment
+generateEnv :: GenerationOpts -> IO ()
 generateEnv genOpts = do
-    let useHO = enableHOF genOpts
-    let pkgOpts = pkgFetchOpts genOpts
-    let mdls = modules genOpts
-    let mbModuleNames = if length mdls > 0 then Just mdls else Nothing
-    pkgFiles <- getFiles pkgOpts
-    allEntriesByMdl <- filesToEntries pkgFiles True
-    DD.cleanTmpFiles pkgOpts pkgFiles
-    let entriesByMdl = filterEntries allEntriesByMdl mbModuleNames
-    let ourEntries = nubOrd $ concat $ Map.elems entriesByMdl
-    dependencyEntries <- getDeps pkgOpts allEntriesByMdl ourEntries
-    let moduleNames = Map.keys entriesByMdl
-    let allCompleteEntries = concat (Map.elems entriesByMdl)
-    let allEntries = nubOrd allCompleteEntries
-    ourDecls <- mapM (\(entry) -> (evalStateT (DC.toSynquidDecl entry) 0)) allEntries
+  let useHO         = enableHOF genOpts
+  let pkgOpts       = pkgFetchOpts genOpts
+  let mdls          = modules genOpts
+  let mbModuleNames = if not (null mdls) then Just mdls else Nothing
+  pkgFiles        <- getFiles pkgOpts
+  allEntriesByMdl <- filesToEntries pkgFiles True
+  let entriesByMdl    = filterEntries allEntriesByMdl mbModuleNames
+  let entries         = nubOrd $ concat $ Map.elems entriesByMdl
+  let declarations    = map ((`evalState` 0) . toDeclaration) entries
+  let hooglePlusDecls = reorderDecls $ nubOrd declarations
 
-    let instanceDecls = filter (\entry -> DC.isInstance entry) allEntries
-    let instanceRules = map DC.getInstanceRule instanceDecls
-    let transitionIds = [0 .. length instanceRules]
-    let instanceTuples = zip instanceRules transitionIds
-    instanceFunctions <- mapM (\(entry, id) -> evalStateT (DC.instanceToFunction entry id) 0) instanceTuples
+  result <- case resolveDecls hooglePlusDecls of
+    Left  errMessage -> error $ show errMessage
+    Right env        -> do
+      let symbols   = getSymbols env
+      let foSymbols = Map.filter (not . isHigherOrder . toMonotype) symbols
+      let env' = env { getSymbols = if useHO then symbols else foSymbols }
+      hofNames <- if useHO
+        then readFile (hoPath genOpts) <&> lines
+        else return []
+      let hoSigs = generateHigherOrder (map Text.pack hofNames) symbols
+      return env'
 
-    -- TODO: remove all higher kinded type instances
-    let instanceFunctions' = filter (\x -> not(or [(isInfixOf "Applicative" $ show x),(isInfixOf "Functor" $ show x),(isInfixOf "Monad" $ show x)])) instanceFunctions
+  printStats result
+  writeEnv result
+ where
+  filterEntries entries Nothing = entries
+  filterEntries entries (Just mdls) =
+    Map.filterWithKey (\m _ -> m `elem` mdls) entries
 
-    let declStrs = show (instanceFunctions' ++ ourDecls)
-    let removeParentheses = (\x -> LUtils.replace ")" "" $ LUtils.replace "(" "" x)
-    let tcNames = nub $ map removeParentheses $ filter (\x -> isInfixOf tyclassPrefix x) (splitOn " " declStrs)
-    let tcDecls = map (\x -> Pos (initialPos "") $ TP.DataDecl x ["a"] [] []) tcNames
-
-    let library = concat [ourDecls, dependencyEntries, instanceFunctions', tcDecls, defaultLibrary]
-    let hooglePlusDecls = DC.reorderDecls $ nubOrd $ library
-
-    result <- case resolveDecls hooglePlusDecls moduleNames of
-       Left errMessage -> error $ show errMessage
-       Right env -> do
-            let env' = env { _symbols = if useHO then env ^. symbols
-                                                else Map.filter (not . isHigherOrder . toMonotype) $ env ^. symbols,
-                           _included_modules = Set.fromList (moduleNames)
-                          }
-            print (Map.size $ Map.filter isPolymorphic $ env ^. symbols)
-            print (Map.size $ env ^. symbols)
-            generateHigherOrder genOpts env'
-    printStats result
-    return result
-   where
-     filterEntries entries Nothing = entries
-     filterEntries entries (Just mdls) = Map.filterWithKey (\m _-> m `elem` mdls) entries
-
-     isPolymorphic (ForallT _ _) = True
-     isPolymorphic _ = False
+  isPolymorphic (ForallT _ _) = True
+  isPolymorphic _             = False
 
 
 --------------------------------------------------------------------------------
@@ -141,18 +118,16 @@ generateEnv genOpts = do
 --------------------------------------------------------------------------------
 
 data GroupResult = GroupResult
-  { groupMap            :: Map GroupId (Set Id) -- mapping from group id to Skel and list of function names with the same skel
-  , groupRepresentative :: Map GroupId Id -- mapping of current representative for group.
-  , typeToGroup         :: Map EncodedFunction GroupId
-  , nameToGroup         :: Map Id GroupId
+  { groupMap    :: Map GroupId (Set Id) -- mapping from group id to Skel and list of function names with the same skel
+  , typeToGroup :: Map EncodedFunction GroupId
+  , nameToGroup :: Map Id GroupId
   }
   deriving Eq
 
 emptyGroup :: GroupResult
-emptyGroup = GroupResult { groupMap            = Map.empty
-                         , groupRepresentative = Map.empty
-                         , typeToGroup         = Map.empty
-                         , nameToGroup         = Map.empty
+emptyGroup = GroupResult { groupMap    = Map.empty
+                         , typeToGroup = Map.empty
+                         , nameToGroup = Map.empty
                          }
 
 groupPrefix :: Id
@@ -197,48 +172,31 @@ groupSignatures sigs = do
   let groupMap = Map.fromList $ map toGroupMap namedSigGroups
   let t2g      = Map.fromList $ map toTypeMap namedSigGroups
   let n2g      = Map.unions $ map toNameMap namedSigGroups
-  return $ GroupResult groupMap Map.empty t2g n2g
-
-
-selectRepresentative :: MonadIO m => Set Id -> GroupId -> Set Id -> PNSolver m Id
-selectRepresentative hoArgs gid s = do
-    let setToPickFrom = s
-    strat <- getExperiment coalesceStrategy
-    case strat of
-        First -> return $ Set.elemAt 0 setToPickFrom
-        LeastInstantiated -> pickReprOrder sortOn setToPickFrom
-        MostInstantiated -> pickReprOrder sortDesc setToPickFrom
-    where
-        pickReprOrder sorting setToPickFrom = do
-            nm <- gets $ view (typeChecker . nameMapping)
-            instCounts <- gets $ view (statistics . instanceCounts)
-            let idToCount id = instCounts HashMap.! (nm Map.! id)
-            let countMapping = sorting snd $ map (\x -> (x, idToCount x)) $ Set.toList setToPickFrom
-            writeLog 3 "SelectRepresentative" $ text gid <+> "needs to pick: " <+> pretty countMapping
-            return $ fst $ head countMapping
-
-        sortDesc f = sortBy (on (flip compare) f)
+  return $ GroupResult groupMap t2g n2g
 
 -- filesToEntries reads each file into map of module -> declartions
 -- Filters for modules we care about. If none, use them all.
 filesToEntries :: [FilePath] -> Bool -> IO (Map MdlName [Entry])
 filesToEntries fps renameFunc = do
-    declsByModuleByFile <- mapM (\fp -> DC.readDeclarationsFromFile fp renameFunc) fps
-    return $ Map.unionsWith (++) declsByModuleByFile
+  declsByModuleByFile <- mapM (`readDeclarationsFromFile` renameFunc) fps
+  return $ Map.unionsWith (++) declsByModuleByFile
 
 
 getFiles :: PackageFetchOpts -> IO [FilePath]
-getFiles Hackage{packages=p} = mapM DD.getPkg p >>= (return . concat)
-getFiles Local{files=f} = return f
+getFiles Local { files = f } = return f
 
 printStats :: Environment -> IO ()
 printStats env = do
-  let typeMap = env ^. datatypes
-  let modules = _included_modules env
-  let typeclassInstances = _typClassInstances env
-  let symbols = _symbols env
+  let symbols      = getSymbols env
   let symbolsCount = Map.size symbols
-  let typeCount = Map.size typeMap
-  printf "types: %d; symbols: %d\n" typeCount symbolsCount
-  printf "included types: %s\n" $ show (Map.keys typeMap)
-  printf "included modules: %s\n" $ show (Set.elems modules)
+  let polySymbols  = Map.filter isPolymorphic symbols
+  let polyCount    = Map.size polySymbols
+  let datatypes =
+        Set.unions $ map (allDatatypes . toMonotype) $ Map.elems symbols
+  let typeCount = Set.size datatypes
+
+  printf "types: %d; symbols: %d; polymorphic symbols: %d\n"
+         typeCount
+         symbolsCount
+         polyCount
+  printf "included types: %s\n" $ show (Set.toList datatypes)

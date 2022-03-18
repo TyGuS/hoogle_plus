@@ -34,7 +34,6 @@ import           Text.Regex                     ( Regex
                                                 , subRegex
                                                 )
 
-import           Types.Common
 import           Types.Environment
 import           Types.Filtering
 import           Types.IOFormat                 ( Example(Example) )

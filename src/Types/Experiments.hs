@@ -1,17 +1,13 @@
 module Types.Experiments where
 
-import Data.Data
-import Control.Lens hiding (index, indices)
-import           Data.Map (Map)
-import qualified Data.Map as Map
-import Control.Exception
+import           Control.Lens                   ( makeLenses )
+import           Data.Data                      ( Data
+                                                , Typeable
+                                                )
+import           Data.Map                       ( Map )
+import qualified Data.Map                      as Map
 
-import Types.Type
-import Types.Program
-import Types.IOFormat
-import Compiler.Error
-import Types.Common
-import Types.Generate
+import           Types.Generate
 
 {- Interface -}
 data RefineStrategy =
@@ -29,45 +25,26 @@ data CoalesceStrategy =
   deriving (Data, Show, Eq)
 
 -- | Parameters of program exploration
-data SearchParams = SearchParams {
-  _maxApplicationDepth :: Int,                    -- ^ Maximum depth of application trees
-  _sourcePos :: SourcePos,                -- ^ Source position of the current goal
-  _explorerLogLevel :: Int,               -- ^ How verbose logging is
-  _solutionCnt :: Int,
-  _useHO :: Bool,
-  _refineStrategy :: RefineStrategy,
-  _stopRefine :: Bool,
-  _threshold :: Int,
-  _incrementalSolving :: Bool,
-  _disableDemand :: Bool,
-  _coalesceTypes :: Bool,
-  _coalesceStrategy :: CoalesceStrategy,
-  _disableRelevancy :: Bool,
-  _disableCopy :: Bool,
-  _disableBlack :: Bool,
-  _disableFilter :: Bool
-} deriving (Eq, Show)
+data SearchParams = SearchParams
+  { _maxApplicationDepth :: Int -- ^ Maximum depth of application trees
+  , _logLevel            :: Int -- ^ How verbose logging is
+  , _solutionCnt         :: Int
+  , _useHO               :: Bool
+  , _refineStrategy      :: RefineStrategy
+  , _stopRefine          :: Bool
+  , _threshold           :: Int
+  , _incrementalSolving  :: Bool
+  , _disableDemand       :: Bool
+  , _coalesceTypes       :: Bool
+  , _coalesceStrategy    :: CoalesceStrategy
+  , _disableRelevancy    :: Bool
+  , _disableCopy         :: Bool
+  , _disableBlack        :: Bool
+  , _disableFilter       :: Bool
+  }
+  deriving (Eq, Show)
 
 makeLenses ''SearchParams
-
-data TimeStatistics = TimeStatistics {
-  _encodingTime :: Double,
-  _constructionTime :: Double,
-  _solverTime :: Double,
-  _codeFormerTime :: Double,
-  _refineTime :: Double,
-  _typeCheckerTime :: Double,
-  _totalTime :: Double,
-  _iterations :: Int,
-  _pathLength :: Int,
-  _numOfTransitions :: Map Int Int,
-  _numOfPlaces :: Map Int Int,
-  _duplicateSymbols :: [(Int, Int, Int)]
-} deriving(Show, Eq)
-
-emptyTimeStats = TimeStatistics 0 0 0 0 0 0 0 0 0 Map.empty Map.empty []
-
-makeLenses ''TimeStatistics
 
 data TimeStatUpdate
   = ConstructionTime
@@ -79,24 +56,23 @@ data TimeStatUpdate
   | TotalSearch
 
 -- | Parameters for template exploration
-defaultSearchParams = SearchParams {
-  _maxApplicationDepth = 6,
-  _sourcePos = noPos,
-  _explorerLogLevel = 0,
-  _solutionCnt = 1,
-  _useHO = True,
-  _refineStrategy = TyGarQ,
-  _stopRefine = True,
-  _threshold = 10,
-  _incrementalSolving = False,
-  _disableDemand = False,
-  _coalesceTypes = True,
-  _coalesceStrategy = First,
-  _disableRelevancy = False,
-  _disableCopy = False,
-  _disableBlack = False,
-  _disableFilter = True
-}
+defaultSearchParams :: SearchParams
+defaultSearchParams = SearchParams { _maxApplicationDepth = 6
+                                   , _logLevel            = 0
+                                   , _solutionCnt         = 1
+                                   , _useHO               = True
+                                   , _refineStrategy      = TyGarQ
+                                   , _stopRefine          = True
+                                   , _threshold           = 10
+                                   , _incrementalSolving  = False
+                                   , _disableDemand       = False
+                                   , _coalesceTypes       = True
+                                   , _coalesceStrategy    = First
+                                   , _disableRelevancy    = False
+                                   , _disableCopy         = False
+                                   , _disableBlack        = False
+                                   , _disableFilter       = True
+                                   }
 
 type ExperimentName = String
 
@@ -115,12 +91,14 @@ data ExperimentCourse
   deriving (Show, Data, Typeable)
 
 -- | Parameters of the synthesis
-data SynquidParams = SynquidParams {
-    envPath :: String, -- ^ Path to the environment file
+data SynquidParams = SynquidParams
+  { envPath  :: String
+  , -- ^ Path to the environment file
     jsonPath :: String
-}
+  }
 
-defaultSynquidParams = SynquidParams {
-    Types.Experiments.envPath = defaultEnvPath,
-    jsonPath = defaultJsonPath
-}
+defaultSynquidParams :: SynquidParams
+defaultSynquidParams = SynquidParams
+  { Types.Experiments.envPath = defaultEnvPath
+  , jsonPath                  = defaultJsonPath
+  }

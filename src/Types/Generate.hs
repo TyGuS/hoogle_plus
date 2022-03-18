@@ -1,35 +1,44 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-module Types.Generate where
+module Types.Generate (
+    GenerationOpts(..)
+  , PackageFetchOpts(..)
+  , Entry(..)
+  , HigherOrderOption(..)
+  , Preset(..)
+  , PkgName
+  , MdlName
+  , defaultLocalOpts
+  , defaultGenerationOpts
+  , defaultEnvPath
+  , defaultHoPath
+  , defaultHooglePath
+  , defaultJsonPath
+  ) where
 
-import Types.Common
-
-import Language.Haskell.Exts (Decl)
-import Data.Map (Map)
-import qualified Language.Haskell.Exts.Syntax as HSE
-import Data.Data
-import Data.Typeable
+import           Data.Data                      ( Data
+                                                , Typeable
+                                                )
+import           Data.Map                       ( Map )
+import           Language.Haskell.Exts          ( Decl )
+import qualified Language.Haskell.Exts.Syntax  as HSE
 
 type Version = String
 type PkgName = String
 type MdlName = String
 
-data GenerationOpts = GenerationOpts {
-    instantiationDepth :: Int,
-    enableHOF :: Bool,
-    pkgFetchOpts :: PackageFetchOpts,
-    modules :: [String],
-    envPath :: FilePath,
-    hoPath :: FilePath,
-    hooglePath :: FilePath,
-    hoOption :: HigherOrderOption
-    }
-    deriving (Show, Typeable, Eq)
+data GenerationOpts = GenerationOpts
+  { instantiationDepth :: Int
+  , enableHOF          :: Bool
+  , pkgFetchOpts       :: PackageFetchOpts
+  , modules            :: [String]
+  , envPath            :: FilePath
+  , hoPath             :: FilePath
+  , hooglePath         :: FilePath
+  , hoOption           :: HigherOrderOption
+  }
+  deriving (Show, Typeable, Eq)
 
-data PackageFetchOpts
-    = Hackage {
-        packages :: [String]
-        }
-    | Local {
+newtype PackageFetchOpts
+    = Local {
         files :: [String]
         }
     deriving (Show, Typeable, Eq)
@@ -45,39 +54,37 @@ data HigherOrderOption
     | HOFPartial
     deriving (Eq, Ord, Show, Data, Typeable)
 
-type DependsOn = Map PkgName [Id]
-type HType = HSE.Type ()
-type HName = HSE.Name ()
-type HExp = HSE.Exp ()
 type HDeclaration = HSE.Decl ()
 
-data Preset 
-    = TotalFunctions 
-    | PartialFunctions 
-    | ECTAFull 
-    | ECTAPartial 
+data Preset
+    = TotalFunctions
+    | PartialFunctions
+    | ECTAFull
+    | ECTAPartial
     deriving (Eq, Show, Data, Typeable)
 
-defaultHackageOpts = Hackage {
-    packages = ["base"]
-    }
+defaultLocalOpts :: PackageFetchOpts
+defaultLocalOpts = Local { files = ["working/newbase.txt"] }
 
-defaultLocalOpts = Local {
-    files = ["working/newbase.txt"]
-    }
+defaultGenerationOpts :: GenerationOpts
+defaultGenerationOpts = GenerationOpts { instantiationDepth = 0
+                                       , enableHOF          = True
+                                       , pkgFetchOpts       = defaultLocalOpts
+                                       , modules            = []
+                                       , envPath            = defaultEnvPath
+                                       , hoPath             = defaultHoPath
+                                       , hooglePath         = defaultHooglePath
+                                       , hoOption           = HOFPartial
+                                       }
 
-defaultGenerationOpts = GenerationOpts {
-    instantiationDepth = 0,
-    enableHOF = True,
-    pkgFetchOpts = defaultLocalOpts,
-    modules = [],
-    envPath = defaultEnvPath,
-    hoPath = defaultHoPath,
-    hooglePath = defaultHooglePath,
-    hoOption = HOFPartial
-    }
-
+defaultEnvPath :: FilePath
 defaultEnvPath = "data/env.db"
+
+defaultHoPath :: FilePath
 defaultHoPath = "data/ho.txt"
+
+defaultHooglePath :: FilePath
 defaultHooglePath = "data/hoogle.db"
+
+defaultJsonPath :: FilePath
 defaultJsonPath = "data/builtin.json"

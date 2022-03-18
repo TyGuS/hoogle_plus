@@ -1,16 +1,38 @@
-module Types.Program where
+module Types.Program
+  (
+    -- * Program
+    Program(..)
+  , BareProgram(..)
+  , TProgram
+  , AProgram
+  , RProgram
+  , untyped
+  , uHole
+  , isHole
+  , eraseTypes
+  , symbolsOf
+  , constructorName
+  , unqualifiedName
+  , unqualifyFunc
+  , untypeclass
 
-import Control.Lens
-import           Data.Set ( Set )
-import qualified Data.Set as Set
-import           Data.Text ( Text )
-import qualified Data.Text as Text
-import GHC.Generics
+    -- * Declarations
+  , Declaration(..)
+  , ConstructorSig(..)
+  , Goal(..)
+  , dummyDecl
+  ) where
 
-import Compiler.Error
-import Types.Common
-import Types.Type
-import Types.Environment
+import           Data.Set                       ( Set )
+import qualified Data.Set                      as Set
+import           Data.Text                      ( Text )
+import qualified Data.Text                     as Text
+import           GHC.Generics                   ( Generic )
+
+import           Compiler.Error
+import           Types.Common
+import           Types.Environment
+import           Types.Type
 
 -- | Program skeletons parametrized by information stored symbols, conditionals, and by node types
 data BareProgram t
@@ -21,9 +43,10 @@ data BareProgram t
   deriving (Eq, Ord, Show, Functor, Generic)
 
 -- | Programs annotated with types
-data Program t = Program { content :: BareProgram t
-                         , typeOf :: t
-                         }
+data Program t = Program
+  { content :: BareProgram t
+  , typeOf  :: t
+  }
   deriving (Show, Functor, Generic)
 
 instance Eq (Program t) where
@@ -40,18 +63,20 @@ type AProgram = Program (TypeSkeleton, TypeSkeleton, TypeSkeleton)
 data ConstructorSig = ConstructorSig Id TypeSkeleton
   deriving (Eq, Ord, Show)
 
-data BareDeclaration
+data Declaration
   = TypeDecl Id [Id] TypeSkeleton          -- ^ Type name, variables, and definition
   | FuncDecl Id SchemaSkeleton             -- ^ Function name and signature
   | DataDecl Id [Id] [ConstructorSig]      -- ^ Datatype name, type parameters, predicate parameters, and constructor definitions
   deriving (Eq, Ord, Show)
 
-type Declaration = Pos BareDeclaration
+dummyDecl :: Declaration
+dummyDecl = FuncDecl "_dummy" (Monotype TopT)
 
 -- | Synthesis goal
-data Goal = Goal { gEnvironment :: Environment  -- ^ Enclosing environment
-                 , gSpec :: SchemaSkeleton      -- ^ Specification
-                 }
+data Goal = Goal
+  { gEnvironment :: Environment  -- ^ Enclosing environment
+  , gSpec        :: SchemaSkeleton      -- ^ Specification
+  }
   deriving (Eq, Ord, Show)
 
 --------------------------------------------------------------------------------
@@ -73,10 +98,10 @@ eraseTypes = fmap (const TopT)
 
 symbolsOf :: Program t -> Set Id
 symbolsOf (Program p _) = case p of
-  PSymbol name -> Set.singleton name
-  PApp fun arg -> fun `Set.insert` Set.unions (map symbolsOf arg)
-  PFun x body  -> symbolsOf body
-  _            -> Set.empty
+  PSymbol name  -> Set.singleton name
+  PApp fun arg  -> fun `Set.insert` Set.unions (map symbolsOf arg)
+  PFun x   body -> symbolsOf body
+  _             -> Set.empty
 
 constructorName :: ConstructorSig -> Id
 constructorName (ConstructorSig name _) = name
@@ -85,18 +110,22 @@ constructorName (ConstructorSig name _) = name
 
 unqualifiedName :: Id -> Id
 unqualifiedName "" = ""
-unqualifiedName f = if Text.last name == ')' then '(' `Text.cons` name else name
-  where
-    name = last (Text.splitOn "." f)
+unqualifiedName f  = if Text.last name == ')'
+  then '(' `Text.cons` name
+  else name
+  where name = last (Text.splitOn "." f)
 
 unqualifyFunc :: TProgram -> TProgram
-unqualifyFunc (Program (PSymbol f) t)   = Program (PSymbol (unqualifiedName f)) t
-unqualifyFunc (Program (PApp f args) t) = Program (PApp (unqualifiedName f) (map unqualifyFunc args)) t
-unqualifyFunc (Program (PFun x body) t) = Program (PFun x (unqualifyFunc body)) t
-unqualifyFunc p                         = p
+unqualifyFunc (Program (PSymbol f) t) = Program (PSymbol (unqualifiedName f)) t
+unqualifyFunc (Program (PApp f args) t) =
+  Program (PApp (unqualifiedName f) (map unqualifyFunc args)) t
+unqualifyFunc (Program (PFun x body) t) =
+  Program (PFun x (unqualifyFunc body)) t
+unqualifyFunc p = p
 
 untypeclass :: TProgram -> TProgram
-untypeclass (Program (PSymbol f) t)   | isTyclass f = Program (PSymbol "") t
-untypeclass (Program (PApp f args) t) | isTyclass f = Program (PSymbol "") t
-                                      | otherwise   = Program (PApp f (map untypeclass args)) t
-untypeclass p                                       = p
+untypeclass (Program (PSymbol f) t) | isTyclass f = Program (PSymbol "") t
+untypeclass (Program (PApp f args) t)
+  | isTyclass f = Program (PSymbol "") t
+  | otherwise   = Program (PApp f (map untypeclass args)) t
+untypeclass p = p

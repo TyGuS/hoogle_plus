@@ -1,6 +1,8 @@
--- module HooglePlus.FilterTest (runChecks, checkSolutionNotCrash, checkDuplicates) where
-{-# LANGUAGE FlexibleContexts #-}
-module HooglePlus.FilterTest where
+module HooglePlus.FilterTest
+  ( runChecks
+  , checkSolutionNotCrash
+  , checkDuplicates
+  ) where
 
 import           Control.Exception              ( catch
                                                 , throw
@@ -149,7 +151,8 @@ buildNotCrashProp argNames solution funcSig = formatAlwaysFailProp params
   formatAlwaysFailProp = formatProp "propAlwaysFail" "isFailedResult"
   -- formatNeverFailProp = formatProp "propNeverFail" "not <$> isFailedResult"
 
-  formatProp :: String -> String -> (String, String, String, String) -> String -> String
+  formatProp
+    :: String -> String -> (String, String, String, String) -> String -> String
   formatProp propName body (plain, typed, shows, unwrp) wrappedSolution =
     unwords
       [ wrappedSolution
@@ -313,7 +316,7 @@ runChecks env mdls goalType prog = do
     else Nothing
  where
   SynthesisResult funcSig body argNames = extractSolution env goalType prog
-  checks = [checkSolutionNotCrash, checkDuplicates]
+  checks     = [checkSolutionNotCrash, checkDuplicates]
 
   runChecks_ = and <$> mapM (\f -> f mdls argNames funcSig body) checks
   runPrints state = do

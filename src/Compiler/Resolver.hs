@@ -1,5 +1,3 @@
-{-# LANGUAGE TupleSections, FlexibleContexts, TemplateHaskell #-}
-
 -- | Functions for processing the AST created by the Parser (eg filling in unknown types, verifying that refinement formulas evaluate to a boolean, etc.)
 module Compiler.Resolver (
     resolveDecls
@@ -77,24 +75,21 @@ incCounter = modify $ \s -> s { getIdCount = getIdCount s + 1 }
 --------------------------------------------------------------------------------
 
 -- | Convert a parsed program AST into a list of synthesis goals and qualifier maps
-resolveDecls :: [Declaration] -> [MdlName] -> Either ErrorMessage Environment
-resolveDecls declarations moduleNames =
+resolveDecls :: [Declaration] -> Either ErrorMessage Environment
+resolveDecls declarations =
   runExcept (evalStateT go initResolverState) >>= Right
   where
     go :: Resolver Environment
     go = do
       -- Pass 1: collect all declarations and resolve sorts, but do not resolve refinement types yet
-      env <- foldM (\env d -> resolveDeclaration (extractPos d) env) emptyEnv declarations
+      env <- foldM (flip resolveDeclaration) emptyEnv declarations
       -- Pass 2: resolve refinement types in signatures
-      foldM (\env d -> resolveSignatures (extractPos d) env) env declarations
-
-    extractPos :: Declaration -> BareDeclaration
-    extractPos (Pos _ d) = d
+      foldM (flip resolveSignatures) env declarations
 
 throwResError :: Doc -> Resolver a
-throwResError descr = throwError $ ErrorMessage ResolutionError noPos descr
+throwResError descr = throwError $ ErrorMessage ResolutionError descr
 
-resolveDeclaration :: BareDeclaration -> Environment -> Resolver Environment
+resolveDeclaration :: Declaration -> Environment -> Resolver Environment
 resolveDeclaration (TypeDecl typeName typeVars typeBody) env = do
   typeBody' <- resolveType (getBoundTypeVars env) typeBody
   let extraTypeVars = typeVarsOf typeBody' Set.\\ Set.fromList typeVars
@@ -107,7 +102,7 @@ resolveDeclaration (DataDecl dtName tParams ctors) env = do
   addDatatype (DatatypeDef dtName tParams (map constructorName ctors))
   return $ foldr (\(ConstructorSig name typ) -> addComponent name (Monotype typ)) env ctors
 
-resolveSignatures :: BareDeclaration -> Environment -> Resolver Environment
+resolveSignatures :: Declaration -> Environment -> Resolver Environment
 resolveSignatures (FuncDecl name _) env = do
   case lookupSymbol name env of
     Nothing  -> error "resolveSignatures: function not found"

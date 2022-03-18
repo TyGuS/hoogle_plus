@@ -52,7 +52,6 @@ parseFromFile aParser fname = do
 toErrorMessage :: ParseError -> ErrorMessage
 toErrorMessage err = ErrorMessage
   ParseError
-  (errorPos err)
   (vsep $ map text $ tail $ lines $ showErrorMessages "or"
                                                       "unknown parse error"
                                                       "expecting"
@@ -163,10 +162,9 @@ dot = Token.dot lexer
 ----------- Parsing Declarations ------------
 
 parseDeclaration :: Parser Declaration
-parseDeclaration =
-  attachPosBefore (choice [parseTypeDecl, parseFuncDecl] <?> "declaration")
+parseDeclaration = choice [parseTypeDecl, parseFuncDecl] <?> "declaration"
 
-parseTypeDecl :: Parser BareDeclaration
+parseTypeDecl :: Parser Declaration
 parseTypeDecl = do
   reserved "type"
   typeName <- parseTypeName
@@ -175,7 +173,7 @@ parseTypeDecl = do
   TypeDecl typeName typeVars <$> parseType
 
 
-parseFuncDecl :: Parser BareDeclaration
+parseFuncDecl :: Parser Declaration
 parseFuncDecl = do
   funcName <- parseIdentifier
   reservedOp "::"
@@ -280,10 +278,6 @@ parseTypeName = try $ do
 --------------------------------------------------------------------------------
 ----------------------------- Parsing Utilities --------------------------------
 --------------------------------------------------------------------------------
-
--- | 'attachPosBefore' @p@ : parser that behaves like @p@, but also attaches the source position before the first token it parsed to the result
-attachPosBefore :: Parser a -> Parser (Pos a)
-attachPosBefore = liftM2 Pos getPosition
 
 checkNum :: Text -> Bool
 checkNum t = foldr ((&&) . isDigit) True (Text.unpack t)
