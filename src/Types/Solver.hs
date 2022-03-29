@@ -1,8 +1,12 @@
 module Types.Solver where
 
-import           Control.Lens                   ( makeLenses )
+import           Control.Lens                   ( makeLenses
+                                                , view
+                                                )
 import           Control.Monad.Logic            ( LogicT )
-import           Control.Monad.State            ( StateT )
+import           Control.Monad.State            ( StateT
+                                                , gets
+                                                )
 import           Data.HashMap.Strict            ( HashMap )
 import qualified Data.HashMap.Strict           as HashMap
 import           Data.Map                       ( Map )
@@ -118,3 +122,5 @@ data SearchResult = NotFound
                   | Found (TProgram, AssociativeExamples)
                   | MoreRefine (TProgram, TypeSkeleton)
                   deriving(Eq)
+
+getExperiment exp = gets $ view (searchParams . exp)

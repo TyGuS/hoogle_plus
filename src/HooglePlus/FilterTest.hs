@@ -2,6 +2,9 @@ module HooglePlus.FilterTest
   ( runChecks
   , checkSolutionNotCrash
   , checkDuplicates
+  , runInterpreter'
+  , generateIOPairs
+  , parseTypeString
   ) where
 
 import           Control.Exception              ( catch
@@ -22,12 +25,14 @@ import           Data.Maybe                     ( fromMaybe
                                                 )
 import qualified Data.Set                      as Set
                                          hiding ( map )
+import qualified Data.Text                     as Text
 import           Language.Haskell.Exts.Parser   ( ParseResult(ParseOk)
                                                 , parseType
                                                 )
 import           Language.Haskell.Exts.Syntax
 import           Language.Haskell.Interpreter
-                                         hiding ( get
+                                         hiding ( Id
+                                                , get
                                                 , set
                                                 )
 import qualified Language.Haskell.Interpreter  as LHI
@@ -39,9 +44,9 @@ import           Test.SmallCheck.Drivers
 
 import           HooglePlus.Utils
 import           Paths_HooglePlus
+import           Types.Common
 import           Types.Environment
 import           Types.Filtering
-import           Types.IOFormat                 ( Example(Example) )
 import           Types.Pretty
 import           Types.Program
 import           Types.Type              hiding ( typeOf )
@@ -271,6 +276,7 @@ validateSolution modules argNames solution funcSig time =
 
   caseToInput :: Either InterpreterError SmallCheckResult -> Example
   caseToInput (Right (_, example : _)) = example
+  caseToInput _ = error "caseToInput: no example returned"
 
   preprocessOutput :: String -> String -> String
   preprocessOutput input output = trace
@@ -384,13 +390,14 @@ checkDuplicates modules argNames sigStr solution = do
       passTest <- and <$> zipWithM processResult results solns
 
       fs'@(FilterState is solns _ examples) <- get
-      if passTest then (put fs' { solutions = solution : solns }) else (put fs)
+      if passTest then put fs' { solutions = solution : solns } else put fs
 
       return passTest
 
  where
   funcSig = (instantiateSignature . parseTypeString) sigStr
   caseToInput (Just (AtLeastTwo i_1 _ i_2 _)) = [i_1, i_2]
+  caseToInput _ = error "caseToInput: expect AtLeastTwo"
 
   filterRelated i1 i2 (Example inputX _) = inputX == i1 || inputX == i2
   filterSuccess (Left (UnknownError "timeout")) = False
@@ -417,9 +424,9 @@ checkDuplicates modules argNames sigStr solution = do
               , (unqualifyFunc otherSolution, otherSolution)
               ]
         put $ state
-          { inputs                = [i1, i2] ++ is
+          { filterInputs          = [i1, i2] ++ is
           , differentiateExamples =
-            (zip sols (filter (filterRelated i1 i2) newExamples)) ++ examples
+            zip sols (filter (filterRelated i1 i2) newExamples) ++ examples
           }
         return True
       _ -> return False
@@ -455,7 +462,7 @@ showParams argNames args = (plain, typed, shows, unwrp)
 -- ******** Example Generator ********
 
 generateIOPairs
-  :: [String]
+  :: [Id]
   -> String
   -> FunctionSignature
   -> [String]
@@ -468,7 +475,8 @@ generateIOPairs
   -> IO (Either InterpreterError GeneratorResult)
 generateIOPairs modules solution funcSig argNames numPairs timeInMicro interpreterTimeInMicro depth existingResults existingInputs
   = runInterpreter' interpreterTimeInMicro $ do
-    setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
+    setImportsQ
+      (zip (map Text.unpack modules) (repeat Nothing) ++ frameworkModules)
     interpret property (as :: IO GeneratorResult) >>= liftIO
 
  where

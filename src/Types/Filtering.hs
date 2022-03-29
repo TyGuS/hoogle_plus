@@ -4,11 +4,15 @@ import           Control.Exception              ( Exception )
 import           Control.Monad.State            ( StateT )
 import           Data.List                      ( intercalate )
 import           Data.Typeable                  ( Typeable )
+import           GHC.Generics                   ( Generic )
 import           Text.Printf                    ( printf )
 
-import           Test.SmallCheck.Drivers        ( PropertyFailure )
+import           Data.Aeson                     ( FromJSON
+                                                , ToJSON
+                                                )
+import           Data.Serialize                 ( Serialize )
 
-import           Types.IOFormat                 ( Example )
+import           Test.SmallCheck.Drivers        ( PropertyFailure )
 import           Types.Pretty
 import           Types.Program
 
@@ -52,6 +56,20 @@ frameworkModules =
 --------------------------------------------------------------------------------
 ---------------------------------- Types ---------------------------------------
 --------------------------------------------------------------------------------
+
+
+data Example = Example
+  { inputs :: [String]
+  , output :: String
+  }
+  deriving (Eq, Ord, Show, Generic)
+
+instance Pretty Example where
+  pretty e = hsep [hsep (map pretty $ inputs e), "==>", pretty (output e)]
+
+instance ToJSON Example
+instance FromJSON Example
+instance Serialize Example
 
 type SmallCheckResult = (Maybe PropertyFailure, [Example])
 type GeneratorResult = [Example]
@@ -116,14 +134,14 @@ instance Show FunctionSignature where
     argsExpr        = (intercalate " -> " . map show) (argsType ++ [returnType])
 
 data FilterState = FilterState
-  { inputs                :: [[String]]
+  { filterInputs          :: [[String]]
   , solutions             :: [TProgram]
   , solutionExamples      :: [(SolutionPair, FunctionCrashDesc)]
   , differentiateExamples :: [(SolutionPair, Example)]
   }
   deriving Eq
 
-emptyFilterState = FilterState { inputs                = []
+emptyFilterState = FilterState { filterInputs          = []
                                , solutions             = []
                                , solutionExamples      = []
                                , differentiateExamples = []

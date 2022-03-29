@@ -1,33 +1,13 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-
 module HooglePlus.IOFormat(
     decodeInput,
     encodeOutput,
     encodeWithPrefix,
-    searchTypes,
-    searchResults,
     searchExamples,
     readEnv,
     readBuiltinData,
     printResult,
     parseQueryType
     ) where
-
-import Types.IOFormat
-import Types.InfConstraint (InfStats(..))
-import Types.Experiments
-import Types.Environment
-import Types.Type
-import Types.Filtering (defaultTimeoutMicro, defaultGenerationDepth, defaultInterpreterTimeoutMicro, defaultGenerationTimeoutMicro)
-import Synquid.Parser (parseSchema, parseProgram)
-import Synquid.Resolver (ResolverState(..), initResolverState, resolveSchema)
-import Synquid.Type
-import Synquid.Pretty
-import Examples.ExampleChecker
-import Examples.InferenceDriver
-import Examples.Utils
-import HooglePlus.FilterTest (generateIOPairs, parseTypeString)
-import HooglePlus.Utils (niceInputs, mkFunctionSigStr)
 
 import Control.Concurrent.Chan
 import Control.Monad
@@ -46,12 +26,137 @@ import qualified Data.Aeson as A
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy.Char8 as LB
+import qualified Data.ByteString.Builder as LB
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TL
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Text.Parsec.Indent
 import Text.Parsec.Pos
 import Text.Printf
 import qualified Language.Haskell.Interpreter as LHI
+import Data.Text ( Text )
+import qualified Data.Text as Text
+import GHC.Generics ( Generic )
+import Data.Data ( Data )
+import Data.Map ( Map )
+
+import Control.DeepSeq ( NFData )
+import Data.Aeson ( FromJSON, ToJSON )
+import Hoogle
+import Text.PrettyPrint.ANSI.Leijen ( string )
+
+import Types.Experiments
+import Types.Environment
+import Types.Type
+import Types.Program
+import Types.Filtering
+import Types.Pretty
+import HooglePlus.FilterTest
+import HooglePlus.Utils
+import Utility.Utils
+import Compiler.Parser
+import Compiler.Resolver
+import Types.Common
+import qualified Data.Text.Internal.Builder as TL
+
+
+--------------------------------------------------------------------------------
+--------------------------- Command Line Input Format --------------------------
+--------------------------------------------------------------------------------
+
+outputPrefix :: Text
+outputPrefix = "RESULTS:"
+
+data QueryType = SearchPrograms
+               | SearchTypes
+               | SearchResults
+               | SearchExamples
+  deriving(Eq, Data, Show, Generic)
+
+instance FromJSON QueryType
+instance ToJSON QueryType
+
+type ErrorMessage = String
+type TypeQuery = String
+
+data QueryInput = QueryInput
+  { query      :: TypeQuery
+  , inExamples :: [Example]
+  , inArgNames :: [String]
+  }
+  deriving (Eq, Show, Generic)
+
+instance FromJSON QueryInput
+instance ToJSON QueryInput
+
+data FunctionDoc = FunctionDoc
+  { functionName :: String
+  , functionSig  :: String
+  , functionDesc :: String
+  }
+  deriving (Eq, Show, Generic, NFData)
+
+instance ToJSON FunctionDoc
+instance Pretty FunctionDoc where
+  pretty (FunctionDoc n sig desc) = string $ unlines
+    ["Function: " ++ n, "Signature: " ++ sig, "Description: " ++ desc]
+
+data ResultEntry = ResultEntry
+  { qualSolution   :: String
+  , unqualSolution :: String
+  , outExamples    :: [Example]
+  }
+  deriving (Eq, Show, Generic)
+
+instance ToJSON ResultEntry
+
+data QueryOutput = QueryOutput
+  { outCandidates :: [ResultEntry]
+  , outError      :: String
+  , outDocs       :: [FunctionDoc]
+  }
+  deriving (Eq, Show, Generic)
+
+instance ToJSON QueryOutput
+
+data ExecInput = ExecInput
+  { execQuery :: TypeQuery
+  , execArgs  :: [String]
+  , execProg  :: String
+  }
+  deriving (Eq, Show, Generic)
+
+instance FromJSON ExecInput
+
+data ExecOutput = ExecOutput
+  { execError  :: String
+  , execResult :: String
+  }
+  deriving (Eq, Show, Generic)
+
+instance ToJSON ExecOutput
+
+data ExamplesInput = ExamplesInput
+  { exampleQuery    :: TypeQuery
+  , exampleProgram  :: String
+  , exampleExisting :: [Example]
+  }
+  deriving (Eq, Show, Generic)
+
+instance FromJSON ExamplesInput
+
+data ListOutput a = ListOutput
+  { examplesOrTypes :: [a]
+  , tqError         :: String
+  }
+  deriving (Eq, Generic)
+
+instance ToJSON a => ToJSON (ListOutput a)
+
+--------------------------------------------------------------------------------
+--------------------------- IO Format Parsing ----------------------------------
+--------------------------------------------------------------------------------
 
 -- parse the input json string
 -- includes: type query, examples
@@ -59,83 +164,58 @@ decodeInput :: ByteString -> QueryInput
 decodeInput bs = case mbInput of
                    Just i -> i
                    Nothing -> error "error parsing input json string"
-    where 
+    where
         mbInput = A.decode bs :: Maybe QueryInput
 
 -- output the result into a json string
 -- includes: solutions, each solution is an ast
 -- accompanied with several examples
 encodeOutput :: QueryOutput -> ByteString
-encodeOutput out = A.encode out
+encodeOutput = A.encode
 
-instance Show QueryOutput where
-    show = show . encodeOutput 
+instance Pretty QueryOutput where
+    pretty = pretty . show . encodeOutput
 
+-- | TODO: redesign this part
 readEnv :: FilePath -> IO Environment
 readEnv envPathIn = do
     doesExist <- doesFileExist envPathIn
-    when (not doesExist) (error ("Please run `stack exec -- hplus generate -p [PACKAGES]` to generate database first"))
+    unless doesExist (error "Please run `stack exec -- hplus generate -p [PACKAGES]` to generate database first")
     envRes <- S.decode <$> B.readFile envPathIn
     case envRes of
         Left err -> error err
         Right env -> return env
 
-readBuiltinData :: SynquidParams -> Environment -> IO Environment
+type BuiltinExamples = Map SchemaSkeleton [Example]
+
+readBuiltinData :: SynquidParams -> Environment -> IO BuiltinExamples
 readBuiltinData synquidParams env = do
     let jsonPathIn = jsonPath synquidParams
     doesExist <- doesFileExist jsonPathIn
-    when (not doesExist) (error "cannot find builtin json file")
+    unless doesExist (error "cannot find builtin json file")
     json <- readFile jsonPathIn
     let mbBuildObjs = A.decode (LB.pack json) :: Maybe [QueryInput]
     case mbBuildObjs of
         Just buildObjs -> do
             let candObjs = map transformObj buildObjs
             let candMap = Map.fromList candObjs
-            return $ env {_queryCandidates = candMap}
+            return candMap
         Nothing -> error "Invalid format of builtin queries, should be in json format"
     where
         transformObj (QueryInput q exs _) = (parseQueryType env q, exs)
 
 parseQueryType :: Environment -> String -> SchemaSkeleton
 parseQueryType env str = let
-    parseResult = flip evalState (initialPos "type") $ 
+    parseResult = flip evalState (initialPos "type") $
                   runIndentParserT parseSchema () "" str
-    resolveResult t = runExcept $ evalStateT (resolveSchema t) $
-                      initResolverState { _environment = env }
+    resolveResult t = runExcept $ evalStateT (resolveSchema (getBoundTypeVars env) t) initResolverState
     in case parseResult of
            Left parseErr -> error "something wrong in the builtin json"
            Right t -> case resolveResult t of
                           Left err -> error $ "resolve fails" ++ show err ++ " type " ++ show t
                           Right s -> s
 
-searchTypes :: SynquidParams -> String -> Int -> IO (ListOutput String, InfStats)
-searchTypes synquidParams inStr num = do
-    let input = decodeInput (LB.pack inStr)
-    let exquery = inExamples input
-    env <- readEnv $ envPath synquidParams
-    let mdls = Set.toList $ env ^. included_modules
-    let mkFun ex = printf "(%s)" (intercalate ", " $ inputs ex ++ [output ex])
-    exTypes <- mapM (parseExample mdls . mkFun) exquery
-    let (invalidTypes, validSchemas) = partitionEithers exTypes
-    let argNames = inArgNames input
-    resultObj <- if null invalidTypes then possibleQueries env argNames exquery validSchemas
-                                      else return $ (ListOutput [] (unlines invalidTypes), InfStats (-1) (-1))
-    printResult $ encodeWithPrefix $ fst resultObj
-    return resultObj
-    where
-        renameVars t = 
-            let freeVars = Set.toList $ typeVarsOf t
-                validVars = foldr delete seqChars freeVars
-                substVars = foldr delete freeVars seqChars
-                substMap = Map.fromList $ zip substVars $ map vart_ validVars
-             in stypeSubstitute substMap t
-
-        possibleQueries env argNames exquery exTypes = do
-            (generalTypes, stats) <- getExampleTypes env argNames exTypes num
-            if null generalTypes then return $ (ListOutput [] "Cannot find type for your query", InfStats 0 0)
-                                 else return $ (ListOutput generalTypes "", stats)
-
-prepareEnvFromInput :: SynquidParams -> String -> IO (TypeQuery, [String], String, Environment)
+prepareEnvFromInput :: SynquidParams -> String -> IO (TypeQuery, [String], String, BuiltinExamples)
 prepareEnvFromInput synquidParams inStr = do
     let mbInput = A.decode (LB.pack inStr) :: Maybe ExecInput
     let input = case mbInput of
@@ -147,11 +227,11 @@ prepareEnvFromInput synquidParams inStr = do
     -- but it will also be shown in the results
     let tquery = execQuery input
     env <- readEnv $ envPath synquidParams
-    env' <- readBuiltinData synquidParams env
-    return (tquery, args, prog, env')
+    buildinData <- readBuiltinData synquidParams env
+    return (tquery, args, prog, buildinData)
 
-searchExamples :: SynquidParams -> String -> Int -> IO ()
-searchExamples synquidParams inStr num = do
+searchExamples :: SynquidParams -> [Id] -> String -> Int -> IO ()
+searchExamples synquidParams mdls inStr num = do
     let mbInput = A.decode (LB.pack inStr) :: Maybe ExamplesInput
     let input = case mbInput of
                     Just i -> i
@@ -161,13 +241,10 @@ searchExamples synquidParams inStr num = do
     -- TODO: maybe we need to do a type checking before execution
     -- but it will also be shown in the results
     let namedQuery = exampleQuery input
-    
-    env <- readEnv $ envPath synquidParams
-    env' <- readBuiltinData synquidParams env
-    let mdls = Set.toList $ env' ^. included_modules
-    let candMap = env' ^. queryCandidates
 
-    let goalTyp = parseQueryType env' namedQuery
+    env <- readEnv $ envPath synquidParams
+    candMap <- readBuiltinData synquidParams env
+    let goalTyp = parseQueryType env namedQuery
     let unnamedQuery = show (toMonotype goalTyp)
     let funcSig = parseTypeString unnamedQuery
     let argNames = words (getArgNames prog)
@@ -205,22 +282,38 @@ searchExamples synquidParams inStr num = do
              in printf "[%s]" (intercalate "," convElmts)
         toNormalFunctions f = f
 
-searchResults :: SynquidParams -> String -> IO ()
-searchResults synquidParams inStr = do
-    (tquery, args, prog, env) <- prepareEnvFromInput synquidParams inStr
-    let mdls = Set.toList $ env ^. included_modules
-    -- first parse type query and get rid of the arg names from the signature
-    let goalTyp = parseQueryType env tquery
-    let goalTypStr = mkFunctionSigStr (breakdown (toMonotype goalTyp))
-    execResult <- catch (execExample mdls env goalTypStr prog (Example args "??"))
-                        (\(e :: SomeException) -> return $ Left (show e))
-    let execJson = case execResult of
-                        Left err -> ExecOutput err ""
-                        Right r -> ExecOutput "" r
-    printResult $ encodeWithPrefix execJson
 
 encodeWithPrefix :: A.ToJSON a => a -> LB.ByteString
-encodeWithPrefix obj = LB.append (LB.pack outputPrefix) (A.encode obj)
+encodeWithPrefix obj = LB.append (LB.toLazyByteString $ TL.encodeUtf8Builder $ TL.fromStrict outputPrefix) (A.encode obj)
 
 printResult :: LB.ByteString -> IO ()
 printResult bs = putStrLn (LB.unpack bs)
+
+toOutput :: Environment -> TProgram -> AssociativeExamples -> IO QueryOutput
+toOutput env soln exs = do
+    let symbols = Set.toList $ symbolsOf soln
+    let args = getArguments env
+    let argNames = map fst args
+    let argDocs = map (\(n, ty) -> FunctionDoc (Text.unpack n) (show ty) "") args
+    let symbolsWoArgs = symbols \\ argNames
+    entries <- mapM mkEntry exs
+    return $ QueryOutput entries "" argDocs
+    where
+        mkEntry ((unqualSol, qualSol), ex) = do
+            ex' <- mapM niceInputs ex
+            let qualSol' = toHaskellSolution $ show qualSol
+            let unqualSol' = toHaskellSolution $ show unqualSol
+            return (ResultEntry qualSol' unqualSol' ex')
+        hoogleIt syms = do
+            dbPath <- Hoogle.defaultDatabaseLocation
+            Hoogle.withDatabase dbPath (\db -> do
+                let targets = map (head . Hoogle.searchDatabase db) syms
+                let docs = map targetToDoc targets
+                return docs)
+
+        targetToDoc tg = let wholeSig = unHTML $ Hoogle.targetItem tg
+                             segs = splitOn " :: " wholeSig
+                             name = head segs
+                             sig = unwords $ tail segs
+                             doc = unHTML $ Hoogle.targetDocs tg
+                          in FunctionDoc name sig doc

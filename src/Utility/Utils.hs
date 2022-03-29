@@ -20,6 +20,8 @@ module Utility.Utils
   , removeLast
   , stripSuffix
   , unHTML
+  , appendSuffix
+  , appendIndex
 
     -- * Other
   , asInteger
@@ -157,6 +159,12 @@ innerTextHTML []         = []
 
 unHTML :: String -> String
 unHTML = unescapeHTML . innerTextHTML
+
+appendSuffix :: Text -> String -> Text
+appendSuffix a b = Text.pack $ Text.unpack a ++ b
+
+appendIndex :: Text -> Int -> Text
+appendIndex b i = appendSuffix b (show i)
 
 --------------------------------------------------------------------------------
 --------------------------- Other Operations -----------------------------------

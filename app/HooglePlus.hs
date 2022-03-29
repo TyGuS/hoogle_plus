@@ -257,6 +257,47 @@ mode = cmdArgsMode $ modes [synt, generate, evaluation] &=
 precomputeGraph :: GenerationOpts -> IO ()
 precomputeGraph opts = generateEnv opts >>= writeEnv (Types.Generate.envPath opts)
 
+searchTypes :: SynquidParams -> String -> Int -> IO (ListOutput String, InfStats)
+searchTypes synquidParams inStr num = do
+    let input = decodeInput (LB.pack inStr)
+    let exquery = inExamples input
+    env <- readEnv $ envPath synquidParams
+    let mdls = Set.toList $ env ^. included_modules
+    let mkFun ex = printf "(%s)" (intercalate ", " $ inputs ex ++ [output ex])
+    exTypes <- mapM (parseExample mdls . mkFun) exquery
+    let (invalidTypes, validSchemas) = partitionEithers exTypes
+    let argNames = inArgNames input
+    resultObj <- if null invalidTypes then possibleQueries env argNames exquery validSchemas
+                                      else return (ListOutput [] (unlines invalidTypes), InfStats (-1) (-1))
+    printResult $ encodeWithPrefix $ fst resultObj
+    return resultObj
+    where
+        renameVars t =
+            let freeVars = Set.toList $ typeVarsOf t
+                validVars = foldr delete seqChars freeVars
+                substVars = foldr delete freeVars seqChars
+                substMap = Map.fromList $ zip substVars $ map vart_ validVars
+             in stypeSubstitute substMap t
+
+        possibleQueries env argNames exquery exTypes = do
+            (generalTypes, stats) <- getExampleTypes env argNames exTypes num
+            if null generalTypes then return (ListOutput [] "Cannot find type for your query", InfStats 0 0)
+                                 else return (ListOutput generalTypes "", stats)
+                                 
+searchResults :: SynquidParams -> String -> IO ()
+searchResults synquidParams inStr = do
+    (tquery, args, prog, env) <- prepareEnvFromInput synquidParams inStr
+    let mdls = Set.toList $ env ^. included_modules
+    -- first parse type query and get rid of the arg names from the signature
+    let goalTyp = parseQueryType env tquery
+    let goalTypStr = mkFunctionSigStr (breakdown (toMonotype goalTyp))
+    execResult <- catch (execExample mdls env goalTypStr prog (Example args "??"))
+                        (\(e :: SomeException) -> return $ Left (show e))
+    let execJson = case execResult of
+                        Left err -> ExecOutput err ""
+                        Right r -> ExecOutput "" r
+    printResult $ encodeWithPrefix execJson
+
 -- | Parse and resolve file, then synthesize the specified goals
 executeSearch :: SynquidParams -> SearchParams -> String -> IO ()
 executeSearch synquidParams searchParams inStr = catch (do

@@ -6,7 +6,7 @@ module Types.Pretty
   , renderPretty
   , putDoc
   , prettyShow
-  , showSTypeWithName
+  , prettyTypeWithName
   ,
   -- * Basic documents
     empty
@@ -214,24 +214,21 @@ instance Pretty TypeSkeleton where
   pretty TopT = string "_"
   pretty BotT = string "⊥"
 
-prettySTypeWithName :: TypeSkeleton -> Doc
-prettySTypeWithName (FunctionT x t1 t2)
+prettyTypeWithName :: TypeSkeleton -> Doc
+prettyTypeWithName (FunctionT x t1 t2)
   | isFunctionType t1
   = text x
     <>  operator ":"
     <>  hlParens (pretty t1)
     <+> operator "->"
-    <+> prettySTypeWithName t2
+    <+> prettyTypeWithName t2
   | otherwise
   = text x
     <>  operator ":"
     <>  pretty t1
     <+> operator "->"
-    <+> prettySTypeWithName t2
-prettySTypeWithName t = pretty t
-
-showSTypeWithName :: TypeSkeleton -> String
-showSTypeWithName = show . plain . prettySTypeWithName
+    <+> prettyTypeWithName t2
+prettyTypeWithName t = pretty t
 
 instance Pretty SchemaSkeleton where
   pretty (Monotype t    ) = pretty t

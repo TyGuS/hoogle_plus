@@ -8,6 +8,8 @@ module Types.Type
   , listType
   , pairType
   , funcType
+  , boolType
+  , intType
 
     -- * Type queries
   , allArgTypes
@@ -138,6 +140,12 @@ instance Arbitrary TypeSkeleton where
   shrink (DatatypeT _ ts   ) = ts ++ concatMap shrink ts
   shrink (FunctionT _ t1 t2) = [t1, t2] ++ concatMap shrink [t1, t2]
   shrink _                   = []
+
+boolType :: TypeSkeleton
+boolType = DatatypeT "Bool" []
+
+intType :: TypeSkeleton
+intType = DatatypeT "Int" []
 
 listType :: TypeSkeleton -> TypeSkeleton
 listType t = DatatypeT "List" [t]

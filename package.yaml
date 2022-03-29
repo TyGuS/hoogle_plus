@@ -83,13 +83,15 @@ default-extensions:
 - DeriveGeneric
 - FlexibleContexts
 - FlexibleInstances
+- MultiParamTypeClasses
 - OverloadedStrings
 - Rank2Types
+- ScopedTypeVariables
 - TemplateHaskell
+- TupleSections
 - TypeSynonymInstances
-- ViewPatterns
-- MultiParamTypeClasses
 - UndecidableInstances
+- ViewPatterns
 
 library:
   source-dirs:

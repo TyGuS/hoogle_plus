@@ -6,7 +6,10 @@ module Types.Fresh
   ) where
 
 import           Control.Monad                  ( foldM )
-import           Control.Monad.State            ( StateT )
+import           Control.Monad.State            ( StateT, get, put )
+import           Control.Monad.Logic            ( LogicT )
+import           Control.Monad.Trans            ( lift )
+import Data.Map ( Map )
 import qualified Data.Map                      as Map
 import           Data.Maybe                     ( fromJust )
 import           Data.Text                      ( Text )
@@ -17,6 +20,13 @@ import           Types.Type
 
 class Monad m => Fresh s m where
   nextCounter :: Id -> StateT s m Int
+
+instance Monad m => Fresh (Map Id Int) m where
+  nextCounter prefix = do
+    counters <- get
+    let counter = fromJust $ Map.lookup prefix counters
+    put $ Map.insert prefix (counter + 1) counters
+    return counter
 
 freshId :: Fresh s m => [Id] -> Id -> StateT s m Id
 freshId bvs prefix = do

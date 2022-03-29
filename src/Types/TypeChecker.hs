@@ -25,7 +25,14 @@ module Types.TypeChecker
 import           Control.Lens                   ( (^.)
                                                 , view
                                                 )
-import           Control.Monad.State
+import Control.Monad.State
+    ( msum,
+      gets,
+      modify,
+      evalState,
+      MonadState(put, get),
+      State,
+      StateT )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.Maybe                     ( fromMaybe

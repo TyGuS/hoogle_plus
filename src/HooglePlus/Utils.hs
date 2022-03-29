@@ -36,8 +36,6 @@ import           Text.Regex                     ( Regex
 
 import           Types.Environment
 import           Types.Filtering
-import           Types.IOFormat                 ( Example(Example) )
-import qualified Types.IOFormat                as IOFormat
 import           Types.Program
 import           Types.Type
 import           Utility.Utils
@@ -125,7 +123,7 @@ collectExamples solution (FilterState _ sols samples examples) =
  where
   [(_, desc)] = filter ((== solution) . fst) samples
   checkedExs  = zip (repeat solution) (descToExample desc)
-  mkGroup xs = (fst (head xs), nubOrdOn IOFormat.inputs $ map snd xs)
+  mkGroup xs = (fst (head xs), nubOrdOn inputs $ map snd xs)
 
 descToExample :: FunctionCrashDesc -> [Example]
 descToExample (AlwaysSucceed   ex ) = [ex]
