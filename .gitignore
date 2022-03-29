@@ -91,3 +91,6 @@ output/
 log
 
 .vs/
+
+# ignore any changes to the dataset file, as it is generated locally
+Dataset.hs
