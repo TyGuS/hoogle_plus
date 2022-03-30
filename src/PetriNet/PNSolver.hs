@@ -24,6 +24,7 @@ import Debug.Trace
 import Text.Printf
 import System.IO
 import qualified Data.Text as Text
+import Data.Text ( Text )
 
 import Language.Haskell.Exts.Parser (ParseResult(..), parseExp)
 import qualified Hoogle
@@ -65,9 +66,8 @@ encodeFunction id t = EncodedFunction id [] [t]
 instantiate :: MonadIO m => Environment -> Map Id SchemaSkeleton -> PNSolver m (Map Id TypeSkeleton)
 instantiate env sigs = do
     modify $ set (refineState . toRemove) []
-    noBlack <- getExperiment disableBlack
     blacks <- liftIO $ readFile "blacklist.txt"
-    let sigs' = if noBlack then sigs else Map.withoutKeys sigs (Set.fromList $ map Text.pack $ words blacks)
+    let sigs' = Map.withoutKeys sigs (Set.fromList $ map Text.pack $ words blacks)
     Map.fromList <$> instantiate' sigs'
   where
     instantiate' sigs = do
@@ -75,7 +75,7 @@ instantiate env sigs = do
         let typs = typesInCover tree
         writeLog 2 "instantiate" $ text "Current abstract types:" <+> pretty tree
         let bound = getBoundTypeVars env
-        sigs' <- Map.toList <$> mapM (freshType bound) sigs
+        sigs' <- Map.toList <$> mapM (freshType bound . toMonotype) sigs
         foldM (\acc -> (<$>) (acc ++) . uncurry (instantiateWith env typs)) [] sigs'
 
 -- add Pair_match function as needed
@@ -86,43 +86,49 @@ instantiateWith env typs id t = do
     instMap <- gets $ view (refineState . instanceMapping)
     groups <- gets $ view groupState
     let nameMap = nameToGroup groups
-    let bound = getBoundTypeVars env
-    if id == "fst"
+    let bvs = getBoundTypeVars env
+    (sigId, sigs) <- if id == "fst"
        then do -- this is hack, hope to get rid of it sometime
-           first <- freshType bound t
+           first <- freshType bvs t
            secod <- toMonotype <$> findSymbol nameMap env "snd"
-           fstSigs <- enumSigs $ toAbstractType first
-           sndSigs <- enumSigs $ toAbstractType secod
+           fstSigs <- fullApplication bvs [] $ toAbstractType first
+           sndSigs <- fullApplication bvs [] $ toAbstractType secod
            -- assertion, check they have same elements
            when (length fstSigs /= length sndSigs)
                 (error "fst and snd have different number of instantiations")
            let matches = zipWith assemblePair fstSigs sndSigs
-           let matches' = filter (\t -> noneInst instMap pairProj t || diffInst bound instMap pairProj t) matches
-           mapM (mkNewSig pairProj) matches'
+           return (pairProj, matches)
        else do
-           ft <- freshType bound t
-           let t' = toAbstractType ft
-           rawSigs <- enumSigs t'
-           let sigs = filter (\t -> noneInst instMap id t || diffInst bound instMap id t) rawSigs
-           mapM (mkNewSig id) sigs
+           t' <- toAbstractType <$> freshType bvs t
+           abstractSigs <- fullApplication bvs [] t'
+           return (id, abstractSigs)
+
+    -- get rid of duplicates and only keep the ones with refined information
+    -- i.e. only return the newly added ones
+    let sigs' = filter (\t -> not (isExistingInstance instMap sigId t) || isRefinedInstance bvs instMap sigId t) sigs
+    mapM (mkNewSig sigId) sigs'
+
+-- | Do a DFS search for all possible instantiations of a given type
+fullApplication :: MonadIO m => [Id] -> [TypeSkeleton] -> TypeSkeleton -> PNSolver m [TypeSkeleton]
+fullApplication bvs argsSoFar t@FunctionT {} = do
+  cover <- gets $ view (refineState . abstractionCover)
+  let typs = typesInCover cover
+  applyResults <- mapM (abstractStep bvs cover t) typs
+  let validResults = filter (not . isBot . fst) (zip applyResults typs)
+  concat <$> mapM doDFS validResults
   where
-    enumSigs typ = do
-        let bound = getBoundTypeVars env
-        let argNum = length (allBaseTypes typ) - 1
-        let allArgCombs = multiPermutation argNum typs
-        applyRes <- mapM (abstractApply bound typ) allArgCombs
-        let resSigs = filter (not . isBot . fst) (zip applyRes allArgCombs)
-        return $ map (uncurry $ foldr AFunctionT) resSigs
+    doDFS (t, arg) = fullApplication bvs (arg:argsSoFar) t
+fullApplication _ argsSoFar t = return [foldr (FunctionT "") t (reverse argsSoFar)]
 
 mkNewSig :: MonadIO m => Id -> TypeSkeleton -> PNSolver m (Id, TypeSkeleton)
 mkNewSig id ty = do
     instMap <- gets $ view (refineState . instanceMapping)
     -- function name do not need check duplicates from user defined names
-    newId <- if pairProj `isPrefixOf` id then freshId [] (id ++ "_")
-                                         else freshId [] "f"
+    newId <- if pairProj `Text.isPrefixOf` id then freshId [] (appendSuffix id "_")
+                                              else freshId [] "f"
     -- when same arguments exist for a function, replace it
-    unless (noneInst instMap id ty) (excludeUseless id ty)
-    modify $ over (typeChecker . nameMapping) (Map.insert newId id)
+    when (isExistingInstance instMap id ty) (excludeUseless id ty)
+    -- TODO: do we need to store the info that id is renamed into newId
     modify $ over (statistics . instanceCounts) (HashMap.insertWith (+) id 1 )
     modify $ over (refineState . instanceMapping) (HashMap.insert (id, absFunArgs id ty) (newId, ty))
     writeLog 3 "mkNewSig" $ text id <+> text "==>"  <+> text newId <+> text "::" <+> pretty ty
@@ -826,8 +832,17 @@ foArgsOf = filter (not . isFunctionType . toMonotype . snd) . _arguments
 
 noneInst instMap id t = not (HashMap.member (id, absFunArgs id t) instMap)
 
+isExistingInstance :: InstanceMapping -> Id -> TypeSkeleton -> Bool
+isExistingInstance instMap name typ = HashMap.member (name, absFunArgs name typ) instMap
+
 diffInst tvs instMap id t = let oldt = snd (fromJust $ HashMap.lookup (id, absFunArgs id t) instMap)
                              in t /= oldt && isSubtypeOf tvs (lastAbstract t) (lastAbstract oldt)
+
+isRefinedInstance :: [Id] -> InstanceMapping -> Id -> TypeSkeleton -> Bool
+isRefinedInstance bvs instMap name typ = 
+  case HashMap.lookup (name, absFunArgs name typ) instMap of
+    Nothing -> error "isDeperecatedInstance: cannot find the given instance record"
+    Just (_, oldTyp) -> typ /= oldTyp && isSubtypeOf bvs (lastType typ) (lastType oldTyp)
 
 excludeUseless :: MonadIO m => Id -> TypeSkeleton -> PNSolver m ()
 excludeUseless id ty = do

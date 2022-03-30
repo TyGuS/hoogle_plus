@@ -19,6 +19,7 @@ module Types.TypeChecker
   , currentAbstraction
   , abstractIntersect
   , abstractApply
+  , abstractStep
   , abstractCmp
   , existAbstract
   , typesInCover
@@ -347,6 +348,15 @@ abstractApply bvs cover fun args = do
       let substRes = typeSubstitute m ret
       writeLog 3 "abstractApply" $ text "current cover" <+> string (show cover)
       currentAbstraction bvs cover substRes
+
+abstractStep :: Fresh s m => [Id] -> AbstractCover -> TypeSkeleton -> TypeSkeleton -> StateT s m TypeSkeleton
+abstractStep bvs cover (FunctionT _ tArg tRes) arg = do
+  tArg' <- freshType bvs $ toAbstractFun tArg
+  let unifier = getUnifier bvs [SubtypeOf tArg' arg]
+  case unifier of
+    Nothing -> return BotT
+    Just m -> currentAbstraction bvs cover (typeSubstitute m tRes)
+abstractStep _ _ _ _ = return BotT
 
 abstractCmp :: [Id] -> TypeSkeleton -> TypeSkeleton -> Ordering
 abstractCmp bvs t1 t2 | isSubtypeOf bvs t1 t2 && isSubtypeOf bvs t2 t1 = EQ

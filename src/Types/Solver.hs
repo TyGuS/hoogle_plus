@@ -67,9 +67,11 @@ data CheckError = CheckError
   }
   deriving Eq
 
+type InstanceMapping = HashMap (Id, [TypeSkeleton]) (Id, TypeSkeleton)
+
 data RefineState = RefineState
   { _abstractionCover :: AbstractCover
-  , _instanceMapping  :: HashMap (Id, [TypeSkeleton]) (Id, TypeSkeleton)
+  , _instanceMapping  :: InstanceMapping
   , _targetType       :: TypeSkeleton
   , _sourceTypes      :: [TypeSkeleton]
   , _splitTypes       :: Set TypeSkeleton
