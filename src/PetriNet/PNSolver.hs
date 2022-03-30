@@ -1,7 +1,3 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE FlexibleContexts #-}
-
 module PetriNet.PNSolver (runPNSolver) where
 
 import Control.Concurrent.Chan
@@ -25,84 +21,78 @@ import qualified Data.Set as Set
 import Data.Ord
 import Data.Tuple
 import Debug.Trace
-import Language.Haskell.Exts.Parser (ParseResult(..), parseExp)
 import Text.Printf
 import System.IO
-import qualified Hoogle as Hoogle
+import qualified Data.Text as Text
+
+import Language.Haskell.Exts.Parser (ParseResult(..), parseExp)
+import qualified Hoogle
 
 import Database.Convert
 import Database.Generate
-import Database.Util
 import HooglePlus.Abstraction
 import HooglePlus.CodeFormer
 import HooglePlus.Refinement
-import HooglePlus.Stats
-import HooglePlus.TypeChecker
-import PetriNet.AbstractType
 import HooglePlus.GHCChecker
 import HooglePlus.FilterTest
 import HooglePlus.Utils
 import PetriNet.PNEncoder
-import PetriNet.Util
-import Synquid.Error
-import Synquid.Parser (parseFromFile, parseProgram, toErrorMessage)
-import Synquid.Pretty
-import Synquid.Program
-import Synquid.Type
-import Synquid.Util
-import Types.Abstract
 import Types.Common
 import Types.Encoder hiding (incrementalSolving, varName)
 import Types.Environment
 import Types.Experiments
-import Types.IOFormat
 import Types.Program
 import Types.Solver
 import Types.Type
-import Types.IOFormat
 import Types.TypeChecker
+import Types.Filtering
+import HooglePlus.IOFormat
+import Utility.Utils
+import Types.Fresh
+import Types.Pretty
+import Database.Environment
 
-encodeFunction :: Id -> AbstractSkeleton -> EncodedFunction
-encodeFunction id t | pairProj `isPrefixOf` id =
-    let toMatch (EncodedFunction name ho [p1,p2] ret) = EncodedFunction id ho [p1] (p2:ret)
+encodeFunction :: Id -> TypeSkeleton -> EncodedFunction
+encodeFunction id t | pairProj `Text.isPrefixOf` id =
+    let toMatch (EncodedFunction name [p1,p2] ret) = EncodedFunction id [p1] (p2:ret)
      in toMatch $ encodeFunction "__f" t
-encodeFunction id t@(AFunctionT tArg tRet) = EncodedFunction id hoParams params [lastAbstract t]
+encodeFunction id t@(FunctionT _ tArg tRet) = EncodedFunction id params [lastType t]
   where
     base = (0, [])
-    hoFun x = encodeFunction (show x) x
-    hoParams = map hoFun $ filter isAFunctionT (abstractParamList t)
-    params = abstractParamList t
-encodeFunction id t@AScalar {} = EncodedFunction id [] [] [t]
+    params = allArgTypes t
+encodeFunction id t = EncodedFunction id [] [t]
 
-instantiate :: MonadIO m => Environment -> Map Id SchemaSkeleton -> PNSolver m (Map Id AbstractSkeleton)
+instantiate :: MonadIO m => Environment -> Map Id SchemaSkeleton -> PNSolver m (Map Id TypeSkeleton)
 instantiate env sigs = do
     modify $ set (refineState . toRemove) []
     noBlack <- getExperiment disableBlack
     blacks <- liftIO $ readFile "blacklist.txt"
-    let sigs' = if noBlack then sigs else Map.withoutKeys sigs (Set.fromList $ words blacks)
+    let sigs' = if noBlack then sigs else Map.withoutKeys sigs (Set.fromList $ map Text.pack $ words blacks)
     Map.fromList <$> instantiate' sigs'
   where
     instantiate' sigs = do
         tree <- gets $ view (refineState . abstractionCover)
-        let typs = allTypesOf tree
-        writeLog 2 "instantiate" $ text "Current abstract types:" <+> text (show tree)
-        let bound = env ^. boundTypeVars
+        let typs = typesInCover tree
+        writeLog 2 "instantiate" $ text "Current abstract types:" <+> pretty tree
+        let bound = getBoundTypeVars env
         sigs' <- Map.toList <$> mapM (freshType bound) sigs
         foldM (\acc -> (<$>) (acc ++) . uncurry (instantiateWith env typs)) [] sigs'
 
 -- add Pair_match function as needed
-instantiateWith :: MonadIO m => Environment -> [AbstractSkeleton] -> Id -> TypeSkeleton -> PNSolver m [(Id, AbstractSkeleton)]
+instantiateWith :: MonadIO m => Environment -> [TypeSkeleton] -> Id -> TypeSkeleton -> PNSolver m [(Id, TypeSkeleton)]
 -- skip "snd" function, it would be handled together with "fst"
 instantiateWith env typs id t | id == "snd" = return []
 instantiateWith env typs id t = do
     instMap <- gets $ view (refineState . instanceMapping)
-    let bound = env ^. boundTypeVars
+    groups <- gets $ view groupState
+    let nameMap = nameToGroup groups
+    let bound = getBoundTypeVars env
     if id == "fst"
        then do -- this is hack, hope to get rid of it sometime
-           first <- freshType bound (Monotype t)
-           secod <- findSymbol env "snd"
-           fstSigs <- enumSigs $ toAbstractType $ shape first
-           sndSigs <- enumSigs $ toAbstractType $ shape secod
+           first <- freshType bound t
+           secod <- toMonotype <$> findSymbol nameMap env "snd"
+           fstSigs <- enumSigs $ toAbstractType first
+           sndSigs <- enumSigs $ toAbstractType secod
            -- assertion, check they have same elements
            when (length fstSigs /= length sndSigs)
                 (error "fst and snd have different number of instantiations")
@@ -110,21 +100,21 @@ instantiateWith env typs id t = do
            let matches' = filter (\t -> noneInst instMap pairProj t || diffInst bound instMap pairProj t) matches
            mapM (mkNewSig pairProj) matches'
        else do
-           ft <- freshType bound (Monotype t)
-           let t' = toAbstractType (shape ft)
+           ft <- freshType bound t
+           let t' = toAbstractType ft
            rawSigs <- enumSigs t'
            let sigs = filter (\t -> noneInst instMap id t || diffInst bound instMap id t) rawSigs
            mapM (mkNewSig id) sigs
   where
     enumSigs typ = do
-        let bound = env ^. boundTypeVars
-        let argNum = length (decompose typ) - 1
+        let bound = getBoundTypeVars env
+        let argNum = length (allBaseTypes typ) - 1
         let allArgCombs = multiPermutation argNum typs
-        applyRes <- mapM (applySemantic bound typ) allArgCombs
+        applyRes <- mapM (abstractApply bound typ) allArgCombs
         let resSigs = filter (not . isBot . fst) (zip applyRes allArgCombs)
         return $ map (uncurry $ foldr AFunctionT) resSigs
 
-mkNewSig :: MonadIO m => Id -> AbstractSkeleton -> PNSolver m (Id, AbstractSkeleton)
+mkNewSig :: MonadIO m => Id -> TypeSkeleton -> PNSolver m (Id, TypeSkeleton)
 mkNewSig id ty = do
     instMap <- gets $ view (refineState . instanceMapping)
     -- function name do not need check duplicates from user defined names
@@ -138,7 +128,7 @@ mkNewSig id ty = do
     writeLog 3 "mkNewSig" $ text id <+> text "==>"  <+> text newId <+> text "::" <+> pretty ty
     return (newId, ty)
 
-splitTransition :: MonadIO m => Environment -> AbstractSkeleton -> Id -> PNSolver m [(Id, AbstractSkeleton)]
+splitTransition :: MonadIO m => Environment -> TypeSkeleton -> Id -> PNSolver m [(Id, TypeSkeleton)]
 splitTransition env newAt fid = do
     rep <- head <$> getGroupRep fid
     sigs <- gets $ view (searchState . currentSigs)
@@ -160,7 +150,7 @@ splitTransition env newAt fid = do
         sndType <- findSymbol env "snd"
         let first = toAbstractType $ shape fstType
         let secod = toAbstractType $ shape sndType
-        let tvs = env ^. boundTypeVars
+        let tvs = getBoundTypeVars env
         fstRets <- mapM (applySemantic tvs first) args'
         sndRets <- mapM (applySemantic tvs secod) args'
         let sameFunc ([a], (fret, sret)) = equalAbstract tvs fret fstRet
@@ -184,7 +174,7 @@ splitTransition env newAt fid = do
         funType <- findSymbol env fid
         writeLog 3 "allSubsts'" $ text fid <+> text "::" <+> pretty funType
         let absFunType = toAbstractType (shape funType)
-        let tvs = env ^. boundTypeVars
+        let tvs = getBoundTypeVars env
         rets <- mapM (applySemantic tvs absFunType) args'
         writeLog 3 "allSubsts'" $ text fid <+> text "returns" <+> pretty rets
         let validFunc (a, r) = not (equalAbstract tvs ret r && a == args) && not (isBot r)
@@ -200,7 +190,7 @@ splitTransition env newAt fid = do
                               in [a:as | a <- [arg, newAt], as <- args']
       | otherwise = map (arg:) (enumArgs parents args)
 
-addSignatures :: MonadIO m => Environment -> PNSolver m (Map Id AbstractSkeleton)
+addSignatures :: MonadIO m => Environment -> PNSolver m (Map Id TypeSkeleton)
 addSignatures env = do
     let foArgs = map fst $ foArgsOf env
     -- first abstraction all the symbols with fresh type variables and then instantiate them
@@ -208,7 +198,7 @@ addSignatures env = do
     let usefulPipe k _ = k `notElem` foArgs
     let usefulSymbols = Map.filterWithKey usefulPipe envSymbols
     let hoArgs = filter (isFunctionType . toMonotype . snd) (env ^. arguments)
-    let binds = env ^. boundTypeVars
+    let binds = getBoundTypeVars env
     -- cands <- getExperiment hoCandidates
     envSigs <- instantiate env usefulSymbols
     -- add higher order functions
@@ -222,7 +212,7 @@ addSignatures env = do
     mapM_ addEncodedFunction (Map.toList sigs')
     return sigs'
 
-mkGroups :: MonadIO m => Environment -> Map Id AbstractSkeleton -> PNSolver m (Map Id AbstractSkeleton)
+mkGroups :: MonadIO m => Environment -> Map Id TypeSkeleton -> PNSolver m (Map Id TypeSkeleton)
 mkGroups env sigs = do
     let encodedSigs = Map.mapWithKey encodeFunction sigs
     (t2g, sigGroups) <- groupSignatures encodedSigs
@@ -257,7 +247,7 @@ addMusters arg = do
 -- | refine the current abstraction
 -- do the bidirectional type checking first, compare the two programs we get,
 -- with the type split information update the abstraction tree
-refineSemantic :: MonadIO m => Environment -> RProgram -> AbstractSkeleton -> PNSolver m SplitInfo
+refineSemantic :: MonadIO m => Environment -> RProgram -> TypeSkeleton -> PNSolver m SplitInfo
 refineSemantic env prog at = do
     cover <- gets $ view (refineState . abstractionCover)
     writeLog 2 "refineSemantic" $ text "Current abstract types:" <+> text (show cover)
@@ -265,7 +255,7 @@ refineSemantic env prog at = do
     propagate env prog $ compactAbstractType at
     -- get the split pairs
     splits <- gets $ view (refineState . splitTypes)
-    let tvs = env ^. boundTypeVars
+    let tvs = getBoundTypeVars env
     let sortedSplits = sortBy (flip (compareAbstract tvs)) (Set.toList splits)
     writeLog 3 "refineSemantic splitTypes" $ pretty sortedSplits
     -- get removed transitions
@@ -303,7 +293,7 @@ refineSemantic env prog at = do
         let fids = concatMap (\gid -> Set.toList $ Map.findWithDefault Set.empty gid gm) gids
         sigs <- mapM (splitTransition env at) fids
         let hoArgs = filter (isFunctionType . toMonotype . snd) (env ^. arguments)
-        let tvs = env ^. boundTypeVars
+        let tvs = getBoundTypeVars env
         let envSigs = Map.fromList (concat sigs)
         let allSigs = concat sigs
         sigs' <- mkGroups env $ Map.fromList allSigs
@@ -330,7 +320,7 @@ refineSemantic env prog at = do
         removables <- gets $ view (refineState . toRemove)
         return ([], removables)
 
-    splitGroups :: MonadIO m => [Id] -> PNSolver m ([(Id, AbstractSkeleton)], [Id])
+    splitGroups :: MonadIO m => [Id] -> PNSolver m ([(Id, TypeSkeleton)], [Id])
     splitGroups removables = do
         -- Step 1: modify groupmap to exclude all those in removables
         -- Some groups may no longer exist as a result of this operation.
@@ -354,9 +344,9 @@ refineSemantic env prog at = do
         return (toAdd, toRemove)
 
     updateRepresentatives :: MonadIO m 
-                          => ([(Id, AbstractSkeleton)], [Id], Map GroupId Id) 
+                          => ([(Id, TypeSkeleton)], [Id], Map GroupId Id) 
                           -> (GroupId, Id) 
-                          -> PNSolver m ([(Id, AbstractSkeleton)], [Id], Map GroupId Id)
+                          -> PNSolver m ([(Id, TypeSkeleton)], [Id], Map GroupId Id)
     updateRepresentatives (addables, removables, newReps) (gid, rep)= do
         gm <- gets $ view (groupState . groupMap)
         sigs <- gets $ view (searchState . currentSigs)
@@ -414,12 +404,12 @@ initNet env = withTime ConstructionTime $ do
     mapM_ addMusters (map fst hoArgs)
   where
     abstractSymbol id sch = do
-        let bound = env ^. boundTypeVars
+        let bound = getBoundTypeVars env
         t <- freshType bound sch
         let absTy = toAbstractType (shape t)
         return (id, absTy)
 
-addEncodedFunction :: MonadIO m => (Id, AbstractSkeleton) -> PNSolver m ()
+addEncodedFunction :: MonadIO m => (Id, TypeSkeleton) -> PNSolver m ()
 addEncodedFunction (id, f) = do
     let ef = encodeFunction id f
     modify $ over (searchState . functionMap) (HashMap.insert id ef)
@@ -592,7 +582,7 @@ parseAndCheck env dst code = do
     counter <- gets $ view (typeChecker . nameCounter)
     writeLog 1 "parseAndCheck" $ text "Find program second" <+> pretty (recoverNames mapping prog)
     checkerState <- gets $ view typeChecker
-    let checkerState' = checkerState { _typeAssignment = Map.empty, _isChecked = True }
+    let checkerState' = checkerState { getTypeAssignment = Map.empty }
     (btm, checkerState) <- runStateT (bottomUpCheck env prog) checkerState'
     modify $ set typeChecker checkerState
     writeLog 2 "parseAndCheck" $ text "bottom up checking get program" <+> pretty (recoverNames mapping btm)
@@ -616,12 +606,12 @@ parseAndCheck env dst code = do
 
 pickGeneralization :: MonadIO m 
                    => Environment 
-                   -> AbstractSkeleton 
-                   -> AbstractSkeleton 
-                   -> LogicT (BackTrack m) AbstractSkeleton
-pickGeneralization _ ABottom _ = return ABottom
+                   -> TypeSkeleton 
+                   -> TypeSkeleton 
+                   -> LogicT (BackTrack m) TypeSkeleton
+pickGeneralization _ BotT _ = return BotT
 pickGeneralization env ty target = do
-    let bound = env ^. boundTypeVars
+    let bound = getBoundTypeVars env
     ty' <- lift $ generalize bound ty
     let unifier = getUnifier bound [(ty', target)]
     guard (isNothing unifier)
@@ -657,7 +647,7 @@ fillSketch env firedTrans = do
 generateCode :: MonadIO m
              => FormerState
              -> Environment
-             -> [AbstractSkeleton]
+             -> [TypeSkeleton]
              -> [Id]
              -> [EncodedFunction]
              -> BackTrack m (Set String)
@@ -665,7 +655,7 @@ generateCode initialFormer env src args sigs = do
     tgt <- gets $ view (refineState . targetType)
     cover <- gets $ view (refineState . abstractionCover)
     disrel <- getExperiment disableRelevancy
-    let bound = env ^. boundTypeVars
+    let bound = getBoundTypeVars env
     let rets = filter (isSubtypeOf bound tgt) (allTypesOf cover)
     writeLog 1 "generateCode" $ pretty src
     writeLog 1 "generateCode" $ pretty rets
@@ -776,7 +766,7 @@ substName :: [Id] -> [EncodedFunction] -> [EncodedFunction]
 substName [] [] = []
 substName (n:ns) (fc:fcs) = fc { funName = n } : substName ns fcs
 
-addCloneFunction :: MonadIO m => AbstractSkeleton -> PNSolver m Id
+addCloneFunction :: MonadIO m => TypeSkeleton -> PNSolver m Id
 addCloneFunction ty = do
     let fname = show ty ++ "|clone"
     let fc = EncodedFunction fname [] [ty] [ty, ty]
@@ -790,7 +780,7 @@ doRefine NoGar0 = False
 doRefine SypetClone = False
 doRefine _ = True
 
-updateTy2Tr :: MonadIO m => Id -> AbstractSkeleton -> PNSolver m ()
+updateTy2Tr :: MonadIO m => Id -> TypeSkeleton -> PNSolver m ()
 updateTy2Tr id f = do
     let addTransition k tid = HashMap.insertWith Set.union k (Set.singleton tid)
     let includedTyps = nub (decompose f)
@@ -799,10 +789,10 @@ updateTy2Tr id f = do
 updateSrcTgt :: MonadIO m
             => Environment
             -> TypeSkeleton
-            -> PNSolver m ([AbstractSkeleton], AbstractSkeleton)
+            -> PNSolver m ([TypeSkeleton], TypeSkeleton)
 updateSrcTgt env dst = do
     -- reset source and destination types
-    let binds = env ^. boundTypeVars
+    let binds = getBoundTypeVars env
     abstraction <- gets $ view (refineState . abstractionCover)
     tgt <- currentAbst binds abstraction (toAbstractType (shape dst))
     modify $ set (refineState . targetType) tgt
@@ -815,17 +805,17 @@ updateSrcTgt env dst = do
     modify $ set (refineState . sourceTypes) srcTypes
     return (srcTypes, tgt)
 
-type EncoderArgs = (Int, [AbstractSkeleton], [EncodedFunction])
+type EncoderArgs = (Int, [TypeSkeleton], [EncodedFunction])
 
 prepEncoderArgs :: MonadIO m
                 => Environment
-                -> AbstractSkeleton
+                -> TypeSkeleton
                 -> PNSolver m EncoderArgs
 prepEncoderArgs env tgt = do
     cover <- gets $ view (refineState . abstractionCover)
     loc <- gets $ view (searchState . currentLoc)
     funcs <- gets $ view (searchState . functionMap)
-    let bound = env ^. boundTypeVars
+    let bound = getBoundTypeVars env
     let accepts = superTypeOf bound cover tgt
     let rets = sortBy (compareAbstract bound) accepts
     let sigs = HashMap.elems funcs
@@ -839,7 +829,7 @@ noneInst instMap id t = not (HashMap.member (id, absFunArgs id t) instMap)
 diffInst tvs instMap id t = let oldt = snd (fromJust $ HashMap.lookup (id, absFunArgs id t) instMap)
                              in t /= oldt && isSubtypeOf tvs (lastAbstract t) (lastAbstract oldt)
 
-excludeUseless :: MonadIO m => Id -> AbstractSkeleton -> PNSolver m ()
+excludeUseless :: MonadIO m => Id -> TypeSkeleton -> PNSolver m ()
 excludeUseless id ty = do
     instMap <- gets $ view (refineState . instanceMapping)
     let (tid, ty') = fromJust (HashMap.lookup (id, absFunArgs id ty) instMap)
@@ -856,13 +846,13 @@ getGroupRep name = do
     writeLog 3 "getGroupRep" $ pretty argGps <+> text "has representative" <+> pretty argRp
     if null argRp then error ("cannot find group rep for " ++ name) else return argRp
 
-assemblePair :: AbstractSkeleton
-            -> AbstractSkeleton
-            -> AbstractSkeleton
+assemblePair :: TypeSkeleton
+            -> TypeSkeleton
+            -> TypeSkeleton
 assemblePair first secod | absFunArgs "fst" first == absFunArgs "snd" secod =
-    let AFunctionT p f = first
-        AFunctionT _ s = secod
-     in AFunctionT p (AFunctionT f s)
+    let FunctionT x p f = first
+        FunctionT y _ s = secod
+     in FunctionT x p (FunctionT y f s)
 assemblePair first second = error "fst and snd have different arguments"
 
 findFunction :: HashMap Id EncodedFunction -> Id -> EncodedFunction

@@ -1,11 +1,13 @@
 module Types.Solver where
 
 import           Control.Lens                   ( makeLenses
+                                                , set
                                                 , view
                                                 )
 import           Control.Monad.Logic            ( LogicT )
 import           Control.Monad.State            ( StateT
                                                 , gets
+                                                , modify
                                                 )
 import           Data.HashMap.Strict            ( HashMap )
 import qualified Data.HashMap.Strict           as HashMap
@@ -22,6 +24,7 @@ import           Types.Common
 import           Types.Encoder
 import           Types.Experiments       hiding ( PetriNet )
 import           Types.Filtering
+import           Types.Fresh
 import           Types.Program
 import           Types.Type
 import           Types.TypeChecker
@@ -114,6 +117,16 @@ emptySolverState = SolverState { _searchParams = defaultSearchParams
                                }
 
 makeLenses ''SolverState
+
+instance Monad m => Fresh SolverState m where
+  nextCounter prefix = do
+    checker <- gets $ view typeChecker
+    let counterMap = getCounter checker
+    let i          = Map.findWithDefault 0 prefix counterMap
+    modify $ set
+      typeChecker
+      (checker { getCounter = Map.insert prefix (i + 1) counterMap })
+    return i
 
 type PNSolver m = StateT SolverState m
 type BackTrack m = LogicT (PNSolver m)

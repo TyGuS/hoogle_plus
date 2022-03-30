@@ -1,6 +1,10 @@
 module Examples.InferenceDriver
-  ( parseExample
+  ( InfStats(..)
+  , parseExample
   , getExampleTypes
+
+    -- * type inference query
+  , searchTypes
   ) where
 
 import           Control.Exception              ( SomeException
@@ -26,6 +30,9 @@ import           Data.List                      ( (\\)
                                                 , partition
                                                 , sort
                                                 , sortOn
+                                                , intercalate
+                                                , isInfixOf
+                                                , delete
                                                 )
 import           Data.List.Extra                ( groupOn
                                                 , nubOrdBy
@@ -44,16 +51,22 @@ import           Outputable                     ( Outputable(ppr)
                                                 , showSDocUnsafe
                                                 )
 import           Text.Printf                    ( printf )
+import qualified Data.ByteString.Lazy.Char8 as LB
+import Data.Either ( isRight, partitionEithers )
 
 import           Examples.Utils
+import           HooglePlus.IOFormat
 import           Types.Common
 import           Types.Environment
 import           Types.Fresh
-import           HooglePlus.IOFormat
 import           Types.Pretty
 import           Types.Type
 import qualified Types.TypeChecker
 import           Utility.Utils
+import Types.Filtering
+import Types.Experiments
+import Database.Dataset
+import HooglePlus.Utils
 
 type TyclassConstraints = Set Id
 type TyclassAssignment = Map Id TyclassConstraints
@@ -138,8 +151,106 @@ data AntiUnifResult = AntiUnifResult TypeSkeleton AntiUnifState
 supportedTyclasses :: [Id]
 supportedTyclasses = ["Num", "Ord", "Eq"]
 
+--------------------------------------------------------------------------------
+-------------------------------- Example Checker -------------------------------
+--------------------------------------------------------------------------------
+
+checkExample
+  :: [Id]
+  -> Environment
+  -> SchemaSkeleton
+  -> Example
+  -> IO (Either GHCError SchemaSkeleton)
+checkExample mdls env typ ex = do
+  eitherTyp <- parseExample mdls mkFun
+  case eitherTyp of
+    Right exTyp -> do
+      let err =
+            printf "%s does not have type %s" (show ex) (show typ) :: String
+      let tcErr =
+            printf "%s does not satisfy type class constraint in %s"
+                   (show ex)
+                   (show typ) :: String
+      -- refresh the type variables names in the two
+      let bvs = getBoundTypeVars env
+      (freshExTyp, freshTyp) <- evalStateT
+        (do
+          t1 <- toMonotype <$> freshSchema bvs exTyp
+          t2 <- toMonotype <$> freshSchema bvs typ
+          return (t1, t2)
+        )
+        (Map.empty :: Map Id Int)
+      let mbTass = checkTypes env [] freshExTyp freshTyp
+      case mbTass of
+        Nothing   -> return $ Left err
+        Just tass -> do
+          let substedTyp               = typeSubstitute tass freshTyp
+          let (tyclasses, strippedTyp) = unprefixTc substedTyp
+          let tyclassesPrenex          = intercalate ", " $ map show tyclasses
+          let breakTypes               = map show $ breakdown strippedTyp
+          let mkTyclass = printf "%s :: (%s) => (%s)"
+                                 mkFun
+                                 tyclassesPrenex
+                                 (intercalate ", " breakTypes)
+          eitherTyclass <- parseExample mdls mkTyclass
+          if null tyclasses || isRight eitherTyclass
+            then return $ Right exTyp
+            else return $ Left tcErr
+    Left e -> return $ Left e
+ where
+  mkFun = printf "(%s)" (intercalate ", " $ inputs ex ++ [output ex])
+
+  unprefixTc (FunctionT x tArg tRes) = case tArg of
+    DatatypeT name args | tyclassPrefix `Text.isPrefixOf` name ->
+      let (tcs, t) = unprefixTc tRes
+          currTc   = DatatypeT (Text.drop (Text.length tyclassPrefix) name) args
+      in  (currTc : tcs, t)
+    _ -> ([], FunctionT x tArg tRes)
+  unprefixTc t = ([], t)
+
+checkExamples
+  :: [Id]
+  -> Environment
+  -> SchemaSkeleton
+  -> [Example]
+  -> IO (Either [GHCError] [SchemaSkeleton])
+checkExamples mdls env typ exs = do
+  outExs <- mapM (checkExample mdls env typ) exs
+  let (errs, validResults) = partitionEithers outExs
+  if null errs then return $ Right validResults else return $ Left errs
+
+--------------------------------------------------------------------------------
+-------------------------------- Type Inference --------------------------------
+--------------------------------------------------------------------------------
+
+searchTypes :: SynquidParams -> String -> Int -> IO (ListOutput String, InfStats)
+searchTypes synquidParams inStr num = do
+    let input = decodeInput (LB.pack inStr)
+    let exquery = inExamples input
+    let mkFun ex = printf "(%s)" (intercalate ", " $ inputs ex ++ [output ex])
+    exTypes <- mapM (parseExample includedModules . mkFun) exquery
+    let (invalidTypes, validSchemas) = partitionEithers exTypes
+    let argNames = inArgNames input
+    resultObj <- if null invalidTypes then possibleQueries argNames exquery validSchemas
+                                      else return (ListOutput [] (unlines invalidTypes), InfStats (-1) (-1))
+    printResult $ encodeWithPrefix $ fst resultObj
+    return resultObj
+    where
+        renameVars t =
+            let freeVars = Set.toList $ typeVarsOf t
+                validVars = foldr delete seqChars freeVars
+                substVars = foldr delete freeVars seqChars
+                substMap = Map.fromList $ zip substVars $ map TypeVarT validVars
+             in typeSubstitute substMap t
+
+        possibleQueries argNames exquery exTypes = do
+            (generalTypes, stats) <- getExampleTypes argNames exTypes num
+            if null generalTypes then return (ListOutput [] "Cannot find type for your query", InfStats 0 0)
+                                 else return (ListOutput generalTypes "", stats)
+                                 
+
 -- pre: the mkFun is a tuple of arguments and return types
-parseExample :: [Id] -> String -> IO (Either ErrorMessage SchemaSkeleton)
+parseExample :: [Id] -> String -> IO (Either GHCError SchemaSkeleton)
 parseExample mdls mkFun = catch
   (do
     typ <- askGhc mdls $ exprType TM_Default mkFun
@@ -154,13 +265,11 @@ parseExample mdls mkFun = catch
 
 getExampleTypes
   :: [Id]
-  -> Environment
-  -> [Id]
   -> [SchemaSkeleton]
   -> Int
   -> IO ([String], InfStats)
-getExampleTypes mdls env argNames validSchemas num = do
-  let initTyclassState = emptyTyclassState { _supportModules = mdls }
+getExampleTypes argNames validSchemas num = do
+  let initTyclassState = emptyTyclassState
   -- remove magic number later
   (typs, st) <- runStateT
     (do
@@ -588,7 +697,6 @@ mkTyclassQuery
   -> Id
   -> StateT TypeClassState m (Maybe Id)
 mkTyclassQuery tcass typ tyclass = do
-  mdls <- gets $ view supportModules
   let vars = Set.toList $ typeVarsOf typ
   -- this is unuseful now, consider removing it
   let varTcs = concatMap
@@ -604,7 +712,7 @@ mkTyclassQuery tcass typ tyclass = do
           ++ [Text.pack $ printf "%s (%s)" tyclass (show typ)]
   let query = printf "undefined :: (%s) => ()" allTcs
   liftIO $ catch
-    (askGhc mdls (exprType TM_Default query) >> return (Just tyclass))
+    (askGhc includedModules (exprType TM_Default query) >> return (Just tyclass))
     (\(e :: SomeException) -> liftIO (print e) >> return Nothing)
 
 defaultTypeVar :: TypeSkeleton -> TypeSkeleton -> TypeSkeleton

@@ -57,6 +57,13 @@ You may try different searche modes with the following command line args:
 # Building from scratch, for the developers
 
 ## Build
+
+### prerequisites
+
+```
+sudo apt install -y libgirepository1.0-dev libglib2.0-dev
+```
+
 To build this project, you need to have [stack](https://docs.haskellstack.org/en/stable/README/) and [z3](https://github.com/Z3Prover/) installed.
 
 Based on which version of z3 you installed, you need to modify the z3 haskell binding version in `stack.yaml` according to the compatability requirements [here](https://github.com/IagoAbal/haskell-z3).

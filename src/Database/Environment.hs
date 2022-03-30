@@ -1,11 +1,8 @@
-{-# LANGUAGE ScopedTypeVariables #-}
 module Database.Environment
-  ( 
-    writeEnv
+  ( writeEnv
   , generateEnv
   , getFiles
   , filesToEntries
-
   , GroupResult(..)
   , emptyGroup
   , groupSignatures
@@ -16,7 +13,9 @@ import           Control.Monad.State            ( StateT
                                                 )
 import           Data.Bifunctor                 ( second )
 import           Data.Functor                   ( (<&>) )
+import           Data.List                      ( intercalate )
 import           Data.List.Extra                ( nubOrd )
+import qualified Data.List.Utils               as LUtils
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.Serialize                 ( encode )
@@ -25,10 +24,16 @@ import qualified Data.Set                      as Set
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import           System.Exit                    ( exitFailure )
-import           Text.Parsec.Pos                ( initialPos )
+import           System.IO                      ( IOMode(AppendMode)
+                                                , hPrint
+                                                , withFile
+                                                )
 import           Text.Printf                    ( printf )
 
-import qualified Data.List.Utils               as LUtils
+import           Language.Haskell.Brittany      ( parsePrintModule
+                                                , staticDefaultConfig
+                                                )
+import           Text.Parsec.Pos                ( initialPos )
 import           Text.PrettyPrint.ANSI.Leijen   ( string )
 
 import           Compiler.Resolver
@@ -42,15 +47,54 @@ import           Types.Pretty
 import           Types.Type
 import           Utility.Utils
 
-writeEnv :: Environment -> IO ()
-writeEnv env = return ()
+datasetTemplate :: FilePath
+datasetTemplate = "src/Database/dataset.template"
 
+datasetPath :: FilePath
+datasetPath = "src/Database/dataset.hs"
+
+-- | write the parsed components to a file for synthesis
+writeEnv :: GenerationOpts -> Environment -> IO ()
+writeEnv genOpts env = do
+  preamble <- readFile datasetTemplate
+
+  -- write normal components
+  let compsDecl = "hplusComponents :: [(Text, SchemaSkeleton)]" :: String
+  let symbols   = getSymbols env
+  let compsList = show (Map.toList symbols)
+
+  -- write higher orders
+  let hosDecl = "hplusHigherOrders :: [(Text, SchemaSkeleton)]" :: String
+  let foSymbols = Map.filter (not . isHigherOrder . toMonotype) symbols
+  hofNames <- readFile (hoPath genOpts) <&> lines
+  let hoSigs  = generateHigherOrder (map Text.pack hofNames) symbols
+  let hosList = show (Map.toList hoSigs)
+
+  -- write modules
+  let mdlsDecl = "includedModules :: [Text]" :: String
+  let mdls = show (modules genOpts)
+
+  -- update dataset.hs
+  brittanyResult <- parsePrintModule
+    staticDefaultConfig
+    (Text.pack $ printf "%s\n%s\n%s\n%s\n%s\n%s\n%s\n"
+                        preamble
+                        compsDecl
+                        compsList
+                        hosDecl
+                        hosList
+                        mdlsDecl
+                        mdls
+    )
+  case brittanyResult of
+    Left  errs -> error "Brittany: document cannot be formatted"
+    Right txt  -> writeFile datasetPath (Text.unpack txt)
 
 generateHigherOrder :: [Id] -> Map Id SchemaSkeleton -> Map Id SchemaSkeleton
 generateHigherOrder hofNames components =
-    -- get signatures
+  -- get signatures
   let hoSigs = Map.filterWithKey (\k _ -> k `elem` hofNames) components
-  -- transform into fun types and add into the environments
+      -- transform into fun types and add into the environments
       sigs'  = concat $ Map.mapWithKey unfoldFun hoSigs
   in  Map.fromList sigs'
  where
@@ -90,20 +134,9 @@ generateEnv genOpts = do
   let declarations    = map ((`evalState` 0) . toDeclaration) entries
   let hooglePlusDecls = reorderDecls $ nubOrd declarations
 
-  result <- case resolveDecls hooglePlusDecls of
+  case resolveDecls hooglePlusDecls of
     Left  errMessage -> error $ show errMessage
-    Right env        -> do
-      let symbols   = getSymbols env
-      let foSymbols = Map.filter (not . isHigherOrder . toMonotype) symbols
-      let env' = env { getSymbols = if useHO then symbols else foSymbols }
-      hofNames <- if useHO
-        then readFile (hoPath genOpts) <&> lines
-        else return []
-      let hoSigs = generateHigherOrder (map Text.pack hofNames) symbols
-      return env'
-
-  printStats result
-  writeEnv result
+    Right env        -> printStats env >> writeEnv genOpts env
  where
   filterEntries entries Nothing = entries
   filterEntries entries (Just mdls) =
@@ -112,14 +145,14 @@ generateEnv genOpts = do
   isPolymorphic (ForallT _ _) = True
   isPolymorphic _             = False
 
-
 --------------------------------------------------------------------------------
 ------------------------------ Component Grouping ------------------------------
 --------------------------------------------------------------------------------
 
 data GroupResult = GroupResult
-  { groupMap    :: Map GroupId (Set Id) -- mapping from group id to Skel and list of function names with the same skel
-  , typeToGroup :: Map EncodedFunction GroupId
+  { groupMap    :: Map GroupId (Set Id)
+  , -- mapping from group id to Skel and list of function names with the same skel
+    typeToGroup :: Map EncodedFunction GroupId
   , nameToGroup :: Map Id GroupId
   }
   deriving Eq
@@ -180,7 +213,6 @@ filesToEntries :: [FilePath] -> Bool -> IO (Map MdlName [Entry])
 filesToEntries fps renameFunc = do
   declsByModuleByFile <- mapM (`readDeclarationsFromFile` renameFunc) fps
   return $ Map.unionsWith (++) declsByModuleByFile
-
 
 getFiles :: PackageFetchOpts -> IO [FilePath]
 getFiles Local { files = f } = return f

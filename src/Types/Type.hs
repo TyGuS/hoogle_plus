@@ -10,6 +10,8 @@ module Types.Type
   , funcType
   , boolType
   , intType
+  , charType
+  , doubleType
 
     -- * Type queries
   , allArgTypes
@@ -146,6 +148,12 @@ boolType = DatatypeT "Bool" []
 
 intType :: TypeSkeleton
 intType = DatatypeT "Int" []
+
+charType :: TypeSkeleton
+charType = nullDatatype "Char"
+
+doubleType :: TypeSkeleton
+doubleType = nullDatatype "Double"
 
 listType :: TypeSkeleton -> TypeSkeleton
 listType t = DatatypeT "List" [t]

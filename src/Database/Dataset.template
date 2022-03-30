@@ -1,7 +1,9 @@
-module Database.Dataset where
+module Database.Dataset (
+    hplusComponents
+  , hplusHigherOrders
+  , includedModules
+  ) where
 
 import Data.Text ( Text )
 
 import Types.Type
-
-hplusComponents :: [(Text, TypeSkeleton)]

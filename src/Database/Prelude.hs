@@ -163,14 +163,8 @@ listInstance tyclassName =
 
 ------- Util type definitions
 
-charType :: TypeSkeleton
-charType = nullDatatype "Char"
-
 floatType :: TypeSkeleton
 floatType = nullDatatype "Float"
-
-doubleType :: TypeSkeleton
-doubleType = nullDatatype "Double"
 
 unitType :: TypeSkeleton
 unitType = nullDatatype "Unit"

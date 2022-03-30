@@ -20,19 +20,22 @@ module Types.TypeChecker
   , abstractIntersect
   , abstractApply
   , abstractCmp
+  , existAbstract
+  , typesInCover
   ) where
 
 import           Control.Lens                   ( (^.)
                                                 , view
                                                 )
-import Control.Monad.State
-    ( msum,
-      gets,
-      modify,
-      evalState,
-      MonadState(put, get),
-      State,
-      StateT )
+import           Control.Monad.State            ( MonadState(get, put)
+                                                , State
+                                                , StateT
+                                                , evalState
+                                                , gets
+                                                , modify
+                                                , msum
+                                                )
+import           Data.List.Extra                ( nubOrd )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.Maybe                     ( fromMaybe
@@ -46,7 +49,6 @@ import           Text.PrettyPrint.ANSI.Leijen   ( string )
 
 import           Types.Common
 import           Types.Environment
-import           Types.Experiments
 import           Types.Fresh
 import           Types.Pretty
 import           Types.Program
@@ -350,3 +352,7 @@ abstractCmp :: [Id] -> TypeSkeleton -> TypeSkeleton -> Ordering
 abstractCmp bvs t1 t2 | isSubtypeOf bvs t1 t2 && isSubtypeOf bvs t2 t1 = EQ
                       | isSubtypeOf bvs t1 t2 = LT
                       | otherwise             = GT
+
+typesInCover :: AbstractCover -> [TypeSkeleton]
+typesInCover cover =
+  nubOrd $ Map.keys cover ++ (Set.toList . Set.unions $ Map.elems cover)

@@ -9,6 +9,7 @@ import           Data.Text                      ( Text )
 
 type Id = Text
 type GroupId = Text
+type GHCError = String
 
 varName :: Text
 varName = "_v"

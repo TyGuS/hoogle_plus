@@ -1,4 +1,23 @@
-module Types.Environment where
+module Types.Environment
+  (
+    -- * Environment
+    Environment(..)
+  , SymbolLib
+  , NameMapping
+  , emptyEnv
+  , loadEnv
+
+    -- * Operations
+  , allSymbols
+  , lookupSymbol
+  , isBound
+  , addArgument
+  , addComponent
+  , modifySymbols
+  , removeVariable
+  , addTypeVar
+  , findSymbol
+  ) where
 
 import           Control.Monad.State            ( StateT )
 import           Data.Function                  ( on )
@@ -7,6 +26,7 @@ import qualified Data.Map                      as Map
 import           Data.Maybe                     ( fromMaybe )
 import           GHC.Generics                   ( Generic )
 
+import           Database.Dataset
 import           Types.Common
 import           Types.Fresh
 import           Types.Type
@@ -31,6 +51,10 @@ instance Ord Environment where
 
 emptyEnv :: Environment
 emptyEnv = Environment Map.empty [] []
+
+loadEnv :: Environment
+loadEnv =
+  foldr (uncurry addComponent) emptyEnv (hplusComponents ++ hplusHigherOrders)
 
 --------------------------------------------------------------------------------
 --------------------------  Environment Operations -----------------------------

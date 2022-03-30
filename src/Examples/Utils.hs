@@ -55,7 +55,7 @@ askGhc mdls f = do
     decls <- mapM parseImportDecl imports
     return (map IIDecl decls)
 
-runStmt :: [Id] -> String -> IO (Either String String)
+runStmt :: [Id] -> String -> IO (Either GHCError String)
 runStmt mdls prog = do
   catch
     (askGhc mdls $ do
@@ -92,7 +92,8 @@ skipTyclass (FunctionT x (DatatypeT name args) tRes)
   | tyclassPrefix `Text.isPrefixOf` name = skipTyclass tRes
 skipTyclass t = t
 
-seqChars = map (: []) ['a' .. 'z']
+seqChars :: [Id]
+seqChars = map Text.singleton ['a' .. 'z']
 
 integerToInt :: TypeSkeleton -> TypeSkeleton
 integerToInt (DatatypeT dt args)
