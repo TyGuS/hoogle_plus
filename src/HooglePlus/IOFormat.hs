@@ -22,6 +22,9 @@ module HooglePlus.IOFormat
 
     -- * example execution
   , checkExampleOutput
+
+    -- * other
+  , toOutput
   ) where
 
 import           Control.Exception              ( SomeException

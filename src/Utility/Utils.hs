@@ -6,6 +6,7 @@ module Utility.Utils
 
     -- * Set
   , (>.>)
+  , shrinkSet
 
     -- * Map
   , lookupWithError
@@ -57,6 +58,7 @@ import           Data.List.Extra                ( sortOn
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.Maybe                     ( fromMaybe )
+import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
@@ -106,6 +108,11 @@ multiPermutation len elmts =
 
 (>.>) :: Ord a => [a] -> [a] -> [a]
 xs >.> ys = let ys' = Set.fromList ys in filter (`Set.notMember` ys') xs
+
+shrinkSet :: Set Id -> Set Id -> Maybe (Set Id)
+shrinkSet toRemove ids =
+  let ids' = Set.difference ids toRemove
+  in  if Set.null ids' then Nothing else Just ids'
 
 --------------------------------------------------------------------------------
 ---------------------------  Map Operations ------------------------------------

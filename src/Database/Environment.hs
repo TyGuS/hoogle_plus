@@ -6,6 +6,7 @@ module Database.Environment
   , GroupResult(..)
   , emptyGroup
   , groupSignatures
+  , mergeGroups
   ) where
 
 import           Control.Monad.State            ( StateT
@@ -67,12 +68,12 @@ writeEnv genOpts env = do
   let hosDecl = "hplusHigherOrders :: [(Text, SchemaSkeleton)]" :: String
   let foSymbols = Map.filter (not . isHigherOrder . toMonotype) symbols
   hofNames <- readFile (hoPath genOpts) <&> lines
-  let hoSigs  = generateHigherOrder (map Text.pack hofNames) symbols
-  let hosList = show (Map.toList hoSigs)
+  let hoSigs   = generateHigherOrder (map Text.pack hofNames) symbols
+  let hosList  = show (Map.toList hoSigs)
 
   -- write modules
   let mdlsDecl = "includedModules :: [Text]" :: String
-  let mdls = show (modules genOpts)
+  let mdls     = show (modules genOpts)
 
   -- update dataset.hs
   brittanyResult <- parsePrintModule
@@ -206,6 +207,24 @@ groupSignatures sigs = do
   let t2g      = Map.fromList $ map toTypeMap namedSigGroups
   let n2g      = Map.unions $ map toNameMap namedSigGroups
   return $ GroupResult groupMap t2g n2g
+
+updateGroup
+  :: GroupResult -> EncodedFunction -> GroupId -> Set Id -> GroupResult
+updateGroup (GroupResult gm tg ng) fc gid fids = case Map.lookup fc tg of
+  Nothing  -> GroupResult (Map.insert gid fids gm)
+                          (Map.insert fc gid tg)
+                          (foldr (`Map.insert` gid) ng fids)
+  Just rep -> GroupResult (Map.adjust (Set.union fids) rep gm)
+                          tg
+                          (foldr (`Map.insert` rep) ng fids)
+
+mergeGroups :: GroupResult -> GroupResult -> GroupResult
+mergeGroups oldGroup (GroupResult gm tg _) = foldl updateOne
+                                                   oldGroup
+                                                   (Map.toList tg)
+ where
+  updateOne :: GroupResult -> (EncodedFunction, GroupId) -> GroupResult
+  updateOne gr (fc, gid) = updateGroup gr fc gid (gm Map.! gid)
 
 -- filesToEntries reads each file into map of module -> declartions
 -- Filters for modules we care about. If none, use them all.

@@ -17,6 +17,8 @@ module Types.Environment
   , removeVariable
   , addTypeVar
   , findSymbol
+  , getFirstOrderArgs
+  , getHigherOrderArgs
   ) where
 
 import           Control.Monad.State            ( StateT )
@@ -38,7 +40,7 @@ type NameMapping = Map Id Id
 
 data Environment = Environment
   { getSymbols       :: SymbolLib                   -- ^ Components with their types
-  , getArguments     :: [(Id, SchemaSkeleton)]    -- ^ Function arguments, required in all the solutions
+  , getArguments     :: [(Id, TypeSkeleton)]    -- ^ Function arguments, required in all the solutions
   , getBoundTypeVars :: [Id]                  -- ^ Bound type variables
   }
   deriving (Show, Generic)
@@ -73,7 +75,7 @@ isBound env tv = tv `elem` getBoundTypeVars env
 
 addArgument :: Id -> TypeSkeleton -> Environment -> Environment
 addArgument name t (Environment symbols args bvs) =
-  Environment symbols (args ++ [(name, Monotype t)]) bvs
+  Environment symbols (args ++ [(name, t)]) bvs
 
 modifySymbols :: (SymbolLib -> SymbolLib) -> Environment -> Environment
 modifySymbols f (Environment symbols args bvs) =
@@ -104,3 +106,10 @@ findSymbol nameMap env sym = do
       Nothing  -> return $ Monotype TopT
       Just sch -> freshSchema bound sch
     Just sch -> freshSchema bound sch
+
+
+getFirstOrderArgs :: Environment -> [(Id, TypeSkeleton)]
+getFirstOrderArgs = filter (not . isFunctionType . snd) . getArguments
+
+getHigherOrderArgs :: Environment -> [(Id, TypeSkeleton)]
+getHigherOrderArgs = filter (isFunctionType . snd) . getArguments

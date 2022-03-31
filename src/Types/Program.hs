@@ -6,11 +6,13 @@ module Types.Program
   , TProgram
   , AProgram
   , RProgram
+  , programSize
   , untyped
   , uHole
   , isHole
   , eraseTypes
   , symbolsOf
+  , allSymbolsIn
   , constructorName
   , unqualifiedName
   , unqualifyFunc
@@ -29,7 +31,6 @@ import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import           GHC.Generics                   ( Generic )
 
-import           Compiler.Error
 import           Types.Common
 import           Types.Environment
 import           Types.Type
@@ -97,14 +98,24 @@ eraseTypes :: TProgram -> TProgram
 eraseTypes = fmap (const TopT)
 
 symbolsOf :: Program t -> Set Id
-symbolsOf (Program p _) = case p of
-  PSymbol name  -> Set.singleton name
-  PApp fun arg  -> fun `Set.insert` Set.unions (map symbolsOf arg)
-  PFun x   body -> symbolsOf body
-  _             -> Set.empty
+symbolsOf = Set.fromList . allSymbolsIn
+
+allSymbolsIn :: Program t -> [Id]
+allSymbolsIn (Program p _) = case p of
+  PSymbol name  -> [name]
+  PApp fun args -> fun : concatMap allSymbolsIn args
+  PFun x   body -> allSymbolsIn body
+  _             -> []
 
 constructorName :: ConstructorSig -> Id
 constructorName (ConstructorSig name _) = name
+
+programSize :: Program t -> Int
+programSize (Program p _) = case p of
+  PSymbol _   -> 1
+  PApp _ args -> 1 + sum (map programSize args)
+  PFun _ body -> 1 + programSize body
+  _           -> 0
 
 {- Misc -}
 

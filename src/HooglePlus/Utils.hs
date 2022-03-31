@@ -156,7 +156,7 @@ extractSolution env goalType prog = SynthesisResult funcSig body argNames
   argList   = getArguments env
   argNames  = map (Text.unpack . fst) argList
   argTypes  = map snd argList
-  monoGoals = map toMonotype argTypes
+  monoGoals = argTypes
   funcSig   = mkFunctionSigStr (monoGoals ++ [goalType])
   body      = mkLambda argNames prog
 

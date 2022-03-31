@@ -61,7 +61,11 @@ module Types.Type
   , rootNode
   , toAbstractType
   , toAbstractFun
+  , typesInCover
+  , coverSize
   , absFunArgs
+  , unionSplitInfo
+  , unionsSplitInfo
   ) where
 
 import           Control.Monad                  ( liftM2 )
@@ -74,6 +78,7 @@ import           Data.Aeson                     ( FromJSON
                                                 , ToJSON
                                                 )
 import           Data.Hashable                  ( Hashable )
+import           Data.List                      ( (\\) )
 import           Data.List.Extra                ( nubOrd )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
@@ -183,6 +188,16 @@ data SplitInfo = SplitInfo
   , newTrans     :: [Id]            -- transitions that are introduced by the split
   }
   deriving (Eq, Ord, Show, Generic)
+
+-- order matters here
+unionSplitInfo :: SplitInfo -> SplitInfo -> SplitInfo
+unionSplitInfo (SplitInfo places1 rmTrans1 newTrans1) (SplitInfo places2 rmTrans2 newTrans2)
+  = SplitInfo (places1 ++ places2)
+              (rmTrans1 ++ rmTrans2)
+              ((newTrans1 ++ newTrans2) \\ (rmTrans1 ++ rmTrans2))
+
+unionsSplitInfo :: [SplitInfo] -> SplitInfo
+unionsSplitInfo = foldl1 unionSplitInfo
 
 rootNode :: TypeSkeleton
 rootNode = TopT
@@ -377,12 +392,12 @@ toAbstractFun (FunctionT _ tArg tRes) =
   funcType (toAbstractFun tArg) (toAbstractFun tRes)
 toAbstractFun t = toAbstractType t
 
-allTypesOf :: AbstractCover -> [TypeSkeleton]
-allTypesOf cover =
+typesInCover :: AbstractCover -> [TypeSkeleton]
+typesInCover cover =
   nubOrd $ Map.keys cover ++ (Set.toList . Set.unions $ Map.elems cover)
 
 coverSize :: AbstractCover -> Int
-coverSize = length . allTypesOf
+coverSize = length . typesInCover
 
 absFunArgs :: Id -> TypeSkeleton -> [TypeSkeleton]
 absFunArgs fname (FunctionT _ tArg tRes)

@@ -14,6 +14,7 @@ module Types.TypeChecker
 
     -- * Abstract type comparison
   , isSubtypeOf
+  , superTypeOf
   , equalAbstract
   , equalSplit
   , currentAbstraction
@@ -22,7 +23,6 @@ module Types.TypeChecker
   , abstractStep
   , abstractCmp
   , existAbstract
-  , typesInCover
   ) where
 
 import           Control.Lens                   ( (^.)
@@ -286,6 +286,14 @@ isSubtypeOf bound t1   t2      = isJust unifier
  where
   unifier = getUnifier (bound ++ Set.toList (typeVarsOf t1)) [SubtypeOf t1 t2]
 
+superTypeOf :: [Id] -> AbstractCover -> TypeSkeleton -> [TypeSkeleton]
+superTypeOf tvs cover at = superTypeOf' tvs rootNode
+  where
+    superTypeOf' tvs paren = let
+        children = Set.toList $ Map.findWithDefault Set.empty paren cover
+        in if isSubtypeOf tvs at paren then paren : concatMap (superTypeOf' tvs) children
+                                       else []
+
 equalAbstract :: [Id] -> TypeSkeleton -> TypeSkeleton -> Bool
 equalAbstract bvs t1 t2 = isSubtypeOf bvs t1 t2 && isSubtypeOf bvs t2 t1
 
@@ -362,7 +370,3 @@ abstractCmp :: [Id] -> TypeSkeleton -> TypeSkeleton -> Ordering
 abstractCmp bvs t1 t2 | isSubtypeOf bvs t1 t2 && isSubtypeOf bvs t2 t1 = EQ
                       | isSubtypeOf bvs t1 t2 = LT
                       | otherwise             = GT
-
-typesInCover :: AbstractCover -> [TypeSkeleton]
-typesInCover cover =
-  nubOrd $ Map.keys cover ++ (Set.toList . Set.unions $ Map.elems cover)

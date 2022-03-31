@@ -22,6 +22,7 @@ import           Text.Printf                    ( printf )
 import           Database.Environment
 import           Types.Common
 import           Types.Encoder
+import           Types.Environment
 import           Types.Experiments       hiding ( PetriNet )
 import           Types.Filtering
 import           Types.Fresh
@@ -31,10 +32,9 @@ import           Types.TypeChecker
 
 
 data SearchState = SearchState
-  { _currentSolutions :: [RProgram] -- type checked solutions
+  { _currentSolutions :: [TProgram] -- type checked solutions
   , _currentLoc       :: Int -- current solution depth
   , _currentSigs      :: Map Id TypeSkeleton -- current type signature groups
-  , _activeSigs       :: Set Id
   , _functionMap      :: HashMap Id EncodedFunction
   }
   deriving Eq
@@ -43,35 +43,23 @@ emptySearchState :: SearchState
 emptySearchState = SearchState { _currentSolutions = []
                                , _currentLoc       = 0
                                , _currentSigs      = Map.empty
-                               , _activeSigs       = Set.empty
                                , _functionMap      = HashMap.empty
                                }
 
 makeLenses ''SearchState
 
-data StatisticState = StatisticState
-  { _instanceCounts :: HashMap Id Int -- Number of instantiations for a real-name, used in selecting representative
-  , _useCount       :: Map Id Int
-  }
-  deriving Eq
-
-emptyStatistic :: StatisticState
-emptyStatistic =
-  StatisticState { _instanceCounts = HashMap.empty, _useCount = Map.empty }
-
-makeLenses ''StatisticState
-
 data CheckError = CheckError
   { errorProgram :: TProgram
   , desiredType  :: TypeSkeleton
   }
-  deriving Eq
+  deriving (Eq, Show)
 
 type InstanceMapping = HashMap (Id, [TypeSkeleton]) (Id, TypeSkeleton)
 
 data RefineState = RefineState
   { _abstractionCover :: AbstractCover
   , _instanceMapping  :: InstanceMapping
+  , _instanceName     :: NameMapping
   , _targetType       :: TypeSkeleton
   , _sourceTypes      :: [TypeSkeleton]
   , _splitTypes       :: Set TypeSkeleton
@@ -85,6 +73,7 @@ data RefineState = RefineState
 emptyRefineState :: RefineState
 emptyRefineState = RefineState { _abstractionCover = Map.empty
                                , _instanceMapping  = HashMap.empty
+                               , _instanceName     = Map.empty
                                , _targetType       = TypeVarT varName
                                , _sourceTypes      = []
                                , _splitTypes       = Set.empty
@@ -98,7 +87,6 @@ makeLenses ''RefineState
 data SolverState = SolverState
   { _searchParams :: SearchParams
   , _refineState  :: RefineState
-  , _statistics   :: StatisticState
   , _searchState  :: SearchState
   , _groupState   :: GroupResult
   , _encoder      :: EncodeState
@@ -110,7 +98,6 @@ data SolverState = SolverState
 emptySolverState :: SolverState
 emptySolverState = SolverState { _searchParams = defaultSearchParams
                                , _refineState  = emptyRefineState
-                               , _statistics   = emptyStatistic
                                , _searchState  = emptySearchState
                                , _groupState   = emptyGroup
                                , _encoder      = emptyEncodeState
