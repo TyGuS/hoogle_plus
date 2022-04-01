@@ -181,7 +181,7 @@ runInference isStudy bm = do
                             [0 .. (length (inputs (head xs)) - 1)]
             let inStr = unpack (encode (QueryInput "??" xs names))
             (ListOutput res _, stats) <- searchTypes inStr 10
-            dt <- getMetadata res stats
+            dt                        <- getMetadata res stats
             return $ dt { genExamples = xs }
         )
         combinations
@@ -226,7 +226,7 @@ writeResultsTsv fp results = withFile fp AppendMode $ \hdl -> do
             let typStrs   = padEnd (len - length typs) typs
             let nameStrs  = align (Evaluation.Benchmark.name bm)
             let queryStrs = align (Evaluation.Benchmark.query bm)
-            let dataStrs  = align [(length exs, rank, pre, post, vars, args)]
+            let dataStrs  = padEnd (len - 1) [[(length exs, rank, pre, post, vars, args)]]
             mapM_
                 (\(name, query, e, t, d) -> do
                     let

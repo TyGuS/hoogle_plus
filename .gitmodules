@@ -1,0 +1,3 @@
+[submodule "compact-coupled-terms"]
+	path = compact-coupled-terms
+	url = git@github.com:jkoppel/compact-coupled-terms.git

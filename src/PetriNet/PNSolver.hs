@@ -407,6 +407,7 @@ initNet env = do
   let hoArgs = getHigherOrderArgs env
   mapM_ (addMusters . fst) hoArgs
  where
+  abstractSymbol :: SolverMonad m => Id -> TypeSkeleton -> PNSolver m (Id, TypeSkeleton)
   abstractSymbol id sch = do
     let bound = getBoundTypeVars env
     t <- freshType bound sch

@@ -32,6 +32,7 @@ dependencies:
 - ghci
 - gi-glib
 - hashable
+- hashtables
 - haskell-src-exts
 - hint
 - hoogle
@@ -57,14 +58,18 @@ dependencies:
 - uuid
 - yaml
 - z3
+- compact-coupled-terms
 
 default-extensions:
+- BangPatterns
+- ConstraintKinds
 - DeriveAnyClass
 - DeriveDataTypeable
 - DeriveFunctor
 - DeriveGeneric
 - FlexibleContexts
 - FlexibleInstances
+- LambdaCase
 - MultiParamTypeClasses
 - OverloadedStrings
 - Rank2Types
@@ -74,7 +79,8 @@ default-extensions:
 - TypeSynonymInstances
 - UndecidableInstances
 - ViewPatterns
-- ConstraintKinds
+- PatternSynonyms
+- GADTs
 
 library:
   source-dirs:

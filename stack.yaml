@@ -10,3 +10,7 @@ extra-deps:
   - MissingH-1.5.0.1
   - data-tree-print-0.1.0.2
   - brittany-0.13.1.2
+  - language-dot-0.1.1
+  - ./compact-coupled-terms
+  - git: https://github.com/jkoppel/equivalence.git
+    commit: e58c9c0b369f9b8105744cc0342f2e69929b11bf
