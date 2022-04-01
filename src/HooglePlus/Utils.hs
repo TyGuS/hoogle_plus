@@ -177,7 +177,7 @@ preprocessEnvFromGoal :: Goal -> (Environment, TypeSkeleton)
 preprocessEnvFromGoal goal = updateEnvWithSpecArgs monospec env'
  where
   env              = gEnvironment goal
-  (env', monospec) = updateEnvWithBoundTyVars (gSpec goal) env
+  (env', monospec) = updateEnvWithBoundTyVars (Monotype $ gSpec goal) env
 
 matchNiceFunctions :: String -> StateT [(String, String)] IO String
 matchNiceFunctions prog | null prog                            = return prog

@@ -15,6 +15,7 @@ import           Data.List                      ( inits
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.Maybe                     ( catMaybes )
+import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import           Language.Haskell.Interpreter   ( MonadIO(liftIO)
                                                 , as
@@ -40,7 +41,6 @@ import           HooglePlus.IOFormat
 import           HooglePlus.Utils
 import           Types.Common
 import           Types.Environment              ( Environment )
-import           Types.Experiments              ( defaultSynquidParams )
 import           Types.Filtering
 import           Types.Generate                 ( defaultEnvPath )
 import           Types.Type
@@ -65,13 +65,13 @@ data InferenceResult = InferenceResult
 
 runTest :: Int -> Benchmark -> IO [Example]
 runTest numOfExs bm@(Benchmark _ q sol _ _) = do
-    let sch = parseQueryType q
+    let typ = parseQueryType q
     -- generate @numOfExs@ examples
     mbExamples <- mapM
         (const $ catch
             (do
-                subst <- randomSubst (boundVarsOf sch) Map.empty
-                let t    = typeSubstitute subst (toMonotype sch)
+                subst <- randomSubst (Set.toList $ typeVarsOf typ) Map.empty
+                let t    = typeSubstitute subst typ
                 let prop = buildProperty t []
                 res <- runInterpreter'
                     defaultInterpreterTimeoutMicro
@@ -180,9 +180,7 @@ runInference isStudy bm = do
                 names = map (appendIndex "arg")
                             [0 .. (length (inputs (head xs)) - 1)]
             let inStr = unpack (encode (QueryInput "??" xs names))
-            (ListOutput res _, stats) <- searchTypes defaultSynquidParams
-                                                     inStr
-                                                     10
+            (ListOutput res _, stats) <- searchTypes inStr 10
             dt <- getMetadata res stats
             return $ dt { genExamples = xs }
         )
@@ -193,8 +191,8 @@ runInference isStudy bm = do
         let query = Evaluation.Benchmark.query bm
         let q     = parseQueryType query
         checkRes <- getCorrectIndex q 1 res
-        let argCnt = length (argsWithName (toMonotype q))
-        let varCnt = length (boundVarsOf q)
+        let argCnt = length (argsWithName q)
+        let varCnt = length (typeVarsOf q)
         return
             (InferenceResult bm
                              []
@@ -211,13 +209,11 @@ runTypeInferenceEval fp isStudy bms = do
     results <- mapM (runInference isStudy) bms
     writeResultsTsv fp (concat results)
 
-getCorrectIndex :: SchemaSkeleton -> Int -> [String] -> IO String
+getCorrectIndex :: TypeSkeleton -> Int -> [String] -> IO String
 getCorrectIndex _ _   []           = return "NO ANSWER"
 getCorrectIndex q idx (infer : xs) = do
     let t = parseQueryType infer
-    if typeCmp (toMonotype q) (toMonotype t)
-        then return (show idx)
-        else getCorrectIndex q (idx + 1) xs
+    if typeCmp q t then return (show idx) else getCorrectIndex q (idx + 1) xs
 
 writeResultsTsv :: FilePath -> [InferenceResult] -> IO ()
 writeResultsTsv fp results = withFile fp AppendMode $ \hdl -> do

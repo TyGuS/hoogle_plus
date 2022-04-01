@@ -7,8 +7,6 @@ import           Data.Data                      ( Data
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 
-import           Types.Generate
-
 {- Interface -}
 data RefineStrategy =
     SypetClone -- first level abstraction, no refinement
@@ -89,16 +87,3 @@ data ExperimentCourse
   | POPLQuality
   | POPLSpeed
   deriving (Show, Data, Typeable)
-
--- | Parameters of the synthesis
-data SynquidParams = SynquidParams
-  { envPath  :: String
-  , -- ^ Path to the environment file
-    jsonPath :: String
-  }
-
-defaultSynquidParams :: SynquidParams
-defaultSynquidParams = SynquidParams
-  { Types.Experiments.envPath = defaultEnvPath
-  , jsonPath                  = defaultJsonPath
-  }

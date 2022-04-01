@@ -1,4 +1,8 @@
-module Compiler.Parser where
+module Compiler.Parser
+  ( parseFromFile
+  , parseType
+  , toErrorMessage
+  ) where
 
 import           Control.Monad.State            ( State
                                                 , evalState
@@ -16,11 +20,10 @@ import           Data.Map                       ( Map )
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 
-import           Text.Parsec             hiding ( State )
+import           Text.Parsec
 import           Text.Parsec.Error              ( errorMessages
                                                 , showErrorMessages
                                                 )
-import           Text.Parsec.Indent
 import           Text.Parsec.Pos                ( initialPos )
 import qualified Text.Parsec.Token             as Token
 import           Text.PrettyPrint.ANSI.Leijen   ( text
@@ -36,18 +39,12 @@ import           Types.Type
 ------------------------------ High Level Interfaces ---------------------------
 --------------------------------------------------------------------------------
 
-type Parser a = IndentParserT String () (State SourcePos) a
-
-parseProgram :: Parser [Declaration]
-parseProgram = whiteSpace *> option [] (block parseDeclaration) <* eof
+type Parser a = Parsec String () a
 
 parseFromFile :: Parser a -> String -> IO (Either ParseError a)
 parseFromFile aParser fname = do
   input <- readFile fname
-  return $ flip evalState (initialPos fname) $ runIndentParserT aParser
-                                                                ()
-                                                                fname
-                                                                input
+  return $ runParser aParser () fname input
 
 toErrorMessage :: ParseError -> ErrorMessage
 toErrorMessage err = ErrorMessage
@@ -100,8 +97,8 @@ opLetter = nub (concatMap tail opNames)
 keywords :: [String]
 keywords = []
 
-synquidDef :: Token.GenLanguageDef String st (IndentT (State SourcePos))
-synquidDef = Token.LanguageDef commentStart
+hplusDef :: Token.LanguageDef st
+hplusDef = Token.LanguageDef commentStart
                                commentEnd
                                commentLine
                                False
@@ -113,8 +110,8 @@ synquidDef = Token.LanguageDef commentStart
                                opNames
                                True
 
-lexer :: Token.GenTokenParser String st (IndentT (State SourcePos))
-lexer = Token.makeTokenParser synquidDef
+lexer :: Token.TokenParser st
+lexer = Token.makeTokenParser hplusDef
 
 identifier :: Parser String
 identifier = Token.identifier lexer
@@ -192,7 +189,7 @@ parseTypeMbTypeclasses = do
 parseTCName :: Parser TypeSkeleton
 parseTCName = do
   name     <- parseTypeName
-  typeArgs <- many (sameOrIndented >> parseTypeAtom)
+  typeArgs <- many parseTypeAtom
   let typeName = tyclassPrefix `Text.append` name
   return $ DatatypeT typeName typeArgs
 
@@ -209,8 +206,8 @@ parseTypeclasses = do
   mkTyclassArg num = tyclassArgBase `Text.append` Text.pack (show num)
 
 parseType :: Parser TypeSkeleton
-parseType = withPos
-  (choice [try parseFunctionTypeWithArg, parseFunctionTypeMb] <?> "type")
+parseType =
+  choice [try parseFunctionTypeWithArg, parseFunctionTypeMb] <?> "type"
 
 -- | Parse top-level type that starts with an argument name, and thus must be a function type
 parseFunctionTypeWithArg :: Parser TypeSkeleton

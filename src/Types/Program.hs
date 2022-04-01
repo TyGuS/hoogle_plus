@@ -76,7 +76,7 @@ dummyDecl = FuncDecl "_dummy" (Monotype TopT)
 -- | Synthesis goal
 data Goal = Goal
   { gEnvironment :: Environment  -- ^ Enclosing environment
-  , gSpec        :: SchemaSkeleton      -- ^ Specification
+  , gSpec        :: TypeSkeleton -- ^ Specification
   }
   deriving (Eq, Ord, Show)
 

@@ -1,6 +1,7 @@
 module Examples.InferenceDriver
   ( InfStats(..)
   , parseExample
+  , checkExamples
   , getExampleTypes
 
     -- * type inference query
@@ -223,8 +224,8 @@ checkExamples mdls env typ exs = do
 -------------------------------- Type Inference --------------------------------
 --------------------------------------------------------------------------------
 
-searchTypes :: SynquidParams -> String -> Int -> IO (ListOutput String, InfStats)
-searchTypes synquidParams inStr num = do
+searchTypes :: String -> Int -> IO (ListOutput String, InfStats)
+searchTypes inStr num = do
     let input = decodeInput (LB.pack inStr)
     let exquery = inExamples input
     let mkFun ex = printf "(%s)" (intercalate ", " $ inputs ex ++ [output ex])

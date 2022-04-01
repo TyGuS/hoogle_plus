@@ -387,21 +387,3 @@ isDataDecl decl = case decl of
 isModule :: Entry -> Bool
 isModule (EModule _) = True
 isModule _           = False
-
--- toSynquidProgram :: Exp SrcSpanInfo -> TProgram
--- toSynquidProgram (Lambda _ pats body) =
---     foldr (\(PVar _ name) p -> Program (PFun (nameStr name) p) AnyT) (toSynquidProgram body) pats
--- toSynquidProgram (Var _ qname) = Program (PSymbol (qnameStr qname)) AnyT
--- toSynquidProgram (App _ fun arg) =
---     let synFun = toSynquidProgram fun
---      in case content synFun of
---           PSymbol f -> Program (PApp f [toSynquidProgram arg]) AnyT
---           PApp f args -> Program (PApp f (args ++ [toSynquidProgram arg])) AnyT
---           _ -> error "unrecognized function type"
--- toSynquidProgram (Paren _ e) = toSynquidProgram e
--- toSynquidProgram (Con _ qname) = Program (PSymbol (qnameStr qname)) AnyT
--- toSynquidProgram (List _ elmts) = let
---     args = map toSynquidProgram elmts
---     mkCons e acc = Program (PApp "Cons" [e, acc]) AnyT
---     in foldr mkCons (Program (PSymbol "Nil") AnyT) args
--- toSynquidProgram e = error $ show e

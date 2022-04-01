@@ -149,13 +149,13 @@ check
   -> SearchParams -- search parameters: to control what to be checked
   -> [Example] -- examples for post-filtering
   -> TProgram -- program to be checked
-  -> SchemaSkeleton -- goal type to be checked against
+  -> TypeSkeleton -- goal type to be checked against
   -> FilterTest m (Maybe AssociativeExamples) -- return Nothing is check fails, otherwise return a list of updated examples
 check env searchParams examples program goalType = do
   runGhcChecks searchParams
                includedModules
                env
-               (lastType $ toMonotype goalType)
+               (lastType goalType)
                examples
                program
 

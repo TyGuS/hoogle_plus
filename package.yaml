@@ -1,6 +1,6 @@
 name: HooglePlus
 version: 0.1.0.0
-github: "davidmrdavid/hoogle_plus"
+github: "TyGus/hoogle_plus"
 license: BSD3
 author: "Zheng Guo"
 maintainer: "zhg069@eng.ucsd.edu"
@@ -14,48 +14,38 @@ description: Please see the README
 
 dependencies:
 - aeson
-- ansi-terminal
 - ansi-wl-pprint
 - array
-- async
 - base
-- bimap
+- brittany
 - bytestring
-- Cabal
 - cereal
 - ChasingBottoms
 - cmdargs
-- conduit
-- conduit-extra
 - containers
 - deepseq
 - directory
 - extra
-- filepath
 - ghc
+- ghc-boot-th
 - ghc-paths
+- ghci
+- gi-glib
 - hashable
 - haskell-src-exts
-- heap
 - hint
 - hoogle
-- html
-- http-conduit
-- http-types
-- indents
 - leancheck
 - lens
 - logict
 - MissingH
 - mtl
 - parsec
-- pqueue
 - pretty-simple
-- process
+- QuickCheck
+- random
 - regex-compat
-- regex-posix
-- resourcet
-- safe
+- silently
 - smallcheck
 - sort
 - split
@@ -63,20 +53,10 @@ dependencies:
 - text
 - time
 - transformers
-- transformers-compat
 - unordered-containers
 - uuid
-- vector
-- z3
-- ghci
-- ghc-boot-th
-- silently
 - yaml
-- QuickCheck
-- random
-- wl-pprint-text
-- brittany
-- gi-glib
+- z3
 
 default-extensions:
 - DeriveAnyClass
@@ -94,6 +74,7 @@ default-extensions:
 - TypeSynonymInstances
 - UndecidableInstances
 - ViewPatterns
+- ConstraintKinds
 
 library:
   source-dirs:
@@ -104,7 +85,7 @@ library:
 
 executables:
   hplus:
-    main: HooglePlus.hs
+    main: Main.hs
     source-dirs: app
     ghc-options:
     - -rtsopts

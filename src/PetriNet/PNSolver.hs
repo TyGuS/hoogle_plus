@@ -2,10 +2,12 @@ module PetriNet.PNSolver
   ( runPNSolver
   ) where
 
-import           Control.Concurrent.Chan
-import           Control.Lens
+import           Control.Lens                   ( over
+                                                , set
+                                                , view
+                                                )
 import           Control.Monad
-import           Control.Monad.Extra
+import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.Logic
 import           Control.Monad.State
 import qualified Data.Char                     as Char
@@ -13,15 +15,24 @@ import           Data.Data                      ( Data )
 import           Data.Function                  ( on )
 import           Data.HashMap.Strict            ( HashMap )
 import qualified Data.HashMap.Strict           as HashMap
-import           Data.List
+import           Data.List                      ( nub
+                                                , sortBy
+                                                , sortOn
+                                                )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
-import           Data.Maybe
-import           Data.Ord
+import           Data.Maybe                     ( fromJust
+                                                , fromMaybe
+                                                , isNothing
+                                                )
+import           Data.Ord                       ( Down(Down) )
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import           Data.Text                      ( Text )
+import           System.IO                      ( hFlush
+                                                , stdout
+                                                )
 
 import qualified Hoogle
 import           Language.Haskell.Exts.Parser   ( ParseResult(..)
@@ -30,7 +41,6 @@ import           Language.Haskell.Exts.Parser   ( ParseResult(..)
 
 import           Database.Environment
 import           HooglePlus.CodeGenerator
-import           HooglePlus.FilterTest
 import           HooglePlus.GHCChecker
 import           HooglePlus.IOFormat
 import           HooglePlus.Refinement
@@ -50,6 +60,8 @@ import           Types.Type
 import           Types.TypeChecker
 import           Utility.Utils
 
+type SolverMonad m = (MonadIO m, MonadFail m)
+
 encodeFunction :: Id -> TypeSkeleton -> EncodedFunction
 encodeFunction id t | pairProj `Text.isPrefixOf` id =
   case encodeFunction "__f" t of
@@ -60,7 +72,7 @@ encodeFunction id t@(FunctionT _ tArg tRet) =
 encodeFunction id t = EncodedFunction id [] [t]
 
 instantiate
-  :: MonadIO m
+  :: SolverMonad m
   => Environment
   -> Map Id SchemaSkeleton
   -> PNSolver m (Map Id TypeSkeleton)
@@ -81,7 +93,7 @@ instantiate env sigs = do
 
 -- add Pair_match function as needed
 instantiateWith
-  :: MonadIO m
+  :: SolverMonad m
   => Environment
   -> [TypeSkeleton]
   -> Id
@@ -122,7 +134,7 @@ instantiateWith env typs id t               = do
 
 -- | Do a DFS search for all possible instantiations of a given type
 fullApplication
-  :: MonadIO m
+  :: SolverMonad m
   => [Id]
   -> [TypeSkeleton]
   -> TypeSkeleton
@@ -138,7 +150,8 @@ fullApplication bvs argsSoFar t@FunctionT{} typs = do
 fullApplication _ argsSoFar t _ =
   return [foldr (FunctionT "") t (reverse argsSoFar)]
 
-mkNewSig :: MonadIO m => Id -> TypeSkeleton -> PNSolver m (Id, TypeSkeleton)
+mkNewSig
+  :: SolverMonad m => Id -> TypeSkeleton -> PNSolver m (Id, TypeSkeleton)
 mkNewSig id ty = do
   instMap <- gets $ view (refineState . instanceMapping)
   -- function name do not need check duplicates from user defined names
@@ -159,7 +172,7 @@ mkNewSig id ty = do
   return (newId, ty)
 
 splitTransition
-  :: MonadIO m
+  :: SolverMonad m
   => Environment
   -> TypeSkeleton
   -> Id
@@ -237,7 +250,8 @@ splitTransition env newAt fid = do
     | otherwise
     = map (arg :) (enumArgs parents args)
 
-addSignatures :: MonadIO m => Environment -> PNSolver m (Map Id TypeSkeleton)
+addSignatures
+  :: SolverMonad m => Environment -> PNSolver m (Map Id TypeSkeleton)
 addSignatures env = do
   let foArgs     = map fst $ getFirstOrderArgs env
   -- first abstraction all the symbols with fresh type variables and then instantiate them
@@ -255,7 +269,7 @@ addSignatures env = do
 
 -- | Take a list of type signatures, group them by type and return the signatures for each group
 mkGroups
-  :: MonadIO m => Map Id TypeSkeleton -> PNSolver m (Map Id TypeSkeleton)
+  :: SolverMonad m => Map Id TypeSkeleton -> PNSolver m (Map Id TypeSkeleton)
 mkGroups sigs = do
   let encodedSigs = Map.mapWithKey encodeFunction sigs
   newGroups <- groupSignatures encodedSigs
@@ -264,7 +278,7 @@ mkGroups sigs = do
   groups <- gets $ view groupState
   return $ Map.restrictKeys sigs (Map.keysSet $ groupMap groups)
 
-addMusters :: MonadIO m => Id -> PNSolver m ()
+addMusters :: SolverMonad m => Id -> PNSolver m ()
 addMusters arg = do
   nameMap <- gets $ view (refineState . instanceName)
   let eqArg n = n == arg || n == arg `Text.append` hoPostfix
@@ -276,7 +290,7 @@ addMusters arg = do
 -- do the bidirectional type checking first, compare the two programs we get,
 -- with the type split information update the abstraction tree
 refineSemantic
-  :: (MonadIO m, MonadFail m)
+  :: SolverMonad m
   => Environment
   -> TProgram
   -> TypeSkeleton
@@ -309,7 +323,8 @@ refineSemantic env prog at = do
                             }
   return $ unionsSplitInfo (splitInfo : splitInfos)
 
-splitTransitions :: MonadIO m => Environment -> TypeSkeleton -> PNSolver m SplitInfo
+splitTransitions
+  :: SolverMonad m => Environment -> TypeSkeleton -> PNSolver m SplitInfo
 splitTransitions env at = do
   modify $ set (refineState . toRemove) []
 
@@ -352,7 +367,7 @@ splitTransitions env at = do
         removables <- gets $ view (refineState . toRemove)
         return $ Set.fromList removables
 
-splitGroups :: MonadIO m => [Id] -> PNSolver m (Set Id)
+splitGroups :: SolverMonad m => [Id] -> PNSolver m (Set Id)
 splitGroups removables = do
     -- Step 1: modify groupmap to exclude all those in removables
     -- Some groups may no longer exist as a result of this operation.
@@ -373,7 +388,7 @@ splitGroups removables = do
   modify $ over (searchState . currentSigs) (`Map.withoutKeys` toRemove)
   return toRemove
 
-initNet :: MonadIO m => Environment -> PNSolver m ()
+initNet :: SolverMonad m => Environment -> PNSolver m ()
 initNet env = do
     -- reset the solver state
   modify $ set (searchState . functionMap) HashMap.empty
@@ -398,7 +413,7 @@ initNet env = do
     let absTy = toAbstractType t
     return (id, absTy)
 
-addEncodedFunction :: MonadIO m => (Id, TypeSkeleton) -> PNSolver m ()
+addEncodedFunction :: SolverMonad m => (Id, TypeSkeleton) -> PNSolver m ()
 addEncodedFunction (id, f) = do
   let ef = encodeFunction id f
   modify $ over (searchState . functionMap) (HashMap.insert id ef)
@@ -406,7 +421,7 @@ addEncodedFunction (id, f) = do
   -- store the used abstract types and their groups into mapping
   updateTy2Tr id f
 
-resetEncoder :: (MonadIO m) => Environment -> TypeSkeleton -> PNSolver m ()
+resetEncoder :: (SolverMonad m) => Environment -> TypeSkeleton -> PNSolver m ()
 resetEncoder env dst = do
   (srcTypes, tgt) <- updateSrcTgt env dst
   writeLog 2 "resetEncoder" $ text "parameter types are" <+> pretty srcTypes
@@ -418,7 +433,7 @@ resetEncoder env dst = do
   st <- liftIO $ encoderInit encoder' loc srcTypes rets funcs
   modify $ set encoder st
 
-incEncoder :: MonadIO m => Environment -> PNSolver m ()
+incEncoder :: SolverMonad m => Environment -> PNSolver m ()
 incEncoder env = do
   tgt              <- gets $ view (refineState . targetType)
   src              <- gets $ view (refineState . sourceTypes)
@@ -427,7 +442,7 @@ incEncoder env = do
   st'              <- liftIO $ execStateT (encoderInc funcs src rets) st
   modify $ set encoder st'
 
-findPath :: MonadIO m => Environment -> TypeSkeleton -> PNSolver m [Id]
+findPath :: SolverMonad m => Environment -> TypeSkeleton -> PNSolver m [Id]
 findPath env dst = do
   st         <- gets $ view encoder
   (res, st') <- liftIO $ encoderSolve st
@@ -442,7 +457,7 @@ findPath env dst = do
     _ -> return res
 
 fixEncoder
-  :: MonadIO m => Environment -> TypeSkeleton -> SplitInfo -> PNSolver m ()
+  :: SolverMonad m => Environment -> TypeSkeleton -> SplitInfo -> PNSolver m ()
 fixEncoder env dst info = do
   st    <- gets $ view encoder
   cover <- gets $ view (refineState . abstractionCover)
@@ -461,14 +476,14 @@ fixEncoder env dst info = do
   modify $ set encoder st'
 
 findProgram
-  :: MonadIO m
+  :: SolverMonad m
   => Environment -- the search environment
-  -> SchemaSkeleton     -- the goal type
+  -> TypeSkeleton     -- the goal type
   -> [Example]   -- examples for post-filtering
   -> Int         -- remaining number of solutions to be found
   -> PNSolver m ()
 findProgram env goal examples cnt = do
-  let dst = lastType (toMonotype goal)
+  let dst = lastType goal
   modify $ set (refineState . splitTypes) Set.empty
   modify $ set (refineState . passOneOrMore) True
   modify $ over typeChecker $ \checker ->
@@ -492,9 +507,9 @@ findProgram env goal examples cnt = do
   skipClone = not . Text.isInfixOf "|clone"
 
 enumeratePath
-  :: MonadIO m
+  :: SolverMonad m
   => Environment
-  -> SchemaSkeleton
+  -> TypeSkeleton
   -> [Example]
   -> [Id]
   -> BackTrack m SearchResult
@@ -510,9 +525,9 @@ enumeratePath env goal examples path = do
   msum $ map (checkPath env goal examples) (sequence allPaths)
 
 checkPath
-  :: MonadIO m
+  :: SolverMonad m
   => Environment
-  -> SchemaSkeleton
+  -> TypeSkeleton
   -> [Example]
   -> [Id]
   -> BackTrack m SearchResult
@@ -530,7 +545,7 @@ checkPath env goal examples path = do
   -- fill the sketch with the functions in the path
   codeResult <- fillSketch env path
   writeLog 1 "checkPath" $ pretty codeResult
-  let dst = lastType (toMonotype goal)
+  let dst = lastType goal
   checkResult <- parseAndCheck env dst codeResult
   writeLog 1 "checkPath" $ text "get result" <+> pretty (show checkResult)
   rs       <- getExperiment refineStrategy
@@ -549,7 +564,7 @@ checkPath env goal examples path = do
 -- TODO: maybe we can change the order here
 -- once we get a correct solution, stop the refine
 parseAndCheck
-  :: MonadIO m
+  :: SolverMonad m
   => Environment
   -> TypeSkeleton
   -> TProgram
@@ -570,7 +585,7 @@ parseAndCheck env dst code = do
     Right prog -> checkCompleteProgram env dst prog
 
 checkCompleteProgram
-  :: MonadIO m
+  :: SolverMonad m
   => Environment
   -> TypeSkeleton
   -> TProgram
@@ -602,7 +617,7 @@ checkCompleteProgram env dst prog = do
       return $ Right prog
 
 pickGeneralization
-  :: MonadIO m
+  :: SolverMonad m
   => Environment
   -> TypeSkeleton
   -> TypeSkeleton
@@ -615,7 +630,7 @@ pickGeneralization env ty   target = do
   guard (isNothing unifier)
   return ty'
 
-fillSketch :: MonadIO m => Environment -> [Id] -> BackTrack m TProgram
+fillSketch :: SolverMonad m => Environment -> [Id] -> BackTrack m TProgram
 fillSketch env firedTrans = do
   srcs    <- gets $ view (refineState . sourceTypes)
   nameMap <- gets $ view (refineState . instanceName)
@@ -647,7 +662,7 @@ fillSketch env firedTrans = do
     = x : substPair xs
 
 generateCode
-  :: MonadIO m
+  :: SolverMonad m
   => Environment
   -> [TypeSkeleton]
   -> [Id]
@@ -664,9 +679,9 @@ generateCode env src args sigs = do
   return $ runCodeGenerator sigs src args rets disrel
 
 nextSolution
-  :: MonadIO m
+  :: SolverMonad m
   => Environment
-  -> SchemaSkeleton
+  -> TypeSkeleton
   -> [Example]
   -> Int
   -> PNSolver m ()
@@ -681,7 +696,7 @@ nextSolution env goal examples cnt = do
   if hasPass -- block the previous path and then search
     then findProgram env goal examples cnt
     else do -- refine and then search
-      let dst = lastType (toMonotype goal)
+      let dst = lastType goal
       cover              <- gets $ view (refineState . abstractionCover)
       CheckError prog at <- gets $ view (refineState . lastError)
       splitInfo          <- refineSemantic env prog at
@@ -693,9 +708,9 @@ nextSolution env goal examples cnt = do
       findProgram env goal examples cnt
 
 checkSolution
-  :: MonadIO m
+  :: SolverMonad m
   => Environment
-  -> SchemaSkeleton
+  -> TypeSkeleton
   -> [Example]
   -> TProgram
   -> BackTrack m SearchResult
@@ -721,19 +736,21 @@ checkSolution env goal examples code = do
           return $ Found (code', exs)
 
 runPNSolver
-  :: MonadIO m => Environment -> SchemaSkeleton -> [Example] -> PNSolver m ()
+  :: SolverMonad m => Environment -> TypeSkeleton -> [Example] -> PNSolver m ()
 runPNSolver env goal examples = do
   writeLog 3 "runPNSolver" $ text "all components" <+> pretty (allSymbols env)
   cnt <- getExperiment solutionCnt
   initNet env
-  let t = lastType (toMonotype goal)
+  let t = lastType goal
   resetEncoder env t
   -- findFirstN env goal st examples [] cnt
   findProgram env goal examples cnt
 
 {- helper functions -}
-writeSolution :: MonadIO m => QueryOutput -> PNSolver m ()
-writeSolution out = liftIO $ print out
+writeSolution :: SolverMonad m => QueryOutput -> PNSolver m ()
+writeSolution out = liftIO $ do
+  printResult $ encodeWithPrefix out
+  hFlush stdout
 
 recoverNames :: Map Id Id -> Program t -> Program t
 recoverNames mapping (Program (PSymbol sym) t) = case Map.lookup sym mapping of
@@ -755,7 +772,7 @@ substName []       []         = []
 substName (n : ns) (fc : fcs) = fc { funName = n } : substName ns fcs
 substName _        _          = error "substName: inconsistent list lengths"
 
-addCloneFunction :: MonadIO m => TypeSkeleton -> PNSolver m Id
+addCloneFunction :: SolverMonad m => TypeSkeleton -> PNSolver m Id
 addCloneFunction ty = do
   let fname = Text.pack $ show ty ++ "|clone"
   let fc    = EncodedFunction fname [ty] [ty, ty]
@@ -769,7 +786,7 @@ doRefine NoGar0     = False
 doRefine SypetClone = False
 doRefine _          = True
 
-updateTy2Tr :: MonadIO m => Id -> TypeSkeleton -> PNSolver m ()
+updateTy2Tr :: SolverMonad m => Id -> TypeSkeleton -> PNSolver m ()
 updateTy2Tr id f = do
   let addTransition k tid = Map.insertWith Set.union k (Set.singleton tid)
   let includedTyps = nub (allBaseTypes f)
@@ -780,7 +797,7 @@ updateTy2Tr id f = do
     includedTyps
 
 updateSrcTgt
-  :: MonadIO m
+  :: SolverMonad m
   => Environment
   -> TypeSkeleton
   -> PNSolver m ([TypeSkeleton], TypeSkeleton)
@@ -799,7 +816,7 @@ updateSrcTgt env dst = do
 type EncoderArgs = (Int, [TypeSkeleton], [EncodedFunction])
 
 prepEncoderArgs
-  :: MonadIO m => Environment -> TypeSkeleton -> PNSolver m EncoderArgs
+  :: SolverMonad m => Environment -> TypeSkeleton -> PNSolver m EncoderArgs
 prepEncoderArgs env tgt = do
   cover <- gets $ view (refineState . abstractionCover)
   loc   <- gets $ view (searchState . currentLoc)
@@ -827,7 +844,7 @@ isNewInstance bvs instMap name typ =
   not (isExistingInstance instMap name typ)
     || isRefinedInstance bvs instMap name typ
 
-excludeUseless :: MonadIO m => Id -> TypeSkeleton -> PNSolver m ()
+excludeUseless :: SolverMonad m => Id -> TypeSkeleton -> PNSolver m ()
 excludeUseless id ty = do
   instMap <- gets $ view (refineState . instanceMapping)
   case HashMap.lookup (id, absFunArgs id ty) instMap of
@@ -842,7 +859,7 @@ excludeUseless id ty = do
         <+> pretty ty'
       modify $ over (refineState . toRemove) (tid :)
 
-getGroup :: MonadIO m => Id -> PNSolver m Id
+getGroup :: SolverMonad m => Id -> PNSolver m Id
 getGroup name = do
   groups <- gets $ view groupState
   let ngm = nameToGroup groups

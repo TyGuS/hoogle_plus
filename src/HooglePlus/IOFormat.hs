@@ -16,6 +16,7 @@ module HooglePlus.IOFormat
   , encodeOutput
   , encodeWithPrefix
   , searchExamples
+  , searchResults
   , readBuiltinData
   , printResult
   , parseQueryType
@@ -64,7 +65,7 @@ import qualified Data.Text.Lazy.Encoding       as TL
 import           GHC.Generics                   ( Generic )
 import qualified Language.Haskell.Interpreter  as LHI
 import           System.Directory               ( doesFileExist )
-import           Text.Parsec.Indent             ( runIndentParserT )
+import           Text.Parsec                    ( runParser )
 import           Text.Parsec.Pos                ( initialPos )
 import           Text.Printf                    ( printf )
 
@@ -85,6 +86,7 @@ import           Types.Common
 import           Types.Environment
 import           Types.Experiments
 import           Types.Filtering
+import           Types.Generate
 import           Types.Pretty
 import           Types.Program
 import           Types.Type
@@ -204,11 +206,11 @@ encodeOutput = A.encode
 instance Pretty QueryOutput where
   pretty = pretty . show . encodeOutput
 
-type BuiltinExamples = Map SchemaSkeleton [Example]
+type BuiltinExamples = Map TypeSkeleton [Example]
 
-readBuiltinData :: SynquidParams -> Environment -> IO BuiltinExamples
-readBuiltinData synquidParams env = do
-  let jsonPathIn = jsonPath synquidParams
+readBuiltinData :: Environment -> IO BuiltinExamples
+readBuiltinData env = do
+  let jsonPathIn = defaultJsonPath
   doesExist <- doesFileExist jsonPathIn
   unless doesExist (error "cannot find builtin json file")
   json <- readFile jsonPathIn
@@ -222,25 +224,20 @@ readBuiltinData synquidParams env = do
       error "Invalid format of builtin queries, should be in json format"
   where transformObj (QueryInput q exs _) = (parseQueryType q, exs)
 
-parseQueryType :: String -> SchemaSkeleton
+parseQueryType :: String -> TypeSkeleton
 parseQueryType str =
-  let
-    parseResult = flip evalState (initialPos "type")
-      $ runIndentParserT parseSchema () "" str
-    resolveResult t =
-      runExcept $ evalStateT (resolveSchema [] t) initResolverState
-  in
-    case parseResult of
-      Left  parseErr -> error "something wrong in the builtin json"
-      Right t        -> case resolveResult t of
-        Left  err -> error $ "resolve fails" ++ show err ++ " type " ++ show t
-        Right s   -> s
+  let parseResult = runParser parseType () "" str
+      resolveResult t =
+        runExcept $ evalStateT (resolveType [] t) initResolverState
+  in  case parseResult of
+        Left  parseErr -> error "something wrong in the builtin json"
+        Right t        -> case resolveResult t of
+          Left  err -> error $ "resolve fails" ++ show err ++ " type " ++ show t
+          Right s   -> s
 
 prepareEnvFromInput
-  :: SynquidParams
-  -> String
-  -> IO (TypeQuery, [String], String, BuiltinExamples)
-prepareEnvFromInput synquidParams inStr = do
+  :: String -> IO (TypeQuery, [String], String, BuiltinExamples)
+prepareEnvFromInput inStr = do
   let mbInput = A.decode (LB.pack inStr) :: Maybe ExecInput
   let input = case mbInput of
         Just i  -> i
@@ -251,7 +248,7 @@ prepareEnvFromInput synquidParams inStr = do
   -- but it will also be shown in the results
   let tquery = execQuery input
   let env    = loadEnv
-  buildinData <- readBuiltinData synquidParams env
+  buildinData <- readBuiltinData env
   return (tquery, args, prog, buildinData)
 
 execExample
@@ -315,12 +312,12 @@ handleApproxShowFailure mdls progBody progCall = do
     Left  err -> runStmt mdls $ unwords [progBody, progCall]
     Right r   -> return result
 
-searchResults :: SynquidParams -> String -> IO ()
-searchResults synquidParams inStr = do
-  (tquery, args, prog, _) <- prepareEnvFromInput synquidParams inStr
+searchResults :: String -> IO ()
+searchResults inStr = do
+  (tquery, args, prog, _) <- prepareEnvFromInput inStr
   -- first parse type query and get rid of the arg names from the signature
   let goalTyp    = parseQueryType tquery
-  let goalTypStr = mkFunctionSigStr (breakdown (toMonotype goalTyp))
+  let goalTypStr = mkFunctionSigStr (breakdown goalTyp)
   let env        = loadEnv
   execResult <- catch
     (execExample includedModules env goalTypStr prog (Example args "??"))
@@ -330,8 +327,8 @@ searchResults synquidParams inStr = do
         Right r   -> ExecOutput "" r
   printResult $ encodeWithPrefix execJson
 
-searchExamples :: SynquidParams -> [Id] -> String -> Int -> IO ()
-searchExamples synquidParams mdls inStr num = do
+searchExamples :: [Id] -> String -> Int -> IO ()
+searchExamples mdls inStr num = do
   let mbInput = A.decode (LB.pack inStr) :: Maybe ExamplesInput
   let input = case mbInput of
         Just i  -> i
@@ -343,9 +340,9 @@ searchExamples synquidParams mdls inStr num = do
   let namedQuery = exampleQuery input
 
   let env        = loadEnv
-  candMap <- readBuiltinData synquidParams env
+  candMap <- readBuiltinData env
   let goalTyp      = parseQueryType namedQuery
-  let unnamedQuery = show (toMonotype goalTyp)
+  let unnamedQuery = show goalTyp
   let funcSig      = parseTypeString unnamedQuery
   let argNames     = words (getArgNames prog)
   -- remove magic numbers later
