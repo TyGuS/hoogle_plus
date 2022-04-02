@@ -8,6 +8,7 @@ import           Control.Monad.Logic            ( LogicT )
 import           Control.Monad.State            ( StateT
                                                 , gets
                                                 , modify
+                                                , MonadIO
                                                 )
 import           Data.HashMap.Strict            ( HashMap )
 import qualified Data.HashMap.Strict           as HashMap
@@ -119,10 +120,6 @@ instance Monad m => Fresh SolverState m where
 
 type PNSolver m = StateT SolverState m
 type BackTrack m = LogicT (PNSolver m)
-
-data SearchResult = NotFound
-                  | Found (TProgram, AssociativeExamples)
-                  | MoreRefine (TProgram, TypeSkeleton)
-                  deriving(Eq)
+type SolverMonad m = (MonadIO m, MonadFail m)
 
 getExperiment exp = gets $ view (searchParams . exp)

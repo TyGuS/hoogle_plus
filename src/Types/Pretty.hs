@@ -303,7 +303,7 @@ instance Pretty Environment where
   pretty = prettyBindings
 
 instance Pretty Goal where
-  pretty (Goal _ spec) = pretty spec
+  pretty (Goal _ spec _) = pretty spec
 
 {- Input language -}
 
@@ -407,3 +407,6 @@ instance Pretty EncodedFunction where
       $+$ string "return types:"
       <+> hlBrackets (commaSep (map pretty rets))
       )
+
+instance Pretty Example where
+  pretty e = hsep [hsep (map pretty $ inputs e), "==>", pretty (output e)]

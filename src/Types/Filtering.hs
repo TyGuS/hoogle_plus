@@ -57,20 +57,6 @@ frameworkModules =
 ---------------------------------- Types ---------------------------------------
 --------------------------------------------------------------------------------
 
-
-data Example = Example
-  { inputs :: [String]
-  , output :: String
-  }
-  deriving (Eq, Ord, Show, Generic)
-
-instance Pretty Example where
-  pretty e = hsep [hsep (map pretty $ inputs e), "==>", pretty (output e)]
-
-instance ToJSON Example
-instance FromJSON Example
-instance Serialize Example
-
 type SmallCheckResult = (Maybe PropertyFailure, [Example])
 type GeneratorResult = [Example]
 type SolutionPair = (TProgram, TProgram) -- qualified and unqualified
@@ -141,6 +127,7 @@ data FilterState = FilterState
   }
   deriving Eq
 
+emptyFilterState :: FilterState
 emptyFilterState = FilterState { filterInputs          = []
                                , solutions             = []
                                , solutionExamples      = []

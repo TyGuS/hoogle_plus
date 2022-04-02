@@ -87,3 +87,6 @@ data ExperimentCourse
   | POPLQuality
   | POPLSpeed
   deriving (Show, Data, Typeable)
+
+data SearchEngine = HooglePlus | Hectare
+  deriving (Eq, Ord, Show, Data, Typeable)

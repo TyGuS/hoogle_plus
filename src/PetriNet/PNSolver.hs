@@ -1,5 +1,6 @@
 module PetriNet.PNSolver
   ( runPNSolver
+  , nextSolution
   ) where
 
 import           Control.Lens                   ( over
@@ -41,8 +42,6 @@ import           Language.Haskell.Exts.Parser   ( ParseResult(..)
 
 import           Database.Environment
 import           HooglePlus.CodeGenerator
-import           HooglePlus.GHCChecker
-import           HooglePlus.IOFormat
 import           HooglePlus.Refinement
 import           PetriNet.PNEncoder
 import           Types.Common
@@ -51,7 +50,6 @@ import           Types.Encoder           hiding ( incrementalSolving
                                                 )
 import           Types.Environment
 import           Types.Experiments
-import           Types.Filtering
 import           Types.Fresh
 import           Types.Pretty
 import           Types.Program
@@ -59,8 +57,6 @@ import           Types.Solver
 import           Types.Type
 import           Types.TypeChecker
 import           Utility.Utils
-
-type SolverMonad m = (MonadIO m, MonadFail m)
 
 encodeFunction :: Id -> TypeSkeleton -> EncodedFunction
 encodeFunction id t | pairProj `Text.isPrefixOf` id =
@@ -407,7 +403,8 @@ initNet env = do
   let hoArgs = getHigherOrderArgs env
   mapM_ (addMusters . fst) hoArgs
  where
-  abstractSymbol :: SolverMonad m => Id -> TypeSkeleton -> PNSolver m (Id, TypeSkeleton)
+  abstractSymbol
+    :: SolverMonad m => Id -> TypeSkeleton -> PNSolver m (Id, TypeSkeleton)
   abstractSymbol id sch = do
     let bound = getBoundTypeVars env
     t <- freshType bound sch
@@ -477,13 +474,8 @@ fixEncoder env dst info = do
   modify $ set encoder st'
 
 findProgram
-  :: SolverMonad m
-  => Environment -- the search environment
-  -> TypeSkeleton     -- the goal type
-  -> [Example]   -- examples for post-filtering
-  -> Int         -- remaining number of solutions to be found
-  -> PNSolver m ()
-findProgram env goal examples cnt = do
+  :: SolverMonad m => Environment -> TypeSkeleton -> PNSolver m [TProgram]
+findProgram env goal = do
   let dst = lastType goal
   modify $ set (refineState . splitTypes) Set.empty
   modify $ set (refineState . passOneOrMore) True
@@ -493,28 +485,16 @@ findProgram env goal examples cnt = do
   path <- findPath env dst
   writeLog 2 "findProgram" $ text "unfiltered path:" <+> pretty path
   let usefulTrans = filter skipClone path
-  searchResults <- observeManyT cnt
-    $ enumeratePath env goal examples usefulTrans
-  mapM_ handleResult searchResults
-  let solnNum = length searchResults
-  when (solnNum < cnt) -- get enough solutions, search search
-       (nextSolution env goal examples (cnt - solnNum))
- where
-  handleResult NotFound = error "NotFound appeared in search results"
-  handleResult (Found (soln, exs)) =
-    modify $ over (searchState . currentSolutions) (soln :)
-  handleResult (MoreRefine err) = error "Should not encounter more refine"
-
-  skipClone = not . Text.isInfixOf "|clone"
+  observeAllT $ enumeratePath env goal usefulTrans
+  where skipClone = not . Text.isInfixOf "|clone"
 
 enumeratePath
   :: SolverMonad m
   => Environment
   -> TypeSkeleton
-  -> [Example]
   -> [Id]
-  -> BackTrack m SearchResult
-enumeratePath env goal examples path = do
+  -> BackTrack m TProgram
+enumeratePath env goal path = do
   groups  <- gets $ view groupState
   nameMap <- gets $ view (refineState . instanceName)
   let getGroup p = lookupWithError "nameToGroup" p (nameToGroup groups)
@@ -523,16 +503,15 @@ enumeratePath env goal examples path = do
   let sortFuncs p = Set.toList p -- TODO: any useful trick?
   let allPaths = map (sortFuncs . getFuncs) path
   writeLog 2 "enumeratePath" $ pretty allPaths
-  msum $ map (checkPath env goal examples) (sequence allPaths)
+  msum $ map (checkPath env goal) (sequence allPaths)
 
 checkPath
   :: SolverMonad m
   => Environment
   -> TypeSkeleton
-  -> [Example]
   -> [Id]
-  -> BackTrack m SearchResult
-checkPath env goal examples path = do
+  -> BackTrack m TProgram
+checkPath env goal path = do
     -- ensure the usage of all the higher order arguments
   disrel  <- getExperiment disableRelevancy
   nameMap <- gets $ view (refineState . instanceName)
@@ -559,8 +538,7 @@ checkPath env goal examples path = do
       let stopRefine = not (doRefine rs) || stop && coverSize cover >= placeNum
       when stopRefine $ modify $ set (refineState . passOneOrMore) True
       mzero
-    Right code -> checkSolution env goal examples code
-
+    Right code -> return $ recoverNames nameMap code
 
 -- TODO: maybe we can change the order here
 -- once we get a correct solution, stop the refine
@@ -680,13 +658,8 @@ generateCode env src args sigs = do
   return $ runCodeGenerator sigs src args rets disrel
 
 nextSolution
-  :: SolverMonad m
-  => Environment
-  -> TypeSkeleton
-  -> [Example]
-  -> Int
-  -> PNSolver m ()
-nextSolution env goal examples cnt = do
+  :: SolverMonad m => Environment -> TypeSkeleton -> PNSolver m [TProgram]
+nextSolution env goal = do
     -- note: when we come to the next solution, there are two cases:
     -- case I: all of the programs from the previous path are spurious
     -- case II: some of the programs from the previous path are correct
@@ -695,7 +668,7 @@ nextSolution env goal examples cnt = do
   modify $ set (encoder . prevChecked) True
   hasPass <- gets $ view (refineState . passOneOrMore)
   if hasPass -- block the previous path and then search
-    then findProgram env goal examples cnt
+    then findProgram env goal
     else do -- refine and then search
       let dst = lastType goal
       cover              <- gets $ view (refineState . abstractionCover)
@@ -706,52 +679,18 @@ nextSolution env goal examples cnt = do
       cover <- gets $ view (refineState . abstractionCover)
       funcs <- gets $ view (searchState . functionMap)
       fixEncoder env dst splitInfo
-      findProgram env goal examples cnt
-
-checkSolution
-  :: SolverMonad m
-  => Environment
-  -> TypeSkeleton
-  -> [Example]
-  -> TProgram
-  -> BackTrack m SearchResult
-checkSolution env goal examples code = do
-  solutions <- gets $ view (searchState . currentSolutions)
-  mapping   <- gets $ view (refineState . instanceName)
-  params    <- gets $ view searchParams
-  fState    <- gets $ view filterState
-  let code' = recoverNames mapping code
-  if code' `elem` solutions
-    then mzero
-    else do
-      writeLog 1 "checkSolution" $ text "Checking solution" <+> pretty code'
-      (checkResult, fState') <- liftIO
-        $ runStateT (check env params examples code' goal) fState
-      modify $ set filterState fState'
-      if isNothing checkResult
-        then mzero
-        else do
-          let exs = fromJust checkResult
-          out <- liftIO $ toOutput env code' exs
-          lift $ writeSolution out
-          return $ Found (code', exs)
+      findProgram env goal
 
 runPNSolver
-  :: SolverMonad m => Environment -> TypeSkeleton -> [Example] -> PNSolver m ()
-runPNSolver env goal examples = do
+  :: SolverMonad m => Environment -> TypeSkeleton -> PNSolver m [TProgram]
+runPNSolver env goal = do
   writeLog 3 "runPNSolver" $ text "all components" <+> pretty (allSymbols env)
-  cnt <- getExperiment solutionCnt
   initNet env
   let t = lastType goal
   resetEncoder env t
-  -- findFirstN env goal st examples [] cnt
-  findProgram env goal examples cnt
+  findProgram env goal
 
 {- helper functions -}
-writeSolution :: SolverMonad m => QueryOutput -> PNSolver m ()
-writeSolution out = liftIO $ do
-  printResult $ encodeWithPrefix out
-  hFlush stdout
 
 recoverNames :: Map Id Id -> Program t -> Program t
 recoverNames mapping (Program (PSymbol sym) t) = case Map.lookup sym mapping of

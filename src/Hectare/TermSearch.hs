@@ -2,20 +2,28 @@ module Hectare.TermSearch
   ( synthesize
   ) where
 
+import           Control.Monad                  ( forM
+                                                , msum
+                                                , when
+                                                )
+import           Data.Bifunctor                 ( bimap
+                                                , second
+                                                )
 import           Data.List                      ( (\\)
                                                 , permutations
                                                 )
 import           Data.List.Extra                ( nubOrd )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
-import           Data.Maybe                     ( fromMaybe, fromJust, isJust )
+import           Data.Maybe                     ( fromJust
+                                                , fromMaybe
+                                                , isJust
+                                                )
 import           Data.Text                      ( Text )
 import           Data.Tuple                     ( swap )
 import           System.IO                      ( hFlush
                                                 , stdout
                                                 )
-import Control.Monad ( when )
-import Data.Bifunctor ( second )
 
 import           Data.ECTA
 import           Data.ECTA.Paths
@@ -26,6 +34,7 @@ import           Utility.Fixpoint
 import           Database.Dataset
 import           Hectare.Type
 import           Hectare.Utils
+import           Types.Environment
 import           Types.Program
 import           Types.Type
 
@@ -33,8 +42,16 @@ import           Types.Type
 -------------------------------- Top level calls -------------------------------
 --------------------------------------------------------------------------------
 
-synthesize :: [Argument] -> Node -> Int -> IO [TProgram]
-synthesize argNodes resNode sz = do
+synthesize :: Goal -> IO [TProgram]
+synthesize (Goal env goalType _) = do
+  let args        = getArguments env
+  let destination = lastType goalType
+  let argNodes    = map (bimap Symbol typeToFta) args
+  let resNode     = typeToFta destination
+  concat <$> forM [1 ..] (doSynthesize argNodes resNode)
+
+doSynthesize :: [Argument] -> Node -> Int -> IO [TProgram]
+doSynthesize argNodes resNode sz = do
   let anyArg      = Node (map (uncurry constArg) argNodes)
   let !filterNode = filterType (relevantTermsOfSize anyArg argNodes sz) resNode
   reducedNode <- reduceFullyAndLog filterNode
@@ -325,7 +342,8 @@ toMappedName x = fromMaybe x (Map.lookup x groupMapping)
 
 prettyPrintAllTerms :: Maybe Term -> Node -> IO ()
 prettyPrintAllTerms mbSol n = do
-  when (isJust mbSol) $ putStrLn $ "Expected: " ++ show (pretty $ fromJust mbSol)
+  when (isJust mbSol) $ putStrLn $ "Expected: " ++ show
+    (pretty $ fromJust mbSol)
   let ts = getAllTerms n
   print ts
 

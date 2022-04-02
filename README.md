@@ -58,11 +58,11 @@ You may try different searche modes with the following command line args:
 
 ## Build
 
-### prerequisites
-
+<!-- ### prerequisites -->
+<!-- 
 ```
 sudo apt install -y libgirepository1.0-dev libglib2.0-dev
-```
+``` -->
 
 To build this project, you need to have [stack](https://docs.haskellstack.org/en/stable/README/) and [z3](https://github.com/Z3Prover/) installed.
 

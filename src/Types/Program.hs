@@ -21,6 +21,7 @@ module Types.Program
     -- * Declarations
   , Declaration(..)
   , ConstructorSig(..)
+  , Example(..)
   , Goal(..)
   , dummyDecl
   ) where
@@ -30,6 +31,11 @@ import qualified Data.Set                      as Set
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import           GHC.Generics                   ( Generic )
+
+import           Data.Aeson                     ( FromJSON
+                                                , ToJSON
+                                                )
+import           Data.Serialize                 ( Serialize )
 
 import           Types.Common
 import           Types.Environment
@@ -73,10 +79,21 @@ data Declaration
 dummyDecl :: Declaration
 dummyDecl = FuncDecl "_dummy" (Monotype TopT)
 
+data Example = Example
+  { inputs :: [String]
+  , output :: String
+  }
+  deriving (Eq, Ord, Show, Generic)
+
+instance ToJSON Example
+instance FromJSON Example
+instance Serialize Example
+
 -- | Synthesis goal
 data Goal = Goal
   { gEnvironment :: Environment  -- ^ Enclosing environment
   , gSpec        :: TypeSkeleton -- ^ Specification
+  , gExamples    :: [Example]
   }
   deriving (Eq, Ord, Show)
 

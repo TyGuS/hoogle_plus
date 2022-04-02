@@ -23,17 +23,21 @@ import           Control.Monad.Logic            ( LogicT
                                                 )
 import           Control.Monad.State
 import           Data.Bifunctor                 ( second )
+import qualified Data.ByteString.Lazy.Char8    as LB
 import           Data.Char                      ( chr
                                                 , isLower
                                                 , ord
                                                 )
+import           Data.Either                    ( isRight
+                                                , partitionEithers
+                                                )
 import           Data.List                      ( (\\)
+                                                , delete
+                                                , intercalate
+                                                , isInfixOf
                                                 , partition
                                                 , sort
                                                 , sortOn
-                                                , intercalate
-                                                , isInfixOf
-                                                , delete
                                                 )
 import           Data.List.Extra                ( groupOn
                                                 , nubOrdBy
@@ -52,22 +56,18 @@ import           Outputable                     ( Outputable(ppr)
                                                 , showSDocUnsafe
                                                 )
 import           Text.Printf                    ( printf )
-import qualified Data.ByteString.Lazy.Char8 as LB
-import Data.Either ( isRight, partitionEithers )
 
+import           Database.Dataset
 import           Examples.Utils
 import           HooglePlus.IOFormat
 import           Types.Common
 import           Types.Environment
 import           Types.Fresh
 import           Types.Pretty
+import           Types.Program
 import           Types.Type
 import qualified Types.TypeChecker
 import           Utility.Utils
-import Types.Filtering
-import Types.Experiments
-import Database.Dataset
-import HooglePlus.Utils
 
 type TyclassConstraints = Set Id
 type TyclassAssignment = Map Id TyclassConstraints
@@ -226,29 +226,32 @@ checkExamples mdls env typ exs = do
 
 searchTypes :: String -> Int -> IO (ListOutput String, InfStats)
 searchTypes inStr num = do
-    let input = decodeInput (LB.pack inStr)
-    let exquery = inExamples input
-    let mkFun ex = printf "(%s)" (intercalate ", " $ inputs ex ++ [output ex])
-    exTypes <- mapM (parseExample includedModules . mkFun) exquery
-    let (invalidTypes, validSchemas) = partitionEithers exTypes
-    let argNames = inArgNames input
-    resultObj <- if null invalidTypes then possibleQueries argNames exquery validSchemas
-                                      else return (ListOutput [] (unlines invalidTypes), InfStats (-1) (-1))
-    printResult $ encodeWithPrefix $ fst resultObj
-    return resultObj
-    where
-        renameVars t =
-            let freeVars = Set.toList $ typeVarsOf t
-                validVars = foldr delete seqChars freeVars
-                substVars = foldr delete freeVars seqChars
-                substMap = Map.fromList $ zip substVars $ map TypeVarT validVars
-             in typeSubstitute substMap t
+  let input   = decodeInput (LB.pack inStr)
+  let exquery = inExamples input
+  let mkFun ex = printf "(%s)" (intercalate ", " $ inputs ex ++ [output ex])
+  exTypes <- mapM (parseExample includedModules . mkFun) exquery
+  let (invalidTypes, validSchemas) = partitionEithers exTypes
+  let argNames                     = inArgNames input
+  resultObj <- if null invalidTypes
+    then possibleQueries argNames exquery validSchemas
+    else return (ListOutput [] (unlines invalidTypes), InfStats (-1) (-1))
+  printResult $ encodeWithPrefix $ fst resultObj
+  return resultObj
+ where
+  renameVars t =
+    let freeVars  = Set.toList $ typeVarsOf t
+        validVars = foldr delete seqChars freeVars
+        substVars = foldr delete freeVars seqChars
+        substMap  = Map.fromList $ zip substVars $ map TypeVarT validVars
+    in  typeSubstitute substMap t
 
-        possibleQueries argNames exquery exTypes = do
-            (generalTypes, stats) <- getExampleTypes argNames exTypes num
-            if null generalTypes then return (ListOutput [] "Cannot find type for your query", InfStats 0 0)
-                                 else return (ListOutput generalTypes "", stats)
-                                 
+  possibleQueries argNames exquery exTypes = do
+    (generalTypes, stats) <- getExampleTypes argNames exTypes num
+    if null generalTypes
+      then return
+        (ListOutput [] "Cannot find type for your query", InfStats 0 0)
+      else return (ListOutput generalTypes "", stats)
+
 
 -- pre: the mkFun is a tuple of arguments and return types
 parseExample :: [Id] -> String -> IO (Either GHCError SchemaSkeleton)
@@ -264,11 +267,7 @@ parseExample mdls mkFun = catch
   toInt (ForallT x t) = ForallT x (toInt t)
   toInt (Monotype t ) = Monotype (integerToInt t)
 
-getExampleTypes
-  :: [Id]
-  -> [SchemaSkeleton]
-  -> Int
-  -> IO ([String], InfStats)
+getExampleTypes :: [Id] -> [SchemaSkeleton] -> Int -> IO ([String], InfStats)
 getExampleTypes argNames validSchemas num = do
   let initTyclassState = emptyTyclassState
   -- remove magic number later
@@ -713,7 +712,8 @@ mkTyclassQuery tcass typ tyclass = do
           ++ [Text.pack $ printf "%s (%s)" tyclass (show typ)]
   let query = printf "undefined :: (%s) => ()" allTcs
   liftIO $ catch
-    (askGhc includedModules (exprType TM_Default query) >> return (Just tyclass))
+    (askGhc includedModules (exprType TM_Default query) >> return (Just tyclass)
+    )
     (\(e :: SomeException) -> liftIO (print e) >> return Nothing)
 
 defaultTypeVar :: TypeSkeleton -> TypeSkeleton -> TypeSkeleton

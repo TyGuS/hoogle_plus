@@ -30,7 +30,6 @@ dependencies:
 - ghc-boot-th
 - ghc-paths
 - ghci
-- gi-glib
 - hashable
 - hashtables
 - haskell-src-exts

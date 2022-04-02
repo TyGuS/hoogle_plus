@@ -43,6 +43,7 @@ import           Types.Common
 import           Types.Environment              ( Environment )
 import           Types.Filtering
 import           Types.Generate                 ( defaultEnvPath )
+import           Types.Program
 import           Types.Type
 import           Types.TypeChecker
 import           Utility.Utils
@@ -226,7 +227,10 @@ writeResultsTsv fp results = withFile fp AppendMode $ \hdl -> do
             let typStrs   = padEnd (len - length typs) typs
             let nameStrs  = align (Evaluation.Benchmark.name bm)
             let queryStrs = align (Evaluation.Benchmark.query bm)
-            let dataStrs  = padEnd (len - 1) [[(length exs, rank, pre, post, vars, args)]]
+            let
+                dataStrs = padEnd
+                    (len - 1)
+                    [[(length exs, rank, pre, post, vars, args)]]
             mapM_
                 (\(name, query, e, t, d) -> do
                     let

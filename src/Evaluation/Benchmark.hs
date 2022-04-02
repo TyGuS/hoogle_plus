@@ -4,7 +4,7 @@ import           GHC.Generics                   ( Generic )
 
 import           Data.Aeson                     ( FromJSON )
 
-import           Types.Filtering                ( Example )
+import           Types.Program                  ( Example )
 
 
 data Benchmark = Benchmark

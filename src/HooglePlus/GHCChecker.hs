@@ -3,8 +3,10 @@ module HooglePlus.GHCChecker
   , parseStrictnessSig
   , checkStrictness'
   , check
+  , checkSolution
   ) where
 
+import Control.Monad.Trans ( lift )
 import           Control.Exception              ( SomeException(SomeException)
                                                 , handle
                                                 )
@@ -45,11 +47,11 @@ import           System.Directory               ( removeFile )
 import           Text.Printf                    ( printf )
 
 import           Data.UUID.V4                   ( nextRandom )
-import           GI.GLib.Functions              ( getTmpDir )
 import           Text.Regex                     ( matchRegex
                                                 , mkRegex
                                                 , splitRegex
                                                 )
+import System.IO ( hFlush, stdout )
 
 import           Database.Dataset
 import           HooglePlus.FilterTest          ( runChecks )
@@ -61,6 +63,9 @@ import           Types.Experiments
 import           Types.Filtering
 import           Types.Program
 import           Types.Type
+import Types.Solver
+import Utility.Utils
+import Types.Pretty
 
 showGhc :: (Outputable a) => a -> String
 showGhc = showPpr unsafeGlobalDynFlags
@@ -222,3 +227,28 @@ checkType expr modules = do
   -- Ensures that if there's a problem we'll know
   Language.Haskell.Interpreter.typeOf expr
   typeChecks expr
+
+checkSolution
+  :: SolverMonad m
+  => SearchParams
+  -> Environment
+  -> TypeSkeleton
+  -> [Example]
+  -> TProgram
+  -> FilterTest m Bool
+checkSolution params env goal examples code = do
+  writeLog 1 "checkSolution" $ text "Checking solution" <+> pretty code
+  checkResult <- check env params examples code goal
+  if isNothing checkResult
+    then return False
+    else do
+      let exs = fromJust checkResult
+      out <- liftIO $ toOutput env code exs
+      liftIO $ writeSolution out
+      -- return $ Found (code', exs)
+      return True
+  where
+    writeSolution :: QueryOutput -> IO ()
+    writeSolution out = do
+      printResult $ encodeWithPrefix out
+      hFlush stdout

@@ -9,7 +9,9 @@ import           Control.Exception              ( SomeException
                                                 )
 import           Control.Lens                   ( (^.) )
 import           Control.Monad.Except           ( runExcept )
-import           Control.Monad.State            ( evalStateT )
+import           Control.Monad.State            ( evalStateT
+                                                , runStateT
+                                                )
 import           Data.List.Extra                ( nubOrdOn )
 import qualified Data.Map                      as Map
 import           Data.Map                       ( Map )
@@ -31,15 +33,14 @@ import           HooglePlus.Utils
 import           PetriNet.PNSolver
 import           Types.Environment
 import           Types.Experiments
-import           Types.Filtering
 import           Types.Pretty
 import           Types.Program
 import           Types.Solver
 import           Types.Type
 import           Types.TypeChecker
 
-envToGoal :: Environment -> String -> IO Goal
-envToGoal env queryStr = do
+envToGoal :: Environment -> String -> [Example] -> IO Goal
+envToGoal env queryStr examples = do
   let parseResult = runParser parseType () "goal" queryStr
   case parseResult of
     Left parseErr ->
@@ -49,15 +50,25 @@ envToGoal env queryStr = do
       let spec = runExcept $ evalStateT (resolveType [] typ) initResolverState
       case spec of
         Right sp -> do
+          -- before synthesis, first check that user has provided valid examples
+          let exWithOutputs = filter ((/=) "??" . output) examples
+          checkResult <- checkExamples includedModules
+                                        env
+                                        (Monotype sp)
+                                        exWithOutputs
+          case checkResult of
+            Left  errs -> error (unlines ("Examples does not type check" : errs))
+            Right _ -> return ()
+
           let (env', monospec) = updateEnvWithBoundTyVars (Monotype sp) env
           let (env'', destinationType) = updateEnvWithSpecArgs monospec env'
-          return $ Goal { gEnvironment = env'', gSpec = sp }
+          return $ Goal { gEnvironment = env'', gSpec = sp, gExamples = examples }
         Left parseErr ->
           putDoc (pretty parseErr) >> putDoc linebreak >> error
             (prettyShow parseErr)
 
-synthesize :: SearchParams -> Goal -> [Example] -> IO (Maybe ())
-synthesize searchParams (Goal env goalType) examples = catch
+synthesize :: SearchParams -> Goal -> IO ([TProgram], SolverState)
+synthesize searchParams (Goal env goalType _) = catch
   (do
     let destinationType = lastType goalType
     let useHO           = _useHO searchParams
@@ -76,17 +87,7 @@ synthesize searchParams (Goal env goalType) examples = catch
           , _typeChecker  = emptyChecker
           }
 
-    -- before synthesis, first check that user has provided valid examples
-    let exWithOutputs = filter ((/=) "??" . output) examples
-    checkResult <- checkExamples includedModules
-                                 env
-                                 (Monotype goalType)
-                                 exWithOutputs
-    let augmentedExamples = examples -- nubOrdOn inputs $ examples ++ preseedExamples
-    case checkResult of
-      Left  errs -> error (unlines ("Examples does not type check" : errs))
-      Right _    -> timeout (600 * 10 ^ 6)
-        $ evalStateT (runPNSolver env goalType augmentedExamples) is
+    runStateT (runPNSolver env goalType) is
   )
   (\(e :: SomeException) -> do
     printResult (encodeWithPrefix (QueryOutput [] (show e) []))
