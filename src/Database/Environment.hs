@@ -14,7 +14,7 @@ import           Control.Monad.State            ( StateT
                                                 )
 import           Data.Bifunctor                 ( second )
 import           Data.Functor                   ( (<&>) )
-import           Data.List                      ( intercalate )
+import           Data.List                      ( intercalate, delete )
 import           Data.List.Extra                ( nubOrd )
 import qualified Data.List.Utils               as LUtils
 import           Data.Map                       ( Map )
@@ -33,6 +33,7 @@ import           Text.Printf                    ( printf )
 
 import           Language.Haskell.Brittany      ( parsePrintModule
                                                 , staticDefaultConfig
+                                                , BrittanyError(..)
                                                 )
 import           Text.Parsec.Pos                ( initialPos )
 import           Text.PrettyPrint.ANSI.Leijen   ( string )
@@ -46,6 +47,7 @@ import           Types.Environment
 import           Types.Fresh
 import           Types.Generate
 import           Types.Pretty
+import           Types.Program
 import           Types.Type
 import           Utility.Utils
 
@@ -61,25 +63,25 @@ writeEnv genOpts env = do
   preamble <- readFile datasetTemplate
 
   -- write normal components
-  let compsDecl = "hplusComponents :: [(Text, SchemaSkeleton)]\n hplusComponents = " :: String
+  let compsDecl = "hplusComponents :: [(Text, SchemaSkeleton)]\nhplusComponents = " :: String
   let symbols   = getSymbols env
   let compsList = show (Map.toList symbols)
 
   -- write higher orders
-  let hosDecl = "hplusHigherOrders :: [(Text, SchemaSkeleton)]\n hplusHigherOrders = " :: String
+  let hosDecl = "hplusHigherOrders :: [(Text, SchemaSkeleton)]\nhplusHigherOrders = " :: String
   let foSymbols = Map.filter (not . isHigherOrder . toMonotype) symbols
   hofNames <- readFile (hoPath genOpts) <&> lines
   let hoSigs   = generateHigherOrder (map Text.pack hofNames) symbols
   let hosList  = show (Map.toList hoSigs)
 
   -- write modules
-  let mdlsDecl = "includedModules :: [Text]\n includedModules = " :: String
+  let mdlsDecl = "includedModules :: [Text]\nincludedModules = " :: String
   let mdls     = show (modules genOpts)
 
   -- update dataset.hs
   brittanyResult <- parsePrintModule
     staticDefaultConfig
-    (Text.pack $ printf "%s\n%s\n%s\n%s\n%s\n%s\n%s\n"
+    (Text.pack $ printf "%s\n\n\n%s%s\n\n%s%s\n\n%s%s"
                         preamble
                         compsDecl
                         compsList
@@ -89,8 +91,19 @@ writeEnv genOpts env = do
                         mdls
     )
   case brittanyResult of
-    Left  errs -> error "Brittany: document cannot be formatted"
+    Left  errs -> outputError errs
     Right txt  -> writeFile datasetPath (Text.unpack txt)
+
+  where
+    outputError [] = error "no error returned by brittany"
+    outputError (err:_) = case err of
+      ErrorInput parseError -> error parseError
+      ErrorUnusedComment commentError -> error commentError
+      ErrorMacroConfig _ _ -> error "macro config error"
+      LayoutWarning warning -> error warning
+      ErrorUnknownNode internalErr _ -> error internalErr
+      ErrorOutputCheck -> error "output check error"
+
 
 generateHigherOrder :: [Id] -> Map Id SchemaSkeleton -> Map Id SchemaSkeleton
 generateHigherOrder hofNames components =
@@ -134,7 +147,7 @@ generateEnv genOpts = do
   let entriesByMdl    = filterEntries allEntriesByMdl mbModuleNames
   let entries         = nubOrd $ concat $ Map.elems entriesByMdl
   let declarations    = evalState (mapM toDeclaration entries) 0
-  let hooglePlusDecls = reorderDecls $ nubOrd (defaultLibrary ++ declarations)
+  let hooglePlusDecls = reorderDecls $ delete dummyDecl $ nubOrd (defaultLibrary ++ declarations)
 
   case resolveDecls hooglePlusDecls of
     Left  errMessage -> error $ show errMessage

@@ -145,15 +145,15 @@ infixl 1 <&>
 void :: Functor f => f a -> f ()
 module Data.Function
 id :: a -> a
-const :: a -> b -> a
+-- const :: a -> b -> a
 (.) :: (b -> c) -> (a -> b) -> a -> c
 infixr 9 .
 flip :: (a -> b -> c) -> b -> a -> c
 ($) :: forall r a (b :: TYPE r). (a -> b) -> a -> b
 infixr 0 $
-(&) :: a -> (a -> b) -> b
+-- (&) :: a -> (a -> b) -> b
 infixl 1 &
-fix :: (a -> a) -> a
+-- fix :: (a -> a) -> a
 on :: (b -> b -> c) -> (a -> b) -> a -> a -> c
 infixl 0 `on`
 module Data.Eq

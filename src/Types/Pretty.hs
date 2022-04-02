@@ -55,6 +55,7 @@ module Types.Pretty
   -- * Highlighting
     plain
   , errorDoc
+  , plainShow
   ) where
 
 import           Data.HashMap.Strict            ( HashMap )
@@ -410,3 +411,6 @@ instance Pretty EncodedFunction where
 
 instance Pretty Example where
   pretty e = hsep [hsep (map pretty $ inputs e), "==>", pretty (output e)]
+
+plainShow :: Pretty a => a -> String
+plainShow = show . plain . pretty

@@ -181,7 +181,7 @@ runGhcChecks params modules env goalType examples prog =
     tyclassCount = length $ Prelude.filter
       (\id -> tyclassArgBase `Text.isPrefixOf` Text.pack id)
       argList
-    expr          = printf "(%s) :: %s" (show body) funcSig
+    expr          = printf "(%s) :: %s" (plainShow body) funcSig
     disableDemand = _disableDemand params
     disableFilter = _disableFilter params
   in
@@ -191,7 +191,7 @@ runGhcChecks params modules env goalType examples prog =
       typeCheckResult   <- liftIO $ runInterpreter $ checkType expr mdls
       strictCheckResult <- if disableDemand
         then return True
-        else liftIO $ checkStrictness tyclassCount (show body) funcSig mdls
+        else liftIO $ checkStrictness tyclassCount (plainShow body) funcSig mdls
       -- liftIO $ print strictCheckResult
       exampleCheckResult <- if not strictCheckResult
         then return Nothing
@@ -218,7 +218,7 @@ runGhcChecks params modules env goalType examples prog =
   mdls = "Prelude" : map Text.unpack includedModules
   SynthesisResult funcSig body argList = extractSolution env goalType prog
   checkOutputs prog exs =
-    checkExampleOutput includedModules env funcSig (show prog) exs
+    checkExampleOutput includedModules env funcSig (plainShow prog) exs
 
 -- ensures that the program type-checks
 checkType :: String -> [String] -> Interpreter Bool
@@ -235,20 +235,7 @@ checkSolution
   -> TypeSkeleton
   -> [Example]
   -> TProgram
-  -> FilterTest m Bool
+  -> FilterTest m (Maybe AssociativeExamples)
 checkSolution params env goal examples code = do
   writeLog 1 "checkSolution" $ text "Checking solution" <+> pretty code
-  checkResult <- check env params examples code goal
-  if isNothing checkResult
-    then return False
-    else do
-      let exs = fromJust checkResult
-      out <- liftIO $ toOutput env code exs
-      liftIO $ writeSolution out
-      -- return $ Found (code', exs)
-      return True
-  where
-    writeSolution :: QueryOutput -> IO ()
-    writeSolution out = do
-      printResult $ encodeWithPrefix out
-      hFlush stdout
+  check env params examples code goal

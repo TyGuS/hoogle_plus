@@ -6,6 +6,7 @@ module Types.Environment
   , NameMapping
   , emptyEnv
   , loadEnv
+  , loadEnvFo
 
     -- * Operations
   , allSymbols
@@ -57,6 +58,9 @@ emptyEnv = Environment Map.empty [] []
 loadEnv :: Environment
 loadEnv =
   foldr (uncurry addComponent) emptyEnv (hplusComponents ++ hplusHigherOrders)
+
+loadEnvFo :: Environment
+loadEnvFo = foldr (uncurry addComponent) emptyEnv hplusComponents
 
 --------------------------------------------------------------------------------
 --------------------------  Environment Operations -----------------------------

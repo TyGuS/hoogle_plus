@@ -38,30 +38,49 @@ import           Types.Environment
 import           Types.Program
 import           Types.Type
 
+import Debug.Trace
+
 --------------------------------------------------------------------------------
 -------------------------------- Top level calls -------------------------------
 --------------------------------------------------------------------------------
 
-synthesize :: Goal -> IO [TProgram]
-synthesize (Goal env goalType _) = do
+synthesize :: Goal -> [TProgram]
+synthesize (Goal env goalType _) =
   let args        = getArguments env
-  let destination = lastType goalType
-  let argNodes    = map (bimap Symbol typeToFta) args
-  let resNode     = typeToFta destination
-  concat <$> forM [1 ..] (doSynthesize argNodes resNode)
+      destination = lastType goalType
+      argNodes    = map (bimap Symbol typeToFta) args
+      resNode     = typeToFta destination
+  in traceShow (args, destination) $ concatMap ungroup $ concatMap (doSynthesize argNodes resNode) [1..]
 
-doSynthesize :: [Argument] -> Node -> Int -> IO [TProgram]
-doSynthesize argNodes resNode sz = do
+doSynthesize :: [Argument] -> Node -> Int -> [TProgram]
+doSynthesize argNodes resNode sz =
   let anyArg      = Node (map (uncurry constArg) argNodes)
-  let !filterNode = filterType (relevantTermsOfSize anyArg argNodes sz) resNode
-  reducedNode <- reduceFullyAndLog filterNode
-  let foldedNode = refold reducedNode
-  let terms      = getAllTerms foldedNode
-  return $ map termToProgram terms
+      !filterNode = filterType (relevantTermsOfSize anyArg argNodes sz) resNode
+      reducedNode = reduceFullyBounded 30 filterNode
+      foldedNode  = refold reducedNode
+      terms       = getAllTerms foldedNode
+  in map (termToProgram . prettyTerm) terms
 
 termToProgram :: Term -> TProgram
 termToProgram (Term (Symbol x) []) = untyped (PSymbol x)
-termToProgram (Term (Symbol f) xs) = untyped (PApp f (map termToProgram xs))
+termToProgram (Term (Symbol f) xs) = case map termToProgram xs of
+  [] -> untyped (PSymbol f)
+  [Program p1 t1, Program p2 t2] -> case p1 of
+    PSymbol x -> untyped (PApp x [Program p2 t2])
+    PApp g xs -> untyped (PApp g (xs ++ [Program p2 t2]))
+    _ -> error "termToProgram: invalid program"
+  _ -> error "termToProgram: invalid term"
+
+ungroup :: TProgram -> [TProgram]
+ungroup (Program p t) = case p of
+  PApp f xs -> let xss = mapM ungroup xs
+                   fs = getGroupMembers f
+                in [untyped (PApp f' xs') | f' <- getGroupMembers f, xs' <- xss]
+  PSymbol x -> map (untyped . PSymbol) (getGroupMembers x)
+  _         -> [Program p t]
+  where
+    getGroupMembers x = fromMaybe [x] (Map.lookup x groupMembers)
+
 
 ---------- Grouping
 
@@ -70,6 +89,9 @@ hoogleComponents = fst (mkGroups $ map (second toMonotype) hplusComponents)
 
 groupMapping :: Map Text Text
 groupMapping = snd (mkGroups $ map (second toMonotype) hplusComponents)
+
+groupMembers :: Map Text [Text]
+groupMembers = foldr (\(k, v) -> Map.insertWith (++) v [k]) Map.empty (Map.toList groupMapping)
 
 ------------------------------------------------------------------------------
 
@@ -96,6 +118,7 @@ allConstructors =
     getConstructors t1 ++ getConstructors t2
   getConstructors (DatatypeT nm ts) =
     (nm, length ts) : concatMap getConstructors ts
+  getConstructors t = error (show t)
 
 generalize :: Node -> Node
 generalize n@(Node [_]) = Node
@@ -313,6 +336,12 @@ anyNonNothingFunc = Node $ filter
 
 reduceFully :: Node -> Node
 reduceFully = fixUnbounded (withoutRedundantEdges . reducePartially)
+
+reduceFullyBounded :: Int -> Node -> Node
+reduceFullyBounded bound = go 0
+  where
+    go i n = let n' = withoutRedundantEdges (reducePartially n)
+              in if n == n' || i >= bound then n else go (i + 1) n'
 
 reduceFullyAndLog :: Node -> IO Node
 reduceFullyAndLog = go 0

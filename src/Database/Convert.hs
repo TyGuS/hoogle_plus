@@ -39,7 +39,6 @@ import qualified Types.Program                 as TP
 import           Types.Type
 import           Utility.Utils
 
-import Debug.Trace
 
 --------------------------------------------------------------------------------
 ------------------------------ Names and Vars ----------------------------------
@@ -266,7 +265,7 @@ toDeclaration (EDecl (DataDecl _ _ _ head conDecls _)) = do
   return $ TP.DataDecl name vars constructors
 toDeclaration (EDecl (TypeSig _ names typ)) =
   FuncDecl (Text.pack $ nameStr $ head names) <$> toSchemaSkeleton typ
-toDeclaration d@(EDecl (ClassDecl _ _ head _ _)) = traceShow d $ do
+toDeclaration d@(EDecl (ClassDecl _ _ head _ _)) = do
   let name = toTyclassName (declHeadName head)
   let vars = declHeadVars head
   return $ TP.DataDecl name vars []

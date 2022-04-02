@@ -41,28 +41,30 @@ import           Types.TypeChecker
 
 envToGoal :: Environment -> String -> [Example] -> IO Goal
 envToGoal env queryStr examples = do
-  let parseResult = runParser parseType () "goal" queryStr
+  let parseResult = runParser parseSchema () "goal" queryStr
   case parseResult of
     Left parseErr ->
       let e = toErrorMessage parseErr
       in  putDoc (pretty e) >> putDoc linebreak >> error (prettyShow e)
     Right typ -> do
-      let spec = runExcept $ evalStateT (resolveType [] typ) initResolverState
+      let spec =
+            runExcept $ evalStateT (resolveSchema [] typ) initResolverState
       case spec of
         Right sp -> do
           -- before synthesis, first check that user has provided valid examples
           let exWithOutputs = filter ((/=) "??" . output) examples
-          checkResult <- checkExamples includedModules
-                                        env
-                                        (Monotype sp)
-                                        exWithOutputs
+          checkResult <- checkExamples includedModules env sp exWithOutputs
           case checkResult of
-            Left  errs -> error (unlines ("Examples does not type check" : errs))
+            Left errs ->
+              error (unlines ("Examples does not type check" : errs))
             Right _ -> return ()
 
-          let (env', monospec) = updateEnvWithBoundTyVars (Monotype sp) env
+          let (env', monospec)         = updateEnvWithBoundTyVars sp env
           let (env'', destinationType) = updateEnvWithSpecArgs monospec env'
-          return $ Goal { gEnvironment = env'', gSpec = sp, gExamples = examples }
+          return $ Goal { gEnvironment = env''
+                        , gSpec        = toMonotype sp
+                        , gExamples    = examples
+                        }
         Left parseErr ->
           putDoc (pretty parseErr) >> putDoc linebreak >> error
             (prettyShow parseErr)

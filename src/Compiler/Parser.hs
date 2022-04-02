@@ -1,6 +1,7 @@
 module Compiler.Parser
   ( parseFromFile
   , parseType
+  , parseSchema
   , toErrorMessage
   ) where
 
@@ -99,16 +100,16 @@ keywords = []
 
 hplusDef :: Token.LanguageDef st
 hplusDef = Token.LanguageDef commentStart
-                               commentEnd
-                               commentLine
-                               False
-                               (letter <|> oneOf identifierChars)
-                               (alphaNum <|> oneOf identifierChars)
-                               (oneOf opStart)
-                               (oneOf opLetter)
-                               keywords
-                               opNames
-                               True
+                             commentEnd
+                             commentLine
+                             False
+                             (letter <|> oneOf identifierChars)
+                             (alphaNum <|> oneOf identifierChars)
+                             (oneOf opStart)
+                             (oneOf opLetter)
+                             keywords
+                             opNames
+                             True
 
 lexer :: Token.TokenParser st
 lexer = Token.makeTokenParser hplusDef
@@ -229,12 +230,22 @@ parseFunctionTypeMb = do
     FunctionT "" argType <$> parseType
 
 parseTypeAtom :: Parser TypeSkeleton
-parseTypeAtom =
-  choice [try $ parens parseType, parseTypeNoArgs, parseListType, parsePairType]
+parseTypeAtom = choice
+  [ try $ parens parseType
+  , parseDatatype <|> parseTypeNoArgs
+  , parseListType
+  , parsePairType
+  ]
 
 parseTypeNoArgs :: Parser TypeSkeleton
 parseTypeNoArgs =
   choice [(`DatatypeT` []) <$> parseTypeName, TypeVarT <$> parseIdentifier]
+
+parseDatatype :: Parser TypeSkeleton
+parseDatatype = do
+  name     <- parseTypeName
+  typeArgs <- many parseTypeAtom
+  return $ DatatypeT name typeArgs
 
 parseListType :: Parser TypeSkeleton
 parseListType = do

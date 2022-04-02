@@ -36,6 +36,7 @@ import           Text.Regex                     ( Regex
 
 import           Types.Environment
 import           Types.Filtering
+import           Types.Pretty
 import           Types.Program
 import           Types.Type
 import           Utility.Utils
@@ -63,8 +64,8 @@ mkFunctionSigStr args = addConstraints
       in  (constraint : constraints, baseSigs)
   accumConstraints otherTy (constraints, baseSigs) =
     let otherStr = if isFunctionType otherTy
-          then wrapParen (show otherTy)
-          else show otherTy
+          then wrapParen (plainShow otherTy)
+          else plainShow otherTy
     in  (constraints, otherStr : baseSigs)
 
 -- mkLambdaStr produces a oneline lambda expr str:

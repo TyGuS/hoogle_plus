@@ -35,6 +35,7 @@ import           Types.Environment
 import           Types.Experiments
 import           Types.Filtering
 import           Types.Generate          hiding ( files )
+import           Types.Pretty
 import           Types.Program
 import           Types.Solver
 
@@ -218,14 +219,13 @@ executeSearch engine params inStr = catch
     let input   = decodeInput (LB.pack inStr)
     let tquery  = query input
     let examples = inExamples input
-    goal <- envToGoal loadEnv tquery examples
     hSetBuffering stdout LineBuffering
 
     -- invoke synthesis
     let cnt = params ^. solutionCnt
     case engine of
-      HooglePlus -> runHooglePlus goal cnt
-      Hectare    -> runHectare goal cnt
+      HooglePlus -> envToGoal loadEnv tquery examples >>= \goal -> runHooglePlus goal cnt
+      Hectare    -> envToGoal loadEnvFo tquery examples >>= \goal -> runHectare goal cnt
   )
   (\(e :: SomeException) -> do
     printResult $ encodeWithPrefix $ QueryOutput [] (show e) []
@@ -251,14 +251,36 @@ executeSearch engine params inStr = catch
 
     runHectare :: Goal -> Int -> IO ()
     runHectare goal n = do
-      programs <- Hectare.synthesize goal
-      filteredProgs <- evalStateT (getNPrograms n goal [] programs) emptyFilterState
-      when (length filteredProgs < n) $ putStrLn "Hectare cannot find more solutions"
+      let programs = Hectare.synthesize goal
+      -- print programs
+      (remaining, _) <- foldM (getKPrograms goal) (n, emptyFilterState) programs
+      when (remaining > 0) $ putStrLn "Hectare cannot find more solutions"
+
+    getKPrograms :: Goal -> (Int, FilterState) -> TProgram -> IO (Int, FilterState)
+    getKPrograms _ (n, fstate) _ | n <= 0 = return (n, fstate)
+    getKPrograms goal (n, fstate) p = do
+      (fstate', mbProgram) <- runPostFilter goal fstate p
+      case mbProgram of
+        Nothing -> return (n, fstate')
+        Just _  -> return (n - 1, fstate')
+
+    runPostFilter :: Goal -> FilterState -> TProgram -> IO (FilterState, Maybe TProgram)
+    runPostFilter (Goal env goalType examples) fstate p = do
+      liftIO $ putStrLn $ "Checking program: " ++ show (pretty p)
+      (checkResult, fstate') <- runStateT (checkSolution params env goalType examples p) fstate
+      case checkResult of
+        Nothing -> return (fstate', Nothing)
+        Just exs -> do
+          liftIO $ toOutput env p exs >>= (printResult . encodeWithPrefix)
+          return (fstate', Just p)
 
     getNPrograms :: SolverMonad m => Int -> Goal -> [TProgram] -> [TProgram] -> FilterTest m [TProgram]
     getNPrograms _ _ sofar [] = return sofar
     getNPrograms n goal@(Goal env goalType examples) sofar (p:ps) = do
-      isChecked <- checkSolution params env goalType examples p
-      if isChecked
-        then getNPrograms (n - 1) goal (p:sofar) ps
-        else getNPrograms n goal sofar ps
+      liftIO $ putStrLn $ "Checking program: " ++ show p
+      checkResult <- checkSolution params env goalType examples p
+      case checkResult of
+        Nothing -> getNPrograms n goal sofar ps
+        Just exs -> do
+          liftIO $ toOutput env p exs >>= (printResult . encodeWithPrefix) 
+          getNPrograms (n - 1) goal (p:sofar) ps
