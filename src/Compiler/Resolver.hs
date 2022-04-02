@@ -10,7 +10,7 @@ module Compiler.Resolver
 
 import           Control.Monad.Except
 import           Control.Monad.State            ( StateT
-                                                , evalStateT
+                                                , runStateT
                                                 , gets
                                                 , modify
                                                 )
@@ -28,6 +28,7 @@ import           Types.Common            hiding ( varName )
 import           Types.Environment
 import           Types.Pretty
 import           Types.Program
+import           Types.Resolver
 import           Types.Type
 import           Utility.Utils
 
@@ -35,28 +36,6 @@ import           Utility.Utils
 --------------------------------------------------------------------------------
 ------------------------------- Resolver State ---------------------------------
 --------------------------------------------------------------------------------
-
--- | User-defined datatype representation
-type Parameter = Id
-type ConstructorName = Id
-data DatatypeDef = DatatypeDef Id [Parameter] [ConstructorName]
-  deriving (Eq, Ord, Generic, Show)
-
-getParameters :: DatatypeDef -> [Parameter]
-getParameters (DatatypeDef _ ps _) = ps
-
-getConstructors :: DatatypeDef -> [ConstructorName]
-getConstructors (DatatypeDef _ _ cs) = cs
-
-data TypeSynonym = TypeSynonym Id [Id] TypeSkeleton
-  deriving (Eq, Ord, Generic, Show)
-
-data ResolverState = ResolverState
-  { getSynonyms  :: [TypeSynonym]
-  , getDatatypes :: [DatatypeDef]
-  , getIdCount   :: Int
-  }
-  deriving Show
 
 type Resolver a = StateT ResolverState (Except ErrorMessage) a
 
@@ -80,9 +59,9 @@ incCounter = modify $ \s -> s { getIdCount = getIdCount s + 1 }
 --------------------------------------------------------------------------------
 
 -- | Convert a parsed program AST into a list of synthesis goals and qualifier maps
-resolveDecls :: [Declaration] -> Either ErrorMessage Environment
+resolveDecls :: [Declaration] -> Either ErrorMessage (Environment, ResolverState)
 resolveDecls declarations =
-  runExcept (evalStateT go initResolverState) >>= Right
+  runExcept (runStateT go initResolverState) >>= Right
  where
   go :: Resolver Environment
   go = do

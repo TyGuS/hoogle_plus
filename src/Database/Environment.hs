@@ -58,8 +58,8 @@ datasetPath :: FilePath
 datasetPath = "src/Database/Dataset.hs"
 
 -- | write the parsed components to a file for synthesis
-writeEnv :: GenerationOpts -> Environment -> IO ()
-writeEnv genOpts env = do
+writeEnv :: GenerationOpts -> Environment -> ResolverState -> IO ()
+writeEnv genOpts env resolver = do
   preamble <- readFile datasetTemplate
 
   -- write normal components
@@ -78,10 +78,14 @@ writeEnv genOpts env = do
   let mdlsDecl = "includedModules :: [Text]\nincludedModules = " :: String
   let mdls     = show (modules genOpts)
 
+  -- write resolver states
+  let resolverDecl = "resolver :: ResolverState\nresolver = " :: String
+  let resolverStr  = show resolver
+
   -- update dataset.hs
   brittanyResult <- parsePrintModule
     staticDefaultConfig
-    (Text.pack $ printf "%s\n\n\n%s%s\n\n%s%s\n\n%s%s"
+    (Text.pack $ printf "%s\n\n\n%s%s\n\n%s%s\n\n%s%s\n\n%s%s"
                         preamble
                         compsDecl
                         compsList
@@ -89,6 +93,8 @@ writeEnv genOpts env = do
                         hosList
                         mdlsDecl
                         mdls
+                        resolverDecl
+                        resolverStr
     )
   case brittanyResult of
     Left  errs -> outputError errs
@@ -151,7 +157,7 @@ generateEnv genOpts = do
 
   case resolveDecls hooglePlusDecls of
     Left  errMessage -> error $ show errMessage
-    Right env        -> printStats env >> writeEnv genOpts env
+    Right (env, resolver) -> printStats env >> writeEnv genOpts env resolver
  where
   filterEntries entries Nothing = entries
   filterEntries entries (Just mdls) =

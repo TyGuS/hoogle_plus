@@ -48,7 +48,7 @@ envToGoal env queryStr examples = do
       in  putDoc (pretty e) >> putDoc linebreak >> error (prettyShow e)
     Right typ -> do
       let spec =
-            runExcept $ evalStateT (resolveSchema [] typ) initResolverState
+            runExcept $ evalStateT (resolveSchema [] typ) resolver
       case spec of
         Right sp -> do
           -- before synthesis, first check that user has provided valid examples

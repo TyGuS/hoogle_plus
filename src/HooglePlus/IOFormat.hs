@@ -228,7 +228,7 @@ parseQueryType :: String -> TypeSkeleton
 parseQueryType str =
   let parseResult = runParser parseType () "" str
       resolveResult t =
-        runExcept $ evalStateT (resolveType [] t) initResolverState
+        runExcept $ evalStateT (resolveType [] t) resolver
   in  case parseResult of
         Left  parseErr -> error "something wrong in the builtin json"
         Right t        -> case resolveResult t of

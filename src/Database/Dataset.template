@@ -2,8 +2,10 @@ module Database.Dataset (
     hplusComponents
   , hplusHigherOrders
   , includedModules
+  , resolver
   ) where
 
 import Data.Text ( Text )
 
+import Types.Resolver
 import Types.Type

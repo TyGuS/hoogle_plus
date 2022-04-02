@@ -253,16 +253,17 @@ executeSearch engine params inStr = catch
     runHectare goal n = do
       let programs = Hectare.synthesize goal
       -- print programs
-      (remaining, _) <- foldM (getKPrograms goal) (n, emptyFilterState) programs
+      (remaining, _) <- getKPrograms goal (n, emptyFilterState) programs
       when (remaining > 0) $ putStrLn "Hectare cannot find more solutions"
 
-    getKPrograms :: Goal -> (Int, FilterState) -> TProgram -> IO (Int, FilterState)
+    getKPrograms :: Goal -> (Int, FilterState) -> [TProgram] -> IO (Int, FilterState)
     getKPrograms _ (n, fstate) _ | n <= 0 = return (n, fstate)
-    getKPrograms goal (n, fstate) p = do
+    getKPrograms _ (n, fstate) [] = return (n, fstate)
+    getKPrograms goal (n, fstate) (p:ps) = do
       (fstate', mbProgram) <- runPostFilter goal fstate p
       case mbProgram of
-        Nothing -> return (n, fstate')
-        Just _  -> return (n - 1, fstate')
+        Nothing -> getKPrograms goal (n, fstate') ps
+        Just _  -> getKPrograms goal (n - 1, fstate') ps
 
     runPostFilter :: Goal -> FilterState -> TProgram -> IO (FilterState, Maybe TProgram)
     runPostFilter (Goal env goalType examples) fstate p = do

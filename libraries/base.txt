@@ -3742,35 +3742,35 @@ infixl 4 <$!>
 module Prelude
 data Handle
 data Bool
-False :: Bool
-True :: Bool
-(&&) :: Bool -> Bool -> Bool
-infixr 3 &&
-(||) :: Bool -> Bool -> Bool
-infixr 2 ||
-not :: Bool -> Bool
-otherwise :: Bool
-data Maybe a
-Nothing :: Maybe a
-Just :: a -> Maybe a
-maybe :: b -> (a -> b) -> Maybe a -> b
-data Either a b
-Left :: a -> Either a b
-Right :: b -> Either a b
-either :: (a -> c) -> (b -> c) -> Either a b -> c
+-- False :: Bool
+-- True :: Bool
+-- (&&) :: Bool -> Bool -> Bool
+-- infixr 3 &&
+-- (||) :: Bool -> Bool -> Bool
+-- infixr 2 ||
+-- not :: Bool -> Bool
+-- otherwise :: Bool
+-- data Maybe a
+-- Nothing :: Maybe a
+-- Just :: a -> Maybe a
+-- maybe :: b -> (a -> b) -> Maybe a -> b
+-- data Either a b
+-- Left :: a -> Either a b
+-- Right :: b -> Either a b
+-- either :: (a -> c) -> (b -> c) -> Either a b -> c
 data Ordering
 LT :: Ordering
 EQ :: Ordering
 GT :: Ordering
 data Char
 type String = [Char]
-fst :: (a, b) -> a
-snd :: (a, b) -> b
-curry :: ((a, b) -> c) -> a -> b -> c
-uncurry :: (a -> b -> c) -> (a, b) -> c
-class Eq a
-(==) :: Eq a => a -> a -> Bool
-(/=) :: Eq a => a -> a -> Bool
+-- fst :: (a, b) -> a
+-- snd :: (a, b) -> b
+-- curry :: ((a, b) -> c) -> a -> b -> c
+-- uncurry :: (a -> b -> c) -> (a, b) -> c
+-- class Eq a
+-- (==) :: Eq a => a -> a -> Bool
+-- (/=) :: Eq a => a -> a -> Bool
 infix 4 ==
 infix 4 /=
 class Eq a => Ord a
@@ -3804,17 +3804,17 @@ data Double
 -- type Rational = Ratio Integer
 data Word
 class Num a
-(+) :: Num a => a -> a -> a
-(-) :: Num a => a -> a -> a
-(*) :: Num a => a -> a -> a
-negate :: Num a => a -> a
-abs :: Num a => a -> a
-signum :: Num a => a -> a
-fromInteger :: Num a => Integer -> a
-infixl 6 +
-infixl 6 -
-infixl 7 *
-class (Num a, Ord a) => Real a
+-- (-) :: Num a => a -> a -> a
+-- (*) :: Num a => a -> a -> a
+-- (+) :: Num a => a -> a -> a
+-- negate :: Num a => a -> a
+-- abs :: Num a => a -> a
+-- signum :: Num a => a -> a
+-- fromInteger :: Num a => Integer -> a
+-- infixl 6 +
+-- infixl 6 -
+-- infixl 7 *
+-- class (Num a, Ord a) => Real a
 -- toRational :: Real a => a -> Rational
 -- class (Real a, Enum a) => Integral a
 -- quot :: Integral a => a -> a -> a
