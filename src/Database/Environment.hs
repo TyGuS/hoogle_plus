@@ -39,6 +39,7 @@ import           Text.PrettyPrint.ANSI.Leijen   ( string )
 
 import           Compiler.Resolver
 import           Database.Convert
+import           Database.Prelude
 import           Types.Common
 import           Types.Encoder
 import           Types.Environment
@@ -49,10 +50,10 @@ import           Types.Type
 import           Utility.Utils
 
 datasetTemplate :: FilePath
-datasetTemplate = "src/Database/dataset.template"
+datasetTemplate = "src/Database/Dataset.template"
 
 datasetPath :: FilePath
-datasetPath = "src/Database/dataset.hs"
+datasetPath = "src/Database/Dataset.hs"
 
 -- | write the parsed components to a file for synthesis
 writeEnv :: GenerationOpts -> Environment -> IO ()
@@ -60,19 +61,19 @@ writeEnv genOpts env = do
   preamble <- readFile datasetTemplate
 
   -- write normal components
-  let compsDecl = "hplusComponents :: [(Text, SchemaSkeleton)]" :: String
+  let compsDecl = "hplusComponents :: [(Text, SchemaSkeleton)]\n hplusComponents = " :: String
   let symbols   = getSymbols env
   let compsList = show (Map.toList symbols)
 
   -- write higher orders
-  let hosDecl = "hplusHigherOrders :: [(Text, SchemaSkeleton)]" :: String
+  let hosDecl = "hplusHigherOrders :: [(Text, SchemaSkeleton)]\n hplusHigherOrders = " :: String
   let foSymbols = Map.filter (not . isHigherOrder . toMonotype) symbols
   hofNames <- readFile (hoPath genOpts) <&> lines
   let hoSigs   = generateHigherOrder (map Text.pack hofNames) symbols
   let hosList  = show (Map.toList hoSigs)
 
   -- write modules
-  let mdlsDecl = "includedModules :: [Text]" :: String
+  let mdlsDecl = "includedModules :: [Text]\n includedModules = " :: String
   let mdls     = show (modules genOpts)
 
   -- update dataset.hs
@@ -132,8 +133,8 @@ generateEnv genOpts = do
   allEntriesByMdl <- filesToEntries pkgFiles True
   let entriesByMdl    = filterEntries allEntriesByMdl mbModuleNames
   let entries         = nubOrd $ concat $ Map.elems entriesByMdl
-  let declarations    = map ((`evalState` 0) . toDeclaration) entries
-  let hooglePlusDecls = reorderDecls $ nubOrd declarations
+  let declarations    = evalState (mapM toDeclaration entries) 0
+  let hooglePlusDecls = reorderDecls $ nubOrd (defaultLibrary ++ declarations)
 
   case resolveDecls hooglePlusDecls of
     Left  errMessage -> error $ show errMessage

@@ -138,6 +138,11 @@ hPutStr :: Handle -> ByteString -> IO ()
 hPutStrLn :: Handle -> ByteString -> IO ()
 breakByte :: Word8 -> ByteString -> (ByteString, ByteString)
 module Data.ByteString.Lazy
+data ShortByteString
+data Word8
+data Word16
+data Word32
+data Word64
 data ByteString
 empty :: ByteString
 singleton :: Word8 -> ByteString

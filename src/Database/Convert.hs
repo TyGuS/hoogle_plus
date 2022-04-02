@@ -37,6 +37,9 @@ import           Types.Program           hiding ( DataDecl
                                                 )
 import qualified Types.Program                 as TP
 import           Types.Type
+import           Utility.Utils
+
+import Debug.Trace
 
 --------------------------------------------------------------------------------
 ------------------------------ Names and Vars ----------------------------------
@@ -178,7 +181,7 @@ resolveContext (CxTuple  _ assts) = mapM resolveAsst assts
 resolveContext (CxEmpty _       ) = return []
 
 resolveAsst :: Asst () -> State Int TypeSkeleton
-resolveAsst (TypeA  _ typ ) = toTypeSkeleton typ
+resolveAsst (TypeA  _ typ ) = toTyclassDatatype <$> toTypeSkeleton typ
 resolveAsst (ParenA _ asst) = resolveAsst asst
 resolveAsst a               = error $ "Unknown " ++ show a
 
@@ -263,13 +266,11 @@ toDeclaration (EDecl (DataDecl _ _ _ head conDecls _)) = do
   return $ TP.DataDecl name vars constructors
 toDeclaration (EDecl (TypeSig _ names typ)) =
   FuncDecl (Text.pack $ nameStr $ head names) <$> toSchemaSkeleton typ
-toDeclaration (EDecl (ClassDecl _ _ head _ _)) = do
+toDeclaration d@(EDecl (ClassDecl _ _ head _ _)) = traceShow d $ do
   let name = toTyclassName (declHeadName head)
   let vars = declHeadVars head
   return $ TP.DataDecl name vars []
-toDeclaration (EDecl (InstDecl _ _ rule _)) = do
-  cnt <- nextCounter "inst"
-  instanceToFunction (getInstanceRule rule) cnt
+toDeclaration (EDecl (InstDecl _ _ rule _)) = instanceToFunction (getInstanceRule rule)
 toDeclaration decl = return dummyDecl -- a fake conversion
 
 isInstance :: Entry -> Bool
@@ -297,9 +298,9 @@ unqualDataType x = x
 -- FIRST KIND: instance Show Int              >>> __hplusTCTransition__Show Int
 -- SECOND KIND: instance (Show a) => Show [a] >> __hplusTCTrransition__Show a -> __hplusTCTransition__Show (List a) -> ...
 -- THIRD KIND: instance (Show a, Show b) => Show (Either a b) >> ......
-instanceToFunction :: InstRule () -> Int -> State Int Declaration
-instanceToFunction (IParen _ inst     ) n = instanceToFunction inst n
-instanceToFunction (IRule _ _ ctx head) n = do
+instanceToFunction :: InstRule () -> State Int Declaration
+instanceToFunction (IParen _ inst     ) = instanceToFunction inst
+instanceToFunction (IRule _ _ ctx head) = do
   let name = getTyclassDictName head
   -- Note: remove this check to include higher kinded type instances
   if any (`Text.isInfixOf` name) higherOrderNames
@@ -313,22 +314,27 @@ instanceToFunction (IRule _ _ ctx head) n = do
         Just (CxTuple  _ tyclassConds) -> foldM mkInstanceType base tyclassConds
         Just (CxSingle _ tyclassCond ) -> mkInstanceType base tyclassCond
         _ -> error "instanceToFunction: Unhandled case"
-      return $ mkInstanceDecl name instanceTyp
+      mkInstanceDecl name instanceTyp
  where
   mkInstanceType :: TypeSkeleton -> Asst () -> State Int TypeSkeleton
   mkInstanceType typ asst = do
-    tcArg     <- toTyclassDatatype <$> resolveAsst asst
-    tcArgName <- freshId [] "tcarg"
-    return $ FunctionT tcArgName tcArg typ
+    tcArg <- resolveAsst asst
+    case tcArg of
+      DatatypeT {} -> do
+        tcArgName <- freshId [] "tcarg"
+        return $ FunctionT tcArgName tcArg typ
+      _ -> return typ -- TODO: we ignore the weird type classes for now
 
-  mkInstanceDecl :: Id -> TypeSkeleton -> Declaration
-  mkInstanceDecl dtName x = FuncDecl
-    (tyclassInstancePrefix `Text.append` Text.pack (show n) `Text.append` dtName
-    )
-    (Monotype x)
+  mkInstanceDecl :: Id -> TypeSkeleton -> State Int Declaration
+  mkInstanceDecl dtName x = do
+    n <- nextCounter "inst"
+    return $ FuncDecl
+      (appendIndex tyclassInstancePrefix n `Text.append` dtName)
+      (Monotype x)
 
 toTyclassDatatype :: TypeSkeleton -> TypeSkeleton
 toTyclassDatatype (DatatypeT dt tArgs) = DatatypeT (toTyclassName dt) tArgs
+toTyclassDatatype TopT = TopT
 toTyclassDatatype x = error "toTyclassDatatype: not a datatype"
 
 reorderDecls :: [Declaration] -> [Declaration]

@@ -31,6 +31,7 @@ import           Types.Program
 import           Types.Type
 import           Utility.Utils
 
+import Debug.Trace
 
 --------------------------------------------------------------------------------
 ------------------------------- Resolver State ---------------------------------
@@ -86,6 +87,7 @@ resolveDecls declarations =
  where
   go :: Resolver Environment
   go = do
+    traceShow declarations $ return ()
     -- Pass 1: collect all declarations and resolve sorts, but do not resolve refinement types yet
     env <- foldM (flip resolveDeclaration) emptyEnv declarations
     -- Pass 2: resolve refinement types in signatures

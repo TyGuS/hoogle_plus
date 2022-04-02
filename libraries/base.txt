@@ -3674,9 +3674,9 @@ lines :: String -> [String]
 words :: String -> [String]
 unlines :: [String] -> String
 unwords :: [String] -> String
-instance Data.String.IsString a => Data.String.IsString (Data.Functor.Const.Const a b)
-instance Data.String.IsString a => Data.String.IsString (Data.Functor.Identity.Identity a)
-instance (a Data.Type.Equality.~ GHC.Types.Char) => Data.String.IsString [a]
+-- instance Data.String.IsString a => Data.String.IsString (Data.Functor.Const.Const a b)
+-- instance Data.String.IsString a => Data.String.IsString (Data.Functor.Identity.Identity a)
+-- instance (a Data.Type.Equality.~ GHC.Types.Char) => Data.String.IsString [a]
 module Data.Version
 data Version
 Version :: [Int] -> [String] -> Version
@@ -3740,6 +3740,7 @@ ap :: Monad m => m (a -> b) -> m a -> m b
 (<$!>) :: Monad m => (a -> b) -> m a -> m b
 infixl 4 <$!>
 module Prelude
+data Handle
 data Bool
 False :: Bool
 True :: Bool
@@ -3784,23 +3785,23 @@ infix 4 <
 infix 4 <=
 infix 4 >=
 infix 4 >
-class Enum a
-succ :: Enum a => a -> a
-pred :: Enum a => a -> a
-toEnum :: Enum a => Int -> a
-fromEnum :: Enum a => a -> Int
-enumFrom :: Enum a => a -> [a]
-enumFromThen :: Enum a => a -> a -> [a]
-enumFromTo :: Enum a => a -> a -> [a]
-enumFromThenTo :: Enum a => a -> a -> a -> [a]
-class Bounded a
-minBound :: Bounded a => a
-maxBound :: Bounded a => a
+-- class Enum a
+-- succ :: Enum a => a -> a
+-- pred :: Enum a => a -> a
+-- toEnum :: Enum a => Int -> a
+-- fromEnum :: Enum a => a -> Int
+-- enumFrom :: Enum a => a -> [a]
+-- enumFromThen :: Enum a => a -> a -> [a]
+-- enumFromTo :: Enum a => a -> a -> [a]
+-- enumFromThenTo :: Enum a => a -> a -> a -> [a]
+-- class Bounded a
+-- minBound :: Bounded a => a
+-- maxBound :: Bounded a => a
 data Int
 data Integer
 data Float
 data Double
-type Rational = Ratio Integer
+-- type Rational = Ratio Integer
 data Word
 class Num a
 (+) :: Num a => a -> a -> a
@@ -3814,222 +3815,222 @@ infixl 6 +
 infixl 6 -
 infixl 7 *
 class (Num a, Ord a) => Real a
-toRational :: Real a => a -> Rational
-class (Real a, Enum a) => Integral a
-quot :: Integral a => a -> a -> a
-rem :: Integral a => a -> a -> a
-div :: Integral a => a -> a -> a
-mod :: Integral a => a -> a -> a
-quotRem :: Integral a => a -> a -> (a, a)
-divMod :: Integral a => a -> a -> (a, a)
-toInteger :: Integral a => a -> Integer
-infixl 7 `quot`
-infixl 7 `rem`
-infixl 7 `div`
-infixl 7 `mod`
-class (Num a) => Fractional a
-(/) :: Fractional a => a -> a -> a
-recip :: Fractional a => a -> a
-fromRational :: Fractional a => Rational -> a
-infixl 7 /
-class (Fractional a) => Floating a
-pi :: Floating a => a
-exp :: Floating a => a -> a
-log :: Floating a => a -> a
-sqrt :: Floating a => a -> a
-(**) :: Floating a => a -> a -> a
-logBase :: Floating a => a -> a -> a
-sin :: Floating a => a -> a
-cos :: Floating a => a -> a
-tan :: Floating a => a -> a
-asin :: Floating a => a -> a
-acos :: Floating a => a -> a
-atan :: Floating a => a -> a
-sinh :: Floating a => a -> a
-cosh :: Floating a => a -> a
-tanh :: Floating a => a -> a
-asinh :: Floating a => a -> a
-acosh :: Floating a => a -> a
-atanh :: Floating a => a -> a
-infixr 8 **
-class (Real a, Fractional a) => RealFrac a
-properFraction :: (RealFrac a, Integral b) => a -> (b, a)
-truncate :: (RealFrac a, Integral b) => a -> b
-round :: (RealFrac a, Integral b) => a -> b
-ceiling :: (RealFrac a, Integral b) => a -> b
-floor :: (RealFrac a, Integral b) => a -> b
-class (RealFrac a, Floating a) => RealFloat a
-floatRadix :: RealFloat a => a -> Integer
-floatDigits :: RealFloat a => a -> Int
-floatRange :: RealFloat a => a -> (Int, Int)
-decodeFloat :: RealFloat a => a -> (Integer, Int)
-encodeFloat :: RealFloat a => Integer -> Int -> a
-exponent :: RealFloat a => a -> Int
-significand :: RealFloat a => a -> a
-scaleFloat :: RealFloat a => Int -> a -> a
-isNaN :: RealFloat a => a -> Bool
-isInfinite :: RealFloat a => a -> Bool
-isDenormalized :: RealFloat a => a -> Bool
-isNegativeZero :: RealFloat a => a -> Bool
-isIEEE :: RealFloat a => a -> Bool
-atan2 :: RealFloat a => a -> a -> a
-subtract :: Num a => a -> a -> a
-even :: Integral a => a -> Bool
-odd :: Integral a => a -> Bool
-gcd :: Integral a => a -> a -> a
-lcm :: Integral a => a -> a -> a
-(^) :: (Num a, Integral b) => a -> b -> a
-infixr 8 ^
-(^^) :: (Fractional a, Integral b) => a -> b -> a
-infixr 8 ^^
-fromIntegral :: (Integral a, Num b) => a -> b
-realToFrac :: (Real a, Fractional b) => a -> b
+-- toRational :: Real a => a -> Rational
+-- class (Real a, Enum a) => Integral a
+-- quot :: Integral a => a -> a -> a
+-- rem :: Integral a => a -> a -> a
+-- div :: Integral a => a -> a -> a
+-- mod :: Integral a => a -> a -> a
+-- quotRem :: Integral a => a -> a -> (a, a)
+-- divMod :: Integral a => a -> a -> (a, a)
+-- toInteger :: Integral a => a -> Integer
+-- infixl 7 `quot`
+-- infixl 7 `rem`
+-- infixl 7 `div`
+-- infixl 7 `mod`
+-- class (Num a) => Fractional a
+-- (/) :: Fractional a => a -> a -> a
+-- recip :: Fractional a => a -> a
+-- fromRational :: Fractional a => Rational -> a
+-- infixl 7 /
+-- class (Fractional a) => Floating a
+-- pi :: Floating a => a
+-- exp :: Floating a => a -> a
+-- log :: Floating a => a -> a
+-- sqrt :: Floating a => a -> a
+-- (**) :: Floating a => a -> a -> a
+-- logBase :: Floating a => a -> a -> a
+-- sin :: Floating a => a -> a
+-- cos :: Floating a => a -> a
+-- tan :: Floating a => a -> a
+-- asin :: Floating a => a -> a
+-- acos :: Floating a => a -> a
+-- atan :: Floating a => a -> a
+-- sinh :: Floating a => a -> a
+-- cosh :: Floating a => a -> a
+-- tanh :: Floating a => a -> a
+-- asinh :: Floating a => a -> a
+-- acosh :: Floating a => a -> a
+-- atanh :: Floating a => a -> a
+-- infixr 8 **
+-- class (Real a, Fractional a) => RealFrac a
+-- properFraction :: (RealFrac a, Integral b) => a -> (b, a)
+-- truncate :: (RealFrac a, Integral b) => a -> b
+-- round :: (RealFrac a, Integral b) => a -> b
+-- ceiling :: (RealFrac a, Integral b) => a -> b
+-- floor :: (RealFrac a, Integral b) => a -> b
+-- class (RealFrac a, Floating a) => RealFloat a
+-- floatRadix :: RealFloat a => a -> Integer
+-- floatDigits :: RealFloat a => a -> Int
+-- floatRange :: RealFloat a => a -> (Int, Int)
+-- decodeFloat :: RealFloat a => a -> (Integer, Int)
+-- encodeFloat :: RealFloat a => Integer -> Int -> a
+-- exponent :: RealFloat a => a -> Int
+-- significand :: RealFloat a => a -> a
+-- scaleFloat :: RealFloat a => Int -> a -> a
+-- isNaN :: RealFloat a => a -> Bool
+-- isInfinite :: RealFloat a => a -> Bool
+-- isDenormalized :: RealFloat a => a -> Bool
+-- isNegativeZero :: RealFloat a => a -> Bool
+-- isIEEE :: RealFloat a => a -> Bool
+-- atan2 :: RealFloat a => a -> a -> a
+-- subtract :: Num a => a -> a -> a
+-- even :: Integral a => a -> Bool
+-- odd :: Integral a => a -> Bool
+-- gcd :: Integral a => a -> a -> a
+-- lcm :: Integral a => a -> a -> a
+-- (^) :: (Num a, Integral b) => a -> b -> a
+-- infixr 8 ^
+-- (^^) :: (Fractional a, Integral b) => a -> b -> a
+-- infixr 8 ^^
+-- fromIntegral :: (Integral a, Num b) => a -> b
+-- realToFrac :: (Real a, Fractional b) => a -> b
 class Semigroup a
-(<>) :: Semigroup a => a -> a -> a
-infixr 6 <>
-class Semigroup a => Monoid a
-mempty :: Monoid a => a
-mappend :: Monoid a => a -> a -> a
-mconcat :: Monoid a => [a] -> a
-class Functor f
-fmap :: Functor f => (a -> b) -> f a -> f b
-(<$) :: Functor f => a -> f b -> f a
-infixl 4 <$
-(<$>) :: Functor f => (a -> b) -> f a -> f b
-infixl 4 <$>
-class Functor f => Applicative f
-pure :: Applicative f => a -> f a
-(<*>) :: Applicative f => f (a -> b) -> f a -> f b
-(*>) :: Applicative f => f a -> f b -> f b
-(<*) :: Applicative f => f a -> f b -> f a
-infixl 4 <*>
-infixl 4 *>
-infixl 4 <*
-class Applicative m => Monad m
-(>>=) :: forall a b. Monad m => m a -> (a -> m b) -> m b
-(>>) :: forall a b. Monad m => m a -> m b -> m b
-return :: Monad m => a -> m a
-fail :: Monad m => String -> m a
-infixl 1 >>=
-infixl 1 >>
-mapM_ :: (Foldable t, Monad m) => (a -> m b) -> t a -> m ()
-sequence_ :: (Foldable t, Monad m) => t (m a) -> m ()
-(=<<) :: Monad m => (a -> m b) -> m a -> m b
-infixr 1 =<<
-class Foldable t
-foldMap :: (Foldable t, Monoid m) => (a -> m) -> t a -> m
-foldr :: Foldable t => (a -> b -> b) -> b -> t a -> b
-foldl :: Foldable t => (b -> a -> b) -> b -> t a -> b
-foldr1 :: Foldable t => (a -> a -> a) -> t a -> a
-foldl1 :: Foldable t => (a -> a -> a) -> t a -> a
-elem :: (Foldable t, Eq a) => a -> t a -> Bool
-maximum :: forall a. (Foldable t, Ord a) => t a -> a
-minimum :: forall a. (Foldable t, Ord a) => t a -> a
-sum :: (Foldable t, Num a) => t a -> a
-product :: (Foldable t, Num a) => t a -> a
-infix 4 `elem`
-class (Functor t, Foldable t) => Traversable t
-traverse :: (Traversable t, Applicative f) => (a -> f b) -> t a -> f (t b)
-sequenceA :: (Traversable t, Applicative f) => t (f a) -> f (t a)
-mapM :: (Traversable t, Monad m) => (a -> m b) -> t a -> m (t b)
-sequence :: (Traversable t, Monad m) => t (m a) -> m (t a)
-id :: a -> a
-const :: a -> b -> a
-(.) :: (b -> c) -> (a -> b) -> a -> c
-infixr 9 .
-flip :: (a -> b -> c) -> b -> a -> c
-($) :: forall r a (b :: TYPE r). (a -> b) -> a -> b
-infixr 0 $
-until :: (a -> Bool) -> (a -> a) -> a -> a
-asTypeOf :: a -> a -> a
-error :: forall (r :: RuntimeRep). forall (a :: TYPE r). HasCallStack => [Char] -> a
-errorWithoutStackTrace :: forall (r :: RuntimeRep). forall (a :: TYPE r). [Char] -> a
-undefined :: forall (r :: RuntimeRep). forall (a :: TYPE r). HasCallStack => a
-seq :: () => a -> b -> b
-($!) :: forall r a (b :: TYPE r). (a -> b) -> a -> b
-infixr 0 $!
-map :: (a -> b) -> [a] -> [b]
-(++) :: [a] -> [a] -> [a]
-infixr 5 ++
-filter :: (a -> Bool) -> [a] -> [a]
-head :: [a] -> a
-last :: [a] -> a
-tail :: [a] -> [a]
-init :: [a] -> [a]
-null :: Foldable t => t a -> Bool
-length :: Foldable t => t a -> Int
-(!!) :: [a] -> Int -> a
-infixl 9 !!
-reverse :: [a] -> [a]
-and :: Foldable t => t Bool -> Bool
-or :: Foldable t => t Bool -> Bool
-any :: Foldable t => (a -> Bool) -> t a -> Bool
-all :: Foldable t => (a -> Bool) -> t a -> Bool
-concat :: Foldable t => t [a] -> [a]
-concatMap :: Foldable t => (a -> [b]) -> t a -> [b]
-scanl :: (b -> a -> b) -> b -> [a] -> [b]
-scanl1 :: (a -> a -> a) -> [a] -> [a]
-scanr :: (a -> b -> b) -> b -> [a] -> [b]
-scanr1 :: (a -> a -> a) -> [a] -> [a]
-iterate :: (a -> a) -> a -> [a]
-repeat :: a -> [a]
-replicate :: Int -> a -> [a]
-cycle :: [a] -> [a]
-take :: Int -> [a] -> [a]
-drop :: Int -> [a] -> [a]
-splitAt :: Int -> [a] -> ([a], [a])
-takeWhile :: (a -> Bool) -> [a] -> [a]
-dropWhile :: (a -> Bool) -> [a] -> [a]
-span :: (a -> Bool) -> [a] -> ([a], [a])
-break :: (a -> Bool) -> [a] -> ([a], [a])
-notElem :: (Foldable t, Eq a) => a -> t a -> Bool
-infix 4 `notElem`
-lookup :: Eq a => a -> [(a, b)] -> Maybe b
-zip :: [a] -> [b] -> [(a, b)]
-zip3 :: [a] -> [b] -> [c] -> [(a, b, c)]
-zipWith :: (a -> b -> c) -> [a] -> [b] -> [c]
-zipWith3 :: (a -> b -> c -> d) -> [a] -> [b] -> [c] -> [d]
-unzip :: [(a, b)] -> ([a], [b])
-unzip3 :: [(a, b, c)] -> ([a], [b], [c])
-lines :: String -> [String]
-words :: String -> [String]
-unlines :: [String] -> String
-unwords :: [String] -> String
-type ShowS = String -> String
-class Show a
-showsPrec :: Show a => Int -> a -> ShowS
-show :: Show a => a -> String
-showList :: Show a => [a] -> ShowS
-shows :: Show a => a -> ShowS
-showChar :: Char -> ShowS
-showString :: String -> ShowS
-showParen :: Bool -> ShowS -> ShowS
-type ReadS a = String -> [(a, String)]
+-- (<>) :: Semigroup a => a -> a -> a
+-- infixr 6 <>
+-- class Semigroup a => Monoid a
+-- mempty :: Monoid a => a
+-- mappend :: Monoid a => a -> a -> a
+-- mconcat :: Monoid a => [a] -> a
+-- class Functor f
+-- fmap :: Functor f => (a -> b) -> f a -> f b
+-- (<$) :: Functor f => a -> f b -> f a
+-- infixl 4 <$
+-- (<$>) :: Functor f => (a -> b) -> f a -> f b
+-- infixl 4 <$>
+-- class Functor f => Applicative f
+-- pure :: Applicative f => a -> f a
+-- (<*>) :: Applicative f => f (a -> b) -> f a -> f b
+-- (*>) :: Applicative f => f a -> f b -> f b
+-- (<*) :: Applicative f => f a -> f b -> f a
+-- infixl 4 <*>
+-- infixl 4 *>
+-- infixl 4 <*
+-- class Applicative m => Monad m
+-- (>>=) :: forall a b. Monad m => m a -> (a -> m b) -> m b
+-- (>>) :: forall a b. Monad m => m a -> m b -> m b
+-- return :: Monad m => a -> m a
+-- fail :: Monad m => String -> m a
+-- infixl 1 >>=
+-- infixl 1 >>
+-- mapM_ :: (Foldable t, Monad m) => (a -> m b) -> t a -> m ()
+-- sequence_ :: (Foldable t, Monad m) => t (m a) -> m ()
+-- (=<<) :: Monad m => (a -> m b) -> m a -> m b
+-- infixr 1 =<<
+-- class Foldable t
+-- foldMap :: (Foldable t, Monoid m) => (a -> m) -> t a -> m
+-- foldr :: Foldable t => (a -> b -> b) -> b -> t a -> b
+-- foldl :: Foldable t => (b -> a -> b) -> b -> t a -> b
+-- foldr1 :: Foldable t => (a -> a -> a) -> t a -> a
+-- foldl1 :: Foldable t => (a -> a -> a) -> t a -> a
+-- elem :: (Foldable t, Eq a) => a -> t a -> Bool
+-- maximum :: forall a. (Foldable t, Ord a) => t a -> a
+-- minimum :: forall a. (Foldable t, Ord a) => t a -> a
+-- sum :: (Foldable t, Num a) => t a -> a
+-- product :: (Foldable t, Num a) => t a -> a
+-- infix 4 `elem`
+-- class (Functor t, Foldable t) => Traversable t
+-- traverse :: (Traversable t, Applicative f) => (a -> f b) -> t a -> f (t b)
+-- sequenceA :: (Traversable t, Applicative f) => t (f a) -> f (t a)
+-- mapM :: (Traversable t, Monad m) => (a -> m b) -> t a -> m (t b)
+-- sequence :: (Traversable t, Monad m) => t (m a) -> m (t a)
+-- id :: a -> a
+-- const :: a -> b -> a
+-- (.) :: (b -> c) -> (a -> b) -> a -> c
+-- infixr 9 .
+-- flip :: (a -> b -> c) -> b -> a -> c
+-- ($) :: forall r a (b :: TYPE r). (a -> b) -> a -> b
+-- infixr 0 $
+-- until :: (a -> Bool) -> (a -> a) -> a -> a
+-- asTypeOf :: a -> a -> a
+-- error :: forall (r :: RuntimeRep). forall (a :: TYPE r). HasCallStack => [Char] -> a
+-- errorWithoutStackTrace :: forall (r :: RuntimeRep). forall (a :: TYPE r). [Char] -> a
+-- undefined :: forall (r :: RuntimeRep). forall (a :: TYPE r). HasCallStack => a
+-- seq :: () => a -> b -> b
+-- ($!) :: forall r a (b :: TYPE r). (a -> b) -> a -> b
+-- infixr 0 $!
+-- map :: (a -> b) -> [a] -> [b]
+-- (++) :: [a] -> [a] -> [a]
+-- infixr 5 ++
+-- filter :: (a -> Bool) -> [a] -> [a]
+-- head :: [a] -> a
+-- last :: [a] -> a
+-- tail :: [a] -> [a]
+-- init :: [a] -> [a]
+-- null :: Foldable t => t a -> Bool
+-- length :: Foldable t => t a -> Int
+-- (!!) :: [a] -> Int -> a
+-- infixl 9 !!
+-- reverse :: [a] -> [a]
+-- and :: Foldable t => t Bool -> Bool
+-- or :: Foldable t => t Bool -> Bool
+-- any :: Foldable t => (a -> Bool) -> t a -> Bool
+-- all :: Foldable t => (a -> Bool) -> t a -> Bool
+-- concat :: Foldable t => t [a] -> [a]
+-- concatMap :: Foldable t => (a -> [b]) -> t a -> [b]
+-- scanl :: (b -> a -> b) -> b -> [a] -> [b]
+-- scanl1 :: (a -> a -> a) -> [a] -> [a]
+-- scanr :: (a -> b -> b) -> b -> [a] -> [b]
+-- scanr1 :: (a -> a -> a) -> [a] -> [a]
+-- iterate :: (a -> a) -> a -> [a]
+-- repeat :: a -> [a]
+-- replicate :: Int -> a -> [a]
+-- cycle :: [a] -> [a]
+-- take :: Int -> [a] -> [a]
+-- drop :: Int -> [a] -> [a]
+-- splitAt :: Int -> [a] -> ([a], [a])
+-- takeWhile :: (a -> Bool) -> [a] -> [a]
+-- dropWhile :: (a -> Bool) -> [a] -> [a]
+-- span :: (a -> Bool) -> [a] -> ([a], [a])
+-- break :: (a -> Bool) -> [a] -> ([a], [a])
+-- notElem :: (Foldable t, Eq a) => a -> t a -> Bool
+-- infix 4 `notElem`
+-- lookup :: Eq a => a -> [(a, b)] -> Maybe b
+-- zip :: [a] -> [b] -> [(a, b)]
+-- zip3 :: [a] -> [b] -> [c] -> [(a, b, c)]
+-- zipWith :: (a -> b -> c) -> [a] -> [b] -> [c]
+-- zipWith3 :: (a -> b -> c -> d) -> [a] -> [b] -> [c] -> [d]
+-- unzip :: [(a, b)] -> ([a], [b])
+-- unzip3 :: [(a, b, c)] -> ([a], [b], [c])
+-- lines :: String -> [String]
+-- words :: String -> [String]
+-- unlines :: [String] -> String
+-- unwords :: [String] -> String
+-- type ShowS = String -> String
+-- class Show a
+-- showsPrec :: Show a => Int -> a -> ShowS
+-- show :: Show a => a -> String
+-- showList :: Show a => [a] -> ShowS
+-- shows :: Show a => a -> ShowS
+-- showChar :: Char -> ShowS
+-- showString :: String -> ShowS
+-- showParen :: Bool -> ShowS -> ShowS
+-- type ReadS a = String -> [(a, String)]
 class Read a
-readsPrec :: Read a => Int -> ReadS a
-readList :: Read a => ReadS [a]
-reads :: Read a => ReadS a
-readParen :: Bool -> ReadS a -> ReadS a
-read :: Read a => String -> a
-lex :: ReadS String
+-- readsPrec :: Read a => Int -> ReadS a
+-- readList :: Read a => ReadS [a]
+-- reads :: Read a => ReadS a
+-- readParen :: Bool -> ReadS a -> ReadS a
+-- read :: Read a => String -> a
+-- lex :: ReadS String
 data IO a
-putChar :: Char -> IO ()
-putStr :: String -> IO ()
-putStrLn :: String -> IO ()
-print :: Show a => a -> IO ()
-getChar :: IO Char
-getLine :: IO String
-getContents :: IO String
-interact :: (String -> String) -> IO ()
+-- putChar :: Char -> IO ()
+-- putStr :: String -> IO ()
+-- putStrLn :: String -> IO ()
+-- print :: Show a => a -> IO ()
+-- getChar :: IO Char
+-- getLine :: IO String
+-- getContents :: IO String
+-- interact :: (String -> String) -> IO ()
 type FilePath = String
-readFile :: FilePath -> IO String
-writeFile :: FilePath -> String -> IO ()
-appendFile :: FilePath -> String -> IO ()
-readIO :: Read a => String -> IO a
-readLn :: Read a => IO a
-type IOError = IOException
-ioError :: IOError -> IO a
-userError :: String -> IOError
+-- readFile :: FilePath -> IO String
+-- writeFile :: FilePath -> String -> IO ()
+-- appendFile :: FilePath -> String -> IO ()
+-- readIO :: Read a => String -> IO a
+-- readLn :: Read a => IO a
+-- type IOError = IOException
+-- ioError :: IOError -> IO a
+-- userError :: String -> IOError
 module Type.Reflection.Unsafe
 data TypeRep (a :: k)
 mkTrApp :: forall k1 k2 (a :: k1 -> k2) (b :: k1). TypeRep (a :: k1 -> k2) -> TypeRep (b :: k1) -> TypeRep (a b)

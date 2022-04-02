@@ -1,4 +1,6 @@
-module Database.Prelude where
+module Database.Prelude
+  ( defaultLibrary
+  ) where
 
 import qualified Data.Text                     as Text
 import           Text.Parsec.Pos                ( initialPos )
