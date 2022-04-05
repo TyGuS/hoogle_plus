@@ -65,6 +65,7 @@ import qualified Data.Text.Lazy.Encoding       as TL
 import           GHC.Generics                   ( Generic )
 import qualified Language.Haskell.Interpreter  as LHI
 import           System.Directory               ( doesFileExist )
+import           System.Console.ANSI
 import           Text.Parsec                    ( runParser )
 import           Text.Parsec.Pos                ( initialPos )
 import           Text.Printf                    ( printf )
@@ -184,6 +185,9 @@ data ListOutput a = ListOutput
   deriving (Eq, Generic)
 
 instance ToJSON a => ToJSON (ListOutput a)
+
+data OutputFormat = CommandLine | JSON
+  deriving (Show, Data, Typeable)
 
 --------------------------------------------------------------------------------
 --------------------------- IO Format Parsing ----------------------------------
@@ -407,8 +411,31 @@ encodeWithPrefix obj = LB.append
 printResult :: LB.ByteString -> IO ()
 printResult bs = putStrLn (LB.unpack bs)
 
+printError :: String -> IO ()
+printError err = do
+  setSGR [SetColor Foreground Vivid Red]
+  putStrLn err
+  setSGR [Reset]
+
+printProgramWithExample :: Int -> ResultEntry -> IO ()
+printProgramWithExample idx (ResultEntry _ prog ex) = do
+  setSGR [SetColor Foreground Vivid Green]
+  putStr $ show idx ++ ". "
+  print $ pretty prog
+  putStrLn "----------"
+  putStrLn $ "Example: "
+  print $ pretty ex
+  putStrLn "-------------------------"
+  putStrLn ""
+
+printCmd :: QueryOutput -> IO ()
+printCmd (QueryOutput entries err _) = 
+  if not (null err)
+    then putStrLn err
+    else mapM_ printProgramWithExample entries
+
 toOutput :: Environment -> TProgram -> AssociativeExamples -> IO QueryOutput
-toOutput env soln exs = do
+toOutput env soln exs format = do
   let symbols       = Set.toList $ symbolsOf soln
   let args          = getArguments env
   let argNames      = map fst args

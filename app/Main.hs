@@ -54,7 +54,7 @@ main :: IO ()
 main = do
   res <- cmdArgsRun mode
   case res of
-    Synthesis jsonStr searchCat engine appMax logLv solNum noHigherOrder useRefine stopRef stopThreshold getNExamples getNTypes disableDema disableCoalescing coalescingStrategy noRelevancy noCopyTrans noBlacklist noFilter
+    Synthesis jsonStr searchCat engine appMax solNum noHigherOrder useRefine stopRef stopThreshold getNExamples getNTypes disableDema disableCoalescing coalescingStrategy noRelevancy noCopyTrans noBlacklist noFilter logLv outputFormat
       -> do
         let sparams = defaultSearchParams
               { _maxApplicationDepth = appMax
@@ -73,8 +73,8 @@ main = do
               , _disableFilter       = noFilter
               }
         let searchPrograms = if null jsonStr
-              then error "Must specify a file path or a json string"
-              else executeSearch engine sparams jsonStr
+              then error "A JSON string must be provided"
+              else executeSearch engine sparams jsonStr outputFormat
         case searchCat of
           SearchPrograms -> searchPrograms
           SearchTypes    -> void (searchTypes jsonStr getNTypes)
@@ -103,30 +103,29 @@ main = do
 {- Command line arguments -}
 
 data CommandLineArgs
-    = Synthesis {
-        -- | Input
-        json :: String,
-        search_category :: QueryType,
-        search_engine :: SearchEngine,
-        -- | Search params
-        app_max :: Int,
-        -- | Output
-        log_ :: Int,
-        -- | Graph params
-        sol_num :: Int,
-        disable_higher_order :: Bool,
-        use_refine :: RefineStrategy,
-        stop_refine :: Bool,
-        stop_threshold :: Int,
-        get_n_examples :: Int,
-        get_n_types :: Int,
-        disable_demand :: Bool,
-        disable_coalescing :: Bool,
-        coalescing_strategy :: CoalesceStrategy,
-        disable_relevancy :: Bool,
-        disable_copy_trans :: Bool,
-        disable_blacklist :: Bool,
-        disable_filter :: Bool
+    = Synthesis { -- | Input
+                  json :: String
+                , search_category :: QueryType
+                , -- | Search params
+                  search_engine :: SearchEngine
+                , app_max :: Int
+                , sol_num :: Int
+                , disable_higher_order :: Bool
+                , use_refine :: RefineStrategy
+                , stop_refine :: Bool
+                , stop_threshold :: Int
+                , get_n_examples :: Int
+                , get_n_types :: Int
+                , disable_demand :: Bool
+                , disable_coalescing :: Bool
+                , coalescing_strategy :: CoalesceStrategy
+                , disable_relevancy :: Bool
+                , disable_copy_trans :: Bool
+                , disable_blacklist :: Bool
+                , disable_filter :: Bool
+                , -- | Output
+                  log_ :: Int
+                , output_format :: OutputFormat
       }
       | Generate {
         -- | Input
@@ -168,9 +167,8 @@ synt =
       , disable_copy_trans   = False &= help "Disable the copy transitions and allow more than one token in initial state instead (default: False)"
       , disable_blacklist    = False &= help "Disable blacklisting functions in the solution (default: False)"
       , disable_filter       = True &= help "Disable filter-based test"
-      }
-    &= auto
-    &= help "Synthesize goals specified in the input file"
+      , output_format        = CommandLine &= help "Output format (default: CommandLine)"
+      } &= help "Synthesize a program" &= auto
 
 generate :: CommandLineArgs
 generate =
@@ -213,8 +211,8 @@ precomputeGraph :: GenerationOpts -> IO ()
 precomputeGraph = generateEnv
 
 -- | Parse and resolve file, then synthesize the specified goals
-executeSearch :: SearchEngine -> SearchParams -> String -> IO ()
-executeSearch engine params inStr = catch
+executeSearch :: SearchEngine -> SearchParams -> String -> OutputFormat -> IO ()
+executeSearch engine params inStr outputFormat = catch
   (do
     let input   = decodeInput (LB.pack inStr)
     let tquery  = query input
@@ -272,7 +270,10 @@ executeSearch engine params inStr = catch
       case checkResult of
         Nothing -> return (fstate', Nothing)
         Just exs -> do
-          liftIO $ toOutput env p exs >>= (printResult . encodeWithPrefix)
+          queryOutput <- liftIO $ toOutput env p exs
+          case outputFormat of
+            JSON -> liftIO $ printResult $ encodeWithPrefix queryOutput
+            CommandLine -> liftIO $ printCmd queryOutput
           return (fstate', Just p)
 
     getNPrograms :: SolverMonad m => Int -> Goal -> [TProgram] -> [TProgram] -> FilterTest m [TProgram]
