@@ -60,7 +60,9 @@ module Types.Pretty
 
 import           Data.HashMap.Strict            ( HashMap )
 import qualified Data.HashMap.Strict           as HashMap
-import           Data.List                      ( intersperse, replicate )
+import           Data.List                      ( intersperse
+                                                , replicate
+                                                )
 import           Data.Map                       ( (!)
                                                 , Map
                                                 )
@@ -70,6 +72,7 @@ import qualified Data.Set                      as Set
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 
+import qualified Text.Layout.Table             as Table
 import           Text.PrettyPrint.ANSI.Leijen
                                          hiding ( (<$>)
                                                 , (<+>)
@@ -78,7 +81,6 @@ import           Text.PrettyPrint.ANSI.Leijen
                                                 , vsep
                                                 )
 import qualified Text.PrettyPrint.ANSI.Leijen  as L
-import qualified Text.Layout.Table as Table
 
 import           Compiler.Error
 import           Types.Encoder
@@ -401,7 +403,8 @@ instance Pretty EncodedFunction where
       )
 
 exampleColumn :: Table.ColSpec
-exampleColumn = Table.column Table.expand Table.left Table.noAlign Table.noCutMark
+exampleColumn =
+  Table.column Table.expand Table.left Table.noAlign Table.noCutMark
 
 prettyExampleRow :: Example -> Table.Row String
 prettyExampleRow (Example ins out) =
@@ -410,16 +413,22 @@ prettyExampleRow (Example ins out) =
   in  map colorfulText ins ++ [colorfulText "==>", colorfulText out]
 
 plainExample :: Example -> String
-plainExample (Example ins out) = show $ plain $ hsep (map pretty ins) <+> string "==>" <+> pretty out
+plainExample (Example ins out) =
+  show $ plain $ hsep (map pretty ins) <+> string "==>" <+> pretty out
 
 instance Pretty Example where
-  pretty e = let exampleCells = prettyExampleRow e
-              in string $ Table.gridString (replicate (length exampleCells) exampleColumn) [exampleCells]
+  pretty e =
+    let exampleCells = prettyExampleRow e
+    in  string $ Table.gridString
+          (replicate (length exampleCells) exampleColumn)
+          [exampleCells]
 
 instance Pretty Examples where
   pretty (Examples exs) =
     let exampleRows = map prettyExampleRow exs
-    in string $ Table.gridString (replicate (length $ head exampleRows) exampleColumn) exampleRows
+    in  string $ Table.gridString
+          (replicate (length $ head exampleRows) exampleColumn)
+          exampleRows
 
 plainShow :: Pretty a => a -> String
 plainShow = show . plain . pretty

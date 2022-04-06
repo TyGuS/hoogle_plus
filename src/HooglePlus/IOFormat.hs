@@ -76,7 +76,13 @@ import           Data.Aeson                     ( FromJSON
                                                 , ToJSON
                                                 )
 import           Hoogle
-import           Text.PrettyPrint.ANSI.Leijen   ( string, yellow, red, blue, green, white )
+import           Text.PrettyPrint.ANSI.Leijen   ( blue
+                                                , green
+                                                , red
+                                                , string
+                                                , white
+                                                , yellow
+                                                )
 
 import           Compiler.Parser
 import           Compiler.Resolver
@@ -232,8 +238,7 @@ readBuiltinData env = do
 parseQueryType :: String -> TypeSkeleton
 parseQueryType str =
   let parseResult = runParser parseType () "" str
-      resolveResult t =
-        runExcept $ evalStateT (resolveType [] t) resolver
+      resolveResult t = runExcept $ evalStateT (resolveType [] t) resolver
   in  case parseResult of
         Left  parseErr -> error "something wrong in the builtin json"
         Right t        -> case resolveResult t of
@@ -420,10 +425,13 @@ printProgramWithExample :: (Doc -> Doc) -> ResultEntry -> IO ()
 printProgramWithExample color (ResultEntry _ prog exs) = do
   print $ color $ pretty prog
 
-  unless (null exs) (do
-    putStrLn ""
-    putStrLn "Examples:"
-    print $ pretty $ Examples exs)
+  unless
+    (null exs)
+    (do
+      putStrLn ""
+      putStrLn "Examples:"
+      print $ pretty $ Examples exs
+    )
 
   putStrLn "-------------------------"
   putStrLn ""
@@ -437,8 +445,12 @@ printCmd idx (QueryOutput entries err _) = do
       let currSoln = head entries
       putStr $ show $ yellow $ pretty idx <> string ". "
       printProgramWithExample yellow currSoln
-      putStr "Distinguishing from "
-      mapM_ (printProgramWithExample blue) (tail entries)
+      mapM_
+        (\entry -> do
+          putStr "Distinguishing from "
+          printProgramWithExample blue entry
+        )
+        (tail entries)
 
 toOutput :: Environment -> TProgram -> AssociativeExamples -> IO QueryOutput
 toOutput env soln exs = do
