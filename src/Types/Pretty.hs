@@ -60,7 +60,7 @@ module Types.Pretty
 
 import           Data.HashMap.Strict            ( HashMap )
 import qualified Data.HashMap.Strict           as HashMap
-import           Data.List                      ( intersperse )
+import           Data.List                      ( intersperse, replicate )
 import           Data.Map                       ( (!)
                                                 , Map
                                                 )
@@ -78,6 +78,7 @@ import           Text.PrettyPrint.ANSI.Leijen
                                                 , vsep
                                                 )
 import qualified Text.PrettyPrint.ANSI.Leijen  as L
+import qualified Text.Layout.Table as Table
 
 import           Compiler.Error
 import           Types.Encoder
@@ -279,8 +280,7 @@ prettyProgram (Program p typ) = case p of
       prefix
   PFun x e ->
     let (args, e') = mergeLambdas (Program p typ)
-    in  nest 2
-          $   operator "\\"
+    in  operator "\\"
           <>  hsep (map text args)
           <+> operator "->"
           <+> prettyProgram e'
@@ -335,21 +335,12 @@ instance Show a => Show (Pos a) where
 
 prettyError :: ErrorMessage -> Doc
 prettyError (ErrorMessage ParseError descr) =
-  align
-    $   hang tab
-    $   errorDoc (string "Parse Error")
-    $+$ pretty descr
+  align $ hang tab $ errorDoc (string "Parse Error") $+$ pretty descr
 prettyError (ErrorMessage ResolutionError descr) =
-  hang tab
-    $   errorDoc (string "Resolution Error")
-    $+$ pretty descr
+  hang tab $ errorDoc (string "Resolution Error") $+$ pretty descr
 prettyError (ErrorMessage TypeError descr) =
   hang tab
-    $   errorDoc
-          (hcat $ map
-            (<> colon)
-            [string "Type Error"]
-          )
+    $   errorDoc (hcat $ map (<> colon) [string "Type Error"])
     $+$ pretty descr
 
 instance Pretty ErrorMessage where
@@ -409,8 +400,26 @@ instance Pretty EncodedFunction where
       <+> hlBrackets (commaSep (map pretty rets))
       )
 
+exampleColumn :: Table.ColSpec
+exampleColumn = Table.column Table.expand Table.left Table.noAlign Table.noCutMark
+
+prettyExampleRow :: Example -> Table.Row String
+prettyExampleRow (Example ins out) =
+  let color        = if out == "bottom" then dullred else dullgreen
+      colorfulText = show . color . pretty
+  in  map colorfulText ins ++ [colorfulText "==>", colorfulText out]
+
+plainExample :: Example -> String
+plainExample (Example ins out) = show $ plain $ hsep (map pretty ins) <+> string "==>" <+> pretty out
+
 instance Pretty Example where
-  pretty e = hsep [hsep (map pretty $ inputs e), "==>", pretty (output e)]
+  pretty e = let exampleCells = prettyExampleRow e
+              in string $ Table.gridString (replicate (length exampleCells) exampleColumn) [exampleCells]
+
+instance Pretty Examples where
+  pretty (Examples exs) =
+    let exampleRows = map prettyExampleRow exs
+    in string $ Table.gridString (replicate (length $ head exampleRows) exampleColumn) exampleRows
 
 plainShow :: Pretty a => a -> String
 plainShow = show . plain . pretty

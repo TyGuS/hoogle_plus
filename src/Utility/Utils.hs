@@ -196,6 +196,6 @@ stripSuffix suffix =
 
 writeLog :: Monad m => Int -> String -> Doc -> m ()
 writeLog level tag msg =
-  when (level <= 1)
+  when (level <= 0)
     $ trace (printf "[%s]: %s\n" tag (show $ plain msg))
     $ return ()

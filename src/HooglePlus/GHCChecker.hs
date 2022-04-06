@@ -6,10 +6,10 @@ module HooglePlus.GHCChecker
   , checkSolution
   ) where
 
-import Control.Monad.Trans ( lift )
 import           Control.Exception              ( SomeException(SomeException)
                                                 , handle
                                                 )
+import           Control.Monad.Trans            ( lift )
 import           CoreSyn                        ( Bind(NonRec)
                                                 , CoreBind
                                                 )
@@ -47,11 +47,13 @@ import           System.Directory               ( removeFile )
 import           Text.Printf                    ( printf )
 
 import           Data.UUID.V4                   ( nextRandom )
+import           System.IO                      ( hFlush
+                                                , stdout
+                                                )
 import           Text.Regex                     ( matchRegex
                                                 , mkRegex
                                                 , splitRegex
                                                 )
-import System.IO ( hFlush, stdout )
 
 import           Database.Dataset
 import           HooglePlus.FilterTest          ( runChecks )
@@ -61,11 +63,11 @@ import           Types.Common
 import           Types.Environment
 import           Types.Experiments
 import           Types.Filtering
+import           Types.Pretty
 import           Types.Program
+import           Types.Solver
 import           Types.Type
-import Types.Solver
-import Utility.Utils
-import Types.Pretty
+import           Utility.Utils
 
 showGhc :: (Outputable a) => a -> String
 showGhc = showPpr unsafeGlobalDynFlags
@@ -178,42 +180,45 @@ runGhcChecks
 runGhcChecks params modules env goalType examples prog =
   let
 -- constructs program and its type signature as strings
-    tyclassCount = length $ Prelude.filter
-      (\id -> tyclassArgBase `Text.isPrefixOf` Text.pack id)
-      argList
-    expr          = printf "(%s) :: %s" (plainShow body) funcSig
-    disableDemand = _disableDemand params
-    disableFilter = _disableFilter params
-  in
-    do
+      tyclassCount = length $ Prelude.filter
+        (\id -> tyclassArgBase `Text.isPrefixOf` Text.pack id)
+        argList
+      expr          = printf "(%s) :: %s" (plainShow body) funcSig
+      disableDemand = _disableDemand params
+      disableFilter = _disableFilter params
+  in  do
 -- liftIO $ print goalType
 -- liftIO $ print funcSig
-      typeCheckResult   <- liftIO $ runInterpreter $ checkType expr mdls
-      strictCheckResult <- if disableDemand
-        then return True
-        else liftIO $ checkStrictness tyclassCount (plainShow body) funcSig mdls
-      -- liftIO $ print strictCheckResult
-      exampleCheckResult <- if not strictCheckResult
-        then return Nothing
-        else
-          liftIO
-          $   fmap ((: []) . ((unqualifyFunc body, body), ))
-          <$> checkOutputs prog examples
-      -- liftIO $ print exampleCheckResult
-      filterCheckResult <- if disableFilter || isNothing exampleCheckResult
-        then return exampleCheckResult
-        else do
-          filterResult <- runChecks env mdls goalType prog
-          if isNothing filterResult
-            then return filterResult
-            else return
-              $ Just (fromJust exampleCheckResult ++ fromJust filterResult)
-      -- liftIO $ print filterCheckResult
-      case typeCheckResult of
-        Left err -> return Nothing
-        Right False ->
-          liftIO $ putStrLn "Program does not typecheck" >> return Nothing
-        Right True -> return filterCheckResult
+        typeCheckResult   <- liftIO $ runInterpreter $ checkType expr mdls
+        strictCheckResult <- if disableDemand
+          then return True
+          else liftIO
+            $ checkStrictness tyclassCount (plainShow body) funcSig mdls
+        -- liftIO $ print strictCheckResult
+        exampleCheckResult <- if not strictCheckResult
+          then return Nothing
+          else
+            liftIO
+            $   fmap ((: []) . ((unqualifyFunc body, body), ))
+            <$> checkOutputs prog examples
+        -- liftIO $ print exampleCheckResult
+        filterCheckResult <- if disableFilter || isNothing exampleCheckResult
+          then return exampleCheckResult
+          else do
+            filterResult <- runChecks env mdls goalType prog
+            if isNothing filterResult
+              then return filterResult
+              else return $ Just
+                (foldr (uncurry mergeExamples)
+                       (fromJust filterResult)
+                       (fromJust exampleCheckResult)
+                )
+        -- liftIO $ print filterCheckResult
+        case typeCheckResult of
+          Left err -> return Nothing
+          Right False ->
+            liftIO $ putStrLn "Program does not typecheck" >> return Nothing
+          Right True -> return filterCheckResult
  where
   mdls = "Prelude" : map Text.unpack includedModules
   SynthesisResult funcSig body argList = extractSolution env goalType prog

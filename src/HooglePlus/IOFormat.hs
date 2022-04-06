@@ -10,6 +10,7 @@ module HooglePlus.IOFormat
   , ListOutput(..)
   , QueryOutput(..)
   , ExamplesInput(..)
+  , OutputFormat(..)
 
     -- * encoding and decoding
   , decodeInput
@@ -26,6 +27,7 @@ module HooglePlus.IOFormat
 
     -- * other
   , toOutput
+  , printCmd
   ) where
 
 import           Control.Exception              ( SomeException
@@ -65,7 +67,6 @@ import qualified Data.Text.Lazy.Encoding       as TL
 import           GHC.Generics                   ( Generic )
 import qualified Language.Haskell.Interpreter  as LHI
 import           System.Directory               ( doesFileExist )
-import           System.Console.ANSI
 import           Text.Parsec                    ( runParser )
 import           Text.Parsec.Pos                ( initialPos )
 import           Text.Printf                    ( printf )
@@ -75,7 +76,7 @@ import           Data.Aeson                     ( FromJSON
                                                 , ToJSON
                                                 )
 import           Hoogle
-import           Text.PrettyPrint.ANSI.Leijen   ( string )
+import           Text.PrettyPrint.ANSI.Leijen   ( string, yellow, red, blue, green, white )
 
 import           Compiler.Parser
 import           Compiler.Resolver
@@ -187,7 +188,7 @@ data ListOutput a = ListOutput
 instance ToJSON a => ToJSON (ListOutput a)
 
 data OutputFormat = CommandLine | JSON
-  deriving (Show, Data, Typeable)
+  deriving (Show, Eq, Data)
 
 --------------------------------------------------------------------------------
 --------------------------- IO Format Parsing ----------------------------------
@@ -284,14 +285,14 @@ checkExampleOutput
   -> TypeQuery
   -> String
   -> [Example]
-  -> IO (Maybe [Example])
+  -> IO (Maybe Examples)
 checkExampleOutput mdls env typ prog exs = do
   let progWithoutTc = removeTypeclasses prog
   currOutputs <- mapM (execExample mdls env typ progWithoutTc) exs
   cmpResults  <- zipWithM compareResults currOutputs exs
   let justResults = catMaybes cmpResults
   if length justResults == length exs
-    then return $ Just justResults
+    then return $ Just $ Examples justResults
     else return Nothing
  where
   compareResults currOutput ex
@@ -413,29 +414,34 @@ printResult bs = putStrLn (LB.unpack bs)
 
 printError :: String -> IO ()
 printError err = do
-  setSGR [SetColor Foreground Vivid Red]
-  putStrLn err
-  setSGR [Reset]
+  print $ red $ pretty err
 
-printProgramWithExample :: Int -> ResultEntry -> IO ()
-printProgramWithExample idx (ResultEntry _ prog ex) = do
-  setSGR [SetColor Foreground Vivid Green]
-  putStr $ show idx ++ ". "
-  print $ pretty prog
-  putStrLn "----------"
-  putStrLn $ "Example: "
-  print $ pretty ex
+printProgramWithExample :: (Doc -> Doc) -> ResultEntry -> IO ()
+printProgramWithExample color (ResultEntry _ prog exs) = do
+  print $ color $ pretty prog
+
+  unless (null exs) (do
+    putStrLn ""
+    putStrLn "Examples:"
+    print $ pretty $ Examples exs)
+
   putStrLn "-------------------------"
   putStrLn ""
 
-printCmd :: QueryOutput -> IO ()
-printCmd (QueryOutput entries err _) = 
+printCmd :: Int -> QueryOutput -> IO ()
+printCmd idx (QueryOutput entries err _) = do
+  putStrLn ""
   if not (null err)
     then putStrLn err
-    else mapM_ printProgramWithExample entries
+    else do
+      let currSoln = head entries
+      putStr $ show $ yellow $ pretty idx <> string ". "
+      printProgramWithExample yellow currSoln
+      putStr "Distinguishing from "
+      mapM_ (printProgramWithExample blue) (tail entries)
 
 toOutput :: Environment -> TProgram -> AssociativeExamples -> IO QueryOutput
-toOutput env soln exs format = do
+toOutput env soln exs = do
   let symbols       = Set.toList $ symbolsOf soln
   let args          = getArguments env
   let argNames      = map fst args
@@ -444,10 +450,10 @@ toOutput env soln exs format = do
   entries <- mapM mkEntry exs
   return $ QueryOutput entries "" argDocs
  where
-  mkEntry ((unqualSol, qualSol), ex) = do
+  mkEntry ((unqualSol, qualSol), Examples ex) = do
     ex' <- mapM niceInputs ex
-    let qualSol'   = toHaskellSolution $ show qualSol
-    let unqualSol' = toHaskellSolution $ show unqualSol
+    let qualSol'   = toHaskellSolution $ plainShow qualSol
+    let unqualSol' = toHaskellSolution $ plainShow unqualSol
     return (ResultEntry qualSol' unqualSol' ex')
   hoogleIt syms = do
     dbPath <- Hoogle.defaultDatabaseLocation

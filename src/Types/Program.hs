@@ -22,6 +22,8 @@ module Types.Program
   , Declaration(..)
   , ConstructorSig(..)
   , Example(..)
+  , Examples(..)
+  , overExamples
   , Goal(..)
   , dummyDecl
   ) where
@@ -88,6 +90,15 @@ data Example = Example
 instance ToJSON Example
 instance FromJSON Example
 instance Serialize Example
+
+newtype Examples = Examples { unExamples :: [Example] }
+  deriving (Eq, Ord, Show, Generic)
+
+instance Semigroup Examples where
+  Examples xs <> Examples ys = Examples (xs ++ ys)
+
+overExamples :: ([Example] -> [Example]) -> Examples -> Examples
+overExamples f (Examples xs) = Examples (f xs)
 
 -- | Synthesis goal
 data Goal = Goal

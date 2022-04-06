@@ -115,6 +115,12 @@ printSolution solution = do
   putStrLn $ "SOLUTION: " ++ toHaskellSolution (show solution)
   putStrLn "************************************************"
 
+mergeExamples :: SolutionPair -> Examples -> AssociativeExamples -> AssociativeExamples 
+mergeExamples solnPair exs assocExs =
+  case lookup solnPair assocExs of
+    Nothing -> (solnPair, exs) : assocExs
+    Just exs' -> (solnPair, exs <> exs') : filter ((/= solnPair) . fst) assocExs 
+
 collectExamples :: SolutionPair -> FilterState -> AssociativeExamples
 collectExamples solution (FilterState _ sols samples examples) =
   map mkGroup
@@ -124,12 +130,12 @@ collectExamples solution (FilterState _ sols samples examples) =
  where
   [(_, desc)] = filter ((== solution) . fst) samples
   checkedExs  = zip (repeat solution) (descToExample desc)
-  mkGroup xs = (fst (head xs), nubOrdOn inputs $ map snd xs)
+  mkGroup xs = (fst (head xs), Examples $ nubOrdOn inputs $ map snd xs)
 
 descToExample :: FunctionCrashDesc -> [Example]
 descToExample (AlwaysSucceed   ex ) = [ex]
 descToExample (AlwaysFail      ex ) = [ex]
-descToExample (PartialFunction exs) = exs
+descToExample (PartialFunction exs) = unExamples exs
 descToExample _                     = []
 
 printSolutionState :: SolutionPair -> FilterState -> String

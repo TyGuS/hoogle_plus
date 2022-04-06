@@ -60,19 +60,19 @@ frameworkModules =
 type SmallCheckResult = (Maybe PropertyFailure, [Example])
 type GeneratorResult = [Example]
 type SolutionPair = (TProgram, TProgram) -- qualified and unqualified
-type AssociativeExamples = [(SolutionPair, [Example])]
+type AssociativeExamples = [(SolutionPair, Examples)]
 
 data FunctionCrashDesc =
     AlwaysSucceed Example
   | AlwaysFail Example
-  | PartialFunction [Example]
+  | PartialFunction Examples
   | UnableToCheck String
   deriving (Eq)
 
 instance Show FunctionCrashDesc where
   show (AlwaysSucceed   i ) = show i
   show (AlwaysFail      i ) = show i
-  show (PartialFunction xs) = unlines (map show xs)
+  show (PartialFunction xs) = unlines (map show $ unExamples xs)
   show (UnableToCheck   ex) = "Exception: " ++ show ex
 
 data ArgumentType =

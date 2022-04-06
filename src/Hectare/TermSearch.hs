@@ -50,7 +50,7 @@ synthesize (Goal env goalType _) =
       destination = lastType goalType
       argNodes    = map (bimap Symbol typeToFta) args
       resNode     = typeToFta destination
-  in traceShow (args, destination) $ concatMap ungroup $ concatMap (doSynthesize argNodes resNode) [1..]
+  in concatMap ungroup $ concatMap (doSynthesize argNodes resNode) [1..]
 
 doSynthesize :: [Argument] -> Node -> Int -> [TProgram]
 doSynthesize argNodes resNode sz =

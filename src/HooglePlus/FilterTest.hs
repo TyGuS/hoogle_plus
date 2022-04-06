@@ -42,6 +42,8 @@ import           Text.Printf                    ( printf )
 import           Test.SmallCheck                ( Depth )
 import           Test.SmallCheck.Drivers
 
+import           Text.PrettyPrint.ANSI.Leijen   ( string )
+
 import           HooglePlus.Utils
 import           Paths_HooglePlus
 import           Types.Common
@@ -52,7 +54,7 @@ import           Types.Program
 import           Types.Type              hiding ( typeOf )
 import           Utility.Utils
 
-import           Debug.Trace
+-- import Debug.Trace
 
 parseTypeString :: String -> FunctionSignature
 parseTypeString input = FunctionSignature constraints argsType returnType
@@ -263,25 +265,22 @@ validateSolution modules argNames solution funcSig time =
       Right (Nothing, _)             -> Right $ AlwaysSucceed exF
 
       Right (Just (CounterExample _ _), exS : _) ->
-        Right $ PartialFunction [exF, exS]
+        Right $ PartialFunction $ Examples [exF, exS]
       _ -> error (show resultF ++ "???" ++ show resultS)
-    _ -> trace (show resultF) $ Right $ AlwaysFail $ caseToInput resultS
+    _ -> Right $ AlwaysFail $ caseToInput resultS
 
   evaluateResult' result = case result of
-    Left (UnknownError "timeout") -> Right $ AlwaysFail $ Example [] "timeout"
-    Left error ->
-      trace (show error) (Right $ AlwaysFail $ Example [] (show error))
-    Right (Nothing, _       ) -> Right $ AlwaysFail $ caseToInput result
-    Right (_      , examples) -> Right $ PartialFunction $ take 2 examples -- only need the first two examples, one succeed, one fail
+    Left  (UnknownError "timeout") -> Right $ AlwaysFail $ Example [] "timeout"
+    Left error -> Right $ AlwaysFail $ Example [] (show error)
+    Right (Nothing, _       )      -> Right $ AlwaysFail $ caseToInput result
+    Right (_      , examples)      -> Right $ PartialFunction $ Examples (take 2 examples) -- only need the first two examples, one succeed, one fail
 
   caseToInput :: Either InterpreterError SmallCheckResult -> Example
   caseToInput (Right (_, example : _)) = example
   caseToInput _ = error "caseToInput: no example returned"
 
   preprocessOutput :: String -> String -> String
-  preprocessOutput input output = trace
-    ("ok: " ++ input ++ ", " ++ output)
-    (fromMaybe "N/A" (listToMaybe selectedLine))
+  preprocessOutput input output = fromMaybe "N/A" (listToMaybe selectedLine)
    where
     ios          = nub $ filter ([] /=) $ lines output
     selectedLine = filter (isInfixOf input) ios
@@ -326,9 +325,10 @@ runChecks env mdls goalType prog = do
 
   runChecks_ = and <$> mapM (\f -> f mdls argNames funcSig body) checks
   runPrints state = do
-    putStrLn "\n*******************FILTER*********************"
-    print (pretty $ unqualifyFunc body)
-    putStrLn (printSolutionState (unqualifyFunc body, body) state)
+    writeLog 2 "runChecks" "\n*******************FILTER*********************"
+    writeLog 2 "runChecks" (pretty $ unqualifyFunc body)
+    writeLog 2 "runChecks"
+      $ string (printSolutionState (unqualifyFunc body, body) state)
 
 checkSolutionNotCrash
   :: MonadIO m
@@ -358,7 +358,7 @@ checkSolutionNotCrash modules argNames sigStr body = do
   funcSig      = (instantiateSignature . parseTypeString) sigStr
   executeCheck = handleNotSupported $ validateSolution modules
                                                        argNames
-                                                       (show body)
+                                                       (plainShow body)
                                                        funcSig
                                                        defaultTimeoutMicro
 
@@ -383,8 +383,8 @@ checkDuplicates modules argNames sigStr solution = do
     _ -> do
       results <- liftIO $ compareSolution modules
                                           argNames
-                                          (show solution)
-                                          (map show solns)
+                                          (plainShow solution)
+                                          (map plainShow solns)
                                           funcSig
                                           defaultTimeoutMicro
       passTest <- and <$> zipWithM processResult results solns
