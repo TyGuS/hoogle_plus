@@ -14,6 +14,9 @@ import           Data.Time.Calendar             ( Day
                                                 , showGregorian
                                                 )
 import           System.Console.CmdArgs  hiding ( Normal )
+import           System.Directory               ( doesFileExist
+                                                , removeFile
+                                                )
 import           System.IO                      ( BufferMode(LineBuffering)
                                                 , hSetBuffering
                                                 , stdout
@@ -27,7 +30,7 @@ import           Evaluation.EvalTypeInf
 import           Evaluation.ReadBenchmark
 import           Examples.InferenceDriver
 import qualified Hectare.TermSearch as Hectare
-import           HooglePlus.GHCChecker
+import           Postfilter.GHCChecker
 import           HooglePlus.IOFormat
 import           HooglePlus.Synthesize
 import           PetriNet.PNSolver
@@ -53,7 +56,7 @@ main :: IO ()
 main = do
   res <- cmdArgsRun mode
   case res of
-    Synthesis jsonStr searchCat engine appMax solNum noHigherOrder useRefine stopRef stopThreshold getNExamples getNTypes disableDema disableCoalescing coalescingStrategy noRelevancy noCopyTrans noBlacklist noFilter logLv outputFormat
+    Synthesis jsonStr searchCat engine appMax solNum noHigherOrder useRefine stopRef stopThreshold getNExamples getNTypes disableDema disableCoalescing coalescingStrategy noRelevancy noCopyTrans noBlacklist noFilter logLv outputFormat outputFile
       -> do
         let sparams = defaultSearchParams
               { _maxApplicationDepth = appMax
@@ -73,7 +76,7 @@ main = do
               }
         let searchPrograms = if null jsonStr
               then error "A JSON string must be provided"
-              else executeSearch engine sparams jsonStr outputFormat
+              else executeSearch engine sparams jsonStr outputFormat outputFile
         case searchCat of
           SearchPrograms -> searchPrograms
           SearchTypes    -> void (searchTypes jsonStr getNTypes)
@@ -125,6 +128,7 @@ data CommandLineArgs
                 , -- | Output
                   log_ :: Int
                 , output_format :: OutputFormat
+                , output_file :: FilePath
       }
       | Generate {
         -- | Input
@@ -167,6 +171,7 @@ synt =
       , disable_blacklist    = False &= help "Disable blacklisting functions in the solution (default: False)"
       , disable_filter       = True &= help "Disable filter-based test"
       , output_format        = CommandLine &= help "Output format (default: CommandLine)"
+      , output_file          = "results.log" &= help "Output file (default: ./results.log). This flag is only used when output_format is OutputFile"
       } &= help "Synthesize a program" &= auto
 
 generate :: CommandLineArgs
@@ -210,13 +215,18 @@ precomputeGraph :: GenerationOpts -> IO ()
 precomputeGraph = generateEnv
 
 -- | Parse and resolve file, then synthesize the specified goals
-executeSearch :: SearchEngine -> SearchParams -> String -> OutputFormat -> IO ()
-executeSearch engine params inStr outputFormat = catch
+executeSearch :: SearchEngine -> SearchParams -> String -> OutputFormat -> FilePath -> IO ()
+executeSearch engine params inStr outputFormat outputFile = catch
   (do
     let input   = decodeInput (LB.pack inStr)
     let tquery  = query input
     let examples = inExamples input
     hSetBuffering stdout LineBuffering
+
+    -- clear the log file before writing to it
+    when (outputFormat == OutputFile) $ do
+      exists <- doesFileExist outputFile
+      when exists $ removeFile outputFile
 
     -- invoke synthesis
     let cnt = params ^. solutionCnt
@@ -233,18 +243,18 @@ executeSearch engine params inStr outputFormat = catch
     runHooglePlus :: Goal -> Int -> IO ()
     runHooglePlus goal n = do
       (programs, st) <- synthesize params goal
-      (filteredProgs, fstate) <- runStateT (getNPrograms n goal [] programs) (st ^. filterState)
-      when (length filteredProgs < n)
-           (getMoreSolutions goal (st & filterState .~ fstate) (n - length filteredProgs))
+      (synthesisCnt, fstate) <- getKPrograms goal (0, st ^. filterState) programs
+      when (synthesisCnt < n)
+           (getMoreSolutions goal (st & filterState .~ fstate) (n - synthesisCnt))
 
     getMoreSolutions :: Goal -> SolverState -> Int -> IO ()
     getMoreSolutions goal@(Goal env goalTyp _) st n = do
       if n <= 0 then return ()
         else do
           (programs, st') <- runStateT (nextSolution env goalTyp) st
-          (filteredProgs, fstate) <- runStateT (getNPrograms n goal [] programs) (st' ^. filterState)
-          when (length filteredProgs < n)
-            (getMoreSolutions goal (st' & filterState .~ fstate) (n - length filteredProgs))
+          (cnt, fstate) <- getKPrograms goal (0, st' ^. filterState) programs
+          when (cnt < n)
+            (getMoreSolutions goal (st' & filterState .~ fstate) (n - cnt))
 
     runHectare :: Goal -> IO ()
     runHectare goal = do
@@ -271,16 +281,6 @@ executeSearch engine params inStr outputFormat = catch
           queryOutput <- liftIO $ toOutput env p exs
           case outputFormat of
             JSON -> liftIO $ printResult $ encodeWithPrefix queryOutput
-            CommandLine -> liftIO $ printCmd cnt queryOutput
+            CommandLine -> liftIO $ printCmd cnt queryOutput Nothing
+            OutputFile -> liftIO $ printCmd cnt queryOutput (Just outputFile)
           return (fstate', Just p)
-
-    getNPrograms :: SolverMonad m => Int -> Goal -> [TProgram] -> [TProgram] -> FilterTest m [TProgram]
-    getNPrograms _ _ sofar [] = return sofar
-    getNPrograms n goal@(Goal env goalType examples) sofar (p:ps) = do
-      liftIO $ putStrLn $ "Checking program: " ++ show p
-      checkResult <- checkSolution params env goalType examples p
-      case checkResult of
-        Nothing -> getNPrograms n goal sofar ps
-        Just exs -> do
-          liftIO $ toOutput env p exs >>= (printResult . encodeWithPrefix) 
-          getNPrograms (n - 1) goal (p:sofar) ps

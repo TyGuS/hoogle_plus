@@ -1,4 +1,4 @@
-module HooglePlus.FilterTest
+module Postfilter.FilterTest
   ( runChecks
   , checkSolutionNotCrash
   , checkDuplicates

@@ -1,6 +1,6 @@
-module HooglePlus.GHCCheckerSpec (spec) where
+module Postfilter.GHCCheckerSpec (spec) where
 
-import HooglePlus.GHCChecker
+import Postfilter.GHCChecker
 import Synquid.Parser
 import Synquid.Pretty () -- Instances
 import Types.Type

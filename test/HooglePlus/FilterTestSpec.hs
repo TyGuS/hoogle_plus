@@ -1,4 +1,4 @@
-module HooglePlus.FilterTestSpec (spec) where
+module Postfilter.FilterTestSpec (spec) where
 
 import Test.Hspec
 import Text.Pretty.Simple
@@ -8,7 +8,7 @@ import Text.Parsec.Indent
 import qualified Data.Map as Map
 import Data.Either
 
-import HooglePlus.FilterTest
+import Postfilter.FilterTest
 import Types.Filtering
 
 modules = ["Prelude"]

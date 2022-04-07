@@ -83,12 +83,15 @@ import           Text.PrettyPrint.ANSI.Leijen   ( blue
                                                 , white
                                                 , yellow
                                                 )
+import           Text.Regex                     ( mkRegex
+                                                , subRegex
+                                                )
 
 import           Compiler.Parser
 import           Compiler.Resolver
 import           Database.Dataset
 import           Examples.Utils
-import           HooglePlus.FilterTest
+import           Postfilter.FilterTest
 import           HooglePlus.Utils
 import           Types.Common
 import           Types.Environment
@@ -193,7 +196,9 @@ data ListOutput a = ListOutput
 
 instance ToJSON a => ToJSON (ListOutput a)
 
-data OutputFormat = CommandLine | JSON
+data OutputFormat = CommandLine
+                  | JSON
+                  | OutputFile
   deriving (Show, Eq, Data)
 
 --------------------------------------------------------------------------------
@@ -421,34 +426,39 @@ printError :: String -> IO ()
 printError err = do
   print $ red $ pretty err
 
-printProgramWithExample :: (Doc -> Doc) -> ResultEntry -> IO ()
-printProgramWithExample color (ResultEntry _ prog exs) = do
-  print $ color $ pretty prog
+printProgramWithExample :: (Doc -> Doc) -> (Doc -> IO ()) -> ResultEntry -> IO ()
+printProgramWithExample color output (ResultEntry _ prog exs) = do
+  output $ color $ pretty prog
 
   unless
     (null exs)
     (do
-      putStrLn ""
-      putStrLn "Examples:"
-      print $ pretty $ Examples exs
+      output ("\n" :: Doc)
+      output ("Examples:\n" :: Doc)
+      output $ pretty $ Examples exs
+      output ("\n" :: Doc)
     )
 
-  putStrLn "-------------------------"
-  putStrLn ""
+  output ("-------------------------\n" :: Doc)
+  output ("\n" :: Doc)
 
-printCmd :: Int -> QueryOutput -> IO ()
-printCmd idx (QueryOutput entries err _) = do
-  putStrLn ""
+printCmd :: Int -> QueryOutput -> Maybe FilePath -> IO ()
+printCmd idx (QueryOutput entries err _) mbFile = do
+  let ansiRegex = mkRegex "\\[[0-9]+m"
+  let removeAnsi line = subRegex ansiRegex (filter (/= '\ESC') line) ""
+  let output = maybe (putStr . show) (\f -> appendFile f . removeAnsi . show . plain) mbFile
+  let mbColor c = maybe c (const plain) mbFile
+  output "\n"
   if not (null err)
-    then putStrLn err
+    then output (mbColor red $ pretty err <> "\n")
     else do
       let currSoln = head entries
-      putStr $ show $ yellow $ pretty idx <> string ". "
-      printProgramWithExample yellow currSoln
+      output $ mbColor yellow $ pretty idx <> string ". "
+      printProgramWithExample (mbColor yellow) output currSoln
       mapM_
         (\entry -> do
-          putStr "Distinguishing from "
-          printProgramWithExample blue entry
+          output "Distinguishing from "
+          printProgramWithExample (mbColor blue) output entry
         )
         (tail entries)
 

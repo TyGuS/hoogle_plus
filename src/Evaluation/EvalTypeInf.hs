@@ -36,7 +36,7 @@ import           Text.Printf                    ( printf )
 
 import           Evaluation.Benchmark
 import           Examples.InferenceDriver
-import           HooglePlus.FilterTest
+import           Postfilter.FilterTest
 import           HooglePlus.IOFormat
 import           HooglePlus.Utils
 import           Types.Common

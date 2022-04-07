@@ -24,7 +24,7 @@ import           Outputable                     ( showSDocUnsafe )
 import           System.Timeout                 ( timeout )
 import           Text.Printf                    ( printf )
 
-import           HooglePlus.FilterTest          ( runInterpreter' )
+import           Postfilter.FilterTest          ( runInterpreter' )
 import           Types.Common
 import           Types.Environment
 import           Types.Filtering                ( defaultDepth

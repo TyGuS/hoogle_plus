@@ -1,4 +1,4 @@
-module HooglePlus.GHCChecker
+module Postfilter.GHCChecker
   ( runGhcChecks
   , parseStrictnessSig
   , checkStrictness'
@@ -56,7 +56,7 @@ import           Text.Regex                     ( matchRegex
                                                 )
 
 import           Database.Dataset
-import           HooglePlus.FilterTest          ( runChecks )
+import           Postfilter.FilterTest          ( runChecks )
 import           HooglePlus.IOFormat
 import           HooglePlus.Utils
 import           Types.Common
