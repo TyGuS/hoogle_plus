@@ -243,7 +243,8 @@ executeSearch engine params inStr outputFormat outputFile = catch
     runHooglePlus :: Goal -> Int -> IO ()
     runHooglePlus goal n = do
       (programs, st) <- synthesize params goal
-      (synthesisCnt, fstate) <- getKPrograms goal (0, st ^. filterState) programs
+      let initFilterState = (st ^. filterState) { flogLevel = params ^. logLevel }
+      (synthesisCnt, fstate) <- getKPrograms goal (0, initFilterState) programs
       when (synthesisCnt < n)
            (getMoreSolutions goal (st & filterState .~ fstate) (n - synthesisCnt))
 
@@ -260,7 +261,7 @@ executeSearch engine params inStr outputFormat outputFile = catch
     runHectare goal = do
       let programs = Hectare.synthesize goal
       -- print programs
-      (synthesisCnt, _) <- getKPrograms goal (0, emptyFilterState) programs
+      (synthesisCnt, _) <- getKPrograms goal (0, emptyFilterState { flogLevel = params ^. logLevel }) programs
       when (synthesisCnt < params ^. solutionCnt) $ putStrLn "Hectare cannot find more solutions"
 
     getKPrograms :: Goal -> (Int, FilterState) -> [TProgram] -> IO (Int, FilterState)

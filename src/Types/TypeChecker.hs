@@ -51,6 +51,7 @@ import           Text.PrettyPrint.ANSI.Leijen   ( string )
 import           Types.Common
 import           Types.Environment
 import           Types.Fresh
+import           Types.Log
 import           Types.Pretty
 import           Types.Program
 import           Types.Type
@@ -63,11 +64,12 @@ import           Utility.Utils
 data CheckerState = CheckerState
   { getCounter        :: Map Id Int
   , getTypeAssignment :: TypeSubstitution
+  , clogLevel         :: Int
   }
   deriving (Eq, Ord, Show)
 
 emptyChecker :: CheckerState
-emptyChecker = CheckerState Map.empty Map.empty
+emptyChecker = CheckerState Map.empty Map.empty 0
 
 type Checker = State CheckerState
 
@@ -77,6 +79,9 @@ instance Monad m => Fresh CheckerState m where
     let i = Map.findWithDefault 0 prefix m
     modify $ \s -> s { getCounter = Map.insert prefix (i + 1) m }
     return i
+
+instance Loggable Checker where
+  getLogLevel = gets clogLevel
 
 -- bottom up check a program on the concrete type system
 -- at the same time, keep track of the abstract type for each node
@@ -338,7 +343,7 @@ currentAbstraction bvs cover at = do
   currentAbst' at paren = Nothing
 
 abstractApply
-  :: Fresh s m
+  :: (Loggable (StateT s m), Fresh s m)
   => [Id]
   -> AbstractCover
   -> TypeSkeleton

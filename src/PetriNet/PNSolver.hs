@@ -51,6 +51,7 @@ import           Types.Encoder           hiding ( incrementalSolving
 import           Types.Environment
 import           Types.Experiments
 import           Types.Fresh
+import           Types.Log
 import           Types.Pretty
 import           Types.Program
 import           Types.Solver
@@ -256,9 +257,7 @@ addSignatures env = do
   let usefulSymbols = Map.filterWithKey usefulPipe envSymbols
   let hoArgs        = getHigherOrderArgs env
   let bvs           = getBoundTypeVars env
-  envSigs <- instantiate env usefulSymbols
-  let sigs = envSigs
-
+  sigs <- instantiate env usefulSymbols
   sigs' <- ifM (getExperiment coalesceTypes) (mkGroups sigs) (return sigs)
   mapM_ addEncodedFunction (Map.toList sigs')
   return sigs'
@@ -553,7 +552,8 @@ parseAndCheck env dst code = do
   writeLog 1 "parseAndCheck" $ text "Find program" <+> pretty
     (recoverNames mapping code)
   checkerState <- gets $ view typeChecker
-  let checkerState' = checkerState { getTypeAssignment = Map.empty }
+  llv <- getLogLevel
+  let checkerState' = checkerState { getTypeAssignment = Map.empty, clogLevel = llv }
   let (btm, checkerState) =
         runState (bottomUpCheck mapping env code) checkerState'
   modify $ set typeChecker checkerState

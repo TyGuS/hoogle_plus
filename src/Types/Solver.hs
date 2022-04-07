@@ -10,6 +10,7 @@ import           Control.Monad.State            ( StateT
                                                 , modify
                                                 , MonadIO
                                                 )
+import           Control.Monad.Trans            ( lift )
 import           Data.HashMap.Strict            ( HashMap )
 import qualified Data.HashMap.Strict           as HashMap
 import           Data.Map                       ( Map )
@@ -27,6 +28,7 @@ import           Types.Environment
 import           Types.Experiments       hiding ( PetriNet )
 import           Types.Filtering
 import           Types.Fresh
+import           Types.Log
 import           Types.Program
 import           Types.Type
 import           Types.TypeChecker
@@ -121,5 +123,11 @@ instance Monad m => Fresh SolverState m where
 type PNSolver m = StateT SolverState m
 type BackTrack m = LogicT (PNSolver m)
 type SolverMonad m = (MonadIO m, MonadFail m)
+
+instance Monad m => Loggable (PNSolver m) where
+  getLogLevel = getExperiment logLevel
+
+instance Monad m => Loggable (BackTrack m) where
+  getLogLevel = lift getLogLevel
 
 getExperiment exp = gets $ view (searchParams . exp)

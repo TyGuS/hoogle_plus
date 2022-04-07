@@ -73,6 +73,7 @@ import qualified Text.PrettyPrint.ANSI.Leijen  as L
 import           Text.Printf                    ( printf )
 
 import           Types.Common
+import           Types.Log
 
 --------------------------------------------------------------------------------
 --------------------------- List Operations ------------------------------------
@@ -194,8 +195,9 @@ stripSuffix :: Id -> Id -> Id
 stripSuffix suffix =
   Text.pack . replaceId (Text.unpack suffix) "" . Text.unpack
 
-writeLog :: Monad m => Int -> String -> Doc -> m ()
-writeLog level tag msg =
-  when (level <= 0)
+writeLog :: Loggable m => Int -> String -> Doc -> m ()
+writeLog level tag msg = do
+  logLevel <- getLogLevel
+  when (level <= logLevel)
     $ trace (printf "[%s]: %s\n" tag (show $ plain msg))
     $ return ()

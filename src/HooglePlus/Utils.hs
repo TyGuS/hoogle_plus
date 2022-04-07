@@ -122,7 +122,7 @@ mergeExamples solnPair exs assocExs =
     Just exs' -> (solnPair, exs <> exs') : filter ((/= solnPair) . fst) assocExs 
 
 collectExamples :: SolutionPair -> FilterState -> AssociativeExamples
-collectExamples solution (FilterState _ sols samples examples) =
+collectExamples solution (FilterState _ sols samples examples _) =
   map mkGroup
     $  groupBy (\x y -> fst x == fst y)
     $  sortOn fst
@@ -139,7 +139,7 @@ descToExample (PartialFunction exs) = unExamples exs
 descToExample _                     = []
 
 printSolutionState :: SolutionPair -> FilterState -> String
-printSolutionState solution (FilterState _ sols workingExamples diffExamples) =
+printSolutionState solution (FilterState _ sols workingExamples diffExamples _) =
   unlines [ios, diffs]
  where
   ios =

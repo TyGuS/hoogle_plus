@@ -314,7 +314,7 @@ runChecks env mdls goalType prog = do
   result <- runChecks_
 
   state  <- get
-  when result $ liftIO $ runPrints state
+  when result $ runPrints state
 
   return $ if result
     then Just (collectExamples (unqualifyFunc body, body) state)
@@ -338,7 +338,7 @@ checkSolutionNotCrash
   -> TProgram
   -> FilterTest m Bool
 checkSolutionNotCrash modules argNames sigStr body = do
-  fs@(FilterState _ _ examples _) <- get
+  fs@(FilterState _ _ examples _ _) <- get
   result                          <- liftIO executeCheck
 
   let pass = case result of
@@ -371,7 +371,7 @@ checkDuplicates
   -> TProgram
   -> FilterTest m Bool
 checkDuplicates modules argNames sigStr solution = do
-  fs@(FilterState is solns _ examples) <- get
+  fs@(FilterState is solns _ examples _) <- get
   case solns of
 
     -- no solution yet; skip the check
@@ -389,7 +389,7 @@ checkDuplicates modules argNames sigStr solution = do
                                           defaultTimeoutMicro
       passTest <- and <$> zipWithM processResult results solns
 
-      fs'@(FilterState is solns _ examples) <- get
+      fs'@(FilterState is solns _ examples _) <- get
       if passTest then put fs' { solutions = solution : solns } else put fs
 
       return passTest
@@ -406,7 +406,7 @@ checkDuplicates modules argNames sigStr solution = do
   filterSuccess _ = False
 
   processResult result otherSolution = do
-    state@(FilterState is solns _ examples) <- get
+    state@(FilterState is solns _ examples _) <- get
     case result of
       -- bypass the check on any timeout or error
       Left  (UnknownError "timeout") -> return False -- no example -> reject

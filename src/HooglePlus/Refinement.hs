@@ -24,6 +24,7 @@ import qualified Data.Set                      as Set
 import           Types.Common
 import           Types.Environment
 import           Types.Fresh
+import           Types.Log
 import           Types.Pretty
 import           Types.Program
 import           Types.Solver
@@ -160,7 +161,7 @@ propagate _ prog t = return ()
 
 -- | generalize a closed concrete type into an abstract one
 generalize
-  :: Fresh s m => [Id] -> TypeSkeleton -> LogicT (StateT s m) TypeSkeleton
+  :: (Loggable (LogicT (StateT s m)), Fresh s m) => [Id] -> TypeSkeleton -> LogicT (StateT s m) TypeSkeleton
 generalize bound t@(TypeVarT id)
   | id `notElem` bound = return t
   | otherwise = do
@@ -192,8 +193,7 @@ generalize bound t@(DatatypeT id args) = do
     let args'    = map TypeVarT argNames
     absTy <- lift $ freshType bound (DatatypeT id args')
     guard (isSubtypeOf bound t absTy)
-    lift
-      $   writeLog 3 "generalize"
+    writeLog 3 "generalize"
       $   text "generalize"
       <+> pretty t
       <+> text "into"

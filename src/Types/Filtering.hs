@@ -1,7 +1,9 @@
 module Types.Filtering where
 
 import           Control.Exception              ( Exception )
-import           Control.Monad.State            ( StateT )
+import           Control.Monad.State            ( StateT
+                                                , gets
+                                                )
 import           Data.List                      ( intercalate )
 import           Data.Typeable                  ( Typeable )
 import           GHC.Generics                   ( Generic )
@@ -13,6 +15,8 @@ import           Data.Aeson                     ( FromJSON
 import           Data.Serialize                 ( Serialize )
 
 import           Test.SmallCheck.Drivers        ( PropertyFailure )
+
+import           Types.Log
 import           Types.Pretty
 import           Types.Program
 
@@ -124,6 +128,7 @@ data FilterState = FilterState
   , solutions             :: [TProgram]
   , solutionExamples      :: [(SolutionPair, FunctionCrashDesc)]
   , differentiateExamples :: [(SolutionPair, Example)]
+  , flogLevel             :: Int
   }
   deriving Eq
 
@@ -132,6 +137,10 @@ emptyFilterState = FilterState { filterInputs          = []
                                , solutions             = []
                                , solutionExamples      = []
                                , differentiateExamples = []
+                               , flogLevel             = 0
                                }
 
 type FilterTest m = StateT FilterState m
+
+instance Monad m => Loggable (FilterTest m) where
+  getLogLevel = gets flogLevel

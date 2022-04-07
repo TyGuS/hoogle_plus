@@ -46,6 +46,7 @@ import           Types.Encoder
 import           Types.Environment
 import           Types.Fresh
 import           Types.Generate
+import           Types.Log
 import           Types.Pretty
 import           Types.Program
 import           Types.Type
@@ -206,7 +207,7 @@ toNameMap :: FunctionGroup -> Map Id GroupId
 toNameMap (FunctionGroup gid _ ids) = Map.fromSet (const gid) ids
 
 groupSignatures
-  :: Fresh s m => Map Id EncodedFunction -> StateT s m GroupResult
+  :: (Loggable (StateT s m), Fresh s m) => Map Id EncodedFunction -> StateT s m GroupResult
 groupSignatures sigs = do
   -- group signatures by their types
   let sigGroups = Map.toList $ Map.map Set.fromList $ groupByMap sigs
