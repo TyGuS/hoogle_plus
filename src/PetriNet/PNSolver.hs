@@ -6,6 +6,7 @@ module PetriNet.PNSolver
 import           Control.Lens                   ( over
                                                 , set
                                                 , view
+                                                , (^.)
                                                 )
 import           Control.Monad
 import           Control.Monad.Extra            ( ifM )
@@ -86,6 +87,7 @@ instantiate env sigs = do
     writeLog 2 "instantiate" $ text "Current abstract types:" <+> pretty tree
     let bound = getBoundTypeVars env
     sigs' <- Map.toList <$> mapM (freshType bound . toMonotype) sigs
+    writeLog 2 "instantiate" $ text "Number of signatures:" <+> pretty (length sigs')
     foldM (\acc -> (<$>) (acc ++) . uncurry (instantiateWith env typs)) [] sigs'
 
 -- add Pair_match function as needed
@@ -127,6 +129,7 @@ instantiateWith env typs id t               = do
             || isRefinedInstance bvs instMap sigId t
         )
         sigs
+  writeLog 3 "instantiateWith" $ text "Number of instantiated signatures:" <+> pretty (length sigs') <+> text "for" <+> pretty id
   mapM (mkNewSig sigId) sigs'
 
 -- | Do a DFS search for all possible instantiations of a given type
@@ -144,8 +147,10 @@ fullApplication bvs argsSoFar t@FunctionT{} typs = do
   let validResults = filter (not . isBot . fst) (zip applyResults typs)
   concat <$> mapM doDFS validResults
   where doDFS (t, arg) = fullApplication bvs (arg : argsSoFar) t typs
-fullApplication _ argsSoFar t _ =
-  return [foldr (FunctionT "") t (reverse argsSoFar)]
+fullApplication bvs argsSoFar t _ = do
+  cover <- gets $ view (refineState . abstractionCover)
+  t' <- currentAbstraction bvs cover t
+  return [foldr (FunctionT "") t' (reverse argsSoFar)]
 
 mkNewSig
   :: SolverMonad m => Id -> TypeSkeleton -> PNSolver m (Id, TypeSkeleton)
@@ -259,6 +264,7 @@ addSignatures env = do
   let bvs           = getBoundTypeVars env
   sigs <- instantiate env usefulSymbols
   sigs' <- ifM (getExperiment coalesceTypes) (mkGroups sigs) (return sigs)
+  writeLog 2 "addSignatures" $ text "Number of groups:" <+> pretty (Map.size sigs')
   mapM_ addEncodedFunction (Map.toList sigs')
   return sigs'
 
@@ -271,7 +277,9 @@ mkGroups sigs = do
   modify $ over groupState (`mergeGroups` newGroups)
   -- after merging, we will know which groups are added
   groups <- gets $ view groupState
-  return $ Map.restrictKeys sigs (Map.keysSet $ groupMap groups)
+  -- note: sigs are the original signatures, they do not know the group ids
+  -- therefore, we need to rename them with group ids and then return
+  return $ Map.map ((sigs Map.!) . Set.findMin) (groupMap groups)
 
 addMusters :: SolverMonad m => Id -> PNSolver m ()
 addMusters arg = do
@@ -427,6 +435,8 @@ resetEncoder env dst = do
   params             <- gets $ view searchParams
   (loc, rets, funcs) <- prepEncoderArgs env tgt
   let encoder' = encodeState { _encSearchParams = params }
+  let places = Map.keys (encoder' ^. (variables . type2transition))
+  writeLog 2 "resetEncoder" $ text "places:" <+> pretty places
   st <- liftIO $ encoderInit encoder' loc srcTypes rets funcs
   modify $ set encoder st
 

@@ -224,9 +224,8 @@ executeSearch engine params inStr outputFormat outputFile = catch
     hSetBuffering stdout LineBuffering
 
     -- clear the log file before writing to it
-    when (outputFormat == OutputFile) $ do
-      exists <- doesFileExist outputFile
-      when exists $ removeFile outputFile
+    exists <- doesFileExist outputFile
+    when (outputFormat == OutputFile && exists) $ removeFile outputFile
 
     -- invoke synthesis
     let cnt = params ^. solutionCnt
@@ -243,10 +242,10 @@ executeSearch engine params inStr outputFormat outputFile = catch
     runHooglePlus :: Goal -> Int -> IO ()
     runHooglePlus goal n = do
       (programs, st) <- synthesize params goal
-      let initFilterState = (st ^. filterState) { flogLevel = params ^. logLevel }
-      (synthesisCnt, fstate) <- getKPrograms goal (0, initFilterState) programs
-      when (synthesisCnt < n)
-           (getMoreSolutions goal (st & filterState .~ fstate) (n - synthesisCnt))
+      let initState = (st ^. filterState) { flogLevel = params ^. logLevel }
+      (cnt, fstate) <- getKPrograms goal (0, initState) programs
+      when (cnt < n)
+           (getMoreSolutions goal (st & filterState .~ fstate) (n - cnt))
 
     getMoreSolutions :: Goal -> SolverState -> Int -> IO ()
     getMoreSolutions goal@(Goal env goalTyp _) st n = do

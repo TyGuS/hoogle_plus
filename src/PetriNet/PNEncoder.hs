@@ -205,7 +205,7 @@ encoderInc sigs inputs rets = do
     modify $ set returnTyps rets
     persists <- gets $ view (constraints . persistConstraints)
     modify $ set constraints ( emptyConstraints { _persistConstraints = persists })
-    
+
     ty2tr <- gets $ view (variables . type2transition)
     l <- gets $ view pathLength
     let places = Map.keys ty2tr
@@ -240,10 +240,10 @@ encoderInc sigs inputs rets = do
 
     setFinalState (head rets) places
 
-encoderRefine :: SplitInfo 
-              -> [TypeSkeleton] 
-              -> [TypeSkeleton] 
-              -> [EncodedFunction] 
+encoderRefine :: SplitInfo
+              -> [TypeSkeleton]
+              -> [TypeSkeleton]
+              -> [EncodedFunction]
               -> Encoder ()
 encoderRefine info inputs rets newSigs = do
     {- update the abstraction level -}

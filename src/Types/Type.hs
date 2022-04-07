@@ -290,10 +290,8 @@ allArgTypes (FunctionT x tArg tRes) = tArg : allArgTypes tRes
 allArgTypes _                       = []
 
 allBaseTypes :: TypeSkeleton -> [TypeSkeleton]
-allBaseTypes t@DatatypeT{}           = [t]
-allBaseTypes t@TypeVarT{}            = [t]
 allBaseTypes (FunctionT _ tArg tRet) = allBaseTypes tArg ++ allBaseTypes tRet
-allBaseTypes _ = error "allBaseTypes: applied to unsupported types"
+allBaseTypes t = [t]
 
 toMonotype :: SchemaSkeleton -> TypeSkeleton
 toMonotype (Monotype t ) = t
