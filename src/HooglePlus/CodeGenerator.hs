@@ -33,6 +33,9 @@ data GeneratorState = GeneratorState
 
 type CodeGenerator = State GeneratorState
 
+data ErrorSignal = RaiseError | Continue
+  deriving ( Eq, Show, Ord )
+
 applyFunction :: EncodedFunction -> CodeGenerator ()
 applyFunction func = do
   args <- generateArgs (funParams func)
@@ -45,7 +48,7 @@ applyFunction func = do
   fname = funName func
 
   generateArgs :: [TypeSkeleton] -> CodeGenerator [[TProgram]]
-  generateArgs tArgs = sequence <$> mapM termsOfType tArgs
+  generateArgs tArgs = sequence <$> mapM (termsOfType RaiseError) tArgs
 
 -- | generate the program from the signatures appeared in selected transitions
 -- these signatures are sorted by their timestamps,
@@ -64,13 +67,13 @@ generateProgram signatures inputs argNames rets disrel = do
   mapM_ (uncurry addTypedArg) $ zip inputs argNames
   mapM_ applyFunction signatures
   termLib <- gets typedTerms
-  terms   <- mapM termsOfType rets
+  terms   <- mapM (termsOfType Continue) rets
   return $ Set.fromList $ filter includeAllSymbols (concat terms)
  where
   includeAllSymbols :: TProgram -> Bool
   includeAllSymbols prog =
     let funcNames = map funName signatures
-    in  sort (allSymbolsIn prog) `isSubsequenceOf` sort funcNames
+    in  sort (argNames ++ funcNames) `isSubsequenceOf` sort (allSymbolsIn prog)
 
 runCodeGenerator
   :: [EncodedFunction]  -- signatures used to generate program
@@ -96,9 +99,12 @@ addTypedArg :: TypeSkeleton -> Id -> CodeGenerator ()
 addTypedArg input argName =
   addNewTerms input (Set.singleton $ untyped $ PSymbol argName)
 
-termsOfType :: TypeSkeleton -> CodeGenerator [TProgram]
-termsOfType typ = do
+termsOfType :: ErrorSignal -> TypeSkeleton -> CodeGenerator [TProgram]
+termsOfType signal typ = do
   tterms <- gets typedTerms
   case Map.lookup typ tterms of
-    Nothing -> error $ "termsOfType: cannot find terms with type " ++ show typ
+    Nothing -> case signal of
+      RaiseError ->
+        error $ "termsOfType: cannot find terms with type " ++ show typ
+      Continue -> return []
     Just terms -> return $ Set.toList terms

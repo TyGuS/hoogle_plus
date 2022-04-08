@@ -32,6 +32,8 @@ import           Types.Type
 import           Types.TypeChecker
 import           Utility.Utils
 
+import Debug.Trace
+
 -- | add a new type into our cover and ensure all of them have proper lower bound
 updateCover :: [Id] -> TypeSkeleton -> AbstractCover -> AbstractCover
 updateCover tvs t cover =
@@ -82,13 +84,14 @@ updateCover' bound cover intscts t paren =
         else (intscts, cover)
 
 propagate
-  :: (MonadFail m, MonadIO m)
-  => Environment
+  :: SolverMonad m
+  => NameMapping
+  -> Environment
   -> TProgram
   -> TypeSkeleton
   -> PNSolver m ()
 -- | base case, when we reach the leaf of the AST
-propagate env p@(Program (PSymbol sym) t) upstream = do
+propagate nameMapping env p@(Program (PSymbol sym) t) upstream = do
   writeLog 2 "propagate"
     $   text "propagate"
     <+> pretty upstream
@@ -99,32 +102,36 @@ propagate env p@(Program (PSymbol sym) t) upstream = do
   unless
     (existAbstract bvs cover upstream)
     (do
+      writeLog 2 "propagate" $ text "adding abstract type" <+> pretty upstream <+> "into the cover"
       let newCover = updateCover bvs upstream cover
       modify $ set (refineState . abstractionCover) newCover
       let newTyps = typesInCover newCover \\ typesInCover cover
+      writeLog 3 "propagate" $ text "computing splitted types"
       modify
         $ over (refineState . splitTypes) (Set.union $ Set.fromList newTyps)
     )
 -- | starter case, when we start from a bottom type
 -- find the most general abstraction that unifies with the concrete types
 -- of the arguments, but not unify with the function args of its signature
-propagate env p@(Program (PApp f args) _) upstream = do
-  unless (isBot upstream) (propagate env (Program (PSymbol "x") TopT) upstream)
+propagate nameMapping env p@(Program (PApp f args) _) upstream = do
+  unless (isBot upstream) (propagate nameMapping env (Program (PSymbol "__x") TopT) upstream)
   writeLog 2 "propagate"
     $   text "propagate"
     <+> pretty upstream
     <+> text "into"
     <+> pretty p
-  -- FIXME: should we have the name mapping here?
-  t <- findSymbol Map.empty env (removeLast '_' f)
+  -- we need to do the name mapping here
+  -- let f' = lookupWithError "nameMapping" (removeLast '_' f) nameMapping
+  t <- findSymbol nameMapping env f
   let closedArgs = map typeOf args
   let argConcs   = map toAbstractType closedArgs
   let absFun     = toAbstractType (toMonotype t)
+  writeLog 2 "propagate" $ "generalizing" <+> pretty argConcs <+> text "to match" <+> pretty absFun
   abstractArgs <- observeT $ mostGeneral argConcs absFun
-  mapM_ (uncurry $ propagate env) (zip args abstractArgs)
+  mapM_ (uncurry $ propagate nameMapping env) (zip args abstractArgs)
  where
   mostGeneral
-    :: (MonadFail m, MonadIO m)
+    :: SolverMonad m
     => [TypeSkeleton]
     -> TypeSkeleton
     -> LogicT (PNSolver m) [TypeSkeleton]
@@ -151,13 +158,13 @@ propagate env p@(Program (PApp f args) _) upstream = do
     return $ map toAbstractFun absArgs
 
 -- | case for lambda functions
-propagate env (Program (PFun x body) (FunctionT _ tArg tRet)) (FunctionT _ atArg atRet)
-  = propagate (addComponent x (Monotype tArg) env) body atRet
-propagate env (Program (PFun x body) t) (FunctionT _ atArg atRet) = do
+propagate nameMapping env (Program (PFun x body) (FunctionT _ tArg tRet)) (FunctionT _ atArg atRet)
+  = propagate nameMapping (addComponent x (Monotype tArg) env) body atRet
+propagate nameMapping env (Program (PFun x body) t) (FunctionT _ atArg atRet) = do
   id <- freshId (getBoundTypeVars env) "A"
   let tArg = TypeVarT id
-  propagate (addComponent x (Monotype tArg) env) body atRet
-propagate _ prog t = return ()
+  propagate nameMapping (addComponent x (Monotype tArg) env) body atRet
+propagate _ _ prog t = return ()
 
 -- | generalize a closed concrete type into an abstract one
 generalize

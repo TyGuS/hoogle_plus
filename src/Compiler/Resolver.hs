@@ -103,19 +103,18 @@ resolveSignatures (FuncDecl name _) env = do
       sch' <- resolveSchema (getBoundTypeVars env) sch
       return $ addComponent name sch' $ removeVariable name env
 resolveSignatures (DataDecl dtName tParams ctors) env = do
-  mapM_ resolveConstructorSignature ctors
-  return env
+  foldM resolveConstructorSignature env ctors
  where
-  resolveConstructorSignature (ConstructorSig name _) = do
-    case lookupSymbol name env of
+  resolveConstructorSignature e (ConstructorSig name _) = do
+    case lookupSymbol name e of
       Nothing -> throwResError
         (string "resolveConstructorSignature: constructor not found")
       Just sch -> do
-        sch' <- resolveSchema (getBoundTypeVars env) sch
+        sch' <- resolveSchema (getBoundTypeVars e) sch
         let nominalType = DatatypeT dtName (map TypeVarT tParams)
         let returnType  = lastType (toMonotype sch')
         if nominalType == returnType
-          then return $ addComponent name sch' env
+          then return $ addComponent name sch' $ removeVariable name e
           else throwResError
             (commaSep
               [ text "Constructor"
@@ -134,7 +133,7 @@ resolveSchema bvs sch = do
   let typ = toMonotype sch
   let tvs = Set.toList $ typeVarsOf typ
   sch <- resolveType (bvs ++ tvs) typ
-  return $ foldl (flip ForallT) (Monotype sch) tvs
+  return $ foldr ForallT (Monotype sch) tvs
 
 resolveType :: [Id] -> TypeSkeleton -> Resolver TypeSkeleton
 resolveType bvs (DatatypeT name tArgs) = do

@@ -432,3 +432,4 @@ instance Pretty Examples where
 
 plainShow :: Pretty a => a -> String
 plainShow = show . plain . pretty
+

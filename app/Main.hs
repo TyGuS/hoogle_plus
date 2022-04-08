@@ -235,7 +235,7 @@ executeSearch engine params inStr outputFormat outputFile = catch
   )
   (\(e :: SomeException) -> do
     printResult $ encodeWithPrefix $ QueryOutput [] (show e) []
-    error "Exception catched"
+    error (show e)
   )
 
   where

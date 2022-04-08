@@ -102,11 +102,12 @@ bottomUpCheck nameMap env (Program (PApp f args) typ) = do
     Left  err         -> return $ Left err
     Right checkedArgs -> do
       let f'   = removeLast '_' f
-      let name = stripSuffix hoPostfix $ fromMaybe f' (Map.lookup f' nameMap)
+      let name = removeLast '_' $ stripSuffix hoPostfix $ fromMaybe f' (Map.lookup f' nameMap)
+      writeLog 3 "bottomUpCheck" $ "checking function" <+> pretty name
       t <- findSymbol nameMap env name
       writeLog 3 "bottomUpCheck"
         $   text "Bottom up checking function"
-        <+> pretty f
+        <+> pretty name
         <+> text "get type"
         <+> pretty t
       -- check function signature against each argument provided
@@ -122,7 +123,7 @@ bottomUpCheck nameMap env (Program (PApp f args) typ) = do
       case tass' of
         -- if any of these checks returned false, this function application
         -- would produce a bottom type
-        Nothing -> return $ Right $ Program (PApp f checkedArgs) BotT
+        Nothing -> return $ Left $ Program (PApp f checkedArgs) BotT
         Just tm -> do
           modify $ \s -> s { getTypeAssignment = tm }
           -- we eagerly substitute the assignments into the return type of t
@@ -133,7 +134,7 @@ bottomUpCheck nameMap env (Program (PApp f args) typ) = do
   partialReturn :: [TProgram] -> TypeSkeleton -> TypeSkeleton
   partialReturn (_ : args) (FunctionT _ _ tRes) = partialReturn args tRes
   partialReturn [] t = t
-  partialReturn _ _ = error "partialReturn: not a function"
+  partialReturn args t = error $ "partialReturn: not a function: " ++ show (args, t, stripSuffix hoPostfix $ fromMaybe f (Map.lookup (removeLast '_' f) nameMap))
 
   checkArgs :: [TProgram] -> Checker (Either TProgram [TProgram])
   checkArgs []           = return $ Right []
@@ -283,10 +284,6 @@ isValidSubst m =
 -- this is subsumption relation, but not subtype relation!!!
 isSubtypeOf :: [Id] -> TypeSkeleton -> TypeSkeleton -> Bool
 isSubtypeOf _ t1 t2 | t1 == t2 = True
-isSubtypeOf _     _    TopT    = True
-isSubtypeOf _     TopT _       = False
-isSubtypeOf _     BotT _       = True
-isSubtypeOf _     _    BotT    = False
 isSubtypeOf bound t1   t2      = isJust unifier
  where
   unifier = getUnifier (bound ++ Set.toList (typeVarsOf t1)) [SubtypeOf t1 t2]
@@ -353,6 +350,7 @@ abstractApply bvs cover fun args = do
   let cargs = init (breakdown fun) -- higher-order arguments should have been transformed into funcTypes
   let ret   = last (breakdown fun)
   args' <- mapM (freshType bvs . toAbstractFun) args -- transform higher-order arguments
+  writeLog 3 "abstractApply" $ "cargs:" <+> pretty cargs <+> ", args:" <+> pretty args'
   let unifier = getUnifier bvs (zipWith SubtypeOf cargs args')
   case unifier of
     Nothing -> return BotT

@@ -7,6 +7,7 @@ module Utility.Utils
     -- * Set
   , (>.>)
   , shrinkSet
+  , firstMatch
 
     -- * Map
   , lookupWithError
@@ -114,6 +115,9 @@ shrinkSet :: Set Id -> Set Id -> Maybe (Set Id)
 shrinkSet toRemove ids =
   let ids' = Set.difference ids toRemove
   in  if Set.null ids' then Nothing else Just ids'
+
+firstMatch :: (a -> Bool) -> Set a -> Maybe a
+firstMatch p s = Set.lookupMin $ Set.filter p s
 
 --------------------------------------------------------------------------------
 ---------------------------  Map Operations ------------------------------------

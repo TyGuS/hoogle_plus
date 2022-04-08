@@ -29,7 +29,7 @@ data EncodedFunction = EncodedFunction
   { funName   :: Id -- function name
   , funParams :: [TypeSkeleton] -- function parameter types
   , funReturn :: [TypeSkeleton]   -- function return type
-  }
+  } deriving ( Show )
 
 instance Eq EncodedFunction where
   EncodedFunction _ params1 rets1 == EncodedFunction _ params2 rets2 =

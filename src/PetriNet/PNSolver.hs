@@ -3,10 +3,10 @@ module PetriNet.PNSolver
   , nextSolution
   ) where
 
-import           Control.Lens                   ( over
+import           Control.Lens                   ( (^.)
+                                                , over
                                                 , set
                                                 , view
-                                                , (^.)
                                                 )
 import           Control.Monad
 import           Control.Monad.Extra            ( ifM )
@@ -60,6 +60,8 @@ import           Types.Type
 import           Types.TypeChecker
 import           Utility.Utils
 
+import Debug.Trace
+
 encodeFunction :: Id -> TypeSkeleton -> EncodedFunction
 encodeFunction id t | pairProj `Text.isPrefixOf` id =
   case encodeFunction "__f" t of
@@ -87,7 +89,8 @@ instantiate env sigs = do
     writeLog 2 "instantiate" $ text "Current abstract types:" <+> pretty tree
     let bound = getBoundTypeVars env
     sigs' <- Map.toList <$> mapM (freshType bound . toMonotype) sigs
-    writeLog 2 "instantiate" $ text "Number of signatures:" <+> pretty (length sigs')
+    writeLog 2 "instantiate" $ text "Number of signatures:" <+> pretty
+      (length sigs')
     foldM (\acc -> (<$>) (acc ++) . uncurry (instantiateWith env typs)) [] sigs'
 
 -- add Pair_match function as needed
@@ -129,7 +132,11 @@ instantiateWith env typs id t               = do
             || isRefinedInstance bvs instMap sigId t
         )
         sigs
-  writeLog 3 "instantiateWith" $ text "Number of instantiated signatures:" <+> pretty (length sigs') <+> text "for" <+> pretty id
+  writeLog 3 "instantiateWith"
+    $   text "Number of instantiated signatures:"
+    <+> pretty (length sigs')
+    <+> text "for"
+    <+> pretty id
   mapM (mkNewSig sigId) sigs'
 
 -- | Do a DFS search for all possible instantiations of a given type
@@ -149,7 +156,7 @@ fullApplication bvs argsSoFar t@FunctionT{} typs = do
   where doDFS (t, arg) = fullApplication bvs (arg : argsSoFar) t typs
 fullApplication bvs argsSoFar t _ = do
   cover <- gets $ view (refineState . abstractionCover)
-  t' <- currentAbstraction bvs cover t
+  t'    <- currentAbstraction bvs cover t
   return [foldr (FunctionT "") t' (reverse argsSoFar)]
 
 mkNewSig
@@ -190,7 +197,7 @@ splitTransition env newAt fid = do
     <+> pretty ty
   allSubsts ty
  where
-  allSubsts ty = allSubsts' (lastType ty) (absFunArgs fid ty)
+  allSubsts ty = allSubsts' (lastType ty) (allArgTypes ty)
 
   allSubsts' ret args = do
     cover   <- gets $ view (refineState . abstractionCover)
@@ -200,6 +207,7 @@ splitTransition env newAt fid = do
     let parents = Map.keys $ Map.filter (Set.member newAt) cover
     if pairProj `Text.isPrefixOf` fid
       then do
+        writeLog 3 "allSubsts'" $ "argument number:" <+> pretty (length args)
         let args'  = enumArgs parents (take 1 args)
         let fstRet = args !! 1
         let sndRet = ret
@@ -262,9 +270,10 @@ addSignatures env = do
   let usefulSymbols = Map.filterWithKey usefulPipe envSymbols
   let hoArgs        = getHigherOrderArgs env
   let bvs           = getBoundTypeVars env
-  sigs <- instantiate env usefulSymbols
+  sigs  <- instantiate env usefulSymbols
   sigs' <- ifM (getExperiment coalesceTypes) (mkGroups sigs) (return sigs)
-  writeLog 2 "addSignatures" $ text "Number of groups:" <+> pretty (Map.size sigs')
+  writeLog 2 "addSignatures" $ text "Number of groups:" <+> pretty
+    (Map.size sigs')
   mapM_ addEncodedFunction (Map.toList sigs')
   return sigs'
 
@@ -279,7 +288,9 @@ mkGroups sigs = do
   groups <- gets $ view groupState
   -- note: sigs are the original signatures, they do not know the group ids
   -- therefore, we need to rename them with group ids and then return
-  return $ Map.map ((sigs Map.!) . Set.findMin) (groupMap groups)
+  let newGroups =
+        Map.mapMaybe (firstMatch (`Map.member` sigs)) (groupMap groups)
+  return $ Map.map (flip (lookupWithError "sigs") sigs) newGroups
 
 addMusters :: SolverMonad m => Id -> PNSolver m ()
 addMusters arg = do
@@ -302,12 +313,14 @@ refineSemantic env prog at = do
   cover <- gets $ view (refineState . abstractionCover)
   writeLog 2 "refineSemantic" $ text "Current abstract types:" <+> pretty cover
   -- back propagation of the error types to get all split information
-  propagate env prog $ toAbstractFun at
+  nameMapping <- gets $ view (refineState . instanceName)
+  propagate nameMapping env prog $ toAbstractFun at
+  writeLog 2 "refineSemantic" "Back propagation done"
   -- get the split pairs
   splits <- gets $ view (refineState . splitTypes)
   let tvs          = getBoundTypeVars env
   let sortedSplits = sortBy (flip (abstractCmp tvs)) (Set.toList splits)
-  writeLog 3 "refineSemantic splitTypes" $ pretty sortedSplits
+  writeLog 2 "refineSemantic splitTypes" $ pretty sortedSplits
   -- get removed transitions
   splitInfos <- mapM (splitTransitions env) sortedSplits
 
@@ -378,7 +391,8 @@ splitGroups removables = do
   groups <- gets $ view groupState
   let gm' =
         Map.mapMaybe (shrinkSet (Set.fromList removables)) (groupMap groups)
-  modify $ over groupState $ \gs -> gs { groupMap = gm' }
+  let t2g = Map.filter (`notElem` removables) (typeToGroup groups)
+  modify $ over groupState $ \gs -> gs { groupMap = gm', typeToGroup = t2g }
   -- Step 2: examine the new group and decide what we can safely remove
   let toRemove = Map.keysSet (groupMap groups) `Set.difference` Map.keysSet gm'
   mapM_
@@ -420,8 +434,10 @@ initNet env = do
 
 addEncodedFunction :: SolverMonad m => (Id, TypeSkeleton) -> PNSolver m ()
 addEncodedFunction (id, f) = do
-  let ef = encodeFunction id f
-  modify $ over (searchState . functionMap) (HashMap.insert id ef)
+  GroupResult _ t2g n2g <- gets $ view groupState
+  let (ef, _) = Map.findMin $ Map.filter (== id) t2g
+  let [ef'] = substName [id] [ef]
+  modify $ over (searchState . functionMap) (HashMap.insert id ef')
   modify $ over (searchState . currentSigs) (Map.insert id f)
   -- store the used abstract types and their groups into mapping
   updateTy2Tr id f
@@ -435,7 +451,7 @@ resetEncoder env dst = do
   params             <- gets $ view searchParams
   (loc, rets, funcs) <- prepEncoderArgs env tgt
   let encoder' = encodeState { _encSearchParams = params }
-  let places = Map.keys (encoder' ^. (variables . type2transition))
+  let places   = Map.keys (encoder' ^. (variables . type2transition))
   writeLog 2 "resetEncoder" $ text "places:" <+> pretty places
   st <- liftIO $ encoderInit encoder' loc srcTypes rets funcs
   modify $ set encoder st
@@ -506,8 +522,8 @@ enumeratePath
 enumeratePath env goal path = do
   groups  <- gets $ view groupState
   nameMap <- gets $ view (refineState . instanceName)
-  let getGroup p = lookupWithError "nameToGroup" p (nameToGroup groups)
-  let getFuncs p = Map.findWithDefault Set.empty (getGroup p) (groupMap groups)
+  -- let getGroup p = lookupWithError "nameToGroup" p (nameToGroup groups)
+  let getFuncs p = Map.findWithDefault Set.empty p (groupMap groups)
   let substName x = lookupWithError "nameMapping" x nameMap
   let sortFuncs p = Set.toList p -- TODO: any useful trick?
   let allPaths = map (sortFuncs . getFuncs) path
@@ -543,6 +559,7 @@ checkPath env goal path = do
   cover    <- gets $ view (refineState . abstractionCover)
   case checkResult of
     Left err -> do
+      writeLog 1 "checkPath" $ text "check failed for" <+> pretty codeResult
       modify $ set (refineState . lastError) err
       let stopRefine = not (doRefine rs) || stop && coverSize cover >= placeNum
       when stopRefine $ modify $ set (refineState . passOneOrMore) True
@@ -562,8 +579,9 @@ parseAndCheck env dst code = do
   writeLog 1 "parseAndCheck" $ text "Find program" <+> pretty
     (recoverNames mapping code)
   checkerState <- gets $ view typeChecker
-  llv <- getLogLevel
-  let checkerState' = checkerState { getTypeAssignment = Map.empty, clogLevel = llv }
+  llv          <- getLogLevel
+  let checkerState' =
+        checkerState { getTypeAssignment = Map.empty, clogLevel = llv }
   let (btm, checkerState) =
         runState (bottomUpCheck mapping env code) checkerState'
   modify $ set typeChecker checkerState
@@ -587,8 +605,7 @@ checkCompleteProgram env dst prog = do
     <+> pretty tyBtm
     <+> text "against"
     <+> pretty dst
-  freshDst <- lift $ freshType bvs dst
-  let mbSubst = solveTypeConstraint bvs Map.empty (SubtypeOf tyBtm freshDst)
+  let mbSubst = solveTypeConstraint bvs Map.empty (SubtypeOf tyBtm dst)
   case mbSubst of
     Nothing -> do
       let progTyp = typeOf prog
@@ -632,6 +649,8 @@ fillSketch env firedTrans = do
   let args = map fst $ getFirstOrderArgs env
   progSet <- generateCode env srcs args sigs
   let progList = sortOn (Data.Ord.Down . programSize) $ Set.toList progSet
+  writeLog 2 "fillSketch" $ text "number of programs from sketch:" <+> pretty
+    (length progList)
   msum $ map return progList
  where
   substPair :: [EncodedFunction] -> [EncodedFunction]

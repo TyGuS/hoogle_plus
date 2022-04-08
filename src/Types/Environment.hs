@@ -35,6 +35,7 @@ import           Types.Fresh
 import           Types.Type
 import           Utility.Utils
 
+import Debug.Trace
 
 type SymbolLib = Map Id SchemaSkeleton
 type NameMapping = Map Id Id

@@ -91,7 +91,4 @@ synthesize searchParams (Goal env goalType _) = catch
 
     runStateT (runPNSolver env goalType) is
   )
-  (\(e :: SomeException) -> do
-    printResult (encodeWithPrefix (QueryOutput [] (show e) []))
-    error (show e)
-  )
+  (\(e :: SomeException) -> error (show e))
