@@ -1,6 +1,7 @@
 module Compiler.Parser
   ( parseFromFile
   , parseType
+  , parseTypeMbTypeclasses
   , parseSchema
   , toErrorMessage
   ) where
@@ -25,7 +26,6 @@ import           Text.Parsec
 import           Text.Parsec.Error              ( errorMessages
                                                 , showErrorMessages
                                                 )
-import           Text.Parsec.Pos                ( initialPos )
 import qualified Text.Parsec.Token             as Token
 import           Text.PrettyPrint.ANSI.Leijen   ( text
                                                 , vsep

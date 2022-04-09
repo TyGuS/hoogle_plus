@@ -173,6 +173,7 @@ funcType t1 t2 = DatatypeT "Fun" [t1, t2]
 type TypeSubstitution = Map Id TypeSkeleton
 
 data UnifConstraint = SubtypeOf TypeSkeleton TypeSkeleton
+                    | UnifiesWith TypeSkeleton TypeSkeleton
   deriving (Eq, Ord, Show, Read, Generic)
 
 --------------------------------------------------------------------------------

@@ -130,7 +130,7 @@ data FilterState = FilterState
   , differentiateExamples :: [(SolutionPair, Example)]
   , flogLevel             :: Int
   }
-  deriving Eq
+  deriving (Eq, Show)
 
 emptyFilterState :: FilterState
 emptyFilterState = FilterState { filterInputs          = []

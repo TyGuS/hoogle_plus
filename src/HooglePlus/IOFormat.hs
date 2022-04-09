@@ -429,18 +429,18 @@ printError err = do
 printProgramWithExample :: (Doc -> Doc) -> (Doc -> IO ()) -> ResultEntry -> IO ()
 printProgramWithExample color output (ResultEntry _ prog exs) = do
   output $ color $ pretty prog
+  output "\n"
 
   unless
     (null exs)
     (do
-      output ("\n" :: Doc)
-      output ("Examples:\n" :: Doc)
+      output "Examples:\n"
       output $ pretty $ Examples exs
-      output ("\n" :: Doc)
+      output "\n"
     )
 
-  output ("-------------------------\n" :: Doc)
-  output ("\n" :: Doc)
+  output "-------------------------\n"
+  output "\n"
 
 printCmd :: Int -> QueryOutput -> Maybe FilePath -> IO ()
 printCmd idx (QueryOutput entries err _) mbFile = do

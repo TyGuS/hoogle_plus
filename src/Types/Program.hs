@@ -8,6 +8,8 @@ module Types.Program
   , RProgram
   , programSize
   , untyped
+  , funcp
+  , varp
   , uHole
   , isHole
   , eraseTypes
@@ -114,6 +116,12 @@ data Goal = Goal
 
 untyped :: BareProgram TypeSkeleton -> TProgram
 untyped c = Program c TopT
+
+funcp :: Id -> TProgram -> TProgram
+funcp x = untyped . PFun x
+
+varp :: Id -> TProgram
+varp = untyped . PSymbol
 
 uHole :: TProgram
 uHole = untyped PHole

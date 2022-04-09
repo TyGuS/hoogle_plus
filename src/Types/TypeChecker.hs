@@ -28,6 +28,7 @@ module Types.TypeChecker
 import           Control.Lens                   ( (^.)
                                                 , view
                                                 )
+import           Control.Monad                  ( foldM )
 import           Control.Monad.State            ( MonadState(get, put)
                                                 , State
                                                 , StateT
@@ -101,8 +102,10 @@ bottomUpCheck nameMap env (Program (PApp f args) typ) = do
   case argResult of
     Left  err         -> return $ Left err
     Right checkedArgs -> do
-      let f'   = removeLast '_' f
-      let name = removeLast '_' $ stripSuffix hoPostfix $ fromMaybe f' (Map.lookup f' nameMap)
+      let f' = removeLast '_' f
+      let name = removeLast '_' $ stripSuffix hoPostfix $ fromMaybe
+            f'
+            (Map.lookup f' nameMap)
       writeLog 3 "bottomUpCheck" $ "checking function" <+> pretty name
       t <- findSymbol nameMap env name
       writeLog 3 "bottomUpCheck"
@@ -134,7 +137,12 @@ bottomUpCheck nameMap env (Program (PApp f args) typ) = do
   partialReturn :: [TProgram] -> TypeSkeleton -> TypeSkeleton
   partialReturn (_ : args) (FunctionT _ _ tRes) = partialReturn args tRes
   partialReturn [] t = t
-  partialReturn args t = error $ "partialReturn: not a function: " ++ show (args, t, stripSuffix hoPostfix $ fromMaybe f (Map.lookup (removeLast '_' f) nameMap))
+  partialReturn args t = error $ "partialReturn: not a function: " ++ show
+    ( args
+    , t
+    , stripSuffix hoPostfix
+      $ fromMaybe f (Map.lookup (removeLast '_' f) nameMap)
+    )
 
   checkArgs :: [TProgram] -> Checker (Either TProgram [TProgram])
   checkArgs []           = return $ Right []
@@ -156,7 +164,7 @@ bottomUpCheck nameMap env (Program (PApp f args) typ) = do
     -> Maybe TypeSubstitution
   solveArgConstraint _ Nothing _ _ = Nothing
   solveArgConstraint bvs (Just tass) t1 t2 =
-    solveTypeConstraint bvs tass (SubtypeOf t1 t2)
+    solveTypeConstraint bvs tass (UnifiesWith t1 t2)
 
 bottomUpCheck nameMap env p@(Program (PFun x body) (FunctionT _ tArg tRet)) =
   do
@@ -220,13 +228,49 @@ getUnifier bvs = foldl (go bvs) (Just Map.empty)
     -> Maybe TypeSubstitution
     -> UnifConstraint
     -> Maybe TypeSubstitution
-  go _ Nothing _ = Nothing
-  go bvs (Just subst) (SubtypeOf t1 t2) =
-    solveTypeConstraint bvs subst (SubtypeOf t1 t2)
+  go _   Nothing      _          = Nothing
+  go bvs (Just subst) constraint = solveTypeConstraint bvs subst constraint
 
 solveTypeConstraint
   :: [Id] -> TypeSubstitution -> UnifConstraint -> Maybe TypeSubstitution
-solveTypeConstraint bvs subst (SubtypeOf t1 t2) =
+-- subtype relationship
+solveTypeConstraint _ subst (SubtypeOf t1 t2) | t1 == t2 = Just subst
+solveTypeConstraint _ subst (SubtypeOf _ TopT)           = Just subst
+solveTypeConstraint bvs subst (SubtypeOf TopT (TypeVarT v))
+  | v `elem` bvs = Nothing
+  | otherwise    = Just subst
+solveTypeConstraint _ subst (SubtypeOf BotT _   ) = Just subst
+solveTypeConstraint _ subst (SubtypeOf _    BotT) = Nothing
+solveTypeConstraint bvs subst (SubtypeOf (TypeVarT v) t2) =
+  case Map.lookup v subst of
+    Just t  -> solveTypeConstraint bvs subst (SubtypeOf t t2)
+    Nothing -> case t2 of
+      TypeVarT v' -> case Map.lookup v' subst of
+        Just t2' -> solveTypeConstraint bvs subst (SubtypeOf (TypeVarT v) t2')
+        Nothing | v' `notElem` bvs -> unify subst v' (TypeVarT v)
+                | otherwise        -> Nothing
+      _ -> Nothing
+solveTypeConstraint bvs subst (SubtypeOf t1 (TypeVarT v)) =
+  case Map.lookup v subst of
+    Just t -> solveTypeConstraint bvs subst (SubtypeOf t1 t)
+    Nothing | v `elem` bvs -> Nothing
+            | otherwise    -> unify subst v t1
+solveTypeConstraint bvs subst (SubtypeOf (FunctionT _ tArg1 tRes1) (FunctionT _ tArg2 tRes2))
+  = do
+    subst' <- solveTypeConstraint bvs subst (SubtypeOf tArg1 tArg2)
+    solveTypeConstraint bvs subst' (SubtypeOf tRes1 tRes2)
+solveTypeConstraint bvs subst (SubtypeOf (DatatypeT dt1 args1) (DatatypeT dt2 args2))
+  | dt1 == dt2 && length args1 == length args2
+  = foldM
+    (\subst' (t1, t2) -> solveTypeConstraint bvs subst' (SubtypeOf t1 t2))
+    subst
+    (zip args1 args2)
+  | otherwise
+  = Nothing
+solveTypeConstraint _ _ (SubtypeOf _ _) = Nothing
+
+-- unification constraints
+solveTypeConstraint bvs subst (UnifiesWith t1 t2) =
   solveTypeConstraint' bvs subst t1 t2
 
 solveTypeConstraint'
@@ -242,7 +286,7 @@ solveTypeConstraint' _   subst BotT           _    = Nothing
 solveTypeConstraint' _   subst _              BotT = Nothing
 solveTypeConstraint' bvs subst (TypeVarT var) t2 = case Map.lookup var subst of
   Just t2' -> solveTypeConstraint' bvs subst t2' t2
-  Nothing | var `elem` bvs -> Nothing
+  Nothing | var `elem` bvs -> solveTypeConstraint' bvs subst t2 (TypeVarT var)
           | otherwise      -> unify subst var t2
 solveTypeConstraint' bvs subst t1 (TypeVarT var) = case Map.lookup var subst of
   Just t1' -> solveTypeConstraint' bvs subst t1 t1'
@@ -284,17 +328,20 @@ isValidSubst m =
 -- this is subsumption relation, but not subtype relation!!!
 isSubtypeOf :: [Id] -> TypeSkeleton -> TypeSkeleton -> Bool
 isSubtypeOf _ t1 t2 | t1 == t2 = True
+isSubtypeOf _     _    TopT    = True
+isSubtypeOf _     BotT _       = True
 isSubtypeOf bound t1   t2      = isJust unifier
  where
   unifier = getUnifier (bound ++ Set.toList (typeVarsOf t1)) [SubtypeOf t1 t2]
 
 superTypeOf :: [Id] -> AbstractCover -> TypeSkeleton -> [TypeSkeleton]
 superTypeOf tvs cover at = superTypeOf' tvs rootNode
-  where
-    superTypeOf' tvs paren = let
-        children = Set.toList $ Map.findWithDefault Set.empty paren cover
-        in if isSubtypeOf tvs at paren then paren : concatMap (superTypeOf' tvs) children
-                                       else []
+ where
+  superTypeOf' tvs paren =
+    let children = Set.toList $ Map.findWithDefault Set.empty paren cover
+    in  if isSubtypeOf tvs at paren
+          then paren : concatMap (superTypeOf' tvs) children
+          else []
 
 equalAbstract :: [Id] -> TypeSkeleton -> TypeSkeleton -> Bool
 equalAbstract bvs t1 t2 = isSubtypeOf bvs t1 t2 && isSubtypeOf bvs t2 t1
@@ -312,7 +359,7 @@ existAbstract bvs cover t = existAbstract' rootNode
   existAbstract' paren = False
 
 abstractIntersect :: [Id] -> TypeSkeleton -> TypeSkeleton -> Maybe TypeSkeleton
-abstractIntersect bound t1 t2 = case getUnifier bound [SubtypeOf t1 t2] of
+abstractIntersect bound t1 t2 = case getUnifier bound [UnifiesWith t1 t2] of
   Nothing    -> Nothing
   Just subst -> Just $ typeSubstitute subst t1
 
@@ -350,8 +397,12 @@ abstractApply bvs cover fun args = do
   let cargs = init (breakdown fun) -- higher-order arguments should have been transformed into funcTypes
   let ret   = last (breakdown fun)
   args' <- mapM (freshType bvs . toAbstractFun) args -- transform higher-order arguments
-  writeLog 3 "abstractApply" $ "cargs:" <+> pretty cargs <+> ", args:" <+> pretty args'
-  let unifier = getUnifier bvs (zipWith SubtypeOf cargs args')
+  writeLog 3 "abstractApply"
+    $   "cargs:"
+    <+> pretty cargs
+    <+> ", args:"
+    <+> pretty args'
+  let unifier = getUnifier bvs (zipWith UnifiesWith cargs args')
   case unifier of
     Nothing -> return BotT
     Just m  -> do
@@ -360,13 +411,18 @@ abstractApply bvs cover fun args = do
       writeLog 3 "abstractApply" $ text "current cover" <+> string (show cover)
       currentAbstraction bvs cover substRes
 
-abstractStep :: Fresh s m => [Id] -> AbstractCover -> TypeSkeleton -> TypeSkeleton -> StateT s m TypeSkeleton
+abstractStep
+  :: Fresh s m
+  => [Id]
+  -> AbstractCover
+  -> TypeSkeleton
+  -> TypeSkeleton
+  -> StateT s m TypeSkeleton
 abstractStep bvs cover (FunctionT _ tArg tRes) arg = do
-  tArg' <- freshType bvs $ toAbstractFun tArg
-  let unifier = getUnifier bvs [SubtypeOf tArg' arg]
+  let unifier = getUnifier bvs [UnifiesWith tArg arg]
   case unifier of
     Nothing -> return BotT
-    Just m -> currentAbstraction bvs cover (typeSubstitute m tRes)
+    Just m  -> return $ typeSubstitute m tRes
 abstractStep _ _ _ _ = return BotT
 
 abstractCmp :: [Id] -> TypeSkeleton -> TypeSkeleton -> Ordering

@@ -1,14 +1,15 @@
 module Main
   ( main
   ) where
-
 import           Control.Exception              ( SomeException
                                                 , catch
                                                 )
+import           Control.Lens                   ( (.~)
+                                                , (^.)
+                                                )
 import           Control.Monad.State
-import           Data.Function                  ( (&) )
-import           Control.Lens                   ( (.~), (^.) )
 import qualified Data.ByteString.Lazy.Char8    as LB
+import           Data.Function                  ( (&) )
 import           Data.Time.Calendar             ( Day
                                                 , fromGregorian
                                                 , showGregorian
@@ -29,11 +30,11 @@ import qualified Evaluation.Benchmark
 import           Evaluation.EvalTypeInf
 import           Evaluation.ReadBenchmark
 import           Examples.InferenceDriver
-import qualified Hectare.TermSearch as Hectare
-import           Postfilter.GHCChecker
+import qualified Hectare.TermSearch            as Hectare
 import           HooglePlus.IOFormat
 import           HooglePlus.Synthesize
 import           PetriNet.PNSolver
+import           Postfilter.GHCChecker
 import           Types.Environment
 import           Types.Experiments
 import           Types.Filtering
@@ -215,11 +216,12 @@ precomputeGraph :: GenerationOpts -> IO ()
 precomputeGraph = generateEnv
 
 -- | Parse and resolve file, then synthesize the specified goals
-executeSearch :: SearchEngine -> SearchParams -> String -> OutputFormat -> FilePath -> IO ()
+executeSearch
+  :: SearchEngine -> SearchParams -> String -> OutputFormat -> FilePath -> IO ()
 executeSearch engine params inStr outputFormat outputFile = catch
   (do
-    let input   = decodeInput (LB.pack inStr)
-    let tquery  = query input
+    let input    = decodeInput (LB.pack inStr)
+    let tquery   = query input
     let examples = inExamples input
     hSetBuffering stdout LineBuffering
 
@@ -228,59 +230,78 @@ executeSearch engine params inStr outputFormat outputFile = catch
     when (outputFormat == OutputFile && exists) $ removeFile outputFile
 
     -- invoke synthesis
-    let cnt = params ^. solutionCnt
     case engine of
-      HooglePlus -> envToGoal loadEnv tquery examples >>= \goal -> runHooglePlus goal cnt
-      Hectare    -> envToGoal loadEnvFo tquery examples >>= \goal -> runHectare goal
+      HooglePlus ->
+        envToGoal loadEnv tquery examples >>= \goal -> runHooglePlus goal
+      Hectare ->
+        envToGoal loadEnvFo tquery examples >>= \goal -> runHectare goal
   )
   (\(e :: SomeException) -> do
     printResult $ encodeWithPrefix $ QueryOutput [] (show e) []
     error (show e)
   )
 
-  where
-    runHooglePlus :: Goal -> Int -> IO ()
-    runHooglePlus goal n = do
-      (programs, st) <- synthesize params goal
-      let initState = (st ^. filterState) { flogLevel = params ^. logLevel }
-      (cnt, fstate) <- getKPrograms goal (0, initState) programs
-      when (cnt < n)
-           (getMoreSolutions goal (st & filterState .~ fstate) (n - cnt))
+ where
+  runHooglePlus :: Goal -> IO ()
+  runHooglePlus goal = do
+    (programs, st) <- synthesize params goal
+    let initState = (st ^. filterState) { flogLevel = params ^. logLevel }
+    (cnt, fstate) <- getKPrograms goal (0, initState) programs
+    let appDepth = params ^. maxApplicationDepth
+    let currLen  = st ^. (searchState . currentLoc)
+    when (cnt < params ^. solutionCnt && currLen <= appDepth)
+         (getMoreSolutions goal (st & filterState .~ fstate) cnt)
 
-    getMoreSolutions :: Goal -> SolverState -> Int -> IO ()
-    getMoreSolutions goal@(Goal env goalTyp _) st n = do
-      if n <= 0 then return ()
-        else do
-          (programs, st') <- runStateT (nextSolution env goalTyp) st
-          (cnt, fstate) <- getKPrograms goal (0, st' ^. filterState) programs
-          when (cnt < n)
-            (getMoreSolutions goal (st' & filterState .~ fstate) (n - cnt))
+  getMoreSolutions :: Goal -> SolverState -> Int -> IO ()
+  getMoreSolutions goal@(Goal env goalTyp _) st n = do
+    if n >= params ^. solutionCnt
+      then return ()
+      else do
+        (programs, st'   ) <- runStateT (nextSolution env goalTyp) st
+        (cnt     , fstate) <- getKPrograms goal (0, st' ^. filterState) programs
+        let appDepth = params ^. maxApplicationDepth
+        let currLen  = st' ^. (searchState . currentLoc)
+        when (n + cnt < params ^. solutionCnt && currLen <= appDepth)
+             (getMoreSolutions goal (st' & filterState .~ fstate) (n + cnt))
 
-    runHectare :: Goal -> IO ()
-    runHectare goal = do
-      let programs = Hectare.synthesize goal
-      -- print programs
-      (synthesisCnt, _) <- getKPrograms goal (0, emptyFilterState { flogLevel = params ^. logLevel }) programs
-      when (synthesisCnt < params ^. solutionCnt) $ putStrLn "Hectare cannot find more solutions"
+  runHectare :: Goal -> IO ()
+  runHectare goal = do
+    let programs = Hectare.synthesize goal
+    -- print programs
+    (synthesisCnt, _) <- getKPrograms
+      goal
+      (0, emptyFilterState { flogLevel = params ^. logLevel })
+      programs
+    when (synthesisCnt < params ^. solutionCnt)
+      $ putStrLn "Hectare cannot find more solutions"
 
-    getKPrograms :: Goal -> (Int, FilterState) -> [TProgram] -> IO (Int, FilterState)
-    getKPrograms _ (n, fstate) _ | n == (params ^. solutionCnt) = return (n, fstate)
-    getKPrograms _ (n, fstate) [] = return (n, fstate)
-    getKPrograms goal (n, fstate) (p:ps) = do
-      (fstate', mbProgram) <- runPostFilter goal n fstate p
-      case mbProgram of
-        Nothing -> getKPrograms goal (n, fstate') ps
-        Just _  -> getKPrograms goal (n + 1, fstate') ps
+  getKPrograms
+    :: Goal -> (Int, FilterState) -> [TProgram] -> IO (Int, FilterState)
+  getKPrograms _ (n, fstate) _ | n == (params ^. solutionCnt) =
+    return (n, fstate)
+  getKPrograms _    (n, fstate) []       = return (n, fstate)
+  getKPrograms goal (n, fstate) (p : ps) = do
+    (fstate', mbProgram) <- runPostFilter goal n fstate p
+    case mbProgram of
+      Nothing -> getKPrograms goal (n, fstate') ps
+      Just _  -> getKPrograms goal (n + 1, fstate') ps
 
-    runPostFilter :: Goal -> Int -> FilterState -> TProgram -> IO (FilterState, Maybe TProgram)
-    runPostFilter (Goal env goalType examples) cnt fstate p = do
-      (checkResult, fstate') <- runStateT (checkSolution params env goalType examples p) fstate
-      case checkResult of
-        Nothing -> return (fstate', Nothing)
-        Just exs -> do
-          queryOutput <- liftIO $ toOutput env p exs
-          case outputFormat of
-            JSON -> liftIO $ printResult $ encodeWithPrefix queryOutput
-            CommandLine -> liftIO $ printCmd cnt queryOutput Nothing
-            OutputFile -> liftIO $ printCmd cnt queryOutput (Just outputFile)
-          return (fstate', Just p)
+  runPostFilter
+    :: Goal
+    -> Int
+    -> FilterState
+    -> TProgram
+    -> IO (FilterState, Maybe TProgram)
+  runPostFilter (Goal env goalType examples) cnt fstate p = do
+    (checkResult, fstate') <- runStateT
+      (checkSolution params env goalType examples p)
+      fstate
+    case checkResult of
+      Nothing  -> return (fstate', Nothing)
+      Just exs -> do
+        queryOutput <- liftIO $ toOutput env p exs
+        case outputFormat of
+          JSON        -> liftIO $ printResult $ encodeWithPrefix queryOutput
+          CommandLine -> liftIO $ printCmd cnt queryOutput Nothing
+          OutputFile  -> liftIO $ printCmd cnt queryOutput (Just outputFile)
+        return (fstate', Just p)
