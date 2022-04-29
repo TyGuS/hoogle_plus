@@ -266,6 +266,7 @@ executeSearch engine params inStr outputFormat outputFile = catch
 
   runHectare :: Goal -> IO ()
   runHectare goal = do
+    print $ "Synthesizing " ++ show (gSpec goal)
     let programs = Hectare.synthesize goal
     -- print programs
     (synthesisCnt, _) <- getKPrograms

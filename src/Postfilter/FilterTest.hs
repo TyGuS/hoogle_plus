@@ -26,7 +26,7 @@ import           Data.Maybe                     ( fromMaybe
 import qualified Data.Set                      as Set
                                          hiding ( map )
 import qualified Data.Text                     as Text
-import           Language.Haskell.Exts.Parser   ( ParseResult(ParseOk)
+import           Language.Haskell.Exts.Parser   ( ParseResult(..)
                                                 , parseType
                                                 )
 import           Language.Haskell.Exts.Syntax
@@ -60,7 +60,9 @@ parseTypeString :: String -> FunctionSignature
 parseTypeString input = FunctionSignature constraints argsType returnType
  where
   (constraints, argsType, returnType) = buildSig [] [] value
-  (ParseOk value)                     = parseType input
+  value                     = case parseType input of
+                                ParseOk v -> v
+                                f -> error $ "parseTypeString: " ++ show f
 
   buildSig constraints argList (TyForall _ _ (Just ctx) t) = buildSig
     constraints'
@@ -293,9 +295,9 @@ compareSolution
   -> FunctionSignature
   -> Int
   -> IO [Either InterpreterError SmallCheckResult]
-compareSolution modules argNames solution otherSolutions funcSig time = mapM
-  (evaluateProperty modules)
-  props
+compareSolution modules argNames solution otherSolutions funcSig time = do
+  -- traceShow ("Checking properties" <+> pretty props) $ return ()
+  mapM (evaluateProperty modules) props
  where
   props = buildDupCheckProp argNames
                             (solution, otherSolutions)
@@ -409,7 +411,9 @@ checkDuplicates modules argNames sigStr solution = do
     state@(FilterState is solns _ examples _) <- get
     case result of
       -- bypass the check on any timeout or error
-      Left  (UnknownError "timeout") -> return False -- no example -> reject
+      Left  (UnknownError "timeout") -> do
+        writeLog 2 "processResult" $ "dup check timeout for" <+> pretty (solution, otherSolution)
+        return False -- no example -> reject
       Left  err                      -> return True
 
       -- SmallCheck fails to find any differentiating input

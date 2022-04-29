@@ -14,3 +14,11 @@ extra-deps:
   - ./compact-coupled-terms
   - git: https://github.com/jkoppel/equivalence.git
     commit: e58c9c0b369f9b8105744cc0342f2e69929b11bf
+
+compiler: ghc-8.10.7
+setup-info:
+  ghc:
+    linux64-custom-yields:
+      8.10.7:
+        url: "https://github.com/TyGuS/hoogle_plus/releases/download/hectare-0.1/ghc-8.10.7-x86_64-unknown-linux.tar.xz"
+ghc-variant: yields

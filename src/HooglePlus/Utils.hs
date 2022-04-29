@@ -176,8 +176,7 @@ updateEnvWithBoundTyVars (ForallT x ty) env =
 updateEnvWithSpecArgs
   :: TypeSkeleton -> Environment -> (Environment, TypeSkeleton)
 updateEnvWithSpecArgs (FunctionT x tArg tRes) env =
-  let (env', ret) = updateEnvWithSpecArgs tRes env
-  in  (addComponent x (Monotype tArg) $ addArgument x tArg env', ret)
+  updateEnvWithSpecArgs tRes (addComponent x (Monotype tArg) $ addArgument x tArg env)
 updateEnvWithSpecArgs ty env = (env, ty)
 
 preprocessEnvFromGoal :: Goal -> (Environment, TypeSkeleton)

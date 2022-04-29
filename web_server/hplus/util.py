@@ -6,7 +6,7 @@ import enum
 from flask import json
 
 HPLUS_CMD = 'stack exec -- hplus'.split()
-OPTIONS = ['--disable-filter=False']
+OPTIONS = ['--disable-filter=True', '--output-format=json']
 TIMEOUT_CMD = 'timeout'
 TIMEOUT = 60
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -62,7 +62,7 @@ def run_hplus(options):
     # TODO: we may put these paths into configuration file
     os.chdir(os.path.join(SCRIPT_DIR, '../../'))
     command = [TIMEOUT_CMD, str(TIMEOUT)] + HPLUS_CMD + OPTIONS + options
-    # print(" ".join(command))
+    print(" ".join(command))
     with open("server.log", "a+") as f:
         f.write(" ".join(command))
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=FNULL)

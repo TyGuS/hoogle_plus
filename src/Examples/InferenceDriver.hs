@@ -167,11 +167,11 @@ checkExample mdls env typ ex = do
   case eitherTyp of
     Right exTyp -> do
       let err =
-            printf "%s does not have type %s" (show ex) (show typ) :: String
+            printf "%s does not have type %s" (plainShow ex) (plainShow typ) :: String
       let tcErr =
             printf "%s does not satisfy type class constraint in %s"
                    (show ex)
-                   (show typ) :: String
+                   (plainShow typ) :: String
       -- refresh the type variables names in the two
       let bvs = getBoundTypeVars env
       (freshExTyp, freshTyp) <- evalStateT
@@ -187,8 +187,8 @@ checkExample mdls env typ ex = do
         Just tass -> do
           let substedTyp               = typeSubstitute tass freshTyp
           let (tyclasses, strippedTyp) = unprefixTc substedTyp
-          let tyclassesPrenex          = intercalate ", " $ map show tyclasses
-          let breakTypes               = map show $ breakdown strippedTyp
+          let tyclassesPrenex          = intercalate ", " $ map plainShow tyclasses
+          let breakTypes               = map plainShow $ breakdown strippedTyp
           let mkTyclass = printf "%s :: (%s) => (%s)"
                                  mkFun
                                  tyclassesPrenex
@@ -575,10 +575,10 @@ generalizeTypeSkeleton tcass t@(DatatypeT name args) =
                                tyclassMaps
       return (argTyclasses, DatatypeT name args')
     )
-    `mplus` if null args || (show t == "[Char]")
+    `mplus` if null args || (plainShow t == "[Char]")
               then datatypeToVar tcass t
               else mzero
-generalizeTypeSkeleton _ t = error $ "unsupported type " ++ show t
+generalizeTypeSkeleton _ t = error $ "unsupported type " ++ plainShow t
 
 datatypeToVar
   :: MonadIO m
@@ -709,7 +709,7 @@ mkTyclassQuery tcass typ tyclass = do
   let allTcs =
         Text.intercalate ", "
           $  varTcStrs
-          ++ [Text.pack $ printf "%s (%s)" tyclass (show typ)]
+          ++ [Text.pack $ printf "%s (%s)" tyclass (plainShow typ)]
   let query = printf "undefined :: (%s) => ()" allTcs
   liftIO $ catch
     (askGhc includedModules (exprType TM_Default query) >> return (Just tyclass)

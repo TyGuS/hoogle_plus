@@ -46,11 +46,11 @@ def create_app(test_config=None):
                 }
         qid = uuid.uuid1()
         proc = run_hplus([f'--json={json.dumps(query)}',
-                          f'--search-type={QueryType.search_programs.value}',
-                          '--cnt=10'])
+                          f'--search-category={QueryType.search_programs.value}',
+                          '--cnt=20'])
         cache[str(qid)] = proc.pid
-        print(f"id: {str(qid)} => proc: {proc.pid}")
-        print(cache)
+        # print(f"id: {str(qid)} => proc: {proc.pid}")
+        # print(cache)
         def generate():
             return get_results(proc, QueryType.search_programs, qid)
         return Response(generate(), mimetype='application/json')
@@ -65,7 +65,7 @@ def create_app(test_config=None):
                  'inArgNames': obj['argNames']
                 }
         proc = run_hplus([f'--json={json.dumps(query)}',
-                          f'--search-type={QueryType.search_types.value}'])
+                          f'--search-category={QueryType.search_types.value}'])
         return json.jsonify(build_object(QueryType.search_types,
                                          communicate_result(proc)))
 
@@ -87,7 +87,7 @@ def create_app(test_config=None):
                  'exampleExisting': obj['examples']
                 }
         proc = run_hplus([f'--json={json.dumps(query)}',
-                          f'--search-type={QueryType.search_examples.value}'])
+                          f'--search-category={QueryType.search_examples.value}'])
         return json.jsonify(build_object(QueryType.search_examples,
                                          communicate_result(proc)))
 
@@ -101,7 +101,7 @@ def create_app(test_config=None):
                  'execArgs': obj['args']
                 }
         proc = run_hplus([f'--json={json.dumps(query)}',
-                          f'--search-type={QueryType.search_results.value}'])
+                          f'--search-category={QueryType.search_results.value}'])
         return json.jsonify(build_object(QueryType.search_results,
                                          communicate_result(proc)))
 

@@ -196,18 +196,24 @@ runGhcChecks params modules env goalType examples prog =
             $ checkStrictness tyclassCount (plainShow body) funcSig mdls
         -- liftIO $ print strictCheckResult
         exampleCheckResult <- if not strictCheckResult
-          then return Nothing
+          then do
+            writeLog 2 "runGhcChecks" $ "Strictness check failed"
+            return Nothing
           else
             liftIO
             $   fmap ((: []) . ((unqualifyFunc body, body), ))
             <$> checkOutputs prog examples
         -- liftIO $ print exampleCheckResult
         filterCheckResult <- if disableFilter || isNothing exampleCheckResult
-          then return exampleCheckResult
+          then do
+            writeLog 2 "runGhcChecks" $ "Filter is disabled or example check failed"
+            return exampleCheckResult
           else do
             filterResult <- runChecks env mdls goalType prog
             if isNothing filterResult
-              then return filterResult
+              then do
+                writeLog 2 "runGhcChecks" $ "Filter check failed"
+                return filterResult
               else return $ Just
                 (foldr (uncurry mergeExamples)
                        (fromJust filterResult)

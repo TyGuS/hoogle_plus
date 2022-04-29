@@ -242,12 +242,12 @@ readBuiltinData env = do
 
 parseQueryType :: String -> TypeSkeleton
 parseQueryType str =
-  let parseResult = runParser parseType () "" str
+  let parseResult = runParser parseTypeMbTypeclasses () "" str
       resolveResult t = runExcept $ evalStateT (resolveType [] t) resolver
   in  case parseResult of
         Left  parseErr -> error "something wrong in the builtin json"
         Right t        -> case resolveResult t of
-          Left  err -> error $ "resolve fails" ++ show err ++ " type " ++ show t
+          Left  err -> error $ "Resolve fails: " ++ show err ++ " type " ++ show t
           Right s   -> s
 
 prepareEnvFromInput
@@ -285,7 +285,10 @@ execExample mdls env typ prog ex = do
                     typ
   let parensedInputs = map wrapParens $ inputs ex
   let progCall       = printf "internal__f %s" (unwords parensedInputs)
+  print progBody
+  print progCall
   result <- handleApproxShowFailure mdls progBody progCall
+  print result
   let prettyShow a = if "_|_" `isInfixOf` a then "bottom" else a
   return (result >>= Right . prettyShow)
 
@@ -357,8 +360,7 @@ searchExamples mdls inStr num = do
   let env        = loadEnv
   candMap <- readBuiltinData env
   let goalTyp      = parseQueryType namedQuery
-  let unnamedQuery = show goalTyp
-  let funcSig      = parseTypeString unnamedQuery
+  let funcSig      = parseTypeString (mkFunctionSigStr $ breakdown goalTyp)
   let argNames     = words (getArgNames prog)
   -- remove magic numbers later
   -- we not only need to know existing results, since this should come from
@@ -467,10 +469,11 @@ toOutput env soln exs = do
   let symbols       = Set.toList $ symbolsOf soln
   let args          = getArguments env
   let argNames      = map fst args
-  let argDocs = map (\(n, ty) -> FunctionDoc (Text.unpack n) (show ty) "") args
+  let argDocs = map (\(n, ty) -> FunctionDoc (Text.unpack n) (plainShow ty) "") args
   let symbolsWoArgs = symbols \\ argNames
+  docs <- hoogleIt symbolsWoArgs
   entries <- mapM mkEntry exs
-  return $ QueryOutput entries "" argDocs
+  return $ QueryOutput entries "" (docs ++ argDocs)
  where
   mkEntry ((unqualSol, qualSol), Examples ex) = do
     ex' <- mapM niceInputs ex
@@ -482,7 +485,7 @@ toOutput env soln exs = do
     Hoogle.withDatabase
       dbPath
       (\db -> do
-        let targets = map (head . Hoogle.searchDatabase db) syms
+        let targets = map (head . Hoogle.searchDatabase db . Text.unpack) syms
         let docs    = map targetToDoc targets
         return docs
       )

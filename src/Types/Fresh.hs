@@ -24,7 +24,7 @@ class Monad m => Fresh s m where
 instance Monad m => Fresh (Map Id Int) m where
   nextCounter prefix = do
     counters <- get
-    let counter = fromJust $ Map.lookup prefix counters
+    let counter = Map.findWithDefault 0 prefix counters
     put $ Map.insert prefix (counter + 1) counters
     return counter
 

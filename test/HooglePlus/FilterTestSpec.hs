@@ -208,6 +208,13 @@ testNotCrashNonTerms =
       (funcp "x" $ untyped $ PApp "Cons" [untyped $ PApp "Cons" [untyped $ PApp "last" [untyped $ PApp "repeat" [varp "x"]], varp "Nil"], varp "Nil"]) -- "\\x -> [[last $ repeat x]]"
       []
       False
+  , FilterTestCase "Fail on non-termination: lazy evaluation 3"
+      []
+      ["x", "xs"]
+      "Int -> [Int] -> Int"
+      (funcp "x" $ funcp "xs" $ untyped $ PApp "(!!)" [untyped $ PApp "repeat" [varp "x"], untyped $ PApp "length" [varp "xs"]]) -- "\\x xs -> (!!) (repeat x) (length xs)"
+      []
+      False
   ]
 
 testDups :: [FilterTestCase]
@@ -255,9 +262,21 @@ testDups =
       "Num a => (a -> a) -> (a -> a) -> a -> a"
       -- ["\\f g x -> (f . g) x", "\\f g x -> f (g x)"]
       (funcp "f" $ funcp "g" $ funcp "x" $ untyped $ PApp "($)" [untyped $ PApp "(.)" [varp "f", varp "g"], varp "x"]) -- "\\f g x -> (f . g) $ x"
-      [ (funcp "f" $ funcp "g" $ funcp "x" $ untyped $ PApp "f" [untyped $ PApp "g" [varp "x"]]) -- "\\f g x -> g (f x)"
+      [ (funcp "f" $ funcp "g" $ funcp "x" $ untyped $ PApp "f" [untyped $ PApp "g" [varp "x"]]) -- "\\f g x -> f (g x)"
       ]
       False
+  , FilterTestCase "Dup: Non-termination passing test"
+      ["Data.Maybe", "GHC.List"]
+      ["x", "xs"]
+      "a -> [Maybe a] -> a"
+      ((funcp "x" $ funcp "xs" $ untyped $ PApp "fromMaybe" [varp "x", untyped $ PApp "listToMaybe" [untyped $ PApp "catMaybes" [varp "xs"]]]))
+      [(funcp "x" $ funcp "xs" $ untyped $ PApp "fromMaybe" [varp "x", untyped $ PApp "last" [varp "xs"]])
+      , funcp "x" $ funcp "xs" $ untyped $ PApp "GHC.List.foldl" [varp "fromMaybe", varp "x", varp "xs"]
+      , funcp "x" $ funcp "xs" $ untyped $ PApp "fromMaybe" [varp "x", untyped $ PApp "head" [untyped $ PApp "tail" [varp "xs"]]] -- \arg1 arg0 -> fromMaybe arg0 (head (init arg1))
+      , funcp "x" $ funcp "xs" $ untyped $ PApp "fromMaybe" [varp "x", untyped $ PApp "last" [untyped $ PApp "tail" [varp "xs"]]] -- \arg1 arg0 -> fromMaybe arg0 (head (tail arg1))
+      , funcp "x" $ funcp "xs" $ untyped $ PApp "fromMaybe" [varp "x", untyped $ PApp "head" [varp "xs"]] -- \arg1 arg0 -> fromMaybe arg0 (head arg1)
+      ]
+      True
   ]
 
 spec :: Spec
