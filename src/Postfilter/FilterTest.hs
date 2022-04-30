@@ -313,19 +313,21 @@ runChecks
   -> TProgram
   -> FilterTest m (Maybe AssociativeExamples)
 runChecks env mdls goalType prog = do
-  result <- runChecks_
+  notCrashRes <- checkSolutionNotCrash mdls argNames funcSig body
+  if notCrashRes
+    then do
+      notDupRes <- checkDuplicates mdls argNames funcSig body
 
-  state  <- get
-  when result $ runPrints state
+      state  <- get
+      when notDupRes $ runPrints state
 
-  return $ if result
-    then Just (collectExamples (unqualifyFunc body, body) state)
-    else Nothing
+      return $ if notDupRes
+        then Just (collectExamples (unqualifyFunc body, body) state)
+        else Nothing
+    else return Nothing
  where
   SynthesisResult funcSig body argNames = extractSolution env goalType prog
-  checks     = [checkSolutionNotCrash, checkDuplicates]
 
-  runChecks_ = and <$> mapM (\f -> f mdls argNames funcSig body) checks
   runPrints state = do
     writeLog 2 "runChecks" "\n*******************FILTER*********************"
     writeLog 2 "runChecks" (pretty $ unqualifyFunc body)
@@ -392,6 +394,7 @@ checkDuplicates modules argNames sigStr solution = do
       passTest <- and <$> zipWithM processResult results solns
 
       fs'@(FilterState is solns _ examples _) <- get
+      when passTest $ writeLog 3 "checkDuplicates" $ "adding solution" <+> pretty solution
       if passTest then put fs' { solutions = solution : solns } else put fs
 
       return passTest

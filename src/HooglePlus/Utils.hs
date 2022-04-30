@@ -149,7 +149,7 @@ printSolutionState solution (FilterState _ sols workingExamples diffExamples _) 
     in  unlines (map showGroup examples)
 
   showGroup :: [(SolutionPair, Example)] -> String
-  showGroup xs = unlines (show (fst $ head xs) : map (show . snd) xs)
+  showGroup xs = unlines (plainShow (fst $ head xs) : map (show . snd) xs)
 
 data SynthesisResult = SynthesisResult
   { getTypeQuery  :: String

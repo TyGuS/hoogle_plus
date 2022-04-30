@@ -6,7 +6,7 @@ import enum
 from flask import json
 
 HPLUS_CMD = 'stack exec -- hplus'.split()
-OPTIONS = ['--disable-filter=True', '--output-format=json']
+OPTIONS = ['--disable-filter=False', '--output-format=json']
 TIMEOUT_CMD = 'timeout'
 TIMEOUT = 60
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))

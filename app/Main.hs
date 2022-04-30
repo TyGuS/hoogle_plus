@@ -229,6 +229,7 @@ executeSearch engine params inStr outputFormat outputFile = catch
     exists <- doesFileExist outputFile
     when (outputFormat == OutputFile && exists) $ removeFile outputFile
 
+    print $ "Synthesizing " ++ show tquery
     -- invoke synthesis
     case engine of
       HooglePlus ->
@@ -266,7 +267,6 @@ executeSearch engine params inStr outputFormat outputFile = catch
 
   runHectare :: Goal -> IO ()
   runHectare goal = do
-    print $ "Synthesizing " ++ show (gSpec goal)
     let programs = Hectare.synthesize goal
     -- print programs
     (synthesisCnt, _) <- getKPrograms
