@@ -92,6 +92,7 @@ import           Compiler.Resolver
 import           Database.Dataset
 import           Examples.Utils
 import           Postfilter.FilterTest
+import           Postfilter.GHCSocket
 import           HooglePlus.Utils
 import           Types.Common
 import           Types.Environment
@@ -325,9 +326,9 @@ handleApproxShowFailure
 handleApproxShowFailure mdls progBody progCall = do
   let withApproxCall =
         printf "Test.ChasingBottoms.approxShow 100 (%s)" progCall
-  result <- runStmt mdls $ unwords [progBody, withApproxCall]
+  result <- askGhcSocket $ unwords [progBody, withApproxCall]
   case result of
-    Left  err -> runStmt mdls $ unwords [progBody, progCall]
+    Left  err -> askGhcSocket $ unwords [progBody, progCall]
     Right r   -> return result
 
 searchResults :: String -> IO ()

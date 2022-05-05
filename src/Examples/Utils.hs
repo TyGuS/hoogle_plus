@@ -24,13 +24,11 @@ import           Outputable                     ( showSDocUnsafe )
 import           System.Timeout                 ( timeout )
 import           Text.Printf                    ( printf )
 
-import           Postfilter.FilterTest          ( runInterpreter' )
 import           Types.Common
 import           Types.Environment
 import           Types.Filtering                ( defaultDepth
                                                 , defaultInterpreterTimeoutMicro
                                                 , defaultTimeoutMicro
-                                                , frameworkModules
                                                 )
 import           Types.Type
 import           Types.TypeChecker
@@ -55,37 +53,37 @@ askGhc mdls f = do
     decls <- mapM parseImportDecl imports
     return (map IIDecl decls)
 
-runStmt :: [Id] -> String -> IO (Either GHCError String)
-runStmt mdls prog = do
-  catch
-    (askGhc mdls $ do
-    -- allow type defaulting during execution
-      dflags <- getSessionDynFlags
-      let dflags' = dflags
-            { extensionFlags = ES.insert ExtendedDefaultRules
-                                         (extensionFlags dflags)
-            }
-      setSessionDynFlags dflags'
-      result <- execStmt prog execOptions
-      case result of
-        ExecComplete r _ -> case r of
-          Left  e  -> return (Left (show e))
-          Right ns -> getExecValue ns
-        ExecBreak{} -> return (Left "error, break")
-    )
-    (\(e :: SomeException) -> return (Left $ show e))
- where
-  getExecValue (n : ns) = do
-    mty <- lookupName n
-    case mty of
-      Just (AnId aid) -> do
-        t <- gtry $ obtainTermFromId maxBound True aid
-        case t of
-          Right term ->
-            showTerm term <&> (Right . dropEnd 1 . drop 1 . showSDocUnsafe)
-          Left (exn :: SomeException) -> return (Left $ show exn)
-      _ -> return (Left "Unknown error")
-  getExecValue [] = return (Left "Empty result list")
+-- runStmt :: [Id] -> String -> IO (Either GHCError String)
+-- runStmt mdls prog = do
+--   catch
+--     (askGhc mdls $ do
+--     -- allow type defaulting during execution
+--       dflags <- getSessionDynFlags
+--       let dflags' = dflags
+--             { extensionFlags = ES.insert ExtendedDefaultRules
+--                                          (extensionFlags dflags)
+--             }
+--       setSessionDynFlags dflags'
+--       result <- execStmt prog execOptions
+--       case result of
+--         ExecComplete r _ -> case r of
+--           Left  e  -> return (Left (show e))
+--           Right ns -> getExecValue ns
+--         ExecBreak{} -> return (Left "error, break")
+--     )
+--     (\(e :: SomeException) -> return (Left $ show e))
+--  where
+--   getExecValue (n : ns) = do
+--     mty <- lookupName n
+--     case mty of
+--       Just (AnId aid) -> do
+--         t <- gtry $ obtainTermFromId maxBound True aid
+--         case t of
+--           Right term ->
+--             showTerm term <&> (Right . dropEnd 1 . drop 1 . showSDocUnsafe)
+--           Left (exn :: SomeException) -> return (Left $ show exn)
+--       _ -> return (Left "Unknown error")
+--   getExecValue [] = return (Left "Empty result list")
 
 skipTyclass :: TypeSkeleton -> TypeSkeleton
 skipTyclass (FunctionT x (DatatypeT name args) tRes)

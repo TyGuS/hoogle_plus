@@ -4,6 +4,7 @@ import           Control.Monad.State            ( MonadState(get)
                                                 , StateT
                                                 , evalStateT
                                                 , modify
+                                                , liftIO
                                                 )
 import qualified CoreSyn                       as Syn
 import           Data.Function                  ( on )
@@ -39,6 +40,7 @@ import           Types.Filtering
 import           Types.Pretty
 import           Types.Program
 import           Types.Type
+import           Postfilter.GHCSocket
 import           Utility.Utils
 
 -- Converts the list of param types into a haskell function signature.
@@ -232,26 +234,7 @@ matchNiceFunctions prog | '\\' `elem` prog && "->" `isInfixOf` prog = do
       return newProg
  where
   runStmt p = do
-    let mdls =
-          [ "Data.Maybe"
-          , "GHC.List"
-          , "Data.List"
-          , "Data.Eq"
-          , "GHC.Char"
-          , "Data.Function"
-          ]
-    result <- LHI.runInterpreter $ do
-      LHI.setImports mdls
-      -- allow extensions for function execution
-      extensions <- LHI.get LHI.languageExtensions
-      LHI.set
-        [ LHI.languageExtensions
-            LHI.:= ( LHI.ExtendedDefaultRules
-                   : LHI.ScopedTypeVariables
-                   : extensions
-                   )
-        ]
-      LHI.eval p
+    result <- liftIO $ askGhcSocket p
     return $ either show id result
 matchNiceFunctions prog = return prog
 

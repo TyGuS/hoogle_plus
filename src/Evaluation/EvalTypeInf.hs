@@ -36,7 +36,7 @@ import           Text.Printf                    ( printf )
 
 import           Evaluation.Benchmark
 import           Examples.InferenceDriver
-import           Postfilter.FilterTest
+import           Postfilter.GHCSocket
 import           HooglePlus.IOFormat
 import           HooglePlus.Utils
 import           Types.Common
@@ -74,27 +74,8 @@ runTest numOfExs bm@(Benchmark _ q sol _ _) = do
                 subst <- randomSubst (Set.toList $ typeVarsOf typ) Map.empty
                 let t    = typeSubstitute subst typ
                 let prop = buildProperty t []
-                res <- runInterpreter'
-                    defaultInterpreterTimeoutMicro
-                    (do
-                        setImports
-                            [ "Data.Maybe"
-                            , "Data.Either"
-                            , "Data.Char"
-                            , "Test.QuickCheck"
-                            , "System.Random"
-                            , "Data.List"
-                            , "Data.Function"
-                            , "Data.Tuple"
-                            , "Data.Bool"
-                            , "Data.Int"
-                            , "Text.Show"
-                            , "Control.Exception"
-                            , "Data.Eq"
-                            , "Prelude"
-                            ]
-                        interpret prop (as :: IO Example) >>= liftIO
-                    )
+                rawRes <- askGhcSocket prop
+                let res = either (Left . id) (Right . read) rawRes
                 case res of
                     Left  err               -> print err >> return Nothing
                     Right (Example ins out) -> do

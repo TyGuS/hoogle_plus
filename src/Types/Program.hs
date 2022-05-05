@@ -87,7 +87,7 @@ data Example = Example
   { inputs :: [String]
   , output :: String
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Read, Generic)
 
 instance ToJSON Example
 instance FromJSON Example

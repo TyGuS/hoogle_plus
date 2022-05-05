@@ -1,7 +1,7 @@
 name: HooglePlus
-version: 0.1.0.0
+version: 0.2.0.0
 github: "TyGus/hoogle_plus"
-license: BSD3
+license: "MIT"
 author: "Zheng Guo"
 maintainer: "zhg069@eng.ucsd.edu"
 
@@ -41,6 +41,7 @@ dependencies:
 - logict
 - MissingH
 - mtl
+- network
 - parsec
 - pretty-simple
 - QuickCheck
@@ -81,6 +82,7 @@ default-extensions:
 - ViewPatterns
 - PatternSynonyms
 - GADTs
+- StandaloneDeriving
 
 library:
   source-dirs:
@@ -97,6 +99,17 @@ executables:
     - -rtsopts
     - -O2
     - -Wall
+    dependencies:
+    - HooglePlus
+
+  interpreter:
+    main: Interpreter.hs
+    source-dirs: app
+    ghc-options:
+    - -rtsopts
+    - -O2
+    - -Wall
+    - -main-is Interpreter
     dependencies:
     - HooglePlus
 

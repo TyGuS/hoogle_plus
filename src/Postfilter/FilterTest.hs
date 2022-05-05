@@ -2,7 +2,6 @@ module Postfilter.FilterTest
   ( runChecks
   , checkSolutionNotCrash
   , checkDuplicates
-  , runInterpreter'
   , generateIOPairs
   , parseTypeString
   ) where
@@ -41,6 +40,7 @@ import           Text.Printf                    ( printf )
 
 import           Test.SmallCheck                ( Depth )
 import           Test.SmallCheck.Drivers
+import           Text.Read                      (readMaybe)
 
 import           Text.PrettyPrint.ANSI.Leijen   ( string )
 
@@ -53,6 +53,7 @@ import           Types.Pretty
 import           Types.Program
 import           Types.Type              hiding ( typeOf )
 import           Utility.Utils
+import           Postfilter.GHCSocket
 
 -- import Debug.Trace
 
@@ -171,7 +172,7 @@ buildNotCrashProp argNames solution funcSig = formatAlwaysFailProp params
         plain
         body
         plain
-      , printf "runStateT (smallCheckM %d (%s)) []" defaultDepth propName
+      , printf "show <$> runStateT (smallCheckM %d (%s)) []" defaultDepth propName
       ]
 
 buildDupCheckProp
@@ -210,38 +211,18 @@ buildDupCheckProp' argNames (sol, otherSols) funcSig timeInMicro depth =
         "let dupProp = existsUnique $ \\%s -> monadic (not <$> anyDuplicate <$> timeoutWrapper %s) in"
         plain
         plain
-      , printf "runStateT (smallCheckM %d dupProp) []" depth
+      , printf "show <$> runStateT (smallCheckM %d dupProp) []" depth
       ] :: String
 
-runInterpreter' :: Int -> InterpreterT IO a -> IO (Either InterpreterError a)
-runInterpreter' timeInMicro exec = toResult <$> timeout timeInMicro execute
- where
-  execute = do
-    srcPath <- getDataFileName "InternalTypeGen.hs"
-
-    runInterpreter $ do
-
-      -- allow extensions for function execution
-      extensions <- LHI.get languageExtensions
-      LHI.set
-        [ languageExtensions
-            := (ExtendedDefaultRules : ScopedTypeVariables : extensions)
-        ]
-
-      loadModules [srcPath]
-      setTopLevelModules ["InternalTypeGen"]
-
-      exec
-
-  toResult Nothing  = Left $ UnknownError "timeout"
-  toResult (Just v) = v
-
 evaluateProperty
-  :: [String] -> String -> IO (Either InterpreterError SmallCheckResult)
-evaluateProperty modules property =
-  runInterpreter' defaultInterpreterTimeoutMicro $ do
-    setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
-    interpret property (as :: IO SmallCheckResult) >>= liftIO
+  :: [String] -> String -> IO (Either String SmallCheckResult)
+evaluateProperty modules property = do
+  res <- askGhcSocket property
+  case res of
+    Left err -> return $ Left err
+    Right res' -> case readMaybe res' of
+      Nothing -> error $ "[evaluateProperty] Could not parse result " ++ res'
+      Just r -> return $ Right r
 
 validateSolution
   :: [String]
@@ -249,21 +230,21 @@ validateSolution
   -> String
   -> FunctionSignature
   -> Int
-  -> IO (Either InterpreterError FunctionCrashDesc)
+  -> IO (Either String FunctionCrashDesc)
 validateSolution modules argNames solution funcSig time =
   evaluateResult' <$> evaluateProperty modules alwaysFailProp
  where
   alwaysFailProp = buildNotCrashProp argNames solution funcSig
 
   evaluateSmallCheckResult
-    :: Either InterpreterError SmallCheckResult
-    -> Either InterpreterError SmallCheckResult
-    -> Either InterpreterError FunctionCrashDesc
+    :: Either String SmallCheckResult
+    -> Either String SmallCheckResult
+    -> Either String FunctionCrashDesc
   evaluateSmallCheckResult resultF resultS = case resultF of
-    Left  (UnknownError "timeout") -> Right $ AlwaysFail $ caseToInput resultS
+    Left "timeout" -> Right $ AlwaysFail $ caseToInput resultS
     Right (Nothing, _      )       -> Right $ AlwaysFail $ caseToInput resultS
     Right (_      , exF : _)       -> case resultS of
-      Left  (UnknownError "timeout") -> Right $ AlwaysSucceed exF
+      Left "timeout" -> Right $ AlwaysSucceed exF
       Right (Nothing, _)             -> Right $ AlwaysSucceed exF
 
       Right (Just (CounterExample _ _), exS : _) ->
@@ -272,12 +253,12 @@ validateSolution modules argNames solution funcSig time =
     _ -> Right $ AlwaysFail $ caseToInput resultS
 
   evaluateResult' result = case result of
-    Left  (UnknownError "timeout") -> Right $ AlwaysFail $ Example [] "timeout"
+    Left "timeout" -> Right $ AlwaysFail $ Example [] "timeout"
     Left error -> Right $ AlwaysFail $ Example [] (show error)
     Right (Nothing, _       )      -> Right $ AlwaysFail $ caseToInput result
     Right (_      , examples)      -> Right $ PartialFunction $ Examples (take 2 examples) -- only need the first two examples, one succeed, one fail
 
-  caseToInput :: Either InterpreterError SmallCheckResult -> Example
+  caseToInput :: Either String SmallCheckResult -> Example
   caseToInput (Right (_, example : _)) = example
   caseToInput _ = error "caseToInput: no example returned"
 
@@ -294,7 +275,7 @@ compareSolution
   -> [String]
   -> FunctionSignature
   -> Int
-  -> IO [Either InterpreterError SmallCheckResult]
+  -> IO [Either String SmallCheckResult]
 compareSolution modules argNames solution otherSolutions funcSig time = do
   -- traceShow ("Checking properties" <+> pretty props) $ return ()
   mapM (evaluateProperty modules) props
@@ -355,8 +336,8 @@ checkSolutionNotCrash modules argNames sigStr body = do
 
  where
   handleNotSupported =
-    (`catch` ((\ex -> return (Left (UnknownError $ show ex))) :: NotSupportedException
-               -> IO (Either InterpreterError FunctionCrashDesc)
+    (`catch` ((\ex -> return (Left (show ex))) :: NotSupportedException
+               -> IO (Either String FunctionCrashDesc)
              )
     )
   funcSig      = (instantiateSignature . parseTypeString) sigStr
@@ -405,7 +386,7 @@ checkDuplicates modules argNames sigStr solution = do
   caseToInput _ = error "caseToInput: expect AtLeastTwo"
 
   filterRelated i1 i2 (Example inputX _) = inputX == i1 || inputX == i2
-  filterSuccess (Left (UnknownError "timeout")) = False
+  filterSuccess (Left "timeout") = False
   filterSuccess (Left _) = True
   filterSuccess (Right (r@(Just AtLeastTwo{}), newExamples)) = True
   filterSuccess _ = False
@@ -414,7 +395,7 @@ checkDuplicates modules argNames sigStr solution = do
     state@(FilterState is solns _ examples _) <- get
     case result of
       -- bypass the check on any timeout or error
-      Left  (UnknownError "timeout") -> do
+      Left "timeout" -> do
         writeLog 2 "processResult" $ "dup check timeout for" <+> pretty (solution, otherSolution)
         return False -- no example -> reject
       Left  err                      -> return True
@@ -479,13 +460,15 @@ generateIOPairs
   -> Depth
   -> [String]
   -> [[String]]
-  -> IO (Either InterpreterError GeneratorResult)
+  -> IO (Either String GeneratorResult)
 generateIOPairs modules solution funcSig argNames numPairs timeInMicro interpreterTimeInMicro depth existingResults existingInputs
-  = runInterpreter' interpreterTimeInMicro $ do
-    setImportsQ
-      (zip (map Text.unpack modules) (repeat Nothing) ++ frameworkModules)
-    interpret property (as :: IO GeneratorResult) >>= liftIO
-
+  = do
+    res <- askGhcSocket property
+    case res of
+      Left err -> return $ Left err
+      Right r -> case readMaybe r of
+        Nothing -> error $ "[generateIOPairs]: cannot read " ++ r
+        Just r' -> return $ Right r'
  where
   funcSig' = instantiateSignature funcSig
   typeStr  = show funcSig'

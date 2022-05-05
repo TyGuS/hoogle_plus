@@ -14,7 +14,8 @@ import           Data.Aeson                     ( FromJSON
                                                 )
 import           Data.Serialize                 ( Serialize )
 
-import           Test.SmallCheck.Drivers        ( PropertyFailure )
+import           Test.SmallCheck.Drivers        ( PropertyFailure(..)
+                                                , PropertySuccess(..) )
 
 import           Types.Log
 import           Types.Pretty
@@ -42,21 +43,6 @@ defaultGenerationTimeoutMicro = 30 * 10 ^ 6
 defaultGenerationDepth :: Int
 defaultGenerationDepth = 4
 
-frameworkModules :: [(String, Maybe String)]
-frameworkModules =
-  zip
-      [ "Test.SmallCheck"
-      , "Test.SmallCheck.Drivers"
-      , "Test.LeanCheck.Function.ShowFunction"
-      , "System.IO.Silently"
-      , "Control.Exception"
-      , "Control.Monad"
-      , "Control.Monad.State"
-      ]
-      (repeat Nothing)
-
-    ++ [("Test.ChasingBottoms", Just "CB")]
-
 --------------------------------------------------------------------------------
 ---------------------------------- Types ---------------------------------------
 --------------------------------------------------------------------------------
@@ -65,6 +51,9 @@ type SmallCheckResult = (Maybe PropertyFailure, [Example])
 type GeneratorResult = [Example]
 type SolutionPair = (TProgram, TProgram) -- qualified and unqualified
 type AssociativeExamples = [(SolutionPair, Examples)]
+
+deriving instance Read PropertyFailure
+deriving instance Read PropertySuccess
 
 data FunctionCrashDesc =
     AlwaysSucceed Example

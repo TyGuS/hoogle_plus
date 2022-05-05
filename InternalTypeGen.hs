@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, TypeFamilies, LambdaCase, FlexibleContexts #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables, DeriveGeneric, DeriveDataTypeable #-}
 {-# LANGUAGE UndecidableInstances, FunctionalDependencies #-}
 module InternalTypeGen where
 
@@ -8,6 +8,7 @@ import Control.Monad
 import Control.Monad.State
 import Control.Monad.Logic
 import Data.Data
+import GHC.Generics ( Generic )
 
 import Text.Printf
 import System.IO.Silently
@@ -163,7 +164,7 @@ anyDuplicate (x:xs) = x `elem` xs
 data Example = Example {
     inputs :: [String],
     output :: String
-} deriving(Eq, Show)
+} deriving(Eq, Show, Read, Generic)
 
 type ExampleGeneration m = StateT [Example] m
 
