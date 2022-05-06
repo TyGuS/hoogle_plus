@@ -492,7 +492,7 @@ generateIOPairs modules solution funcSig argNames numPairs timeInMicro interpret
           plain
           numPairs
           shows
-        , printf "execStateT (smallCheckM %d (exists prop)) []" depth
+        , printf "show <$> execStateT (smallCheckM %d (exists prop)) []" depth
         ] :: String
 
   buildWrapper solution typeStr params timeInMicro = unwords

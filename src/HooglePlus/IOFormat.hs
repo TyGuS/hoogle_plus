@@ -286,10 +286,10 @@ execExample mdls env typ prog ex = do
                     typ
   let parensedInputs = map wrapParens $ inputs ex
   let progCall       = printf "internal__f %s" (unwords parensedInputs)
-  print progBody
-  print progCall
+  -- print progBody
+  -- print progCall
   result <- handleApproxShowFailure mdls progBody progCall
-  print result
+  -- print result
   let prettyShow a = if "_|_" `isInfixOf` a then "bottom" else a
   return (result >>= Right . prettyShow)
 
@@ -325,10 +325,11 @@ handleApproxShowFailure
   :: [Id] -> String -> String -> IO (Either GHCError String)
 handleApproxShowFailure mdls progBody progCall = do
   let withApproxCall =
-        printf "Test.ChasingBottoms.approxShow 100 (%s)" progCall
+        printf "evaluate (CB.approxShow 100 (%s))" progCall
   result <- askGhcSocket $ unwords [progBody, withApproxCall]
   case result of
-    Left  err -> askGhcSocket $ unwords [progBody, progCall]
+    Left "timeout" -> return result
+    Left  err -> askGhcSocket $ unwords [progBody, "evaluate (", progCall, ")"]
     Right r   -> return result
 
 searchResults :: String -> IO ()

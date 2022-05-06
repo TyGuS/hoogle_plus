@@ -139,6 +139,8 @@ testNotCrashCases =
       True
   ]
 
+-- TODO: add the test case for `foldr take xs (repeat n)`
+
 testNotCrashHOFs :: [FilterTestCase]
 testNotCrashHOFs =
   [ FilterTestCase "Succeed on basic application"

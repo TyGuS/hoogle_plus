@@ -1,6 +1,7 @@
 module Interpreter where
 
-import qualified Control.Exception as E
+import Control.Concurrent
+import Control.Exception
 import Control.Monad (unless, forever)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Builder as S
@@ -8,9 +9,7 @@ import qualified Data.ByteString.Lazy as LS
 import qualified Data.ByteString.Char8 as C
 import Network.Socket
 import Network.Socket.ByteString (recv, sendAll)
-import           Exception                      ( SomeException
-                                                , gtry
-                                                )
+import Exception ( gtry )
 import qualified EnumSet                       as ES
 import           GHC                     hiding ( Id )
 import           GHC.LanguageExtensions.Type    ( Extension
@@ -26,6 +25,11 @@ import qualified Data.Text as Text
 import Unsafe.Coerce (unsafeCoerce)
 import Data.Dynamic
 import System.Timeout
+import System.Exit
+import HscMain
+import HscTypes
+
+import Control.Concurrent.Async
 
 import           Paths_HooglePlus
 import Database.Dataset
@@ -43,6 +47,7 @@ frameworkModules =
       , "Test.SmallCheck.Drivers"
       , "Test.LeanCheck.Function.ShowFunction"
       , "System.IO.Silently"
+      , "System.Timeout"
       , "Control.Exception"
       , "Control.Monad"
       , "Control.Monad.State"
@@ -55,7 +60,7 @@ main :: IO ()
 main = do
     srcPath <- getDataFileName "InternalTypeGen.hs"
 
-    runGhc (Just libdir) $ do
+    hscEnv <- runGhc (Just libdir) $ do
         -- do the interpreter initialization
         dflags <- getSessionDynFlags
         let dflags' = dflags { hscTarget = HscInterpreted
@@ -79,21 +84,29 @@ main = do
         imports <- prepareModules (frameworkModules ++ zip (map Text.unpack includedModules) (repeat Nothing))
         setContext (IIModule mdlName : imports)
 
-        -- run the interpreter inside the GHC monad
-        sock <- liftIO $ withSocketsDo $ do
-            addr <- resolve
-            E.bracketOnError (socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)) close $ \sock -> do
-                setSocketOption sock ReuseAddr 1
-                withFdSocket sock setCloseOnExecIfNeeded
-                bind sock $ addrAddress addr
-                listen sock msgSize
+        getSession
 
-                putStrLn "server is established"
-                return sock
+    -- run the interpreter inside the GHC monad
+    sock <- liftIO $ withSocketsDo $ do
+        addr <- resolve
+        bracketOnError (socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)) close $ \sock -> do
+            setSocketOption sock ReuseAddr 1
+            withFdSocket sock setCloseOnExecIfNeeded
+            bind sock $ addrAddress addr
+            listen sock msgSize
 
-        forever $ do
-            (conn, _) <- liftIO $ accept sock
-            talk conn
+            putStrLn "server is established"
+            return sock
+
+    timeout (120 * 10 ^ 6) $ do
+        forever $ bracketOnError (accept sock) (close . fst) $ \(conn, _) -> do
+            -- forkFinally (talk hscEnv conn) (\_ -> gracefulClose conn 5000 >> print "connection closed")
+            withAsync (talk hscEnv conn) (\a -> wait a >> gracefulClose conn 5000 >> print "connection closed")
+            -- forkFinally (withAsync (talk hscEnv conn) wait) (\_ -> gracefulClose conn 5000 >> print "connection closed")
+            -- forever $ do
+            --     (conn, _) <- liftIO $ accept sock
+            --     talk conn
+    return ()
   where
     resolve = do
         let hints = defaultHints {
@@ -102,27 +115,42 @@ main = do
                     }
         head <$> getAddrInfo (Just hints) Nothing (Just portNumber)
 
-    talk s = do
+    session :: HscEnv -> Ghc a -> IO a
+    session hscEnv m = runGhc (Just libdir) $ do
+        setSession (mkInteractiveHscEnv hscEnv)
+        x <- m
+        -- dflags <- getSessionDynFlags
+        -- liftIO (newHscEnv dflags) >>= setSession
+        return x
+
+    talk hscEnv s = do
         prog <- liftIO $ recv s msgSize
         let progStr = C.unpack prog
         liftIO $ putStrLn $ "Received: " ++ progStr
         unless (S.null prog) $ do
-            (dynRes :: Either SomeException (Maybe (IO String))) <- gtry (fromDynamic <$> dynCompileExpr progStr)
-            msg <- case dynRes of
-                Left e -> return (Left $ show e)
-                Right dyn -> case dyn of
-                    Nothing -> do
-                        act <- compileExpr ("print (" <> progStr <> ")")
-                        Right <$> liftIO (unsafeCoerce act)
-                    Just act -> do
-                        actRes <- liftIO $ timeout (3 * 10^(6 :: Int)) act
-                        case actRes of
-                            Nothing -> return $ Left "timeout"
-                            Just res -> return $ Right res
+            -- msg <- do
+            liftIO $ print "start"
+            msgOrErr <- try $ session hscEnv $ do
+                -- let timeoutStr = "timeout (2 * 10^(6 :: Int)) (" ++ progStr ++ ")"
+                (dynRes :: Either SomeException (Maybe (IO String))) <- gtry (fromDynamic <$> dynCompileExpr progStr)
+                case dynRes of
+                    Left e -> return (Left $ show e)
+                    Right dyn -> case dyn of
+                        Nothing -> error "unsupported expression"
+                        Just act -> do
+                            !res <- liftIO (timeout (5 * 10 ^ (6 :: Int)) act)
+                            case res of
+                                Nothing -> return (Left "timeout")
+                                Just res' -> return (Right res')
 
-            liftIO $ putStrLn $ "Sending from server: " ++ (show msg)
+            let msg = case msgOrErr of
+                                Left (e :: SomeException) -> Left (show e)
+                                Right x -> x
+
+            liftIO $ putStrLn $ "Sending from server: " ++ show msg
             liftIO $ sendAll s (LS.toStrict $ S.toLazyByteString $ S.string8 $ show msg)
-            talk s
+
+        -- killThread =<< myThreadId
 
     prepareModules mdls = do
         let imports = map buildImportDecl mdls

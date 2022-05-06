@@ -26,10 +26,12 @@ import qualified Data.Text                     as Text
 import           DmdAnal                        ( dmdAnalProgram )
 import           DynFlags                       ( unsafeGlobalDynFlags
                                                 , updOptLevel
+                                                , xopt_set
                                                 )
 import           FamInstEnv                     ( emptyFamInstEnvs )
 import           GHC                     hiding ( Id )
 import           GHC.Paths                      ( libdir )
+import           GHC.LanguageExtensions.Type
 import           HscTypes                       ( ModGuts(mg_binds) )
 import           Language.Haskell.Interpreter   ( Interpreter
                                                 , MonadIO(..)
@@ -96,7 +98,7 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules =
     -- Establishing GHC session
     env    <- getSession
     dflags <- getSessionDynFlags
-    let dflags' = updOptLevel 2 dflags
+    let dflags' = updOptLevel 2 dflags `xopt_set` TupleSections
     setSessionDynFlags dflags'
 
     -- Compile to core

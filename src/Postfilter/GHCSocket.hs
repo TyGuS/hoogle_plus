@@ -22,8 +22,8 @@ askGhcSocket query = withSocketsDo $ do
     msg <- recv s 999999999
     -- print $ "client received: " ++ C.unpack msg
     case readMaybe (C.unpack msg) of
-      Nothing -> error "invalid response"
-      Just x -> return x
+        Nothing -> error "invalid interpreter result"
+        Just x -> return x
   where
     resolve = do
       let hints = defaultHints { addrSocketType = Stream }
