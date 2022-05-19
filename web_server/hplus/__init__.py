@@ -6,8 +6,58 @@ import logging
 from flask_cors import CORS, cross_origin
 from expiringdict import ExpiringDict
 from hplus.util import *
+import pexpect
+import re
+import threading
 
 cache = ExpiringDict(max_len=100, max_age_seconds=(2 * TIMEOUT))
+# initialize the interpreter
+# interpreter = subprocess.Popen(["stack", "ghci", "InternalTypeGen.hs"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+# interpreter.stdin.write(b"import Test.SmallCheck\n")
+# interpreter.stdin.write(b"import Test.SmallCheck.Drivers\n")
+# interpreter.stdin.write(b":set -XScopedTypeVariables\n")
+# interpreter.stdin.write(b":set -XFlexibleContexts\n")
+# interpreter.stdin.flush()
+# interpreter.stdout.read()
+interpreter = pexpect.spawn('stack ghci ../InternalTypeGen.hs')
+interpreter.setecho(False)
+# skip GHCi preamble
+for _ in range(8):
+    interpreter.readline()
+
+supportedModules = [
+    'Test.SmallCheck',
+    'Test.SmallCheck.Drivers',
+    'Test.LeanCheck.Function.ShowFunction',
+    'System.IO.Silently',
+    'System.Timeout',
+    'GHC.List',
+    'Data.List',
+    'Data.Maybe',
+    'Data.Either',
+    'Data.Tuple',
+    'Data.Bool',
+    'Data.Int',
+    'Data.Char',
+    'Text.Show',
+    'Data.Function',
+    'Data.String',
+    'Data.ByteString.Lazy',
+    'Data.ByteString.Builder',
+    ]
+
+for pkg in supportedModules:
+    interpreter.sendline("import " + pkg + "\n")
+
+# add extensions
+interpreter.sendline(":set -XScopedTypeVariables\n")
+interpreter.sendline(":set -XFlexibleContexts\n")
+interpreter.sendline(":set -XTupleSections\n")
+
+# force the interpreter to flush its output
+interpreter.sendline("1\n")
+line = interpreter.readline()
+print("last interpreter output:", line)
 
 def create_app(test_config=None):
     # create and configure the app
@@ -105,4 +155,35 @@ def create_app(test_config=None):
         return json.jsonify(build_object(QueryType.search_results,
                                          communicate_result(proc)))
 
+    @app.route('/interpreter', methods=['GET', 'POST'])
+    def interpreter_route():
+        obj = request.data
+        print("interpreter get:", obj)
+        # print(type(obj))
+        interpreter.sendline(obj.decode('utf-8'))
+        
+        def countdown():
+            time.sleep(3)
+
+        try:
+            # create a thread to count down the timeout
+            t1 = threading.Thread(target=countdown)
+            t1.start()
+            line = interpreter.readline()
+        except:
+            line = "timeout"
+        finally:
+            t1.join()
+            interpreter.sendintr()
+            interpreter.sendcontrol('c')
+
+        # skip several lines for an exception
+        interpreter.expect(">")
+        # find the first appearance of '> "'
+        match = re.search(r"> \"", line.decode('utf-8'))
+        if match is None:
+            return line.decode('utf-8')
+        else:
+            return line.decode('utf-8')[match.end()-1:]
+    
     return app

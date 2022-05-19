@@ -22,12 +22,17 @@ import           GHC.Paths                      ( libdir )
 import           Text.Printf                    ( printf )
 import Control.Monad.IO.Class ( liftIO )
 import qualified Data.Text as Text
-import Unsafe.Coerce (unsafeCoerce)
+-- import Unsafe.Coerce (unsafeCoerce)
 import Data.Dynamic
 import System.Timeout
 import System.Exit
 import HscMain
 import HscTypes
+import GHC.Exts
+import GHCi.RemoteTypes
+import System.Mem
+
+
 
 import Control.Concurrent.Async
 
@@ -98,14 +103,14 @@ main = do
             putStrLn "server is established"
             return sock
 
-    timeout (120 * 10 ^ 6) $ do
-        forever $ bracketOnError (accept sock) (close . fst) $ \(conn, _) -> do
-            -- forkFinally (talk hscEnv conn) (\_ -> gracefulClose conn 5000 >> print "connection closed")
-            withAsync (talk hscEnv conn) (\a -> wait a >> gracefulClose conn 5000 >> print "connection closed")
-            -- forkFinally (withAsync (talk hscEnv conn) wait) (\_ -> gracefulClose conn 5000 >> print "connection closed")
-            -- forever $ do
-            --     (conn, _) <- liftIO $ accept sock
-            --     talk conn
+    -- timeout (120 * 10 ^ 6) $ do
+    forever $ bracketOnError (accept sock) (close . fst) $ \(conn, _) -> do
+        forkFinally (talk hscEnv conn) (\_ -> gracefulClose conn 5000 >> print "connection closed")
+        -- withAsync (talk hscEnv conn) (\a -> wait a >> performGC >> gracefulClose conn 5000 >> print "connection closed")
+        -- forkFinally (withAsync (talk hscEnv conn) wait) (\_ -> gracefulClose conn 5000 >> print "connection closed")
+        -- forever $ do
+        --     (conn, _) <- liftIO $ accept sock
+        --     talk conn
     return ()
   where
     resolve = do
@@ -129,23 +134,21 @@ main = do
         liftIO $ putStrLn $ "Received: " ++ progStr
         unless (S.null prog) $ do
             -- msg <- do
-            liftIO $ print "start"
-            msgOrErr <- try $ session hscEnv $ do
-                -- let timeoutStr = "timeout (2 * 10^(6 :: Int)) (" ++ progStr ++ ")"
-                (dynRes :: Either SomeException (Maybe (IO String))) <- gtry (fromDynamic <$> dynCompileExpr progStr)
-                case dynRes of
-                    Left e -> return (Left $ show e)
-                    Right dyn -> case dyn of
-                        Nothing -> error "unsupported expression"
-                        Just act -> do
-                            !res <- liftIO (timeout (5 * 10 ^ (6 :: Int)) act)
-                            case res of
-                                Nothing -> return (Left "timeout")
-                                Just res' -> return (Right res')
+            valOrErr <- try $ session hscEnv $ compileExpr progStr 
 
-            let msg = case msgOrErr of
-                                Left (e :: SomeException) -> Left (show e)
-                                Right x -> x
+            -- let msg = case msgOrErr of
+            --                     Left (e :: SomeException) -> Left (show e)
+            --                     Right x -> x
+            msg <- case valOrErr of
+                        Left (e :: SomeException) -> return $ Left (show e)
+                        Right val -> do
+                            let x' = unsafeCoerce# val :: IO String
+                            res <- timeout (5 * 10 ^ 6) x'
+                            let res' = case res of
+                                        Nothing -> Left "timeout"
+                                        Just x'' -> Right x''
+                            mkRemoteRef val >>= freeRemoteRef 
+                            return res'
 
             liftIO $ putStrLn $ "Sending from server: " ++ show msg
             liftIO $ sendAll s (LS.toStrict $ S.toLazyByteString $ S.string8 $ show msg)

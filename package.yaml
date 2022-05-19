@@ -84,6 +84,7 @@ default-extensions:
 - PatternSynonyms
 - GADTs
 - StandaloneDeriving
+- MagicHash
 
 library:
   source-dirs:
