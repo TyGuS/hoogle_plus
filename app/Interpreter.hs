@@ -10,6 +10,9 @@ import qualified Data.ByteString.Char8 as C
 import Network.Socket
 import Network.Socket.ByteString (recv, sendAll)
 import Exception ( gtry )
+import Data.Functor ( (<&>) )
+import Debugger ( showTerm )
+import Data.List.Extra ( dropEnd )
 import qualified EnumSet                       as ES
 import           GHC                     hiding ( Id )
 import           GHC.LanguageExtensions.Type    ( Extension
@@ -31,7 +34,8 @@ import HscTypes
 import GHC.Exts
 import GHCi.RemoteTypes
 import System.Mem
-
+import Data.Typeable ( cast )
+import Outputable
 
 
 import Control.Concurrent.Async
@@ -119,6 +123,11 @@ main = do
                     , addrSocketType = Stream
                     }
         head <$> getAddrInfo (Just hints) Nothing (Just portNumber)
+    
+    prepareModules mdls = do
+        let imports = map buildImportDecl mdls
+        decls <- mapM parseImportDecl imports
+        return (map IIDecl decls)
 
     session :: HscEnv -> Ghc a -> IO a
     session hscEnv m = runGhc (Just libdir) $ do
@@ -134,31 +143,44 @@ main = do
         liftIO $ putStrLn $ "Received: " ++ progStr
         unless (S.null prog) $ do
             -- msg <- do
-            valOrErr <- try $ session hscEnv $ compileExpr progStr 
+            -- !valOrErr <- try $ session hscEnv $ dynCompileExpr progStr
+            msgOrErr <- timeout (3 * 10^6) $ session hscEnv $ do
+                result <- execStmt progStr execOptions
+                case result of
+                    ExecComplete r _ -> case r of
+                        Left  e  -> return (Left (show e))
+                        Right ns -> getExecValue ns
+                    ExecBreak{} -> return (Left "error, break")
 
-            -- let msg = case msgOrErr of
-            --                     Left (e :: SomeException) -> Left (show e)
-            --                     Right x -> x
-            msg <- case valOrErr of
-                        Left (e :: SomeException) -> return $ Left (show e)
-                        Right val -> do
-                            let x' = unsafeCoerce# val :: IO String
-                            res <- timeout (5 * 10 ^ 6) x'
-                            let res' = case res of
-                                        Nothing -> Left "timeout"
-                                        Just x'' -> Right x''
-                            mkRemoteRef val >>= freeRemoteRef 
-                            return res'
+            let msg = case msgOrErr of
+                        Nothing -> Left "timeout"
+                        Just x -> x
+            -- msg <- case valOrErr of
+            --             Left (e :: SomeException) -> return $ Left (show e)
+            --             Right !val -> do
+            --                 case fromDynamic val :: Maybe (IO String) of
+            --                     Just x' -> do
+            --                         res <- timeout (5 * 10 ^ 6) x'
+            --                         let res' = case res of
+            --                                     Nothing -> Left "timeout"
+            --                                     Just x'' -> Right x''
+            --                         return res'
+            --                     Nothing -> return $ Left "cannot cast the type"
 
             liftIO $ putStrLn $ "Sending from server: " ++ show msg
             liftIO $ sendAll s (LS.toStrict $ S.toLazyByteString $ S.string8 $ show msg)
 
-        -- killThread =<< myThreadId
-
-    prepareModules mdls = do
-        let imports = map buildImportDecl mdls
-        decls <- mapM parseImportDecl imports
-        return (map IIDecl decls)
+    getExecValue (n : ns) = do
+        mty <- lookupName n
+        case mty of
+            Just (AnId aid) -> do
+                t <- gtry $ obtainTermFromId maxBound True aid
+                case t of
+                    Right term ->
+                        showTerm term <&> (Right . dropEnd 1 . drop 1 . showSDocUnsafe)
+                    Left (exn :: SomeException) -> return (Left $ show exn)
+            _ -> return (Left "Unknown error")
+    getExecValue [] = return (Left "Empty result list")
 
     buildImportDecl :: (String, Maybe String) -> String
     buildImportDecl (mdl, mbAlias) =

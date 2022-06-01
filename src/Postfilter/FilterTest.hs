@@ -221,7 +221,7 @@ evaluateProperty modules property = do
   case res of
     Left err -> return $ Left err
     Right res' -> case readMaybe res' of
-      Nothing -> error $ "[evaluateProperty] Could not parse result " ++ res'
+      Nothing -> error $ "[evaluateProperty] Could not parse result " ++ show res'
       Just r -> return $ Right r
 
 validateSolution
@@ -241,7 +241,7 @@ validateSolution modules argNames solution funcSig time =
     -> Either String SmallCheckResult
     -> Either String FunctionCrashDesc
   evaluateSmallCheckResult resultF resultS = case resultF of
-    Left "timeout" -> Right $ AlwaysFail $ caseToInput resultS
+    Left err | "timeout" `isInfixOf` err -> Right $ AlwaysFail $ caseToInput resultS
     Right (Nothing, _      )       -> Right $ AlwaysFail $ caseToInput resultS
     Right (_      , exF : _)       -> case resultS of
       Left "timeout" -> Right $ AlwaysSucceed exF
@@ -253,7 +253,7 @@ validateSolution modules argNames solution funcSig time =
     _ -> Right $ AlwaysFail $ caseToInput resultS
 
   evaluateResult' result = case result of
-    Left "timeout" -> Right $ AlwaysFail $ Example [] "timeout"
+    Left err | "timeout" `isInfixOf` err -> Right $ AlwaysFail $ Example [] "timeout"
     Left error -> Right $ AlwaysFail $ Example [] (show error)
     Right (Nothing, _       )      -> Right $ AlwaysFail $ caseToInput result
     Right (_      , examples)      -> Right $ PartialFunction $ Examples (take 2 examples) -- only need the first two examples, one succeed, one fail
@@ -386,7 +386,7 @@ checkDuplicates modules argNames sigStr solution = do
   caseToInput _ = error "caseToInput: expect AtLeastTwo"
 
   filterRelated i1 i2 (Example inputX _) = inputX == i1 || inputX == i2
-  filterSuccess (Left "timeout") = False
+  filterSuccess (Left err) | "timeout" `isInfixOf` err = False
   filterSuccess (Left _) = True
   filterSuccess (Right (r@(Just AtLeastTwo{}), newExamples)) = True
   filterSuccess _ = False
@@ -395,7 +395,7 @@ checkDuplicates modules argNames sigStr solution = do
     state@(FilterState is solns _ examples _) <- get
     case result of
       -- bypass the check on any timeout or error
-      Left "timeout" -> do
+      Left err | "timeout" `isInfixOf` err -> do
         writeLog 2 "processResult" $ "dup check timeout for" <+> pretty (solution, otherSolution)
         return False -- no example -> reject
       Left  err                      -> return True

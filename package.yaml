@@ -45,6 +45,7 @@ dependencies:
 - network
 - parsec
 - pretty-simple
+- process
 - QuickCheck
 - random
 - regex-compat

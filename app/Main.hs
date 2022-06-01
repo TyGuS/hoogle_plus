@@ -20,8 +20,11 @@ import           System.Directory               ( doesFileExist
                                                 )
 import           System.IO                      ( BufferMode(LineBuffering)
                                                 , hSetBuffering
+                                                , hGetContents
+                                                , hPutStr
                                                 , stdout
                                                 )
+import System.Process ( runInteractiveCommand )
 
 import           Database.Dataset
 import           Database.Environment

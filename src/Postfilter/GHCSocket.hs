@@ -22,7 +22,9 @@ askGhcSocket query = withSocketsDo $ do
     msg <- recv s 999999999
     -- print $ "client received: " ++ C.unpack msg
     case readMaybe (C.unpack msg) of
-        Nothing -> error "invalid interpreter result"
+        Nothing -> do
+          print $ "client cannot resolve: " ++ (C.unpack msg)
+          error "invalid interpreter result"
         Just x -> return x
   where
     resolve = do
