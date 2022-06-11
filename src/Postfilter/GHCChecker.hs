@@ -204,7 +204,7 @@ runGhcChecks params modules env goalType examples prog =
             $   fmap ((: []) . ((unqualifyFunc body, body), ))
             <$> checkOutputs prog examples
         -- liftIO $ print exampleCheckResult
-        filterCheckResult <- if disableFilter || isNothing exampleCheckResult
+        filterCheckResult <- if disableFilter || isNothing exampleCheckResult || not (null examples)
           then do
             writeLog 2 "runGhcChecks" $ "Filter is disabled or example check failed"
             return exampleCheckResult

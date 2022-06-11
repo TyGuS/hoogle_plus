@@ -157,7 +157,7 @@ programSize (Program p _) = case p of
 
 unqualifiedName :: Id -> Id
 unqualifiedName "" = ""
-unqualifiedName f  = if Text.last name == ')'
+unqualifiedName f  = if Text.last name == ')' && Text.head name /= '('
   then '(' `Text.cons` name
   else name
   where name = last (Text.splitOn "." f)

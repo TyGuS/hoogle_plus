@@ -177,7 +177,7 @@ speciallyTreatedFunctions =
 applyOperator :: Node
 applyOperator = Node
   [ constFunc
-    "$"
+    "($)"
     (generalize $ arrowType (arrowType var1 var2) (arrowType var1 var2))
   , constFunc "id" (generalize $ arrowType var1 var1)
   ]

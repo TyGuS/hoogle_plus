@@ -1726,29 +1726,29 @@ hplusComponents =
         )
       )
     )
-  , ( "Data.Function.flip"
-    , ForallT
-      "a"
-      (ForallT
-        "b"
-        (ForallT
-          "c"
-          (Monotype
-            (FunctionT
-              "arg314"
-              (FunctionT "arg317"
-                         (TypeVarT "a")
-                         (FunctionT "arg318" (TypeVarT "b") (TypeVarT "c"))
-              )
-              (FunctionT "arg315"
-                         (TypeVarT "b")
-                         (FunctionT "arg316" (TypeVarT "a") (TypeVarT "c"))
-              )
-            )
-          )
-        )
-      )
-    )
+  -- , ( "Data.Function.flip"
+  --   , ForallT
+  --     "a"
+  --     (ForallT
+  --       "b"
+  --       (ForallT
+  --         "c"
+  --         (Monotype
+  --           (FunctionT
+  --             "arg314"
+  --             (FunctionT "arg317"
+  --                        (TypeVarT "a")
+  --                        (FunctionT "arg318" (TypeVarT "b") (TypeVarT "c"))
+  --             )
+  --             (FunctionT "arg315"
+  --                        (TypeVarT "b")
+  --                        (FunctionT "arg316" (TypeVarT "a") (TypeVarT "c"))
+  --             )
+  --           )
+  --         )
+  --       )
+  --     )
+  --   )
   , ( "Data.Function.id"
     , ForallT "a" (Monotype (FunctionT "arg308" (TypeVarT "a") (TypeVarT "a")))
     )

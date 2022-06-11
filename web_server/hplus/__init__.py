@@ -47,7 +47,7 @@ def create_app(test_config=None):
         qid = uuid.uuid1()
         proc = run_hplus([f'--json={json.dumps(query)}',
                           f'--search-category={QueryType.search_programs.value}',
-                          '--cnt=20'])
+                          '--cnt=100'])
         cache[str(qid)] = proc.pid
         # print(f"id: {str(qid)} => proc: {proc.pid}")
         # print(cache)

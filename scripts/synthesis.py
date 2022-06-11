@@ -11,7 +11,7 @@ from benchmark import *
 
 HPLUS_CMD = ['stack', 'exec', '--', 'hplus']  # Command to call hoogle+
 TIMEOUT_CMD = 'timeout'  # Timeout command
-TIMEOUT = '600'  # Timeout value (seconds)
+TIMEOUT = '300'  # Timeout value (seconds)
 CMD_OPTS = ['--stop-refine', '--stop-threshold=10', '--disable-filter', '--cnt=10000', '--log=0']
 LOGFILE = 'results.log'                                         # Log file
 # Result serialization file
@@ -113,8 +113,6 @@ def run_synthesis(groups, output_dir, tsv_prefix, timeout=TIMEOUT, options=[], i
                     print('Running', str(b))
                     run_benchmark(output_dir, results, b.name, b.query, b.examples, b.desired_solution,
                                     group.default_options + options, timeout, is_filtering)
-
-                    time.sleep(30)
 
         # Generate CSV if not testing the filtering algorithm
         if not is_filtering:
