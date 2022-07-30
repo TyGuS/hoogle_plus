@@ -28,6 +28,7 @@ dependencies:
 - deepseq
 - directory
 - extra
+- exceptions
 - ghc
 - ghc-boot-th
 - ghc-paths
@@ -66,7 +67,6 @@ dependencies:
 default-extensions:
 - BangPatterns
 - ConstraintKinds
-- DeriveAnyClass
 - DeriveDataTypeable
 - DeriveFunctor
 - DeriveGeneric
@@ -86,6 +86,7 @@ default-extensions:
 - GADTs
 - StandaloneDeriving
 - MagicHash
+- GeneralizedNewtypeDeriving
 
 library:
   source-dirs:

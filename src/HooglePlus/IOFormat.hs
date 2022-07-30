@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module HooglePlus.IOFormat
   ( -- * types
     TypeQuery
