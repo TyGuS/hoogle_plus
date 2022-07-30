@@ -33,3 +33,27 @@ spec = describe "Interpreter" $ do
             setImports ["Prelude"]
             interpret "1" (as :: Int)
         result `shouldBe` Right 1
+
+    it "simple addition" $ do
+        result <- runInterpreter libdir $ do
+            setImports ["Prelude"]
+            interpret "1+1" (as :: Int)
+        result `shouldBe` Right 2
+
+    it "simple multiplication" $ do
+        result <- runInterpreter libdir $ do
+            setImports ["Prelude"]
+            interpret "2 * 2" (as :: Int)
+        result `shouldBe` Right 4
+
+    it "list operation" $ do
+        result <- runInterpreter libdir $ do
+            setImports ["Prelude"]
+            interpret "head [1,2,3,4]" (as :: Int)
+        result `shouldBe` Right 1
+
+    it "local function definition" $ do
+        result <- runInterpreter libdir $ do
+            setImports ["Prelude"]
+            interpret "let isEven x = x `mod` 2 == 0 in filter isEven [1,2,3,4]" (as :: [Int])
+        result `shouldBe` Right [2,4]
