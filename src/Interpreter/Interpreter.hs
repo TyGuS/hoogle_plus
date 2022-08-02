@@ -2,6 +2,7 @@ module Interpreter.Interpreter (
     Interpreter
   , InterpreterT(..)
   , runInterpreter
+  , execute
   , interpret
   , as
 
@@ -108,13 +109,16 @@ instance (Functor m, MonadIO m, MonadMask m, GHC.ExceptionMonad m) => GHC.GhcMon
     getSession = GhcT GHC.getSession
     setSession = GhcT . GHC.setSession
 
-execute :: MonadInterpreter m => FilePath -> InterpreterSession -> InterpreterT m a -> m (Either InterpreterError a)
-execute libdir s = try . runGhcT (Just libdir) . flip runReaderT s . unInterpreterT
+-- | remember to setSessionDynFlags before calling this `execute` method
+execute :: MonadInterpreter m => FilePath -> GHC.Session -> InterpreterSession -> InterpreterT m a -> m (Either InterpreterError a)
+execute libdir gsession isession = try . runGhcT (Just libdir) gsession . flip runReaderT isession . unInterpreterT
 
 runInterpreter :: MonadInterpreter m => FilePath -> InterpreterT m a -> m (Either InterpreterError a)
 runInterpreter libdir action = do
-    s <- newInterpreterSession `catch` rethrowGhcException
-    execute libdir s (InterpreterT (lift initialize) >> action)
+    isession <- newInterpreterSession `catch` rethrowGhcException
+    ref <- liftIO $ newIORef (error "empty session")
+    let gsession = GHC.Session ref
+    execute libdir gsession isession (InterpreterT (lift initialize) >> action)
   where
     rethrowGhcException = throwM . GhcException . showGhcEx
 
@@ -125,10 +129,8 @@ runInterpreter libdir action = do
 showGhcEx :: GHC.GhcException -> String
 showGhcEx = flip GHC.showGhcException ""
 
-runGhcT :: MonadInterpreter m => Maybe String -> GhcT m a -> m a
-runGhcT libdir ghct = do
-    ref <- liftIO $ newIORef (error "empty session")
-    let session = GHC.Session ref
+runGhcT :: MonadInterpreter m => Maybe String -> GHC.Session -> GhcT m a -> m a
+runGhcT libdir session ghct = do
     flip GHC.unGhcT session $ do
         GHC.initGhcMonad libdir
         GHC.withCleanupSession $ unGhcT ghct

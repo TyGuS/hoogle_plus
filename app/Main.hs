@@ -24,7 +24,7 @@ import           System.IO                      ( BufferMode(LineBuffering)
                                                 , hPutStr
                                                 , stdout
                                                 )
-import System.Process ( runInteractiveCommand )
+import GHC.Paths (libdir)
 
 import           Database.Dataset
 import           Database.Environment
@@ -44,6 +44,7 @@ import           Types.Filtering
 import           Types.Generate          hiding ( files )
 import           Types.Program
 import           Types.Solver
+import Interpreter.Interpreter
 
 
 programName :: String
@@ -233,12 +234,18 @@ executeSearch engine params inStr outputFormat outputFile = catch
     when (outputFormat == OutputFile && exists) $ removeFile outputFile
 
     print $ "Synthesizing " ++ show tquery
-    -- invoke synthesis
-    case engine of
-      HooglePlus ->
-        envToGoal loadEnv tquery examples >>= \goal -> runHooglePlus goal
-      Hectare ->
-        envToGoal loadEnvFo tquery examples >>= \goal -> runHectare goal
+    -- initiate an interpreter
+    _ <- runInterpreter libdir $ do
+      -- load the environment
+      setImports []
+
+      -- invoke synthesis
+      liftIO $ case engine of
+        HooglePlus ->
+          envToGoal loadEnv tquery examples >>= \goal -> runHooglePlus goal
+        Hectare ->
+          envToGoal loadEnvFo tquery examples >>= \goal -> runHectare goal
+    return ()
   )
   (\(e :: SomeException) -> do
     printResult $ encodeWithPrefix $ QueryOutput [] (show e) []
