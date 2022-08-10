@@ -25,6 +25,9 @@ import           System.IO                      ( BufferMode(LineBuffering)
                                                 , stdout
                                                 )
 import GHC.Paths (libdir)
+import qualified GHC
+import qualified GhcMonad as GHC
+import Data.IORef
 
 import           Database.Dataset
 import           Database.Environment
@@ -45,7 +48,7 @@ import           Types.Generate          hiding ( files )
 import           Types.Program
 import           Types.Solver
 import Interpreter.Interpreter
-
+import Interpreter.Session
 
 programName :: String
 programName = "hoogleplus"
@@ -235,16 +238,29 @@ executeSearch engine params inStr outputFormat outputFile = catch
 
     print $ "Synthesizing " ++ show tquery
     -- initiate an interpreter
-    _ <- runInterpreter libdir $ do
+    isession <- liftIO newInterpreterSession
+    ref <- liftIO $ newIORef (error "empty session")
+    let gsession = GHC.Session ref
+    res <- execute libdir gsession isession $ do
+      InterpreterT . lift $ do
+        GHC.initGhcMonad (Just libdir)
+        df0 <- GHC.getSessionDynFlags
+        GHC.setSessionDynFlags df0
+  
       -- load the environment
-      setImports []
+      setImports ["Prelude", "Data.Maybe"]
+      interpret "fromMaybe 1 Nothing" (as :: Int)
+    print $ "first result: " ++ show res
+
+    res <- execute libdir gsession isession $ do
+      interpret "fromMaybe 2 Nothing" (as :: Int)
 
       -- invoke synthesis
-      liftIO $ case engine of
-        HooglePlus ->
-          envToGoal loadEnv tquery examples >>= \goal -> runHooglePlus goal
-        Hectare ->
-          envToGoal loadEnvFo tquery examples >>= \goal -> runHectare goal
+    case engine of
+      HooglePlus ->
+        envToGoal loadEnv tquery examples >>= \goal -> runHooglePlus goal
+      Hectare ->
+        envToGoal loadEnvFo tquery examples >>= \goal -> runHectare goal
     return ()
   )
   (\(e :: SomeException) -> do

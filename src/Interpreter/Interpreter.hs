@@ -123,6 +123,7 @@ runInterpreter libdir action = do
     rethrowGhcException = throwM . GhcException . showGhcEx
 
     initialize = do
+        GHC.initGhcMonad (Just libdir)
         df0 <- GHC.getSessionDynFlags
         GHC.setSessionDynFlags df0
 
@@ -131,9 +132,7 @@ showGhcEx = flip GHC.showGhcException ""
 
 runGhcT :: MonadInterpreter m => Maybe String -> GHC.Session -> GhcT m a -> m a
 runGhcT libdir session ghct = do
-    flip GHC.unGhcT session $ do
-        GHC.initGhcMonad libdir
-        GHC.withCleanupSession $ unGhcT ghct
+    flip GHC.unGhcT session $ GHC.withCleanupSession $ unGhcT ghct
 
 interpret :: (MonadInterpreter m, Typeable a) => String -> a -> InterpreterT m a
 interpret expr typ = do
