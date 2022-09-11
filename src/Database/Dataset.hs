@@ -119,11 +119,11 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "tcarg518"
+          "tcarg513"
           (DatatypeT "@@hplusTC@@Ord" [TypeVarT "a"])
-          (FunctionT "arg516"
+          (FunctionT "arg511"
                      (TypeVarT "a")
-                     (FunctionT "arg517" (TypeVarT "a") (DatatypeT "Bool" []))
+                     (FunctionT "arg512" (TypeVarT "a") (DatatypeT "Bool" []))
           )
         )
       )
@@ -133,11 +133,11 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "tcarg521"
+          "tcarg516"
           (DatatypeT "@@hplusTC@@Ord" [TypeVarT "a"])
-          (FunctionT "arg519"
+          (FunctionT "arg514"
                      (TypeVarT "a")
-                     (FunctionT "arg520" (TypeVarT "a") (DatatypeT "Bool" []))
+                     (FunctionT "arg515" (TypeVarT "a") (DatatypeT "Bool" []))
           )
         )
       )
@@ -147,11 +147,11 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "tcarg524"
+          "tcarg519"
           (DatatypeT "@@hplusTC@@Ord" [TypeVarT "a"])
-          (FunctionT "arg522"
+          (FunctionT "arg517"
                      (TypeVarT "a")
-                     (FunctionT "arg523" (TypeVarT "a") (DatatypeT "Bool" []))
+                     (FunctionT "arg518" (TypeVarT "a") (DatatypeT "Bool" []))
           )
         )
       )
@@ -161,11 +161,11 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "tcarg527"
+          "tcarg522"
           (DatatypeT "@@hplusTC@@Ord" [TypeVarT "a"])
-          (FunctionT "arg525"
+          (FunctionT "arg520"
                      (TypeVarT "a")
-                     (FunctionT "arg526" (TypeVarT "a") (DatatypeT "Bool" []))
+                     (FunctionT "arg521" (TypeVarT "a") (DatatypeT "Bool" []))
           )
         )
       )
@@ -2063,9 +2063,9 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "arg479"
-          (FunctionT "arg481" (TypeVarT "a") (DatatypeT "Bool" []))
-          (FunctionT "arg480"
+          "arg474"
+          (FunctionT "arg476" (TypeVarT "a") (DatatypeT "Bool" []))
+          (FunctionT "arg475"
                      (DatatypeT "List" [TypeVarT "a"])
                      (DatatypeT "Bool" [])
           )
@@ -2074,7 +2074,7 @@ hplusComponents =
     )
   , ( "GHC.List.and"
     , Monotype
-      (FunctionT "arg474"
+      (FunctionT "arg469"
                  (DatatypeT "List" [DatatypeT "Bool" []])
                  (DatatypeT "Bool" [])
       )
@@ -2084,9 +2084,9 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "arg476"
-          (FunctionT "arg478" (TypeVarT "a") (DatatypeT "Bool" []))
-          (FunctionT "arg477"
+          "arg471"
+          (FunctionT "arg473" (TypeVarT "a") (DatatypeT "Bool" []))
+          (FunctionT "arg472"
                      (DatatypeT "List" [TypeVarT "a"])
                      (DatatypeT "Bool" [])
           )
@@ -2098,10 +2098,10 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "arg470"
-          (FunctionT "arg472" (TypeVarT "a") (DatatypeT "Bool" []))
+          "arg465"
+          (FunctionT "arg467" (TypeVarT "a") (DatatypeT "Bool" []))
           (FunctionT
-            "arg471"
+            "arg466"
             (DatatypeT "List" [TypeVarT "a"])
             (DatatypeT
               "Pair"
@@ -2128,10 +2128,10 @@ hplusComponents =
         "b"
         (Monotype
           (FunctionT
-            "arg491"
-            (FunctionT "arg493" (TypeVarT "a") (DatatypeT "List" [TypeVarT "b"])
+            "arg486"
+            (FunctionT "arg488" (TypeVarT "a") (DatatypeT "List" [TypeVarT "b"])
             )
-            (FunctionT "arg492"
+            (FunctionT "arg487"
                        (DatatypeT "List" [TypeVarT "a"])
                        (DatatypeT "List" [TypeVarT "b"])
             )
@@ -2143,7 +2143,7 @@ hplusComponents =
     , ForallT
       "a"
       (Monotype
-        (FunctionT "arg446"
+        (FunctionT "arg441"
                    (DatatypeT "List" [TypeVarT "a"])
                    (DatatypeT "List" [TypeVarT "a"])
         )
@@ -2154,9 +2154,9 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "arg449"
+          "arg444"
           (DatatypeT "Int" [])
-          (FunctionT "arg450"
+          (FunctionT "arg445"
                      (DatatypeT "List" [TypeVarT "a"])
                      (DatatypeT "List" [TypeVarT "a"])
           )
@@ -2168,9 +2168,9 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "arg464"
-          (FunctionT "arg466" (TypeVarT "a") (DatatypeT "Bool" []))
-          (FunctionT "arg465"
+          "arg459"
+          (FunctionT "arg461" (TypeVarT "a") (DatatypeT "Bool" []))
+          (FunctionT "arg460"
                      (DatatypeT "List" [TypeVarT "a"])
                      (DatatypeT "List" [TypeVarT "a"])
           )
@@ -2182,12 +2182,12 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "tcarg484"
+          "tcarg479"
           (DatatypeT "@@hplusTC@@Eq" [TypeVarT "a"])
           (FunctionT
-            "arg482"
+            "arg477"
             (TypeVarT "a")
-            (FunctionT "arg483"
+            (FunctionT "arg478"
                        (DatatypeT "List" [TypeVarT "a"])
                        (DatatypeT "Bool" [])
             )
@@ -2209,7 +2209,7 @@ hplusComponents =
         )
       )
     )
-  , ( "GHC.List.foldl"
+  , ( "GHC.List.foldl'"
     , ForallT
       "a"
       (ForallT
@@ -2233,41 +2233,17 @@ hplusComponents =
         )
       )
     )
-  , ( "GHC.List.foldl'"
-    , ForallT
-      "a"
-      (ForallT
-        "b"
-        (Monotype
-          (FunctionT
-            "arg392"
-            (FunctionT "arg395"
-                       (TypeVarT "b")
-                       (FunctionT "arg396" (TypeVarT "a") (TypeVarT "b"))
-            )
-            (FunctionT
-              "arg393"
-              (TypeVarT "b")
-              (FunctionT "arg394"
-                         (DatatypeT "List" [TypeVarT "a"])
-                         (TypeVarT "b")
-              )
-            )
-          )
-        )
-      )
-    )
   , ( "GHC.List.foldl1"
     , ForallT
       "a"
       (Monotype
         (FunctionT
-          "arg397"
-          (FunctionT "arg399"
+          "arg392"
+          (FunctionT "arg394"
                      (TypeVarT "a")
-                     (FunctionT "arg400" (TypeVarT "a") (TypeVarT "a"))
+                     (FunctionT "arg395" (TypeVarT "a") (TypeVarT "a"))
           )
-          (FunctionT "arg398" (DatatypeT "List" [TypeVarT "a"]) (TypeVarT "a"))
+          (FunctionT "arg393" (DatatypeT "List" [TypeVarT "a"]) (TypeVarT "a"))
         )
       )
     )
@@ -2276,12 +2252,12 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "arg401"
-          (FunctionT "arg403"
+          "arg396"
+          (FunctionT "arg398"
                      (TypeVarT "a")
-                     (FunctionT "arg404" (TypeVarT "a") (TypeVarT "a"))
+                     (FunctionT "arg399" (TypeVarT "a") (TypeVarT "a"))
           )
-          (FunctionT "arg402" (DatatypeT "List" [TypeVarT "a"]) (TypeVarT "a"))
+          (FunctionT "arg397" (DatatypeT "List" [TypeVarT "a"]) (TypeVarT "a"))
         )
       )
     )
@@ -2292,15 +2268,15 @@ hplusComponents =
         "b"
         (Monotype
           (FunctionT
-            "arg419"
-            (FunctionT "arg422"
+            "arg414"
+            (FunctionT "arg417"
                        (TypeVarT "a")
-                       (FunctionT "arg423" (TypeVarT "b") (TypeVarT "b"))
+                       (FunctionT "arg418" (TypeVarT "b") (TypeVarT "b"))
             )
             (FunctionT
-              "arg420"
+              "arg415"
               (TypeVarT "b")
-              (FunctionT "arg421"
+              (FunctionT "arg416"
                          (DatatypeT "List" [TypeVarT "a"])
                          (TypeVarT "b")
               )
@@ -2314,12 +2290,12 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "arg424"
-          (FunctionT "arg426"
+          "arg419"
+          (FunctionT "arg421"
                      (TypeVarT "a")
-                     (FunctionT "arg427" (TypeVarT "a") (TypeVarT "a"))
+                     (FunctionT "arg422" (TypeVarT "a") (TypeVarT "a"))
           )
-          (FunctionT "arg425" (DatatypeT "List" [TypeVarT "a"]) (TypeVarT "a"))
+          (FunctionT "arg420" (DatatypeT "List" [TypeVarT "a"]) (TypeVarT "a"))
         )
       )
     )
@@ -2345,9 +2321,9 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "arg437"
-          (FunctionT "arg439" (TypeVarT "a") (TypeVarT "a"))
-          (FunctionT "arg438" (TypeVarT "a") (DatatypeT "List" [TypeVarT "a"]))
+          "arg432"
+          (FunctionT "arg434" (TypeVarT "a") (TypeVarT "a"))
+          (FunctionT "arg433" (TypeVarT "a") (DatatypeT "List" [TypeVarT "a"]))
         )
       )
     )
@@ -2356,9 +2332,9 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "arg440"
-          (FunctionT "arg442" (TypeVarT "a") (TypeVarT "a"))
-          (FunctionT "arg441" (TypeVarT "a") (DatatypeT "List" [TypeVarT "a"]))
+          "arg435"
+          (FunctionT "arg437" (TypeVarT "a") (TypeVarT "a"))
+          (FunctionT "arg436" (TypeVarT "a") (DatatypeT "List" [TypeVarT "a"]))
         )
       )
     )
@@ -2386,13 +2362,13 @@ hplusComponents =
         "b"
         (Monotype
           (FunctionT
-            "tcarg490"
+            "tcarg485"
             (DatatypeT "@@hplusTC@@Eq" [TypeVarT "a"])
             (FunctionT
-              "arg488"
+              "arg483"
               (TypeVarT "a")
               (FunctionT
-                "arg489"
+                "arg484"
                 (DatatypeT "List"
                            [DatatypeT "Pair" [TypeVarT "a", TypeVarT "b"]]
                 )
@@ -2425,9 +2401,9 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "tcarg456"
+          "tcarg451"
           (DatatypeT "@@hplusTC@@Ord" [TypeVarT "a"])
-          (FunctionT "arg455" (DatatypeT "List" [TypeVarT "a"]) (TypeVarT "a"))
+          (FunctionT "arg450" (DatatypeT "List" [TypeVarT "a"]) (TypeVarT "a"))
         )
       )
     )
@@ -2436,9 +2412,9 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "tcarg458"
+          "tcarg453"
           (DatatypeT "@@hplusTC@@Ord" [TypeVarT "a"])
-          (FunctionT "arg457" (DatatypeT "List" [TypeVarT "a"]) (TypeVarT "a"))
+          (FunctionT "arg452" (DatatypeT "List" [TypeVarT "a"]) (TypeVarT "a"))
         )
       )
     )
@@ -2447,12 +2423,12 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "tcarg487"
+          "tcarg482"
           (DatatypeT "@@hplusTC@@Eq" [TypeVarT "a"])
           (FunctionT
-            "arg485"
+            "arg480"
             (TypeVarT "a")
-            (FunctionT "arg486"
+            (FunctionT "arg481"
                        (DatatypeT "List" [TypeVarT "a"])
                        (DatatypeT "Bool" [])
             )
@@ -2472,7 +2448,7 @@ hplusComponents =
     )
   , ( "GHC.List.or"
     , Monotype
-      (FunctionT "arg475"
+      (FunctionT "arg470"
                  (DatatypeT "List" [DatatypeT "Bool" []])
                  (DatatypeT "Bool" [])
       )
@@ -2482,9 +2458,9 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "tcarg454"
+          "tcarg449"
           (DatatypeT "@@hplusTC@@Num" [TypeVarT "a"])
-          (FunctionT "arg453" (DatatypeT "List" [TypeVarT "a"]) (TypeVarT "a"))
+          (FunctionT "arg448" (DatatypeT "List" [TypeVarT "a"]) (TypeVarT "a"))
         )
       )
     )
@@ -2492,7 +2468,7 @@ hplusComponents =
     , ForallT
       "a"
       (Monotype
-        (FunctionT "arg443" (TypeVarT "a") (DatatypeT "List" [TypeVarT "a"]))
+        (FunctionT "arg438" (TypeVarT "a") (DatatypeT "List" [TypeVarT "a"]))
       )
     )
   , ( "GHC.List.replicate"
@@ -2500,9 +2476,9 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "arg444"
+          "arg439"
           (DatatypeT "Int" [])
-          (FunctionT "arg445" (TypeVarT "a") (DatatypeT "List" [TypeVarT "a"]))
+          (FunctionT "arg440" (TypeVarT "a") (DatatypeT "List" [TypeVarT "a"]))
         )
       )
     )
@@ -2510,7 +2486,7 @@ hplusComponents =
     , ForallT
       "a"
       (Monotype
-        (FunctionT "arg473"
+        (FunctionT "arg468"
                    (DatatypeT "List" [TypeVarT "a"])
                    (DatatypeT "List" [TypeVarT "a"])
         )
@@ -2523,15 +2499,15 @@ hplusComponents =
         "b"
         (Monotype
           (FunctionT
-            "arg405"
-            (FunctionT "arg408"
+            "arg400"
+            (FunctionT "arg403"
                        (TypeVarT "b")
-                       (FunctionT "arg409" (TypeVarT "a") (TypeVarT "b"))
+                       (FunctionT "arg404" (TypeVarT "a") (TypeVarT "b"))
             )
             (FunctionT
-              "arg406"
+              "arg401"
               (TypeVarT "b")
-              (FunctionT "arg407"
+              (FunctionT "arg402"
                          (DatatypeT "List" [TypeVarT "a"])
                          (DatatypeT "List" [TypeVarT "b"])
               )
@@ -2547,15 +2523,15 @@ hplusComponents =
         "b"
         (Monotype
           (FunctionT
-            "arg414"
-            (FunctionT "arg417"
+            "arg409"
+            (FunctionT "arg412"
                        (TypeVarT "b")
-                       (FunctionT "arg418" (TypeVarT "a") (TypeVarT "b"))
+                       (FunctionT "arg413" (TypeVarT "a") (TypeVarT "b"))
             )
             (FunctionT
-              "arg415"
+              "arg410"
               (TypeVarT "b")
-              (FunctionT "arg416"
+              (FunctionT "arg411"
                          (DatatypeT "List" [TypeVarT "a"])
                          (DatatypeT "List" [TypeVarT "b"])
               )
@@ -2569,12 +2545,12 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "arg410"
-          (FunctionT "arg412"
+          "arg405"
+          (FunctionT "arg407"
                      (TypeVarT "a")
-                     (FunctionT "arg413" (TypeVarT "a") (TypeVarT "a"))
+                     (FunctionT "arg408" (TypeVarT "a") (TypeVarT "a"))
           )
-          (FunctionT "arg411"
+          (FunctionT "arg406"
                      (DatatypeT "List" [TypeVarT "a"])
                      (DatatypeT "List" [TypeVarT "a"])
           )
@@ -2588,15 +2564,15 @@ hplusComponents =
         "b"
         (Monotype
           (FunctionT
-            "arg428"
-            (FunctionT "arg431"
+            "arg423"
+            (FunctionT "arg426"
                        (TypeVarT "a")
-                       (FunctionT "arg432" (TypeVarT "b") (TypeVarT "b"))
+                       (FunctionT "arg427" (TypeVarT "b") (TypeVarT "b"))
             )
             (FunctionT
-              "arg429"
+              "arg424"
               (TypeVarT "b")
-              (FunctionT "arg430"
+              (FunctionT "arg425"
                          (DatatypeT "List" [TypeVarT "a"])
                          (DatatypeT "List" [TypeVarT "b"])
               )
@@ -2610,12 +2586,12 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "arg433"
-          (FunctionT "arg435"
+          "arg428"
+          (FunctionT "arg430"
                      (TypeVarT "a")
-                     (FunctionT "arg436" (TypeVarT "a") (TypeVarT "a"))
+                     (FunctionT "arg431" (TypeVarT "a") (TypeVarT "a"))
           )
-          (FunctionT "arg434"
+          (FunctionT "arg429"
                      (DatatypeT "List" [TypeVarT "a"])
                      (DatatypeT "List" [TypeVarT "a"])
           )
@@ -2627,10 +2603,10 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "arg467"
-          (FunctionT "arg469" (TypeVarT "a") (DatatypeT "Bool" []))
+          "arg462"
+          (FunctionT "arg464" (TypeVarT "a") (DatatypeT "Bool" []))
           (FunctionT
-            "arg468"
+            "arg463"
             (DatatypeT "List" [TypeVarT "a"])
             (DatatypeT
               "Pair"
@@ -2645,10 +2621,10 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "arg459"
+          "arg454"
           (DatatypeT "Int" [])
           (FunctionT
-            "arg460"
+            "arg455"
             (DatatypeT "List" [TypeVarT "a"])
             (DatatypeT
               "Pair"
@@ -2663,9 +2639,9 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "tcarg452"
+          "tcarg447"
           (DatatypeT "@@hplusTC@@Num" [TypeVarT "a"])
-          (FunctionT "arg451" (DatatypeT "List" [TypeVarT "a"]) (TypeVarT "a"))
+          (FunctionT "arg446" (DatatypeT "List" [TypeVarT "a"]) (TypeVarT "a"))
         )
       )
     )
@@ -2684,9 +2660,9 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "arg447"
+          "arg442"
           (DatatypeT "Int" [])
-          (FunctionT "arg448"
+          (FunctionT "arg443"
                      (DatatypeT "List" [TypeVarT "a"])
                      (DatatypeT "List" [TypeVarT "a"])
           )
@@ -2698,9 +2674,9 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "arg461"
-          (FunctionT "arg463" (TypeVarT "a") (DatatypeT "Bool" []))
-          (FunctionT "arg462"
+          "arg456"
+          (FunctionT "arg458" (TypeVarT "a") (DatatypeT "Bool" []))
+          (FunctionT "arg457"
                      (DatatypeT "List" [TypeVarT "a"])
                      (DatatypeT "List" [TypeVarT "a"])
           )
@@ -2728,7 +2704,7 @@ hplusComponents =
         "b"
         (Monotype
           (FunctionT
-            "arg511"
+            "arg506"
             (DatatypeT "List" [DatatypeT "Pair" [TypeVarT "a", TypeVarT "b"]])
             (DatatypeT
               "Pair"
@@ -2747,7 +2723,7 @@ hplusComponents =
           "c"
           (Monotype
             (FunctionT
-              "arg512"
+              "arg507"
               (DatatypeT
                 "List"
                 [ DatatypeT
@@ -2779,10 +2755,10 @@ hplusComponents =
         "b"
         (Monotype
           (FunctionT
-            "arg494"
+            "arg489"
             (DatatypeT "List" [TypeVarT "a"])
             (FunctionT
-              "arg495"
+              "arg490"
               (DatatypeT "List" [TypeVarT "b"])
               (DatatypeT "List" [DatatypeT "Pair" [TypeVarT "a", TypeVarT "b"]])
             )
@@ -2799,13 +2775,13 @@ hplusComponents =
           "c"
           (Monotype
             (FunctionT
-              "arg496"
+              "arg491"
               (DatatypeT "List" [TypeVarT "a"])
               (FunctionT
-                "arg497"
+                "arg492"
                 (DatatypeT "List" [TypeVarT "b"])
                 (FunctionT
-                  "arg498"
+                  "arg493"
                   (DatatypeT "List" [TypeVarT "c"])
                   (DatatypeT
                     "List"
@@ -2832,15 +2808,15 @@ hplusComponents =
           "c"
           (Monotype
             (FunctionT
-              "arg499"
-              (FunctionT "arg502"
+              "arg494"
+              (FunctionT "arg497"
                          (TypeVarT "a")
-                         (FunctionT "arg503" (TypeVarT "b") (TypeVarT "c"))
+                         (FunctionT "arg498" (TypeVarT "b") (TypeVarT "c"))
               )
               (FunctionT
-                "arg500"
+                "arg495"
                 (DatatypeT "List" [TypeVarT "a"])
-                (FunctionT "arg501"
+                (FunctionT "arg496"
                            (DatatypeT "List" [TypeVarT "b"])
                            (DatatypeT "List" [TypeVarT "c"])
                 )
@@ -2861,23 +2837,23 @@ hplusComponents =
             "d"
             (Monotype
               (FunctionT
-                "arg504"
+                "arg499"
                 (FunctionT
-                  "arg508"
+                  "arg503"
                   (TypeVarT "a")
                   (FunctionT
-                    "arg509"
+                    "arg504"
                     (TypeVarT "b")
-                    (FunctionT "arg510" (TypeVarT "c") (TypeVarT "d"))
+                    (FunctionT "arg505" (TypeVarT "c") (TypeVarT "d"))
                   )
                 )
                 (FunctionT
-                  "arg505"
+                  "arg500"
                   (DatatypeT "List" [TypeVarT "a"])
                   (FunctionT
-                    "arg506"
+                    "arg501"
                     (DatatypeT "List" [TypeVarT "b"])
-                    (FunctionT "arg507"
+                    (FunctionT "arg502"
                                (DatatypeT "List" [TypeVarT "c"])
                                (DatatypeT "List" [TypeVarT "d"])
                     )
@@ -2915,12 +2891,12 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "tcarg515"
+          "tcarg510"
           (DatatypeT "@@hplusTC@@Ord" [TypeVarT "a"])
           (FunctionT
-            "arg513"
+            "arg508"
             (TypeVarT "a")
-            (FunctionT "arg514" (TypeVarT "a") (DatatypeT "Ordering" []))
+            (FunctionT "arg509" (TypeVarT "a") (DatatypeT "Ordering" []))
           )
         )
       )
@@ -2930,11 +2906,11 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "tcarg530"
+          "tcarg525"
           (DatatypeT "@@hplusTC@@Ord" [TypeVarT "a"])
-          (FunctionT "arg528"
+          (FunctionT "arg523"
                      (TypeVarT "a")
-                     (FunctionT "arg529" (TypeVarT "a") (TypeVarT "a"))
+                     (FunctionT "arg524" (TypeVarT "a") (TypeVarT "a"))
           )
         )
       )
@@ -2944,11 +2920,11 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "tcarg533"
+          "tcarg528"
           (DatatypeT "@@hplusTC@@Ord" [TypeVarT "a"])
-          (FunctionT "arg531"
+          (FunctionT "arg526"
                      (TypeVarT "a")
-                     (FunctionT "arg532" (TypeVarT "a") (TypeVarT "a"))
+                     (FunctionT "arg527" (TypeVarT "a") (TypeVarT "a"))
           )
         )
       )
@@ -2958,9 +2934,9 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "tcarg539"
+          "tcarg534"
           (DatatypeT "@@hplusTC@@Show" [TypeVarT "a"])
-          (FunctionT "arg538"
+          (FunctionT "arg533"
                      (TypeVarT "a")
                      (DatatypeT "List" [DatatypeT "Char" []])
           )
@@ -2970,9 +2946,9 @@ hplusComponents =
   , ( "Text.Show.showChar"
     , Monotype
       (FunctionT
-        "arg544"
+        "arg539"
         (DatatypeT "Char" [])
-        (FunctionT "arg534"
+        (FunctionT "arg529"
                    (DatatypeT "List" [DatatypeT "Char" []])
                    (DatatypeT "List" [DatatypeT "Char" []])
         )
@@ -2983,12 +2959,12 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "tcarg541"
+          "tcarg536"
           (DatatypeT "@@hplusTC@@Show" [TypeVarT "a"])
           (FunctionT
-            "arg540"
+            "arg535"
             (DatatypeT "List" [TypeVarT "a"])
-            (FunctionT "arg534"
+            (FunctionT "arg529"
                        (DatatypeT "List" [DatatypeT "Char" []])
                        (DatatypeT "List" [DatatypeT "Char" []])
             )
@@ -3001,19 +2977,19 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "arg548"
+          "arg543"
           (FunctionT
-            "arg550"
+            "arg545"
             (TypeVarT "a")
-            (FunctionT "arg534"
+            (FunctionT "arg529"
                        (DatatypeT "List" [DatatypeT "Char" []])
                        (DatatypeT "List" [DatatypeT "Char" []])
             )
           )
           (FunctionT
-            "arg549"
+            "arg544"
             (DatatypeT "List" [TypeVarT "a"])
-            (FunctionT "arg534"
+            (FunctionT "arg529"
                        (DatatypeT "List" [DatatypeT "Char" []])
                        (DatatypeT "List" [DatatypeT "Char" []])
             )
@@ -3024,15 +3000,15 @@ hplusComponents =
   , ( "Text.Show.showParen"
     , Monotype
       (FunctionT
-        "arg546"
+        "arg541"
         (DatatypeT "Bool" [])
         (FunctionT
-          "arg547"
-          (FunctionT "arg534"
+          "arg542"
+          (FunctionT "arg529"
                      (DatatypeT "List" [DatatypeT "Char" []])
                      (DatatypeT "List" [DatatypeT "Char" []])
           )
-          (FunctionT "arg534"
+          (FunctionT "arg529"
                      (DatatypeT "List" [DatatypeT "Char" []])
                      (DatatypeT "List" [DatatypeT "Char" []])
           )
@@ -3042,9 +3018,9 @@ hplusComponents =
   , ( "Text.Show.showString"
     , Monotype
       (FunctionT
-        "arg545"
+        "arg540"
         (DatatypeT "List" [DatatypeT "Char" []])
-        (FunctionT "arg534"
+        (FunctionT "arg529"
                    (DatatypeT "List" [DatatypeT "Char" []])
                    (DatatypeT "List" [DatatypeT "Char" []])
         )
@@ -3055,12 +3031,12 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "tcarg543"
+          "tcarg538"
           (DatatypeT "@@hplusTC@@Show" [TypeVarT "a"])
           (FunctionT
-            "arg542"
+            "arg537"
             (TypeVarT "a")
-            (FunctionT "arg534"
+            (FunctionT "arg529"
                        (DatatypeT "List" [DatatypeT "Char" []])
                        (DatatypeT "List" [DatatypeT "Char" []])
             )
@@ -3073,15 +3049,15 @@ hplusComponents =
       "a"
       (Monotype
         (FunctionT
-          "tcarg537"
+          "tcarg532"
           (DatatypeT "@@hplusTC@@Show" [TypeVarT "a"])
           (FunctionT
-            "arg535"
+            "arg530"
             (DatatypeT "Int" [])
             (FunctionT
-              "arg536"
+              "arg531"
               (TypeVarT "a")
-              (FunctionT "arg534"
+              (FunctionT "arg529"
                          (DatatypeT "List" [DatatypeT "Char" []])
                          (DatatypeT "List" [DatatypeT "Char" []])
               )
@@ -3295,7 +3271,7 @@ hplusHigherOrders =
         "b"
         (Monotype
           (FunctionT
-            "arg494"
+            "arg489"
             (DatatypeT "List" [TypeVarT "a"])
             (DatatypeT
               "Fun"
@@ -3352,7 +3328,7 @@ resolver = ResolverState
   { getSynonyms  = [ TypeSynonym
                      "ShowS"
                      []
-                     (FunctionT "arg534"
+                     (FunctionT "arg529"
                                 (DatatypeT "List" [DatatypeT "Char" []])
                                 (DatatypeT "List" [DatatypeT "Char" []])
                      )

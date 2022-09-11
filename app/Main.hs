@@ -28,6 +28,10 @@ import GHC.Paths (libdir)
 import qualified GHC
 import qualified GhcMonad as GHC
 import Data.IORef
+import qualified Data.Text as Text
+import qualified EnumSet                       as ES
+import qualified GHC.LanguageExtensions.Type as GHC
+import qualified Module as GHC
 
 import           Database.Dataset
 import           Database.Environment
@@ -49,6 +53,7 @@ import           Types.Program
 import           Types.Solver
 import Interpreter.Interpreter
 import Interpreter.Session
+import Paths_HooglePlus
 
 programName :: String
 programName = "hoogleplus"
@@ -58,6 +63,46 @@ versionName = "0.1"
 
 releaseDate :: Day
 releaseDate = fromGregorian 2019 3 10
+
+frameworkModules :: [Text.Text]
+frameworkModules =  [ "Prelude"
+                    , "Test.SmallCheck"
+                    , "Test.SmallCheck.Drivers"
+                    , "Test.LeanCheck.Function.ShowFunction"
+                    , "System.IO.Silently"
+                    , "System.Timeout"
+                    , "Control.Exception"
+                    , "Control.Monad"
+                    , "Control.Monad.State"
+                    , "Test.ChasingBottoms"
+                    ]
+
+initializeGHC :: GHC.GhcMonad m => m [GHC.InstalledUnitId]
+initializeGHC = do
+  -- initialize the GHC session
+  GHC.initGhcMonad (Just libdir)
+  
+  -- update the session dyn flags
+  dflags <- GHC.getSessionDynFlags
+  let newExtensions = ES.fromList (GHC.ExtendedDefaultRules : GHC.ScopedTypeVariables : GHC.FlexibleContexts : ES.toList (GHC.extensionFlags dflags))
+  let dflags' = dflags { GHC.hscTarget = GHC.HscInterpreted
+                       , GHC.ghcLink   = GHC.LinkInMemory
+                       , GHC.generalFlags   = ES.delete GHC.Opt_OmitYields (GHC.generalFlags dflags)
+                       , GHC.extensionFlags = newExtensions
+                       }
+  GHC.setSessionDynFlags dflags'
+
+loadTopLevel :: GHC.GhcMonad m => m ()
+loadTopLevel = do
+  srcPath <- liftIO $ getDataFileName "InternalTypeGen.hs"
+  target <- GHC.guessTarget srcPath Nothing
+  GHC.setTargets [target]
+  _ <- GHC.load GHC.LoadAllTargets
+
+  modGraph <- GHC.getModuleGraph
+  let modSummaries = GHC.mgModSummaries modGraph
+  let mdlName = GHC.ms_mod_name (head modSummaries)
+  GHC.setContext [GHC.IIModule mdlName]
 
 -- | Type-check and synthesize a program, according to command-line arguments
 main :: IO ()
@@ -82,9 +127,21 @@ main = do
               , _disableBlack        = noBlacklist
               , _disableFilter       = noFilter
               }
+
+        -- initiate an interpreter
+        -- remember to keep the GHC session to avoid multiple imports
+        isession <- liftIO newInterpreterSession
+        ref <- liftIO $ newIORef (error "empty session")
+        let gsession = GHC.Session ref
+        let sessions = Sessions gsession isession
+        _ <- execute sessions $ do
+          _ <- InterpreterT $ lift initializeGHC
+          InterpreterT $ lift loadTopLevel
+          setImports $ map Text.unpack (frameworkModules ++ includedModules)
+     
         let searchPrograms = if null jsonStr
               then error "A JSON string must be provided"
-              else executeSearch engine sparams jsonStr outputFormat outputFile
+              else executeSearch engine sparams sessions jsonStr outputFormat outputFile
         case searchCat of
           SearchPrograms -> searchPrograms
           SearchTypes    -> void (searchTypes jsonStr getNTypes)
@@ -224,8 +281,8 @@ precomputeGraph = generateEnv
 
 -- | Parse and resolve file, then synthesize the specified goals
 executeSearch
-  :: SearchEngine -> SearchParams -> String -> OutputFormat -> FilePath -> IO ()
-executeSearch engine params inStr outputFormat outputFile = catch
+  :: SearchEngine -> SearchParams -> Sessions -> String -> OutputFormat -> FilePath -> IO ()
+executeSearch engine params sessions inStr outputFormat outputFile = catch
   (do
     let input    = decodeInput (LB.pack inStr)
     let tquery   = query input
@@ -237,23 +294,6 @@ executeSearch engine params inStr outputFormat outputFile = catch
     when (outputFormat == OutputFile && exists) $ removeFile outputFile
 
     print $ "Synthesizing " ++ show tquery
-    -- initiate an interpreter
-    isession <- liftIO newInterpreterSession
-    ref <- liftIO $ newIORef (error "empty session")
-    let gsession = GHC.Session ref
-    res <- execute libdir gsession isession $ do
-      InterpreterT . lift $ do
-        GHC.initGhcMonad (Just libdir)
-        df0 <- GHC.getSessionDynFlags
-        GHC.setSessionDynFlags df0
-  
-      -- load the environment
-      setImports ["Prelude", "Data.Maybe"]
-      interpret "fromMaybe 1 Nothing" (as :: Int)
-    print $ "first result: " ++ show res
-
-    res <- execute libdir gsession isession $ do
-      interpret "fromMaybe 2 Nothing" (as :: Int)
 
       -- invoke synthesis
     case engine of
@@ -321,7 +361,7 @@ executeSearch engine params inStr outputFormat outputFile = catch
     -> IO (FilterState, Maybe TProgram)
   runPostFilter (Goal env goalType examples) cnt fstate p = do
     (checkResult, fstate') <- runStateT
-      (checkSolution params env goalType examples p)
+      (checkSolution params sessions env goalType examples p)
       fstate
     case checkResult of
       Nothing  -> return (fstate', Nothing)

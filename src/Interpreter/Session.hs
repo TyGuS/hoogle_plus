@@ -3,6 +3,7 @@ module Interpreter.Session (
     InterpreterSession(..)
   , InterpreterState(..)
   , InterpreterError(..)
+  , Sessions(..)
   , initialState
   , newInterpreterSession
 
@@ -27,6 +28,7 @@ import Control.Monad.Catch
 import Control.Monad.IO.Class
 
 import qualified GHC
+import qualified GhcMonad as GHC
 import GHC.LanguageExtensions.Type
 
 ----------------------------------------------------
@@ -70,6 +72,11 @@ newInterpreterSession = do
     interpreterState = st,
     ghcErrorList = errLst
   }
+
+data Sessions = Sessions {
+  gSession :: GHC.Session,
+  iSession :: InterpreterSession
+}
 
 data InterpreterState = InterpreterState {
   qualImports   :: [ModuleImport],

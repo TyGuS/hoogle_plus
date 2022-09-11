@@ -83,7 +83,7 @@ null :: [a] -> Bool
 length :: [a] -> Int
 (!!) :: [a] -> Int -> a
 infixl 9 !!
-foldl :: forall a b. (b -> a -> b) -> b -> [a] -> b
+-- foldl :: forall a b. (b -> a -> b) -> b -> [a] -> b
 foldl' :: forall a b. (b -> a -> b) -> b -> [a] -> b
 foldl1 :: (a -> a -> a) -> [a] -> a
 foldl1' :: (a -> a -> a) -> [a] -> a
@@ -1692,7 +1692,7 @@ fold :: (Foldable t, Monoid m) => t m -> m
 foldMap :: (Foldable t, Monoid m) => (a -> m) -> t a -> m
 foldr :: Foldable t => (a -> b -> b) -> b -> t a -> b
 foldr' :: Foldable t => (a -> b -> b) -> b -> t a -> b
-foldl :: Foldable t => (b -> a -> b) -> b -> t a -> b
+-- foldl :: Foldable t => (b -> a -> b) -> b -> t a -> b
 foldl' :: Foldable t => (b -> a -> b) -> b -> t a -> b
 foldr1 :: Foldable t => (a -> a -> a) -> t a -> a
 foldl1 :: Foldable t => (a -> a -> a) -> t a -> a

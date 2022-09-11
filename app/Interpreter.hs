@@ -39,8 +39,7 @@ import Outputable
 
 
 import Control.Concurrent.Async
-
-import           Paths_HooglePlus
+import Paths_HooglePlus
 import Database.Dataset
 
 msgSize :: Int

@@ -110,15 +110,15 @@ instance (Functor m, MonadIO m, MonadMask m, GHC.ExceptionMonad m) => GHC.GhcMon
     setSession = GhcT . GHC.setSession
 
 -- | remember to setSessionDynFlags before calling this `execute` method
-execute :: MonadInterpreter m => FilePath -> GHC.Session -> InterpreterSession -> InterpreterT m a -> m (Either InterpreterError a)
-execute libdir gsession isession = try . runGhcT (Just libdir) gsession . flip runReaderT isession . unInterpreterT
+execute :: MonadInterpreter m => Sessions -> InterpreterT m a -> m (Either InterpreterError a)
+execute (Sessions gsession isession) = try . runGhcT gsession . flip runReaderT isession . unInterpreterT
 
 runInterpreter :: MonadInterpreter m => FilePath -> InterpreterT m a -> m (Either InterpreterError a)
 runInterpreter libdir action = do
     isession <- newInterpreterSession `catch` rethrowGhcException
     ref <- liftIO $ newIORef (error "empty session")
     let gsession = GHC.Session ref
-    execute libdir gsession isession (InterpreterT (lift initialize) >> action)
+    execute (Sessions gsession isession) (InterpreterT (lift initialize) >> action)
   where
     rethrowGhcException = throwM . GhcException . showGhcEx
 
@@ -130,12 +130,13 @@ runInterpreter libdir action = do
 showGhcEx :: GHC.GhcException -> String
 showGhcEx = flip GHC.showGhcException ""
 
-runGhcT :: MonadInterpreter m => Maybe String -> GHC.Session -> GhcT m a -> m a
-runGhcT libdir session ghct = do
+runGhcT :: MonadInterpreter m => GHC.Session -> GhcT m a -> m a
+runGhcT session ghct = do
     flip GHC.unGhcT session $ GHC.withCleanupSession $ unGhcT ghct
 
 interpret :: (MonadInterpreter m, Typeable a) => String -> a -> InterpreterT m a
 interpret expr typ = do
+    -- liftIO $ print $ "running " ++ expr
     runParser GHC.parseStmt expr
     let exprTypeSig = concat ["(", expr, ") :: ", show $ Data.Typeable.typeOf typ]
     expr_val <- mayFail $ InterpreterT $ lift $ fmap Just $ GHC.compileExpr exprTypeSig
@@ -241,4 +242,7 @@ setImportsF ms = do
 
 
 setContext :: GHC.GhcMonad m => [GHC.Module] -> m ()
-setContext ms = GHC.setContext $ map (GHC.IIDecl . GHC.simpleImportDecl . GHC.moduleName) ms
+setContext ms = do
+    currCtx <- GHC.getContext
+    liftIO $ print $ GHC.showSDocUnsafe $ GHC.ppr currCtx 
+    GHC.setContext $ currCtx ++ map (GHC.IIDecl . GHC.simpleImportDecl . GHC.moduleName) ms

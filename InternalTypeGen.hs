@@ -177,7 +177,6 @@ evaluateIOQC inputs val = do
 evaluateIO :: Data a => Int -> [String] -> [a] -> ExampleGeneration IO ([CB.Result String])
 evaluateIO timeInMicro inputs vals = do
     results <- liftIO $ silence $ mapM (CB.timeOutMicro timeInMicro . eval) vals
-    
     let resultsStr = map showCBResult results
     modify ((++) (map (Example inputs) resultsStr))
     return results

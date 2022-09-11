@@ -29,12 +29,6 @@ import           Language.Haskell.Exts.Parser   ( ParseResult(..)
                                                 , parseType
                                                 )
 import           Language.Haskell.Exts.Syntax
-import           Language.Haskell.Interpreter
-                                         hiding ( Id
-                                                , get
-                                                , set
-                                                )
-import qualified Language.Haskell.Interpreter  as LHI
 import           System.Timeout                 ( timeout )
 import           Text.Printf                    ( printf )
 
@@ -54,6 +48,8 @@ import           Types.Program
 import           Types.Type              hiding ( typeOf )
 import           Utility.Utils
 import           Postfilter.GHCSocket
+import Interpreter.Interpreter
+import Interpreter.Session
 
 -- import Debug.Trace
 
@@ -172,7 +168,7 @@ buildNotCrashProp argNames solution funcSig = formatAlwaysFailProp params
         plain
         body
         plain
-      , printf "show <$> runStateT (smallCheckM %d (%s)) []" defaultDepth propName
+      , printf "runStateT (smallCheckM %d (%s)) []" defaultDepth propName
       ]
 
 buildDupCheckProp
@@ -211,28 +207,28 @@ buildDupCheckProp' argNames (sol, otherSols) funcSig timeInMicro depth =
         "let dupProp = existsUnique $ \\%s -> monadic (not <$> anyDuplicate <$> timeoutWrapper %s) in"
         plain
         plain
-      , printf "show <$> runStateT (smallCheckM %d dupProp) []" depth
+      , printf "runStateT (smallCheckM %d dupProp) []" depth
       ] :: String
 
 evaluateProperty
-  :: [String] -> String -> IO (Either String SmallCheckResult)
-evaluateProperty modules property = do
-  res <- askGhcSocket property
-  case res of
-    Left err -> return $ Left err
-    Right res' -> case readMaybe res' of
-      Nothing -> error $ "[evaluateProperty] Could not parse result " ++ show res'
-      Just r -> return $ Right r
+  :: Sessions -> String -> IO (Either String SmallCheckResult)
+evaluateProperty sessions property = do
+  mbRes <- timeout defaultInterpreterTimeoutMicro $ execute sessions $ interpret property (as :: IO SmallCheckResult) >>= liftIO
+  case mbRes of
+    Nothing -> return $ Left "timeout"
+    Just res -> case res of
+      Left err -> return $ Left (show err)
+      Right res' -> return $ Right res'
 
 validateSolution
-  :: [String]
+  :: Sessions
   -> [String]
   -> String
   -> FunctionSignature
   -> Int
   -> IO (Either String FunctionCrashDesc)
-validateSolution modules argNames solution funcSig time =
-  evaluateResult' <$> evaluateProperty modules alwaysFailProp
+validateSolution sessions argNames solution funcSig time =
+  evaluateResult' <$> evaluateProperty sessions alwaysFailProp
  where
   alwaysFailProp = buildNotCrashProp argNames solution funcSig
 
@@ -269,16 +265,16 @@ validateSolution modules argNames solution funcSig time =
     selectedLine = filter (isInfixOf input) ios
 
 compareSolution
-  :: [String]
+  :: Sessions
   -> [String]
   -> String
   -> [String]
   -> FunctionSignature
   -> Int
   -> IO [Either String SmallCheckResult]
-compareSolution modules argNames solution otherSolutions funcSig time = do
+compareSolution sessions argNames solution otherSolutions funcSig time = do
   -- traceShow ("Checking properties" <+> pretty props) $ return ()
-  mapM (evaluateProperty modules) props
+  mapM (evaluateProperty sessions) props
  where
   props = buildDupCheckProp argNames
                             (solution, otherSolutions)
@@ -288,16 +284,16 @@ compareSolution modules argNames solution otherSolutions funcSig time = do
 
 runChecks
   :: MonadIO m
-  => Environment
-  -> [String]
+  => Sessions
+  -> Environment
   -> TypeSkeleton
   -> TProgram
   -> FilterTest m (Maybe AssociativeExamples)
-runChecks env mdls goalType prog = do
-  notCrashRes <- checkSolutionNotCrash mdls argNames funcSig body
+runChecks sessions env goalType prog = do
+  notCrashRes <- checkSolutionNotCrash sessions argNames funcSig body
   if notCrashRes
     then do
-      notDupRes <- checkDuplicates mdls argNames funcSig body
+      notDupRes <- checkDuplicates sessions argNames funcSig body
 
       state  <- get
       when notDupRes $ runPrints state
@@ -317,12 +313,12 @@ runChecks env mdls goalType prog = do
 
 checkSolutionNotCrash
   :: MonadIO m
-  => [String]
+  => Sessions
   -> [String]
   -> String
   -> TProgram
   -> FilterTest m Bool
-checkSolutionNotCrash modules argNames sigStr body = do
+checkSolutionNotCrash sessions argNames sigStr body = do
   fs@(FilterState _ _ examples _ _) <- get
   result                          <- liftIO executeCheck
 
@@ -341,7 +337,7 @@ checkSolutionNotCrash modules argNames sigStr body = do
              )
     )
   funcSig      = (instantiateSignature . parseTypeString) sigStr
-  executeCheck = handleNotSupported $ validateSolution modules
+  executeCheck = handleNotSupported $ validateSolution sessions
                                                        argNames
                                                        (plainShow body)
                                                        funcSig
@@ -350,12 +346,12 @@ checkSolutionNotCrash modules argNames sigStr body = do
 
 checkDuplicates
   :: MonadIO m
-  => [String]
+  => Sessions
   -> [String]
   -> String
   -> TProgram
   -> FilterTest m Bool
-checkDuplicates modules argNames sigStr solution = do
+checkDuplicates sessions argNames sigStr solution = do
   fs@(FilterState is solns _ examples _) <- get
   case solns of
 
@@ -366,7 +362,7 @@ checkDuplicates modules argNames sigStr solution = do
 
     -- find an input i such that all synthesized results can be differentiated semantically
     _ -> do
-      results <- liftIO $ compareSolution modules
+      results <- liftIO $ compareSolution sessions
                                           argNames
                                           (plainShow solution)
                                           (map plainShow solns)
@@ -492,7 +488,7 @@ generateIOPairs modules solution funcSig argNames numPairs timeInMicro interpret
           plain
           numPairs
           shows
-        , printf "show <$> execStateT (smallCheckM %d (exists prop)) []" depth
+        , printf "execStateT (smallCheckM %d (exists prop)) []" depth
         ] :: String
 
   buildWrapper solution typeStr params timeInMicro = unwords
@@ -507,7 +503,7 @@ generateIOPairs modules solution funcSig argNames numPairs timeInMicro interpret
     buildTimeoutWrapper :: (String, String, String, String) -> Int -> String
     buildTimeoutWrapper (plain, typed, shows, unwrp) timeInMicro =
       printf
-        "let wrappedSolution %s = (liftIO $ CB.timeOutMicro' %d (CB.approxShow %d (sol_wrappedSolution %s))) in"
+        "let wrappedSolution %s = (liftIO $ Test.ChasingBottoms.timeOutMicro' %d (Test.ChasingBottoms.approxShow %d (sol_wrappedSolution %s))) in"
         typed
         timeInMicro
         defaultMaxOutputLength
