@@ -77,6 +77,18 @@ generate n =
     toProgram :: Text -> SchemaSkeleton -> (TypeSkeleton, TProgram)
     toProgram x t = (toMonotype t, Program (PSymbol x) (toMonotype t))
 
+assignArgs :: TProgram -> Generator [TProgram]
+assignArgs program = map mkLambda <$> go program
+  where
+    go :: TProgram -> Generator [(TProgram, [Id])]
+    go (Program p t) = case p of
+      PSymbol _ -> do
+        arg <- freshId [] "arg"
+        return [(program, [])
+              , (Program (PSymbol arg) t, [arg])]
+
+    mkLambda :: (TProgram, [Id]) -> TProgram
+    mkLambda (p, args) = foldr (\arg body -> untyped (PFun arg body)) p args
 
 --------------------------------------------------------------------------------
 ----------                     Literal Expressions                    ----------

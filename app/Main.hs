@@ -212,7 +212,7 @@ data CommandLineArgs
         use_study_data :: Bool
       }
       | Dataset {
-        out_file :: FilePath,
+        out_file :: FilePath
       }
   deriving (Data, Typeable, Show, Eq)
 
