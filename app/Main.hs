@@ -81,7 +81,7 @@ initializeGHC :: GHC.GhcMonad m => m [GHC.InstalledUnitId]
 initializeGHC = do
   -- initialize the GHC session
   GHC.initGhcMonad (Just libdir)
-  
+
   -- update the session dyn flags
   dflags <- GHC.getSessionDynFlags
   let newExtensions = ES.fromList (GHC.ExtendedDefaultRules : GHC.ScopedTypeVariables : GHC.FlexibleContexts : ES.toList (GHC.extensionFlags dflags))
@@ -138,7 +138,7 @@ main = do
           _ <- InterpreterT $ lift initializeGHC
           InterpreterT $ lift loadTopLevel
           setImports $ map Text.unpack (frameworkModules ++ includedModules)
-     
+
         let searchPrograms = if null jsonStr
               then error "A JSON string must be provided"
               else executeSearch engine sparams sessions jsonStr outputFormat outputFile
@@ -210,6 +210,9 @@ data CommandLineArgs
         benchmark_suite :: String,
         benchmark :: String,
         use_study_data :: Bool
+      }
+      | Dataset {
+        out_file :: FilePath,
       }
   deriving (Data, Typeable, Show, Eq)
 

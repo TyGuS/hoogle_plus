@@ -14,21 +14,22 @@ description: Please see the README
 
 dependencies:
 - aeson
-- async
 - ansi-wl-pprint
 - array
+- async
 - base
-- table-layout
 - brittany
 - bytestring
+- cassava
 - cereal
 - ChasingBottoms
 - cmdargs
+- compact-coupled-terms
 - containers
 - deepseq
 - directory
-- extra
 - exceptions
+- extra
 - ghc
 - ghc-boot-th
 - ghc-paths
@@ -55,6 +56,7 @@ dependencies:
 - sort
 - split
 - stm
+- table-layout
 - text
 - time
 - transformers
@@ -62,7 +64,6 @@ dependencies:
 - uuid
 - yaml
 - z3
-- compact-coupled-terms
 
 default-extensions:
 - BangPatterns

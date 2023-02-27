@@ -6,6 +6,8 @@ module Types.Program
   , TProgram
   , AProgram
   , RProgram
+  , ann
+  , withContent
   , programSize
   , untyped
   , funcp
@@ -51,6 +53,7 @@ data BareProgram t
   | PApp Id [Program t]                       -- ^ Function application
   | PFun Id (Program t)                       -- ^ Lambda abstraction
   | PHole                                     -- ^ Hole (program to fill in)
+  -- | PFilled Int                               -- ^ Filled hole
   deriving (Eq, Ord, Show, Functor, Generic)
 
 -- | Programs annotated with types
@@ -113,6 +116,12 @@ data Goal = Goal
 --------------------------------------------------------------------------------
 -------------------------- Program Operations ----------------------------------
 --------------------------------------------------------------------------------
+
+ann :: Program t -> t -> Program t
+ann (Program c t1) t2 = Program c t2
+
+withContent :: (t -> t) -> Program t -> Program t
+withContent f (Program c t) = Program c (f t)
 
 untyped :: BareProgram TypeSkeleton -> TProgram
 untyped c = Program c TopT
