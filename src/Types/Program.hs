@@ -22,6 +22,7 @@ module Types.Program
   , unqualifyFunc
   , untypeclass
   , numArguments
+  , argumentsOf
 
     -- * Declarations
   , Declaration(..)
@@ -167,6 +168,11 @@ numArguments :: Program t -> Int
 numArguments (Program p _) = case p of
   PFun _ body -> 1 + numArguments body
   _ -> 0
+
+argumentsOf :: Program t -> [Id]
+argumentsOf (Program p _) = case p of
+  PFun x body -> x : argumentsOf body
+  _ -> []
 
 {- Misc -}
 

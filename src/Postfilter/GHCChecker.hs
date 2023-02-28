@@ -1,6 +1,7 @@
 module Postfilter.GHCChecker
   ( runGhcChecks
   , parseStrictnessSig
+  , checkStrictness
   , checkStrictness'
   , check
   , checkSolution
@@ -10,7 +11,6 @@ import           Control.Exception              ( SomeException(SomeException)
                                                 , handle
                                                 )
 import           Control.Monad.Trans            ( lift )
-import Control.Monad.IO.Class ( MonadIO, liftIO )
 import           CoreSyn                        ( Bind(NonRec)
                                                 , CoreBind
                                                 )
@@ -27,13 +27,18 @@ import qualified Data.Text                     as Text
 import           DmdAnal                        ( dmdAnalProgram )
 import           DynFlags                       ( unsafeGlobalDynFlags
                                                 , updOptLevel
-                                                , xopt_set
                                                 )
 import           FamInstEnv                     ( emptyFamInstEnvs )
 import           GHC                     hiding ( Id )
 import           GHC.Paths                      ( libdir )
-import           GHC.LanguageExtensions.Type
 import           HscTypes                       ( ModGuts(mg_binds) )
+import           Language.Haskell.Interpreter   ( Interpreter
+                                                , MonadIO(..)
+                                                , runInterpreter
+                                                , setImports
+                                                , typeChecks
+                                                , typeOf
+                                                )
 import           Outputable                     ( Outputable(ppr)
                                                 , showPpr
                                                 , showSDocUnsafe
@@ -64,8 +69,6 @@ import           Types.Program
 import           Types.Solver
 import           Types.Type
 import           Utility.Utils
-import Interpreter.Session ( Sessions )
-import Interpreter.Interpreter
 
 showGhc :: (Outputable a) => a -> String
 showGhc = showPpr unsafeGlobalDynFlags
@@ -94,7 +97,7 @@ checkStrictness' tyclassCount lambdaExpr typeExpr modules =
     -- Establishing GHC session
     env    <- getSession
     dflags <- getSessionDynFlags
-    let dflags' = updOptLevel 2 dflags `xopt_set` TupleSections
+    let dflags' = updOptLevel 2 dflags
     setSessionDynFlags dflags'
 
     -- Compile to core
@@ -150,16 +153,14 @@ checkStrictness tyclassCount body sig modules = handle
 
 check
   :: MonadIO m
-  => Sessions
-  -> Environment -- symbol environment
+  => Environment -- symbol environment
   -> SearchParams -- search parameters: to control what to be checked
   -> [Example] -- examples for post-filtering
   -> TProgram -- program to be checked
   -> TypeSkeleton -- goal type to be checked against
   -> FilterTest m (Maybe AssociativeExamples) -- return Nothing is check fails, otherwise return a list of updated examples
-check sessions env searchParams examples program goalType = do
-  runGhcChecks sessions
-               searchParams
+check env searchParams examples program goalType = do
+  runGhcChecks searchParams
                includedModules
                env
                (lastType goalType)
@@ -170,32 +171,29 @@ check sessions env searchParams examples program goalType = do
 -- checks the end result type checks; all arguments are used; and that the program will not immediately fail
 runGhcChecks
   :: MonadIO m
-  => Sessions
-  -> SearchParams
+  => SearchParams
   -> [Id]
   -> Environment
   -> TypeSkeleton
   -> [Example]
   -> TProgram
   -> FilterTest m (Maybe AssociativeExamples)
-runGhcChecks sessions params modules env goalType examples prog =
+runGhcChecks params modules env goalType examples prog =
   let
 -- constructs program and its type signature as strings
       tyclassCount = length $ Prelude.filter
         (\id -> tyclassArgBase `Text.isPrefixOf` Text.pack id)
         argList
-      -- expr          = printf "(%s) :: %s" (plainShow body) funcSig
+      expr          = printf "(%s) :: %s" (plainShow body) funcSig
       disableDemand = _disableDemand params
       disableFilter = _disableFilter params
   in  do
--- liftIO $ print goalType
--- liftIO $ print funcSig
-        typeCheckResult   <- return (Right True) -- liftIO $ runInterpreter $ checkType expr mdls
+        typeCheckResult   <- liftIO $ runInterpreter $ checkType expr mdls
         strictCheckResult <- if disableDemand
           then return True
           else liftIO
             $ checkStrictness tyclassCount (plainShow body) funcSig mdls
-        -- liftIO $ print strictCheckResult
+
         exampleCheckResult <- if not strictCheckResult
           then do
             writeLog 2 "runGhcChecks" $ "Strictness check failed"
@@ -204,13 +202,13 @@ runGhcChecks sessions params modules env goalType examples prog =
             liftIO
             $   fmap ((: []) . ((unqualifyFunc body, body), ))
             <$> checkOutputs prog examples
-        -- liftIO $ print exampleCheckResult
-        filterCheckResult <- if disableFilter || isNothing exampleCheckResult || not (null examples)
+
+        filterCheckResult <- if disableFilter || isNothing exampleCheckResult
           then do
             writeLog 2 "runGhcChecks" $ "Filter is disabled or example check failed"
             return exampleCheckResult
           else do
-            filterResult <- runChecks sessions env goalType prog
+            filterResult <- runChecks env mdls goalType prog
             if isNothing filterResult
               then do
                 writeLog 2 "runGhcChecks" $ "Filter check failed"
@@ -220,7 +218,7 @@ runGhcChecks sessions params modules env goalType examples prog =
                        (fromJust filterResult)
                        (fromJust exampleCheckResult)
                 )
-        -- liftIO $ print filterCheckResult
+
         case typeCheckResult of
           Left err -> return Nothing
           Right False ->
@@ -233,22 +231,21 @@ runGhcChecks sessions params modules env goalType examples prog =
     checkExampleOutput includedModules env funcSig (plainShow prog) exs
 
 -- ensures that the program type-checks
--- checkType :: String -> [String] -> Interpreter Bool
--- checkType expr modules = do
---   setImports modules
---   -- Ensures that if there's a problem we'll know
---   Language.Haskell.Interpreter.typeOf expr
---   typeChecks expr
+checkType :: String -> [String] -> Interpreter Bool
+checkType expr modules = do
+  setImports modules
+  -- Ensures that if there's a problem we'll know
+  Language.Haskell.Interpreter.typeOf expr
+  typeChecks expr
 
 checkSolution
   :: SolverMonad m
   => SearchParams
-  -> Sessions
   -> Environment
   -> TypeSkeleton
   -> [Example]
   -> TProgram
   -> FilterTest m (Maybe AssociativeExamples)
-checkSolution params sessions env goal examples code = do
+checkSolution params env goal examples code = do
   writeLog 1 "checkSolution" $ text "Checking solution" <+> pretty code
-  check sessions env params examples code goal
+  check env params examples code goal

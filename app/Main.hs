@@ -51,8 +51,6 @@ import           Types.Filtering
 import           Types.Generate          hiding ( files )
 import           Types.Program
 import           Types.Solver
-import Interpreter.Interpreter
-import Interpreter.Session
 import Paths_HooglePlus
 
 programName :: String
@@ -127,21 +125,9 @@ main = do
               , _disableBlack        = noBlacklist
               , _disableFilter       = noFilter
               }
-
-        -- initiate an interpreter
-        -- remember to keep the GHC session to avoid multiple imports
-        isession <- liftIO newInterpreterSession
-        ref <- liftIO $ newIORef (error "empty session")
-        let gsession = GHC.Session ref
-        let sessions = Sessions gsession isession
-        _ <- execute sessions $ do
-          _ <- InterpreterT $ lift initializeGHC
-          InterpreterT $ lift loadTopLevel
-          setImports $ map Text.unpack (frameworkModules ++ includedModules)
-
         let searchPrograms = if null jsonStr
               then error "A JSON string must be provided"
-              else executeSearch engine sparams sessions jsonStr outputFormat outputFile
+              else executeSearch engine sparams jsonStr outputFormat outputFile
         case searchCat of
           SearchPrograms -> searchPrograms
           SearchTypes    -> void (searchTypes jsonStr getNTypes)
@@ -284,8 +270,8 @@ precomputeGraph = generateEnv
 
 -- | Parse and resolve file, then synthesize the specified goals
 executeSearch
-  :: SearchEngine -> SearchParams -> Sessions -> String -> OutputFormat -> FilePath -> IO ()
-executeSearch engine params sessions inStr outputFormat outputFile = catch
+  :: SearchEngine -> SearchParams -> String -> OutputFormat -> FilePath -> IO ()
+executeSearch engine params inStr outputFormat outputFile = catch
   (do
     let input    = decodeInput (LB.pack inStr)
     let tquery   = query input
@@ -364,7 +350,7 @@ executeSearch engine params sessions inStr outputFormat outputFile = catch
     -> IO (FilterState, Maybe TProgram)
   runPostFilter (Goal env goalType examples) cnt fstate p = do
     (checkResult, fstate') <- runStateT
-      (checkSolution params sessions env goalType examples p)
+      (checkSolution params env goalType examples p)
       fstate
     case checkResult of
       Nothing  -> return (fstate', Nothing)

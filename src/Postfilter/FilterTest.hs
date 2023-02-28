@@ -2,6 +2,7 @@ module Postfilter.FilterTest
   ( runChecks
   , checkSolutionNotCrash
   , checkDuplicates
+  , runInterpreter'
   , generateIOPairs
   , parseTypeString
   ) where
@@ -29,12 +30,17 @@ import           Language.Haskell.Exts.Parser   ( ParseResult(..)
                                                 , parseType
                                                 )
 import           Language.Haskell.Exts.Syntax
+import           Language.Haskell.Interpreter
+                                         hiding ( Id
+                                                , get
+                                                , set
+                                                )
+import qualified Language.Haskell.Interpreter  as LHI
 import           System.Timeout                 ( timeout )
 import           Text.Printf                    ( printf )
 
 import           Test.SmallCheck                ( Depth )
 import           Test.SmallCheck.Drivers
-import           Text.Read                      (readMaybe)
 
 import           Text.PrettyPrint.ANSI.Leijen   ( string )
 
@@ -47,11 +53,7 @@ import           Types.Pretty
 import           Types.Program
 import           Types.Type              hiding ( typeOf )
 import           Utility.Utils
-import           Postfilter.GHCSocket
-import Interpreter.Interpreter
-import Interpreter.Session
 
--- import Debug.Trace
 
 parseTypeString :: String -> FunctionSignature
 parseTypeString input = FunctionSignature constraints argsType returnType
@@ -210,37 +212,57 @@ buildDupCheckProp' argNames (sol, otherSols) funcSig timeInMicro depth =
       , printf "runStateT (smallCheckM %d dupProp) []" depth
       ] :: String
 
+runInterpreter' :: Int -> InterpreterT IO a -> IO (Either InterpreterError a)
+runInterpreter' timeInMicro exec = toResult <$> timeout timeInMicro execute
+ where
+  execute = do
+    srcPath <- getDataFileName "InternalTypeGen.hs"
+
+    runInterpreter $ do
+
+      -- allow extensions for function execution
+      extensions <- LHI.get languageExtensions
+      LHI.set
+        [ languageExtensions
+            := (ExtendedDefaultRules : ScopedTypeVariables : extensions)
+        ]
+
+      loadModules [srcPath]
+      setTopLevelModules ["InternalTypeGen"]
+
+      exec
+
+  toResult Nothing  = Left $ UnknownError "timeout"
+  toResult (Just v) = v
+
 evaluateProperty
-  :: Sessions -> String -> IO (Either String SmallCheckResult)
-evaluateProperty sessions property = do
-  mbRes <- timeout defaultInterpreterTimeoutMicro $ execute sessions $ interpret property (as :: IO SmallCheckResult) >>= liftIO
-  case mbRes of
-    Nothing -> return $ Left "timeout"
-    Just res -> case res of
-      Left err -> return $ Left (show err)
-      Right res' -> return $ Right res'
+  :: [String] -> String -> IO (Either InterpreterError SmallCheckResult)
+evaluateProperty modules property =
+  runInterpreter' defaultInterpreterTimeoutMicro $ do
+    setImportsQ (zip modules (repeat Nothing) ++ frameworkModules)
+    interpret property (as :: IO SmallCheckResult) >>= liftIO
 
 validateSolution
-  :: Sessions
+  :: [String]
   -> [String]
   -> String
   -> FunctionSignature
   -> Int
-  -> IO (Either String FunctionCrashDesc)
-validateSolution sessions argNames solution funcSig time =
-  evaluateResult' <$> evaluateProperty sessions alwaysFailProp
+  -> IO (Either InterpreterError FunctionCrashDesc)
+validateSolution modules argNames solution funcSig time =
+  evaluateResult' <$> evaluateProperty modules alwaysFailProp
  where
   alwaysFailProp = buildNotCrashProp argNames solution funcSig
 
   evaluateSmallCheckResult
-    :: Either String SmallCheckResult
-    -> Either String SmallCheckResult
-    -> Either String FunctionCrashDesc
+    :: Either InterpreterError SmallCheckResult
+    -> Either InterpreterError SmallCheckResult
+    -> Either InterpreterError FunctionCrashDesc
   evaluateSmallCheckResult resultF resultS = case resultF of
-    Left err | "timeout" `isInfixOf` err -> Right $ AlwaysFail $ caseToInput resultS
+    Left  (UnknownError "timeout") -> Right $ AlwaysFail $ caseToInput resultS
     Right (Nothing, _      )       -> Right $ AlwaysFail $ caseToInput resultS
     Right (_      , exF : _)       -> case resultS of
-      Left "timeout" -> Right $ AlwaysSucceed exF
+      Left  (UnknownError "timeout") -> Right $ AlwaysSucceed exF
       Right (Nothing, _)             -> Right $ AlwaysSucceed exF
 
       Right (Just (CounterExample _ _), exS : _) ->
@@ -249,12 +271,12 @@ validateSolution sessions argNames solution funcSig time =
     _ -> Right $ AlwaysFail $ caseToInput resultS
 
   evaluateResult' result = case result of
-    Left err | "timeout" `isInfixOf` err -> Right $ AlwaysFail $ Example [] "timeout"
+    Left  (UnknownError "timeout") -> Right $ AlwaysFail $ Example [] "timeout"
     Left error -> Right $ AlwaysFail $ Example [] (show error)
     Right (Nothing, _       )      -> Right $ AlwaysFail $ caseToInput result
     Right (_      , examples)      -> Right $ PartialFunction $ Examples (take 2 examples) -- only need the first two examples, one succeed, one fail
 
-  caseToInput :: Either String SmallCheckResult -> Example
+  caseToInput :: Either InterpreterError SmallCheckResult -> Example
   caseToInput (Right (_, example : _)) = example
   caseToInput _ = error "caseToInput: no example returned"
 
@@ -265,16 +287,16 @@ validateSolution sessions argNames solution funcSig time =
     selectedLine = filter (isInfixOf input) ios
 
 compareSolution
-  :: Sessions
+  :: [String]
   -> [String]
   -> String
   -> [String]
   -> FunctionSignature
   -> Int
-  -> IO [Either String SmallCheckResult]
-compareSolution sessions argNames solution otherSolutions funcSig time = do
+  -> IO [Either InterpreterError SmallCheckResult]
+compareSolution modules argNames solution otherSolutions funcSig time = do
   -- traceShow ("Checking properties" <+> pretty props) $ return ()
-  mapM (evaluateProperty sessions) props
+  mapM (evaluateProperty modules) props
  where
   props = buildDupCheckProp argNames
                             (solution, otherSolutions)
@@ -284,27 +306,25 @@ compareSolution sessions argNames solution otherSolutions funcSig time = do
 
 runChecks
   :: MonadIO m
-  => Sessions
-  -> Environment
+  => Environment
+  -> [String]
   -> TypeSkeleton
   -> TProgram
   -> FilterTest m (Maybe AssociativeExamples)
-runChecks sessions env goalType prog = do
-  notCrashRes <- checkSolutionNotCrash sessions argNames funcSig body
-  if notCrashRes
-    then do
-      notDupRes <- checkDuplicates sessions argNames funcSig body
+runChecks env mdls goalType prog = do
+  result <- runChecks_
 
-      state  <- get
-      when notDupRes $ runPrints state
+  state  <- get
+  when result $ runPrints state
 
-      return $ if notDupRes
-        then Just (collectExamples (unqualifyFunc body, body) state)
-        else Nothing
-    else return Nothing
+  return $ if result
+    then Just (collectExamples (unqualifyFunc body, body) state)
+    else Nothing
  where
   SynthesisResult funcSig body argNames = extractSolution env goalType prog
+  checks     = [checkSolutionNotCrash, checkDuplicates]
 
+  runChecks_ = and <$> mapM (\f -> f mdls argNames funcSig body) checks
   runPrints state = do
     writeLog 2 "runChecks" "\n*******************FILTER*********************"
     writeLog 2 "runChecks" (pretty $ unqualifyFunc body)
@@ -313,12 +333,12 @@ runChecks sessions env goalType prog = do
 
 checkSolutionNotCrash
   :: MonadIO m
-  => Sessions
+  => [String]
   -> [String]
   -> String
   -> TProgram
   -> FilterTest m Bool
-checkSolutionNotCrash sessions argNames sigStr body = do
+checkSolutionNotCrash modules argNames sigStr body = do
   fs@(FilterState _ _ examples _ _) <- get
   result                          <- liftIO executeCheck
 
@@ -332,12 +352,12 @@ checkSolutionNotCrash sessions argNames sigStr body = do
 
  where
   handleNotSupported =
-    (`catch` ((\ex -> return (Left (show ex))) :: NotSupportedException
-               -> IO (Either String FunctionCrashDesc)
+    (`catch` ((\ex -> return (Left (UnknownError $ show ex))) :: NotSupportedException
+               -> IO (Either InterpreterError FunctionCrashDesc)
              )
     )
   funcSig      = (instantiateSignature . parseTypeString) sigStr
-  executeCheck = handleNotSupported $ validateSolution sessions
+  executeCheck = handleNotSupported $ validateSolution modules
                                                        argNames
                                                        (plainShow body)
                                                        funcSig
@@ -346,12 +366,12 @@ checkSolutionNotCrash sessions argNames sigStr body = do
 
 checkDuplicates
   :: MonadIO m
-  => Sessions
+  => [String]
   -> [String]
   -> String
   -> TProgram
   -> FilterTest m Bool
-checkDuplicates sessions argNames sigStr solution = do
+checkDuplicates modules argNames sigStr solution = do
   fs@(FilterState is solns _ examples _) <- get
   case solns of
 
@@ -362,7 +382,7 @@ checkDuplicates sessions argNames sigStr solution = do
 
     -- find an input i such that all synthesized results can be differentiated semantically
     _ -> do
-      results <- liftIO $ compareSolution sessions
+      results <- liftIO $ compareSolution modules
                                           argNames
                                           (plainShow solution)
                                           (map plainShow solns)
@@ -371,7 +391,6 @@ checkDuplicates sessions argNames sigStr solution = do
       passTest <- and <$> zipWithM processResult results solns
 
       fs'@(FilterState is solns _ examples _) <- get
-      when passTest $ writeLog 3 "checkDuplicates" $ "adding solution" <+> pretty solution
       if passTest then put fs' { solutions = solution : solns } else put fs
 
       return passTest
@@ -382,7 +401,7 @@ checkDuplicates sessions argNames sigStr solution = do
   caseToInput _ = error "caseToInput: expect AtLeastTwo"
 
   filterRelated i1 i2 (Example inputX _) = inputX == i1 || inputX == i2
-  filterSuccess (Left err) | "timeout" `isInfixOf` err = False
+  filterSuccess (Left (UnknownError "timeout")) = False
   filterSuccess (Left _) = True
   filterSuccess (Right (r@(Just AtLeastTwo{}), newExamples)) = True
   filterSuccess _ = False
@@ -391,7 +410,7 @@ checkDuplicates sessions argNames sigStr solution = do
     state@(FilterState is solns _ examples _) <- get
     case result of
       -- bypass the check on any timeout or error
-      Left err | "timeout" `isInfixOf` err -> do
+      Left  (UnknownError "timeout") -> do
         writeLog 2 "processResult" $ "dup check timeout for" <+> pretty (solution, otherSolution)
         return False -- no example -> reject
       Left  err                      -> return True
@@ -456,15 +475,12 @@ generateIOPairs
   -> Depth
   -> [String]
   -> [[String]]
-  -> IO (Either String GeneratorResult)
+  -> IO (Either InterpreterError GeneratorResult)
 generateIOPairs modules solution funcSig argNames numPairs timeInMicro interpreterTimeInMicro depth existingResults existingInputs
-  = do
-    res <- askGhcSocket property
-    case res of
-      Left err -> return $ Left err
-      Right r -> case readMaybe r of
-        Nothing -> error $ "[generateIOPairs]: cannot read " ++ r
-        Just r' -> return $ Right r'
+  = runInterpreter' interpreterTimeInMicro $ do
+    setImportsQ (zip (map Text.unpack modules) (repeat Nothing) ++ frameworkModules)
+    interpret property (as :: IO GeneratorResult) >>= liftIO
+
  where
   funcSig' = instantiateSignature funcSig
   typeStr  = show funcSig'
@@ -503,7 +519,7 @@ generateIOPairs modules solution funcSig argNames numPairs timeInMicro interpret
     buildTimeoutWrapper :: (String, String, String, String) -> Int -> String
     buildTimeoutWrapper (plain, typed, shows, unwrp) timeInMicro =
       printf
-        "let wrappedSolution %s = (liftIO $ Test.ChasingBottoms.timeOutMicro' %d (Test.ChasingBottoms.approxShow %d (sol_wrappedSolution %s))) in"
+        "let wrappedSolution %s = (liftIO $ CB.timeOutMicro' %d (CB.approxShow %d (sol_wrappedSolution %s))) in"
         typed
         timeInMicro
         defaultMaxOutputLength

@@ -396,6 +396,39 @@ canonical (Program p t) = case p of
     body' <- canonical body
     return (Program (PFun x' body') t)
 
+data PostfilterTestcase = PostfilterTestcase {
+  postfilterDesc :: String,
+  postfilterProgram :: TProgram,
+  postfilterSig :: String,
+  postfilterWant :: Bool
+}
+
+postfilterTestcases :: [PostfilterTestcase]
+postfilterTestcases = [
+  PostfilterTestcase
+    "rule out always crash"
+    (untyped $ PFun "x" (untyped $ PApp "(,)" [varp "x", untyped $ PApp "GHC.List.head" [varp "[]"]]))
+    "a -> (a, a)"
+    False,
+
+  PostfilterTestcase
+    "rule out by demand analysis"
+    (untyped $ PFun "x" (varp "1"))
+    "Int -> Int"
+    False,
+
+  PostfilterTestcase
+    "keep good programs"
+    (untyped $ PFun "x" (untyped $ PApp "Data.Maybe.listToMaybe" [untyped $ PApp "Data.Maybe.catMaybes" [varp "x"]]))
+    "[Maybe a] -> Maybe a"
+    True,
+
+  PostfilterTestcase
+    "keep cycles"
+    (untyped $ PFun "x" (untyped $ PApp "GHC.List.repeat" [varp "x"]))
+    "a -> [a]"
+    True
+  ]
 
 spec :: Spec
 spec = do
@@ -431,3 +464,10 @@ spec = do
         let results = map (\(t, p) -> (plainShow t, plainShow p)) pairs
         Set.fromList (genQueryWant tc) `Set.isSubsetOf` Set.fromList results `shouldBe` True
       ) genQueryTestcases
+
+  describe "test postfilter" $
+    mapM_ (\tc ->
+      it (postfilterDesc tc) $ do
+        result <- postfilter (postfilterProgram tc) (postfilterSig tc)
+        result `shouldBe` (postfilterWant tc)
+      ) postfilterTestcases

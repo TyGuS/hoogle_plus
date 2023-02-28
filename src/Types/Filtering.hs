@@ -43,6 +43,18 @@ defaultGenerationTimeoutMicro = 30 * 10 ^ 6
 defaultGenerationDepth :: Int
 defaultGenerationDepth = 4
 
+frameworkModules =
+  zip [ "Test.SmallCheck"
+  , "Test.SmallCheck.Drivers"
+  , "Test.LeanCheck.Function.ShowFunction"
+  , "System.IO.Silently"
+  , "Control.Exception"
+  , "Control.Monad"
+  , "Control.Monad.State"
+  ] (repeat Nothing)
+
+  ++ [("Test.ChasingBottoms", Just "CB")]
+
 --------------------------------------------------------------------------------
 ---------------------------------- Types ---------------------------------------
 --------------------------------------------------------------------------------
