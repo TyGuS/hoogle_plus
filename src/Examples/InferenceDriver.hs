@@ -2,6 +2,7 @@ module Examples.InferenceDriver
   ( InfStats(..)
   , parseExample
   , checkExamples
+  , resolveType
   , getExampleTypes
   , generalizeType
   , generalizeTypeSkeleton

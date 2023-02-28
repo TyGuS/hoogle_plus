@@ -1,4 +1,4 @@
-module Dataset.BottomUpSpec
+module Dataset.DatasetSpec
   ( spec
   ) where
 
@@ -20,6 +20,7 @@ import Types.Pretty
 import Types.Program
 import Types.Common
 import Dataset.BottomUp
+import Dataset.Dataset
 
 data GenAppTestcase = GenAppTestcase {
   genAppDesc :: String,
@@ -346,6 +347,25 @@ genArgTestcases = [
     ]
   ]
 
+data GenQueryTestcase = GenQueryTestcase {
+  genQueryDesc :: String,
+  genQueryComponents :: [(Text, SchemaSkeleton)],
+  genQueryConfig :: Configuration,
+  genQueryWant :: [(String, String)]
+}
+
+genQueryTestcases :: [GenQueryTestcase]
+genQueryTestcases = [
+  GenQueryTestcase
+    "generate queries within two iteration"
+    testComponents
+    (Configuration 2 3)
+    [("forall a. a -> [a] -> a","\\arg0 arg1 -> fromMaybe arg0 (listToMaybe arg1)")
+    ,("forall a. [Maybe a] -> Maybe a","\\arg0 -> listToMaybe (catMaybes arg0)")
+    ,("forall a. [Maybe a] -> Maybe [a] -> [a]","\\arg0 -> fromMaybe (catMaybes arg0)")
+    ]
+  ]
+
 canonical :: Program t -> State (Map Id Id) (Program t)
 canonical (Program p t) = case p of
   PSymbol s | "arg" `Text.isPrefixOf` s -> do st <- get
@@ -403,3 +423,11 @@ spec = do
         let lambdas = map (\p -> plainShow (evalState (canonical p) Map.empty)) lambdas'
         Set.fromList lambdas `shouldBe` Set.fromList (genArgWant tc)
       ) genArgTestcases
+
+  describe "test generate queries" $
+    mapM_ (\tc ->
+      it (genQueryDesc tc) $ do
+        pairs <- generateQAPairs (genQueryComponents tc) (genQueryConfig tc)
+        let results = map (\(t, p) -> (plainShow t, plainShow p)) pairs
+        Set.fromList (genQueryWant tc) `Set.isSubsetOf` Set.fromList results `shouldBe` True
+      ) genQueryTestcases
