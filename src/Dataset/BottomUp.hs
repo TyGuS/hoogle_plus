@@ -6,7 +6,9 @@ import qualified Data.Map as Map
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Maybe (mapMaybe)
+import Data.List
 
+import Control.Monad.Extra
 import Data.ECTA
 import Data.Tuple.Extra
 
@@ -37,7 +39,7 @@ generateApp bank =
       -- refresh type variables
       typ' <- freshType [] typ
       let FunctionT _ tArg tRet = typ'
-      let args = unifiedTerms tArg
+      args <- unifiedTerms bank tArg
       let typedTerms = map (uncurry $ applyTerm f typ') args
       return (Map.fromList typedTerms)
 
@@ -58,14 +60,19 @@ generateApp bank =
         Nothing -> Nothing
         Just subst -> let v' = map (withContent $ typeSubstitute subst) v in Just (subst, v')
 
-    unifiedTerms :: TypeSkeleton -> [(TypeSubstitution, [TProgram])]
-    unifiedTerms typ = mapMaybe (uncurry (isUnifiedWith typ)) (Map.toList bank)
+    unifiedTerms :: ProgramBank -> TypeSkeleton -> Generator [(TypeSubstitution, [TProgram])]
+    unifiedTerms localBank t@(FunctionT _ tArg tRet) = do
+      x <- freshId [] "x"
+      terms <- unifiedTerms (Map.insertWith (++) tArg [varp x] localBank) tRet
+      let mkFun tass es = (tass, map (\e -> Program (PFun x e) (typeSubstitute tass t)) es)
+      return $ map (uncurry mkFun) terms
+    unifiedTerms localBank typ =
+      return $ mapMaybe (uncurry (isUnifiedWith typ)) (Map.toList localBank)
 
 generate :: Int -> [TProgram]
 generate n =
-    let unary = filter (not . isFunctionType . toMonotype . snd) hplusComponents
-        literals = map (\lit -> (typeOf lit, lit)) (strLits ++ intLits ++ charLits)
-        inits = map (uncurry toProgram) unary ++ literals
+    let literals = map (\lit -> (typeOf lit, lit)) (strLits ++ intLits ++ charLits)
+        inits = map (uncurry toProgram) hplusComponents ++ literals
         initBank = foldr (\(t, p) -> Map.insertWith (++) t [p]) Map.empty inits
         bank = evalState (go n initBank) Map.empty
      in concat (Map.elems bank)
@@ -86,6 +93,26 @@ assignArgs program = map mkLambda <$> go program
         arg <- freshId [] "arg"
         return [(program, [])
               , (Program (PSymbol arg) t, [arg])]
+
+      PApp f args -> do
+        argsList <- sequence <$> mapM go args
+        let argsList' = map (\as -> (map fst as, concatMap snd as)) argsList
+        arg <- freshId [] "arg"
+        ([(program, []), (varp arg, [arg])] ++) <$> concatMapM (mkApp t) argsList'
+
+      PFun x body -> do
+        bodys <- go body -- note that x may become an argument, should we prevent that?
+        arg <- freshId [] "arg"
+        return ([(program, [])
+                ,(Program (PSymbol arg) t, [arg])
+                ] ++ map (\(e, xs) -> (Program (PFun x e) t, xs)) bodys)
+
+      _ -> error "unsupported expression in assignArgs"
+
+    mkApp :: TypeSkeleton -> ([TProgram], [Id]) -> Generator [(TProgram, [Id])]
+    mkApp tRet (args, binds) = do
+      arg <- freshId [] "arg"
+      return $ map (\as -> (Program (PApp arg as) tRet, arg:binds)) (tails args)
 
     mkLambda :: (TProgram, [Id]) -> TProgram
     mkLambda (p, args) = foldr (\arg body -> untyped (PFun arg body)) p args

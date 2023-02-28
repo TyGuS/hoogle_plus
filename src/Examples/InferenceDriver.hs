@@ -3,6 +3,8 @@ module Examples.InferenceDriver
   , parseExample
   , checkExamples
   , getExampleTypes
+  , generalizeType
+  , generalizeTypeSkeleton
 
     -- * type inference query
   , searchTypes
@@ -551,7 +553,7 @@ generalizeTypeSkeleton
   -> TypeSkeleton
   -> TypeGeneralizer m (TyclassAssignment, TypeSkeleton)
 generalizeTypeSkeleton tcass t@(TypeVarT id) = do
-    -- either add type class or not 
+    -- either add type class or not
   let tc = maybe [] Set.toList (Map.lookup id tcass)
   let mkResult tc = return (Map.singleton id (Set.singleton tc), t)
   prevVars <- gets $ view prevTypeVars
