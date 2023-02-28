@@ -67,6 +67,11 @@ spec = do
       solveTypeConstraint [] Map.empty (UnifiesWith t1 t2) `shouldBe` Nothing
       solveTypeConstraint [] Map.empty (SubtypeOf t2 t1) `shouldBe` Nothing
 
+    it "`List a` unifies with `List b`" $ do
+      let t1 = listType (TypeVarT "a")
+      let t2 = listType (TypeVarT "b")
+      solveTypeConstraint [] Map.empty (UnifiesWith t1 t2) `shouldBe` Just (Map.fromList [("a",TypeVarT "b")])
+
   describe "bottomUpCheck" $ do
     it "`foldl ($) x xs` does not type check" $ do
       let env =

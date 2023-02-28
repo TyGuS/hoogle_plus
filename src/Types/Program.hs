@@ -21,6 +21,7 @@ module Types.Program
   , unqualifiedName
   , unqualifyFunc
   , untypeclass
+  , numArguments
 
     -- * Declarations
   , Declaration(..)
@@ -161,6 +162,11 @@ programSize (Program p _) = case p of
   PApp _ args -> 1 + sum (map programSize args)
   PFun _ body -> 1 + programSize body
   _           -> 0
+
+numArguments :: Program t -> Int
+numArguments (Program p _) = case p of
+  PFun _ body -> 1 + numArguments body
+  _ -> 0
 
 {- Misc -}
 

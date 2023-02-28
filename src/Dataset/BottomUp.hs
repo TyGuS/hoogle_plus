@@ -4,6 +4,7 @@ import Control.Monad.State
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import Data.Maybe (mapMaybe)
 import Data.List
@@ -19,35 +20,35 @@ import Types.Fresh
 import Types.TypeChecker
 import Types.Common
 
+import Debug.Trace
+
 type Size = Int
 type ProgramBank = Map TypeSkeleton [TProgram]
 type Generator = State (Map Id Int)
 
-data Function = Named Id | Unnamed TProgram
-
 generateApp :: ProgramBank -> Generator ProgramBank
 generateApp bank =
-  let functions = filter (isFunctionType . toMonotype . snd) hplusComponents
-      functionsInLib = map (\(f, t) -> (Named f, toMonotype t)) functions
-      unnamedFunctions = filter (isFunctionType . fst) (Map.toList bank)
-      functionsInBank = concatMap (\(t, fs) -> map (\f -> (Unnamed f, t)) fs) unnamedFunctions
-   in Map.unionsWith (++) <$> mapM (uncurry go) (functionsInLib ++ functionsInBank)
+  let functions = filter (isFunctionType . fst) (Map.toList bank)
+   in Map.unionsWith (++) <$> mapM (uncurry go) functions
   where
     -- generate application terms for a given function
-    go :: Function -> TypeSkeleton -> Generator ProgramBank
-    go f typ = do
+    go :: TypeSkeleton -> [TProgram] -> Generator ProgramBank
+    go typ fs = do
       -- refresh type variables
       typ' <- freshType [] typ
       let FunctionT _ tArg tRet = typ'
       args <- unifiedTerms bank tArg
-      let typedTerms = map (uncurry $ applyTerm f typ') args
-      return (Map.fromList typedTerms)
+      -- trace ("get args " ++ show args ++ " for " ++ show fs) $ return ()
+      let applyArgs f = map (uncurry $ applyTerm f typ') args
+      let typedTerms = concatMap applyArgs fs
+      -- trace ("get typed terms " ++ show typedTerms) $ return ()
+      return (Map.fromListWith (++) typedTerms)
 
-    applyTerm :: Function -> TypeSkeleton -> TypeSubstitution -> [TProgram] -> (TypeSkeleton, [TProgram])
-    applyTerm f t@(FunctionT _ _ tRet) subst args =
+    applyTerm :: TProgram -> TypeSkeleton -> TypeSubstitution -> [TProgram] -> (TypeSkeleton, [TProgram])
+    applyTerm (Program f _) t@(FunctionT _ _ tRet) subst args =
       let tRet' = typeSubstitute subst tRet
-          (fname, pArgs) = case f of Named fname -> (fname, [])
-                                     Unnamed (Program (PApp f args) _) -> (f, args)
+          (fname, pArgs) = case f of PSymbol fname -> (fname, [])
+                                     PApp f args -> (f, args)
           terms = map (\arg -> Program (PApp fname (pArgs ++ [arg])) tRet') args
        in (tRet', terms)
 
@@ -69,17 +70,21 @@ generateApp bank =
     unifiedTerms localBank typ =
       return $ mapMaybe (uncurry (isUnifiedWith typ)) (Map.toList localBank)
 
-generate :: Int -> [TProgram]
-generate n =
+generate :: [(Text, SchemaSkeleton)] -> Int -> [TProgram]
+generate components n =
     let literals = map (\lit -> (typeOf lit, lit)) (strLits ++ intLits ++ charLits)
-        inits = map (uncurry toProgram) hplusComponents ++ literals
+        inits = map (uncurry toProgram) components ++ literals
         initBank = foldr (\(t, p) -> Map.insertWith (++) t [p]) Map.empty inits
         bank = evalState (go n initBank) Map.empty
      in concat (Map.elems bank)
   where
     go :: Int -> ProgramBank -> Generator ProgramBank
     go n bank | n <= 0 = return bank
-              | otherwise = (Map.union bank <$> generateApp bank) >>= go (n-1)
+              | otherwise = do bank' <- generateApp bank
+                              --  traceShow bank $ return ()
+                               bank' <- return $ Map.unionWith (++) bank bank'
+                              --  traceShow bank' $ return ()
+                               go (n-1) (Map.map (Set.toList . Set.fromList) bank')
 
     toProgram :: Text -> SchemaSkeleton -> (TypeSkeleton, TProgram)
     toProgram x t = (toMonotype t, Program (PSymbol x) (toMonotype t))
@@ -88,22 +93,27 @@ assignArgs :: TProgram -> Generator [TProgram]
 assignArgs program = map mkLambda <$> go program
   where
     go :: TProgram -> Generator [(TProgram, [Id])]
-    go (Program p t) = case p of
+    go prog@(Program p t) = case p of
       PSymbol _ -> do
         arg <- freshId [] "arg"
-        return [(program, [])
+        return [(prog, [])
               , (Program (PSymbol arg) t, [arg])]
 
       PApp f args -> do
         argsList <- sequence <$> mapM go args
+        -- traceShow (argsList, p) $ return ()
         let argsList' = map (\as -> (map fst as, concatMap snd as)) argsList
+        let withFname = map (\(as, binds) -> (Program (PApp f as) t, binds)) argsList'
+        withoutFname <- concatMapM (mkApp t) argsList'
         arg <- freshId [] "arg"
-        ([(program, []), (varp arg, [arg])] ++) <$> concatMapM (mkApp t) argsList'
+        return ([ (prog, [])
+                , (Program (PSymbol arg) t, [arg])
+                ] ++ withFname ++ withoutFname)
 
       PFun x body -> do
         bodys <- go body -- note that x may become an argument, should we prevent that?
         arg <- freshId [] "arg"
-        return ([(program, [])
+        return ([(prog, [])
                 ,(Program (PSymbol arg) t, [arg])
                 ] ++ map (\(e, xs) -> (Program (PFun x e) t, xs)) bodys)
 
@@ -112,10 +122,11 @@ assignArgs program = map mkLambda <$> go program
     mkApp :: TypeSkeleton -> ([TProgram], [Id]) -> Generator [(TProgram, [Id])]
     mkApp tRet (args, binds) = do
       arg <- freshId [] "arg"
-      return $ map (\as -> (Program (PApp arg as) tRet, arg:binds)) (tails args)
+      return $ map (\as -> (Program (PApp arg as) tRet, arg:binds)) (init $ tails args)
 
     mkLambda :: (TProgram, [Id]) -> TProgram
-    mkLambda (p, args) = foldr (\arg body -> untyped (PFun arg body)) p args
+    mkLambda (p, args) = let args' = filter (`Set.member` (symbolsOf p)) args
+                          in foldr (\arg body -> untyped (PFun arg body)) p args'
 
 --------------------------------------------------------------------------------
 ----------                     Literal Expressions                    ----------
