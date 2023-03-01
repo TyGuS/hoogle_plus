@@ -19,19 +19,16 @@ import           System.Directory               ( doesFileExist
                                                 , removeFile
                                                 )
 import           System.IO                      ( BufferMode(LineBuffering)
+                                                , IOMode(WriteMode)
+                                                , withFile
                                                 , hSetBuffering
-                                                , hGetContents
                                                 , hPutStr
                                                 , stdout
                                                 )
-import GHC.Paths (libdir)
-import qualified GHC
-import qualified GhcMonad as GHC
-import Data.IORef
 import qualified Data.Text as Text
-import qualified EnumSet                       as ES
-import qualified GHC.LanguageExtensions.Type as GHC
-import qualified Module as GHC
+import qualified Data.Set as Set
+
+import Conduit
 
 import           Database.Dataset
 import           Database.Environment
@@ -51,7 +48,9 @@ import           Types.Filtering
 import           Types.Generate          hiding ( files )
 import           Types.Program
 import           Types.Solver
-import Paths_HooglePlus
+import Types.Pretty
+import Types.Common
+import Dataset.Dataset
 
 programName :: String
 programName = "hoogleplus"
@@ -61,46 +60,6 @@ versionName = "0.1"
 
 releaseDate :: Day
 releaseDate = fromGregorian 2019 3 10
-
-frameworkModules :: [Text.Text]
-frameworkModules =  [ "Prelude"
-                    , "Test.SmallCheck"
-                    , "Test.SmallCheck.Drivers"
-                    , "Test.LeanCheck.Function.ShowFunction"
-                    , "System.IO.Silently"
-                    , "System.Timeout"
-                    , "Control.Exception"
-                    , "Control.Monad"
-                    , "Control.Monad.State"
-                    , "Test.ChasingBottoms"
-                    ]
-
-initializeGHC :: GHC.GhcMonad m => m [GHC.InstalledUnitId]
-initializeGHC = do
-  -- initialize the GHC session
-  GHC.initGhcMonad (Just libdir)
-
-  -- update the session dyn flags
-  dflags <- GHC.getSessionDynFlags
-  let newExtensions = ES.fromList (GHC.ExtendedDefaultRules : GHC.ScopedTypeVariables : GHC.FlexibleContexts : ES.toList (GHC.extensionFlags dflags))
-  let dflags' = dflags { GHC.hscTarget = GHC.HscInterpreted
-                       , GHC.ghcLink   = GHC.LinkInMemory
-                       , GHC.generalFlags   = ES.delete GHC.Opt_OmitYields (GHC.generalFlags dflags)
-                       , GHC.extensionFlags = newExtensions
-                       }
-  GHC.setSessionDynFlags dflags'
-
-loadTopLevel :: GHC.GhcMonad m => m ()
-loadTopLevel = do
-  srcPath <- liftIO $ getDataFileName "InternalTypeGen.hs"
-  target <- GHC.guessTarget srcPath Nothing
-  GHC.setTargets [target]
-  _ <- GHC.load GHC.LoadAllTargets
-
-  modGraph <- GHC.getModuleGraph
-  let modSummaries = GHC.mgModSummaries modGraph
-  let mdlName = GHC.ms_mod_name (head modSummaries)
-  GHC.setContext [GHC.IIModule mdlName]
 
 -- | Type-check and synthesize a program, according to command-line arguments
 main :: IO ()
@@ -152,6 +111,21 @@ main = do
       runTypeInferenceEval outFile
                            isStudy
                            (if bm == "" then benchmarks else benchmarks')
+    Dataset outFile mdls rep maxargs -> do
+      let mdls' = ["Nil", "Cons", "Pair", "Data.Bool.True", "Data.Bool.False"] ++ mdls
+      let components = case mdls of
+                        [] -> hplusComponents
+                        _ -> filter (\(f, _) -> any (`Text.isPrefixOf` f) mdls') hplusComponents
+      putStrLn $ "using " ++ show (length components) ++ " components"
+      -- runConduitRes
+      --   $ generateQAPairs components (Configuration rep maxargs)
+        -- .| toCsv
+        -- .| sinkFile (outFile ++ ".csv")
+        -- .| writeObjects (outFile ++ ".aeson")
+      results <- sourceToList (generateQAPairs components (Configuration rep maxargs))
+      withFile (outFile ++ ".csv") WriteMode $ \hdl -> mapM_ (\(t, p) ->
+        hPutStr hdl (t ++ "\t" ++ plainShow (unqualifyFunc p) ++ "\n")
+        ) (Set.fromList results)
 
 {- Command line arguments -}
 
@@ -198,7 +172,10 @@ data CommandLineArgs
         use_study_data :: Bool
       }
       | Dataset {
-        out_file :: FilePath
+        out_file :: FilePath,
+        dataset_modules :: [Id],
+        dataset_repeat :: Int,
+        dataset_maxargs :: Int
       }
   deriving (Data, Typeable, Show, Eq)
 
@@ -251,10 +228,20 @@ evaluation =
       }
     &= help "Evaluate Hoogle+ modules"
 
+dataset :: CommandLineArgs
+dataset =
+  Dataset
+    { out_file = "dataset" &= help "Path to the output file"
+    , dataset_modules = [] &= help "Modules to be used during dataset creation. Empty means include everything." &= name "dm"
+    , dataset_repeat = 3 &= help "Repeat the bottom up generation n times." &= name "dr"
+    , dataset_maxargs = 3 &= help "Only consider lambda expressions with no more than n arguments." &= name "dargs"
+    }
+  &= help "Generate a dataset using components from specified modules"
+
 mode :: Mode (CmdArgs CommandLineArgs)
 mode =
   cmdArgsMode
-    $  modes [synt, generate, evaluation]
+    $  modes [synt, generate, evaluation, dataset]
     &= help (programName ++ " program synthesizer")
     &= program programName
     &= summary

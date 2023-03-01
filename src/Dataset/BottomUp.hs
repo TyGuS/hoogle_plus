@@ -19,6 +19,7 @@ import Types.Program
 import Types.Fresh
 import Types.TypeChecker
 import Types.Common
+import Dataset.Configuration
 
 import Debug.Trace
 
@@ -72,7 +73,7 @@ generateApp bank =
 
 generate :: [(Text, SchemaSkeleton)] -> Int -> [TProgram]
 generate components n =
-    let literals = map (\lit -> (typeOf lit, lit)) (strLits ++ intLits ++ charLits)
+    let literals = map (\lit -> (typeOf lit, lit)) (intLits ++ charLits)
         inits = map (uncurry toProgram) components ++ literals
         initBank = foldr (\(t, p) -> Map.insertWith (++) t [p]) Map.empty inits
         bank = evalState (go n initBank) Map.empty
@@ -89,8 +90,8 @@ generate components n =
     toProgram :: Text -> SchemaSkeleton -> (TypeSkeleton, TProgram)
     toProgram x t = (toMonotype t, Program (PSymbol x) (toMonotype t))
 
-assignArgs :: TProgram -> Generator [TProgram]
-assignArgs program = map mkLambda <$> go program
+assignArgs :: Configuration -> TProgram -> Generator [TProgram]
+assignArgs config program = map mkLambda <$> go program
   where
     go :: TProgram -> Generator [(TProgram, [Id])]
     go prog@(Program p t) = case p of
@@ -120,9 +121,11 @@ assignArgs program = map mkLambda <$> go program
       _ -> error "unsupported expression in assignArgs"
 
     mkApp :: TypeSkeleton -> ([TProgram], [Id]) -> Generator [(TProgram, [Id])]
-    mkApp tRet (args, binds) = do
-      arg <- freshId [] "arg"
-      return $ map (\as -> (Program (PApp arg as) tRet, arg:binds)) (init $ tails args)
+    mkApp tRet (args, binds)
+      | length binds > maxArgs config = return []
+      | otherwise = do
+        arg <- freshId [] "arg"
+        return $ map (\as -> (Program (PApp arg as) tRet, arg:binds)) (init $ tails args)
 
     mkLambda :: (TProgram, [Id]) -> TProgram
     mkLambda (p, args) = let args' = filter (`Set.member` (symbolsOf p)) args
@@ -131,8 +134,8 @@ assignArgs program = map mkLambda <$> go program
 --------------------------------------------------------------------------------
 ----------                     Literal Expressions                    ----------
 --------------------------------------------------------------------------------
-strLits :: [TProgram]
-strLits = map ((`ann` listType charType) . varp) ["str"] -- ["a", "A", "Aa", "bB"]
+-- strLits :: [TProgram]
+-- strLits = map ((`ann` listType charType) . varp) ["str"] -- ["a", "A", "Aa", "bB"]
 
 intLits :: [TProgram]
 intLits = map ((`ann` intType) . varp) ["i"] -- [-1, 0, 1]

@@ -23,6 +23,7 @@ module Types.Program
   , untypeclass
   , numArguments
   , argumentsOf
+  , canonicalize
 
     -- * Declarations
   , Declaration(..)
@@ -44,6 +45,9 @@ import           Data.Aeson                     ( FromJSON
                                                 , ToJSON
                                                 )
 import           Data.Serialize                 ( Serialize )
+import Control.Monad.State
+import Data.Map (Map)
+import qualified Data.Map as Map
 
 import           Types.Common
 import           Types.Environment
@@ -58,6 +62,9 @@ data BareProgram t
   -- | PFilled Int                               -- ^ Filled hole
   deriving (Eq, Ord, Show, Functor, Generic)
 
+instance ToJSON t => ToJSON (BareProgram t)
+instance FromJSON t => FromJSON (BareProgram t)
+
 -- | Programs annotated with types
 data Program t = Program
   { content :: BareProgram t
@@ -70,6 +77,9 @@ instance Eq (Program t) where
 
 instance Ord (Program t) where
   (<=) (Program l _) (Program r _) = l <= r
+
+instance ToJSON t => ToJSON (Program t)
+instance FromJSON t => FromJSON (Program t)
 
 type TProgram = Program TypeSkeleton    -- Typed program
 type RProgram = Program (TypeSkeleton, TypeSkeleton) -- Program with refinement information
@@ -173,6 +183,37 @@ argumentsOf :: Program t -> [Id]
 argumentsOf (Program p _) = case p of
   PFun x body -> x : argumentsOf body
   _ -> []
+
+canonicalize :: Program t -> State (Map Id Id) (Program t)
+canonicalize (Program p t) = case p of
+  PSymbol s | "arg" `Text.isPrefixOf` s -> do st <- get
+                                              if s `Map.member` st
+                                                then return (Program (PSymbol (st Map.! s)) t)
+                                                else do
+                                                  let i = Map.size st
+                                                  let newArg = Text.pack ("arg" ++ show i)
+                                                  modify $ Map.insert s newArg
+                                                  return (Program (PSymbol newArg) t)
+            | otherwise -> return (Program (PSymbol s) t)
+  PApp f args -> do
+    st <- get
+    let i = Map.size st
+    let newArg = Text.pack ("arg" ++ show i)
+    when (("arg" `Text.isPrefixOf` f) && f `Map.notMember` st) (modify $ Map.insert f newArg)
+    args' <- mapM canonicalize args
+    st <- get
+    let newFname = if "arg" `Text.isPrefixOf` f then st Map.! f else f
+    return (Program (PApp newFname args') t)
+  PFun x body -> do
+    st <- get
+    let i = Map.size st
+    let newArg = Text.pack ("arg" ++ show i)
+    when (("arg" `Text.isPrefixOf` x) && x `Map.notMember` st) (modify $ Map.insert x newArg)
+    st <- get
+    let x' = if "arg" `Text.isPrefixOf` x then st Map.! x else x
+    body' <- canonicalize body
+    return (Program (PFun x' body') t)
+
 
 {- Misc -}
 

@@ -54,7 +54,7 @@ import           Types.Environment
 import           Types.Fresh
 import           Types.Log
 import           Types.Pretty
-import           Types.Program
+import           Types.Program hiding (canonicalize)
 import           Types.Type
 import           Utility.Utils
 

@@ -366,36 +366,6 @@ genQueryTestcases = [
     ]
   ]
 
-canonical :: Program t -> State (Map Id Id) (Program t)
-canonical (Program p t) = case p of
-  PSymbol s | "arg" `Text.isPrefixOf` s -> do st <- get
-                                              if s `Map.member` st
-                                                then return (Program (PSymbol (st Map.! s)) t)
-                                                else do
-                                                  let i = Map.size st
-                                                  let newArg = Text.pack ("arg" ++ show i)
-                                                  modify $ Map.insert s newArg
-                                                  return (Program (PSymbol newArg) t)
-            | otherwise -> return (Program (PSymbol s) t)
-  PApp f args -> do
-    st <- get
-    let i = Map.size st
-    let newArg = Text.pack ("arg" ++ show i)
-    when (("arg" `Text.isPrefixOf` f) && f `Map.notMember` st) (modify $ Map.insert f newArg)
-    args' <- mapM canonical args
-    st <- get
-    let newFname = if "arg" `Text.isPrefixOf` f then st Map.! f else f
-    return (Program (PApp newFname args') t)
-  PFun x body -> do
-    st <- get
-    let i = Map.size st
-    let newArg = Text.pack ("arg" ++ show i)
-    when (("arg" `Text.isPrefixOf` x) && x `Map.notMember` st) (modify $ Map.insert x newArg)
-    st <- get
-    let x' = if "arg" `Text.isPrefixOf` x then st Map.! x else x
-    body' <- canonical body
-    return (Program (PFun x' body') t)
-
 data PostfilterTestcase = PostfilterTestcase {
   postfilterDesc :: String,
   postfilterProgram :: TProgram,
@@ -453,7 +423,7 @@ spec = do
       it (genArgDesc tc) $ do
         let lambdas = evalState (assignArgs (genArgProgram tc)) Map.empty
         let lambdas' = filter (\p -> numArguments p <= 2) lambdas
-        let lambdas = map (\p -> plainShow (evalState (canonical p) Map.empty)) lambdas'
+        let lambdas = map (\p -> plainShow (evalState (canonicalize p) Map.empty)) lambdas'
         Set.fromList lambdas `shouldBe` Set.fromList (genArgWant tc)
       ) genArgTestcases
 

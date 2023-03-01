@@ -222,7 +222,7 @@ hoPostfix :: Id
 hoPostfix = "'ho'"
 
 wildcardPrefix :: Id
-wildcardPrefix = "?"
+wildcardPrefix = ""
 
 pairProj :: Id
 pairProj = "pair_match"
