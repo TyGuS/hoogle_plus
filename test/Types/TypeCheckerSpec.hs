@@ -2,28 +2,73 @@ module Types.TypeCheckerSpec
   ( spec
   ) where
 
-import           Control.Monad.State            ( evalState
-                                                , runState
-                                                )
-import           Data.Either                    ( isLeft
-                                                , isRight
-                                                )
-import qualified Data.Map                      as Map
-import qualified Data.Set                      as Set
-import           Test.Hspec                     ( Spec
-                                                , describe
-                                                , it
-                                                , shouldBe
-                                                )
+import Control.Monad.Except (runExceptT)
+import Control.Monad.State (evalState, runState)
+import Data.Either (isLeft, isRight, fromRight, either)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 
-import           Types.Environment
-import           Types.Program
-import           Types.Solver
-import           Types.Type
-import           Types.TypeChecker
+import Test.Hspec (Spec, describe, it, shouldBe)
+
+import Types.Common
+import Types.Environment
+import Types.Pretty
+import Types.Program hiding (canonicalize)
+import Types.Solver
+import Types.Type
+import Types.TypeChecker
+
+import Debug.Trace
 
 runChecker :: Checker a -> (a, CheckerState)
 runChecker = flip runState emptyChecker
+
+data BottomUpTestcase = BottomUpTestcase {
+  buDesc :: String,
+  buArgs :: [(Id, TypeSkeleton)],
+  buVars :: [Id],
+  buProgram :: TProgram,
+  buCheck :: Either TProgram TProgram -> Bool
+}
+
+bottomUpTestcases :: [BottomUpTestcase]
+bottomUpTestcases = [
+  BottomUpTestcase {
+    buDesc = "`foldl ($) x xs` does not pass type checking",
+    buArgs = [("x", TypeVarT "a"), ("xs", listType (TypeVarT "a"))],
+    buVars = ["a"],
+    buProgram = untyped $ PApp "GHC.List.foldl'" [varp "(Data.Function.$)", varp "x", varp "xs"],
+    buCheck = isLeft
+  },
+  BottomUpTestcase {
+    buDesc = "`foldr ($) x xs` passes type checking",
+    buArgs = [("x", TypeVarT "a"), ("xs", listType (FunctionT "x" (TypeVarT "a") (TypeVarT "a")))],
+    buVars = ["a"],
+    buProgram = untyped $ PApp "GHC.List.foldr" [varp "(Data.Function.$)", varp "x", varp "xs"],
+    buCheck = isRight
+  },
+  BottomUpTestcase {
+    buDesc = "`fromLeft x (Right xs)` passes type checking",
+    buArgs = [("x", TypeVarT "a"), ("y", TypeVarT "b")],
+    buVars = ["a", "b"],
+    buProgram = untyped $ PApp "Data.Either.fromLeft" [varp "x", untyped $ PApp "Data.Either.Right" [varp "y"]],
+    buCheck = isRight
+  },
+  BottomUpTestcase {
+    buDesc = "\\x -> x (True) get inferred type Bool -> T0",
+    buArgs = [],
+    buVars = [],
+    buProgram = untyped $ PFun "x" (untyped $ PApp "x" [varp "Data.Bool.True"]),
+    buCheck = either (const False) (\p -> plainShow (canonicalize $ typeOf p) == "(Bool -> t0) -> t0")
+  },
+  BottomUpTestcase {
+    buDesc = "\\x0 x1 -> fromMaybe x0 (listToMaybe x1) gets inferred type t0 -> [t0] -> t0",
+    buArgs = [],
+    buVars = [],
+    buProgram = untyped $ PFun "x0" $ untyped $ PFun "x1" (untyped $ PApp "Data.Maybe.fromMaybe" [varp "x0", untyped $ PApp "Data.Maybe.listToMaybe" [varp "x1"]]),
+    buCheck = either (const False) (\p -> traceShow (typeOf p) $ plainShow (canonicalize $ typeOf p) == "t0 -> [t0] -> t0")
+  }
+  ]
 
 spec :: Spec
 spec = do
@@ -73,56 +118,12 @@ spec = do
       solveTypeConstraint [] Map.empty (UnifiesWith t1 t2) `shouldBe` Just (Map.fromList [("a",TypeVarT "b")])
 
   describe "bottomUpCheck" $ do
-    it "`foldl ($) x xs` does not type check" $ do
-      let env =
-            addComponent "x" (Monotype $ TypeVarT "a")
-              $ addComponent "xs" (Monotype $ listType (TypeVarT "a"))
-              $ addTypeVar "a" loadEnv
-      let (checkResult, _) = runChecker
-            (bottomUpCheck
-              Map.empty
-              env
-              (untyped $ PApp "GHC.List.foldl"
-                              [varp "(Data.Function.$)", varp "x", varp "xs"]
-              )
-            )
-      isLeft checkResult `shouldBe` True
-
-    it "`foldr ($) x xs` does type check" $ do
-      let env =
-            addComponent "x" (Monotype $ TypeVarT "a")
-              $ addComponent
-                  "xs"
-                  ( Monotype
-                  $ listType (FunctionT "x" (TypeVarT "a") (TypeVarT "a"))
-                  )
-              $ addTypeVar "a" loadEnv
-      let (checkResult, _) = runChecker
-            (bottomUpCheck
-              Map.empty
-              env
-              (untyped $ PApp "GHC.List.foldr"
-                              [varp "(Data.Function.$)", varp "x", varp "xs"]
-              )
-            )
-      isRight checkResult `shouldBe` True
-
-    it "`fromLeft x (Right xs)` does type check" $ do
-      let env =
-            addComponent "x" (Monotype $ TypeVarT "a")
-              $ addComponent "y" (Monotype $ TypeVarT "b")
-              $ addTypeVar "a"
-              $ addTypeVar "b" loadEnv
-      let (checkResult, _) = runChecker
-            (bottomUpCheck
-              Map.empty
-              env
-              (untyped $ PApp
-                "Data.Either.fromLeft"
-                [varp "x", untyped $ PApp "Data.Either.Right" [varp "y"]]
-              )
-            )
-      isRight checkResult `shouldBe` True
+    mapM_ (\tc -> it (buDesc tc) $ do
+      let env = foldr addTypeVar loadEnv (buVars tc)
+      let env' = foldr (\(x, t) -> addComponent x (Monotype t)) env (buArgs tc)
+      let (checkResult, _) = runChecker $ runExceptT $ bottomUpCheck Map.empty env' (buProgram tc)
+      (buCheck tc) checkResult `shouldBe` True
+      ) bottomUpTestcases
 
   describe "abstractApply" $ do
     it "fromRight [a] a ==> _|_" $ do

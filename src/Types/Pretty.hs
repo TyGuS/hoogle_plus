@@ -207,16 +207,34 @@ instance (Pretty k, Pretty v) => Pretty (HashMap k v) where
 {- Types -}
 
 instance Pretty TypeSkeleton where
-  pretty (TypeVarT v             ) = text v
-  pretty (DatatypeT "List" [tArg]) = hlBrackets $ pretty tArg
-  pretty (DatatypeT "Pair" [larg, rarg]) =
-    hlParens $ pretty larg <+> string "," <+> pretty rarg
-  pretty (DatatypeT dt tArgs) =
-    text dt <+> hsep (map (hlParens . pretty) tArgs)
-  pretty (FunctionT _ tArg tRes) =
-    hlParens $ pretty tArg <+> string "->" <+> pretty tRes
-  pretty TopT = string "_"
-  pretty BotT = string "⊥"
+  pretty = prettyTypeAt 0
+
+typePower :: TypeSkeleton -> Int
+typePower FunctionT {} = 1
+typePower (DatatypeT dt _) | dt == "Pair" || dt == "List" = 3
+typePower (DatatypeT dt tArgs) | length tArgs == 0 = 3
+typePower DatatypeT {} = 2
+typePower _ = 3
+
+prettyTypeAt :: Int -> TypeSkeleton -> Doc
+prettyTypeAt n t = condHlParens $ case t of
+  TypeVarT v -> text v
+  DatatypeT "List" [tArg] -> hlBrackets $ prettyTypeAt n' tArg
+  DatatypeT "Pair" [lArg, rArg] -> hlParens $ prettyTypeAt 0 lArg <> "," <+> prettyTypeAt 0 rArg
+  DatatypeT dt tArgs -> text dt <+> hsep (map (prettyTypeAt n') tArgs)
+  FunctionT _ tArg tRes -> prettyTypeAt n' tArg <+> "->" <+> prettyTypeAt 0 tRes
+  TopT -> string "⊤"
+  BotT -> string "⊥"
+  where
+    n' = typePower t
+    condHlParens = 
+      if n == 1 && n' == 1 then hlParens -- function in function
+        else if n == 2 && n' == 1 then hlParens -- function in datatype
+          else if n == 3 && n' == 1 then id -- function in list/pair
+            else if n == 1 && n' >= n then id -- datatype in function
+              else if n == 2 && n' == 2 then hlParens -- datatype in datatype
+                else if n == 2 && n' > 2 then id
+                  else id
 
 prettyTypeWithName :: TypeSkeleton -> Doc
 prettyTypeWithName (FunctionT x t1 t2)

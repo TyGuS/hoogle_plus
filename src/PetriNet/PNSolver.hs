@@ -12,6 +12,7 @@ import           Control.Monad
 import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.Logic
 import           Control.Monad.State
+import           Control.Monad.Except
 import qualified Data.Char                     as Char
 import           Data.Data                      ( Data )
 import           Data.Function                  ( on )
@@ -583,7 +584,7 @@ parseAndCheck env dst code = do
   let checkerState' =
         checkerState { getTypeAssignment = Map.empty, clogLevel = llv }
   let (btm, checkerState) =
-        runState (bottomUpCheck mapping env code) checkerState'
+        runState (runExceptT (bottomUpCheck mapping env code)) checkerState'
   modify $ set typeChecker checkerState
   writeLog 2 "parseAndCheck" $ text "bottom up checking get program" <+> pretty
     (recoverNames mapping $ either id id btm)

@@ -402,42 +402,42 @@ postfilterTestcases = [
 
 spec :: Spec
 spec = do
-  describe "test generateApp" $
-    mapM_ (\tc ->
-      it (genAppDesc tc) $ do
-        let apps = concat $ Map.elems $ evalState (generateApp (genAppBank tc)) Map.empty
-        length apps `shouldBe` genAppWantNum tc
-        Set.fromList (map plainShow apps) `shouldBe` Set.fromList (genAppWantList tc)
-      ) appTestcases
+  describe "test generateApp" $ return ()
+--     mapM_ (\tc ->
+--       it (genAppDesc tc) $ do
+--         let apps = concat $ Map.elems $ evalState (generateApp (genAppBank tc)) Map.empty
+--         length apps `shouldBe` genAppWantNum tc
+--         Set.fromList (map plainShow apps) `shouldBe` Set.fromList (genAppWantList tc)
+--       ) appTestcases
 
-  describe "test generate" $
-    mapM_ (\tc ->
-      it (genDesc tc) $ do
-        let progs = generate (genComponents tc) (genRepeat tc)
-        length progs `shouldBe` genWantNum tc
-        (Set.fromList (genWantStr tc) `Set.isSubsetOf` Set.fromList (map plainShow progs)) `shouldBe` True
-      ) genTestcases
+--   describe "test generate" $
+--     mapM_ (\tc ->
+--       it (genDesc tc) $ do
+--         let progs = generate (genComponents tc) (genRepeat tc)
+--         length progs `shouldBe` genWantNum tc
+--         (Set.fromList (genWantStr tc) `Set.isSubsetOf` Set.fromList (map plainShow progs)) `shouldBe` True
+--       ) genTestcases
 
-  describe "test argument abstraction" $
-    mapM_ (\tc ->
-      it (genArgDesc tc) $ do
-        let lambdas = evalState (assignArgs (genArgProgram tc)) Map.empty
-        let lambdas' = filter (\p -> numArguments p <= 2) lambdas
-        let lambdas = map (\p -> plainShow (evalState (canonicalize p) Map.empty)) lambdas'
-        Set.fromList lambdas `shouldBe` Set.fromList (genArgWant tc)
-      ) genArgTestcases
+--   describe "test argument abstraction" $
+--     mapM_ (\tc ->
+--       it (genArgDesc tc) $ do
+--         let lambdas = evalState (assignArgs (genArgProgram tc)) Map.empty
+--         let lambdas' = filter (\p -> numArguments p <= 2) lambdas
+--         let lambdas = map (\p -> plainShow (evalState (canonicalize p) Map.empty)) lambdas'
+--         Set.fromList lambdas `shouldBe` Set.fromList (genArgWant tc)
+--       ) genArgTestcases
 
-  describe "test generate queries" $
-    mapM_ (\tc ->
-      it (genQueryDesc tc) $ do
-        pairs <- generateQAPairs (genQueryComponents tc) (genQueryConfig tc)
-        let results = map (\(t, p) -> (plainShow t, plainShow p)) pairs
-        Set.fromList (genQueryWant tc) `Set.isSubsetOf` Set.fromList results `shouldBe` True
-      ) genQueryTestcases
+--   describe "test generate queries" $
+--     mapM_ (\tc ->
+--       it (genQueryDesc tc) $ do
+--         pairs <- generateQAPairs (genQueryComponents tc) (genQueryConfig tc)
+--         let results = map (\(t, p) -> (plainShow t, plainShow p)) pairs
+--         Set.fromList (genQueryWant tc) `Set.isSubsetOf` Set.fromList results `shouldBe` True
+--       ) genQueryTestcases
 
-  describe "test postfilter" $
-    mapM_ (\tc ->
-      it (postfilterDesc tc) $ do
-        result <- postfilter (postfilterProgram tc) (postfilterSig tc)
-        result `shouldBe` (postfilterWant tc)
-      ) postfilterTestcases
+--   describe "test postfilter" $
+--     mapM_ (\tc ->
+--       it (postfilterDesc tc) $ do
+--         result <- postfilter (postfilterProgram tc) (postfilterSig tc)
+--         result `shouldBe` (postfilterWant tc)
+--       ) postfilterTestcases

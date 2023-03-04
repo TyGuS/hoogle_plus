@@ -25,9 +25,6 @@ module Types.TypeChecker
   , existAbstract
   ) where
 
-import           Control.Lens                   ( (^.)
-                                                , view
-                                                )
 import           Control.Monad                  ( foldM )
 import           Control.Monad.State            ( MonadState(get, put)
                                                 , State
@@ -37,6 +34,7 @@ import           Control.Monad.State            ( MonadState(get, put)
                                                 , modify
                                                 , msum
                                                 )
+import Control.Monad.Except
 import           Data.List.Extra                ( nubOrd )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
@@ -90,99 +88,42 @@ bottomUpCheck
   :: NameMapping
   -> Environment
   -> TProgram
-  -> Checker (Either TProgram TProgram)
+  -> ExceptT TProgram Checker TProgram
 bottomUpCheck nameMap env p@(Program (PSymbol sym) typ) = do
-  let sym' = removeLast '_' sym
-  let name = stripSuffix hoPostfix $ fromMaybe sym' (Map.lookup sym' nameMap)
-  t <- findSymbol nameMap env name
-  return $ Right $ Program (PSymbol sym) (toMonotype t)
+  let name = unsuffixName nameMap sym
+  t <- lift $ findSymbol nameMap env name
+  return $ Program (PSymbol sym) (toMonotype t)
 bottomUpCheck nameMap env (Program (PApp f args) typ) = do
-  -- this is bottom up type checking, so we check the arguments first
-  argResult <- checkArgs args
-  case argResult of
-    Left  err         -> return $ Left err
-    Right checkedArgs -> do
-      let f' = removeLast '_' f
-      let name = removeLast '_' $ stripSuffix hoPostfix $ fromMaybe
-            f'
-            (Map.lookup f' nameMap)
-      writeLog 3 "bottomUpCheck" $ "checking function" <+> pretty name
-      t <- findSymbol nameMap env name
-      writeLog 3 "bottomUpCheck"
-        $   text "Bottom up checking function"
-        <+> pretty name
-        <+> text "get type"
-        <+> pretty t
-      -- check function signature against each argument provided
-      let argVars       = allArgTypes (toMonotype t)
-      let checkedArgTys = map typeOf checkedArgs
-      writeLog 3 "bottomUpCheck"
-        $   text "Bottom up checking get arg types"
-        <+> pretty checkedArgTys
-      tass <- gets getTypeAssignment
-      let tass' = foldl (uncurry . solveArgConstraint (getBoundTypeVars env))
-                        (Just tass)
-                        (zip checkedArgTys argVars)
-      case tass' of
-        -- if any of these checks returned false, this function application
-        -- would produce a bottom type
-        Nothing -> return $ Left $ Program (PApp f checkedArgs) BotT
-        Just tm -> do
-          modify $ \s -> s { getTypeAssignment = tm }
-          -- we eagerly substitute the assignments into the return type of t
-          let ret =
-                typeSubstitute tm (partialReturn checkedArgs $ toMonotype t)
-          return $ Right $ Program (PApp f checkedArgs) ret
- where
-  partialReturn :: [TProgram] -> TypeSkeleton -> TypeSkeleton
-  partialReturn (_ : args) (FunctionT _ _ tRes) = partialReturn args tRes
-  partialReturn [] t = t
-  partialReturn args t = error $ "partialReturn: not a function: " ++ show
-    ( args
-    , t
-    , stripSuffix hoPostfix
-      $ fromMaybe f (Map.lookup (removeLast '_' f) nameMap)
-    )
-
-  checkArgs :: [TProgram] -> Checker (Either TProgram [TProgram])
-  checkArgs []           = return $ Right []
-  checkArgs (arg : args) = do
-    checkedArg <- bottomUpCheck nameMap env arg
-    case checkedArg of
-      Left  arg' -> return $ Left arg'
-      Right arg' -> do
-        checkedArgs <- checkArgs args
-        case checkedArgs of
-          Left  err   -> return $ Left err
-          Right args' -> return $ Right (arg' : args')
-
-  solveArgConstraint
-    :: [Id]
-    -> Maybe TypeSubstitution
-    -> TypeSkeleton
-    -> TypeSkeleton
-    -> Maybe TypeSubstitution
-  solveArgConstraint _ Nothing _ _ = Nothing
-  solveArgConstraint bvs (Just tass) t1 t2 =
-    solveTypeConstraint bvs tass (UnifiesWith t1 t2)
-
-bottomUpCheck nameMap env p@(Program (PFun x body) (FunctionT _ tArg tRet)) =
-  do
+  checkedArgs <- mapM (bottomUpCheck nameMap env) args
+  writeLog 3 "bottomUpCheck" $ text "Bottom up checking get arg types" <+> pretty (map typeOf checkedArgs)
+  let name = unsuffixName nameMap f
+  t <- lift $ findSymbol nameMap env name
+  writeLog 3 "bottomUpCheck" $ text "Bottom up checking function" <+> pretty name <+> text "get type" <+> pretty t
+  -- Check function signature against each argument provided.
+  -- However, we cannot assume that the type of the function is already known.
+  -- It may be a type variable or a TopT,
+  -- in which case it unified with the target type even if the arity mismatches.
+  tass <- gets getTypeAssignment
+  freshRet <- lift (TypeVarT <$> freshId [] "T")
+  let targetFunc = foldr (FunctionT "" . typeOf) freshRet checkedArgs
+  let funcTass = solveTypeConstraint (getBoundTypeVars env) tass (UnifiesWith targetFunc $ toMonotype t)
+  case funcTass of
+    Nothing -> throwError $ Program (PApp f checkedArgs) BotT
+    Just tm -> do modify $ \s -> s { getTypeAssignment = tm }
+                  writeLog 3 "bottomUpCheck" $ text "Unified function type is" <+> pretty (typeSubstitute tm targetFunc) <+> text "with type assignment" <+> pretty tm
+                  let args' = map (withContent (typeSubstitute tm)) checkedArgs
+                  return $ Program (PApp f args') (typeSubstitute tm freshRet)
+bottomUpCheck nameMap env p@(Program (PFun x body) (FunctionT _ tArg tRet)) = do
     writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
-    checkedBody <- bottomUpCheck nameMap
-                                 (addComponent x (Monotype tArg) env)
-                                 body
-    case checkedBody of
-      Left  err   -> return $ Left err
-      Right body' -> do
-        let tBody = typeOf body'
-        let t     = FunctionT x tArg tBody
-        return $ Right $ Program (PFun x body') t
+    body' <- bottomUpCheck nameMap (addComponent x (Monotype tArg) env) body
+    tass <- gets getTypeAssignment
+    let t     = FunctionT x (typeSubstitute tass tArg) (typeOf body')
+    return $ Program (PFun x body') t
 bottomUpCheck nameMap env p@(Program (PFun x body) _) = do
   writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
   let bound = getBoundTypeVars env
-  tArg <- TypeVarT <$> freshId bound "T"
-  tRet <- TypeVarT <$> freshId bound "T"
+  tArg <- lift (TypeVarT <$> freshId bound "T")
+  tRet <- lift (TypeVarT <$> freshId bound "T")
   bottomUpCheck nameMap env (Program (PFun x body) (FunctionT x tArg tRet))
 bottomUpCheck _ _ p =
   error $ "unhandled case for checking " ++ show p ++ "::" ++ show (typeOf p)
@@ -316,7 +257,8 @@ unify :: TypeSubstitution -> Id -> TypeSkeleton -> Maybe TypeSubstitution
 unify subst x t | Set.member x (typeVarsOf t) = Nothing
                 | isValidSubst subst && isValidSubst subst' = Just subst'
                 | otherwise                   = Nothing
-  where subst' = Map.insert x (typeSubstitute subst t) subst
+  where
+    subst' = Map.insert x (typeSubstitute subst t) (Map.map (typeSubstitute $ Map.singleton x t) subst)
 
 isValidSubst :: TypeSubstitution -> Bool
 isValidSubst m =

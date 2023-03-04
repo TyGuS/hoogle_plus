@@ -24,6 +24,7 @@ module Types.Program
   , numArguments
   , argumentsOf
   , canonicalize
+  , unsuffixName
 
     -- * Declarations
   , Declaration(..)
@@ -48,10 +49,12 @@ import           Data.Serialize                 ( Serialize )
 import Control.Monad.State
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Maybe (fromMaybe)
 
 import           Types.Common
 import           Types.Environment
 import           Types.Type
+import Utility.Utils
 
 -- | Program skeletons parametrized by information stored symbols, conditionals, and by node types
 data BareProgram t
@@ -216,6 +219,11 @@ canonicalize (Program p t) = case p of
 
 
 {- Misc -}
+
+unsuffixName :: Map Id Id -> Id -> Id
+unsuffixName nameMap f = 
+  let f' = removeLast '_' f
+   in removeLast '_' $ stripSuffix hoPostfix $ fromMaybe f' (Map.lookup f' nameMap)
 
 unqualifiedName :: Id -> Id
 unqualifiedName "" = ""
