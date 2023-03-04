@@ -1,0 +1,10 @@
+.idea/
+.stack-work/
+*~
+
+*.pkl
+*.csv
+
+log
+*.log
+*.pdf
