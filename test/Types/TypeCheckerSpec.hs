@@ -134,7 +134,14 @@ bottomUpTestcases = [
     buArgs = [],
     buVars = [],
     buProgram = untyped $ PFun "x0" $ untyped $ PFun "x1" (untyped $ PApp "Data.Maybe.fromMaybe" [varp "x0", untyped $ PApp "Data.Maybe.listToMaybe" [varp "x1"]]),
-    buCheck = either (const False) (\p -> traceShow (typeOf p) $ plainShow (canonicalize $ typeOf p) == "t0 -> [t0] -> t0")
+    buCheck = either (const False) (\p -> plainShow (canonicalize $ typeOf p) == "t0 -> [t0] -> t0")
+  },
+  BottomUpTestcase {
+    buDesc = "fromMaybe x (listToMaybe xs) checks fail",
+    buArgs = [("x", vart "a"), ("xs", listType (DatatypeT "Maybe" [vart "a"]))],
+    buVars = ["a"],
+    buProgram = untyped $ PApp "Data.Maybe.fromMaybe" [varp "x", untyped $ PApp "Data.Maybe.listToMaybe" [varp "xs"]],
+    buCheck = either (\p -> plainShow p == "Data.Maybe.fromMaybe x (Data.Maybe.listToMaybe xs)" && typeOf p == BotT) (const False)
   }
   ]
 
