@@ -23,6 +23,74 @@ import Debug.Trace
 runChecker :: Checker a -> (a, CheckerState)
 runChecker = flip runState emptyChecker
 
+data SubtypeTestcase = SubtypeTestcase {
+  subDesc :: String,
+  subVars :: [Id],
+  subLType :: TypeSkeleton,
+  subRType :: TypeSkeleton,
+  subWant :: Bool
+}
+
+subtypeTestcases :: [SubtypeTestcase]
+subtypeTestcases = [
+  SubtypeTestcase {
+    subDesc = "TopT is subtype of TopT",
+    subVars = [],
+    subLType = TopT,
+    subRType = TopT,
+    subWant = True
+  },
+  SubtypeTestcase {
+    subDesc = "free var is subtype of TopT",
+    subVars = [],
+    subLType = vart "x",
+    subRType = TopT,
+    subWant = True
+  },
+  SubtypeTestcase {
+    subDesc = "bound var is subtype of TopT",
+    subVars = ["x"],
+    subLType = vart "x",
+    subRType = TopT,
+    subWant = True
+  },
+  SubtypeTestcase {
+    subDesc = "TopT is subtype of free vars",
+    subVars = [],
+    subLType = TopT,
+    subRType = vart "x",
+    subWant = True
+  },
+  SubtypeTestcase {
+    subDesc = "TopT is not subtype of bound vars",
+    subVars = ["x"],
+    subLType = TopT,
+    subRType = vart "x",
+    subWant = False
+  },
+  SubtypeTestcase {
+    subDesc = "bound var is subtype of free vars",
+    subVars = ["x"], 
+    subLType = vart "x",
+    subRType = vart "y",
+    subWant = True
+  },
+  SubtypeTestcase {
+    subDesc = "[Int] is subtype of [a], but not reverse",
+    subVars = [],
+    subLType = listType intType,
+    subRType = listType (vart "a"),
+    subWant = True
+  },
+  SubtypeTestcase {
+    subDesc = "[a] is not subtype of [Int]",
+    subVars = [],
+    subLType = listType (vart "a"),
+    subRType = listType intType,
+    subWant = False
+  }
+  ]
+
 data BottomUpTestcase = BottomUpTestcase {
   buDesc :: String,
   buArgs :: [(Id, TypeSkeleton)],
@@ -70,38 +138,24 @@ bottomUpTestcases = [
   }
   ]
 
+data TypeConstraintTestcase = TypeConstraintTestcase {
+  tcDesc :: String,
+  tcVars :: [Id],
+  tcConstraint :: UnifConstraint,
+  tcWant :: Maybe TypeSubstitution
+}
+
+typeConstraintTestcases :: [TypeConstraintTestcase]
+typeConstraintTestcases = []
+
 spec :: Spec
 spec = do
-  describe "isSubtypeOf" $ do
-    it "TopT is subtype of TopT" $ isSubtypeOf [] TopT TopT `shouldBe` True
+  describe "test isSubtypeOf" $ do
+    mapM_ (\tc -> 
+      it (subDesc tc) (isSubtypeOf (subVars tc) (subLType tc) (subRType tc) `shouldBe` subWant tc)
+      ) subtypeTestcases
 
-    it "free var is subtype of TopT"
-      $          isSubtypeOf [] (TypeVarT "x") TopT
-      `shouldBe` True
-
-    it "bound var is subtype of TopT"
-      $          isSubtypeOf ["x"] (TypeVarT "x") TopT
-      `shouldBe` True
-
-    it "TopT is subtype of free vars"
-      $          isSubtypeOf [] TopT (TypeVarT "x")
-      `shouldBe` True
-
-    it "TopT is not subtype of bound vars"
-      $          isSubtypeOf ["x"] TopT (TypeVarT "x")
-      `shouldBe` False
-
-    it "bound var is subtype of free vars"
-      $          isSubtypeOf ["x"] (TypeVarT "x") (TypeVarT "y")
-      `shouldBe` True
-
-    it "[Int] is subtype of [a], but not reverse" $ do
-      isSubtypeOf [] (listType intType) (listType (TypeVarT "a"))
-        `shouldBe` True
-      isSubtypeOf [] (listType (TypeVarT "a")) (listType intType)
-        `shouldBe` False
-
-  describe "solveTypeConstraint" $ do
+  describe "test solveTypeConstraint" $ do
     it "`b -> a -> b` does not unify with `(a -> b) -> a -> b`" $ do
       let
         t1 = FunctionT "y" (TypeVarT "b")
