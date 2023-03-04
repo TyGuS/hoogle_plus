@@ -165,7 +165,7 @@ buildNotCrashProp argNames solution funcSig = formatAlwaysFailProp params
     unwords
       [ wrappedSolution
       , printf
-        "let %s %s = monadic (%s <$> Prelude.head <$> timeoutWrapper %s) in"
+        "let i = 1 in let c = 'a' in let %s %s = monadic (%s <$> Prelude.head <$> timeoutWrapper %s) in"
         propName
         plain
         body

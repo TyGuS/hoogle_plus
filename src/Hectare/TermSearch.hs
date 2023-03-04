@@ -1,5 +1,6 @@
 module Hectare.TermSearch
   ( synthesize
+  , doSample
   ) where
 
 import           Control.Monad                  ( forM
@@ -24,6 +25,7 @@ import           Data.Tuple                     ( swap )
 import           System.IO                      ( hFlush
                                                 , stdout
                                                 )
+import System.Random ( mkStdGen, randoms )
 
 import           Data.ECTA
 import           Data.ECTA.Paths
@@ -60,6 +62,13 @@ doSynthesize argNodes resNode sz =
       foldedNode  = refold reducedNode
       terms       = getAllTerms foldedNode
   in map (termToProgram . prettyTerm) terms
+
+doSample :: Int -> Int -> Int -> [TProgram]
+doSample seed sz cnt =
+  let reducedNode = reduceFullyBounded 30 (union $ termsK EmptyNode False sz)
+      randomSeeds = randoms (mkStdGen seed) :: [Int]
+      terms = map (`sampleTerm` reducedNode) (take cnt randomSeeds)
+   in concatMap ungroup $ map (termToProgram . prettyTerm) terms
 
 termToProgram :: Term -> TProgram
 termToProgram (Term (Symbol x) []) = untyped (PSymbol x)
@@ -184,13 +193,14 @@ applyOperator = Node
 
 hoogleComps :: [Edge]
 hoogleComps =
-  filter
+  (constFunc (Symbol "arg") tau) :
+    (filter
       (\e ->
         edgeSymbol e
           `notElem` map (Symbol . toMappedName) speciallyTreatedFunctions
       )
     $ map (uncurry parseHoogleComponent . swap)
-    $ Map.toList hoogleComponents
+    $ Map.toList hoogleComponents)
 
 anyFunc :: Node
 anyFunc = Node hoogleComps
@@ -203,11 +213,11 @@ termsK :: Node -> Bool -> Int -> [Node]
 termsK _      _     0 = []
 termsK anyArg False 1 = [anyArg, anyFunc]
 termsK anyArg True  1 = [anyArg, anyFunc, applyOperator]
-termsK anyArg _ 2 =
-  [ app anyListFunc (union [anyNonNilFunc, anyArg, applyOperator])
-  , app fromJustFunc (union [anyNonNothingFunc, anyArg, applyOperator])
-  , app (union [anyNonListFunc, anyArg]) (union (termsK anyArg True 1))
-  ]
+-- termsK anyArg _ 2 =
+--   [ app anyListFunc (union [anyNonNilFunc, anyArg, applyOperator])
+--   , app fromJustFunc (union [anyNonNothingFunc, anyArg, applyOperator])
+--   , app (union [anyNonListFunc, anyArg]) (union (termsK anyArg True 1))
+--   ]
 termsK anyArg _ k = map constructApp [1 .. (k - 1)]
  where
   constructApp :: Int -> Node

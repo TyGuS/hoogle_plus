@@ -355,14 +355,14 @@ resolveType (L _ (HsForAllTy _ _ bs t)) = foldr ForallT (resolveType t) vs
   vname (L _ (UserTyVar _ (L _ id))) = showSDocUnsafe (ppr id)
   vname (L _ (KindedTyVar _ (L _ id) _)) = showSDocUnsafe (ppr id)
   vname _ = error "not implemented"
-
-resolveType t@(L _ (HsAppTy _ fun arg)) =
-  let typs          = tail $ map resolveType' $ breakApp t
-      (args, [res]) = splitAt (length typs - 1) typs
-  in  Monotype $ foldr (FunctionT "") res args
- where
-  breakApp (L _ (HsAppTy _ fun arg)) = breakApp fun ++ [arg]
-  breakApp t                         = [t]
+-- TODO (zhg): why do we need this case?
+-- resolveType t@(L _ (HsAppTy _ fun arg)) =
+--   let typs          = tail $ map resolveType' $ breakApp t
+--       (args, [res]) = splitAt (length typs - 1) typs
+--   in  Monotype $ foldr (FunctionT "") res args
+--  where
+--   breakApp (L _ (HsAppTy _ fun arg)) = breakApp fun ++ [arg]
+--   breakApp t                         = [t]
 resolveType (L _ (HsQualTy _ ctx body)) = Monotype bodyWithTcArgs
  where
   unlocatedCtx  = let L _ c = ctx in c

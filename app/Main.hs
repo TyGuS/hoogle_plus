@@ -27,8 +27,10 @@ import           System.IO                      ( BufferMode(LineBuffering)
                                                 )
 import qualified Data.Text as Text
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 
-import Conduit
+import Pipes
+import qualified Pipes.Prelude as P
 
 import           Database.Dataset
 import           Database.Environment
@@ -112,20 +114,19 @@ main = do
                            isStudy
                            (if bm == "" then benchmarks else benchmarks')
     Dataset outFile mdls rep maxargs -> do
-      let mdls' = ["Nil", "Cons", "Pair", "Data.Bool.True", "Data.Bool.False"] ++ mdls
-      let components = case mdls of
-                        [] -> hplusComponents
-                        _ -> filter (\(f, _) -> any (`Text.isPrefixOf` f) mdls') hplusComponents
-      putStrLn $ "using " ++ show (length components) ++ " components"
-      -- runConduitRes
-      --   $ generateQAPairs components (Configuration rep maxargs)
-        -- .| toCsv
-        -- .| sinkFile (outFile ++ ".csv")
-        -- .| writeObjects (outFile ++ ".aeson")
-      results <- sourceToList (generateQAPairs components (Configuration rep maxargs))
-      withFile (outFile ++ ".csv") WriteMode $ \hdl -> mapM_ (\(t, p) ->
-        hPutStr hdl (t ++ "\t" ++ plainShow (unqualifyFunc p) ++ "\n")
-        ) (Set.fromList results)
+      -- let mdls' = ["Nil", "Cons", "Data.Bool.True", "Data.Bool.False"] ++ mdls
+      -- let components = case mdls of
+      --                   [] -> hplusComponents
+      --                   _ -> filter (\(f, _) -> any (`Text.isPrefixOf` f) mdls') hplusComponents
+      -- putStrLn $ "using " ++ show (length components) ++ " components"
+      -- withFile (outFile ++ ".csv") WriteMode $ \hdl ->
+      --   evalStateT (evalStateT (runEffect $ do
+      --     every (generateQAPairs components (Configuration rep maxargs))
+      --     >-> P.filter ((/= "") . fst)
+      --     >-> P.map (\(t, p) -> t ++ "\t" ++ (plainShow $ unqualifyFunc p))
+      --     >-> P.toHandle hdl) Map.empty) Set.empty
+      let programs = Hectare.doSample 1 3 100
+      mapM_ (putStrLn . plainShow) programs
 
 {- Command line arguments -}
 

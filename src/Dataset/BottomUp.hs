@@ -6,12 +6,13 @@ import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
-import Data.Maybe (mapMaybe)
 import Data.List
 
 import Control.Monad.Extra
 import Data.ECTA
 import Data.Tuple.Extra
+import Pipes
+import qualified Pipes.Prelude as P
 
 import Database.Dataset
 import Types.Type
@@ -25,36 +26,30 @@ import Debug.Trace
 
 type Size = Int
 type ProgramBank = Map TypeSkeleton [TProgram]
-type Generator = State (Map Id Int)
+type Generator m = ListT (StateT (Map Id Int) m)
 
-generateApp :: ProgramBank -> Generator ProgramBank
-generateApp bank =
-  let functions = filter (isFunctionType . fst) (Map.toList bank)
-   in Map.unionsWith (++) <$> mapM (uncurry go) functions
+generateApp :: MonadIO m => ProgramBank -> Generator m (TypeSkeleton, TProgram)
+generateApp bank = do
+  (t, fs) <- Select $ each $ filter (isFunctionType . fst) (Map.toList bank)
+  f <- Select (each fs)
+  go t f
   where
     -- generate application terms for a given function
-    go :: TypeSkeleton -> [TProgram] -> Generator ProgramBank
-    go typ fs = do
+    go :: MonadIO m => TypeSkeleton -> TProgram -> Generator m (TypeSkeleton, TProgram)
+    go typ f = do
       -- refresh type variables
-      typ' <- freshType [] typ
+      typ' <- lift $ freshType [] typ
       let FunctionT _ tArg tRet = typ'
-      args <- unifiedTerms bank tArg
-      -- trace ("get args " ++ show args ++ " for " ++ show fs) $ return ()
-      let applyArgs f = map (uncurry $ applyTerm f typ') args
-      let typedTerms = concatMap applyArgs fs
-      -- trace ("get typed terms " ++ show typedTerms) $ return ()
-      return (Map.fromListWith (++) typedTerms)
+      (subst, args) <- unifiedTerms bank tArg
+      arg <- Select (each args)
+      applyTerm f typ' subst arg
 
-    applyTerm :: TProgram -> TypeSkeleton -> TypeSubstitution -> [TProgram] -> (TypeSkeleton, [TProgram])
-    applyTerm (Program f _) t@(FunctionT _ _ tRet) subst args =
+    applyTerm :: MonadIO m => TProgram -> TypeSkeleton -> TypeSubstitution -> TProgram -> Generator m (TypeSkeleton, TProgram)
+    applyTerm (Program f _) t@(FunctionT _ _ tRet) subst arg = do
       let tRet' = typeSubstitute subst tRet
-          (fname, pArgs) = case f of PSymbol fname -> (fname, [])
+      let (fname, pArgs) = case f of PSymbol fname -> (fname, [])
                                      PApp f args -> (f, args)
-          terms = map (\arg -> Program (PApp fname (pArgs ++ [arg])) tRet') args
-       in (tRet', terms)
-
-    addProgram :: TypeSkeleton -> TProgram -> ProgramBank -> ProgramBank
-    addProgram typ p = Map.insertWith (++) typ [p]
+      return (tRet', Program (PApp fname (pArgs ++ [arg])) tRet')
 
     isUnifiedWith :: TypeSkeleton -> TypeSkeleton -> [TProgram] -> Maybe (TypeSubstitution, [TProgram])
     isUnifiedWith target k v =
@@ -62,70 +57,73 @@ generateApp bank =
         Nothing -> Nothing
         Just subst -> let v' = map (withContent $ typeSubstitute subst) v in Just (subst, v')
 
-    unifiedTerms :: ProgramBank -> TypeSkeleton -> Generator [(TypeSubstitution, [TProgram])]
-    unifiedTerms localBank t@(FunctionT _ tArg tRet) = do
-      x <- freshId [] "x"
-      terms <- unifiedTerms (Map.insertWith (++) tArg [varp x] localBank) tRet
-      let mkFun tass es = (tass, map (\e -> Program (PFun x e) (typeSubstitute tass t)) es)
-      return $ map (uncurry mkFun) terms
-    unifiedTerms localBank typ =
-      return $ mapMaybe (uncurry (isUnifiedWith typ)) (Map.toList localBank)
+    unifiedTerms :: MonadIO m => ProgramBank -> TypeSkeleton -> Generator m (TypeSubstitution, [TProgram])
+    unifiedTerms localBank t = case t of
+      FunctionT _ tArg tRet -> do
+        x <- lift $ freshId [] "x"
+        (tass, es) <- unifiedTerms (Map.insertWith (++) tArg [varp x] localBank) tRet
+        return (tass, map (\e -> Program (PFun x e) (typeSubstitute tass t)) es)
+      _ -> do
+        (typ, terms) <- Select $ each (Map.toList localBank)
+        case isUnifiedWith t typ terms of
+          Nothing -> mempty
+          Just v -> return v
 
-generate :: [(Text, SchemaSkeleton)] -> Int -> [TProgram]
-generate components n =
+generate :: MonadIO m => [(Text, SchemaSkeleton)] -> Int -> m [TProgram]
+generate components n = do
     let literals = map (\lit -> (typeOf lit, lit)) (intLits ++ charLits)
-        inits = map (uncurry toProgram) components ++ literals
-        initBank = foldr (\(t, p) -> Map.insertWith (++) t [p]) Map.empty inits
-        bank = evalState (go n initBank) Map.empty
-     in concat (Map.elems bank)
+    let inits = map (uncurry toProgram) components ++ literals
+    let initBank = foldr (\(t, p) -> Map.insertWith (++) t [p]) Map.empty inits
+    bank <- evalStateT (go n initBank) Map.empty
+    return $ Set.toList $ Set.fromList $ concat (Map.elems bank)
   where
-    go :: Int -> ProgramBank -> Generator ProgramBank
+    go :: MonadIO m => Int -> ProgramBank -> StateT (Map Id Int) m ProgramBank
     go n bank | n <= 0 = return bank
-              | otherwise = do bank' <- generateApp bank
-                              --  traceShow bank $ return ()
+              | otherwise = do results <- P.toListM (every (generateApp bank))
+                               let bank' = Map.fromListWith (++) $ map (\(k, v) -> (k, [v])) results
                                bank' <- return $ Map.unionWith (++) bank bank'
-                              --  traceShow bank' $ return ()
                                go (n-1) (Map.map (Set.toList . Set.fromList) bank')
 
     toProgram :: Text -> SchemaSkeleton -> (TypeSkeleton, TProgram)
     toProgram x t = (toMonotype t, Program (PSymbol x) (toMonotype t))
 
-assignArgs :: Configuration -> TProgram -> Generator [TProgram]
-assignArgs config program = map mkLambda <$> go program
+assignArgs :: MonadIO m => Configuration -> TProgram -> Generator m TProgram
+assignArgs config program = mkLambda <$> go program
   where
-    go :: TProgram -> Generator [(TProgram, [Id])]
+    go :: MonadIO m => TProgram -> Generator m (TProgram, [Id])
     go prog@(Program p t) = case p of
       PSymbol _ -> do
-        arg <- freshId [] "arg"
-        return [(prog, [])
-              , (Program (PSymbol arg) t, [arg])]
+        arg <- lift $ freshId [] "arg"
+        Select (each [ (prog, [])
+                     , (Program (PSymbol arg) t, [arg])
+                     ])
 
-      PApp f args -> do
-        argsList <- sequence <$> mapM go args
-        -- traceShow (argsList, p) $ return ()
-        let argsList' = map (\as -> (map fst as, concatMap snd as)) argsList
-        let withFname = map (\(as, binds) -> (Program (PApp f as) t, binds)) argsList'
-        withoutFname <- concatMapM (mkApp t) argsList'
-        arg <- freshId [] "arg"
-        return ([ (prog, [])
-                , (Program (PSymbol arg) t, [arg])
-                ] ++ withFname ++ withoutFname)
+      PApp f args -> (do
+          arg <- lift $ freshId [] "arg"
+          return (Program (PSymbol arg) t, [arg])
+        ) `mplus` (do
+          argsList <- sequence $ map go args
+          -- trace ("argsList: " ++ show argsList ++ " for " ++ show f) $ return ()
+          let (args', binds) = (map fst argsList, concatMap snd argsList)
+          let withFname = (Program (PApp f args') t, binds)
+          return withFname `mplus` mkApp t args' binds
+        )
 
       PFun x body -> do
-        bodys <- go body -- note that x may become an argument, should we prevent that?
-        arg <- freshId [] "arg"
-        return ([(prog, [])
-                ,(Program (PSymbol arg) t, [arg])
-                ] ++ map (\(e, xs) -> (Program (PFun x e) t, xs)) bodys)
+        (e, xs) <- go body -- note that x may become an argument, should we prevent that?
+        arg <- lift $ freshId [] "arg"
+        Select (each [(prog, []), (Program (PSymbol arg) t, [arg])])
+          `mplus` return (Program (PFun x e) t, xs)
 
       _ -> error "unsupported expression in assignArgs"
 
-    mkApp :: TypeSkeleton -> ([TProgram], [Id]) -> Generator [(TProgram, [Id])]
-    mkApp tRet (args, binds)
-      | length binds > maxArgs config = return []
+    mkApp :: MonadIO m => TypeSkeleton -> [TProgram] -> [Id] -> Generator m (TProgram, [Id])
+    mkApp tRet args binds
+      | 1 + length binds > maxArgs config = mempty
       | otherwise = do
-        arg <- freshId [] "arg"
-        return $ map (\as -> (Program (PApp arg as) tRet, arg:binds)) (init $ tails args)
+        arg <- lift $ freshId [] "arg"
+        args' <- Select $ each $ init $ tails args
+        return (Program (PApp arg args') tRet, arg:binds)
 
     mkLambda :: (TProgram, [Id]) -> TProgram
     mkLambda (p, args) = let args' = filter (`Set.member` (symbolsOf p)) args

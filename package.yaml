@@ -47,10 +47,13 @@ dependencies:
 - mtl
 - network
 - parsec
+- pipes
+- pipes-concurrency
 - pretty-simple
 - process
 - QuickCheck
 - random
+- random-shuffle
 - regex-compat
 - silently
 - smallcheck

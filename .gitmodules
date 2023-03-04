@@ -1,6 +1,0 @@
-[submodule "compact-coupled-terms"]
-	path = compact-coupled-terms
-	url = git@github.com:jkoppel/compact-coupled-terms.git
-[submodule "smallcheck"]
-	path = smallcheck
-	url = git@github.com:aaronguo1996/smallcheck.git
