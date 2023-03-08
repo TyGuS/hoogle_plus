@@ -151,11 +151,6 @@ getTyclassDictName _ = error "getTyclassDictName: case to be implemented"
 --------------------------------------------------------------------------------
 ---------------------------- Convert Declarations ------------------------------
 --------------------------------------------------------------------------------
-instance Monad m => Fresh Int m where
-  nextCounter _ = do
-    i <- get
-    put (i + 1)
-    return i
 
 matchDtWithCons :: [Entry] -> [Entry]
 matchDtWithCons []             = []

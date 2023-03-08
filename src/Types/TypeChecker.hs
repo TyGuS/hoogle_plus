@@ -7,6 +7,7 @@ module Types.TypeChecker
   , getUnifier
   , bottomUpCheck
   , emptyChecker
+  , runTypeChecker
 
     -- * Type comparison
   , typeCmp
@@ -82,13 +83,12 @@ instance Monad m => Fresh CheckerState m where
 instance Loggable Checker where
   getLogLevel = gets clogLevel
 
+runTypeChecker :: NameMapping -> Environment -> CheckerState -> TProgram -> Either TProgram TProgram
+runTypeChecker m env st p = evalState (runExceptT (bottomUpCheck m env p)) st
+
 -- bottom up check a program on the concrete type system
 -- at the same time, keep track of the abstract type for each node
-bottomUpCheck
-  :: NameMapping
-  -> Environment
-  -> TProgram
-  -> ExceptT TProgram Checker TProgram
+bottomUpCheck :: NameMapping -> Environment -> TProgram -> ExceptT TProgram Checker TProgram
 bottomUpCheck nameMap env p@(Program (PSymbol sym) typ) = do
   let name = unsuffixName nameMap sym
   t <- lift $ findSymbol nameMap env name
@@ -117,7 +117,7 @@ bottomUpCheck nameMap env p@(Program (PFun x body) (FunctionT _ tArg tRet)) = do
     writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
     body' <- bottomUpCheck nameMap (addComponent x (Monotype tArg) env) body
     tass <- gets getTypeAssignment
-    let t     = FunctionT x (typeSubstitute tass tArg) (typeOf body')
+    let t = FunctionT x (typeSubstitute tass tArg) (typeOf body')
     return $ Program (PFun x body') t
 bottomUpCheck nameMap env p@(Program (PFun x body) _) = do
   writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
@@ -258,7 +258,8 @@ unify subst x t | Set.member x (typeVarsOf t) = Nothing
                 | isValidSubst subst && isValidSubst subst' = Just subst'
                 | otherwise                   = Nothing
   where
-    subst' = Map.insert x (typeSubstitute subst t) (Map.map (typeSubstitute $ Map.singleton x t) subst)
+    t' = typeSubstitute subst t
+    subst' = Map.insert x t' (Map.map (typeSubstitute $ Map.singleton x t') subst)
 
 isValidSubst :: TypeSubstitution -> Bool
 isValidSubst m =

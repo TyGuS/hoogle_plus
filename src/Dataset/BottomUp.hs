@@ -1,4 +1,11 @@
-module Dataset.BottomUp where
+module Dataset.BottomUp
+  (
+    Generator(..)
+  , runGenerateT
+  , generate
+  , generateApp
+  , assignArgs
+  ) where
 
 import Control.Monad.State
 import Data.Map (Map)
@@ -7,97 +14,97 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import Data.List
+import Data.Maybe (maybe)
 
 import Control.Monad.Extra
-import Data.ECTA
 import Data.Tuple.Extra
 import Pipes
 import qualified Pipes.Prelude as P
 
 import Database.Dataset
 import Types.Type
-import Types.Program
+import Types.Program hiding (canonicalize)
 import Types.Fresh
 import Types.TypeChecker
+import Types.Pretty
 import Types.Common
 import Dataset.Configuration
+import Dataset.HyperGraph (HyperGraph, Edge(..))
+import qualified Dataset.HyperGraph as HG
 
 import Debug.Trace
 
-type Size = Int
-type ProgramBank = Map TypeSkeleton [TProgram]
-type Generator m = ListT (StateT (Map Id Int) m)
+data Generator = Generator {
+  nameCounter :: Map Id Int,
+  graph :: HyperGraph
+}
 
-generateApp :: MonadIO m => ProgramBank -> Generator m (TypeSkeleton, TProgram)
-generateApp bank = do
-  (t, fs) <- Select $ each $ filter (isFunctionType . fst) (Map.toList bank)
-  f <- Select (each fs)
-  go t f
+instance Monad m => Fresh Generator m where
+  nextCounter prefix = do
+    counters <- gets nameCounter
+    let counter = Map.findWithDefault 0 prefix counters
+    modify $ \s -> s { nameCounter = Map.insert prefix (counter + 1) counters }
+    return counter
+
+type GenerateT m = ListT (StateT Generator m)
+
+runGenerateT :: Monad m => Generator -> GenerateT m a -> m HyperGraph
+runGenerateT genState g = graph <$> execStateT (runListT g) genState
+
+-- Note that this algorithm cannot apply something to `head []`, should we support this?
+generateApp :: Monad m => HyperGraph -> GenerateT m (Edge, TypeSkeleton)
+generateApp g = do
+  -- trace ("generateApp with a graph of size " ++ show (Map.size g)) $ return ()
+  (t, es) <- Select $ each $ filter (isFunctionType . fst) (Map.toList g)
+  Select (each es) >>= go t
   where
-    -- generate application terms for a given function
-    go :: MonadIO m => TypeSkeleton -> TProgram -> Generator m (TypeSkeleton, TProgram)
-    go typ f = do
-      -- refresh type variables
+    go :: Monad m => TypeSkeleton -> Edge -> GenerateT m (Edge, TypeSkeleton)
+    go typ e = do
       typ' <- lift $ freshType [] typ
       let FunctionT _ tArg tRet = typ'
-      (subst, args) <- unifiedTerms bank tArg
-      arg <- Select (each args)
-      applyTerm f typ' subst arg
+      (tArg', subst) <- unifiedTerms g tArg
+      if typeDepth tArg' > 4 then
+        mempty
+       else do
+        let tRet' = canonicalize $ typeSubstitute subst tRet
+        let e' = Edge (edgeSymbol e) (edgeChildren e ++ [tArg'])
+        -- trace ("insert " ++ plainShow tRet' ++ " for " ++ plainShow e') $ return ()
+        return (e', tRet')
 
-    applyTerm :: MonadIO m => TProgram -> TypeSkeleton -> TypeSubstitution -> TProgram -> Generator m (TypeSkeleton, TProgram)
-    applyTerm (Program f _) t@(FunctionT _ _ tRet) subst arg = do
-      let tRet' = typeSubstitute subst tRet
-      let (fname, pArgs) = case f of PSymbol fname -> (fname, [])
-                                     PApp f args -> (f, args)
-      return (tRet', Program (PApp fname (pArgs ++ [arg])) tRet')
-
-    isUnifiedWith :: TypeSkeleton -> TypeSkeleton -> [TProgram] -> Maybe (TypeSubstitution, [TProgram])
-    isUnifiedWith target k v =
-      case getUnifier [] [UnifiesWith target k] of
-        Nothing -> Nothing
-        Just subst -> let v' = map (withContent $ typeSubstitute subst) v in Just (subst, v')
-
-    unifiedTerms :: MonadIO m => ProgramBank -> TypeSkeleton -> Generator m (TypeSubstitution, [TProgram])
-    unifiedTerms localBank t = case t of
-      FunctionT _ tArg tRet -> do
-        x <- lift $ freshId [] "x"
-        (tass, es) <- unifiedTerms (Map.insertWith (++) tArg [varp x] localBank) tRet
-        return (tass, map (\e -> Program (PFun x e) (typeSubstitute tass t)) es)
-      _ -> do
-        (typ, terms) <- Select $ each (Map.toList localBank)
-        case isUnifiedWith t typ terms of
+    unifiedTerms :: Monad m => HyperGraph -> TypeSkeleton -> GenerateT m (TypeSkeleton, TypeSubstitution)
+    unifiedTerms g t = do
+      (typ, _) <- Select $ each (Map.toList g)
+      if typeSize typ > 4 then
+        mempty
+       else
+        case getUnifier [] [UnifiesWith typ t] of
           Nothing -> mempty
-          Just v -> return v
+          Just subst -> return (typ, subst)
 
-generate :: MonadIO m => [(Text, SchemaSkeleton)] -> Int -> m [TProgram]
+generate :: Monad m => [(Text, SchemaSkeleton)] -> Int -> m HyperGraph
 generate components n = do
-    let literals = map (\lit -> (typeOf lit, lit)) (intLits ++ charLits)
-    let inits = map (uncurry toProgram) components ++ literals
-    let initBank = foldr (\(t, p) -> Map.insertWith (++) t [p]) Map.empty inits
-    bank <- evalStateT (go n initBank) Map.empty
-    return $ Set.toList $ Set.fromList $ concat (Map.elems bank)
+    let inits = map (uncurry constEdge) components ++ intLits ++ charLits
+    let initGraph = foldr (uncurry HG.insert) Map.empty inits
+    graph <$> execStateT (go n) (Generator Map.empty initGraph)
   where
-    go :: MonadIO m => Int -> ProgramBank -> StateT (Map Id Int) m ProgramBank
-    go n bank | n <= 0 = return bank
-              | otherwise = do results <- P.toListM (every (generateApp bank))
-                               let bank' = Map.fromListWith (++) $ map (\(k, v) -> (k, [v])) results
-                               bank' <- return $ Map.unionWith (++) bank bank'
-                               go (n-1) (Map.map (Set.toList . Set.fromList) bank')
+    go :: Monad m => Int -> StateT Generator m ()
+    go n | n <= 0 = return ()
+         | otherwise = do g <- gets graph
+                          es <- P.toListM (every $ generateApp g)
+                          modify $ \s -> s { graph = foldr (uncurry HG.insert) g es }
+                          go (n-1)
 
-    toProgram :: Text -> SchemaSkeleton -> (TypeSkeleton, TProgram)
-    toProgram x t = (toMonotype t, Program (PSymbol x) (toMonotype t))
+    constEdge :: Text -> SchemaSkeleton -> (Edge, TypeSkeleton)
+    constEdge x t = (Edge x [], canonicalize $ toMonotype t)
 
-assignArgs :: MonadIO m => Configuration -> TProgram -> Generator m TProgram
+assignArgs :: Monad m => Configuration -> TProgram -> GenerateT m TProgram
 assignArgs config program = mkLambda <$> go program
   where
-    go :: MonadIO m => TProgram -> Generator m (TProgram, [Id])
+    go :: Monad m => TProgram -> GenerateT m (TProgram, [Id])
     go prog@(Program p t) = case p of
       PSymbol _ -> do
         arg <- lift $ freshId [] "arg"
-        Select (each [ (prog, [])
-                     , (Program (PSymbol arg) t, [arg])
-                     ])
-
+        msum $ map return [(prog, []), (Program (PSymbol arg) t, [arg])]
       PApp f args -> (do
           arg <- lift $ freshId [] "arg"
           return (Program (PSymbol arg) t, [arg])
@@ -112,12 +119,12 @@ assignArgs config program = mkLambda <$> go program
       PFun x body -> do
         (e, xs) <- go body -- note that x may become an argument, should we prevent that?
         arg <- lift $ freshId [] "arg"
-        Select (each [(prog, []), (Program (PSymbol arg) t, [arg])])
+        msum (map return [(prog, []), (Program (PSymbol arg) t, [arg])])
           `mplus` return (Program (PFun x e) t, xs)
 
       _ -> error "unsupported expression in assignArgs"
 
-    mkApp :: MonadIO m => TypeSkeleton -> [TProgram] -> [Id] -> Generator m (TProgram, [Id])
+    mkApp :: Monad m => TypeSkeleton -> [TProgram] -> [Id] -> GenerateT m (TProgram, [Id])
     mkApp tRet args binds
       | 1 + length binds > maxArgs config = mempty
       | otherwise = do
@@ -135,8 +142,8 @@ assignArgs config program = mkLambda <$> go program
 -- strLits :: [TProgram]
 -- strLits = map ((`ann` listType charType) . varp) ["str"] -- ["a", "A", "Aa", "bB"]
 
-intLits :: [TProgram]
-intLits = map ((`ann` intType) . varp) ["i"] -- [-1, 0, 1]
+intLits :: [(Edge, TypeSkeleton)]
+intLits = map (\s -> (Edge s [], intType)) ["0"] -- [-1, 0, 1]
 
-charLits :: [TProgram]
-charLits = map ((`ann` charType) . varp) ["c"] -- ['a', ' ', 'B', '+']
+charLits :: [(Edge, TypeSkeleton)]
+charLits = map (\s -> (Edge s [], charType)) ["'a'"] -- ['a', ' ', 'B', '+']

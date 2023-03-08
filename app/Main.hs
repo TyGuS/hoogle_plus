@@ -19,18 +19,10 @@ import           System.Directory               ( doesFileExist
                                                 , removeFile
                                                 )
 import           System.IO                      ( BufferMode(LineBuffering)
-                                                , IOMode(WriteMode)
-                                                , withFile
                                                 , hSetBuffering
-                                                , hPutStr
                                                 , stdout
                                                 )
 import qualified Data.Text as Text
-import qualified Data.Set as Set
-import qualified Data.Map as Map
-
-import Pipes
-import qualified Pipes.Prelude as P
 
 import           Database.Dataset
 import           Database.Environment
@@ -50,7 +42,6 @@ import           Types.Filtering
 import           Types.Generate          hiding ( files )
 import           Types.Program
 import           Types.Solver
-import Types.Pretty
 import Types.Common
 import Dataset.Dataset
 
@@ -113,20 +104,15 @@ main = do
       runTypeInferenceEval outFile
                            isStudy
                            (if bm == "" then benchmarks else benchmarks')
-    Dataset outFile mdls rep maxargs -> do
-      -- let mdls' = ["Nil", "Cons", "Data.Bool.True", "Data.Bool.False"] ++ mdls
-      -- let components = case mdls of
-      --                   [] -> hplusComponents
-      --                   _ -> filter (\(f, _) -> any (`Text.isPrefixOf` f) mdls') hplusComponents
-      -- putStrLn $ "using " ++ show (length components) ++ " components"
-      -- withFile (outFile ++ ".csv") WriteMode $ \hdl ->
-      --   evalStateT (evalStateT (runEffect $ do
-      --     every (generateQAPairs components (Configuration rep maxargs))
-      --     >-> P.filter ((/= "") . fst)
-      --     >-> P.map (\(t, p) -> t ++ "\t" ++ (plainShow $ unqualifyFunc p))
-      --     >-> P.toHandle hdl) Map.empty) Set.empty
-      let programs = Hectare.doSample 1 3 100
-      mapM_ (putStrLn . plainShow) programs
+    Dataset outFile mdls rep maxargs minsize maxsize samplenum -> do
+      let mdls' = ["Nil", "Cons", "Data.Bool.True", "Data.Bool.False"] ++ mdls
+      let components = case mdls of
+                        [] -> hplusComponents
+                        _ -> filter (\(f, _) -> any (`Text.isPrefixOf` f) mdls') hplusComponents
+      putStrLn $ "using " ++ show (length components) ++ " components"
+      writeCsv outFile $ generateQAPairs components (Configuration rep maxargs minsize maxsize samplenum)
+      -- let programs = Hectare.doSample 1 3 100
+      -- mapM_ (putStrLn . plainShow) programs
 
 {- Command line arguments -}
 
@@ -176,7 +162,10 @@ data CommandLineArgs
         out_file :: FilePath,
         dataset_modules :: [Id],
         dataset_repeat :: Int,
-        dataset_maxargs :: Int
+        dataset_maxargs :: Int,
+        dataset_minsize :: Int,
+        dataset_maxsize :: Int,
+        dataset_samplenum :: Int
       }
   deriving (Data, Typeable, Show, Eq)
 
@@ -236,6 +225,9 @@ dataset =
     , dataset_modules = [] &= help "Modules to be used during dataset creation. Empty means include everything." &= name "dm"
     , dataset_repeat = 3 &= help "Repeat the bottom up generation n times." &= name "dr"
     , dataset_maxargs = 3 &= help "Only consider lambda expressions with no more than n arguments." &= name "dargs"
+    , dataset_minsize = 2 &= help "Minimum size of the generated program" &= name "minsz"
+    , dataset_maxsize = 3 &= help "Maximum size of the generated program" &= name "maxsz"
+    , dataset_samplenum = 300 &= help "Total number of samples in the dataset" &= name "nsample"
     }
   &= help "Generate a dataset using components from specified modules"
 

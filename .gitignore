@@ -95,3 +95,7 @@ log
 
 # ignore any changes to the dataset file, as it is generated locally
 Dataset.hs
+
+# dataset
+*.csv
+*.aeson

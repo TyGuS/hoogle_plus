@@ -23,6 +23,9 @@ import Debug.Trace
 runChecker :: Checker a -> (a, CheckerState)
 runChecker = flip runState emptyChecker
 
+hasType :: String -> Either TProgram TProgram -> Bool
+hasType typeSig = either (const False) (\p -> plainShow (canonicalize $ typeOf p) == typeSig)
+
 data SubtypeTestcase = SubtypeTestcase {
   subDesc :: String,
   subVars :: [Id],
@@ -70,7 +73,7 @@ subtypeTestcases = [
   },
   SubtypeTestcase {
     subDesc = "bound var is subtype of free vars",
-    subVars = ["x"], 
+    subVars = ["x"],
     subLType = vart "x",
     subRType = vart "y",
     subWant = True
@@ -142,6 +145,27 @@ bottomUpTestcases = [
     buVars = ["a"],
     buProgram = untyped $ PApp "Data.Maybe.fromMaybe" [varp "x", untyped $ PApp "Data.Maybe.listToMaybe" [varp "xs"]],
     buCheck = either (\p -> plainShow p == "Data.Maybe.fromMaybe x (Data.Maybe.listToMaybe xs)" && typeOf p == BotT) (const False)
+  },
+  BottomUpTestcase {
+    buDesc = "\\arg0 arg1 -> filter (fromMaybe arg0) (concat arg1) infers correct type",
+    buArgs = [],
+    buVars = [],
+    buProgram = untyped $ PFun "x0" $ untyped $ PFun "x1" $ untyped $ PApp "GHC.List.filter" [untyped $ PApp "Data.Maybe.fromMaybe" [varp "x0"], untyped $ PApp "GHC.List.concat" [varp "x1"]],
+    buCheck = either (const False) (\p -> plainShow (canonicalize $ typeOf p) == "Bool -> [[Maybe Bool]] -> [Maybe Bool]")
+  },
+  BottomUpTestcase {
+    buDesc = "\\arg0 -> maybe 0 (fromMaybe arg0) infers correct type",
+    buArgs = [],
+    buVars = [],
+    buProgram = untyped $ PFun "x0" $ untyped $ PApp "Data.Maybe.maybe" [varp "0", untyped $ PApp "Data.Maybe.fromMaybe" [varp "x0"]],
+    buCheck = either (const False) (\p -> plainShow (canonicalize $ typeOf p) == "Int -> Maybe (Maybe Int) -> Int")
+  },
+  BottomUpTestcase {
+    buDesc = "\\arg0 arg1 -> [] : (arg0 : arg1) infers correct type",
+    buArgs = [],
+    buVars = [],
+    buProgram = untyped $ PFun "x0" $ untyped $ PFun "x1" $ untyped $ PApp "Cons" [varp "Nil", untyped $ PApp "Cons" [varp "x0", varp "x1"]],
+    buCheck = hasType "[t0] -> [[t0]] -> [[t0]]"
   }
   ]
 
@@ -158,7 +182,7 @@ typeConstraintTestcases = []
 spec :: Spec
 spec = do
   describe "test isSubtypeOf" $ do
-    mapM_ (\tc -> 
+    mapM_ (\tc ->
       it (subDesc tc) (isSubtypeOf (subVars tc) (subLType tc) (subRType tc) `shouldBe` subWant tc)
       ) subtypeTestcases
 
@@ -180,9 +204,9 @@ spec = do
 
   describe "bottomUpCheck" $ do
     mapM_ (\tc -> it (buDesc tc) $ do
-      let env = foldr addTypeVar loadEnv (buVars tc)
+      let env = addComponent "'a'" (Monotype charType) $ addComponent "0" (Monotype intType) $ foldr addTypeVar loadEnv (buVars tc)
       let env' = foldr (\(x, t) -> addComponent x (Monotype t)) env (buArgs tc)
-      let (checkResult, _) = runChecker $ runExceptT $ bottomUpCheck Map.empty env' (buProgram tc)
+      let checkResult = runTypeChecker Map.empty env' emptyChecker (buProgram tc)
       (buCheck tc) checkResult `shouldBe` True
       ) bottomUpTestcases
 

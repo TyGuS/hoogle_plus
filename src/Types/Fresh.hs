@@ -28,6 +28,12 @@ instance Monad m => Fresh (Map Id Int) m where
     put $ Map.insert prefix (counter + 1) counters
     return counter
 
+instance Monad m => Fresh Int m where
+  nextCounter prefix = do
+    counter <- get
+    put $ counter + 1
+    return counter
+
 freshId :: Fresh s m => [Id] -> Id -> StateT s m Id
 freshId bvs prefix = do
   i <- nextCounter prefix

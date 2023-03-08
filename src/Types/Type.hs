@@ -28,9 +28,11 @@ module Types.Type
   , isFunctionType
   , isHigherOrder
   , isPolymorphic
+  , isNullDatatype
   , lastType
   , resType
   , typeDepth
+  , typeSize
   , typeName
   , typeVarsOf
 
@@ -252,6 +254,10 @@ isPolymorphic :: SchemaSkeleton -> Bool
 isPolymorphic (ForallT _ _) = True
 isPolymorphic _             = False
 
+isNullDatatype :: TypeSkeleton -> Bool
+isNullDatatype (DatatypeT _ args) = null args
+isNullDatatype _ = False
+
 hasAny :: TypeSkeleton -> Bool
 hasAny TopT                    = True
 hasAny (DatatypeT _ tArgs    ) = any hasAny tArgs
@@ -333,7 +339,12 @@ typeVarsOf _ = Set.empty
 typeDepth :: TypeSkeleton -> Int
 typeDepth (DatatypeT _ tys) | not (null tys) = 1 + maximum (map typeDepth tys)
 typeDepth (FunctionT _ tArg tRet) = max (typeDepth tArg) (typeDepth tRet)
-typeDepth t = 0
+typeDepth _ = 0
+
+typeSize :: TypeSkeleton -> Int
+typeSize (DatatypeT _ tys) = 1 + sum (map typeSize tys)
+typeSize (FunctionT _ tArg tRet) = 1 + typeSize tArg + typeSize tRet
+typeSize _ = 1
 
 longScalarName :: TypeSkeleton -> Id
 longScalarName (DatatypeT name rs) =
