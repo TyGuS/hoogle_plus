@@ -1,4 +1,4 @@
-module Dataset.BottomUp
+module Dataset.Generation
   (
     Generator(..)
   , runGenerateT

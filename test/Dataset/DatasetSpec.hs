@@ -17,7 +17,7 @@ import Types.Type
 import Types.Pretty
 import Types.Program
 import Types.Common
-import Dataset.BottomUp
+import Dataset.Generation
 import Dataset.Dataset
 import Dataset.HyperGraph
 
