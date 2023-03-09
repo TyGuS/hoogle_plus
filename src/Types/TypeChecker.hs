@@ -248,14 +248,11 @@ solveTypeConstraint' _ _ _ _ = Nothing
 unify :: TypeSubstitution -> Id -> TypeSkeleton -> Maybe TypeSubstitution
 unify subst x t | Set.member x (freeVars t) = Nothing
                 | isValidSubst subst && isValidSubst subst' = Just subst'
-                | otherwise                   = Nothing
+                | otherwise = Nothing
   where
     t' = apply subst t
     subst' = Map.insert x t' (Map.map (apply $ Map.singleton x t') subst)
-
-isValidSubst :: TypeSubstitution -> Bool
-isValidSubst m =
-  not $ any (\(v, t) -> v `Set.member` freeVars t) (Map.toList m)
+    isValidSubst m = not $ any (\(v, t) -> v `Set.member` freeVars t) (Map.toList m)
 
 
 ------------- Abstract type relations

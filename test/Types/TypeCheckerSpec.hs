@@ -178,7 +178,34 @@ data TypeConstraintTestcase = TypeConstraintTestcase {
 }
 
 typeConstraintTestcases :: [TypeConstraintTestcase]
-typeConstraintTestcases = []
+typeConstraintTestcases = [
+  TypeConstraintTestcase {
+    tcDesc = "`b -> a -> b` does not unify with `(a -> b) -> a -> b`",
+    tcVars = [],
+    tcConstraint = UnifiesWith (FunctionT "y" (TypeVarT "b") $ FunctionT "x" (TypeVarT "a") (TypeVarT "b"))
+                               (FunctionT "f" (FunctionT "x" (TypeVarT "c") (TypeVarT "d")) (FunctionT "y" (TypeVarT "c") (TypeVarT "d"))),
+    tcWant = Nothing
+  },
+  TypeConstraintTestcase {
+    tcDesc = "`b -> a -> b` is not subtype of `(a -> b) -> a -> b`",
+    tcVars = [],
+    tcConstraint = SubtypeOf (FunctionT "y" (TypeVarT "b") $ FunctionT "x" (TypeVarT "a") (TypeVarT "b"))
+                             (FunctionT "f" (FunctionT "x" (TypeVarT "c") (TypeVarT "d")) (FunctionT "y" (TypeVarT "c") (TypeVarT "d"))),
+    tcWant = Nothing
+  },
+  TypeConstraintTestcase {
+    tcDesc = "`List a` unifies with `List b`",
+    tcVars = [],
+    tcConstraint = UnifiesWith (listType (vart "a")) (listType (vart "b")),
+    tcWant = Just (Map.fromList [("a",TypeVarT "b")])
+  },
+  TypeConstraintTestcase {
+    tcDesc = "occurs check failed the unification",
+    tcVars = [],
+    tcConstraint = UnifiesWith (listType (vart "a")) (listType (pairType (vart "a") (vart "b"))),
+    tcWant = Nothing
+  }
+  ]
 
 spec :: Spec
 spec = do
@@ -187,21 +214,11 @@ spec = do
       it (subDesc tc) (isSubtypeOf (subVars tc) (subLType tc) (subRType tc) `shouldBe` subWant tc)
       ) subtypeTestcases
 
-  describe "test solveTypeConstraint" $ do
-    it "`b -> a -> b` does not unify with `(a -> b) -> a -> b`" $ do
-      let
-        t1 = FunctionT "y" (TypeVarT "b")
-          $ FunctionT "x" (TypeVarT "a") (TypeVarT "b")
-      let t2 = FunctionT "f"
-                         (FunctionT "x" (TypeVarT "c") (TypeVarT "d"))
-                         (FunctionT "y" (TypeVarT "c") (TypeVarT "d"))
-      solveTypeConstraint [] Map.empty (UnifiesWith t1 t2) `shouldBe` Nothing
-      solveTypeConstraint [] Map.empty (SubtypeOf t2 t1) `shouldBe` Nothing
-
-    it "`List a` unifies with `List b`" $ do
-      let t1 = listType (TypeVarT "a")
-      let t2 = listType (TypeVarT "b")
-      solveTypeConstraint [] Map.empty (UnifiesWith t1 t2) `shouldBe` Just (Map.fromList [("a",TypeVarT "b")])
+  describe "test solveTypeConstraint" $
+    mapM_ (\tc ->
+      it (tcDesc tc) $
+        solveTypeConstraint (tcVars tc) Map.empty (tcConstraint tc) `shouldBe` tcWant tc
+      ) typeConstraintTestcases
 
   describe "bottomUpCheck" $ do
     mapM_ (\tc -> it (buDesc tc) $ do
