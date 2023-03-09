@@ -10,6 +10,8 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 
 import Test.Hspec ( Spec, describe, it, shouldBe)
+import Pipes
+import qualified Pipes.Prelude as P
 
 import Types.Type
 import Types.Pretty
@@ -78,14 +80,6 @@ appTestcases = [
                   , (maybeType $ TypeVarT "t0", Set.fromList [Edge "listToMaybe" [listType $ TypeVarT "t0"]])
                   , (listType $ TypeVarT "t0", Set.fromList [Edge "map" [FunctionT "" (TypeVarT "t0") (TypeVarT "t1"), listType $ TypeVarT "t0"]])
                   ])
-
-  -- GenAppTestcase
-  --   "generate apps for higher-orders"
-  --   (Map.fromList [ (FunctionT "" (FunctionT "" (TypeVarT "a") (TypeVarT "b")) (FunctionT "" (listType $ TypeVarT "a") (listType $ TypeVarT "b")), [varp "map"])
-  --                 , (nullDatatype "Int", [varp "i"])])
-  --   (Map.fromList [ (FunctionT "xs" (listType $ TypeVarT "a") (maybeType TypeVarT "a"]), [varp "listToMaybe"])
-  --                 , (listType boolType, [varp "bs", untyped (PApp "f" [varp "xs", varp "ys"])])
-  --                 ])
   ]
 
 data GenTestcase = GenTestcase {
@@ -374,10 +368,10 @@ genQueryTestcases = [
   GenQueryTestcase
     "generate queries within two iteration"
     testComponents
-    (Configuration 2 3 2 3 10)
-    [("forall a. a -> [a] -> a","\\arg0 arg1 -> fromMaybe arg0 (listToMaybe arg1)")
-    ,("forall a. [Maybe a] -> Maybe a","\\arg0 -> listToMaybe (catMaybes arg0)")
-    ,("forall a. [Maybe a] -> Maybe [a] -> [a]","\\arg0 -> fromMaybe (catMaybes arg0)")
+    (Configuration 2 2 2 2 50)
+    [("t0 -> [t0] -> t0","\\arg0 arg1 -> fromMaybe arg0 (listToMaybe arg1)")
+    ,("[Maybe t0] -> Maybe t0","\\arg0 -> listToMaybe (catMaybes arg0)")
+    ,("[Maybe t0] -> Maybe [t0] -> [t0]","\\arg0 -> fromMaybe (catMaybes arg0)")
     ]
   ]
 
@@ -432,26 +426,27 @@ spec = do
 --         (Set.fromList (genWantStr tc) `Set.isSubsetOf` Set.fromList (map plainShow progs)) `shouldBe` True
 --       ) genTestcases
 
---   describe "test argument abstraction" $
---     mapM_ (\tc ->
---       it (genArgDesc tc) $ do
---         let lambdas = evalState (assignArgs (genArgProgram tc)) Map.empty
---         let lambdas' = filter (\p -> numArguments p <= 2) lambdas
---         let lambdas = map (\p -> plainShow (evalState (canonicalize p) Map.empty)) lambdas'
---         Set.fromList lambdas `shouldBe` Set.fromList (genArgWant tc)
---       ) genArgTestcases
+  describe "test argument abstraction" $ do
+    let config = Configuration 2 2 2 2 2
+    mapM_ (\tc ->
+      it (genArgDesc tc) $ do
+        let lambdas = evalState (P.toListM $ every $ assignArgs config (genArgProgram tc)) (Generator Map.empty Map.empty)
+        let lambdas' = filter (\p -> numArguments p <= 2) lambdas
+        let lambdas = map (\p -> plainShow (evalState (canonicalize p) Map.empty)) lambdas'
+        Set.fromList lambdas `shouldBe` Set.fromList (genArgWant tc)
+      ) genArgTestcases
 
---   describe "test generate queries" $
---     mapM_ (\tc ->
---       it (genQueryDesc tc) $ do
---         pairs <- generateQAPairs (genQueryComponents tc) (genQueryConfig tc)
---         let results = map (\(t, p) -> (plainShow t, plainShow p)) pairs
---         Set.fromList (genQueryWant tc) `Set.isSubsetOf` Set.fromList results `shouldBe` True
---       ) genQueryTestcases
+  describe "test generate queries" $
+    mapM_ (\tc ->
+      it (genQueryDesc tc) $ do
+        pairs <- evalStateT (P.toListM $ every $ generateQAPairs (genQueryComponents tc) (genQueryConfig tc)) Set.empty
+        let results = map (\(t, p) -> (t, plainShow p)) pairs
+        Set.fromList (genQueryWant tc) `Set.isSubsetOf` Set.fromList results `shouldBe` True
+      ) genQueryTestcases
 
---   describe "test postfilter" $
---     mapM_ (\tc ->
---       it (postfilterDesc tc) $ do
---         result <- postfilter (postfilterProgram tc) (postfilterSig tc)
---         result `shouldBe` (postfilterWant tc)
---       ) postfilterTestcases
+  describe "test postfilter" $
+    mapM_ (\tc ->
+      it (postfilterDesc tc) $ do
+        result <- postfilter (postfilterProgram tc) (postfilterSig tc)
+        result `shouldBe` (postfilterWant tc)
+      ) postfilterTestcases
