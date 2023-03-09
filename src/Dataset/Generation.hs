@@ -28,6 +28,7 @@ import Types.Fresh
 import Types.TypeChecker
 import Types.Pretty
 import Types.Common
+import Types.Substitution
 import Dataset.Configuration
 import Dataset.HyperGraph (HyperGraph, Edge(..))
 import qualified Dataset.HyperGraph as HG
@@ -66,7 +67,7 @@ generateApp g = do
       if typeDepth tArg' > 4 then
         mempty
        else do
-        let tRet' = canonicalize $ typeSubstitute subst tRet
+        let tRet' = canonicalize $ apply subst tRet
         let e' = Edge (edgeSymbol e) (edgeChildren e ++ [tArg'])
         -- trace ("insert " ++ plainShow tRet' ++ " for " ++ plainShow e') $ return ()
         return (e', tRet')

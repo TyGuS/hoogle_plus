@@ -17,6 +17,7 @@ import Types.Program hiding (canonicalize)
 import Types.Solver
 import Types.Type
 import Types.TypeChecker
+import Types.Substitution
 
 import Debug.Trace
 

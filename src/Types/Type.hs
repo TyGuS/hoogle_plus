@@ -34,7 +34,6 @@ module Types.Type
   , typeDepth
   , typeSize
   , typeName
-  , typeVarsOf
 
     -- * Type classes and constants
   , tyclassPrefix
@@ -46,14 +45,11 @@ module Types.Type
   , isTyclass
 
     -- * Type operations
-  , TypeSubstitution
   , UnifConstraint(..)
   , breakdown
   , longScalarName
   , permuteArgs
-  , schemaSubstitute
   , toMonotype
-  , typeSubstitute
   , withSchema
 
     -- * Abstract types
@@ -230,8 +226,8 @@ pairProj :: Id
 pairProj = "pair_match"
 
 isTyclass :: Id -> Bool
-isTyclass f =
-  tyclassArgBase `Text.isInfixOf` f || tyclassInstancePrefix `Text.isPrefixOf` f
+isTyclass f = tyclassArgBase `Text.isInfixOf` f
+            || tyclassInstancePrefix `Text.isPrefixOf` f
 
 --------------------------------------------------------------------------------
 ------------------------------   Type Operations  ------------------------------
@@ -270,10 +266,8 @@ typeName (TypeVarT name) = name
 typeName t = error "scalarName error: cannot be applied to nonscalar type "
 
 allDatatypes :: TypeSkeleton -> Set Id
-allDatatypes (FunctionT _ tArg tRet) =
-  allDatatypes tArg `Set.union` allDatatypes tRet
-allDatatypes (DatatypeT id tArgs) =
-  id `Set.insert` foldr (Set.union . allDatatypes) Set.empty tArgs
+allDatatypes (FunctionT _ tArg tRet) = allDatatypes tArg `Set.union` allDatatypes tRet
+allDatatypes (DatatypeT id tArgs) = id `Set.insert` foldr (Set.union . allDatatypes) Set.empty tArgs
 allDatatypes _ = Set.empty
 
 arity :: TypeSkeleton -> Int
@@ -315,27 +309,6 @@ nullDatatype name = DatatypeT name []
 vart :: Id -> TypeSkeleton
 vart = TypeVarT
 
-typeSubstitute :: TypeSubstitution -> TypeSkeleton -> TypeSkeleton
-typeSubstitute subst t@(TypeVarT id) = Map.findWithDefault t id subst
-typeSubstitute subst (DatatypeT name tArgs) =
-  DatatypeT name (map (typeSubstitute subst) tArgs)
-typeSubstitute subst (FunctionT x tArg tRes) =
-  FunctionT x (typeSubstitute subst tArg) (typeSubstitute subst tRes)
-typeSubstitute subst t = t
-
-schemaSubstitute :: TypeSubstitution -> SchemaSkeleton -> SchemaSkeleton
-schemaSubstitute tass (Monotype t) = Monotype $ typeSubstitute tass t
-schemaSubstitute tass (ForallT a sch) =
-  ForallT a $ schemaSubstitute (Map.delete a tass) sch
-
--- | 'typeVarsOf' @t@ : all type variables in @t@
-typeVarsOf :: TypeSkeleton -> Set Id
-typeVarsOf (TypeVarT name    ) = Set.singleton name
-typeVarsOf (DatatypeT _ tArgs) = Set.unions (map typeVarsOf tArgs)
-typeVarsOf (FunctionT _ tArg tRes) =
-  typeVarsOf tArg `Set.union` typeVarsOf tRes
-typeVarsOf _ = Set.empty
-
 typeDepth :: TypeSkeleton -> Int
 typeDepth (DatatypeT _ tys) | not (null tys) = 1 + maximum (map typeDepth tys)
 typeDepth (FunctionT _ tArg tRet) = max (typeDepth tArg) (typeDepth tRet)
@@ -347,11 +320,9 @@ typeSize (FunctionT _ tArg tRet) = 1 + typeSize tArg + typeSize tRet
 typeSize _ = 1
 
 longScalarName :: TypeSkeleton -> Id
-longScalarName (DatatypeT name rs) =
-  name `Text.append` Text.concat (map longScalarName rs)
+longScalarName (DatatypeT name rs) = name `Text.append` Text.concat (map longScalarName rs)
 longScalarName (TypeVarT name) = name
-longScalarName t =
-  error "longScalarName error: cannot be applied to nonscalar type "
+longScalarName t = error "longScalarName error: cannot be applied to nonscalar type "
 
 breakdown :: TypeSkeleton -> [TypeSkeleton]
 breakdown (FunctionT _ tArg tRes) = tArg : breakdown tRes
@@ -363,21 +334,18 @@ argsWithName _                       = []
 
 permuteArgs :: [Int] -> SchemaSkeleton -> SchemaSkeleton
 permuteArgs ords (ForallT x t) = ForallT x (permuteArgs ords t)
-permuteArgs ords (Monotype t) =
-  let args = argsWithName t
-      ret  = lastType t
-  in  Monotype $ foldr (uncurry FunctionT) ret (permuteBy ords args)
+permuteArgs ords (Monotype t) = Monotype $ foldr (uncurry FunctionT) ret (permuteBy ords args)
+  where
+    args = argsWithName t
+    ret  = lastType t
 
-withSchema
-  :: (TypeSkeleton -> TypeSkeleton) -> SchemaSkeleton -> SchemaSkeleton
+withSchema :: (TypeSkeleton -> TypeSkeleton) -> SchemaSkeleton -> SchemaSkeleton
 withSchema f (ForallT x t) = ForallT x (withSchema f t)
 withSchema f (Monotype t ) = Monotype (f t)
 
 hoArgsOf :: TypeSkeleton -> [TypeSkeleton]
-hoArgsOf (DatatypeT _ args) =
-  filter isFunctionType args ++ concatMap hoArgsOf args
-hoArgsOf (FunctionT _ tArg tRes) =
-  (if isFunctionType tArg then [tArg] else hoArgsOf tArg) ++ hoArgsOf tRes
+hoArgsOf (DatatypeT _ args) = filter isFunctionType args ++ concatMap hoArgsOf args
+hoArgsOf (FunctionT _ tArg tRes) = (if isFunctionType tArg then [tArg] else hoArgsOf tArg) ++ hoArgsOf tRes
 hoArgsOf _ = []
 
 containsType :: TypeSkeleton -> [TypeSkeleton] -> [TypeSkeleton]
@@ -392,10 +360,9 @@ containsType t = filter (\tt -> tt == t || t `elem` hoArgsOf tt)
 --- compactAbstractType is the same as toAbstractFun
 
 toAbstractType :: TypeSkeleton -> TypeSkeleton
-toAbstractType (FunctionT x tArg tRes) =
-  FunctionT x (toAbstractFun tArg) (toAbstractType tRes)
-toAbstractType (DatatypeT dt tArgs) = DatatypeT dt (map toAbstractFun tArgs)
-toAbstractType t                    = t
+toAbstractType (FunctionT x tArg tRes) = FunctionT x (toAbstractFun tArg) (toAbstractType tRes)
+toAbstractType (DatatypeT dt tArgs)    = DatatypeT dt (map toAbstractFun tArgs)
+toAbstractType t                       = t
 
 toAbstractFun :: TypeSkeleton -> TypeSkeleton
 toAbstractFun (FunctionT _ tArg tRes) =
@@ -403,8 +370,7 @@ toAbstractFun (FunctionT _ tArg tRes) =
 toAbstractFun t = toAbstractType t
 
 typesInCover :: AbstractCover -> [TypeSkeleton]
-typesInCover cover =
-  nubOrd $ Map.keys cover ++ (Set.toList . Set.unions $ Map.elems cover)
+typesInCover cover = nubOrd $ Map.keys cover ++ (Set.toList . Set.unions $ Map.elems cover)
 
 coverSize :: AbstractCover -> Int
 coverSize = length . typesInCover

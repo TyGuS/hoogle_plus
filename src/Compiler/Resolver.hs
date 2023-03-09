@@ -8,29 +8,26 @@ module Compiler.Resolver
   , resolveType
   ) where
 
-import           Control.Monad.Except
-import           Control.Monad.State            ( StateT
-                                                , runStateT
-                                                , gets
-                                                , modify
-                                                )
-import           Data.List                      ( find )
-import qualified Data.Map                      as Map
-import           Data.Map                       ( Map )
-import qualified Data.Set                      as Set
-import           Data.Text                      ( Text )
-import           GHC.Generics                   ( Generic )
+import Control.Monad.Except
+import Control.Monad.State (StateT, runStateT, gets, modify)
+import Data.List (find)
+import qualified Data.Map as Map
+import Data.Map (Map)
+import qualified Data.Set as Set
+import Data.Text (Text)
+import GHC.Generics (Generic)
 
-import           Text.PrettyPrint.ANSI.Leijen   ( string )
+import Text.PrettyPrint.ANSI.Leijen   ( string )
 
-import           Compiler.Error
-import           Types.Common            hiding ( varName )
-import           Types.Environment
-import           Types.Pretty
-import           Types.Program
-import           Types.Resolver
-import           Types.Type
-import           Utility.Utils
+import Compiler.Error
+import Types.Common  hiding ( varName )
+import Types.Environment
+import Types.Pretty
+import Types.Program
+import Types.Resolver
+import Types.Type
+import Utility.Utils
+import Types.Substitution
 
 
 --------------------------------------------------------------------------------
@@ -76,7 +73,7 @@ throwResError descr = throwError $ ErrorMessage ResolutionError descr
 resolveDeclaration :: Declaration -> Environment -> Resolver Environment
 resolveDeclaration (TypeDecl typeName typeVars typeBody) env = do
   typeBody' <- resolveType (getBoundTypeVars env) typeBody
-  let extraTypeVars = typeVarsOf typeBody' Set.\\ Set.fromList typeVars
+  let extraTypeVars = freeVars typeBody' Set.\\ Set.fromList typeVars
   if Set.null extraTypeVars
     then addSynonym (TypeSynonym typeName typeVars typeBody') >> return env
     else throwResError
@@ -96,34 +93,24 @@ resolveDeclaration (DataDecl dtName tParams ctors) env = do
     ctors
 
 resolveSignatures :: Declaration -> Environment -> Resolver Environment
-resolveSignatures (FuncDecl name _) env = do
+resolveSignatures (FuncDecl name _) env =
   case lookupSymbol name env of
     Nothing  -> error "resolveSignatures: function not found"
     Just sch -> do
       sch' <- resolveSchema (getBoundTypeVars env) sch
       return $ addComponent name sch' $ removeVariable name env
-resolveSignatures (DataDecl dtName tParams ctors) env = do
-  foldM resolveConstructorSignature env ctors
+resolveSignatures (DataDecl dtName tParams ctors) env = foldM resolveConstructorSignature env ctors
  where
-  resolveConstructorSignature e (ConstructorSig name _) = do
+  resolveConstructorSignature e (ConstructorSig name _) =
     case lookupSymbol name e of
-      Nothing -> throwResError
-        (string "resolveConstructorSignature: constructor not found")
+      Nothing -> throwResError (string "resolveConstructorSignature: constructor not found")
       Just sch -> do
         sch' <- resolveSchema (getBoundTypeVars e) sch
         let nominalType = DatatypeT dtName (map TypeVarT tParams)
         let returnType  = lastType (toMonotype sch')
         if nominalType == returnType
           then return $ addComponent name sch' $ removeVariable name e
-          else throwResError
-            (commaSep
-              [ text "Constructor"
-              <+> text name
-              <+> text "must return type"
-              <+> pretty nominalType
-              , text "got" <+> pretty returnType
-              ]
-            )
+          else throwResError (text "Constructor" <+> text name <+> text "must return type" <+> pretty nominalType <+> text "," <+> text "got" <+> pretty returnType)
 resolveSignatures _ env = return env
 
 {- Types and sorts -}
@@ -131,7 +118,7 @@ resolveSignatures _ env = return env
 resolveSchema :: [Id] -> SchemaSkeleton -> Resolver SchemaSkeleton
 resolveSchema bvs sch = do
   let typ = toMonotype sch
-  let tvs = Set.toList $ typeVarsOf typ
+  let tvs = Set.toList $ freeVars typ
   sch <- resolveType (bvs ++ tvs) typ
   return $ foldr ForallT (Monotype sch) tvs
 
@@ -179,7 +166,7 @@ substituteTypeSynonym name tArgs = do
         <+> pretty (length tVars)
         <+> text "type arguments and got"
         <+> pretty (length tArgs)
-      return $ typeSubstitute (Map.fromList $ zip tVars tArgs) t
+      return $ apply (Map.fromList $ zip tVars tArgs) t
 
 lookupDatatype :: [DatatypeDef] -> Id -> Maybe DatatypeDef
 lookupDatatype dts name = find (\(DatatypeDef dt _ _) -> dt == name) dts

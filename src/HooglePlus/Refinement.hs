@@ -1,51 +1,34 @@
 module HooglePlus.Refinement where
 
-import           Control.Lens                   ( over
-                                                , set
-                                                , view
-                                                )
-import           Control.Monad.Logic
-import           Control.Monad.State            ( StateT
-                                                , gets
-                                                , modify
-                                                )
-import qualified Data.HashMap.Strict           as HashMap
-import           Data.List                      ( (\\)
-                                                , nub
-                                                )
-import           Data.Map                       ( Map )
-import qualified Data.Map                      as Map
-import           Data.Maybe                     ( fromJust
-                                                , isJust
-                                                )
-import           Data.Set                       ( Set )
-import qualified Data.Set                      as Set
+import Control.Lens (over, set, view)
+import Control.Monad.Logic
+import Control.Monad.State (StateT, gets, modify)
+import qualified Data.HashMap.Strict as HashMap
+import Data.List ((\\), nub)
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Maybe (fromJust, isJust)
+import Data.Set (Set)
+import qualified Data.Set as Set
 
-import           Types.Common
-import           Types.Environment
-import           Types.Fresh
-import           Types.Log
-import           Types.Pretty
-import           Types.Program
-import           Types.Solver
-import           Types.Type
-import           Types.TypeChecker
-import           Utility.Utils
-
-import Debug.Trace
+import Types.Common
+import Types.Environment
+import Types.Fresh
+import Types.Log
+import Types.Pretty
+import Types.Program
+import Types.Solver
+import Types.Substitution
+import Types.Type
+import Types.TypeChecker
+import Utility.Utils
 
 -- | add a new type into our cover and ensure all of them have proper lower bound
 updateCover :: [Id] -> TypeSkeleton -> AbstractCover -> AbstractCover
 updateCover tvs t cover =
   let (_, cover') = updateCover' tvs cover [] t rootNode in cover'
 
-updateCover'
-  :: [Id]
-  -> AbstractCover
-  -> [TypeSkeleton]
-  -> TypeSkeleton
-  -> TypeSkeleton
-  -> ([TypeSkeleton], AbstractCover)
+updateCover' :: [Id] -> AbstractCover -> [TypeSkeleton] -> TypeSkeleton -> TypeSkeleton -> ([TypeSkeleton], AbstractCover)
 updateCover' bound cover intscts t paren | equalAbstract bound t paren =
   (intscts, cover)
 updateCover' bound cover intscts t paren | isSubtypeOf bound t paren =
@@ -83,13 +66,7 @@ updateCover' bound cover intscts t paren =
         then (fromJust intsctMb : intscts, cover)
         else (intscts, cover)
 
-propagate
-  :: SolverMonad m
-  => NameMapping
-  -> Environment
-  -> TProgram
-  -> TypeSkeleton
-  -> PNSolver m ()
+propagate :: SolverMonad m => NameMapping -> Environment -> TProgram -> TypeSkeleton -> PNSolver m ()
 -- | base case, when we reach the leaf of the AST
 propagate nameMapping env p@(Program (PSymbol sym) t) upstream = do
   writeLog 2 "propagate"
@@ -130,11 +107,7 @@ propagate nameMapping env p@(Program (PApp f args) _) upstream = do
   abstractArgs <- observeT $ mostGeneral argConcs absFun
   mapM_ (uncurry $ propagate nameMapping env) (zip args abstractArgs)
  where
-  mostGeneral
-    :: SolverMonad m
-    => [TypeSkeleton]
-    -> TypeSkeleton
-    -> LogicT (PNSolver m) [TypeSkeleton]
+  mostGeneral :: SolverMonad m => [TypeSkeleton] -> TypeSkeleton -> LogicT (PNSolver m) [TypeSkeleton]
   mostGeneral cArgs t = do
     let bvs = getBoundTypeVars env
     absArgs <- mapM (generalize bvs) cArgs
@@ -167,8 +140,7 @@ propagate nameMapping env (Program (PFun x body) t) (FunctionT _ atArg atRet) = 
 propagate _ _ prog t = return ()
 
 -- | generalize a closed concrete type into an abstract one
-generalize
-  :: (Loggable (LogicT (StateT s m)), Fresh s m) => [Id] -> TypeSkeleton -> LogicT (StateT s m) TypeSkeleton
+generalize :: (Loggable (LogicT (StateT s m)), Fresh s m) => [Id] -> TypeSkeleton -> LogicT (StateT s m) TypeSkeleton
 generalize bound t@(TypeVarT id)
   | id `notElem` bound = return t
   | otherwise = do

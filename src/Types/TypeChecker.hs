@@ -1,5 +1,5 @@
 module Types.TypeChecker
-  (
+ (
     -- * Type checking
     CheckerState(..)
   , Checker
@@ -24,38 +24,30 @@ module Types.TypeChecker
   , abstractStep
   , abstractCmp
   , existAbstract
-  ) where
+ ) where
 
-import           Control.Monad                  ( foldM )
-import           Control.Monad.State            ( MonadState(get, put)
-                                                , State
-                                                , StateT
-                                                , evalState
-                                                , gets
-                                                , modify
-                                                , msum
-                                                )
+import Control.Monad (foldM)
+import Control.Monad.State
 import Control.Monad.Except
-import           Data.List.Extra                ( nubOrd )
-import           Data.Map                       ( Map )
-import qualified Data.Map                      as Map
-import           Data.Maybe                     ( fromMaybe
-                                                , isJust
-                                                )
-import           Data.Set                       ( Set )
-import qualified Data.Set                      as Set
-import qualified Data.Text                     as Text
+import Data.List.Extra (nubOrd)
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Maybe (fromMaybe, isJust)
+import Data.Set (Set)
+import qualified Data.Set  as Set
+import qualified Data.Text as Text
 
-import           Text.PrettyPrint.ANSI.Leijen   ( string )
+import Text.PrettyPrint.ANSI.Leijen (string)
 
-import           Types.Common
-import           Types.Environment
-import           Types.Fresh
-import           Types.Log
-import           Types.Pretty
-import           Types.Program hiding (canonicalize)
-import           Types.Type
-import           Utility.Utils
+import Types.Common
+import Types.Environment
+import Types.Fresh
+import Types.Log
+import Types.Pretty
+import Types.Program hiding (canonicalize)
+import Types.Type
+import Types.Substitution
+import Utility.Utils
 
 --------------------------------------------------------------------------------
 ------------------------------- Type checking ----------------------------------
@@ -110,14 +102,14 @@ bottomUpCheck nameMap env (Program (PApp f args) typ) = do
   case funcTass of
     Nothing -> throwError $ Program (PApp f checkedArgs) BotT
     Just tm -> do modify $ \s -> s { getTypeAssignment = tm }
-                  writeLog 3 "bottomUpCheck" $ text "Unified function type is" <+> pretty (typeSubstitute tm targetFunc) <+> text "with type assignment" <+> pretty tm
-                  let args' = map (withContent (typeSubstitute tm)) checkedArgs
-                  return $ Program (PApp f args') (typeSubstitute tm freshRet)
+                  writeLog 3 "bottomUpCheck" $ text "Unified function type is" <+> pretty (apply tm targetFunc) <+> text "with type assignment" <+> pretty tm
+                  let args' = map (withContent (apply tm)) checkedArgs
+                  return $ Program (PApp f args') (apply tm freshRet)
 bottomUpCheck nameMap env p@(Program (PFun x body) (FunctionT _ tArg tRet)) = do
     writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
     body' <- bottomUpCheck nameMap (addComponent x (Monotype tArg) env) body
     tass <- gets getTypeAssignment
-    let t = FunctionT x (typeSubstitute tass tArg) (typeOf body')
+    let t = FunctionT x (apply tass tArg) (typeOf body')
     return $ Program (PFun x body') t
 bottomUpCheck nameMap env p@(Program (PFun x body) _) = do
   writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
@@ -180,7 +172,7 @@ solveTypeConstraint _ subst (SubtypeOf _ TopT)           = Just subst
 solveTypeConstraint bvs subst (SubtypeOf TopT (TypeVarT v))
   | v `elem` bvs = Nothing
   | otherwise    = Just subst
-solveTypeConstraint _ subst (SubtypeOf BotT _   ) = Just subst
+solveTypeConstraint _ subst (SubtypeOf BotT _  ) = Just subst
 solveTypeConstraint _ subst (SubtypeOf _    BotT) = Nothing
 solveTypeConstraint bvs subst (SubtypeOf (TypeVarT v) t2) =
   case Map.lookup v subst of
@@ -203,9 +195,9 @@ solveTypeConstraint bvs subst (SubtypeOf (FunctionT _ tArg1 tRes1) (FunctionT _ 
 solveTypeConstraint bvs subst (SubtypeOf (DatatypeT dt1 args1) (DatatypeT dt2 args2))
   | dt1 == dt2 && length args1 == length args2
   = foldM
-    (\subst' (t1, t2) -> solveTypeConstraint bvs subst' (SubtypeOf t1 t2))
+ (\subst' (t1, t2) -> solveTypeConstraint bvs subst' (SubtypeOf t1 t2))
     subst
-    (zip args1 args2)
+ (zip args1 args2)
   | otherwise
   = Nothing
 solveTypeConstraint _ _ (SubtypeOf _ _) = Nothing
@@ -254,16 +246,16 @@ solveTypeConstraint' bvs subst (DatatypeT dt tArgs) (DatatypeT dt' tArgs')
 solveTypeConstraint' _ _ _ _ = Nothing
 
 unify :: TypeSubstitution -> Id -> TypeSkeleton -> Maybe TypeSubstitution
-unify subst x t | Set.member x (typeVarsOf t) = Nothing
+unify subst x t | Set.member x (freeVars t) = Nothing
                 | isValidSubst subst && isValidSubst subst' = Just subst'
                 | otherwise                   = Nothing
   where
-    t' = typeSubstitute subst t
-    subst' = Map.insert x t' (Map.map (typeSubstitute $ Map.singleton x t') subst)
+    t' = apply subst t
+    subst' = Map.insert x t' (Map.map (apply $ Map.singleton x t') subst)
 
 isValidSubst :: TypeSubstitution -> Bool
 isValidSubst m =
-  not $ any (\(v, t) -> v `Set.member` typeVarsOf t) (Map.toList m)
+  not $ any (\(v, t) -> v `Set.member` freeVars t) (Map.toList m)
 
 
 ------------- Abstract type relations
@@ -275,7 +267,7 @@ isSubtypeOf _     _    TopT    = True
 isSubtypeOf _     BotT _       = True
 isSubtypeOf bound t1   t2      = isJust unifier
  where
-  unifier = getUnifier (bound ++ Set.toList (typeVarsOf t1)) [SubtypeOf t1 t2]
+  unifier = getUnifier (bound ++ Set.toList (freeVars t1)) [SubtypeOf t1 t2]
 
 superTypeOf :: [Id] -> AbstractCover -> TypeSkeleton -> [TypeSkeleton]
 superTypeOf tvs cover at = superTypeOf' tvs rootNode
@@ -295,16 +287,15 @@ equalSplit bvs s1 s2 = fst s1 == fst s2 && equalAbstract bvs (snd s1) (snd s2)
 existAbstract :: [Id] -> AbstractCover -> TypeSkeleton -> Bool
 existAbstract bvs cover t = existAbstract' rootNode
  where
-  existAbstract' paren | equalAbstract bvs paren t = True
-  existAbstract' paren | isSubtypeOf bvs t paren   = any
-    existAbstract'
-    (Set.toList $ Map.findWithDefault Set.empty paren cover)
-  existAbstract' paren = False
+  existAbstract' paren
+    | equalAbstract bvs paren t = True
+    | isSubtypeOf bvs t paren   = any existAbstract' (Set.toList $ Map.findWithDefault Set.empty paren cover)
+    | otherwise = False
 
 abstractIntersect :: [Id] -> TypeSkeleton -> TypeSkeleton -> Maybe TypeSkeleton
 abstractIntersect bound t1 t2 = case getUnifier bound [UnifiesWith t1 t2] of
   Nothing    -> Nothing
-  Just subst -> Just $ typeSubstitute subst t1
+  Just subst -> Just $ apply subst t1
 
 -- | find the current most restrictive abstraction for a given type
 currentAbstraction
@@ -350,7 +341,7 @@ abstractApply bvs cover fun args = do
     Nothing -> return BotT
     Just m  -> do
       writeLog 3 "abstractApply" $ text "get unifier" <+> pretty (Map.toList m)
-      let substRes = typeSubstitute m ret
+      let substRes = apply m ret
       writeLog 3 "abstractApply" $ text "current cover" <+> string (show cover)
       currentAbstraction bvs cover substRes
 
@@ -365,7 +356,7 @@ abstractStep bvs cover (FunctionT _ tArg tRes) arg = do
   let unifier = getUnifier bvs [UnifiesWith tArg arg]
   case unifier of
     Nothing -> return BotT
-    Just m  -> return $ typeSubstitute m tRes
+    Just m  -> return $ apply m tRes
 abstractStep _ _ _ _ = return BotT
 
 abstractCmp :: [Id] -> TypeSkeleton -> TypeSkeleton -> Ordering

@@ -3,63 +3,48 @@ module PetriNet.PNSolver
   , nextSolution
   ) where
 
-import           Control.Lens                   ( (^.)
-                                                , over
-                                                , set
-                                                , view
-                                                )
-import           Control.Monad
-import           Control.Monad.Extra            ( ifM )
-import           Control.Monad.Logic
-import           Control.Monad.State
-import           Control.Monad.Except
-import qualified Data.Char                     as Char
-import           Data.Data                      ( Data )
-import           Data.Function                  ( on )
-import           Data.HashMap.Strict            ( HashMap )
-import qualified Data.HashMap.Strict           as HashMap
-import           Data.List                      ( nub
-                                                , sortBy
-                                                , sortOn
-                                                )
-import           Data.Map                       ( Map )
-import qualified Data.Map                      as Map
-import           Data.Maybe                     ( fromJust
-                                                , fromMaybe
-                                                , isNothing
-                                                )
-import           Data.Ord                       ( Down(Down) )
-import           Data.Set                       ( Set )
+import Control.Lens ((^.), over, set, view)
+import Control.Monad
+import Control.Monad.Extra (ifM)
+import Control.Monad.Logic
+import Control.Monad.State
+import Control.Monad.Except
+import qualified Data.Char as Char
+import Data.Data (Data)
+import Data.Function (on)
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
+import Data.List (nub, sortBy, sortOn)
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Maybe (fromJust, fromMaybe, isNothing)
+import Data.Ord (Down(Down))
+import Data.Set (Set)
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
-import           Data.Text                      ( Text )
-import           System.IO                      ( hFlush
-                                                , stdout
-                                                )
+import Data.Text (Text)
+import System.IO (hFlush, stdout)
 
 import qualified Hoogle
-import           Language.Haskell.Exts.Parser   ( ParseResult(..)
-                                                , parseExp
-                                                )
+import Language.Haskell.Exts.Parser (ParseResult(..), parseExp)
 
-import           Database.Environment
-import           HooglePlus.CodeGenerator
-import           HooglePlus.Refinement
-import           PetriNet.PNEncoder
-import           Types.Common
-import           Types.Encoder           hiding ( incrementalSolving
-                                                , varName
-                                                )
-import           Types.Environment
-import           Types.Experiments
-import           Types.Fresh
-import           Types.Log
-import           Types.Pretty
-import           Types.Program
-import           Types.Solver
-import           Types.Type
-import           Types.TypeChecker
-import           Utility.Utils
+import Database.Environment
+import HooglePlus.CodeGenerator
+import HooglePlus.Refinement
+import PetriNet.PNEncoder
+import Types.Common
+import Types.Encoder hiding (incrementalSolving, varName)
+import Types.Environment
+import Types.Experiments
+import Types.Fresh
+import Types.Log
+import Types.Pretty
+import Types.Program
+import Types.Solver
+import Types.Substitution
+import Types.Type
+import Types.TypeChecker
+import Utility.Utils
 
 import Debug.Trace
 
@@ -615,7 +600,7 @@ checkCompleteProgram env dst prog = do
       writeLog 1 "parseAndCheck"
         $   text "Generalizing abstract type"
         <+> pretty tyBtm
-      let actualTyp = toAbstractType $ typeSubstitute tass progTyp
+      let actualTyp = toAbstractType $ apply tass progTyp
       let expectTyp = toAbstractType dst
       absBtm <- once $ observeT $ pickGeneralization env actualTyp expectTyp
       return $ Left $ CheckError prog absBtm

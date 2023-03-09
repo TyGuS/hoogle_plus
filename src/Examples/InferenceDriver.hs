@@ -70,6 +70,7 @@ import           Types.Pretty
 import           Types.Program
 import           Types.Type
 import qualified Types.TypeChecker
+import Types.Substitution
 import           Utility.Utils
 
 type TyclassConstraints = Set Id
@@ -188,7 +189,7 @@ checkExample mdls env typ ex = do
       case mbTass of
         Nothing   -> return $ Left err
         Just tass -> do
-          let substedTyp               = typeSubstitute tass freshTyp
+          let substedTyp               = apply tass freshTyp
           let (tyclasses, strippedTyp) = unprefixTc substedTyp
           let tyclassesPrenex          = intercalate ", " $ map plainShow tyclasses
           let breakTypes               = map plainShow $ breakdown strippedTyp
@@ -242,11 +243,11 @@ searchTypes inStr num = do
   return resultObj
  where
   renameVars t =
-    let freeVars  = Set.toList $ typeVarsOf t
-        validVars = foldr delete seqChars freeVars
-        substVars = foldr delete freeVars seqChars
+    let fvars  = Set.toList $ freeVars t
+        validVars = foldr delete seqChars fvars
+        substVars = foldr delete fvars seqChars
         substMap  = Map.fromList $ zip substVars $ map TypeVarT validVars
-    in  typeSubstitute substMap t
+    in  apply substMap t
 
   possibleQueries argNames exquery exTypes = do
     (generalTypes, stats) <- getExampleTypes argNames exTypes num
@@ -305,10 +306,10 @@ getExampleTypes argNames validSchemas num = do
           (AntiUnifResult (head validTypes) emptyAntiUnifState)
           (tail validTypes)
 
-  forall t = foldr ForallT (Monotype t) (typeVarsOf t)
+  forall t = foldr ForallT (Monotype t) (freeVars t)
 
   getGeneralizations t st = do
-    let tvars = typeVarsOf t
+    let tvars = freeVars t
     let tcass = st ^. tyclassAssignment
     -- either contains wildcards or is inhabited
     if hasWildcard t || isInhabited tcass t
@@ -323,11 +324,11 @@ getExampleTypes argNames validSchemas num = do
       tyclasses = Text.intercalate ", " $ filter (not . Text.null) $ map
         toConstraint
         renamedConstraints
-      vars               = Set.toList (typeVarsOf t)
+      vars               = Set.toList (freeVars t)
       letters            = map Text.singleton ['a' .. 'z']
       varCandidates      = filter (`notElem` vars) letters
       varSubst = Map.fromList (filter (uncurry (/=)) $ zip vars varCandidates)
-      renamedTyp         = typeSubstitute (Map.map TypeVarT varSubst) t
+      renamedTyp         = apply (Map.map TypeVarT varSubst) t
       substInConstraint  = \(id, s) -> (Map.findWithDefault id id varSubst, s)
       renamedConstraints = map substInConstraint (Map.toList constraints)
       strTyp             = show $ plain $ prettyTypeWithName renamedTyp
@@ -522,21 +523,21 @@ generalizeType exTyps tcass t = do
   -- collect stats
   typs <- observeAllT
     (do
-      let (_, vars) = partition isWildcard $ Set.toList $ typeVarsOf t
+      let (_, vars) = partition isWildcard $ Set.toList $ freeVars t
       (ass, gt) <- evalStateT
         (generalizeTypeSkeleton tcass t)
         (TypeNaming Map.empty Map.empty Set.empty (Set.fromList vars))
-      let (freeVars, vars) = partition isWildcard $ Set.toList $ typeVarsOf gt
+      let (fvars, vars) = partition isWildcard $ Set.toList $ freeVars gt
       -- simplify computation here
-      let mkSubst t = Map.fromList $ map (, t) freeVars
-      if null vars && null freeVars
+      let mkSubst t = Map.fromList $ map (, t) fvars
+      if null vars && null fvars
         then
           lift (modify $ over (infStats . prefilterCounts) (+ 1))
           >> lift (modify $ over (infStats . postfilterCounts) (+ 1))
           >> return (ass, gt)
         else msum $ map
           (\v -> do
-            let t = typeSubstitute (mkSubst (TypeVarT v)) gt
+            let t = apply (mkSubst (TypeVarT v)) gt
             lift $ modify $ over (infStats . prefilterCounts) (+ 1)
             -- liftIO $ print $ "Generalize into " ++ show t
             guard (isInhabited ass t)
@@ -700,7 +701,7 @@ mkTyclassQuery
   -> Id
   -> StateT TypeClassState m (Maybe Id)
 mkTyclassQuery tcass typ tyclass = do
-  let vars = Set.toList $ typeVarsOf typ
+  let vars = Set.toList $ freeVars typ
   -- this is unuseful now, consider removing it
   let varTcs = concatMap
         (\v -> case Map.lookup v tcass of
@@ -777,17 +778,17 @@ isInhabited tyclass t =
 
 isReachable :: [TypeSkeleton] -> TypeSkeleton -> Bool
 isReachable args res =
-  typeVarsOf res `Set.isSubsetOf` Set.unions (map typeVarsOf args)
+  freeVars res `Set.isSubsetOf` Set.unions (map freeVars args)
 
 isRelevant :: [TypeSkeleton] -> TypeSkeleton -> TypeSkeleton -> Bool
 isRelevant args res (TypeVarT id) =
-  (id `Set.member` typeVarsOf res) || usedInHigherOrder
+  (id `Set.member` freeVars res) || usedInHigherOrder
  where
   hoArgs            = filter isFunctionType args ++ concatMap hoArgsOf args
   usedInHigherOrder = any relevantToHigherOrder hoArgs
   relevantToHigherOrder hoArg =
     let argsOfHoArg = map snd (argsWithName hoArg)
-        tvInArgs    = Set.unions $ map typeVarsOf argsOfHoArg
+        tvInArgs    = Set.unions $ map freeVars argsOfHoArg
     in  (id `Set.member` tvInArgs) && isRelevant args res hoArg
 isRelevant args res t@FunctionT{} =
   let argsOfHoArg   = map snd (argsWithName t)
@@ -838,7 +839,7 @@ scoreSignature :: TypeSkeleton -> TyclassAssignment -> TypeSkeleton -> Double
 scoreSignature auType tyclass t =
   let subst     = reverseSubstitution auType t Map.empty
       tcCount   = 0.5 * fromIntegral (Map.foldr ((+) . Set.size) 0 tyclass)
-      varsCount = Set.size $ typeVarsOf t
+      varsCount = Set.size $ freeVars t
       substCount k s = Set.size s
   in  fromIntegral (Map.foldrWithKey (\k v -> (+) $ substCount k v) 0 subst)
         + -- penalty for more than one non-identity subst
@@ -866,8 +867,8 @@ checkConstraint (DisunifConstraint t1 t2) = do
     -- liftIO $ print "checkDisunif"
   tass <- gets $ view tmpAssignment
   -- liftIO $ print tass
-  let t1' = typeSubstitute tass t1
-  let t2' = typeSubstitute tass t2
+  let t1' = apply tass t1
+  let t2' = apply tass t2
   -- liftIO $ print (t1', t2')
   checkDisunification t1' t2'
     -- liftIO $ print "end checkConstraint"
@@ -877,7 +878,7 @@ checkUnification
 checkUnification t1 t2 = do
     -- liftIO $ print "checkUnification"
     -- liftIO $ print (t1, t2)
-  let vars      = Set.toList $ typeVarsOf t1 `Set.union` typeVarsOf t2
+  let vars      = Set.toList $ freeVars t1 `Set.union` freeVars t2
   let boundVars = filter isWildcard vars
   let env       = emptyEnv { getBoundTypeVars = boundVars }
   tmpAss <- gets $ view tmpAssignment

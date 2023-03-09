@@ -2,51 +2,37 @@ module Evaluation.EvalTypeInf
     ( runTypeInferenceEval
     ) where
 
-import           Control.Exception              ( SomeException
-                                                , catch
-                                                )
-import           Data.Aeson                     ( encode )
-import           Data.ByteString.Lazy.Char8     ( unpack )
-import           Data.List                      ( inits
-                                                , intercalate
-                                                , isInfixOf
-                                                , zip5
-                                                )
-import           Data.Map                       ( Map )
-import qualified Data.Map                      as Map
-import           Data.Maybe                     ( catMaybes )
-import qualified Data.Set                      as Set
-import qualified Data.Text                     as Text
-import           Language.Haskell.Interpreter   ( MonadIO(liftIO)
-                                                , as
-                                                , interpret
-                                                , setImports
-                                                )
-import           System.IO                      ( IOMode(AppendMode)
-                                                , hPutStrLn
-                                                , withFile
-                                                )
-import           System.IO.Silently             ( silence )
-import           System.Random                  ( Random(randomR)
-                                                , getStdRandom
-                                                )
-import           Test.QuickCheck                ( Result(..) )
-import qualified Test.QuickCheck               as QC
-import           Text.Printf                    ( printf )
+import Control.Exception (SomeException, catch)
+import Data.Aeson (encode)
+import Data.ByteString.Lazy.Char8 (unpack)
+import Data.List (inits, intercalate, isInfixOf, zip5)
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Maybe (catMaybes)
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import Language.Haskell.Interpreter (MonadIO(liftIO), as, interpret, setImports)
+import System.IO (IOMode(AppendMode), hPutStrLn, withFile)
+import System.IO.Silently (silence)
+import System.Random (Random(randomR), getStdRandom)
+import Test.QuickCheck (Result(..))
+import qualified Test.QuickCheck as QC
+import Text.Printf (printf)
 
-import           Evaluation.Benchmark
-import           Examples.InferenceDriver
-import           Postfilter.GHCSocket
-import           HooglePlus.IOFormat
-import           HooglePlus.Utils
-import           Types.Common
-import           Types.Environment              ( Environment )
-import           Types.Filtering
-import           Types.Generate                 ( defaultEnvPath )
-import           Types.Program
-import           Types.Type
-import           Types.TypeChecker
-import           Utility.Utils
+import Evaluation.Benchmark
+import Examples.InferenceDriver
+import HooglePlus.IOFormat
+import HooglePlus.Utils
+import Postfilter.GHCSocket
+import Types.Common
+import Types.Environment (Environment)
+import Types.Filtering
+import Types.Generate (defaultEnvPath)
+import Types.Program
+import Types.Substitution
+import Types.Type
+import Types.TypeChecker
+import Utility.Utils
 
 typeCandidates :: [TypeSkeleton]
 typeCandidates = [intType, charType, listType charType, doubleType]
@@ -71,8 +57,8 @@ runTest numOfExs bm@(Benchmark _ q sol _ _) = do
     mbExamples <- mapM
         (const $ catch
             (do
-                subst <- randomSubst (Set.toList $ typeVarsOf typ) Map.empty
-                let t    = typeSubstitute subst typ
+                subst <- randomSubst (Set.toList $ freeVars typ) Map.empty
+                let t    = apply subst typ
                 let prop = buildProperty t []
                 rawRes <- askGhcSocket prop
                 let res = either (Left . id) (Right . read) rawRes
@@ -174,7 +160,7 @@ runInference isStudy bm = do
         let q     = parseQueryType query
         checkRes <- getCorrectIndex q 1 res
         let argCnt = length (argsWithName q)
-        let varCnt = length (typeVarsOf q)
+        let varCnt = length (freeVars q)
         return
             (InferenceResult bm
                              []

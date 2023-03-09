@@ -62,7 +62,6 @@ insert e t graph = Map.insertWith Set.union t (Set.singleton e) graph
 sample :: MonadIO m => HyperGraph -> SampleConfig m -> m TProgram
 sample graph config = do
   depth <- sampleDepth config
-  -- trace ("sample a program of depth " ++ show depth) $ return ()
   body <- evalStateT (sampleProgram graph config depth TopT) 0
   let args = Set.toList $ Set.filter (Text.isPrefixOf "arg") (symbolsOf body)
   return (mkLambda body args)
@@ -78,7 +77,6 @@ sampleProgram graph config depth node =
 
 sampleApp :: MonadIO m => HyperGraph -> SampleConfig m -> Int -> Node -> SampleT m TProgram
 sampleApp graph config depth node = do
-  -- trace ("sample applications of depth " ++ show depth) $ return ()
   let es = case node of
             TopT -> Set.unions (Map.elems graph)
             _ -> Map.findWithDefault Set.empty node graph
