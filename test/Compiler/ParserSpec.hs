@@ -22,7 +22,7 @@ spec = do
         it "works with no typeclasses" $ do
             let input    = "Int -> b"
             let result   = doParseType input
-            let expected = Right (FunctionT "arg0" intType (TypeVarT "b"))
+            let expected = Right (FunctionT "arg0" intType (vart "b"))
             result `shouldBe` expected
 
         it "handles a single typeclass constraint" $ do
@@ -31,8 +31,8 @@ spec = do
             let result        = doParseType input
             let expected = Right
                     (FunctionT "tcarg0"
-                               (DatatypeT typeclassName [TypeVarT "a"])
-                               (TypeVarT "a")
+                               (DatatypeT typeclassName [vart "a"])
+                               (vart "a")
                     )
             result `shouldBe` expected
 
@@ -42,8 +42,8 @@ spec = do
             let ord      = appendSuffix tyclassPrefix "Ord"
             let result   = doParseType input
             let expected = Right
-                    ( FunctionT "tcarg0" (DatatypeT showable [TypeVarT "a"])
-                    $ FunctionT "tcarg1" (DatatypeT ord [TypeVarT "b"])
-                    $ FunctionT "arg0" (TypeVarT "a") (TypeVarT "b")
+                    ( FunctionT "tcarg0" (DatatypeT showable [vart "a"])
+                    $ FunctionT "tcarg1" (DatatypeT ord [vart "b"])
+                    $ FunctionT "arg0" (vart "a") (vart "b")
                     )
             result `shouldBe` expected

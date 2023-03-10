@@ -57,7 +57,7 @@ mkFunctionSigStr args = addConstraints
 
   accumConstraints
     :: TypeSkeleton -> ([String], [String]) -> ([String], [String])
-  accumConstraints (DatatypeT id [TypeVarT tyvarName]) (constraints, baseSigs)
+  accumConstraints (DatatypeT id [TypeVarT _ tyvarName]) (constraints, baseSigs)
     | tyclassPrefix `Text.isPrefixOf` id
     = let classNameRegex =
             mkRegex $ Text.unpack tyclassPrefix ++ "([a-zA-Z]*)"

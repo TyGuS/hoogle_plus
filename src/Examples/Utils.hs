@@ -61,14 +61,3 @@ integerToInt t = t
 
 wrapParens :: String -> String
 wrapParens = printf " (%s)"
-
--- assume the types p assed into the method already have fresh variable names
-checkTypes :: Environment -> [Id] -> TypeSkeleton -> TypeSkeleton -> Maybe TypeSubstitution
-checkTypes env tmpBound r1 r2 =
-  let bvs = tmpBound ++ getBoundTypeVars env
-  in solveTypeConstraint bvs Map.empty (SubtypeOf (skipTyclass r1) (skipTyclass r2))
-
-mkPolyType :: TypeSkeleton -> SchemaSkeleton
-mkPolyType t = foldr ForallT (Monotype t) fvars
-  where
-    fvars = filter ((==) wildcardPrefix . Text.take 1) (Set.toList $ freeVars t)

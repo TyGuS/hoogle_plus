@@ -96,8 +96,8 @@ bottomUpCheck nameMap env (Program (PApp f args) typ) = do
   -- It may be a type variable or a TopT,
   -- in which case it unified with the target type even if the arity mismatches.
   tass <- gets getTypeAssignment
-  freshRet <- lift (TypeVarT <$> freshId [] "T")
-  let targetFunc = foldr (FunctionT "" . typeOf) freshRet checkedArgs
+  freshRet <- lift (vart <$> freshId [] "T")
+  let targetFunc = foldr (mkFun . typeOf) freshRet checkedArgs
   let funcTass = solveTypeConstraint (getBoundTypeVars env) tass (UnifiesWith targetFunc $ toMonotype t)
   case funcTass of
     Nothing -> throwError $ Program (PApp f checkedArgs) BotT
@@ -114,8 +114,8 @@ bottomUpCheck nameMap env p@(Program (PFun x body) (FunctionT _ tArg tRet)) = do
 bottomUpCheck nameMap env p@(Program (PFun x body) _) = do
   writeLog 3 "bottomUpCheck" $ text "Bottom up checking type for" <+> pretty p
   let bound = getBoundTypeVars env
-  tArg <- lift (TypeVarT <$> freshId bound "T")
-  tRet <- lift (TypeVarT <$> freshId bound "T")
+  tArg <- lift (vart <$> freshId bound "T")
+  tRet <- lift (vart <$> freshId bound "T")
   bottomUpCheck nameMap env (Program (PFun x body) (FunctionT x tArg tRet))
 bottomUpCheck _ _ p =
   error $ "unhandled case for checking " ++ show p ++ "::" ++ show (typeOf p)
@@ -137,14 +137,14 @@ canonicalize :: TypeSkeleton -> TypeSkeleton
 canonicalize t = evalState (canonicalize' t) (CanonicalState 0 Map.empty)
 
 canonicalize' :: TypeSkeleton -> State CanonicalState TypeSkeleton
-canonicalize' (TypeVarT var) = do
+canonicalize' (TypeVarT q var) = do
   CanonicalState idx m <- get
   case Map.lookup var m of
-    Just var' -> return $ TypeVarT var'
+    Just var' -> return $ TypeVarT q var'
     Nothing   -> do
       let var' = Text.pack $ "t" ++ show idx
       put $ CanonicalState (idx + 1) (Map.insert var var' m)
-      return $ TypeVarT var'
+      return $ TypeVarT q var'
 canonicalize' (DatatypeT name tArgs) =
   DatatypeT name <$> mapM canonicalize' tArgs
 canonicalize' (FunctionT x tArg tRes) = do
@@ -153,37 +153,32 @@ canonicalize' (FunctionT x tArg tRes) = do
   return $ FunctionT x tArg' tRes'
 canonicalize' t = return t
 
-getUnifier :: [Id] -> [UnifConstraint] -> Maybe TypeSubstitution
+getUnifier :: [Id] -> [TypeConstraint] -> Maybe TypeSubstitution
 getUnifier bvs = foldl (go bvs) (Just Map.empty)
  where
-  go
-    :: [Id]
-    -> Maybe TypeSubstitution
-    -> UnifConstraint
-    -> Maybe TypeSubstitution
+  go :: [Id] -> Maybe TypeSubstitution -> TypeConstraint -> Maybe TypeSubstitution
   go _   Nothing      _          = Nothing
   go bvs (Just subst) constraint = solveTypeConstraint bvs subst constraint
 
-solveTypeConstraint
-  :: [Id] -> TypeSubstitution -> UnifConstraint -> Maybe TypeSubstitution
+solveTypeConstraint :: [Id] -> TypeSubstitution -> TypeConstraint -> Maybe TypeSubstitution
 -- subtype relationship
 solveTypeConstraint _ subst (SubtypeOf t1 t2) | t1 == t2 = Just subst
 solveTypeConstraint _ subst (SubtypeOf _ TopT)           = Just subst
-solveTypeConstraint bvs subst (SubtypeOf TopT (TypeVarT v))
+solveTypeConstraint bvs subst (SubtypeOf TopT (TypeVarT _ v))
   | v `elem` bvs = Nothing
   | otherwise    = Just subst
 solveTypeConstraint _ subst (SubtypeOf BotT _  ) = Just subst
 solveTypeConstraint _ subst (SubtypeOf _    BotT) = Nothing
-solveTypeConstraint bvs subst (SubtypeOf (TypeVarT v) t2) =
+solveTypeConstraint bvs subst (SubtypeOf (TypeVarT q v) t2) =
   case Map.lookup v subst of
     Just t  -> solveTypeConstraint bvs subst (SubtypeOf t t2)
     Nothing -> case t2 of
-      TypeVarT v' -> case Map.lookup v' subst of
-        Just t2' -> solveTypeConstraint bvs subst (SubtypeOf (TypeVarT v) t2')
-        Nothing | v' `notElem` bvs -> unify subst v' (TypeVarT v)
+      TypeVarT _ v' -> case Map.lookup v' subst of
+        Just t2' -> solveTypeConstraint bvs subst (SubtypeOf (TypeVarT q v) t2')
+        Nothing | v' `notElem` bvs -> unify subst v' (TypeVarT q v)
                 | otherwise        -> Nothing
       _ -> Nothing
-solveTypeConstraint bvs subst (SubtypeOf t1 (TypeVarT v)) =
+solveTypeConstraint bvs subst (SubtypeOf t1 (TypeVarT _ v)) =
   case Map.lookup v subst of
     Just t -> solveTypeConstraint bvs subst (SubtypeOf t1 t)
     Nothing | v `elem` bvs -> Nothing
@@ -201,27 +196,23 @@ solveTypeConstraint bvs subst (SubtypeOf (DatatypeT dt1 args1) (DatatypeT dt2 ar
   | otherwise
   = Nothing
 solveTypeConstraint _ _ (SubtypeOf _ _) = Nothing
-
 -- unification constraints
-solveTypeConstraint bvs subst (UnifiesWith t1 t2) =
-  solveTypeConstraint' bvs subst t1 t2
+solveTypeConstraint bvs subst (UnifiesWith t1 t2) = solveTypeConstraint' bvs subst t1 t2
+-- disunification constraints
+solveTypeConstraint bvs subst (DisunifiesWith t1 t2) =
+  guard (disunifiable (apply subst t1) (apply subst t2)) >> Just subst
 
-solveTypeConstraint'
-  :: [Id]
-  -> TypeSubstitution
-  -> TypeSkeleton
-  -> TypeSkeleton
-  -> Maybe TypeSubstitution
+solveTypeConstraint' :: [Id] -> TypeSubstitution -> TypeSkeleton -> TypeSkeleton -> Maybe TypeSubstitution
 solveTypeConstraint' _ subst t1 t2 | t1 == t2      = Just subst
 solveTypeConstraint' _   subst TopT           _    = Just subst
 solveTypeConstraint' _   subst _              TopT = Just subst
 solveTypeConstraint' _   subst BotT           _    = Nothing
 solveTypeConstraint' _   subst _              BotT = Nothing
-solveTypeConstraint' bvs subst (TypeVarT var) t2 = case Map.lookup var subst of
+solveTypeConstraint' bvs subst (TypeVarT q var) t2 = case Map.lookup var subst of
   Just t2' -> solveTypeConstraint' bvs subst t2' t2
-  Nothing | var `elem` bvs -> solveTypeConstraint' bvs subst t2 (TypeVarT var)
+  Nothing | var `elem` bvs -> solveTypeConstraint' bvs subst t2 (TypeVarT q var)
           | otherwise      -> unify subst var t2
-solveTypeConstraint' bvs subst t1 (TypeVarT var) = case Map.lookup var subst of
+solveTypeConstraint' bvs subst t1 (TypeVarT _ var) = case Map.lookup var subst of
   Just t1' -> solveTypeConstraint' bvs subst t1 t1'
   Nothing | var `elem` bvs -> Nothing
           | otherwise      -> unify subst var t1
@@ -233,11 +224,7 @@ solveTypeConstraint' bvs subst (DatatypeT dt tArgs) (DatatypeT dt' tArgs')
   | dt /= dt' = Nothing
   | otherwise = solveArgConstraints subst tArgs tArgs'
  where
-  solveArgConstraints
-    :: TypeSubstitution
-    -> [TypeSkeleton]
-    -> [TypeSkeleton]
-    -> Maybe TypeSubstitution
+  solveArgConstraints :: TypeSubstitution -> [TypeSkeleton] -> [TypeSkeleton] -> Maybe TypeSubstitution
   solveArgConstraints st []             []               = Just st
   solveArgConstraints st (tArg : tArgs) (tArg' : tArgs') = do
     st' <- solveTypeConstraint' bvs st tArg tArg'
@@ -254,6 +241,21 @@ unify subst x t | Set.member x (freeVars t) = Nothing
     subst' = Map.insert x t' (Map.map (apply $ Map.singleton x t') subst)
     isValidSubst m = not $ any (\(v, t) -> v `Set.member` freeVars t) (Map.toList m)
 
+-- This is a coarse-grained check of whether two types can be unified.
+-- It returns True if we cannot unify them, otherwise returns False.
+disunifiable :: TypeSkeleton -> TypeSkeleton -> Bool
+disunifiable t1 t2 | t1 == t2      = False
+disunifiable (TypeVarT Exists _) _ = True
+disunifiable _ (TypeVarT Exists _) = True
+disunifiable (DatatypeT dt1 args1) (DatatypeT dt2 args2) = dt1 /= dt2 || checkArgs args1 args2
+  where
+    checkArgs :: [TypeSkeleton] -> [TypeSkeleton] -> Bool
+    checkArgs []             []             = False
+    checkArgs (arg1 : args1) (arg2 : args2) = disunifiable arg1 arg2 || checkArgs args1 args2
+    checkArgs _ _ = error "disunifiable: unexpected case"
+disunifiable (FunctionT _ tArg1 tRes1) (FunctionT _ tArg2 tRes2) = 
+  disunifiable tArg1 tArg2 || disunifiable tRes1 tRes2
+disunifiable _ _ = True
 
 ------------- Abstract type relations
 

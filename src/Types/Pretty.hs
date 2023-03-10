@@ -218,7 +218,7 @@ typePower _ = 3
 
 prettyTypeAt :: Int -> TypeSkeleton -> Doc
 prettyTypeAt n t = condHlParens $ case t of
-  TypeVarT v -> text v
+  TypeVarT _ v -> text v
   DatatypeT "List" [tArg] -> hlBrackets $ prettyTypeAt n' tArg
   DatatypeT "Pair" [lArg, rArg] -> hlParens $ prettyTypeAt 0 lArg <> "," <+> prettyTypeAt 0 rArg
   DatatypeT dt tArgs -> text dt <+> hsep (map (prettyTypeAt n') tArgs)
@@ -254,7 +254,8 @@ prettyTypeWithName t = pretty t
 
 instance Pretty SchemaSkeleton where
   pretty (Monotype t    ) = pretty t
-  pretty (ForallT a sch') = hlAngles (text a) <+> operator "." <+> pretty sch'
+  pretty (ForallT a sch) = text "∀" <> text a <> operator "." <+> pretty sch
+  pretty (ExistsT a sch) = text "∃" <> text a <> operator "." <+> pretty sch
 
 {- Programs -}
 

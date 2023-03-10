@@ -17,12 +17,12 @@ prettyTypeTestcases :: [PrettyTestcase TypeSkeleton]
 prettyTypeTestcases = [
   PrettyTestcase {
     prettyDesc = "pretty a",
-    prettyItem = TypeVarT "a",
+    prettyItem = vart "a",
     prettyWant = "a"
   },
   PrettyTestcase {
     prettyDesc = "pretty [a]",
-    prettyItem = listType (TypeVarT "a"),
+    prettyItem = listType (vart "a"),
     prettyWant = "[a]"
   },
   PrettyTestcase {
@@ -37,22 +37,22 @@ prettyTypeTestcases = [
   },
   PrettyTestcase {
     prettyDesc = "pretty (a, b)",
-    prettyItem = pairType (TypeVarT "a") (TypeVarT "b"),
+    prettyItem = pairType (vart "a") (vart "b"),
     prettyWant = "(a, b)"
   },
   PrettyTestcase {
     prettyDesc = "pretty Maybe a",
-    prettyItem = DatatypeT "Maybe" [TypeVarT "a"],
+    prettyItem = DatatypeT "Maybe" [vart "a"],
     prettyWant = "Maybe a"
   },
   PrettyTestcase {
     prettyDesc = "pretty a -> b -> c",
-    prettyItem = FunctionT "x" (TypeVarT "a") (FunctionT "y" (TypeVarT "b") (TypeVarT "c")),
+    prettyItem = FunctionT "x" (vart "a") (FunctionT "y" (vart "b") (vart "c")),
     prettyWant = "a -> b -> c"
   },
   PrettyTestcase {
     prettyDesc = "pretty (a -> b) -> a -> b",
-    prettyItem = FunctionT "f" (FunctionT "x" (TypeVarT "a") (TypeVarT "b")) (FunctionT "" (TypeVarT "a") (TypeVarT "b")),
+    prettyItem = FunctionT "f" (FunctionT "x" (vart "a") (vart "b")) (FunctionT "" (vart "a") (vart "b")),
     prettyWant = "(a -> b) -> a -> b"
   },
   PrettyTestcase {

@@ -239,7 +239,7 @@ parseTypeAtom = choice
 
 parseTypeNoArgs :: Parser TypeSkeleton
 parseTypeNoArgs =
-  choice [(`DatatypeT` []) <$> parseTypeName, TypeVarT <$> parseIdentifier]
+  choice [(`DatatypeT` []) <$> parseTypeName, vart <$> parseIdentifier]
 
 parseDatatype :: Parser TypeSkeleton
 parseDatatype = do

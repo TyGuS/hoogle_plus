@@ -3,8 +3,11 @@ module Types.Type
     -- * Types and constructors
     TypeSkeleton(..)
   , SchemaSkeleton(..)
+  , Quantifier(..)
   , nullDatatype
   , vart
+  , exists
+  , mkFun
   , listType
   , pairType
   , funcType
@@ -28,24 +31,25 @@ module Types.Type
   , isFunctionType
   , isHigherOrder
   , isPolymorphic
+  , isExistential
   , isNullDatatype
   , lastType
   , resType
   , typeDepth
   , typeSize
   , typeName
+  , variablesOf
 
     -- * Type classes and constants
   , tyclassPrefix
   , tyclassInstancePrefix
   , tyclassArgBase
   , hoPostfix
-  , wildcardPrefix
   , pairProj
   , isTyclass
 
     -- * Type operations
-  , UnifConstraint(..)
+  , TypeConstraint(..)
   , breakdown
   , longScalarName
   , permuteArgs
@@ -105,6 +109,7 @@ import           Utility.Utils                  ( permuteBy )
 data SchemaSkeleton
   = Monotype TypeSkeleton
   | ForallT Id SchemaSkeleton -- Type-polymorphic, each type variable may have some class constraints
+  | ExistsT Id SchemaSkeleton
   deriving (Eq, Ord, Show, Read, Generic)
 
 instance Hashable SchemaSkeleton
@@ -112,9 +117,16 @@ instance FromJSON SchemaSkeleton
 instance ToJSON SchemaSkeleton
 
 {- Type skeletons -}
+data Quantifier = Forall | Exists
+  deriving (Eq, Ord, Show, Read, Generic)
+
+instance Hashable Quantifier
+instance FromJSON Quantifier
+instance ToJSON Quantifier
+
 data TypeSkeleton
   = DatatypeT Id [TypeSkeleton]
-  | TypeVarT Id
+  | TypeVarT Quantifier Id
   | FunctionT Id TypeSkeleton TypeSkeleton
   | TopT
   | BotT
@@ -135,7 +147,7 @@ instance Arbitrary TypeSkeleton where
       , DatatypeT "Fun" <$> liftM2 (\a b -> [a, b])
                                    (arbitraryType (n - 1))
                                    (arbitraryType (n - 1))
-      , TypeVarT <$> oneof [return "a", return "b", return "c", return "d"]
+      , vart <$> oneof [return "a", return "b", return "c", return "d"]
       , FunctionT
       <$> oneof [return "x", return "y"]
       <*> arbitraryType (n - 1)
@@ -170,8 +182,9 @@ funcType t1 t2 = DatatypeT "Fun" [t1, t2]
 -- | Mapping from type variables to types
 type TypeSubstitution = Map Id TypeSkeleton
 
-data UnifConstraint = SubtypeOf TypeSkeleton TypeSkeleton
+data TypeConstraint = SubtypeOf TypeSkeleton TypeSkeleton
                     | UnifiesWith TypeSkeleton TypeSkeleton
+                    | DisunifiesWith TypeSkeleton TypeSkeleton
   deriving (Eq, Ord, Show, Read, Generic)
 
 --------------------------------------------------------------------------------
@@ -219,9 +232,6 @@ tyclassArgBase = "tcarg"
 hoPostfix :: Id
 hoPostfix = "'ho'"
 
-wildcardPrefix :: Id
-wildcardPrefix = ""
-
 pairProj :: Id
 pairProj = "pair_match"
 
@@ -254,6 +264,10 @@ isNullDatatype :: TypeSkeleton -> Bool
 isNullDatatype (DatatypeT _ args) = null args
 isNullDatatype _ = False
 
+isExistential :: TypeSkeleton -> Bool
+isExistential (TypeVarT Exists _) = True
+isExistential _ = False
+
 hasAny :: TypeSkeleton -> Bool
 hasAny TopT                    = True
 hasAny (DatatypeT _ tArgs    ) = any hasAny tArgs
@@ -262,7 +276,7 @@ hasAny _                       = False
 
 typeName :: TypeSkeleton -> Id
 typeName (DatatypeT name _) = name
-typeName (TypeVarT name) = name
+typeName (TypeVarT _ name) = name
 typeName t = error "scalarName error: cannot be applied to nonscalar type "
 
 allDatatypes :: TypeSkeleton -> Set Id
@@ -302,12 +316,24 @@ boundVarsOf :: SchemaSkeleton -> [Id]
 boundVarsOf (ForallT a sch) = a : boundVarsOf sch
 boundVarsOf _               = []
 
+variablesOf :: TypeSkeleton -> Set TypeSkeleton
+variablesOf t@TypeVarT{} = Set.singleton t
+variablesOf (DatatypeT _ args) = Set.unions (map variablesOf args)
+variablesOf (FunctionT _ tArg tRes) = variablesOf tArg `Set.union` variablesOf tRes
+variablesOf _ = Set.empty
+
 -- | Building types
 nullDatatype :: Id -> TypeSkeleton
 nullDatatype name = DatatypeT name []
 
 vart :: Id -> TypeSkeleton
-vart = TypeVarT
+vart = TypeVarT Forall
+
+exists :: Id -> TypeSkeleton
+exists = TypeVarT Exists
+
+mkFun :: TypeSkeleton -> TypeSkeleton -> TypeSkeleton
+mkFun = FunctionT ""
 
 typeDepth :: TypeSkeleton -> Int
 typeDepth (DatatypeT _ tys) | not (null tys) = 1 + maximum (map typeDepth tys)
@@ -321,7 +347,7 @@ typeSize _ = 1
 
 longScalarName :: TypeSkeleton -> Id
 longScalarName (DatatypeT name rs) = name `Text.append` Text.concat (map longScalarName rs)
-longScalarName (TypeVarT name) = name
+longScalarName (TypeVarT _ name) = name
 longScalarName t = error "longScalarName error: cannot be applied to nonscalar type "
 
 breakdown :: TypeSkeleton -> [TypeSkeleton]

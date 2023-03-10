@@ -135,24 +135,23 @@ propagate nameMapping env (Program (PFun x body) (FunctionT _ tArg tRet)) (Funct
   = propagate nameMapping (addComponent x (Monotype tArg) env) body atRet
 propagate nameMapping env (Program (PFun x body) t) (FunctionT _ atArg atRet) = do
   id <- freshId (getBoundTypeVars env) "A"
-  let tArg = TypeVarT id
-  propagate nameMapping (addComponent x (Monotype tArg) env) body atRet
+  propagate nameMapping (addComponent x (Monotype $ vart id) env) body atRet
 propagate _ _ prog t = return ()
 
 -- | generalize a closed concrete type into an abstract one
 generalize :: (Loggable (LogicT (StateT s m)), Fresh s m) => [Id] -> TypeSkeleton -> LogicT (StateT s m) TypeSkeleton
-generalize bound t@(TypeVarT id)
+generalize bound t@(TypeVarT q id)
   | id `notElem` bound = return t
   | otherwise = do
     v <- lift $ freshId bound "T"
-    return (TypeVarT v) `mplus` return t
+    return (TypeVarT q v) `mplus` return t
 -- for datatype, we define the generalization order as follows:
 -- (1) v
 -- (2) datatype with all fresh type variables
 -- (3) datatype with incrementally generalized inner types
 generalize bound t@(DatatypeT id args) = do
   v <- lift $ freshId bound "T"
-  return (TypeVarT v) `mplus` freshVars `mplus` subsetTyps -- interleave
+  return (vart v) `mplus` freshVars `mplus` subsetTyps -- interleave
  where
     -- this search may explode when we have a large number of datatype parameters
   patternOfLen n
@@ -169,7 +168,7 @@ generalize bound t@(DatatypeT id args) = do
     let n = length args
     pat <- patternOfLen n
     let argNames = map (appendIndex "T") pat
-    let args'    = map TypeVarT argNames
+    let args'    = map vart argNames
     absTy <- lift $ freshType bound (DatatypeT id args')
     guard (isSubtypeOf bound t absTy)
     writeLog 3 "generalize"

@@ -34,21 +34,21 @@ appTestcases :: [GenAppTestcase]
 appTestcases = [
   GenAppTestcase
     "generate apps with available arguments"
-    (Map.fromList [ (FunctionT "xs" (listType $ TypeVarT "a") (maybeType $ TypeVarT "a"), Set.fromList [Edge "listToMaybe" []])
+    (Map.fromList [ (FunctionT "xs" (listType $ vart "a") (maybeType $ vart "a"), Set.fromList [Edge "listToMaybe" []])
                   , (listType boolType, Set.fromList [Edge "bs" []])
                   ])
-    (Map.fromList [ (FunctionT "xs" (listType $ TypeVarT "a") (maybeType $ TypeVarT "a"), Set.fromList [Edge "listToMaybe" []])
+    (Map.fromList [ (FunctionT "xs" (listType $ vart "a") (maybeType $ vart "a"), Set.fromList [Edge "listToMaybe" []])
                   , (listType boolType, Set.fromList [Edge "bs" []])
                   , (maybeType boolType, Set.fromList [Edge "listToMaybe" [listType boolType]])
                   ]),
 
   GenAppTestcase
     "generate apps with two available arguments"
-    (Map.fromList [ (FunctionT "xs" (listType $ TypeVarT "a") (maybeType $ TypeVarT "a"), Set.fromList [Edge "listToMaybe" []])
+    (Map.fromList [ (FunctionT "xs" (listType $ vart "a") (maybeType $ vart "a"), Set.fromList [Edge "listToMaybe" []])
                   , (listType (maybeType boolType), Set.fromList [Edge "xs" []])
                   , (listType boolType, Set.fromList [Edge "bs" [], Edge "catMaybes" [listType (maybeType boolType)]])
                   ])
-    (Map.fromList [ (FunctionT "xs" (listType $ TypeVarT "a") (maybeType $ TypeVarT "a"), Set.fromList [Edge "listToMaybe" []])
+    (Map.fromList [ (FunctionT "xs" (listType $ vart "a") (maybeType $ vart "a"), Set.fromList [Edge "listToMaybe" []])
                   , (listType (maybeType boolType), Set.fromList [Edge "xs" []])
                   , (listType boolType, Set.fromList [Edge "bs" [], Edge "catMaybes" [listType (maybeType boolType)]])
                   , (maybeType boolType, Set.fromList [Edge "listToMaybe" [listType boolType]])
@@ -57,28 +57,28 @@ appTestcases = [
 
   GenAppTestcase
     "generate apps for two functions"
-    (Map.fromList [ (FunctionT "xs" (listType $ TypeVarT "a") (maybeType $ TypeVarT "a"), Set.fromList [Edge "listToMaybe" []])
-                  , (FunctionT "xs" (listType $ TypeVarT "a") (listType $ TypeVarT "b"), Set.fromList [Edge "map" [FunctionT "" (TypeVarT "a") (TypeVarT "b")]])
+    (Map.fromList [ (FunctionT "xs" (listType $ vart "a") (maybeType $ vart "a"), Set.fromList [Edge "listToMaybe" []])
+                  , (FunctionT "xs" (listType $ vart "a") (listType $ vart "b"), Set.fromList [Edge "map" [FunctionT "" (vart "a") (vart "b")]])
                   , (listType boolType, Set.fromList [Edge "bs" [], Edge "g" []])
                   ])
-    (Map.fromList [ (FunctionT "xs" (listType $ TypeVarT "a") (maybeType $ TypeVarT "a"), Set.fromList [Edge "listToMaybe" []])
-                  , (FunctionT "xs" (listType $ TypeVarT "a") (listType $ TypeVarT "b"), Set.fromList [Edge "map" [FunctionT "" (TypeVarT "a") (TypeVarT "b")]])
+    (Map.fromList [ (FunctionT "xs" (listType $ vart "a") (maybeType $ vart "a"), Set.fromList [Edge "listToMaybe" []])
+                  , (FunctionT "xs" (listType $ vart "a") (listType $ vart "b"), Set.fromList [Edge "map" [FunctionT "" (vart "a") (vart "b")]])
                   , (listType boolType, Set.fromList [Edge "bs" [], Edge "g" []])
                   , (maybeType boolType, Set.fromList [Edge "listToMaybe" [listType boolType]])
-                  , (listType $ TypeVarT "t0", Set.fromList [Edge "map" [FunctionT "" (TypeVarT "a") (TypeVarT "b"), listType boolType]])
+                  , (listType $ vart "t0", Set.fromList [Edge "map" [FunctionT "" (vart "a") (vart "b"), listType boolType]])
                   ]),
 
   GenAppTestcase
     "generate apps for two functions"
-    (Map.fromList [ (FunctionT "xs" (listType $ TypeVarT "t0") (maybeType $ TypeVarT "t0"), Set.fromList [Edge "listToMaybe" []])
-                  , (FunctionT "xs" (listType $ TypeVarT "t0") (listType $ TypeVarT "t1"), Set.fromList [Edge "map" [FunctionT "" (TypeVarT "t0") (TypeVarT "t1")]])
-                  , (TypeVarT "t0", Set.fromList [Edge "bs" [], Edge "g" []])
+    (Map.fromList [ (FunctionT "xs" (listType $ vart "t0") (maybeType $ vart "t0"), Set.fromList [Edge "listToMaybe" []])
+                  , (FunctionT "xs" (listType $ vart "t0") (listType $ vart "t1"), Set.fromList [Edge "map" [FunctionT "" (vart "t0") (vart "t1")]])
+                  , (vart "t0", Set.fromList [Edge "bs" [], Edge "g" []])
                   ])
-    (Map.fromList [ (FunctionT "xs" (listType $ TypeVarT "t0") (maybeType $ TypeVarT "t0"), Set.fromList [Edge "listToMaybe" []])
-                  , (FunctionT "xs" (listType $ TypeVarT "t0") (listType $ TypeVarT "t1"), Set.fromList [Edge "map" [FunctionT "" (TypeVarT "t0") (TypeVarT "t1")]])
-                  , (TypeVarT "t0", Set.fromList [Edge "bs" [], Edge "g" []])
-                  , (maybeType $ TypeVarT "t0", Set.fromList [Edge "listToMaybe" [listType $ TypeVarT "t0"]])
-                  , (listType $ TypeVarT "t0", Set.fromList [Edge "map" [FunctionT "" (TypeVarT "t0") (TypeVarT "t1"), listType $ TypeVarT "t0"]])
+    (Map.fromList [ (FunctionT "xs" (listType $ vart "t0") (maybeType $ vart "t0"), Set.fromList [Edge "listToMaybe" []])
+                  , (FunctionT "xs" (listType $ vart "t0") (listType $ vart "t1"), Set.fromList [Edge "map" [FunctionT "" (vart "t0") (vart "t1")]])
+                  , (vart "t0", Set.fromList [Edge "bs" [], Edge "g" []])
+                  , (maybeType $ vart "t0", Set.fromList [Edge "listToMaybe" [listType $ vart "t0"]])
+                  , (listType $ vart "t0", Set.fromList [Edge "map" [FunctionT "" (vart "t0") (vart "t1"), listType $ vart "t0"]])
                   ])
   ]
 
@@ -92,17 +92,17 @@ data GenTestcase = GenTestcase {
 
 testComponents :: [(Text, SchemaSkeleton)]
 testComponents = [
-    ( "Nil", ForallT "a" (Monotype (DatatypeT "List" [TypeVarT "a"])))
+    ( "Nil", ForallT "a" (Monotype (DatatypeT "List" [vart "a"])))
   , ( "Nothing"
-    , ForallT "a" (Monotype (maybeType $ TypeVarT "a"))
+    , ForallT "a" (Monotype (maybeType $ vart "a"))
     )
   , ( "catMaybes"
     , ForallT
       "a"
       (Monotype
         (FunctionT "arg343"
-                  (DatatypeT "List" [maybeType $ TypeVarT "a"])
-                  (DatatypeT "List" [TypeVarT "a"])
+                  (DatatypeT "List" [maybeType $ vart "a"])
+                  (DatatypeT "List" [vart "a"])
         )
       )
     )
@@ -112,8 +112,8 @@ testComponents = [
       (Monotype
         (FunctionT
           "arg339"
-          (TypeVarT "a")
-          (FunctionT "arg340" (maybeType $ TypeVarT "a") (TypeVarT "a"))
+          (vart "a")
+          (FunctionT "arg340" (maybeType $ vart "a") (vart "a"))
         )
       )
     )
@@ -122,8 +122,8 @@ testComponents = [
       "a"
       (Monotype
         (FunctionT "arg341"
-                  (DatatypeT "List" [TypeVarT "a"])
-                  (maybeType $ TypeVarT "a")
+                  (DatatypeT "List" [vart "a"])
+                  (maybeType $ vart "a")
         )
       )
     )

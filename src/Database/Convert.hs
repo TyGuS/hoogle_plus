@@ -212,10 +212,9 @@ toTypeSkeleton (TyApp _ fun arg) = do
   arg' <- toTypeSkeleton arg
   case fun' of
     DatatypeT dtName args -> return $ DatatypeT dtName (args ++ [arg'])
-    TypeVarT _ ->
-      error "toTypeSkeleton: higher-kinded type variable is not supported"
+    TypeVarT{} -> error "toTypeSkeleton: higher-kinded type variable is not supported"
     _ -> error "toTypeSkeleton: neither datatype nor type variable"
-toTypeSkeleton (TyVar  _ name ) = return $ TypeVarT (Text.pack $ nameStr name)
+toTypeSkeleton (TyVar  _ name ) = return $ vart (Text.pack $ nameStr name)
 toTypeSkeleton (TyList _ typ  ) = listType <$> toTypeSkeleton typ
 toTypeSkeleton (TyTuple _ _ ts) = do
   ts' <- mapM toTypeSkeleton ts

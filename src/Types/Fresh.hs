@@ -3,10 +3,13 @@ module Types.Fresh
   , freshId
   , freshType
   , freshSchema
+
+  , MonadCounter
+  , runMonadCounter
  ) where
 
 import Control.Monad (foldM)
-import Control.Monad.State (StateT, get, put)
+import Control.Monad.State (StateT, get, put, evalStateT)
 import Control.Monad.Logic (LogicT)
 import Control.Monad.Trans (lift)
 import Data.Map (Map)
@@ -35,6 +38,11 @@ instance Monad m => Fresh Int m where
     put $ counter + 1
     return counter
 
+type MonadCounter m = StateT (Map Id Int) m
+
+runMonadCounter :: Monad m => StateT (Map Id Int) m a -> m a
+runMonadCounter go = evalStateT go Map.empty
+
 freshId :: Fresh s m => [Id] -> Id -> StateT s m Id
 freshId bvs prefix = do
   i <- nextCounter prefix
@@ -47,10 +55,12 @@ freshSchema :: Fresh s m => [Id] -> SchemaSkeleton -> StateT s m SchemaSkeleton
 freshSchema bounds t = go Map.empty t
  where
   go :: Fresh s m => TypeSubstitution -> SchemaSkeleton -> StateT s m SchemaSkeleton
+  go subst (ExistsT a sch) = do
+    a' <- freshId bounds "tau"
+    go (Map.insert a (exists a') subst) sch
   go subst (ForallT a sch) = do
     a' <- freshId bounds "tau"
-    let v = if Text.take 1 a == wildcardPrefix then wildcardPrefix `Text.append` a' else a'
-    go (Map.insert a (vart v) subst) sch
+    go (Map.insert a (vart a') subst) sch
   go subst (Monotype t) = return $ Monotype (apply subst t)
 
 freshType :: Fresh s m => [Id] -> TypeSkeleton -> StateT s m TypeSkeleton
@@ -58,12 +68,12 @@ freshType bound t = snd <$> go bound Map.empty t
  where
   go :: Fresh s m => [Id] -> TypeSubstitution -> TypeSkeleton -> StateT s m (TypeSubstitution, TypeSkeleton)
   go bound m t = case t of
-    TypeVarT id
+    TypeVarT q id
       | id `elem` bound -> return (m, t)
       | id `Map.member` m -> return (m, fromJust (Map.lookup id m))
       | otherwise -> do
         v <- freshId bound "A"
-        let t = TypeVarT v
+        let t = TypeVarT q v
         return (Map.insert id t m, t)
     DatatypeT dt tArgs -> do
       (m', tArgs') <- foldM (freshArg bound) (m, []) tArgs

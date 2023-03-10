@@ -77,7 +77,7 @@ emptyRefineState :: RefineState
 emptyRefineState = RefineState { _abstractionCover = Map.empty
                                , _instanceMapping  = HashMap.empty
                                , _instanceName     = Map.empty
-                               , _targetType       = TypeVarT varName
+                               , _targetType       = vart varName
                                , _sourceTypes      = []
                                , _splitTypes       = Set.empty
                                , _toRemove         = []

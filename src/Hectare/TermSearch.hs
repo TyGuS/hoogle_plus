@@ -122,7 +122,7 @@ allConstructors =
   nubOrd (concatMap getConstructors (Map.keys hoogleComponents)) \\ [("Fun", 2)]
  where
   getConstructors :: TypeSkeleton -> [(Text, Int)]
-  getConstructors (TypeVarT _) = []
+  getConstructors TypeVarT{} = []
   getConstructors (FunctionT _ t1 t2) =
     getConstructors t1 ++ getConstructors t2
   getConstructors (DatatypeT nm ts) =
@@ -157,12 +157,12 @@ app n1 n2 = Node
   ]
 
 typeToFta :: TypeSkeleton -> Node
-typeToFta (TypeVarT "a"  ) = var1
-typeToFta (TypeVarT "b"  ) = var2
-typeToFta (TypeVarT "c"  ) = var3
-typeToFta (TypeVarT "d"  ) = var4
-typeToFta (TypeVarT "acc") = varAcc
-typeToFta (TypeVarT v) =
+typeToFta (TypeVarT _ "a") = var1
+typeToFta (TypeVarT _ "b") = var2
+typeToFta (TypeVarT _ "c") = var3
+typeToFta (TypeVarT _ "d") = var4
+typeToFta (TypeVarT _ "acc") = varAcc
+typeToFta (TypeVarT _ v) =
   error
     $ "Current implementation only supports function signatures with type variables a, b, c, d, and acc, but got "
     ++ show v

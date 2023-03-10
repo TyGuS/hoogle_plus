@@ -107,21 +107,21 @@ bottomUpTestcases :: [BottomUpTestcase]
 bottomUpTestcases = [
   BottomUpTestcase {
     buDesc = "`foldl ($) x xs` does not pass type checking",
-    buArgs = [("x", TypeVarT "a"), ("xs", listType (TypeVarT "a"))],
+    buArgs = [("x", vart "a"), ("xs", listType (vart "a"))],
     buVars = ["a"],
     buProgram = untyped $ PApp "GHC.List.foldl'" [varp "(Data.Function.$)", varp "x", varp "xs"],
     buCheck = isLeft
   },
   BottomUpTestcase {
     buDesc = "`foldr ($) x xs` passes type checking",
-    buArgs = [("x", TypeVarT "a"), ("xs", listType (FunctionT "x" (TypeVarT "a") (TypeVarT "a")))],
+    buArgs = [("x", vart "a"), ("xs", listType (FunctionT "x" (vart "a") (vart "a")))],
     buVars = ["a"],
     buProgram = untyped $ PApp "GHC.List.foldr" [varp "(Data.Function.$)", varp "x", varp "xs"],
     buCheck = isRight
   },
   BottomUpTestcase {
     buDesc = "`fromLeft x (Right xs)` passes type checking",
-    buArgs = [("x", TypeVarT "a"), ("y", TypeVarT "b")],
+    buArgs = [("x", vart "a"), ("y", vart "b")],
     buVars = ["a", "b"],
     buProgram = untyped $ PApp "Data.Either.fromLeft" [varp "x", untyped $ PApp "Data.Either.Right" [varp "y"]],
     buCheck = isRight
@@ -173,7 +173,7 @@ bottomUpTestcases = [
 data TypeConstraintTestcase = TypeConstraintTestcase {
   tcDesc :: String,
   tcVars :: [Id],
-  tcConstraint :: UnifConstraint,
+  tcConstraint :: TypeConstraint,
   tcWant :: Maybe TypeSubstitution
 }
 
@@ -182,22 +182,22 @@ typeConstraintTestcases = [
   TypeConstraintTestcase {
     tcDesc = "`b -> a -> b` does not unify with `(a -> b) -> a -> b`",
     tcVars = [],
-    tcConstraint = UnifiesWith (FunctionT "y" (TypeVarT "b") $ FunctionT "x" (TypeVarT "a") (TypeVarT "b"))
-                               (FunctionT "f" (FunctionT "x" (TypeVarT "c") (TypeVarT "d")) (FunctionT "y" (TypeVarT "c") (TypeVarT "d"))),
+    tcConstraint = UnifiesWith (FunctionT "y" (vart "b") $ FunctionT "x" (vart "a") (vart "b"))
+                               (FunctionT "f" (FunctionT "x" (vart "c") (vart "d")) (FunctionT "y" (vart "c") (vart "d"))),
     tcWant = Nothing
   },
   TypeConstraintTestcase {
     tcDesc = "`b -> a -> b` is not subtype of `(a -> b) -> a -> b`",
     tcVars = [],
-    tcConstraint = SubtypeOf (FunctionT "y" (TypeVarT "b") $ FunctionT "x" (TypeVarT "a") (TypeVarT "b"))
-                             (FunctionT "f" (FunctionT "x" (TypeVarT "c") (TypeVarT "d")) (FunctionT "y" (TypeVarT "c") (TypeVarT "d"))),
+    tcConstraint = SubtypeOf (FunctionT "y" (vart "b") $ FunctionT "x" (vart "a") (vart "b"))
+                             (FunctionT "f" (FunctionT "x" (vart "c") (vart "d")) (FunctionT "y" (vart "c") (vart "d"))),
     tcWant = Nothing
   },
   TypeConstraintTestcase {
     tcDesc = "`List a` unifies with `List b`",
     tcVars = [],
     tcConstraint = UnifiesWith (listType (vart "a")) (listType (vart "b")),
-    tcWant = Just (Map.fromList [("a",TypeVarT "b")])
+    tcWant = Just (Map.fromList [("a",vart "b")])
   },
   TypeConstraintTestcase {
     tcDesc = "occurs check failed the unification",
@@ -231,19 +231,19 @@ spec = do
   describe "abstractApply" $ do
     it "fromRight [a] a ==> _|_" $ do
       let cover = Map.fromList
-            [ (TopT, Set.fromList [TypeVarT "a", listType (TypeVarT "A1")])
-            , ( listType (TypeVarT "A1")
-              , Set.fromList [listType $ DatatypeT "Maybe" [TypeVarT "a"]]
+            [ (TopT, Set.fromList [vart "a", listType (vart "A1")])
+            , ( listType (vart "A1")
+              , Set.fromList [listType $ DatatypeT "Maybe" [vart "a"]]
               )
             ]
       let fromRightTyp = FunctionT
             "x"
-            (TypeVarT "A2")
+            (vart "A2")
             (FunctionT "e"
-                       (DatatypeT "Either" [TypeVarT "A3", TypeVarT "A2"])
-                       (TypeVarT "A2")
+                       (DatatypeT "Either" [vart "A3", vart "A2"])
+                       (vart "A2")
             )
-      let argTyps = [listType $ DatatypeT "Maybe" [TypeVarT "a"], TypeVarT "a"]
+      let argTyps = [listType $ DatatypeT "Maybe" [vart "a"], vart "a"]
       evalState (abstractApply ["a"] cover fromRightTyp argTyps)
                 emptySolverState
         `shouldBe` BotT

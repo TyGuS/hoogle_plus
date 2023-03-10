@@ -24,11 +24,10 @@ firstLvAbs env schs = Set.foldr (updateCover bvs) initCover dts
   dts       = Set.unions (map (allAbstractDts bvs) typs)
 
 allAbstractDts :: [Id] -> TypeSkeleton -> Set TypeSkeleton
-allAbstractDts bound t@(TypeVarT v) | v `elem` bound =
-  Set.singleton (TypeVarT v)
+allAbstractDts bound t@(TypeVarT _ v) | v `elem` bound = Set.singleton (vart v)
 allAbstractDts bound t@(DatatypeT id args) = dt `Set.insert` argDts
  where
-  newArgs = map (TypeVarT . appendIndex varName) [1 .. (length args)]
+  newArgs = map (vart . appendIndex varName) [1 .. (length args)]
   dt      = DatatypeT id newArgs
   argDts  = Set.unions (map (allAbstractDts bound) args)
 allAbstractDts bound (FunctionT _ tArg tRes) =

@@ -106,7 +106,7 @@ resolveSignatures (DataDecl dtName tParams ctors) env = foldM resolveConstructor
       Nothing -> throwResError (string "resolveConstructorSignature: constructor not found")
       Just sch -> do
         sch' <- resolveSchema (getBoundTypeVars e) sch
-        let nominalType = DatatypeT dtName (map TypeVarT tParams)
+        let nominalType = DatatypeT dtName (map vart tParams)
         let returnType  = lastType (toMonotype sch')
         if nominalType == returnType
           then return $ addComponent name sch' $ removeVariable name e

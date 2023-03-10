@@ -25,13 +25,13 @@ defaultFuncs :: [Declaration]
 defaultFuncs =
   [ FuncDecl "fst" $ Monotype
     (FunctionT "p"
-               (DatatypeT "Pair" [TypeVarT "a", TypeVarT "b"])
-               (TypeVarT "a")
+               (DatatypeT "Pair" [vart "a", vart "b"])
+               (vart "a")
     )
   , FuncDecl "snd" $ Monotype
     (FunctionT "p"
-               (DatatypeT "Pair" [TypeVarT "a", TypeVarT "b"])
-               (TypeVarT "b")
+               (DatatypeT "Pair" [vart "a", vart "b"])
+               (vart "b")
     )
   ]
 
@@ -54,13 +54,13 @@ defaultList :: Declaration
 defaultList = DataDecl
   "List"
   ["a"]
-  [ ConstructorSig "Nil" (DatatypeT "List" [TypeVarT "a"])
+  [ ConstructorSig "Nil" (DatatypeT "List" [vart "a"])
   , ConstructorSig "Cons" $ FunctionT
     "x"
-    (TypeVarT "a")
+    (vart "a")
     (FunctionT "xs"
-               (DatatypeT "List" [TypeVarT "a"])
-               (DatatypeT "List" [TypeVarT "a"])
+               (DatatypeT "List" [vart "a"])
+               (DatatypeT "List" [vart "a"])
     )
   ]
 
@@ -70,10 +70,10 @@ defaultPair = DataDecl
   ["a", "b"]
   [ ConstructorSig "Pair" $ FunctionT
       "x"
-      (TypeVarT "a")
+      (vart "a")
       (FunctionT "y"
-                 (TypeVarT "b")
-                 (DatatypeT "Pair" [TypeVarT "a", TypeVarT "b"])
+                 (vart "b")
+                 (DatatypeT "Pair" [vart "a", vart "b"])
       )
   ]
 
@@ -146,7 +146,7 @@ mkInstance tyclassName instanceType =
 
 listInstance :: Id -> Declaration
 listInstance tyclassName =
-  let instanceType     = TypeVarT "a"
+  let instanceType     = vart "a"
       listInstance     = DatatypeT "List" [instanceType]
       listInstanceName = longScalarName listInstance
       instanceName     = longScalarName instanceType
