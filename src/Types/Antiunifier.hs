@@ -7,7 +7,8 @@ module Types.Antiunifier
   , constraints
   , typeAssignment
   , Antiunifier
-  , antiunify
+  , runAntiunifier
+  , Generalizable(..)
   ) where
 
 import Control.Monad.State
@@ -42,6 +43,9 @@ emptyAntiunifState = AntiunifState Map.empty Map.empty [] Map.empty
 
 type Antiunifier m = StateT AntiunifState (LogicT (MonadCounter (MonadTycl m)))
 
+runAntiunifier :: MonadFail m => Antiunifier m a -> m a
+runAntiunifier go = runMonadTycl $ runMonadCounter $ observeT $ evalStateT go emptyAntiunifState
+
 class (MonadIO m, Substitutable a) => Generalizable m a where
   -- | returns the most general unifier of two types or substitutions
   antiunify :: a -> a -> Antiunifier m a
@@ -72,7 +76,7 @@ newAntiVariable t1 t2 mbTycls = do
   modify $ over constraints (DisunifiesWith t1 t2 :)
   checkConstraints
   -- if the disunification is satisfied, assign a new binding
-  v <- lift $ lift $ freshId [] "t"
+  v <- lift $ lift $ freshId [] "*"
   modify $ over antiSubstitution (Map.insert (t1, t2) v)
   maybe (return ()) (\tycls -> modify $ over tyclAssignment (Map.insertWith Set.union v tycls)) mbTycls
   return $ vart v

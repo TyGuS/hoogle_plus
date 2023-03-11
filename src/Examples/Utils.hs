@@ -32,7 +32,7 @@ askGhc mdls f = do
           { generalFlags   = ES.delete Opt_OmitYields (generalFlags dflags), extensionFlags = ES.insert FlexibleContexts (extensionFlags dflags)
           }
     setSessionDynFlags dflags'
-    prepareModules ("Test.Ch asingBottoms" : "Prelude" : mdls) >>= setContext
+    prepareModules ("Test.ChasingBottoms" : "Prelude" : mdls) >>= setContext
     f
   case mbResult of
     Just r  -> return r

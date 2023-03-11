@@ -47,6 +47,10 @@ instance Substitutable TypeConstraint where
   freeVars (DisunifiesWith t1 t2) = freeVars t1 `Set.union` freeVars t2
   freeVars (SubtypeOf t1 t2) = freeVars t1 `Set.union` freeVars t2
 
+instance Substitutable TypeSubstitution where
+  apply subst subst' = Map.map (apply subst) subst'
+  freeVars subst = Set.unions (map freeVars $ Map.elems subst)
+
 forall :: TypeSkeleton -> SchemaSkeleton
 forall t = foldr ForallT (Monotype t) (freeVars t)
 
