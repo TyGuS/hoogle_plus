@@ -59,7 +59,9 @@ instance MonadIO m => Generalizable m TypeSkeleton where
   antiunify t    TopT        = return t
   antiunify t1@(TypeVarT Exists _) t2@(TypeVarT Exists _) = findWithDefaultAntiVariable t1 t2
   antiunify t1@(TypeVarT Exists _) t = return t `mplus` findWithDefaultAntiVariable t1 t
+  antiunify t1@(TypeVarT Forall _) t = return t1
   antiunify t t2@(TypeVarT Exists _) = return t `mplus` findWithDefaultAntiVariable t t2
+  antiunify t t2@(TypeVarT Forall _) = return t2
   antiunify t1@(DatatypeT dt1 args1) t2@(DatatypeT dt2 args2)
     | dt1 == dt2 = do args' <- zipWithM antiunify args1 args2
                       return (DatatypeT dt1 args')

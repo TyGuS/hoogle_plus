@@ -44,7 +44,11 @@ insertChild su ((c, tau):cs)
 
   -- case III: one of the children nodes partially matched the new one,
   -- which indicates that we need to change the label of this matched child node to fit the new one.
-  | otherwise = undefined
+  | otherwise = do
+    let newLabel = subst c `substSubtract` tau
+    let childLabel = su `substSubtract` tau
+    let newNode = LatticeNode tau [LatticeNode newLabel (children c), LatticeNode childLabel []]
+    return $ newNode : map fst cs
 
 --- Miscellaneous
 
