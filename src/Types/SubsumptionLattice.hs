@@ -1,6 +1,9 @@
 module Types.SubsumptionLattice
   (
-    substSubtract
+    Lattice
+  , LatticeNode(..)
+  , insert
+  , substSubtract
   ) where
 
 import Control.Monad
@@ -20,7 +23,7 @@ import Types.TypeChecker
 data LatticeNode = LatticeNode {
   subst :: TypeSubstitution,
   children :: [LatticeNode]
-}
+} deriving (Eq, Show)
 
 type Lattice = LatticeNode
 

@@ -2,10 +2,12 @@ module Types.SubsumptionLatticeSpec
   ( spec
   ) where
 
+import Control.Monad.State (modify)
 import qualified Data.Map as Map
 
 import Test.Hspec (Spec, describe, it, shouldBe)
 
+import Types.Fresh
 import Types.Pretty
 import Types.Type
 import Types.TypeChecker
@@ -47,6 +49,55 @@ subtractTestcases = [
   }
   ]
 
+data InsertTestcase = InsertTestcase {
+  insertDesc :: String,
+  insertCounter :: Int,
+  insertLattice :: Lattice,
+  insertNode :: TypeSubstitution,
+  insertWant :: Lattice
+}
+
+insertTestcases :: [InsertTestcase]
+insertTestcases = [
+  InsertTestcase {
+    insertDesc = "insert into an empty lattice",
+    insertCounter = 1,
+    insertLattice = LatticeNode Map.empty [],
+    insertNode = Map.fromList [("*0", pairType intType intType)],
+    insertWant = LatticeNode Map.empty [LatticeNode (Map.fromList [("*0", pairType intType intType)]) []]
+  },
+  InsertTestcase {
+    insertDesc = "insert into a subnode",
+    insertCounter = 1,
+    insertLattice = LatticeNode Map.empty [LatticeNode (Map.fromList [("*0", pairType intType intType)]) []],
+    insertNode = Map.fromList [("*0", pairType intType boolType)],
+    insertWant = LatticeNode Map.empty [
+      LatticeNode (Map.fromList [("*0", pairType intType (vart "*1"))]) [
+        LatticeNode (Map.fromList [("*1", intType)]) [],
+        LatticeNode (Map.fromList [("*1", boolType)]) []
+      ]]
+  },
+  InsertTestcase {
+    insertDesc = "split a node",
+    insertCounter = 2,
+    insertLattice = LatticeNode Map.empty [
+      LatticeNode (Map.fromList [("*0", pairType intType (vart "*1"))]) [
+        LatticeNode (Map.fromList [("*1", intType)]) [],
+        LatticeNode (Map.fromList [("*1", boolType)]) []
+      ]],
+    insertNode = Map.fromList [("*0", pairType (listType intType) charType)],
+    insertWant = LatticeNode Map.empty [
+      LatticeNode (Map.fromList [("*0", pairType (vart "*2") (vart "*1"))]) [
+        LatticeNode (Map.fromList [("*2", intType)]) [
+            LatticeNode (Map.fromList [("*1", intType)]) [],
+            LatticeNode (Map.fromList [("*1", boolType)]) []
+          ],
+        LatticeNode (Map.fromList [("*2", listType intType), ("*1", charType)]) []
+      ]
+    ]
+  }
+  ]
+
 spec :: Spec
 spec = do
   describe "test subsumption lattice" $ return ()
@@ -57,3 +108,10 @@ spec = do
         let result = subtractLhs tc `substSubtract` subtractRhs tc
         result `shouldBe` subtractWant tc
       ) subtractTestcases
+
+  describe "test lattice insertion" $
+    mapM_ (\tc ->
+      it (insertDesc tc) $ do
+        result <- runMonadCounter $ modify (Map.insert "*" (insertCounter tc)) >> insert (insertNode tc) (insertLattice tc)
+        result `shouldBe` insertWant tc
+      ) insertTestcases
