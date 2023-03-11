@@ -19,9 +19,11 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Maybe (catMaybes)
-
 import GHC (exprType, TcRnExprMode(TM_Default))
+import System.IO (stdout, stderr)
+
 import Text.Printf (printf)
+import System.IO.Silently (hSilence)
 
 import Database.Dataset
 import Examples.Utils
@@ -81,5 +83,6 @@ mkTyclQuery tcass typ tycl = do
   let varTcStrs = map (\(v, tc) -> Text.unwords [tc, v]) varTcs
   let allTcs = Text.intercalate ", " $  varTcStrs ++ [Text.pack $ printf "%s (%s)" tycl (plainShow typ)]
   let query = printf "undefined :: (%s) => ()" allTcs
-  liftIO $ catch (askGhc includedModules (exprType TM_Default query) >> return (Just tycl))
+  liftIO $ hSilence [stdout, stderr]
+         $ catch (askGhc includedModules (exprType TM_Default query) >> return (Just tycl))
                  (\(e :: SomeException) -> print e >> return Nothing)

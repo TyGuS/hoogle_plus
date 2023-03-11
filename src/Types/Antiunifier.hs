@@ -69,6 +69,11 @@ instance MonadIO m => Generalizable m TypeSkeleton where
     return $ FunctionT x1 tArg tRes
   antiunify t1 t2 = findWithDefaultAntiVariable t1 t2
 
+instance MonadIO m => Generalizable m TypeSubstitution where
+  antiunify su1 su2 = do
+    let su1' = Map.filterWithKey (\k _ -> k `Map.member` su2) su1
+    sequence $ Map.mapWithKey (\v t1 -> antiunify t1 $ su2 Map.! v) su1'
+
 newAntiVariable :: MonadIO m => TypeSkeleton -> TypeSkeleton -> Maybe (Set Tycl) -> Antiunifier m TypeSkeleton
 newAntiVariable t1 t2 mbTycls = do
   -- Due to existential type variables,
