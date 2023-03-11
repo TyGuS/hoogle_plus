@@ -33,6 +33,7 @@ module Types.Type
   , isPolymorphic
   , isExistential
   , isNullDatatype
+  , isTypeVar
   , lastType
   , resType
   , typeDepth
@@ -267,6 +268,10 @@ isNullDatatype _ = False
 isExistential :: TypeSkeleton -> Bool
 isExistential (TypeVarT Exists _) = True
 isExistential _ = False
+
+isTypeVar :: TypeSkeleton -> Bool
+isTypeVar TypeVarT{} = True
+isTypeVar _ = False
 
 hasAny :: TypeSkeleton -> Bool
 hasAny TopT                    = True
