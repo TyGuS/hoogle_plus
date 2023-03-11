@@ -104,13 +104,13 @@ main = do
       runTypeInferenceEval outFile
                            isStudy
                            (if bm == "" then benchmarks else benchmarks')
-    Dataset outFile mdls rep maxargs minsize maxsize samplenum -> do
+    Dataset outFile mdls rep maxargs minsize maxsize samplenum useabs -> do
       let mdls' = ["Nil", "Cons", "Data.Bool.True", "Data.Bool.False"] ++ mdls
       let components = case mdls of
                         [] -> hplusComponents
                         _ -> filter (\(f, _) -> any (`Text.isPrefixOf` f) mdls') hplusComponents
       putStrLn $ "using " ++ show (length components) ++ " components"
-      writeCsv outFile $ generateQAPairs components (Configuration rep maxargs minsize maxsize samplenum)
+      writeCsv outFile $ generateQAPairs components (Configuration rep maxargs minsize maxsize samplenum useabs)
       -- let programs = Hectare.doSample 1 3 100
       -- mapM_ (putStrLn . plainShow) programs
 
@@ -165,7 +165,8 @@ data CommandLineArgs
         dataset_maxargs :: Int,
         dataset_minsize :: Int,
         dataset_maxsize :: Int,
-        dataset_samplenum :: Int
+        dataset_samplenum :: Int,
+        dataset_useabs :: Bool
       }
   deriving (Data, Typeable, Show, Eq)
 
@@ -228,6 +229,7 @@ dataset =
     , dataset_minsize = 2 &= help "Minimum size of the generated program" &= name "minsz"
     , dataset_maxsize = 3 &= help "Maximum size of the generated program" &= name "maxsz"
     , dataset_samplenum = 300 &= help "Total number of samples in the dataset" &= name "nsample"
+    , dataset_useabs = False &= help "Whether to use abstract types during generation" &= name "usebas"
     }
   &= help "Generate a dataset using components from specified modules"
 

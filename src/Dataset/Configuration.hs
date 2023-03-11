@@ -5,5 +5,6 @@ data Configuration = Configuration {
   maxArgs :: Int,
   minSize :: Int,
   maxSize :: Int,
-  sampleNum :: Int
+  sampleNum :: Int,
+  useAbstract :: Bool
 }

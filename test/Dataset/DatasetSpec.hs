@@ -368,7 +368,7 @@ genQueryTestcases = [
   GenQueryTestcase
     "generate queries within two iteration"
     testComponents
-    (Configuration 2 2 2 2 50)
+    (Configuration 2 2 2 2 50 False)
     [("t0 -> [t0] -> t0","\\arg0 arg1 -> fromMaybe arg0 (listToMaybe arg1)")
     ,("[Maybe t0] -> Maybe t0","\\arg0 -> listToMaybe (catMaybes arg0)")
     ,("[Maybe t0] -> Maybe [t0] -> [t0]","\\arg0 -> fromMaybe (catMaybes arg0)")
@@ -414,7 +414,7 @@ spec = do
   describe "test generateApp" $
     mapM_ (\tc ->
       it (genAppDesc tc) $ do
-        graph <- runGenerateT (Generator Map.empty (genAppGraph tc)) (generateApp $ genAppGraph tc)
+        graph <- runGenerateT (Generator Map.empty (genAppGraph tc) Map.empty (Configuration 2 2 2 2 2 False)) (generateApp $ genAppGraph tc)
         graph `shouldBe` genAppWantGraph tc
       ) appTestcases
 
@@ -427,10 +427,10 @@ spec = do
 --       ) genTestcases
 
   describe "test argument abstraction" $ do
-    let config = Configuration 2 2 2 2 2
+    let config = Configuration 2 2 2 2 2 False
     mapM_ (\tc ->
       it (genArgDesc tc) $ do
-        let lambdas = evalState (P.toListM $ every $ assignArgs config (genArgProgram tc)) (Generator Map.empty Map.empty)
+        let lambdas = evalState (P.toListM $ every $ assignArgs config (genArgProgram tc)) (Generator Map.empty Map.empty Map.empty config)
         let lambdas' = filter (\p -> numArguments p <= 2) lambdas
         let lambdas = map (\p -> plainShow (evalState (canonicalize p) Map.empty)) lambdas'
         Set.fromList lambdas `shouldBe` Set.fromList (genArgWant tc)

@@ -94,7 +94,7 @@ log
 .vs/
 
 # ignore any changes to the dataset file, as it is generated locally
-Dataset.hs
+/Database/Dataset.hs
 
 # dataset
 *.csv

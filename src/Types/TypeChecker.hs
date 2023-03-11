@@ -253,7 +253,7 @@ disunifiable (DatatypeT dt1 args1) (DatatypeT dt2 args2) = dt1 /= dt2 || checkAr
     checkArgs []             []             = False
     checkArgs (arg1 : args1) (arg2 : args2) = disunifiable arg1 arg2 || checkArgs args1 args2
     checkArgs _ _ = error "disunifiable: unexpected case"
-disunifiable (FunctionT _ tArg1 tRes1) (FunctionT _ tArg2 tRes2) = 
+disunifiable (FunctionT _ tArg1 tRes1) (FunctionT _ tArg2 tRes2) =
   disunifiable tArg1 tArg2 || disunifiable tRes1 tRes2
 disunifiable _ _ = True
 
@@ -297,12 +297,7 @@ abstractIntersect bound t1 t2 = case getUnifier bound [UnifiesWith t1 t2] of
   Just subst -> Just $ apply subst t1
 
 -- | find the current most restrictive abstraction for a given type
-currentAbstraction
-  :: Fresh s m
-  => [Id]
-  -> AbstractCover
-  -> TypeSkeleton
-  -> StateT s m TypeSkeleton
+currentAbstraction :: Fresh s m => [Id] -> AbstractCover -> TypeSkeleton -> StateT s m TypeSkeleton
 currentAbstraction bvs cover (FunctionT x tArg tRes) = do
   tArg' <- currentAbstraction bvs cover tArg
   tRes' <- currentAbstraction bvs cover tRes
@@ -319,22 +314,12 @@ currentAbstraction bvs cover at = do
     in  if inSubtree then msum $ map (currentAbst' at) children else Just paren
   currentAbst' at paren = Nothing
 
-abstractApply
-  :: (Loggable (StateT s m), Fresh s m)
-  => [Id]
-  -> AbstractCover
-  -> TypeSkeleton
-  -> [TypeSkeleton]
-  -> StateT s m TypeSkeleton
+abstractApply :: (Loggable (StateT s m), Fresh s m) => [Id] -> AbstractCover -> TypeSkeleton -> [TypeSkeleton] -> StateT s m TypeSkeleton
 abstractApply bvs cover fun args = do
   let cargs = init (breakdown fun) -- higher-order arguments should have been transformed into funcTypes
   let ret   = last (breakdown fun)
   args' <- mapM (freshType bvs . toAbstractFun) args -- transform higher-order arguments
-  writeLog 3 "abstractApply"
-    $   "cargs:"
-    <+> pretty cargs
-    <+> ", args:"
-    <+> pretty args'
+  writeLog 3 "abstractApply" $ "cargs:" <+> pretty cargs <+> ", args:" <+> pretty args'
   let unifier = getUnifier bvs (zipWith UnifiesWith cargs args')
   case unifier of
     Nothing -> return BotT
@@ -344,13 +329,7 @@ abstractApply bvs cover fun args = do
       writeLog 3 "abstractApply" $ text "current cover" <+> string (show cover)
       currentAbstraction bvs cover substRes
 
-abstractStep
-  :: Fresh s m
-  => [Id]
-  -> AbstractCover
-  -> TypeSkeleton
-  -> TypeSkeleton
-  -> StateT s m TypeSkeleton
+abstractStep :: Fresh s m => [Id] -> AbstractCover -> TypeSkeleton -> TypeSkeleton -> StateT s m TypeSkeleton
 abstractStep bvs cover (FunctionT _ tArg tRes) arg = do
   let unifier = getUnifier bvs [UnifiesWith tArg arg]
   case unifier of

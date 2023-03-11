@@ -37,7 +37,9 @@ import Debug.Trace
 
 data Generator = Generator {
   nameCounter :: Map Id Int,
-  graph :: HyperGraph
+  graph :: HyperGraph,
+  abstractCover :: AbstractCover,
+  configuration :: Configuration
 }
 
 instance Monad m => Fresh Generator m where
@@ -67,7 +69,10 @@ generateApp g = do
       if typeDepth tArg' > 4 then
         mempty
        else do
-        let tRet' = canonicalize $ apply subst tRet
+        cover <- gets abstractCover
+        config <- gets configuration
+        let toAbstract = if useAbstract config then currentAbstraction [] cover else return
+        tRet' <- lift $ toAbstract $ canonicalize $ apply subst tRet
         let e' = Edge (edgeSymbol e) (edgeChildren e ++ [tArg'])
         -- trace ("insert " ++ plainShow tRet' ++ " for " ++ plainShow e') $ return ()
         return (e', tRet')
@@ -82,11 +87,11 @@ generateApp g = do
           Nothing -> mempty
           Just subst -> return (typ, subst)
 
-generate :: Monad m => [(Text, SchemaSkeleton)] -> Int -> m HyperGraph
-generate components n = do
+generate :: Monad m => [(Text, SchemaSkeleton)] -> Configuration -> m HyperGraph
+generate components config = do
     let inits = map (uncurry constEdge) components ++ intLits ++ charLits
     let initGraph = foldr (uncurry HG.insert) Map.empty inits
-    graph <$> execStateT (go n) (Generator Map.empty initGraph)
+    graph <$> execStateT (go $ Dataset.Configuration.repeat config) (Generator Map.empty initGraph Map.empty config)
   where
     go :: Monad m => Int -> StateT Generator m ()
     go n | n <= 0 = return ()

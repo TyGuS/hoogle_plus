@@ -3,6 +3,7 @@ module Utility.Utils
     -- * List
     permuteBy
   , multiPermutation
+  , insertAt
 
     -- * Set
   , (>.>)
@@ -32,23 +33,11 @@ module Utility.Utils
   , writeLog
   ) where
 
-import           Control.Monad                  ( forM_
-                                                , join
-                                                , when
-                                                )
-import           Control.Monad.ST               ( ST
-                                                , runST
-                                                )
-import           Control.Monad.State            ( StateT )
-import           Data.Array.ST                  ( STArray
-                                                , getElems
-                                                , newListArray
-                                                , readArray
-                                                , writeArray
-                                                )
-import           Data.Char                      ( isDigit
-                                                , isSpace
-                                                )
+import Control.Monad (forM_, join, when)
+import Control.Monad.ST (ST, runST)
+import Control.Monad.State (StateT)
+import Data.Array.ST (STArray, getElems, newListArray, readArray, writeArray)
+import Data.Char (isDigit, isSpace)
 import           Data.Hashable                  ( Hashable
                                                 , hash
                                                 )
@@ -103,6 +92,15 @@ multiPermutation len elmts | len == 0 = [[]]
 multiPermutation len elmts | len == 1 = [ [e] | e <- elmts ]
 multiPermutation len elmts =
   nubSpence [ l : r | l <- elmts, r <- multiPermutation (len - 1) elmts ]
+
+insertAt :: Int -> a -> [a] -> [a]
+insertAt i a ls
+  | i < 0 = ls
+  | otherwise = go i ls
+  where
+    go 0 xs     = a : xs
+    go n (x:xs) = x : go (n-1) xs
+    go _ []     = []
 
 --------------------------------------------------------------------------------
 ---------------------------  Set Operations ------------------------------------
