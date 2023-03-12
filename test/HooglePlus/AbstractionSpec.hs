@@ -19,8 +19,8 @@ data TypeLevelTestcase = TypeLevelTestcase {
   tlvWant :: [String]
 }
 
-typeLevelTestcases :: [TypeLevelTestcase]
-typeLevelTestcases = [
+typeDepthTestcases :: [TypeLevelTestcase]
+typeDepthTestcases = [
   TypeLevelTestcase {
     tlvDesc = "generate types at level 0",
     tlvDatatypes = [("Int", 0), ("Bool", 0), ("List", 1), ("Pair", 2)],
@@ -52,11 +52,40 @@ typeLevelTestcases = [
   }
   ]
 
+typeSizeTestcases :: [TypeLevelTestcase]
+typeSizeTestcases = [
+  TypeLevelTestcase {
+    tlvDesc = "generate types of size 1",
+    tlvDatatypes = [("Int", 0), ("Bool", 0), ("List", 1), ("Pair", 2)],
+    tlvLevel = 1,
+    tlvWant = ["Int", "Bool"]
+  },
+  TypeLevelTestcase {
+    tlvDesc = "generate types of size 2",
+    tlvDatatypes = [("Int", 0), ("Bool", 0), ("List", 1), ("Pair", 2)],
+    tlvLevel = 2,
+    tlvWant = ["[Int]", "[Bool]"]
+  },
+  TypeLevelTestcase {
+    tlvDesc = "generate types of size 3",
+    tlvDatatypes = [("Int", 0), ("Bool", 0), ("List", 1), ("Pair", 2)],
+    tlvLevel = 3,
+    tlvWant = ["[[Int]]", "[[Bool]]", "(Int, Int)", "(Int, Bool)", "(Bool, Bool)", "(Bool, Int)"]
+  }
+  ]
+
 spec :: Spec
 spec = do
-  describe "test typesAtLevel" $ do
+  describe "test typesAtDepth" $ do
     mapM_ (\tc ->
       it (tlvDesc tc) $ do
-        let typeBank = typesAtLevel (Set.fromList $ tlvDatatypes tc) (tlvLevel tc)
+        let typeBank = typesAtDepth (Set.fromList $ tlvDatatypes tc) (tlvLevel tc)
         Set.fromList (map plainShow (typeBank Map.! (tlvLevel tc))) `shouldBe` Set.fromList (tlvWant tc)
-      ) typeLevelTestcases
+      ) typeDepthTestcases
+
+  describe "test typesOfSize" $ do
+    mapM_ (\tc ->
+      it (tlvDesc tc) $ do
+        let typeBank = typesOfSize (Set.fromList $ tlvDatatypes tc) (tlvLevel tc)
+        Set.fromList (map plainShow (typeBank Map.! (tlvLevel tc))) `shouldBe` Set.fromList (tlvWant tc)
+      ) typeSizeTestcases

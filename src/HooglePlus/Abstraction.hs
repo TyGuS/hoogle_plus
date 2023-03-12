@@ -2,9 +2,11 @@ module HooglePlus.Abstraction
   ( firstLvAbs
   , allAbstractDts
   , specificAbstractionFromTypes
-  , typesAtLevel
+  , typesAtDepth
+  , typesOfSize
   ) where
 
+import Control.Monad.State
 import qualified Data.Char as Char
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -16,6 +18,7 @@ import HooglePlus.Refinement
 import Types.Common
 import Types.Environment
 import Types.Type
+import Types.Pretty
 import Utility.Utils
 
 firstLvAbs :: Environment -> [SchemaSkeleton] -> AbstractCover
@@ -26,10 +29,10 @@ firstLvAbs env schs = Set.foldr (updateCover bvs) initCover dts
   initCover = Map.singleton rootNode Set.empty
   dts       = Set.unions (map (allAbstractDts bvs) typs)
 
-typesAtLevel :: Set (Id, Int) -> Int -> Map Int [TypeSkeleton]
-typesAtLevel dts lv
+typesAtDepth :: Set (Id, Int) -> Int -> Map Int [TypeSkeleton]
+typesAtDepth dts lv
   | lv == 0 = Map.singleton 0 $ Set.toList $ Set.map (nullDatatype . fst) $ Set.filter ((== 0) . snd) dts
-  | otherwise = let typeBank = typesAtLevel dts (lv-1)
+  | otherwise = let typeBank = typesAtDepth dts (lv-1)
                  in Map.insert lv (concat $ Set.toList $ Set.map (datatypeAt typeBank lv) (Set.filter ((> 0) . snd) dts)) typeBank
   where
     argLevels :: Int -> Int -> [[Int]]
@@ -41,6 +44,34 @@ typesAtLevel dts lv
     datatypeAt typeBank lv (dt, arity) = map (DatatypeT dt)
                                         $ (if lv == 1 then [map (vart . appendIndex varName) [1 .. arity]] else [])
                                         ++ concatMap (sequence . map (typeBank Map.!)) (argLevels lv arity)
+
+abstractTypesUptoSize :: Set (Id, Int) -> Int -> [TypeSkeleton]
+abstractTypesUptoSize dts sz =
+  let typeBank = typesOfSize dts sz
+   in map ((`evalState` 0) . variablize) (typeBank Map.! sz) ++ concat (Map.elems typeBank)
+
+typesOfSize :: Set (Id, Int) -> Int -> Map Int [TypeSkeleton]
+typesOfSize dts sz
+  | sz <= 1 = Map.singleton 1 $ Set.toList $ Set.map (nullDatatype . fst) $ Set.filter ((== 0) . snd) dts
+  | otherwise = let typeBank = typesOfSize dts (sz-1)
+                 in Map.insert sz (concat $ Set.toList $ Set.map (datatypeAt typeBank sz) (Set.filter ((> 0) . snd) dts)) typeBank
+  where
+    argSizes :: Int -> Int -> [[Int]]
+    argSizes sz arity
+      | sz < arity = []
+      | arity == 1 = [[sz]]
+      | otherwise = concatMap (\i -> map (i:) $ argSizes (sz-i) (arity-1)) [1..(sz-1)]
+
+    datatypeAt :: Map Int [TypeSkeleton] -> Int -> (Id, Int) -> [TypeSkeleton]
+    datatypeAt typeBank sz (dt, arity) = map (DatatypeT dt)
+                                        $ concatMap (sequence . map (typeBank Map.!)) (argSizes (sz-1) arity)
+
+variablize :: TypeSkeleton -> State Int TypeSkeleton
+variablize (TypeVarT {}) = get >>= \i -> modify (+1) >> return (vart $ appendIndex varName i)
+variablize (DatatypeT _ []) = get >>= \i -> modify (+1) >> return (vart $ appendIndex varName i)
+variablize (DatatypeT dt args) = DatatypeT dt <$> mapM variablize args
+variablize (FunctionT x tArg tRes) = liftM2 (FunctionT x) (variablize tArg) (variablize tRes)
+variablize t = error $ "unsupported type " ++ plainShow t
 
 datatypeWithArity :: TypeSkeleton -> Set (Id, Int)
 datatypeWithArity (DatatypeT dt args) = Set.insert (dt, length args) $ Set.unions (map datatypeWithArity args)
