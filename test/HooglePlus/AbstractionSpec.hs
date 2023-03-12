@@ -93,13 +93,47 @@ abstractTypeTestcases = [
     tlvDesc = "generate abstract types up to size 2",
     tlvDatatypes = [("Int", 0), ("Bool", 0), ("List", 1), ("Pair", 2)],
     tlvLevel = 2,
-    tlvWant = ["Int", "Bool", "[Int]", "[Bool]", "[_v0]", "_v0"]
+    tlvWant = ["[Int]", "[Bool]", "(Int, Int)", "(Int, Bool)", "(Bool, Bool)", "(Bool, Int)", "[_v0]", "(_v0, _v1)"]
   },
   TypeLevelTestcase {
     tlvDesc = "generate abstract types up to size 3",
     tlvDatatypes = [("Int", 0), ("Bool", 0), ("List", 1), ("Pair", 2)],
     tlvLevel = 3,
     tlvWant = ["Int", "Bool", "[Int]", "[Bool]", "[[Int]]", "[[Bool]]", "(Int, Int)", "(Int, Bool)", "(Bool, Bool)", "(Bool, Int)", "[[_v0]]", "(_v0, _v1)", "[_v0]", "_v0"]
+  }
+  ]
+
+abstractTypeDepthTestcases :: [TypeLevelTestcase]
+abstractTypeDepthTestcases = [
+  TypeLevelTestcase {
+    tlvDesc = "generate abstract types of depth 0",
+    tlvDatatypes = [("Int", 0), ("Bool", 0), ("List", 1), ("Pair", 2)],
+    tlvLevel = 0,
+    tlvWant = ["Int", "Bool", "_v0"]
+  },
+  TypeLevelTestcase {
+    tlvDesc = "generate abstract types up to depth 1",
+    tlvDatatypes = [("Int", 0), ("Bool", 0), ("List", 1), ("Pair", 2)],
+    tlvLevel = 1,
+    tlvWant = ["Int", "Bool", "[Int]", "[Bool]", "(Int, Int)", "(Int, Bool)", "(Bool, Bool)", "(Bool, Int)", "(_v0, _v1)", "[_v0]", "_v0"]
+  },
+  TypeLevelTestcase {
+    tlvDesc = "generate abstract types up to depth 2",
+    tlvDatatypes = [("Int", 0), ("Bool", 0), ("List", 1), ("Pair", 2)],
+    tlvLevel = 2,
+    tlvWant = ["Int", "Bool", "[Int]", "[Bool]", "[_v0]", "_v0",
+               "[[_v0]]","[[Int]]", "[[Bool]]", 
+               "(_v0, _v1)", "(Int, Int)", "(Int, Bool)", "(Bool, Bool)", "(Bool, Int)", 
+               "[(_v0, _v1)]", "[(Int, Int)]", "[(Int, Bool)]", "[(Bool, Bool)]", "[(Bool, Int)]", 
+               "(_v0, [_v1])", "(Int, [Int])", "(Int, [Bool])", "(Bool, [Int])", "(Bool, [Bool])",
+               "(_v0, (_v1, _v2))", "(Int, (Int, Int))", "(Int, (Int, Bool))", "(Int, (Bool, Bool))", "(Int, (Bool, Int))", "(Bool, (Int, Int))", "(Bool, (Int, Bool))", "(Bool, (Bool, Bool))", "(Bool, (Bool, Int))", 
+               "([_v0], [_v1])", "([Int], [Int])", "([Int], Int)", "([Int], Bool)", "([Int], [Bool])", "([Bool], [Int])", "([Bool], [Bool])",
+               "([_v0], (_v1, _v2))", "([Int], (Int, Int))", "([Int], (Int, Bool))", "([Int], (Bool, Bool))", "([Int], (Bool, Int))", "([Bool], (Int, Int))", "([Bool], (Int, Bool))", "([Bool], (Bool, Bool))", "([Bool], (Bool, Int))",
+               "([_v0], _v1)", "([Bool], Int)", "([Bool], Bool)", 
+               "((_v0, _v1), _v2)", "((Int, Int), Int)","((Int, Int), Bool)", "((Int, Bool), Int)", "((Int, Bool), Bool)", "((Bool, Bool), Int)", "((Bool, Bool), Bool)", "((Bool, Int), Int)", "((Bool, Int), Bool)",
+               "((_v0, _v1), [_v2])", "((Int, Int), [Int])", "((Int, Int), [Bool])", "((Int, Bool), [Int])", "((Int, Bool), [Bool])", "((Bool, Bool), [Int])", "((Bool, Bool), [Bool])", "((Bool, Int), [Int])", "((Bool, Int), [Bool])",
+               "((_v0, _v1), (_v2, _v3))", "((Int, Int), (Int, Int))", "((Int, Int), (Int, Bool))", "((Int, Int), (Bool, Bool))", "((Int, Int), (Bool, Int))", "((Int, Bool), (Int, Int))", "((Int, Bool), (Int, Bool))", "((Int, Bool), (Bool, Bool))", "((Int, Bool), (Bool, Int))", "((Bool, Bool), (Int, Int))", "((Bool, Bool), (Int, Bool))", "((Bool, Bool), (Bool, Bool))", "((Bool, Bool), (Bool, Int))", "((Bool, Int), (Int, Int))", "((Bool, Int), (Int, Bool))", "((Bool, Int), (Bool, Bool))", "((Bool, Int), (Bool, Int))"
+              ]
   }
   ]
 
@@ -122,6 +156,13 @@ spec = do
   describe "test abstractTypesUptoSize" $ do
     mapM_ (\tc ->
       it (tlvDesc tc) $ do
-        let typeBank = abstractTypesUptoSize (Set.fromList $ tlvDatatypes tc) (tlvLevel tc)
+        let typeBank = abstractTypesUpto Size (Set.fromList $ tlvDatatypes tc) (tlvLevel tc)
         Set.map plainShow typeBank `shouldBe` Set.fromList (tlvWant tc)
       ) abstractTypeTestcases
+
+  describe "test abstractTypesUptoDepth" $ do
+    mapM_ (\tc ->
+      it (tlvDesc tc) $ do
+        let typeBank = abstractTypesUpto Depth (Set.fromList $ tlvDatatypes tc) (tlvLevel tc)
+        Set.map plainShow typeBank `shouldBe` Set.fromList (tlvWant tc)
+      ) abstractTypeDepthTestcases

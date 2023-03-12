@@ -4,7 +4,8 @@ module HooglePlus.Abstraction
   , specificAbstractionFromTypes
   , typesAtDepth
   , typesOfSize
-  , abstractTypesUptoSize
+  , CostMode(..)
+  , abstractTypesUpto
   ) where
 
 import Control.Monad.State
@@ -30,6 +31,17 @@ firstLvAbs env schs = Set.foldr (updateCover bvs) initCover dts
   initCover = Map.singleton rootNode Set.empty
   dts       = Set.unions (map (allAbstractDts bvs) typs)
 
+data CostMode = Size | Depth deriving (Eq, Show)
+
+abstractTypesUpto :: CostMode -> Set (Id, Int) -> Int -> Set TypeSkeleton
+abstractTypesUpto costMode dts cost =
+  let typs = concat $ Map.elems (costFunc dts cost)
+  in Set.fromList (map ((`evalState` 0) . variablize) typs ++ typs)
+  where
+    costFunc = case costMode of
+                Size -> typesOfSize
+                Depth -> typesAtDepth
+
 typesAtDepth :: Set (Id, Int) -> Int -> Map Int [TypeSkeleton]
 typesAtDepth dts lv
   | lv == 0 = Map.singleton 0 $ Set.toList $ Set.map (nullDatatype . fst) $ Set.filter ((== 0) . snd) dts
@@ -43,13 +55,7 @@ typesAtDepth dts lv
 
     datatypeAt :: Map Int [TypeSkeleton] -> Int -> (Id, Int) -> [TypeSkeleton]
     datatypeAt typeBank lv (dt, arity) = map (DatatypeT dt)
-                                        $ (if lv == 1 then [map (vart . appendIndex varName) [1 .. arity]] else [])
-                                        ++ concatMap (sequence . map (typeBank Map.!)) (argLevels lv arity)
-
-abstractTypesUptoSize :: Set (Id, Int) -> Int -> Set TypeSkeleton
-abstractTypesUptoSize dts sz =
-  let typeBank = typesOfSize dts sz
-   in Set.fromList (map ((`evalState` 0) . variablize) (concat $ Map.elems typeBank) ++ concat (Map.elems typeBank))
+                                        $ concatMap (sequence . map (typeBank Map.!)) (argLevels lv arity)
 
 typesOfSize :: Set (Id, Int) -> Int -> Map Int [TypeSkeleton]
 typesOfSize dts sz
