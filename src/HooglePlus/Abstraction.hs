@@ -4,6 +4,7 @@ module HooglePlus.Abstraction
   , specificAbstractionFromTypes
   , typesAtDepth
   , typesOfSize
+  , abstractTypesUptoSize
   ) where
 
 import Control.Monad.State
@@ -45,10 +46,10 @@ typesAtDepth dts lv
                                         $ (if lv == 1 then [map (vart . appendIndex varName) [1 .. arity]] else [])
                                         ++ concatMap (sequence . map (typeBank Map.!)) (argLevels lv arity)
 
-abstractTypesUptoSize :: Set (Id, Int) -> Int -> [TypeSkeleton]
+abstractTypesUptoSize :: Set (Id, Int) -> Int -> Set TypeSkeleton
 abstractTypesUptoSize dts sz =
   let typeBank = typesOfSize dts sz
-   in map ((`evalState` 0) . variablize) (typeBank Map.! sz) ++ concat (Map.elems typeBank)
+   in Set.fromList (map ((`evalState` 0) . variablize) (concat $ Map.elems typeBank) ++ concat (Map.elems typeBank))
 
 typesOfSize :: Set (Id, Int) -> Int -> Map Int [TypeSkeleton]
 typesOfSize dts sz

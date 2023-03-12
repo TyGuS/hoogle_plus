@@ -71,6 +71,35 @@ typeSizeTestcases = [
     tlvDatatypes = [("Int", 0), ("Bool", 0), ("List", 1), ("Pair", 2)],
     tlvLevel = 3,
     tlvWant = ["[[Int]]", "[[Bool]]", "(Int, Int)", "(Int, Bool)", "(Bool, Bool)", "(Bool, Int)"]
+  },
+  TypeLevelTestcase {
+    tlvDesc = "generate types of size 4",
+    tlvDatatypes = [("Int", 0), ("Bool", 0), ("List", 1), ("Pair", 2)],
+    tlvLevel = 4,
+    tlvWant = ["[[[Int]]]", "[[[Bool]]]", "[(Int, Int)]", "[(Int, Bool)]", "[(Bool, Bool)]", "[(Bool, Int)]",
+               "(Int, [Int])", "(Int, [Bool])", "([Int], Int)", "([Int], Bool)", "(Bool, [Int])", "(Bool, [Bool])", "([Bool], Int)", "([Bool], Bool)"]
+  }
+  ]
+
+abstractTypeTestcases :: [TypeLevelTestcase]
+abstractTypeTestcases = [
+  TypeLevelTestcase {
+    tlvDesc = "generate abstract types of size 1",
+    tlvDatatypes = [("Int", 0), ("Bool", 0), ("List", 1), ("Pair", 2)],
+    tlvLevel = 1,
+    tlvWant = ["Int", "Bool", "_v0"]
+  },
+  TypeLevelTestcase {
+    tlvDesc = "generate abstract types up to size 2",
+    tlvDatatypes = [("Int", 0), ("Bool", 0), ("List", 1), ("Pair", 2)],
+    tlvLevel = 2,
+    tlvWant = ["Int", "Bool", "[Int]", "[Bool]", "[_v0]", "_v0"]
+  },
+  TypeLevelTestcase {
+    tlvDesc = "generate abstract types up to size 3",
+    tlvDatatypes = [("Int", 0), ("Bool", 0), ("List", 1), ("Pair", 2)],
+    tlvLevel = 3,
+    tlvWant = ["Int", "Bool", "[Int]", "[Bool]", "[[Int]]", "[[Bool]]", "(Int, Int)", "(Int, Bool)", "(Bool, Bool)", "(Bool, Int)", "[[_v0]]", "(_v0, _v1)", "[_v0]", "_v0"]
   }
   ]
 
@@ -89,3 +118,10 @@ spec = do
         let typeBank = typesOfSize (Set.fromList $ tlvDatatypes tc) (tlvLevel tc)
         Set.fromList (map plainShow (typeBank Map.! (tlvLevel tc))) `shouldBe` Set.fromList (tlvWant tc)
       ) typeSizeTestcases
+
+  describe "test abstractTypesUptoSize" $ do
+    mapM_ (\tc ->
+      it (tlvDesc tc) $ do
+        let typeBank = abstractTypesUptoSize (Set.fromList $ tlvDatatypes tc) (tlvLevel tc)
+        Set.map plainShow typeBank `shouldBe` Set.fromList (tlvWant tc)
+      ) abstractTypeTestcases
