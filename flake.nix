@@ -24,11 +24,11 @@
       pkgs-2003 = import nixpkgs-2003 {
         inherit system;
 
-        # packdeps is marked as broken in 20.03 but seems to work fine
+        # packdeps is marked as broken in 20.03, but it seems to work fine
         config.allowBroken = true;
       };
 
-      # compile ghc844's base module with the `-fno-omit-yields` flag
+      # Compile ghc844's base module with the `-fno-omit-yields` flag
       # https://downloads.haskell.org/~ghc/8.4.4/docs/html/users_guide/bugs.html#bugs-in-ghc
       ghc844-no-omit-yields = pkgs-2003.haskell.compiler.ghc844.overrideAttrs (old: {
         patches = old.patches ++ [./base-no-omit-yields.patch];
@@ -37,7 +37,7 @@
       hPkgs844 = pkgs-2003.haskell.packages.ghc844.extend (self: super: {
         ghc = ghc844-no-omit-yields;
 
-        # package version consistent with lts-12.26
+        # Package versions consistent with lts-12.26
         haskell-src-exts = self.callHackage "haskell-src-exts" "1.20.3" {};
         hoogle = self.callHackage "hoogle" "5.0.17.3" {};
       });
@@ -107,7 +107,7 @@
           pkgs-2003.makeWrapper
         ];
 
-        # hplus uses hint to dynamically evaluate Haskell code using ChasingBottoms
+        # hplus dynamically evaluates Haskell code that requires ChasingBottoms
         postInstall = let
           ghc-with-cb = hPkgs844.ghcWithPackages (pkgs: with pkgs; [ChasingBottoms]);
         in ''

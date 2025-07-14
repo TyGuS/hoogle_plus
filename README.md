@@ -79,7 +79,7 @@ following json format:
 `stack exec -- hplus generate --preset partialfunctions` to generate the componenet set.
 Then run
 ```
-stack exec -- hplus --json='{"query": "mb: Maybe a -> p: (a, b) -> (a, b)", \
+stack exec -- hplus --json='{"query": "mb: Maybe a -> p: (a, b) -> (a, b)", "inArgNames":[], \
                              "inExamples": [{ \
                                  "inputs": ["Just 1", "(2, 3)"], \
                                  "output": "(1, 3)" \
@@ -120,7 +120,43 @@ Of course, you can specify the exact packages (from hackage) and modules you wan
 stack exec -- hplus generate -p base  -p bytestring -m "Data.Word" -m "Data.Int" -m "Data.Maybe" -m "Data.ByteString.Builder" -m "Data.ByteString.Lazy" -m "Data.List" -m "Data.Tuple" -m "GHC.List" -m "GHC.Char" -m "Data.Bool"  -m "Text.Show"
 ```
 
-## Docker image:
-We have a Dockerfile configuration in the root directory.
-First go to the hoogle_plus repo and run `docker build --tag hoogleplus:latest .` to build a docker image.
-After the building finished, run `docker run -p 3000:3000 -p 5000:5000 -it hoogle-plus:latest`.
+## Running Hoogle+ in Docker
+
+We provide a Dockerfile for running Hoogle+. To build the Docker image, navigate to the `hoogle_plus` repository and run:
+
+```bash
+$ docker build --tag hoogleplus:latest .
+```
+
+After the image is built successfully, run the container:
+
+```bash
+$ docker run -p 3000:3000 -p 5000:5000 -it hoogleplus:latest
+```
+
+## Running Hoogle+ with Nix (updated 7/14/2025)
+
+Alternatively, Hoogle+ can be run using Nix; this method is preferred if you do not wish to install Haskell or Stack directly on your system. A recent installation of Nix (version 2.18.1 or higher) is the only prerequisite.
+
+First, build a custom version of GHC, Hoogle+, and its dependencies. This process takes roughly 10-20 minutes. The following command builds these dependencies and enters a configured environment:
+
+```bash
+$ nix develop
+```
+
+Once in the development environment, generate the hoogle database:
+
+```bash
+$ hoogle generate
+```
+
+Then, you can run an example query following the instruction above:
+
+```bash
+$ hplus generate --preset partialfunctions
+$ hplus --json='{"query":"mb: Maybe a -> p: (a, b) -> (a, b)","inExamples":[{"inputs":["Just 1","(2, 3)"],"output":"(1, 3)"}],"inArgNames":[]}'
+
+...
+
+RESULTS:{"outCandidates":[{"qualSolution":"\\mb p -> ((Data.Maybe.fromMaybe (fst p) mb) , (snd p))","outExamples":[{"inputs":["Just 1","(2, 3)"],"output":"(1, 3)"}],"unqualSolution":"\\mb p -> ((fromMaybe (fst p) mb) , (snd p))"}],"outDocs":[{"functionSig":"a -> Maybe a -> a","functionName":"fromMaybe","functionDesc":"The fromMaybe function takes a default value and a Maybe\nvalue. If the Maybe is Nothing, it returns the default\nvalue; otherwise, it returns the value contained in the Maybe.\n\nExamples\n\nBasic usage:\n\n\n>>> fromMaybe \"\" (Just \"Hello, World!\")\n\"Hello, World!\"\n\n\n\n>>> fromMaybe \"\" Nothing\n\"\"\n\n\nRead an integer from a string using readMaybe. If we fail to\nparse an integer, we want to return 0 by default:\n\n\n>>> import GHC.Internal.Text.Read ( readMaybe )\n\n>>> fromMaybe 0 (readMaybe \"5\")\n5\n\n>>> fromMaybe 0 (readMaybe \"\")\n0\n\n"},{"functionSig":"f a -> g a -> Product (f k -> Type) (g k -> Type) (a k)","functionName":"Pair","functionDesc":""},{"functionSig":"(a, b) -> a","functionName":"fst","functionDesc":"Extract the first component of a pair.\n"},{"functionSig":"(a, b) -> b","functionName":"snd","functionDesc":"Extract the second component of a pair.\n"},{"functionSig":"Maybe (a)","functionName":"mb","functionDesc":""},{"functionSig":"(a , b)","functionName":"p","functionDesc":""}],"outError":""}
+```
