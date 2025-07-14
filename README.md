@@ -138,7 +138,7 @@ $ docker run -p 3000:3000 -p 5000:5000 -it hoogleplus:latest
 
 Alternatively, Hoogle+ can be run using Nix; this method is preferred if you do not wish to install Haskell or Stack directly on your system. A recent installation of Nix (version 2.18.1 or higher) is the only prerequisite.
 
-First, build a custom version of GHC, Hoogle+, and its dependencies. This process takes roughly 10-20 minutes. The following command builds these dependencies and enters a configured environment:
+First, build a custom version of GHC, Hoogle+, and its dependencies. This process could take up to 1-3 hours depending on your setup. The following command builds these dependencies and enters a configured environment:
 
 ```bash
 $ nix develop
