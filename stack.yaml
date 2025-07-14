@@ -5,8 +5,13 @@ extra-deps:
   - table-layout-0.8.0.3
   - data-default-instances-base-0.1.0.1
   - pretty-tree-0.1.0.0
-  - z3-408.2
+  - z3-408.0
   - leancheck-0.9.3
 
-system-ghc: true
-install-ghc: false
+compiler: ghc-8.4.4
+setup-info:
+  ghc:
+    linux64-custom-yields:
+      8.4.4:
+        url: "https://github.com/mistzzt/build-ghc-no-omit-yields/releases/download/v8.4.4/ghc-8.4.4-x86_64-unknown-linux.tar.xz"
+ghc-variant: yields
