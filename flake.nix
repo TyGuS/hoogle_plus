@@ -28,7 +28,11 @@
       ghc844-no-omit-yields = pkgs-2003.haskell.compiler.ghc844.overrideAttrs (old: {
         patches = old.patches ++ [./base-no-omit-yields.patch];
       });
-      hPkgs844 = pkgs-2003.haskell.packages.ghc844;
+
+      hPkgs844 = pkgs-2003.haskell.packages.ghc844.extend (self: super: {
+        haskell-src-exts = self.callHackage "haskell-src-exts" "1.20.3" {};
+        hoogle = self.callHackage "hoogle" "5.0.17.3" {};
+      });
 
       pkgs = import nixpkgs {
         inherit system;
@@ -40,51 +44,59 @@
           })
         ];
       };
-      hPkgs884 = pkgs.haskell.packages.ghc884;
     in {
       inherit ghc844-no-omit-yields;
 
+      hoogle = hPkgs844.hoogle;
       hplus = hPkgs844.mkDerivation rec {
         pname = "HooglePlus";
         version = "0-unstable-20250713";
         src = ./.;
         sha256 = "4b1a5c8d3f0e2f6c7b8c9e2d3f4e5f6a7b8c9e2d3f4e5f6a7b8c9e2d3f4e5f6";
         doCheck = false;
+        doHaddock = false;
         license = "MIT";
 
-        buildDepends = with hPkgs844;
-          [
-            ChasingBottoms
-            MissingH
-            packdeps
-            smallcheck
-            yaml
-            vector
-            uuid
-            hoogle
-            aeson
-            ansi-terminal
-            ansi-wl-pprint
-            bimap
-            ghc-paths
-            heap
-            hint
-            html
-            indents
-            leancheck
-            lens
-            pqueue
-            pretty-simple
-            pretty-tree
-            safe
-            silently
-            sort
-          ]
-          ++ (
-            with hPkgs884; [
-              z3
-            ]
-          );
+        isLibrary = true;
+        isExecutable = true;
+        librarySystemDepends = with pkgs; [
+          ncurses
+          gmp
+          glibcLocales
+          libffi
+          zlib
+          pkgs-2003.z3
+        ];
+
+        buildDepends = with hPkgs844; [
+          haskell-src-exts
+          ChasingBottoms
+          MissingH
+          packdeps
+          smallcheck
+          yaml
+          vector
+          uuid
+          hoogle
+          aeson
+          ansi-terminal
+          ansi-wl-pprint
+          bimap
+          ghc-paths
+          heap
+          hint
+          html
+          indents
+          leancheck
+          lens
+          pqueue
+          pretty-simple
+          pretty-tree
+          safe
+          silently
+          sort
+          z3
+        ];
       };
     });
 
@@ -108,7 +120,8 @@
           libffi
           zlib
           pkgs-2003.z3
-          self.outputs.packages.${system}.ghc844-no-omit-yields
+          self.outputs.packages.${system}.hoogle
+          self.outputs.packages.${system}.hplus
 
           (python3.withPackages (
             ps:
