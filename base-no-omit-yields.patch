@@ -1,0 +1,10 @@
+diff --git a/libraries/base/base.cabal b/libraries/base/base.cabal
+index 47bb36b..fa1f76e 100644
+--- a/libraries/base/base.cabal
++++ b/libraries/base/base.cabal
+@@ -393,4 +393,4 @@ Library
+ 
+     -- We need to set the unit id to base (without a version number)
+     -- as it's magic.
+-    ghc-options: -this-unit-id base
++    ghc-options: -this-unit-id base -fno-omit-yields

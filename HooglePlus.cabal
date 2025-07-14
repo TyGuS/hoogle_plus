@@ -1,0 +1,310 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.34.4.
+--
+-- see: https://github.com/sol/hpack
+
+name:           HooglePlus
+version:        0.1.0.0
+description:    Please see the README
+homepage:       https://github.com/davidmrdavid/hoogle_plus#readme
+bug-reports:    https://github.com/davidmrdavid/hoogle_plus/issues
+author:         Zheng Guo
+maintainer:     zhg069@ucsd.edu
+license:        BSD3
+build-type:     Simple
+extra-source-files:
+    README.md
+data-files:
+    InternalTypeGen.hs
+
+source-repository head
+  type: git
+  location: https://github.com/davidmrdavid/hoogle_plus
+
+library
+  exposed-modules:
+      Database.Convert
+      Database.Download
+      Database.Environment
+      Database.Generate
+      Database.Presets
+      Database.Util
+      Evaluation.Benchmark
+      Evaluation.EvalTypeInf
+      Evaluation.ReadBenchmark
+      Examples.ExampleChecker
+      Examples.InferenceDriver
+      Examples.Utils
+      HooglePlus.Abstraction
+      HooglePlus.CodeFormer
+      HooglePlus.FilterTest
+      HooglePlus.GHCChecker
+      HooglePlus.IOFormat
+      HooglePlus.Refinement
+      HooglePlus.Stats
+      HooglePlus.Synthesize
+      HooglePlus.TypeChecker
+      HooglePlus.Utils
+      PetriNet.AbstractType
+      PetriNet.PNEncoder
+      PetriNet.PNSolver
+      PetriNet.Util
+      Synquid.Error
+      Synquid.Logic
+      Synquid.Parser
+      Synquid.Pretty
+      Synquid.Program
+      Synquid.Resolver
+      Synquid.Tokens
+      Synquid.Type
+      Synquid.Util
+      Types.Abstract
+      Types.CheckMonad
+      Types.Common
+      Types.Encoder
+      Types.Environment
+      Types.Experiments
+      Types.Filtering
+      Types.Generate
+      Types.InfConstraint
+      Types.IOFormat
+      Types.Program
+      Types.Solver
+      Types.Type
+      Types.TypeChecker
+  other-modules:
+      Paths_HooglePlus
+  hs-source-dirs:
+      src
+  other-extensions:
+      TemplateHaskell
+      Rank2Types
+      FlexibleInstances
+      TypeSynonymInstances
+      FlexibleContexts
+  extra-libraries:
+      z3
+  build-depends:
+      Cabal
+    , ChasingBottoms
+    , MissingH
+    , QuickCheck
+    , aeson
+    , ansi-terminal
+    , ansi-wl-pprint
+    , array
+    , async
+    , base
+    , bimap
+    , bytestring
+    , cereal
+    , cmdargs
+    , conduit
+    , conduit-extra
+    , containers
+    , deepseq
+    , directory
+    , extra
+    , filepath
+    , ghc
+    , ghc-boot-th
+    , ghc-paths
+    , ghci
+    , hashable
+    , haskell-src-exts
+    , heap
+    , hint
+    , hoogle
+    , html
+    , http-conduit
+    , http-types
+    , indents
+    , leancheck
+    , lens
+    , logict
+    , mtl
+    , packdeps
+    , parsec
+    , pqueue
+    , pretty-simple
+    , pretty-tree
+    , process
+    , random
+    , regex-compat
+    , regex-posix
+    , resourcet
+    , safe
+    , silently
+    , smallcheck
+    , sort
+    , split
+    , stm
+    , text
+    , time
+    , transformers
+    , transformers-compat
+    , unordered-containers
+    , uuid
+    , vector
+    , yaml
+    , z3
+  default-language: Haskell2010
+  includes: z3.h
+
+executable hplus
+  main-is: HooglePlus.hs
+  other-modules:
+      Paths_HooglePlus
+  hs-source-dirs:
+      app
+  ghc-options: -rtsopts -O2
+  build-depends:
+      Cabal
+    , ChasingBottoms
+    , HooglePlus
+    , MissingH
+    , QuickCheck
+    , aeson
+    , ansi-terminal
+    , ansi-wl-pprint
+    , array
+    , async
+    , base
+    , bimap
+    , bytestring
+    , cereal
+    , cmdargs
+    , conduit
+    , conduit-extra
+    , containers
+    , deepseq
+    , directory
+    , extra
+    , filepath
+    , ghc
+    , ghc-boot-th
+    , ghc-paths
+    , ghci
+    , hashable
+    , haskell-src-exts
+    , heap
+    , hint
+    , hoogle
+    , html
+    , http-conduit
+    , http-types
+    , indents
+    , leancheck
+    , lens
+    , logict
+    , mtl
+    , packdeps
+    , parsec
+    , pqueue
+    , pretty-simple
+    , pretty-tree
+    , process
+    , random
+    , regex-compat
+    , regex-posix
+    , resourcet
+    , safe
+    , silently
+    , smallcheck
+    , sort
+    , split
+    , stm
+    , text
+    , time
+    , transformers
+    , transformers-compat
+    , unordered-containers
+    , uuid
+    , vector
+    , yaml
+    , z3
+  default-language: Haskell2010
+
+test-suite spec
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      HooglePlus.FilterTestSpec
+      HooglePlus.GHCCheckerSpec
+      HooglePlus.UtilsSpec
+      Synquid.ParserSpec
+      Types.PetriNet.EquivalenceSpec
+      Paths_HooglePlus
+  hs-source-dirs:
+      test
+  build-tool-depends:
+      hspec-discover:hspec-discover
+  build-depends:
+      Cabal
+    , ChasingBottoms
+    , HooglePlus
+    , MissingH
+    , QuickCheck
+    , aeson
+    , ansi-terminal
+    , ansi-wl-pprint
+    , array
+    , async
+    , base
+    , bimap
+    , bytestring
+    , cereal
+    , cmdargs
+    , conduit
+    , conduit-extra
+    , containers
+    , deepseq
+    , directory
+    , extra
+    , filepath
+    , ghc
+    , ghc-boot-th
+    , ghc-paths
+    , ghci
+    , hashable
+    , haskell-src-exts
+    , heap
+    , hint
+    , hoogle
+    , hspec
+    , hspec-discover
+    , html
+    , http-conduit
+    , http-types
+    , indents
+    , leancheck
+    , lens
+    , logict
+    , mtl
+    , packdeps
+    , parsec
+    , pqueue
+    , pretty-simple
+    , pretty-tree
+    , process
+    , random
+    , regex-compat
+    , regex-posix
+    , resourcet
+    , safe
+    , silently
+    , smallcheck
+    , sort
+    , split
+    , stm
+    , text
+    , time
+    , transformers
+    , transformers-compat
+    , unordered-containers
+    , uuid
+    , vector
+    , yaml
+    , z3
+  default-language: Haskell2010

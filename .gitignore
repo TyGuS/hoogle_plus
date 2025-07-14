@@ -30,7 +30,6 @@ build/distributions/
 tags
 .python-version
 .DS_Store
-HooglePlus.cabal
 webapp/static/tmp/*
 logs/
 stack.yaml.lock
