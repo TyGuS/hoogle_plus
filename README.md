@@ -124,19 +124,3 @@ stack exec -- hplus generate -p base  -p bytestring -m "Data.Word" -m "Data.Int"
 We have a Dockerfile configuration in the root directory.
 First go to the hoogle_plus repo and run `docker build --tag hoogleplus:latest .` to build a docker image.
 After the building finished, run `docker run -p 3000:3000 -p 5000:5000 -it hoogle-plus:latest`.
-
-## Developing inside a Container
-
-The project could be developed inside a docker container with [Visual Studio Code Remote][vscode-remote],
-which has a configured Haskell development environment powered by HIE.
-Configurations for the development environment can be found [here](/.devcontainer).
-
-Simply clone and open the project with Visual Studio Code, then select _Reopen in Container_ in the pop-up menu.
-After VSCode set up the pre-defined container, we may build the project and run its unit tests with
-```bash
-$ stack build && stack test
-```
-
-[vscode-remote]: <https://code.visualstudio.com/docs/remote/containers>
-
-

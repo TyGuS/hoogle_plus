@@ -21,7 +21,10 @@
     forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f system);
   in {
     packages = forAllSystems (system: let
-      pkgs-2003 = nixpkgs-2003.legacyPackages.${system};
+      pkgs-2003 = import nixpkgs-2003 {
+        inherit system;
+        config.allowBroken = true;
+      };
       ghc844-no-omit-yields = pkgs-2003.haskell.compiler.ghc844.overrideAttrs (old: {
         patches = old.patches ++ [./base-no-omit-yields.patch];
       });
@@ -39,6 +42,8 @@
       };
       hPkgs884 = pkgs.haskell.packages.ghc884;
     in {
+      inherit ghc844-no-omit-yields;
+
       hplus = hPkgs844.mkDerivation rec {
         pname = "HooglePlus";
         version = "0-unstable-20250713";
@@ -50,34 +55,34 @@
         buildDepends = with hPkgs844;
           [
             ChasingBottoms
+            MissingH
+            packdeps
+            smallcheck
+            yaml
+            vector
+            uuid
+            hoogle
+            aeson
+            ansi-terminal
+            ansi-wl-pprint
+            bimap
+            ghc-paths
+            heap
+            hint
+            html
+            indents
+            leancheck
+            lens
+            pqueue
+            pretty-simple
+            pretty-tree
+            safe
+            silently
+            sort
           ]
           ++ (
             with hPkgs884; [
               z3
-              packdeps
-              smallcheck
-              yaml
-              vector
-              uuid
-              hoogle
-              aeson
-              MissingH
-              ansi-terminal
-              ansi-wl-pprint
-              bimap
-              ghc-paths
-              heap
-              hint
-              html
-              indents
-              leancheck
-              lens
-              pqueue
-              pretty-simple
-              pretty-tree
-              safe
-              silently
-              sort
             ]
           );
       };
