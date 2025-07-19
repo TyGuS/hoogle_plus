@@ -40,6 +40,9 @@
         # Package versions consistent with lts-12.26
         haskell-src-exts = self.callHackage "haskell-src-exts" "1.20.3" {};
         hoogle = self.callHackage "hoogle" "5.0.17.3" {};
+
+        # quickcheck hangs at checkPhase in certain containers 
+        QuickCheck = pkgs-2003.haskell.lib.dontCheck super.QuickCheck;
       });
 
       pkgs = import nixpkgs {
